@@ -1848,7 +1848,8 @@ export async function generateRef(req: Omit<RefGenerateRequest, "ep">): Promise<
   if (!ep) return false;
   return withBusy(`refgen|${req.ref}`, async () => {
     try {
-      const r = await api().refsGenerate({ ...req, ep });
+      const backend = get().renderBackend || undefined;
+      const r = await api().refsGenerate({ ...req, ep, ...(backend ? { backend } : {}) });
       const learned: Record<string, RefTakeRef> = {};
       for (const q of r.queued) learned[q.prompt_id] = { ep, ref: q.ref, view: q.view ?? null, take: q.take };
       set((s) => ({ refPrompts: { ...s.refPrompts, ...learned } }));
@@ -1896,7 +1897,8 @@ export async function generateMissing(ask = true): Promise<void> {
           + `${plan.skipped.length ? `\n\n${plan.skipped.length} skipped (already queued, or can't be made here).` : ""}`
           + "\n\nEach becomes live automatically when it finishes (you can pick another candidate later).")) return;
       }
-      const r = await api().refsGenerateMissing({ ep, pass });
+      const backend = get().renderBackend || undefined;
+      const r = await api().refsGenerateMissing({ ep, pass, ...(backend ? { backend } : {}) });
       const learned: Record<string, RefTakeRef> = {};
       for (const q of r.queued) if (q.prompt_id && q.take != null) learned[q.prompt_id] = { ep, ref: q.ref, view: q.view ?? null, take: q.take };
       set((st) => ({

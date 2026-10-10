@@ -1341,6 +1341,8 @@ export interface RefGenerateRequest {
   pano?: { with?: string[]; engine?: "qwen" | "klein" } | null;
   /** P4: the picture's size, "WxH" (a 360's: 2:1) */
   size?: string | null;
+  /** seriesmith: make it on this backend (absent: its target's own). Only sent when set. */
+  backend?: string;
 }
 
 /** P5: one camera tour of a location (h3tour.py) */
@@ -1401,6 +1403,8 @@ export interface RefGenerateMissingRequest {
   keyframe_target?: string | null;
   /** plan only: the same shape, nothing queued (take / prompt_id null) */
   dry_run?: boolean;
+  /** seriesmith: make it on this backend (absent: its target's own). Only sent when set. */
+  backend?: string;
 }
 
 /** How Generate missing filled a ref: a generated candidate, a frame from the

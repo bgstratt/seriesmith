@@ -2894,12 +2894,33 @@ class InputCollector:
     would have gone up, under the name it would have had, so a portable graph
     (make_portable) can send each file as an input of the job instead."""
 
-    def __init__(self):
+    def __init__(self, keep_dir: str | None = None):
+        """`keep_dir`: copy each file there as it is "uploaded" -- for a caller
+        that removes its temporary files right after (refs' cropped views)."""
         self.files: dict[str, str] = {}
+        self.keep_dir = keep_dir
 
     def upload_input(self, path: str, name: str) -> str:
+        if self.keep_dir:
+            import shutil
+            os.makedirs(self.keep_dir, exist_ok=True)
+            kept = os.path.join(self.keep_dir, os.path.basename(name))
+            if not os.path.isfile(kept):
+                shutil.copyfile(path, kept)
+            path = kept
         self.files[name] = path
         return name
+
+
+def files_as_uploads(g: dict, files: dict[str, str]) -> None:
+    """Every input of `g` naming one of `files` (a name it would have had in
+    ComfyUI's input folder) becomes that local file, uploaded by the backend."""
+    from seriesmith.backends import File
+    for v in g.values():
+        ins = v.get("inputs") or {}
+        for k, val in list(ins.items()):
+            if isinstance(val, str) and val in files:
+                ins[k] = File(files[val])
 
 
 def stage_portable(job: Job, probe=None) -> dict:

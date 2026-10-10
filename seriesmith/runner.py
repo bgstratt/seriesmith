@@ -92,6 +92,81 @@ class Runner:
         self.queue.submit(qjob)
         return take, qjob.id
 
+    def enqueue_ref(self, s, job, base: dict | None, backend_name: str,
+                    lora_clip: bool = True) -> tuple[object, str]:
+        """A reference take (refs.GenJob: a character sheet, a plate, a
+        keyframe, a voice) staged, reserved and queued: its reference pictures
+        and voice sample go up as uploads, the workflow keeps its own
+        SaveImage / SaveAudio, and the file the backend hands back closes the
+        take (refs.close_take). Returns (the ref take, the queue's job id)."""
+        import os
+        import tempfile
+
+        from seriesmith import refs as R
+
+        backend = self.backends.get(backend_name)
+        if backend is None:
+            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
+        R.stage_references(s, job, collector)
+        R.stage_voice_reference(s, job, collector)
+        take = R.start_gen(s, job)
+        g = R.graph_for(base, job, take, lora_clip=lora_clip, portable=True)
+        J.files_as_uploads(g, collector.files)
+        savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio")]
+        want = "audio" if job.is_audio else "image"
+        ep = s.ep
+        title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"
+
+        def work(qjob: QJob, report) -> str:
+            def progress(p):
+                report(p.value, p.step, p.steps)
+            try:
+                run = backend.submit(g)
+                qjob.cancel_run = run.cancel
+                report(line=f"on {backend.name}: {run.id}")
+                T.update_sidecar(take.paths.sidecar, backend_job=run.id)
+                status = run.watch(on_progress=progress)
+                if status != "succeeded":
+                    raise RuntimeError(run.error or f"the job ended {status}")
+                outs = [o for o in run.outputs() if o.type == want]
+                outs = [o for o in outs if o.node in savers] or outs
+                if not outs:
+                    raise RuntimeError(f"the job finished but returned no {want}")
+                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
+                os.close(fd)
+                try:
+                    with open(outs[0].save(tmp), "rb") as fh:
+                        data = fh.read()
+                finally:
+                    os.remove(tmp)
+                ext = os.path.splitext(outs[0].name)[1].lower() if job.is_audio else None
+                result = R.close_take(take, data, f"from {backend.name}: {outs[0].name}", ext=ext)
+            except Exception as e:                       # noqa: BLE001  the take fails
+                R.mark_failed(take, "canceled" if qjob.cancel_asked else str(e)[:800])
+                qjob.error = str(e)[:800]
+                result = "failed"
+            report(line=f"take {result}")
+            self._emit("h3pipe.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
+                                      "take": take.take, "status": result})
+            self._emit("h3pipe.episode", {"ep": ep})
+            return "succeeded" if result == "ok" else (
+                "canceled" if qjob.cancel_asked else "failed")
+
+        def cancelled(qjob: QJob) -> None:
+            R.mark_failed(take, "canceled before it ran")
+            self._emit("h3pipe.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
+                                      "take": take.take, "status": "failed"})
+
+        qjob = QJob(kind="ref", lane=backend.name, title=title, work=work,
+                    info={"ep": ep, "ref": job.ref.id, "view": job.view, "take": take.take,
+                          "target": job.target.id, "backend": backend.name},
+                    on_cancel=cancelled)
+        R.mark_queued(take, qjob.id)
+        T.update_sidecar(take.paths.sidecar, backend=backend.name, queue="seriesmith")
+        self.queue.submit(qjob)
+        return take, qjob.id
+
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take
         from seriesmith import edit as E

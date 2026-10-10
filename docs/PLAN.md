@@ -222,8 +222,16 @@ go to the local ComfyUI directly, as in h3pipe, until step 8 moves them.
 ## Step 8 — each stage portable, continuity, deployments
 
 With the UI there to try each one:
-- [ ] Refs and the 360 tour through targets and backends: the image targets'
-      graphs portable, a portable ref saver; a Router image target.
+- [x] Refs through targets and backends: generating a ref (and Generate
+      missing) from the page goes on seriesmith's queue; the image or audio
+      target's workflow keeps its own SaveImage / SaveAudio, its reference
+      pictures and voice sample go up as uploads, and the file that comes back
+      closes the take (runner.Runner.enqueue_ref). Live 2026-10-10: a new
+      four-view sheet of Crane (ep02 scratch) on krea2, through the proxy,
+      ~15 s a view.
+- [ ] The 360 tour (h3tour) and kreagen's command line still queue on the
+      local ComfyUI directly.
+- [ ] A Router image target (with the live Router run).
 - [ ] Continuity across backends: `first: continuity` cut before staging;
       `continuous: latent` with the previous take's latent (or mp4) uploaded
       to a portable chain node.

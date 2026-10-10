@@ -2913,7 +2913,7 @@ def start_gen(s: Series, job: GenJob) -> RefTake:
         "note": job.note, **extra}, ext=".wav" if job.is_audio else ".png")
 
 
-def image_graph(base: dict, job: GenJob, sidecar: str | None) -> dict:
+def image_graph(base: dict, job: GenJob, sidecar: str | None, keep_save: bool = False) -> dict:
     """The API graph of one take on an image target other than krea2, or on
     any audio target: `base` (the target's workflow) with its SaveImage /
     SaveAudio replaced by the binding's saver (H3SaveRefTake, H3SaveRefAudio)
@@ -2921,13 +2921,20 @@ def image_graph(base: dict, job: GenJob, sidecar: str | None) -> dict:
     LoRAs, steps, seed, cfg, prompt, negative, the picture's size or the
     voice's length and frame rate, and the preset's other params), then the
     target's own graph code (an edit target's reference images, an audio
-    target's reference-audio chain: job.inputs), then pruned to the saver."""
+    target's reference-audio chain: job.inputs), then pruned to the saver.
+
+    `keep_save` (seriesmith's portable render): the workflow's own SaveImage /
+    SaveAudio stays, so whatever runs it hands the file back as an output, and
+    seriesmith closes the take (runner.Runner.enqueue_ref)."""
     t = job.target
     b = t.binding
     g = copy.deepcopy(base)
-    J.prepare_saver(g, b)
-    saver = J.node_of(g, b.saver_class)
-    g[saver]["inputs"]["sidecar"] = os.path.abspath(sidecar) if sidecar else ""
+    if keep_save and (b.saver.get("replace") or {}).get("class_type"):
+        saver = J.node_of(g, b.saver["replace"]["class_type"])
+    else:
+        J.prepare_saver(g, b)
+        saver = J.node_of(g, b.saver_class)
+        g[saver]["inputs"]["sidecar"] = os.path.abspath(sidecar) if sidecar else ""
     preset = t.presets.get("final")
     model = job.model or (preset.model if preset is not None else "")
     if model:
@@ -2955,7 +2962,7 @@ def image_graph(base: dict, job: GenJob, sidecar: str | None) -> dict:
 
 
 def graph_for(base: dict | None, job: GenJob, take: RefTake, save_node: bool = True,
-              lora_clip: bool = True) -> dict:
+              lora_clip: bool = True, portable: bool = False) -> dict:
     """The API graph for one take. krea2: `base` (a loaded krea2_refs_t2i
     workflow) patched with this job's values, or the built-in graph when
     `base` is None; with `save_node` the SaveImage becomes an H3SaveRefTake
@@ -2963,11 +2970,18 @@ def graph_for(base: dict | None, job: GenJob, take: RefTake, save_node: bool = T
     stays (prefix PREFIX) and the caller fetches the image (kreagen on an
     older node pack). The graph code is the image target's
     (targets/image/krea2/graph.py). Any other image target, and every audio
-    target: image_graph (its workflow is required)."""
+    target: image_graph (its workflow is required).
+
+    `portable` (seriesmith's queue): the plain SaveImage / SaveAudio stays and
+    nothing points at the take; its inputs are still the names staging gave
+    them (jobs.files_as_uploads makes them uploads)."""
+    if portable:
+        save_node = False
     if not job.is_krea2:
         if base is None:
             raise ValueError(f"{job.target.id} needs its workflow ({job.target.binding.workflow_name})")
-        return image_graph(base, job, take.paths.sidecar if save_node else None)
+        return image_graph(base, job, take.paths.sidecar if save_node else None,
+                           keep_save=portable)
     g = take_graph(base, job.prompt, job.negative, job.width, job.height, job.seed,
                    job.steps, job.cfg, job.model, job.loras,
                    take.paths.sidecar if save_node else None, lora_clip)
@@ -3181,7 +3195,7 @@ def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
 def queue_generate(s: Series, req: GenRequest, comfy, base=None,
                    save_node: bool = True, lora_clip: bool = True,
                    rng: random.Random | None = None, listing=None, resolve=None,
-                   cache=None) -> dict:
+                   cache=None, runner=None, backend: str | None = None) -> dict:
     """Plan, reserve and queue every take a request makes, without waiting.
 
     `base` is krea2's workflow (a graph, or None for the built-in one), or a
@@ -3224,6 +3238,23 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
                                       {k: m.get(k) for k in ("param", "tier", "want", "family",
                                                              "folder", "url", "source")}
                                       for m in blocked]})
+            continue
+        if runner is not None:
+            # seriesmith's queue: staged and reserved now, made on its backend
+            # (runner.Runner.enqueue_ref), the queue's job id as its prompt id
+            try:
+                g0 = graph_base(job.target)
+                name, _src, note = J.backend_choice({}, job.ref.id, job.target, backend, s.ep)
+                if note:
+                    job.notes.append(note)
+                take, qid = runner.enqueue_ref(s, job, g0, name, lora_clip=lora_clip)
+            except Exception as e:
+                out["errors"].append({"ref": job.ref.id, "view": job.view, "error": str(e)[:800]})
+                continue
+            out["queued"].append({"ref": job.ref.id, "view": job.view, "take": take.take,
+                                  "prompt_id": qid, "seed": job.seed,
+                                  "seed_source": job.seed_source, "target": job.target.id,
+                                  "backend": name})
             continue
         try:
             g0 = graph_base(job.target)
@@ -3511,7 +3542,8 @@ def missing_series(s: Series, pass_: str = "proxy") -> tuple[list[tuple[Ref, str
 def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS,
                      target: str | None = None, keyframe_target: str | None = None,
                      dry_run: bool = False, base=None, listing=None, resolve=None,
-                     cache=None, save_node: bool = True) -> dict:
+                     cache=None, save_node: bool = True, runner=None,
+                     backend: str | None = None) -> dict:
     """POST /h3pipe/refs/generate-missing: fill every missing ref at once,
     without waiting. Series refs (missing_series) get one candidate each
     (queue_generate, the image target `target` or each ref's default);
@@ -3540,7 +3572,7 @@ def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS
                         "method": method})
                 return
             res = queue_generate(s, req, comfy, base, save_node=save_node, listing=listing,
-                                 resolve=resolve, cache=cache)
+                                 resolve=resolve, cache=cache, runner=runner, backend=backend)
         except (RefError, UnknownRef) as e:
             out["errors"].append({"ref": ref.id, "view": view, "error": str(e)})
             return

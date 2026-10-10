@@ -464,7 +464,7 @@ export function createHttpApi(t: Transport): Api {
     refsGenerateMissing: (req) => {
       // only what's set: the server's defaults apply to the rest
       const body: Record<string, unknown> = { ep: req.ep };
-      for (const k of ["pass", "kinds", "target", "keyframe_target"] as const) if (req[k] != null) body[k] = req[k];
+      for (const k of ["pass", "kinds", "target", "keyframe_target", "backend"] as const) if (req[k] != null) body[k] = req[k];
       if (req.dry_run) body.dry_run = true;
       return call("POST", "/h3pipe/refs/generate-missing", body);
     },

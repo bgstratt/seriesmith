@@ -656,6 +656,20 @@ def _opt_target(v) -> str | None:
         raise ApiError(400, str(e))
 
 
+def _opt_backend(ctx: Context, body: dict) -> str | None:
+    """A request's `backend` (seriesmith's queue only): where its work runs,
+    or None for each job's own (jobs.backend_choice)."""
+    backend = body.get("backend") if isinstance(body, dict) else None
+    if backend is None:
+        return None
+    if not isinstance(backend, str) or J.backend_kind(backend) not in TG.BACKENDS:
+        raise ApiError(400, f"backend must be one of {', '.join(TG.BACKENDS)} "
+                            f"(deployment[:<target>]), not {backend!r}")
+    if ctx.runner is None:
+        raise ApiError(400, "this host renders on its own ComfyUI only")
+    return backend
+
+
 @handler
 def post_render(ctx: Context, body):
     body = body_dict(body)
@@ -688,13 +702,7 @@ def post_render(ctx: Context, body):
         raise ApiError(400, "save_latent must be true, false or null")
     # where every shot of this request renders (seriesmith's queue only;
     # absent: each shot's own, jobs.backend_choice)
-    backend = body.get("backend")
-    if backend is not None and (not isinstance(backend, str) or
-                                J.backend_kind(backend) not in TG.BACKENDS):
-        raise ApiError(400, f"backend must be one of {', '.join(TG.BACKENDS)} "
-                            f"(deployment[:<target>]), not {backend!r}")
-    if backend is not None and ctx.runner is None:
-        raise ApiError(400, "this host renders on its own ComfyUI only")
+    backend = _opt_backend(ctx, body)
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -2327,7 +2335,8 @@ def post_refs_generate(ctx: Context, body):
     try:
         result = R.queue_generate(s, req, ctx.comfy, base, save_node=True,
                                   listing=J.model_lister(ctx.comfy, ctx.model_choices),
-                                  resolve=ctx.model_resolve, cache=ctx.model_cache)
+                                  resolve=ctx.model_resolve, cache=ctx.model_cache,
+                                  runner=ctx.runner, backend=_opt_backend(ctx, body))
     except R.RefError as e:
         raise ApiError(400, str(e))
     except R.UnknownRef as e:
@@ -2622,7 +2631,9 @@ def post_refs_generate_missing(ctx: Context, body):
     listing = J.model_lister(ctx.comfy, ctx.model_choices)
     result = R.generate_missing(s, None if dry_run else ctx.comfy, pass_, kinds, target,
                                 keyframe_target, dry_run, base, listing=listing,
-                                resolve=ctx.model_resolve, cache=ctx.model_cache)
+                                resolve=ctx.model_resolve, cache=ctx.model_cache,
+                                runner=None if dry_run else ctx.runner,
+                                backend=_opt_backend(ctx, body))
     if not dry_run:
         for q in result["queued"]:
             ref_event(ctx, ep, q["ref"], q["view"], q["take"], "queued")
