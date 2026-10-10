@@ -850,6 +850,27 @@ def post_discard(ctx: Context, body):
 # upscale (Phase 13)
 # ---------------------------------------------------------------------------
 
+def finish_backend(ctx: Context, body: dict) -> str | None:
+    """Where an upscale or post runs: with seriesmith's queue, the request's
+    `backend` or this machine's own ComfyUI ("local"); None without it (queued
+    on ComfyUI directly)."""
+    if ctx.runner is None:
+        _opt_backend(ctx, body)                      # a `backend` here is a 400
+        return None
+    return _opt_backend(ctx, body) or "local"
+
+
+def still_queued(ctx: Context) -> set:
+    """The job ids still queued or running: ComfyUI's, and seriesmith's queue's."""
+    try:
+        alive = set(ctx.comfy.alive())
+    except Exception:
+        alive = set()
+    if ctx.runner is not None:
+        alive |= ctx.runner.queue.alive()
+    return alive
+
+
 def upscale_event(ctx: Context, ep: str, shot: str, take: int, status: str) -> None:
     ctx.emit("h3pipe.upscale", {"ep": ep, "shot": shot, "take": take, "status": status})
 
@@ -987,12 +1008,19 @@ def post_upscale(ctx: Context, body):
         if missing:
             raise ApiError(409, "this ComfyUI can't run these upscales: " + "; ".join(missing))
         bases: dict = {}
+        backend = finish_backend(ctx, body)
+        ids: dict = {}
         for up in jobs:
             try:
                 g = U.graph_of(up, bases, ctx.comfy_url)
                 U.start(up)
-                pid = ctx.comfy.queue(g)
-                U.mark_queued(up, pid)
+                if backend:
+                    from seriesmith import finishing as F
+                    pid = ids[up.shot] = ctx.runner.enqueue_finish(
+                        F.of_upscale(up, g), backend, after=U.waits_for(up, ids))
+                else:
+                    pid = ctx.comfy.queue(g)
+                    U.mark_queued(up, pid)
             except Exception as e:
                 if os.path.isfile(up.take.paths.up_sidecar):
                     U.mark_failed(up, str(e)[:800])
@@ -1106,11 +1134,16 @@ def queue_post(ctx: Context, body):
         missing = P.not_ready(jobs, info)
         if missing:
             raise ApiError(409, "this ComfyUI can't run these posts: " + "; ".join(missing))
+        backend = finish_backend(ctx, body)
         for job in jobs:
             try:
                 P.start(job)
-                pid = ctx.comfy.queue(P.post_graph(job))
-                P.mark_queued(job, pid)
+                if backend:
+                    from seriesmith import finishing as F
+                    pid = ctx.runner.enqueue_finish(F.of_post(job, P.post_graph(job)), backend)
+                else:
+                    pid = ctx.comfy.queue(P.post_graph(job))
+                    P.mark_queued(job, pid)
             except Exception as e:
                 if os.path.isfile(job.take.paths.post_sidecar):
                     P.mark_failed(job, str(e)[:800])
@@ -1182,10 +1215,7 @@ def delete_post(ctx: Context, query: dict):
         raise ApiError(404, f"{shot} take {n} has no post")
     pid = po.get("comfy_prompt_id")
     if po.get("status") == "queued" and pid:
-        try:
-            alive = ctx.comfy.alive()
-        except Exception:
-            alive = set()
+        alive = still_queued(ctx)
         if pid in alive:
             raise ApiError(409, f"{shot} take {n}'s post is still in ComfyUI's queue")
     for p in (t.paths.post_mp4, t.paths.post_sidecar):
@@ -1241,7 +1271,10 @@ def post_master(ctx: Context, body):
     out: dict = {}
     if action == "queue":
         try:
-            queued, errors = M.queue_master(plan, ctx.comfy, ctx.comfy_url, order)
+            backend = finish_backend(ctx, body)
+            queued, errors = M.queue_master(plan, ctx.comfy, ctx.comfy_url, order,
+                                            runner=ctx.runner if backend else None,
+                                            backend=backend)
         except M.MasterError as e:
             raise ApiError(409, str(e))
         for r in queued:
@@ -1448,10 +1481,7 @@ def delete_upscale(ctx: Context, query: dict):
         raise ApiError(404, f"{shot} take {n} has no upscale")
     pid = up.get("comfy_prompt_id")
     if up.get("status") == "queued" and pid:
-        try:
-            alive = ctx.comfy.alive()
-        except Exception:
-            alive = set()
+        alive = still_queued(ctx)
         if pid in alive:
             raise ApiError(409, f"{shot} take {n}'s upscale is still in ComfyUI's queue")
     for p in (t.paths.up_mp4, t.paths.up_sidecar):

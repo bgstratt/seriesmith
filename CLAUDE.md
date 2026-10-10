@@ -17,9 +17,10 @@ format.
 - `seriesmith/backends/` — where a job runs: local ComfyUI (via comfy-api-proxy), Cloud, deployments (`comfy.py`), Router (`router.py`), a fake for tests
 - `seriesmith/settings.py` — this machine's settings (backend URLs, API key); never the series config
 - `seriesmith/jobs.py`, `takes.py`, `render.py` — planning a take, its files and record, rendering through a backend (portable graphs)
+- `seriesmith/queue.py`, `runner.py`, `finishing.py` — the server's job queue, what puts renders, refs, upscales and posts on it, and the upscale/post graphs made portable when their job starts
 - the rest of h3pipe, ported as is: `refs`, `edit`, `source`, `promote`, `issues`, `tour`, `track`, `align`, `upscale`, `master`, `post`, `assemble`, `publish`, `inspector`, `kreagen`, `mksheet`; `api.py` (the editor's routes as functions); `h3cli.py` (h3.py's commands, reached as `seriesmith <command>`)
 - `seriesmith/helpers/` — PIL/numpy helpers run as subprocesses (sheets, tour stills, 360 canvas)
-- `comfy_nodes/` — seriesmith's ComfyUI node pack (the portable shot loader and saver); link it into ComfyUI's custom_nodes
+- `comfy_nodes/` — seriesmith's ComfyUI node pack (the portable shot loader and saver, the chain nodes, the upscale loaders and saver); link it into ComfyUI's custom_nodes
 
 ## Rules
 

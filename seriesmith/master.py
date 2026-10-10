@@ -399,12 +399,17 @@ def in_order(rows: list, order: str = "cut") -> list:
     return out
 
 
-def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut") -> tuple[list, list]:
+def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut", runner=None,
+                 backend: str | None = None) -> tuple[list, list]:
     """Queue the plan's `upscale` rows on ComfyUI, in cut order or grouped by
     what they load (in_order), and with --post the posts: an upscale row's
     right behind its upscale in cut order (after all the upscales when grouped
     by target), then the `post` rows. Returns (queued rows, [(row, error)]).
-    MasterError when this ComfyUI can't run them."""
+    MasterError when this ComfyUI can't run them.
+
+    `runner` (seriesmith's queue) and `backend`: each goes on the queue
+    instead (Runner.enqueue_finish), a post after its upscale and an upscale
+    that starts from the previous shot's upscale after that one."""
     ups = in_order(plan.of("upscale"), order)
     posts = plan.of("post")
     if not ups and not posts:
@@ -422,12 +427,22 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut") -> tuple
         raise MasterError("this ComfyUI can't run these: " + "; ".join(missing))
     bases: dict = {}
     queued, errors = [], []
+    up_ids: dict = {}                    # shot -> its upscale's queue job (runner)
+
+    def send(kind: str, job, g: dict, after: str | None = None) -> str:
+        from seriesmith import finishing as F
+        fin = F.of_upscale(job, g) if kind == "upscale" else F.of_post(job, g)
+        return runner.enqueue_finish(fin, backend, after=after)
 
     def queue_post(r: Row) -> bool:
         from seriesmith import post as P
         try:
             P.start(r.post_job)
-            P.mark_queued(r.post_job, comfy.queue(P.post_graph(r.post_job)))
+            g = P.post_graph(r.post_job)
+            if runner is not None:
+                send("post", r.post_job, g, after=up_ids.get(r.shot))
+            else:
+                P.mark_queued(r.post_job, comfy.queue(g))
             return True
         except Exception as e:
             if os.path.isfile(r.take.paths.post_sidecar):
@@ -439,7 +454,10 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut") -> tuple
         try:
             g = U.graph_of(r.job, bases, comfy_url)
             U.start(r.job)
-            U.mark_queued(r.job, comfy.queue(g))
+            if runner is not None:
+                up_ids[r.shot] = send("upscale", r.job, g, after=U.waits_for(r.job, up_ids))
+            else:
+                U.mark_queued(r.job, comfy.queue(g))
             r.status, r.why = "queued", "queued by this run"
             queued.append(r)
         except Exception as e:

@@ -1500,6 +1500,14 @@ def graph_of(up: UpscaleJob, bases: dict, comfy_url: str) -> dict:
     return upscale_graph(bases[up.target.id], up)
 
 
+def waits_for(up: UpscaleJob, queued: dict) -> str | None:
+    """The queue job (of `queued`: shot -> job id) this upscale waits for: the
+    previous shot's upscale it starts from (a continuity frame) or holds (a
+    continuous: latent tail), when it was queued in the same run."""
+    src = up.first_from or up.held_from
+    return queued.get(src.shot) if src is not None else None
+
+
 def describe(up: UpscaleJob) -> str:
     d = (f" -> {up.deliver[0]}x{up.deliver[1]} ({'cropped' if up.fit == 'crop' else 'padded'})"
          if up.deliver and tuple(up.deliver) != up.made_size else "")

@@ -240,7 +240,21 @@ With the UI there to try each one:
       runs in order: each job waits for the one it continues (queue `after`),
       on any lane. Live 2026-10-10: ep02 scratch, sq07 made a latent chain,
       sh140 then sh150 (proxy) on local: sh150 held sh140's last 39 frames.
-- [ ] Upscale, post and master portable (their nodes into seriesmith's pack).
+- [x] Upscale, post and master through the queue: from the page they go on
+      seriesmith's queue (runner.Runner.enqueue_finish). Their graphs are built
+      as before and made portable when the job starts (finishing.py): the
+      take's latent, frames, shotlist and keyframes go up as uploads, and
+      SeriesmithSaveUpscale (comfy_nodes/upscale.py) reports the .up.mp4, last
+      frame, latent and record, which come back beside the take. A continuity
+      shot's upscale and a `continuous: latent` take's hold use the previous
+      upscale if it has run by then (queue `after`); a post is stamped with
+      the upscale it started from. Live 2026-10-10, sh180 (ep02 scratch) on
+      local: a pixel upscale; an H3 latent re-sample whose frames and last
+      frame are identical to the old direct route; a post (fresh); a master
+      (the post waited for its upscale). The command-line upscale / post /
+      master still queue on ComfyUI directly, and the compute nodes
+      (H3PixelUpscale, H3FinishUpscale, H3HoldAudio, H3MotionBlur, ...) are
+      still h3pipe's (step 9).
 - [ ] Deployments, and the live Router run (both need a Comfy API key; not
       before there is a UI to drive them from).
 

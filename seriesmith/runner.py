@@ -200,6 +200,67 @@ class Runner:
         self.queue.submit(qjob)
         return take, qjob.id
 
+    def enqueue_finish(self, fin, backend_name: str, after: str | None = None) -> str:
+        """An upscale or a post (finishing.Finish, its record already started:
+        upscale.start / post.start) queued: when its job starts its graph is
+        made portable (finishing.portable: a continuity frame or a held latent
+        from the previous upscale if it has run by then), run on the backend,
+        and its files and record collected into the take. `after`: the queue
+        job it waits for (the upscale a post is made from, or the previous
+        shot's upscale this one starts from). Returns the queue's job id."""
+        from seriesmith import finishing as F
+
+        backend = self.backends.get(backend_name)
+        if backend is None:
+            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        ep, take = fin.root, fin.take
+        event = F.EVENTS[fin.kind]
+
+        def tell(status: str) -> None:
+            self._emit(event, {"ep": ep, "shot": take.shot, "take": take.take, "status": status})
+            self._emit("h3pipe.episode", {"ep": ep})
+
+        def work(qjob: QJob, report) -> str:
+            def progress(p):
+                report(p.value, p.step, p.steps)
+            try:
+                g, extra = F.portable(fin)
+                for n in fin.notes:
+                    report(line=n)
+                run = backend.submit(g)
+                qjob.cancel_run = run.cancel
+                report(line=f"on {backend.name}: {run.id}")
+                T.update_sidecar(fin.sidecar, backend_job=run.id)
+                status = run.watch(on_progress=progress)
+                result = F.collect(fin, run, J.node_of(g, F.SAVER), status, extra)
+                if result != "ok":
+                    qjob.error = str((T.read_sidecar(fin.sidecar) or {}).get("save_notes")
+                                     or f"the {fin.kind} ended {status}")[:800]
+            except Exception as e:                       # noqa: BLE001  the finish fails
+                F.mark_failed(fin, "canceled" if qjob.cancel_asked else str(e)[:800])
+                qjob.error = str(e)[:800]
+                result = "failed"
+            if qjob.cancel_asked and result != "ok":
+                F.mark_failed(fin, "canceled")
+            report(line=f"{fin.kind} {result}")
+            tell(result)
+            return "succeeded" if result == "ok" else (
+                "canceled" if qjob.cancel_asked else "failed")
+
+        def cancelled(qjob: QJob) -> None:
+            F.mark_failed(fin, "canceled before it ran")
+            tell("failed")
+
+        qjob = QJob(kind=fin.kind, lane=backend.name,
+                    title=f"{_ep_name(ep)} {fin.label} {fin.kind}", work=work,
+                    info={"ep": ep, "pass": take.pass_, "shot": take.shot, "take": take.take,
+                          "backend": backend.name},
+                    on_cancel=cancelled, after=after)
+        T.update_sidecar(fin.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
+                         queue="seriesmith")
+        self.queue.submit(qjob)
+        return qjob.id
+
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take
         from seriesmith import edit as E
