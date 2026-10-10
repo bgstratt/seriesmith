@@ -1,0 +1,547 @@
+"""H3SaveShot: thumbnails, and closing the take's sidecar per h3takes' contract.
+
+Runs the node outside ComfyUI. Needs torch, numpy and PIL (skipped without
+them); the tests that expect a real mp4 also need ffmpeg on PATH.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+try:
+    import numpy as np
+    import torch
+    from PIL import Image
+except ImportError as exc:                               # pragma: no cover
+    raise unittest.SkipTest(f"H3SaveShot tests need torch, numpy and PIL: {exc}")
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
+sys.path.insert(0, os.path.join(REPO, "comfy_nodes"))
+import h3_shotlist as N  # noqa: E402
+import h3render  # noqa: E402
+import h3takes as T  # noqa: E402
+
+HAVE_FFMPEG = shutil.which("ffmpeg") is not None
+needs_ffmpeg = unittest.skipUnless(HAVE_FFMPEG, "ffmpeg not on PATH")
+
+H, W = 48, 96                      # 2:1, so the scaled sizes are exact
+
+
+def clip(n: int) -> torch.Tensor:
+    """n frames whose red channel encodes the frame number (0 -> 0, n-1 -> 1)."""
+    x = torch.zeros((n, H, W, 3), dtype=torch.float32)
+    for i in range(n):
+        x[i, :, :, 0] = i / max(1, n - 1)
+        x[i, :, :, 1] = 0.5
+        x[i, :, :, 2] = 1.0 - i / max(1, n - 1)
+    return x
+
+
+class FakeNested:
+    """comfy.nested_tensor.NestedTensor's shape, for running outside ComfyUI."""
+    is_nested = True
+
+    def __init__(self, tensors):
+        self.tensors = list(tensors)
+
+    def unbind(self):
+        return self.tensors
+
+
+def fake_comfy_nested() -> dict:
+    """sys.modules entries that make `import comfy.nested_tensor` find FakeNested."""
+    import types
+    comfy = types.ModuleType("comfy")
+    nested = types.ModuleType("comfy.nested_tensor")
+    nested.NestedTensor = FakeNested
+    comfy.nested_tensor = nested
+    return {"comfy": comfy, "comfy.nested_tensor": nested}
+
+
+def red_of(n: int, i: int) -> float:
+    return 255.0 * i / max(1, n - 1)
+
+
+class SaveNodeTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def save(self, images, shot="sh020", take=1, subfolder="renders", **kw):
+        return N.H3SaveShot().save(images, shot, "generate", self.root, subfolder,
+                                   take, 24.0, False, audio=None, **kw)
+
+    def reserve(self, shot="sh020", **fields):
+        base = {"status": "queued", "queued": T.now(), "seed": 1743920155,
+                "prompt": "Riley — at the window, «quoted»", "target": T.DEFAULT_TARGET,
+                "comfy_prompt_id": "abc-123"}
+        base.update(fields)
+        return T.reserve_take(self.root, "final", shot, base)
+
+    def assert_strip(self, path, n):
+        idx = N.H3SaveShot.strip_indices(n)
+        with Image.open(path) as im:
+            self.assertEqual(im.size, (192 * len(idx), 96))
+            px = np.asarray(im.convert("RGB"), dtype=np.float32)
+        for j, i in enumerate(idx):
+            cell = px[20:76, j * 192 + 20:(j + 1) * 192 - 20]
+            self.assertAlmostEqual(float(cell[..., 0].mean()), red_of(n, i), delta=4,
+                                   msg=f"cell {j} should be frame {i}")
+
+    # -- the contract's pieces ---------------------------------------------
+
+    def test_strip_indices(self):
+        self.assertEqual(N.STRIP_FRAMES, T.STRIP_FRAMES)
+        self.assertEqual(N.H3SaveShot.strip_indices(24), [1, 4, 7, 10, 13, 16, 19, 22])
+        self.assertEqual(N.H3SaveShot.strip_indices(8), list(range(8)))
+        self.assertEqual(N.H3SaveShot.strip_indices(3), [0, 1, 2])
+        self.assertEqual(N.H3SaveShot.strip_indices(1), [0])
+        self.assertEqual(N.H3SaveShot.strip_indices(107)[0], 6)
+        self.assertEqual(N.H3SaveShot.strip_indices(107)[-1], 100)
+
+    def test_input_is_last_optional_with_empty_default(self):
+        """`sidecar` is the last optional *widget*, so saved workflows keep their
+        widget order; `latent`, `ref_info` and `chain` after it are links
+        (ref_info and chain forced inputs), which have no widget value."""
+        opt = N.H3SaveShot.INPUT_TYPES()["optional"]
+        widgets = [k for k, v in opt.items() if v[0] in ("STRING", "INT", "FLOAT", "BOOLEAN")
+                   and not (len(v) > 1 and v[1].get("forceInput"))]
+        self.assertEqual(widgets[-1], "sidecar")
+        self.assertEqual(opt["sidecar"], ("STRING", {"default": ""}))
+        self.assertEqual(list(opt)[-3:], ["latent", "ref_info", "chain"])
+        self.assertEqual(opt["latent"], ("LATENT",))
+        self.assertEqual(opt["ref_info"], ("STRING", {"forceInput": True}))
+        self.assertEqual(opt["chain"], ("STRING", {"forceInput": True}))
+
+    def test_loaded_refs_are_the_loaders_reference_lines(self):
+        info = "\n".join(["shot 3 of 5   —   sh030", "subjects: ella, cindy   size: cu",
+                          "RENDERED WITHOUT: Picture 2 (missing refs)", "refs:",
+                          "  ella (character) ella_ref.png [808x1080, whole]",
+                          "  background ballroom.png -> <Picture 4>", "seed: 7"])
+        self.assertEqual(N.loaded_refs(info), [
+            "RENDERED WITHOUT: Picture 2 (missing refs)",
+            "ella (character) ella_ref.png [808x1080, whole]",
+            "background ballroom.png -> <Picture 4>"])
+        self.assertEqual(N.loaded_refs(""), [])
+
+    def test_saved_workflow_still_converts(self):
+        path = os.path.join(REPO, "targets", "video", "minimax_h3_ref2va", "workflow.json")
+        with open(path, encoding="utf-8") as fh:
+            api = h3render.ui_to_api(json.load(fh))
+        savers = [v for v in api.values() if v["class_type"] == "H3SaveShot"]
+        self.assertEqual(len(savers), 1)
+        spec = N.H3SaveShot.INPUT_TYPES()
+        inputs = savers[0]["inputs"]
+        self.assertLessEqual(set(spec["required"]), set(inputs))
+        self.assertLessEqual(set(inputs), set(spec["required"]) | set(spec["optional"]))
+        self.assertNotIn("sidecar", inputs)
+        self.assertIsInstance(inputs["take"], int)
+        self.assertIsInstance(inputs["save_frames"], bool)
+
+    # -- behaviour ---------------------------------------------------------
+
+    @needs_ffmpeg
+    def test_no_sidecar(self):
+        shot_dir, status = self.save(clip(24))
+        self.assertIn("mp4 written", status)
+        tp = T.take_paths(self.root, "final", "sh020", 1)
+        self.assertEqual(os.path.normcase(shot_dir), os.path.normcase(tp.dir))
+        self.assertTrue(os.path.isfile(tp.mp4))
+        self.assertFalse(os.path.exists(tp.sidecar))
+        with Image.open(tp.thumb) as im:
+            self.assertEqual(im.format, "JPEG")
+            self.assertEqual(im.size, (480, 240))
+            mid = np.asarray(im.convert("RGB"), dtype=np.float32)[..., 0].mean()
+        self.assertAlmostEqual(float(mid), red_of(24, 12), delta=4)
+        self.assert_strip(tp.strip, 24)
+        self.assertEqual([f for f in os.listdir(tp.dir) if f.startswith(".tmp_")], [])
+
+    @needs_ffmpeg
+    def test_sidecar_finalised(self):
+        t = self.reserve()
+        self.assertEqual(t.status, "queued")
+        before = T.read_json(t.paths.sidecar)
+        _, status = self.save(clip(24), take=t.take, sidecar=t.paths.sidecar)
+
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual(sc["status"], "ok")
+        self.assertEqual(sc["frames"], 24)
+        self.assertEqual(sc["mp4"], "sh020_t01.mp4")
+        self.assertEqual(sc["thumb"], "sh020_t01.jpg")
+        self.assertEqual(sc["strip"], "sh020_t01_strip.jpg")
+        self.assertEqual(sc["save_notes"], status)
+        # what the saver spent, per step (docs/API.md; h3takes' SIDECAR notes):
+        # every step it ran is timed, in whole milliseconds, and `total` is their sum
+        ms = sc["save_ms"]
+        # only the steps that ran: this take has no audio and no PNG sequence
+        self.assertEqual(set(ms) - {"total"}, {"mp4", "thumb", "strip"})
+        self.assertTrue(all(isinstance(v, int) and v >= 0 for v in ms.values()), ms)
+        self.assertEqual(ms["total"], sum(v for k, v in ms.items() if k != "total"))
+        self.assertRegex(sc["finished"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$")
+        self.assertEqual(len(sc["finished"]), len(T.now()))
+        # every queuer field survives, unchanged
+        saver = {"status", "finished", "frames", "fps", "mp4", "thumb", "strip", "save_notes",
+                 "save_ms"}
+        for k, v in before.items():
+            if k not in saver:
+                self.assertEqual(sc[k], v, k)
+        self.assertEqual(set(sc), set(before) | saver)
+        # same bytes h3takes would write
+        with open(t.paths.sidecar, "rb") as fh:
+            raw = fh.read()
+        ref = os.path.join(self.root, "ref.json")
+        T.write_json(ref, sc)
+        with open(ref, "rb") as fh:
+            self.assertEqual(raw, fh.read())
+        self.assertNotIn(b"\r\n", raw)
+        self.assertIn("«quoted»".encode("utf-8"), raw)
+
+        takes = T.list_takes(self.root, "final", "sh020")
+        self.assertEqual([x.take for x in takes], [1])
+        self.assertTrue(takes[0].usable)
+        self.assertEqual(T.latest_usable(takes).take, 1)
+        self.assertEqual(T.sweep_queued(takes, alive=set()), [])
+
+    @needs_ffmpeg
+    def test_latent_kept_and_loads_back(self):
+        """Phase 13a: a linked latent is written beside the take, named in the
+        sidecar, and load_latent gives back the same joint AV latent."""
+        video, audio = torch.randn(1, 4, 3, 6, 12), torch.randn(1, 8, 20)
+        t = self.reserve()
+        _, status = self.save(clip(24), take=t.take, sidecar=t.paths.sidecar,
+                              latent={"samples": FakeNested((video, audio))})
+        self.assertIn("latent -> .latent.safetensors", status)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual(sc["latent"], "sh020_t01.latent.safetensors")
+        self.assertIn("latent", sc["save_ms"])
+        path = os.path.join(t.paths.dir, sc["latent"])
+        from safetensors import safe_open
+        with safe_open(path, framework="pt") as fh:
+            meta = fh.metadata()
+        self.assertEqual(meta["format"], N.LATENT_FORMAT)
+        self.assertEqual(meta["streams"], "video,audio")
+        self.assertEqual((meta["width"], meta["height"], meta["frames"]), (str(W), str(H), "24"))
+        with mock.patch.dict(sys.modules, fake_comfy_nested()):
+            back = N.load_latent(path)
+        self.assertTrue(torch.equal(back["samples"].tensors[0], video))
+        self.assertTrue(torch.equal(back["samples"].tensors[1], audio))
+        # it belongs to the take: discarding moves it with the rest
+        self.assertIn(path, T.stem_files(t.paths.dir, "sh020_t01"))
+
+    @needs_ffmpeg
+    def test_latent_failure_is_not_fatal(self):
+        t = self.reserve()
+        _, status = self.save(clip(24), take=t.take, sidecar=t.paths.sidecar,
+                              latent={"samples": object()})
+        self.assertIn("latent failed", status)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual(sc["status"], "ok")
+        self.assertNotIn("latent", sc)
+        self.assertEqual([f for f in os.listdir(t.paths.dir) if f.startswith(".tmp_")], [])
+
+    def test_plain_latent_loads_back_plain(self):
+        x = torch.randn(1, 16, 4, 8)
+        path = os.path.join(self.root, "x.latent.safetensors")
+        N.save_latent({"samples": x}, path, frames=1)
+        with mock.patch.dict(sys.modules, fake_comfy_nested()):
+            back = N.load_latent(path)
+        self.assertTrue(torch.equal(back["samples"], x))
+
+    @needs_ffmpeg
+    def test_piped_and_png_paths_agree(self):
+        """The piped encode (no PNG round trip) and the save_frames path, which
+        feeds ffmpeg the PNGs it just wrote, produce the same clip."""
+        piped, _ = self.save(clip(24), shot="sh040")
+        pngs = N.H3SaveShot().save(clip(24), "sh050", "generate", self.root, "renders",
+                                   1, 24.0, True, audio=None)[0]
+        for shot, folder in (("sh040", piped), ("sh050", pngs)):
+            tp = T.take_paths(self.root, "final", shot, 1)
+            self.assertTrue(os.path.isfile(tp.mp4), shot)
+            out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                                  "-count_frames", "-show_entries",
+                                  "stream=nb_read_frames,width,height",
+                                  "-of", "csv=p=0", tp.mp4],
+                                 capture_output=True, text=True)
+            if out.returncode == 0:                        # ffprobe ships with ffmpeg
+                self.assertEqual(out.stdout.strip().rstrip(","), f"{W},{H},24", shot)
+        # the piped path leaves nothing behind; save_frames keeps its sequence
+        self.assertFalse(os.path.isdir(os.path.join(piped, "frames")))
+        self.assertEqual(len(os.listdir(os.path.join(pngs, "frames"))), 24)
+
+    @needs_ffmpeg
+    def test_clone_keeps_its_sound_and_dub_is_mute(self):
+        """A clone take's mp4 carries H3's mix (the sampled voice is the shot's
+        real sound); a dub take's stays mute for the recording. Both keep _h3.wav."""
+        n = 24000
+        t = torch.arange(n, dtype=torch.float32) / 24000
+        audio = {"waveform": (torch.sin(2 * torch.pi * 220.0 * t) * 0.5).expand(1, 1, n).clone(),
+                 "sample_rate": 24000}
+        for shot, policy, want in (("sh060", "clone", True), ("sh070", "dub", False)):
+            N.H3SaveShot().save(clip(24), shot, policy, self.root, "renders",
+                                1, 24.0, False, audio=audio)
+            tp = T.take_paths(self.root, "final", shot, 1)
+            self.assertTrue(os.path.isfile(tp.h3_wav), policy)
+            out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a",
+                                  "-show_entries", "stream=codec_type", "-of", "csv=p=0", tp.mp4],
+                                 capture_output=True, text=True)
+            if out.returncode == 0:                        # ffprobe ships with ffmpeg
+                self.assertEqual(bool(out.stdout.strip()), want, policy)
+
+    def test_mp4_failure(self):
+        """A frame batch is piped to ffmpeg (no PNG round trip), so a failure
+        comes back through Popen rather than subprocess.run."""
+        t = self.reserve()
+
+        class Boom:
+            returncode = 1
+
+            def communicate(self, input=None, timeout=None):
+                return b"", b"boom: encoder exploded"
+
+        with mock.patch.object(N.subprocess, "Popen", return_value=Boom()):
+            _, status = self.save(clip(24), sidecar=t.paths.sidecar)
+        self.assertIn("ffmpeg failed", status)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual(sc["status"], "failed")
+        self.assertIsNone(sc["mp4"])
+        self.assertEqual(sc["thumb"], "sh020_t01.jpg")
+        self.assertEqual(sc["strip"], "sh020_t01_strip.jpg")
+        self.assertIn("boom", sc["save_notes"])
+        self.assertEqual(sc["seed"], 1743920155)
+        self.assertTrue(os.path.isfile(t.paths.thumb))
+        self.assert_strip(t.paths.strip, 24)
+
+        takes = T.list_takes(self.root, "final", "sh020")
+        self.assertEqual(takes[0].status, "failed")
+        self.assertIsNone(T.latest_usable(takes))
+
+    def test_missing_sidecar_is_created(self):
+        with mock.patch.object(N.H3SaveShot, "_encode",
+                               staticmethod(lambda *a: "ffmpeg not found - mp4 skipped")):
+            path = T.take_paths(self.root, "final", "sh030", 2).sidecar
+            _, status = self.save(clip(10), shot="sh030", take=2, sidecar=path)
+        self.assertIn("missing", status)
+        sc = T.read_json(path)
+        self.assertEqual(set(sc), {"shot", "take", "status", "finished", "frames", "fps",
+                                   "mp4", "thumb", "strip", "save_notes", "save_ms"})
+        self.assertEqual((sc["shot"], sc["take"]), ("sh030", 2))
+        self.assertEqual(sc["status"], "failed")
+        self.assertEqual(sc["frames"], 10)
+        self.assertIn("missing", sc["save_notes"])
+
+    def test_unreadable_sidecar_is_rewritten(self):
+        path = T.take_paths(self.root, "final", "sh030", 1).sidecar
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{not json")
+        with mock.patch.object(N.H3SaveShot, "_encode",
+                               staticmethod(lambda *a: "ffmpeg not found - mp4 skipped")):
+            _, status = self.save(clip(4), shot="sh030", sidecar=path)
+        self.assertIn("unreadable", status)
+        sc = T.read_json(path)
+        self.assertEqual((sc["shot"], sc["take"], sc["frames"]), ("sh030", 1, 4))
+
+    def test_mismatched_sidecar_still_updated_with_warning(self):
+        t = self.reserve(shot="sh010")
+        with mock.patch.object(N.H3SaveShot, "_encode",
+                               staticmethod(lambda *a: "ffmpeg not found - mp4 skipped")):
+            _, status = self.save(clip(4), shot="sh020", take=5, sidecar=t.paths.sidecar)
+        self.assertIn("warning", status)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual((sc["shot"], sc["take"]), ("sh010", 1))    # left alone
+        self.assertEqual(sc["frames"], 4)
+        self.assertIn("warning", sc["save_notes"])
+
+    @needs_ffmpeg
+    def test_relative_sidecar_path(self):
+        t = self.reserve()
+        rel = os.path.relpath(t.paths.sidecar, self.root)
+        self.assertFalse(os.path.isabs(rel))
+        self.save(clip(24), sidecar=rel)
+        self.assertEqual(T.read_json(t.paths.sidecar)["status"], "ok")
+        self.assertFalse(os.path.exists(os.path.join(os.getcwd(), rel)))
+
+    @needs_ffmpeg
+    def test_short_clip_uses_every_frame(self):
+        t = self.reserve()
+        self.save(clip(5), sidecar=t.paths.sidecar)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual((sc["status"], sc["frames"]), ("ok", 5))
+        self.assert_strip(t.paths.strip, 5)            # 5 cells, frames 0..4 in order
+        with Image.open(t.paths.thumb) as im:
+            mid = np.asarray(im.convert("RGB"), dtype=np.float32)[..., 0].mean()
+        self.assertAlmostEqual(float(mid), red_of(5, 2), delta=4)
+
+    def test_thumbnail_failure_never_raises(self):
+        t = self.reserve()
+        boom = mock.patch.object(N.H3SaveShot, "_save_jpeg",
+                                 staticmethod(mock.Mock(side_effect=OSError("disk full"))))
+        with boom, mock.patch.object(N.H3SaveShot, "_encode",
+                                     staticmethod(lambda *a: "mp4 written (mute)")):
+            open(t.paths.mp4, "wb").close()            # stand-in for the render
+            _, status = self.save(clip(6), sidecar=t.paths.sidecar)
+        self.assertIn("thumbnail failed: disk full", status)
+        self.assertIn("strip failed: disk full", status)
+        sc = T.read_json(t.paths.sidecar)
+        self.assertEqual(sc["status"], "ok")
+        self.assertEqual(sc["mp4"], "sh020_t01.mp4")
+        self.assertIsNone(sc["thumb"])
+        self.assertIsNone(sc["strip"])
+
+    def test_sidecar_write_failure_never_raises(self):
+        t = self.reserve()
+        with mock.patch.object(N, "_write_json_atomic", side_effect=PermissionError("locked")), \
+                mock.patch.object(N.H3SaveShot, "_encode",
+                                  staticmethod(lambda *a: "ffmpeg not found - mp4 skipped")):
+            _, status = self.save(clip(3), sidecar=t.paths.sidecar)
+        self.assertIn("sidecar update failed: locked", status)
+        self.assertEqual(T.read_json(t.paths.sidecar)["status"], "queued")
+
+    # -- the h3pipe.take event (docs/API.md) -------------------------------
+
+    def fake_server(self, send_sync):
+        server = type(sys)("server")
+        server.PromptServer = type("PromptServer", (), {})
+        server.PromptServer.instance = mock.Mock(send_sync=send_sync)
+        return mock.patch.dict(sys.modules, {"server": server})
+
+    def test_take_event_after_the_sidecar_closes(self):
+        t = T.reserve_take(self.root, "proxy", "sh020", {"status": "queued"})
+        sent = mock.Mock()
+        with self.fake_server(sent), mock.patch.object(
+                N.H3SaveShot, "_encode", staticmethod(lambda *a: "mp4 written (mute)")):
+            open(t.paths.mp4, "wb").close()
+            self.save(clip(6), subfolder="renders_proxy", sidecar=t.paths.sidecar)
+        sent.assert_called_once_with("h3pipe.take", {
+            "ep": os.path.abspath(self.root), "pass": "proxy", "shot": "sh020", "take": 1,
+            "status": "ok", "thumb": "renders_proxy/sh020/sh020_t01.jpg"})
+
+    def test_take_event_never_affects_saving(self):
+        t = self.reserve()
+        with self.fake_server(mock.Mock(side_effect=RuntimeError("socket gone"))), \
+                mock.patch.object(N.H3SaveShot, "_encode",
+                                  staticmethod(lambda *a: "ffmpeg not found - mp4 skipped")):
+            _, status = self.save(clip(3), sidecar=t.paths.sidecar)
+        self.assertEqual(T.read_json(t.paths.sidecar)["status"], "failed")
+        self.assertNotIn("socket", status)
+        # no sidecar, no event
+        sent = mock.Mock()
+        with self.fake_server(sent), mock.patch.object(
+                N.H3SaveShot, "_encode", staticmethod(lambda *a: "mp4 written (mute)")):
+            self.save(clip(3), take=2)
+        sent.assert_not_called()
+
+
+class SaveRefAudioTest(unittest.TestCase):
+    """H3SaveRefAudio (docs/API.md "Phase 9c-B"): the wav a voice-ref take
+    gets, and the sidecar it closes."""
+
+    RATE = 48000
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+        self.sidecar = os.path.join(self.root, "voice__ada_t01.json")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def audio(self, seconds=1.5, channels=1, batch=1):
+        n = int(self.RATE * seconds)
+        t = torch.arange(n, dtype=torch.float32) / self.RATE
+        wave = torch.sin(2 * torch.pi * 220.0 * t) * 0.5
+        return {"waveform": wave.expand(batch, channels, n).clone(),
+                "sample_rate": self.RATE}
+
+    def write_sidecar(self, **fields):
+        data = {"version": 1, "ref": "voice:ada", "view": None, "take": 1,
+                "ep": self.root, "status": "queued", "image": "voice__ada_t01.wav"}
+        data.update(fields)
+        with open(self.sidecar, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        return self.sidecar
+
+    def save(self, audio=None, sidecar=None):
+        return N.H3SaveRefAudio().save(audio if audio is not None else self.audio(),
+                                       self.sidecar if sidecar is None else sidecar)
+
+    def test_writes_a_wav_and_closes_the_sidecar(self):
+        import wave
+        self.write_sidecar()
+        out = self.save()
+        self.assertIn("ok", out["result"][0])
+        wav = os.path.join(self.root, "voice__ada_t01.wav")
+        self.assertTrue(os.path.isfile(wav))
+        with wave.open(wav, "rb") as w:
+            self.assertEqual((w.getnchannels(), w.getsampwidth(), w.getframerate()),
+                             (1, 2, self.RATE))
+            self.assertEqual(w.getnframes(), int(self.RATE * 1.5))
+            frames = w.readframes(w.getnframes())
+        self.assertGreater(max(abs(v) for v in
+                               np.frombuffer(frames, dtype="<i2")[:2000]), 1000)
+        data = json.loads(open(self.sidecar, encoding="utf-8").read())
+        self.assertEqual((data["status"], data["image"]), ("ok", "voice__ada_t01.wav"))
+        self.assertAlmostEqual(data["duration"], 1.5, places=3)
+        self.assertEqual((data["sample_rate"], data["channels"]), (self.RATE, 1))
+        self.assertIn("voice__ada_t01.wav 1.50s", data["save_notes"])
+        # every other field is left alone
+        self.assertEqual(data["ref"], "voice:ada")
+
+    def test_stereo_and_a_batch(self):
+        self.write_sidecar()
+        self.save(self.audio(0.5, channels=2, batch=3))
+        data = json.loads(open(self.sidecar, encoding="utf-8").read())
+        self.assertEqual((data["status"], data["channels"]), ("ok", 2))
+        self.assertIn("3 clips in the batch; kept the first", data["save_notes"])
+
+    def test_extension_and_missing_sidecar(self):
+        # the sidecar's `image` always becomes .wav
+        self.write_sidecar(image="voice__ada_t01.png")
+        self.save()
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "voice__ada_t01.wav")))
+        self.assertEqual(json.loads(open(self.sidecar, encoding="utf-8").read())["image"],
+                         "voice__ada_t01.wav")
+        # no sidecar at all: nothing is written, nothing is raised
+        out = N.H3SaveRefAudio().save(self.audio(), "")
+        self.assertIn("no sidecar given", out["result"][0])
+        # a sidecar that isn't there yet is created
+        os.remove(self.sidecar)
+        self.save()
+        data = json.loads(open(self.sidecar, encoding="utf-8").read())
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("sidecar was missing; created", data["save_notes"])
+
+    def test_failure_is_recorded_not_raised(self):
+        self.write_sidecar()
+        with mock.patch.object(N, "save_audio", side_effect=RuntimeError("no disk")):
+            out = self.save()
+        self.assertIn("failed", out["result"][0])
+        data = json.loads(open(self.sidecar, encoding="utf-8").read())
+        self.assertEqual((data["status"], data["image"]), ("failed", None))
+        self.assertIn("no disk", data["save_notes"])
+        self.assertFalse([f for f in os.listdir(self.root) if f.endswith(".wav")])
+
+    def test_ref_event(self):
+        self.write_sidecar()
+        sent = mock.Mock()
+        server = type(sys)("server")
+        server.PromptServer = type("PromptServer", (), {})
+        server.PromptServer.instance = mock.Mock(send_sync=sent)
+        with mock.patch.dict(sys.modules, {"server": server}):
+            self.save()
+        sent.assert_called_once_with("h3pipe.ref", {
+            "ep": self.root, "ref": "voice:ada", "view": None, "take": 1, "status": "ok"})
+
+
+if __name__ == "__main__":
+    unittest.main()
