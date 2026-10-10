@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Episode projects: series configs and scripts are yours, generated output is not
+shotlist/
+refs/
+views/
+renders/
+renders_proxy/
+refs_todo.md
+refs_todo.json
+refs_todo_proxy.md
+refs_todo_proxy.json
+
+# Media
+*.mp4
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.png
+*.jpg
+*.jpeg
+!examples/**/*.png
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Golden tests: the goldens are generated but committed on purpose. Real
+# episodes used as fixtures stay local.
+!tests/golden/**
+tests/local/
+
+# Claude Code agent worktrees
+.claude/worktrees/

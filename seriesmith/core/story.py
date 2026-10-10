@@ -1,0 +1,482 @@
+"""
+h3core.story — the script parser: epNN.md text + the series config's ids -> story IR.
+
+    parse_story(text, subject_ids, character_ids, series, variants) -> ir.Episode
+    parse_script(text, subject_ids, character_ids, variants)        -> dict (legacy)
+
+`parse_script` is the original parser and still returns the dict h3align and
+the H3 compile code were written against. `parse_story` runs the same parser,
+records each sequence's header line and each shot's line span, and converts the
+result into the IR. The format itself is docs/AUTHORING.md.
+
+Validation here is only what the script alone can decide (unknown names, bad
+windows, malformed lines). Anything that depends on a model -- frame limits,
+reference slots, audio policies -- is the target's job.
+"""
+
+from __future__ import annotations
+
+import re
+
+from .ir import Episode, Line, Sequence, Shot
+from . import framing
+from .speech import SPEECH_RATE
+
+META_KEYS = {"who", "cast", "with", "props", "size", "audio", "dur", "duration",
+             "camera", "sound", "music", "policy", "continuous", "text",
+             "pace", "plate", "retention", "model", "lora", "steps", "extras",
+             "target", "profile", "first", "last", "overlap"}
+SIZES = framing.ALIASES          # every name `size:` takes (h3core/framing.py)
+
+# Voice-only delivery markers. A speaker tagged with one of these is NOT added
+# to the visible cast: they cost no reference slot and are never drawn. Without
+# this, a phone voice from another house burns a slot and gets rendered into
+# frame as a full character.
+VO_TOKENS = {"vo", "voiceover", "voover"}
+OS_TOKENS = {"os", "offscreen"}
+
+# `first:` / `last:` (a shot's keyframes, or a sequence's default): how each is
+# filled, or a path to an image to use. `none`: no keyframe, even when the
+# shot's video target could read one. `continuity` is what `continuous: first`
+# means for the first keyframe; written as `first: continuity` it is the old
+# form, read as `continuous: first` (docs/CONTINUOUS.md).
+KEYFRAME_METHODS = ("continuity", "generate", "import", "none")
+CONTINUOUS_VALUES = ("first", "latent", "none")
+LEGACY_TRUE = ("yes", "true", "1", "on")
+MAX_OVERLAP = 360
+KEYFRAME_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+
+# The script's `retention:` words -> the IR's neutral `preserve`.
+PRESERVE = {"fully_copy": "strict", "partially_copy": "loose", "reference": "style"}
+
+
+class ScriptError(Exception):
+    def __init__(self, line_no: int, line: str, msg: str):
+        super().__init__(f"line {line_no}: {msg}\n    | {line.strip()}")
+        # the parts, for callers that show the line number beside the text
+        self.line_no, self.line, self.msg = line_no, line, msg
+
+
+def _norm_token(tok: str) -> str:
+    return re.sub(r"[^a-z]", "", tok.lower())
+
+
+def split_parenthetical(text: str) -> tuple[str, str]:
+    """Return (mode, delivery) from a dialogue parenthetical.
+
+    mode is "vo", "os" or "" (on screen). Everything that is not a voice
+    marker stays as the delivery direction, so `(V.O., into phone)` yields
+    ("vo", "into phone").
+    """
+    mode, keep = "", []
+    for part in (p.strip() for p in (text or "").split(",")):
+        if not part:
+            continue
+        t = _norm_token(part)
+        if t in VO_TOKENS:
+            mode = "vo"
+        elif t in OS_TOKENS:
+            mode = mode or "os"
+        else:
+            keep.append(part)
+    return mode, ", ".join(keep)
+
+
+# ---------------------------------------------------------------------------
+# The parser
+# ---------------------------------------------------------------------------
+
+def _parse(text: str, subject_ids: set[str], character_ids: set[str],
+           variants: dict[str, str] | None = None
+           ) -> tuple[dict, list[int], dict[str, tuple[int, int]]]:
+    """(episode dict, header line per sequence, shot id -> (first, last) line).
+
+    A shot's span runs from its `##` header to the last line that belongs to it
+    (meta, dialogue or action); blank and comment lines after that are not part
+    of it. Line numbers are 1-based, as in error messages.
+
+    `variants` is {variant id: the id it is a variant of}
+    (h3core.series_config.variant_of): with it, a shot whose cast names a
+    variant takes its base's dialogue (`GINA:` where `who: gina_towel`). See
+    `_bind_variants`. Without it a script parses exactly as it always did.
+    """
+    ep = {"id": None, "title": "", "sequences": []}
+    seq = None
+    shot = None
+    upper = {c.upper(): c for c in character_ids}
+    first_line: dict[str, int] = {}     # shot id -> line it was first used on
+    seq_lines: list[int] = []
+    spans: dict[str, tuple[int, int]] = {}
+
+    def close_shot():
+        nonlocal shot
+        if shot is not None:
+            shot["action"] = " ".join(shot["_action"]).strip()
+            del shot["_action"]
+            if not shot["action"] and not shot["dialogue"]:
+                raise ScriptError(shot["_line"], f"## {shot['id']}",
+                                  f"shot '{shot['id']}' has no action and no dialogue")
+            # after the whole shot is read: `who:` may come before or after the
+            # lines it re-owns.
+            _bind_variants(shot, variants or {})
+            shot.pop("_auto_cast", None)
+            spans[shot["id"]] = (shot.pop("_line"), shot.pop("_end"))
+            seq["shots"].append(shot)
+            shot = None
+
+    for n, raw in enumerate(text.splitlines(), start=1):
+        line = raw.rstrip()
+        if not line.strip() or line.strip().startswith("//"):
+            continue
+
+        # ---- episode header ---------------------------------------------
+        if line.startswith("= "):
+            parts = line[2:].split(None, 1)
+            ep["id"] = parts[0]
+            ep["title"] = parts[1].strip() if len(parts) > 1 else ""
+            continue
+
+        # ---- sequence ----------------------------------------------------
+        if line.startswith("# ") and not line.startswith("## "):
+            close_shot()
+            parts = line[2:].split()
+            if len(parts) < 2:
+                raise ScriptError(n, line, "sequence needs an id and a location: `# sq01 street`")
+            seq = {"id": parts[0], "location_key": parts[1],
+                   "continuous": None, "shots": [], "_legacy": []}
+            ep["sequences"].append(seq)
+            seq_lines.append(n)
+            continue
+
+        # ---- shot --------------------------------------------------------
+        if line.startswith("## "):
+            if seq is None:
+                raise ScriptError(n, line, "shot appears before any `# sequence`")
+            close_shot()
+            sid = line[3:].strip().split()[0]
+            # Renders, takes, overrides and the cut are all keyed by shot id,
+            # so a repeat (even in another sequence) would share one render
+            # folder.
+            if sid in first_line:
+                raise ScriptError(n, line, f"shot id '{sid}' is already used on line "
+                                           f"{first_line[sid]}; shot ids must be unique "
+                                           f"in an episode")
+            first_line[sid] = n
+            shot = {"id": sid, "cast": [], "props": [], "size": "medium",
+                    "dialogue": [], "_action": [], "_line": n, "_end": n,
+                    "_auto_cast": []}
+            continue
+
+        if seq is None:
+            raise ScriptError(n, line, "content before the first `# sequence`")
+        if shot is not None:
+            shot["_end"] = n
+
+        # ---- dialogue: NAME: line   /   NAME (delivery): line -------------
+        m = re.match(r"^([A-Z][A-Z0-9_ '\-]*?)\s*(?:\(([^)]*)\))?\s*:\s*(.+)$", line)
+        if m:
+            name = m.group(1).strip()
+            if name.upper() not in upper:
+                # An ALL-CAPS "NAME:" line is unambiguously an attempt at
+                # dialogue. Falling through would silently fold it into the
+                # action prose, so a typo'd or non-speaking name must be caught
+                # here rather than shipped into a prompt as narration.
+                lower = name.lower()
+                if lower in subject_ids:
+                    raise ScriptError(
+                        n, line,
+                        f"'{lower}' is a {'prop' if lower not in upper.values() else 'subject'} "
+                        f"in series.json, not a character — only characters can speak. "
+                        f"Change its kind to 'character', or write this as action.")
+                raise ScriptError(
+                    n, line,
+                    f"'{name}' is not a character in series.json "
+                    f"({', '.join(sorted(upper.values()))}). Typo, or write it as action.")
+        if m and m.group(1).strip().upper() in upper:
+            if shot is None:
+                raise ScriptError(n, line, "dialogue outside a `## shot`")
+            who = upper[m.group(1).strip().upper()]
+            mode, delivery = split_parenthetical(m.group(2))
+            shot["dialogue"].append({
+                "who": who, "mode": mode,
+                "delivery": delivery,
+                "line": m.group(3).strip(),
+            })
+            # Only an on-screen speaker joins the visible cast.
+            if not mode and who not in shot["cast"]:
+                shot["cast"].append(who)
+                shot["_auto_cast"].append(who)
+            continue
+
+        # ---- key: value --------------------------------------------------
+        m = re.match(r"^([a-z_]+)\s*:\s*(.*)$", line)
+        if m and m.group(1) in META_KEYS:
+            key, val = m.group(1), m.group(2).strip()
+            target = shot if shot is not None else seq
+
+            if key == "continuous":
+                v = val.strip().lower()
+                if shot is None and v in LEGACY_TRUE:
+                    # the old sequence flag: the chaining `latent` now names
+                    seq["continuous"] = "latent"
+                    seq["_legacy"].append(
+                        f"line {n}: `continuous: {val.strip()}` under # {seq['id']} is the old "
+                        f"form: write `continuous: latent` (it chains each shot onto the one "
+                        f"before), or `continuous: first` (each opens on the previous shot's "
+                        f"last frame, on H3 FL2VA)")
+                elif v not in CONTINUOUS_VALUES:
+                    raise ScriptError(
+                        n, line,
+                        f"`continuous: {val.strip()}` must be first (open on the previous "
+                        f"shot's last frame), latent (hold the previous take's latent) or none")
+                elif shot is not None:
+                    shot["continuous"] = v      # a real line beats an old `first: continuity`
+                else:
+                    seq["continuous"] = None if v == "none" else v
+            elif key == "overlap":
+                try:
+                    ov = int(val.strip())
+                except ValueError:
+                    ov = 0
+                if not 1 <= ov <= MAX_OVERLAP:
+                    raise ScriptError(n, line, f"`overlap: {val.strip()}` must be a whole number "
+                                               f"of frames, 1 to {MAX_OVERLAP}")
+                target["overlap"] = ov
+            elif key in ("size", "audio", "dur", "duration", "pace") and shot is None:
+                raise ScriptError(n, line, f"`{key}:` outside a `## shot`")
+            elif key in ("who", "cast", "with", "props"):
+                if shot is None:
+                    raise ScriptError(n, line, f"`{key}:` outside a `## shot`")
+                names = [c.strip() for c in val.split(",") if c.strip()]
+                for c in names:
+                    if c not in subject_ids:
+                        raise ScriptError(n, line,
+                                          f"'{c}' is not in series.json's subjects "
+                                          f"({', '.join(sorted(subject_ids))})")
+                bucket = "cast" if key in ("who", "cast") else "props"
+                merged: list[str] = []
+                for c in names + shot[bucket]:
+                    if c not in merged:
+                        merged.append(c)
+                shot[bucket] = merged
+                # named here, so no longer just someone a line put on screen
+                shot["_auto_cast"] = [c for c in shot["_auto_cast"] if c not in names]
+            elif key == "size":
+                if not framing.is_size(val):
+                    raise ScriptError(n, line, f"size '{val}' isn't a shot size: {framing.describe()}")
+                shot["size"] = val.lower()
+            elif key == "audio":
+                m2 = re.match(r"^([\d.]+)\s*-\s*([\d.]+)$", val)
+                if not m2:
+                    raise ScriptError(n, line, "audio window must look like `3.10-7.40`")
+                a, b = float(m2.group(1)), float(m2.group(2))
+                if b <= a:
+                    raise ScriptError(n, line, f"audio window ends ({b}) before it starts ({a})")
+                shot["audio_in"], shot["audio_out"] = a, b
+            elif key in ("dur", "duration"):
+                v = val.strip().lower()
+                if v == "auto":
+                    shot["duration_auto"] = True
+                elif v == "model" or v.startswith("model "):
+                    shot["duration_model"] = _model_clamp(v[len("model"):].strip(), n, line)
+                else:
+                    try:
+                        shot["duration"] = float(val)
+                    except ValueError:
+                        raise ScriptError(
+                            n, line,
+                            f"duration '{val}' is not a number, `auto` or `model`")
+            elif key in ("first", "last"):
+                method = _keyframe_method(key, val, n, line)
+                if key == "first" and method == "continuity":
+                    # the old form of `continuous: first`
+                    where = f"shot {shot['id']}" if shot is not None else f"# {seq['id']}"
+                    target.setdefault("_legacy", []).append(
+                        f"line {n}: `first: continuity` on {where} is the old form: write "
+                        f"`continuous: first`")
+                    if target.get("continuous") is None:
+                        target["continuous"] = "first"
+                else:
+                    target[key] = method
+            elif key == "pace":
+                if val.strip().lower() not in SPEECH_RATE:
+                    raise ScriptError(n, line,
+                                      f"pace '{val}' must be one of "
+                                      f"{sorted(SPEECH_RATE)}")
+                shot["pace"] = val.strip().lower()
+            else:
+                target[key] = val
+            continue
+
+        # ---- action prose -------------------------------------------------
+        if shot is None:
+            if seq is not None and not seq["shots"]:
+                continue          # scene-setting prose under a sequence header
+            raise ScriptError(n, line, "action text outside a `## shot`")
+        shot["_action"].append(line.strip())
+
+    close_shot()
+    if not ep["id"]:
+        raise ScriptError(1, "", "script needs an episode header: `= ep01  Title`")
+    if not ep["sequences"]:
+        raise ScriptError(1, "", "script has no sequences")
+    return ep, seq_lines, spans
+
+
+def _bind_variants(shot: dict, variants: dict[str, str]) -> None:
+    """Give a shot's dialogue to the variant that is actually in it.
+
+    A wardrobe variant is its own subject (`gina_towel`, `of: gina`), but the
+    script keeps calling the character by name: `who: gina_towel` with a
+    `GINA:` line. Left alone, the base and the variant would be two people —
+    the base joining the cast as a second entry, burning a reference slot, and
+    the target labelling the speaker as an off-screen voice because the id in
+    the cast isn't the id that spoke. So every line of the base's in a shot
+    where a variant of theirs is on screen is rebound to the variant, and the
+    base is dropped from the cast when a line is all that put it there.
+
+    Errors (at the shot's header, since `who:` and the lines can be anywhere in
+    it): two variants of one subject in one shot, or a subject and its own
+    variant.
+    """
+    if not variants:
+        return
+    present: dict[str, list[str]] = {}          # base id -> its variants in this shot
+    for s in shot["cast"] + shot["props"]:
+        base = variants.get(s)
+        if base:
+            present.setdefault(base, []).append(s)
+    if not present:
+        return
+    line_no, line = shot["_line"], f"## {shot['id']}"
+    for base, vs in present.items():
+        if len(vs) > 1:
+            raise ScriptError(line_no, line,
+                              f"shot '{shot['id']}' has {' and '.join(sorted(vs))} in it, and "
+                              f"they are both variants of '{base}': one subject is in one "
+                              f"state per shot. Cut the shot where the change happens.")
+        v = vs[0]
+        if base in shot["cast"] or base in shot["props"]:
+            if base in shot["_auto_cast"]:
+                shot["cast"].remove(base)       # only a line put them there: it was the variant
+            else:
+                raise ScriptError(line_no, line,
+                                  f"shot '{shot['id']}' names both '{base}' and its variant "
+                                  f"'{v}': they are the same subject, so name one of them.")
+        for d in shot["dialogue"]:
+            if d["who"] == base:
+                d["who"] = v
+
+
+def _keyframe_method(key: str, val: str, n: int, line: str) -> str:
+    """`first:` / `last:`: one of KEYFRAME_METHODS (lower-cased), or a path to
+    an image (kept as written)."""
+    v = val.strip()
+    if v.lower() in KEYFRAME_METHODS:
+        return v.lower()
+    if v and v.lower().endswith(KEYFRAME_EXTS):
+        return v
+    raise ScriptError(n, line, f"`{key}: {v}` must be generate, import, none or a path to "
+                               f"an image ({', '.join(KEYFRAME_EXTS)}); a shot that opens on the "
+                               f"previous shot's last frame says `continuous: first`")
+
+
+def _model_clamp(spec: str, n: int, line: str) -> dict:
+    """`dur: model`'s optional clamp, `3-8` (seconds): {"min", "max"}, or {}."""
+    if not spec:
+        return {}
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$", spec)
+    if not m:
+        raise ScriptError(n, line, f"`dur: model {spec}`: the clamp must look like "
+                                   f"`dur: model 3-8` (min-max seconds)")
+    lo, hi = float(m.group(1)), float(m.group(2))
+    if lo <= 0 or hi <= lo:
+        raise ScriptError(n, line, f"`dur: model {spec}`: needs 0 < min < max seconds")
+    return {"min": lo, "max": hi}
+
+
+def parse_script(text: str, subject_ids: set[str], character_ids: set[str],
+                 variants: dict[str, str] | None = None) -> dict:
+    """Parse the screenplay-flavoured script into an episode structure (the
+    legacy dict: what h3align reads). `variants`: see `_parse`."""
+    return _parse(text, subject_ids, character_ids, variants)[0]
+
+
+# ---------------------------------------------------------------------------
+# Parser dict -> IR
+# ---------------------------------------------------------------------------
+
+def _overrides(d: dict, unparsed: dict) -> dict:
+    """`model:` / `lora:` / `steps:` as written. An empty value means "not set",
+    as it always has. A steps value that isn't an integer goes to `unparsed`."""
+    out = {"model": d.get("model") or None, "lora": d.get("lora") or None, "steps": None}
+    if "steps" in d:
+        try:
+            out["steps"] = int(d["steps"])
+        except (TypeError, ValueError):
+            unparsed["steps"] = d["steps"]
+    return out
+
+
+def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int]) -> Shot:
+    unparsed: dict = {}
+    if "audio_in" in sh:
+        timing = {"audio_in": sh["audio_in"], "audio_out": sh["audio_out"]}
+    elif sh.get("duration_model") is not None:
+        timing = {"model": True, **sh["duration_model"]}
+    elif sh.get("duration_auto"):
+        timing = {"auto": True}
+    elif "duration" in sh:
+        timing = {"seconds": sh["duration"]}
+    else:
+        timing = None
+    ret = (sh.get("retention") or "").strip().lower()
+    preserve = PRESERVE.get(ret)
+    if ret and preserve is None:
+        unparsed["preserve"] = sh["retention"]
+    overrides = _overrides(sh, unparsed)
+    return Shot(
+        id=sh["id"], cast=list(sh["cast"]), props=list(sh["props"]),
+        plate=sh.get("plate") or seq["location_key"], size=sh["size"],
+        camera=sh.get("camera") or None, action=sh["action"],
+        dialogue=[Line(speaker=d["who"], mode=d["mode"] or "on",
+                       delivery=d["delivery"], line=d["line"]) for d in sh["dialogue"]],
+        sound=sh.get("sound") or None, music=sh.get("music") or None,
+        extras=sh.get("extras") or None, text=sh.get("text") or None,
+        timing=timing, pace=sh.get("pace"), audio=sh.get("policy") or None,
+        preserve=preserve, seed_key=f"{ep_id}/{seq['id']}/{sh['id']}",
+        overrides=overrides, source={"line": span[0], "end_line": span[1]},
+        unparsed=unparsed, target=sh.get("target") or None,
+        profile=sh.get("profile") or None, first=sh.get("first") or None,
+        last=sh.get("last") or None, continuous=sh.get("continuous") or None,
+        overlap=sh.get("overlap"), legacy=list(sh.get("_legacy") or []))
+
+
+def episode_from_parsed(ep: dict, seq_lines: list[int],
+                        spans: dict[str, tuple[int, int]],
+                        series: dict | None = None) -> Episode:
+    sequences = []
+    for seq, line in zip(ep["sequences"], seq_lines):
+        unparsed: dict = {}
+        overrides = _overrides(seq, unparsed)
+        sequences.append(Sequence(
+            id=seq["id"], location=seq["location_key"], continuous=seq["continuous"] or None,
+            overlap=seq.get("overlap"), legacy=list(seq.get("_legacy") or []),
+            overrides=overrides, source={"line": line},
+            shots=[_shot_ir(ep["id"], seq, sh, spans[sh["id"]]) for sh in seq["shots"]],
+            unparsed=unparsed, target=seq.get("target") or None,
+            profile=seq.get("profile") or None, first=seq.get("first") or None,
+            last=seq.get("last") or None))
+    return Episode(id=ep["id"], title=ep["title"], series=dict(series or {}),
+                   sequences=sequences)
+
+
+def parse_story(text: str, subject_ids: set[str], character_ids: set[str],
+                series: dict | None = None,
+                variants: dict[str, str] | None = None) -> Episode:
+    """Parse a script into the story IR. `series` ({fps, width, height}, from
+    series_config.series_info) is carried on the episode header; `variants`
+    ({variant id: base id}, from series_config.variant_of) binds a base's
+    dialogue to the variant on screen. See `_parse`."""
+    ep, seq_lines, spans = _parse(text, subject_ids, character_ids, variants)
+    return episode_from_parsed(ep, seq_lines, spans, series)

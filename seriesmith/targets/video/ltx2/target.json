@@ -1,0 +1,215 @@
+{
+  "id": "ltx2",
+  "kind": "video",
+  "label": "LTX-2.5 distilled (text / keyframes to video + audio)",
+  "short": "LTX-2",
+  "code": "compile.py",
+
+  "capabilities": {
+    "_note": "duration: predict. LTX 2.4+ has a duration head: `dur: model` shots get ComfyUI's ModelPatchLoader (the preset's duration_head file, from models/model_patches) + LTXVDurationPredictor, whose num_frames (8k+1) drives every length input of the graph. The build writes an estimate (the dialogue's `dur: auto` length, else the preset's default_seconds); without the weights installed the take renders that estimate and says so.",
+    "duration": "predict"
+  },
+
+  "template": {
+    "_note": "LTX-2 renders 8k+1 frames (9, 17, ..., 97, ...). This workflow is two-stage: a base pass at half size, then the x2 latent upsampler and a refine pass, so the output must be a multiple of 64 (the base latent needs 32). Sizes that aren't legal are snapped down, then shrunk under 1 MP / 1536 on the long side. The frame rate is the series config's. LTX-2 handles about 20 s per shot.",
+    "fps": "series",
+    "default_fps": 24,
+    "frames": {"step": 8, "base": 1, "max": 481},
+    "size_multiple": 64,
+    "size_fit": "snap",
+    "max_size": {"long_side": 1536, "pixels": 1048576}
+  },
+
+  "recipe": {
+    "_note": "Subjects are written in words from the series config's `design`, the location from its `description`; when the shot's refs are on disk AND the ingredients IC-LoRA is installed they are ALSO shown on a reference sheet (reference_sheet below), which is decided at queue time, never at build time, so a shotlist is what it always was. Optional shot keyframes: shot:<id>:first conditions frame 0 (LTXVImgToVideoInplace), shot:<id>:last the final frame (LTXVAddGuide). A shot with neither renders text-to-video. LTX-2 makes the soundtrack with the picture and takes no voice sample or recording, so clone / dub / dub_keep_foley shots render with generate and say so.",
+    "policies": ["generate"],
+    "policy_fallback": {"to": "generate", "why": "LTX-2 generates sound with the picture and takes no voice sample or recording"},
+    "keyframes": ["first", "last"],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "keyframe_strength": {"first": 0.7, "first_refine": 1.0, "last": 1.0},
+    "prompt": "prose",
+    "reference_sheet": {
+      "_note": "The ltx2_ingredients sheet, on LTX-2.5: one panel per element, characters first (the face panel of a 4-panel sheet on a single-character close-up, else the three-quarter body panel), then props and vehicles, then the location plate, tiled on black at the render size (comfy_nodes/h3_refsheet.py, through targets/video/ltx2_ingredients/sheet.py). Unlike ltx2_ingredients, every panel is OPTIONAL here: a missing file drops that element from the sheet, and a shot left with none renders exactly as ltx2 always did. `min_frames` is the model card's floor for the looped reference video (121 frames): the guide can't be longer than the clip, so a shorter shot only earns a note that identity may weaken. `stages` are the sampling stages that get the guide (1 = the base pass, 2 = the refine pass). `strength` is the model card's default (the weights ship pre-scaled).",
+      "take_suffix": "_refsheet.png",
+      "background": "black",
+      "gap": 0.02,
+      "sheet_panels": 4,
+      "views": {"body": 0, "face": 3},
+      "face_sizes": ["close", "cu", "mcu", "ecu"],
+      "strength": 1.0,
+      "guide_strength": 1.0,
+      "min_frames": 121,
+      "stages": [1],
+      "prompt": "reference sheet + prose",
+      "refs": {
+        "character": {"kind": "character sheet", "shape": "sheet", "views": 4},
+        "object": {"kind": "{kind} reference", "shape": "object"},
+        "location": {"kind": "background plate", "shape": "plate"}
+      }
+    },
+    "sampling": {
+      "_note": "Which sampling schedule each transformer wants, chosen at queue time from the file the job loads (`match`, globs on the file name). `distilled` is the workflow's own and patches nothing: a fixed 8-step base ManualSigmas plus a 3-step refine at cfg 1, so `steps` is recorded, not used. `dev` is the quality profile: patch_graph swaps the base stage's ManualSigmas for an LTXVScheduler at the shot's `steps` and sets both stages' guiders and samplers. Where the numbers come from: ComfyUI's LTX-2 dev templates (video_ltx2_t2v.json runs the dev checkpoint through LTXVScheduler 20 / 2.05 / 0.95 / stretch / terminal 0.1 with CFGGuider 4 on the base stage and 1 on the refine), the LTX-2.5 model card (the distilled file is the fixed 8-step cfg-1 one; dev takes variable steps and guidance), and the live 97-frame runs of one shot at 768x512 on 2026-09-19 recorded in docs/API.md 'LTX-2.5: the quality profile and ingredients references'. Two of those settings are in no template and were decided there: `scheduler.latent` (the base stage's own video latent goes into LTXVScheduler, so its shift follows the shot's token count; without it the node assumes 4096 tokens, shifts as if the latent were far bigger, and the clip comes out soft and painterly) and `euler_ancestral` (plain `euler`, which the LTX-2 dev templates use on a checkpoint carrying the distilled LoRA, came out soft with mangled hands on every cfg tried; ancestral is also what the distilled 2.5 workflow uses). The refine block is the workflow's own refine, written out so the take records it.",
+      "default": "distilled",
+      "modes": {
+        "distilled": {"match": ["*distilled*"]},
+        "dev": {
+          "match": ["*dev*"],
+          "label": "the quality profile (LTX-2.5 dev transformer)",
+          "steps": 30,
+          "sampler": "euler_ancestral",
+          "video_cfg": 4.0,
+          "audio_cfg": 4.0,
+          "scheduler": {"class_type": "LTXVScheduler", "max_shift": 2.05, "base_shift": 0.95,
+                        "stretch": true, "terminal": 0.1, "latent": true},
+          "refine": {"sigmas": "0.85, 0.7250, 0.4219, 0.0", "sampler": "euler_ancestral",
+                     "video_cfg": 1.0, "audio_cfg": 1.0},
+          "with_sheet": {
+            "_note": "What changes when the same shot also draws a reference sheet. The IC-LoRA reads the sheet as frames IN CONTEXT with the clip, and an ancestral sampler re-injects noise over those frames too: on the dev transformer at real guidance that speckles the figure and makes it come and go (three live runs). Plain euler holds it. Guidance also has to come down — ComfyUI's ingredients graph advises cfg near 1, and the dev model needs more than 1 to resolve at all, so 3.0 is the live compromise. Even so, distilled + sheet is the cleaner picture of the two: the take says so.",
+            "sampler": "euler",
+            "video_cfg": 3.0,
+            "audio_cfg": 3.0,
+            "refine": {"sigmas": "0.85, 0.7250, 0.4219, 0.0", "sampler": "euler",
+                       "video_cfg": 1.0, "audio_cfg": 1.0}
+          }
+        }
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size (any size works: it is resized to the frame)"
+    }
+  },
+
+  "binding": {
+    "_note": "The workflow is ComfyUI's LTX-2.5 image-to-video template (a subgraph, flattened by h3jobs.ui_to_api). Every value is patched straight into a widget: there is no loader node, so a text-only shot needs no custom node beyond H3SaveShot, which takes the place of CreateVideo/SaveVideo. The prompt enhancer (TextGenerateLTX2Prompt) is never used: the prompt goes into the positive CLIPTextEncode, and prune drops the enhancer with everything else the saver doesn't need.",
+    "workflow": "workflow.json",
+    "workflow_name": "h3pipe_ltx2_5.json",
+    "env": "H3_LTX2_WORKFLOW",
+    "saver": {"class_type": "H3SaveShot",
+              "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
+                         "sidecar": "sidecar"},
+              "replace": {"class_type": "CreateVideo", "inputs": {"images": "images", "audio": "audio"}},
+              "drop": ["SaveVideo", "PreviewAny"],
+              "set": {"save_frames": false},
+              "latent": {"class_type": "SamplerCustomAdvanced", "output": 0, "upstream_of": "images"}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                "strength": "strength_model", "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
+      "seed": [{"class_type": "RandomNoise", "field": "noise_seed", "all": true}],
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "feeds": ["LTXVConditioning", "positive"]},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "feeds": ["LTXVConditioning", "negative"]},
+      "width": {"class_type": "EmptyLTXVLatentVideo", "field": "width", "scale": 0.5},
+      "height": {"class_type": "EmptyLTXVLatentVideo", "field": "height", "scale": 0.5},
+      "length": [{"class_type": "EmptyLTXVLatentVideo", "field": "length"},
+                 {"class_type": "LTXVEmptyLatentAudio", "field": "frames_number"}],
+      "fps": [{"class_type": "LTXVConditioning", "field": "frame_rate"},
+              {"class_type": "LTXVEmptyLatentAudio", "field": "frame_rate"},
+              {"class_type": "H3SaveShot", "field": "fps"}],
+      "shot_id": {"class_type": "H3SaveShot", "field": "shot_id"},
+      "audio_policy": {"class_type": "H3SaveShot", "field": "audio_policy"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name", "feeds": ["CLIPTextEncode", "clip"]},
+      "video_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["VAEDecodeTiled", "vae"]},
+      "audio_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["LTXVAudioVAEDecode", "audio_vae"]},
+      "upscaler": {"class_type": "LatentUpscaleModelLoader", "field": "model_name"}
+    },
+    "duration_predictor": {
+      "_note": "For `dur: model` (capabilities.duration): h3jobs.graph_for adds ModelPatchLoader + LTXVDurationPredictor, reading the model and positive conditioning that feed these inputs, and links its num_frames into every `length` widget above.",
+      "model": {"class_type": "LTXVDualCFGGuider", "input": "model"},
+      "positive": {"class_type": "LTXVConditioning", "input": "positive"}
+    },
+    "review_nodes": []
+  },
+
+  "models": {
+    "_note": "The family each model param must be (targets/modelid.py): names first, then the file's header (LTX files carry model_version; 2.5's transformer also has keyframes_abs_pos_embedding and no video feed-forward biases). The 2.3 and 2.5 upscalers share every tensor and have no metadata: only the name tells them apart. duration_head is a preset value, not a binding widget: ModelPatchLoader reads it from models/model_patches; quality_model and reference_lora are neither — they have no preset value and no widget of their own, only a `default`, so readiness (targets.wanted_files) and `h3.py targets` can say whether the two extras are installed. Tiers (docs/API.md): the duration head, the dev transformer and the ingredients IC-LoRA are optional (without one, only its feature is off); everything else is required. No base: the preset is already the distilled model with the workflow's fixed 8 + 3 step schedule, and the dev model needs another schedule (recipe.sampling), so a substitute must say `distilled` like the wanted file (`keep`).",
+    "model": {"family": "ltx2.5", "patterns": ["ltx-2.5*", "*ltx*2.5*", "*ltx*2_5*"], "tier": "required",
+              "keep": ["(?<![a-z])(distilled|dev)(?![a-z])"], "exclude": ["*lora*"]},
+    "text_encoder": {"family": "ltx2.5-text-encoder", "patterns": ["*gemma*4*ltx*2.5*"], "tier": "required"},
+    "video_vae": {"family": "ltx2.5-video-vae", "patterns": ["*ltx*2.5*video*vae*"], "tier": "required"},
+    "audio_vae": {"family": "ltx2.5-audio-vae", "patterns": ["*ltx*2.5*audio*vae*"], "tier": "required"},
+    "upscaler": {"family": "ltx2.5-latent-upscaler", "patterns": ["*ltx*2.5*upscal*"], "tier": "required",
+                 "keep": ["(spatial|temporal)", "[_-](x\\d+(?:\\.\\d+)?)"]},
+    "duration_head": {"family": "ltx2.5-duration-head", "patterns": ["*ltx*2.5*duration*"],
+                      "folder": "model_patches", "class_type": "ModelPatchLoader", "field": "name",
+                      "tier": "optional", "feature": "dur: model (duration head)"},
+    "quality_model": {"family": "ltx2.5", "patterns": ["ltx-2.5*", "*ltx*2.5*", "*ltx*2_5*"],
+                      "folder": "diffusion_models", "class_type": "UNETLoader", "field": "unet_name",
+                      "tier": "optional", "keep": ["(?<![a-z])(distilled|dev)(?![a-z])"],
+                      "exclude": ["*lora*"],
+                      "default": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
+                      "feature": "the quality profile (LTX-2.5 dev transformer)"},
+    "reference_lora": {"family": "ltx2.5-ic-lora-ingredients",
+                       "patterns": ["*ltx*2*5*ic*lora*ingredients*"],
+                       "folder": "loras", "class_type": "LTXICLoRALoaderModelOnly",
+                       "field": "lora_name", "tier": "optional",
+                       "default": "ltx-2.5-22b-ic-lora-ingredients-0.9.safetensors",
+                       "feature": "reference sheets (LTX-2.5 ingredients IC-LoRA)"}
+  },
+
+  "nodes": {
+    "_note": "Node classes beyond the workflow's own: the keyframe conditioning patch_graph adds (ComfyUI core), the duration predictor `dur: model` adds, the reference sheet adds (ComfyUI-LTXVideo's two IC-LoRA nodes, as ComfyUI's LTX-2.5 ingredients template wires them, plus two core image nodes) and the quality profile adds (LTXVScheduler, core). All four extras are optional: without their nodes only that feature is off.",
+    "LoadImage": {}, "LTXVPreprocess": {}, "LTXVAddGuide": {}, "LTXVCropGuides": {},
+    "ModelPatchLoader": {"tier": "optional", "feature": "dur: model (duration head)"},
+    "LTXVDurationPredictor": {"tier": "optional", "feature": "dur: model (duration head)"},
+    "LTXVScheduler": {"tier": "optional", "feature": "the quality profile (LTX-2.5 dev transformer)"},
+    "LTXICLoRALoaderModelOnly": {"tier": "optional",
+                                 "feature": "reference sheets (LTX-2.5 ingredients IC-LoRA)"},
+    "LTXAddVideoICLoRAGuide": {"tier": "optional",
+                               "feature": "reference sheets (LTX-2.5 ingredients IC-LoRA)"},
+    "RepeatImageBatch": {"tier": "optional",
+                         "feature": "reference sheets (LTX-2.5 ingredients IC-LoRA)"},
+    "ResizeAndPadImage": {"tier": "optional",
+                          "feature": "reference sheets (LTX-2.5 ingredients IC-LoRA)"}
+  },
+
+  "presets": {
+    "_note": "LTX-2.5 22B distilled (int8): a fixed 8-step base schedule plus a 3-step refine (the workflow's ManualSigmas; `steps` is recorded, not patched). The final is the workflow's 768x512 unless the series config sets a size; the proxy is 448x256. Both use the same model: the distilled model is already fast. The negative prompt is the IC-LoRA model card's suggestion plus the artefacts a review cut can't use; the template's own ('pc game, ..., cartoon, childish') would fight a cartoon series' look. For `dur: model` (capabilities): duration_head is the LTX-2.5 duration head in models/model_patches (not in the shotlist's defaults; checked at queue time), default_seconds the estimate of a silent shot, min_seconds/max_seconds the predictor's range when the script gives none.",
+    "final": {
+      "model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "lora": null, "steps": 8, "width": 768, "height": 512,
+      "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
+      "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "video_vae": "ltx-2.5-video-vae-bf16.safetensors",
+      "audio_vae": "ltx-2.5-audio-vae-bf16.safetensors",
+      "upscaler": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+      "duration_head": "ltx-2.5-duration-head-bf16.safetensors",
+      "default_seconds": 5.0, "min_seconds": 1.0, "max_seconds": 20.0
+    },
+    "proxy": {
+      "lora": null, "steps": 8, "width": 448, "height": 256,
+      "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
+      "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "video_vae": "ltx-2.5-video-vae-bf16.safetensors",
+      "audio_vae": "ltx-2.5-audio-vae-bf16.safetensors",
+      "upscaler": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
+      "duration_head": "ltx-2.5-duration-head-bf16.safetensors",
+      "default_seconds": 5.0, "min_seconds": 1.0, "max_seconds": 20.0
+    }
+  },
+
+  "upscale": {
+    "_note": "h3upscale.py: the render graph is already two-stage, so an upscale is its second stage run again on the take: the take's latent through the graph's own LTXVLatentUpsampler (2x, the `upscaler` model param), its audio held, and the stage's ManualSigmas cut to the tail from `start` (0.875 of its 3 steps: the last, from 0.42). No new nodes or files.",
+    "mode": "second_stage",
+    "scale": 2,
+    "steps": 3,
+    "start": 0.875,
+    "align": 32,
+    "upsampler": {"class_type": "LTXVLatentUpsampler", "input": "samples"},
+    "sigmas": {"class_type": "ManualSigmas", "field": "sigmas"},
+    "encode_audio": {"class_type": "LTXVAudioVAEEncode", "audio": "audio", "vae": "audio_vae"}
+  },
+
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, ComfyUI-Manager's model list, or (the ingredients IC-LoRA, which neither lists) the file listing of the model's own Hugging Face repo, read from the Hub API; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors", "source": "ComfyUI-Manager model list (\"LTX-2.5 22B Dev Transformer Comfy INT8\")"},
+    "ltx-2.5-22b-ic-lora-ingredients-0.9.safetensors": {"folder": "loras", "url": "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Ingredients/resolve/main/ltx-2.5-22b-ic-lora-ingredients-0.9.safetensors", "source": "the Hugging Face repo Lightricks/LTX-2.5-22b-IC-LoRA-Ingredients, whose file listing (Hub API, 2026-09-19) has this one weights file"},
+    "ltx-2.5-audio-vae-bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-duration-head-bf16.safetensors": {"folder": "model_patches", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/model_patches/ltx-2.5-duration-head-bf16.safetensors", "source": "ComfyUI-Manager model list (user/__manager/cache/4245046894_model-list.json: \"LTX-2.5 Duration Head BF16\")"},
+    "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors": {"folder": "latent_upscale_models", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-video-vae-bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"}
+  }
+}

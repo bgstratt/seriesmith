@@ -1,0 +1,144 @@
+{
+  "id": "ltx2_ingredients",
+  "kind": "video",
+  "label": "LTX-2.3 ingredients (character/plate refs)",
+  "short": "LTX+refs",
+  "code": "compile.py",
+
+  "template": {
+    "_note": "The IC-LoRA was trained on one bucket: 768x448, 121 frames, 24 fps (model card, and the workflow's notes). A shot renders its own length on the 8k+1 grid, from 49 frames (2 s) to 481 (20 s): the reference video is the sheet looped (RepeatImageBatch) to exactly the shot's frame count, and the only hard rule, in ComfyUI's LTXVAddGuide, is that a guide is no longer than the output. Lengths other than 121 are outside the IC-LoRA's training, so the build warns (identity may weaken) but renders them; a shot longer than 20 s must be split. Sizes are multiples of 32 (one sampling stage, no upscaler).",
+    "fps": 24,
+    "frames": {"step": 8, "base": 49, "max": 481},
+    "size_multiple": 32,
+    "size_fit": "snap",
+    "max_size": {"long_side": 1536, "pixels": 1048576}
+  },
+
+  "recipe": {
+    "_note": "One reference sheet per shot, composed at queue time from the picked (live) ref files: one panel per element, in order, characters (ONE panel of each 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise, as the H3 loader picks), then props and vehicles, then the location plate, at the render size, no text: the panels tile the whole sheet in rows or columns with thin black lines between them and no black bands around it (a sheet framed by black bars rendered a letterboxed shot); the plate is cropped to fill its cell, a figure only at the sides (to 60% of its width at most), the rest of its cell black. The sheet loops to a static video (RepeatImageBatch) that conditions the whole clip through LTXVAddGuide + the ingredients IC-LoRA. Every ref is required, like H3's pictures; rendering anyway drops the missing elements from the sheet and from the prompt's `Reference sheet:` half (they stay described in words), and a shot with no refs at all renders text-only (no sheet, no IC-LoRA). LTX makes the soundtrack with the picture: clone / dub / dub_keep_foley render with generate and say so.",
+    "reference_sheet": {
+      "take_suffix": "_refsheet.png",
+      "background": "black",
+      "gap": 0.02,
+      "sheet_panels": 4,
+      "views": {"body": 0, "face": 3},
+      "face_sizes": ["close", "cu", "mcu", "ecu"]
+    },
+    "ic_lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+    "trained_frames": 121,
+    "policies": ["generate"],
+    "policy_fallback": {"to": "generate", "why": "LTX-2 generates sound with the picture and takes no voice sample or recording"},
+    "prompt": "reference sheet + prose",
+    "refs": {
+      "character": {"kind": "character sheet", "shape": "sheet", "views": 4},
+      "object": {"kind": "{kind} reference", "shape": "object"},
+      "location": {"kind": "background plate", "shape": "plate"}
+    },
+    "size_hints": {
+      "character sheet": "4096x1024 or larger (horizontal 4-panel strip)",
+      "prop reference": "1024x1024 or larger",
+      "vehicle reference": "1024x1024 or larger",
+      "background plate": "1344x768 (any landscape size: it becomes one panel of the sheet)"
+    }
+  },
+
+  "binding": {
+    "_note": "The workflow is ComfyUI's LTX-2.3 IC-LoRA ingredients template (a subgraph, flattened by h3jobs.ui_to_api). Every value is patched into a widget; the sheet reaches the template's LoadImage through POST /upload/image, then RepeatImageBatch (length frames) and ResizeAndPadImage (the render size, black) make the static reference video. H3SaveShot takes the place of CreateVideo/SaveVideo, and prune drops what it doesn't need: the prompt enhancer (TextGenerateLTX2Prompt, its Gemma LoRA and switch), the size/length maths and the previews. The checkpoint name goes to all three of the template's loaders (model, audio VAE, text encoder).",
+    "workflow": "workflow.json",
+    "workflow_name": "h3pipe_ltx2_3_ingredients.json",
+    "env": "H3_LTX2_INGREDIENTS_WORKFLOW",
+    "saver": {"class_type": "H3SaveShot",
+              "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
+                         "sidecar": "sidecar"},
+              "replace": {"class_type": "CreateVideo", "inputs": {"images": "images", "audio": "audio"}},
+              "drop": ["SaveVideo", "PreviewAny", "PreviewImage"],
+              "set": {"save_frames": false},
+              "latent": {"class_type": "KSampler", "output": 0}},
+    "prune": true,
+    "params": {
+      "model": [{"class_type": "CheckpointLoaderSimple", "field": "ckpt_name"},
+                {"class_type": "LTXVAudioVAELoader", "field": "ckpt_name"},
+                {"class_type": "LTXAVTextEncoderLoader", "field": "ckpt_name"}],
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                "strength": "strength_model", "input": "model", "chain": true},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "feeds": ["LTXVConditioning", "positive"]},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "feeds": ["LTXVConditioning", "negative"]},
+      "width": [{"class_type": "EmptyLTXVLatentVideo", "field": "width"},
+                {"class_type": "ResizeAndPadImage", "field": "target_width"}],
+      "height": [{"class_type": "EmptyLTXVLatentVideo", "field": "height"},
+                 {"class_type": "ResizeAndPadImage", "field": "target_height"}],
+      "length": [{"class_type": "EmptyLTXVLatentVideo", "field": "length"},
+                 {"class_type": "LTXVEmptyLatentAudio", "field": "frames_number"},
+                 {"class_type": "RepeatImageBatch", "field": "amount"}],
+      "fps": [{"class_type": "LTXVConditioning", "field": "frame_rate"},
+              {"class_type": "LTXVEmptyLatentAudio", "field": "frame_rate"},
+              {"class_type": "H3SaveShot", "field": "fps"}],
+      "shot_id": {"class_type": "H3SaveShot", "field": "shot_id"},
+      "audio_policy": {"class_type": "H3SaveShot", "field": "audio_policy"},
+      "text_encoder": {"class_type": "LTXAVTextEncoderLoader", "field": "text_encoder"}
+    },
+    "review_nodes": []
+  },
+
+  "models": {
+    "_note": "The family each model param must be (targets/modelid.py): names first, then the file's header. `model` is a full LTX 2.3 checkpoint (transformer, VAEs and text projection; model_version 2.3.x): the IC-LoRA is 2.3's. The text encoder is plain Gemma 3 12B. Tiers (docs/API.md): the distilled checkpoint is the accelerator (the preset's 8 steps at cfg 1 are the distilled model's); without a distilled 2.3 checkpoint installed the pass renders its `base` on the dev checkpoint, which is then required. A substitute checkpoint keeps the wanted one's `distilled` / `dev` (`keep`). The IC-LoRA is required: the reference sheet means nothing without it.",
+    "model": {"family": "ltx2.3", "patterns": ["ltx-2.3*", "*ltx*2.3*", "*ltx*2_3*"], "tier": "accelerator",
+              "keep": ["(?<![a-z])(distilled|dev)(?![a-z])"], "exclude": ["*lora*"]},
+    "loras": {"family": "ltx2.3-ic-lora-ingredients", "patterns": ["*ltx*2*3*ic*lora*ingredients*"],
+              "tier": "required", "class_type": "LoraLoaderModelOnly", "field": "lora_name",
+              "folder": "loras"},
+    "text_encoder": {"family": "gemma3-12b", "patterns": ["*gemma*3*12b*"], "tier": "required"}
+  },
+
+  "presets": {
+    "_note": "LTX-2.3 22B distilled (fp8) with the ingredients IC-LoRA at the template's 1.0, one stage of 8 steps (KSampler euler_ancestral / linear_quadratic, cfg 1), as the template runs it. The final is the trained bucket, 768x448; the proxy is the bucket scaled by 2/3 and snapped to the grid, 512x288. The model card's settings for the dev model (LoRA 1.4, 30 steps, guidance 4) are not the distilled template's; a dev final (dev checkpoint + the distilled LoRA at 0.75 + ingredients) is a profile away. Sizes come from here, not from another target's series config block: the IC-LoRA only knows its bucket. The negative prompt is the model card's suggestion plus the artefacts a review cut can't use. `base` (no distilled LTX 2.3 checkpoint installed): the model card's settings for the dev model it was trained on, as ComfyUI's ingredients template quotes them in its 'Note: IC-LoRA' (LoRA strength 1.4, 30 steps, guidance 4.0), on ltx-2.3-22b-dev-fp8 (the dev checkpoint ComfyUI's LTX-2.3 i2v / t2v templates load); the template's sampler (euler_ancestral / linear_quadratic) stays. ComfyUI's own LTX-2.3 templates have no undistilled path (their dev checkpoint runs with the distilled LoRA at cfg 1), so these numbers are the model card's, not a template's.",
+    "final": {
+      "model": "ltx-2.3-22b-distilled-fp8.safetensors",
+      "lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+      "steps": 8, "width": 768, "height": 448,
+      "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
+      "text_encoder": "gemma_3_12B_it_fp4_mixed.safetensors",
+      "base": {"model": "ltx-2.3-22b-dev-fp8.safetensors",
+               "loras": [{"name": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors", "strength": 1.4}],
+               "steps": 30, "cfg": 4.0}
+    },
+    "proxy": {
+      "lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+      "steps": 8, "width": 512, "height": 288,
+      "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
+      "text_encoder": "gemma_3_12B_it_fp4_mixed.safetensors",
+      "base": {"model": "ltx-2.3-22b-dev-fp8.safetensors",
+               "loras": [{"name": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors", "strength": 1.4}],
+               "steps": 30, "cfg": 4.0}
+    }
+  },
+
+  "upscale": {
+    "_note": "h3upscale.py: a take re-sampled at 2x from `start` (0.875: step 7 of 8, from sigma 0.42 on linear_quadratic, where LTX-2's second stage ends too). The take's video latent (a kept one is the sampler's, so `trim` cuts the IC-LoRA guide frames off its end: (length - 1) / 8 + 1 frames are the take's) through LTX-2.3's own latent upsampler (fixed 2x, core LTXVLatentUpsampler, needing the checkpoint's VAE: its third output), then into the graph's LTXVAddGuide (`into`), which appends the ingredient sheet again, re-encoded at the new size (ResizeAndPadImage, through the width/height params); its audio held. The KSampler starts at the step as the KSamplerAdvanced it is (`sampler_tail`), on its own schedule.",
+    "scale": 2,
+    "start": 0.875,
+    "align": 32,
+    "size": "params",
+    "trim": {"temporal": 8},
+    "into": {"class_type": "LTXVAddGuide", "input": "latent"},
+    "sampler_tail": "advanced",
+    "video_vae": {"class_type": "CheckpointLoaderSimple", "output": 2},
+    "audio_vae": {"class_type": "LTXVAudioVAELoader", "output": 0},
+    "encode_audio": {"class_type": "LTXVAudioVAEEncode", "audio": "audio", "vae": "audio_vae"},
+    "upscaler": {"class_type": "LTXVLatentUpsampler", "latent": "samples", "vae": "vae",
+                 "model": {"class_type": "LatentUpscaleModelLoader", "input": "upscale_model",
+                           "inputs": {"model_name": "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"}}}
+  },
+
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors": {"folder": "loras", "url": "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors", "source": "ComfyUI template template_ltx2_3_ic_lora_ingredients.json (properties.models)"},
+    "ltx-2.3-22b-dev-fp8.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors", "source": "ComfyUI template video_ltx2_3_i2v.json (properties.models)"},
+    "ltx-2.3-22b-distilled-fp8.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-distilled-fp8.safetensors", "source": "ComfyUI template template_ltx2_3_ic_lora_ingredients.json (properties.models)"},
+    "gemma_3_12B_it_fp4_mixed.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors", "source": "ComfyUI template template_ltx2_3_ic_lora_ingredients.json (properties.models)"},
+    "ltx-2.3-spatial-upscaler-x2-1.1.safetensors": {"folder": "latent_upscale_models", "url": "https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors", "source": "ComfyUI-Manager model list (model-list.json; ComfyUI's blueprint Image to Video (LTX-2.3).json has the same URL). Only needed to upscale, never to render."}
+  }
+}

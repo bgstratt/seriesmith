@@ -1,0 +1,295 @@
+"""
+h3core.series_config — loading series.json, the series config.
+
+Keys starting with `_` in `subjects` and `locations` are comments/disabled
+entries and are dropped, as are non-object values. Everything else is returned
+as the raw dict: targets read the parts they understand.
+
+A subject with `of: <another subject>` is a **variant** — the same character or
+object in a different wardrobe or state, with its own reference sheet.
+Loading resolves it into a complete ordinary subject
+entry, so nothing downstream has to know variants exist: a target compiling a
+shot whose cast names `gina_towel` reads the same shape of entry it reads for
+`gina`, and gets the towel's sheet and the towel's words.
+
+What a variant inherits, and what it must not:
+
+    everything the base has     the variant's own keys win, so `voice`,
+                                `voice_sample`, `pronoun` and `kind` come
+                                across and one character keeps one voice
+    `design`                    REQUIRED on the variant: inheriting it would
+                                describe the old wardrobe while every check
+                                passed
+    `sheet`                     NEVER inherited: derived from the base's path
+                                with the base id swapped for the variant's
+                                (refs/gina/gina_sheet_4panel.png ->
+                                refs/gina/gina_towel_sheet_4panel.png), or
+                                stated by the variant. Inheriting it would
+                                render the base's clothes.
+
+`of` is kept on the resolved entry: `variant_of()` reads it, the parser uses it
+to bind a base's dialogue to the variant on screen (h3core.story), and the refs
+listing uses it to give a variant its own sheet but no voice of its own
+(h3refs.series_refs).
+
+A character with `members: N` (2 or more) is a **group**: N distinct people in
+one reference picture -- the ladies at the edge of the ballroom, the same four
+every scene, instead of extras who change from shot to shot. It is cast like
+any character (`who:`/`with:`) and costs one reference slot however many people
+it holds. Its picture is one whole image, never a model sheet, so loading gives
+it `sheet_panels: 1` (`members()` reads the count).
+
+A location with `of: <another location>` is an **angle** of it: the same place
+from another camera (the bay from the drive, from inside the SUV). Nothing is
+inherited -- an angle has its own `description` and `plate`, and a shot still
+names it with `plate:` -- but an edit target generates its plate from the
+master's, so every angle is visibly the same place (h3refs.angle_reference_images),
+and the editor lists the angles under their master.
+"""
+
+from __future__ import annotations
+
+import json
+
+
+def load_series_config(path: str) -> dict:
+    """Read and filter a series config. Raises FileNotFoundError, or ValueError (bad JSON,
+    no subjects)."""
+    with open(path, encoding="utf-8") as fh:
+        series_cfg = json.load(fh)
+    return series_config_from(series_cfg)
+
+
+def series_config_from(series_cfg: dict) -> dict:
+    """`load_series_config` for a series config already parsed (it is changed in
+    place and returned). ValueError as there."""
+    if not isinstance(series_cfg, dict):
+        raise ValueError("series.json must be a JSON object")
+    series_cfg["subjects"] = {k: v for k, v in series_cfg.get("subjects", {}).items()
+                         if not k.startswith("_") and isinstance(v, dict)}
+    series_cfg["locations"] = {k: v for k, v in series_cfg.get("locations", {}).items()
+                          if not k.startswith("_") and isinstance(v, dict)}
+    if not series_cfg["subjects"]:
+        raise ValueError("series.json has no `subjects` block")
+    series_cfg["subjects"] = _resolve_variants(series_cfg["subjects"])
+    _check_required(series_cfg)
+    _check_groups(series_cfg["subjects"])
+    _check_angles(series_cfg["locations"])
+    _check_continuous(series_cfg)
+    return series_cfg
+
+
+def _check_continuous(cfg: dict) -> None:
+    """The top-level `continuous` block (docs/CONTINUOUS.md): {"overlap": N},
+    the frames of the previous clip a `continuous: latent` shot holds by
+    default (a shot's `overlap:` beats it)."""
+    c = cfg.get("continuous")
+    if c is None:
+        return
+    if not isinstance(c, dict):
+        raise ValueError('series.json `continuous` must be an object, e.g. {"overlap": 39}')
+    bad = set(k for k in c if not k.startswith("_")) - {"overlap"}
+    if bad:
+        raise ValueError(f"series.json `continuous` takes overlap, not {', '.join(sorted(bad))}")
+    ov = c.get("overlap")
+    if ov is not None and (isinstance(ov, bool) or not isinstance(ov, int) or not 1 <= ov <= 360):
+        raise ValueError(f"series.json `continuous.overlap` {ov!r}: a whole number of frames, "
+                         f"1 to 360")
+
+
+def _check_angles(locations: dict) -> None:
+    """A location's `of` names another location, which is not itself an angle."""
+    for lid, e in locations.items():
+        of = e.get("of")
+        if of is None:
+            continue
+        if not isinstance(of, str) or not of:
+            raise ValueError(f"location '{lid}' has `of: {of!r}`: `of` names the location "
+                             f"this one is an angle of")
+        if of == lid:
+            raise ValueError(f"location '{lid}' has `of: {lid}`: `of` names the location this "
+                             f"one is an angle OF, not itself")
+        master = locations.get(of)
+        if master is None:
+            raise ValueError(f"location '{lid}' has `of: {of}`, which is not a location in "
+                             f"series.json")
+        if master.get("of"):
+            raise ValueError(f"location '{lid}' is an angle of '{of}', which is itself an angle "
+                             f"(of '{master['of']}'): name the master, '{master['of']}'")
+
+
+def location_master(series_cfg: dict, lid: str) -> str:
+    """The location an angle is of (`of`), or the location itself."""
+    e = (series_cfg.get("locations") or {}).get(lid) or {}
+    return e.get("of") or lid
+
+
+MAX_MEMBERS = 12            # past this it is a crowd: write it as `extras:` or put it in the plate
+
+
+def members(entry: dict) -> int:
+    """How many people a group subject's picture holds (`members:`); 0 for
+    anyone else. Safe on an entry that hasn't been through the loader."""
+    n = entry.get("members") if isinstance(entry, dict) else None
+    return n if isinstance(n, int) and not isinstance(n, bool) and n >= 2 else 0
+
+
+def _check_groups(subjects: dict) -> None:
+    """A group (`members: N`) is a character whose picture is one whole image
+    of N people: give it `sheet_panels: 1`, and refuse what can't be one."""
+    for sid, e in subjects.items():
+        if "members" not in e:
+            continue
+        n = e["members"]
+        if not members(e) or n > MAX_MEMBERS:
+            raise ValueError(f"subject '{sid}' has `members: {n!r}`: a group is 2 to "
+                             f"{MAX_MEMBERS} people, given as a whole number. A bigger crowd "
+                             f"belongs in `extras:` or in the plate")
+        if e.get("kind", "character") != "character":
+            raise ValueError(f"subject '{sid}' is a {e['kind']} with `members`: only a "
+                             f"character can be a group of people")
+        if int(e.get("sheet_panels") or 1) != 1:
+            raise ValueError(f"subject '{sid}' is a group (`members: {n}`) with "
+                             f"`sheet_panels: {e['sheet_panels']}`: a group's picture is one "
+                             f"whole image of all {n}, never a model sheet")
+        e["sheet_panels"] = 1
+
+
+def _check_required(cfg: dict) -> None:
+    """What every target reads out of a series config, checked here so a
+    missing one is a sentence about series.json rather than a KeyError raised
+    deep in a prompt writer and reported against the script."""
+    if not isinstance(cfg.get("series"), dict):
+        raise ValueError(
+            'series.json needs a `series` block: at least an id and a title, and '
+            'optionally fps, width, height and the video target — '
+            '"series": {"id": "my_show", "title": "My Show"}')
+    if not str(((cfg.get("style") or {}).get("look") or "")).strip():
+        raise ValueError(
+            'series.json needs `style.look`: one sentence describing how the show is '
+            'drawn, which goes into every prompt — '
+            '"style": {"look": "a 2D hand-drawn cartoon with flat colors"}')
+    for sid, e in cfg["subjects"].items():
+        if not str(e.get("name") or "").strip():
+            raise ValueError(f"subject '{sid}' needs a `name`: what every prompt calls "
+                             f"them, e.g. \"name\": \"Ada\"")
+        # a character who is only ever a voice (V.O./O.S.) is never drawn and
+        # needs no description -- see "Voices without bodies" in the README
+        if not str(e.get("design") or "").strip() and not str(e.get("voice") or "").strip():
+            raise ValueError(f"subject '{sid}' needs a `design`: the sentence their "
+                             f"reference sheet is drawn from, and the one every prompt "
+                             f"that shows them repeats. A character who is only ever a "
+                             f"voice needs a `voice` line instead")
+    for lid, e in cfg["locations"].items():
+        if not str(e.get("description") or "").strip():
+            raise ValueError(f"location '{lid}' needs a `description`: the sentence its "
+                             f"background plate is drawn from, including the light")
+
+
+def _split_name(path: str) -> tuple[str, str]:
+    """(everything up to and including the last separator, the last segment).
+    Both separators whatever the platform: series config paths are written with
+    '/' and read on Windows."""
+    cut = max(path.rfind("/"), path.rfind("\\"))
+    return path[:cut + 1], path[cut + 1:]
+
+
+def _variant_sheet(vid: str, base_id: str, base_sheet: str) -> str:
+    """A variant's own sheet path, from the base's: the base id in the file
+    name swapped for the variant's, the folder left alone (one character's
+    sheets stay together). ValueError when the name doesn't carry the id."""
+    head, name = _split_name(base_sheet)
+    if base_id not in name:
+        raise ValueError(
+            f"subject '{vid}' is a variant of '{base_id}', whose `sheet` "
+            f"('{base_sheet}') doesn't have '{base_id}' in its file name, so the "
+            f"variant's own path can't be derived from it: give '{vid}' a `sheet`")
+    return head + name.replace(base_id, vid, 1)
+
+
+def _resolve_variants(subjects: dict) -> dict:
+    """Materialize every `of:` variant into a complete subject entry (see the
+    module docstring). A new dict in the same order; entries without `of` are
+    passed through untouched. ValueError names the subject at fault."""
+    if not any(v.get("of") for v in subjects.values()):
+        return subjects                     # the usual series: nothing to resolve
+    out = {}
+    for vid, entry in subjects.items():
+        base_id = entry.get("of")
+        if not base_id:
+            out[vid] = entry
+            continue
+        if base_id == vid:
+            raise ValueError(f"subject '{vid}' has `of: {vid}`: `of` names the subject this "
+                             f"one is a variant OF, not itself")
+        base = subjects.get(base_id)
+        if base is None:
+            raise ValueError(f"subject '{vid}' has `of: {base_id}`, which is not a subject in "
+                             f"series.json ({', '.join(sorted(subjects))})")
+        if base.get("of"):
+            raise ValueError(f"subject '{vid}' is a variant of '{base_id}', which is itself a "
+                             f"variant (of '{base['of']}'): a variant is always a variant of "
+                             f"the original subject")
+        if not str(entry.get("design") or "").strip():
+            raise ValueError(f"subject '{vid}' is a variant of '{base_id}' and needs its own "
+                             f"`design`: the wardrobe or state that makes it a variant is "
+                             f"exactly what the description has to say")
+        kind = entry.get("kind", base.get("kind", "character"))
+        if kind != base.get("kind", "character"):
+            raise ValueError(f"subject '{vid}' is a {kind} but '{base_id}', the subject it is "
+                             f"a variant of, is a {base.get('kind', 'character')}: a variant "
+                             f"is the same thing in a different state")
+        merged = dict(base)
+        merged.pop("sheet", None)           # never inherited: see the module docstring
+        merged.update(entry)
+        merged["kind"] = kind
+        if not str(merged.get("sheet") or "").strip():
+            base_sheet = str(base.get("sheet") or "").strip()
+            if not base_sheet:
+                raise ValueError(f"subject '{vid}' is a variant of '{base_id}', which has no "
+                                 f"`sheet` to derive one from: give '{vid}' a `sheet`")
+            merged["sheet"] = _variant_sheet(vid, base_id, base_sheet)
+        out[vid] = merged
+    return out
+
+
+def variant_of(series_cfg: dict) -> dict:
+    """{variant id: the id it is a variant of}; empty for a series with none.
+
+    Safe on a series config that hasn't been through the loader (h3align reads
+    the raw JSON, which still has its `_note` strings), so it never assumes an
+    entry is an object."""
+    return {k: v["of"] for k, v in series_cfg.get("subjects", {}).items()
+            if isinstance(v, dict) and v.get("of")}
+
+
+def subject_ids(series_cfg: dict) -> set[str]:
+    return set(series_cfg["subjects"])
+
+
+def character_ids(series_cfg: dict) -> set[str]:
+    """Subjects that can speak (kind defaults to character)."""
+    return {k for k, v in series_cfg["subjects"].items()
+            if v.get("kind", "character") == "character"}
+
+
+def _num(value, default, kind):
+    """value as `kind`, or the raw value if it doesn't convert (never raises:
+    the target validates the series config and reports it in its own words)."""
+    if value is None:
+        value = default
+    try:
+        n = kind(value)
+    except (TypeError, ValueError):
+        return value
+    if isinstance(n, float) and n.is_integer():
+        return int(n)
+    return n
+
+
+def series_info(series_cfg: dict) -> dict:
+    """The episode-level picture format: {fps, width, height} (final pass)."""
+    s = series_cfg.get("series", {})
+    return {"fps": _num(s.get("fps"), 24, float),
+            "width": _num(s.get("width"), 1344, int),
+            "height": _num(s.get("height"), 768, int)}
