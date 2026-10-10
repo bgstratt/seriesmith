@@ -71,6 +71,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 
 from seriesmith import takes as T
@@ -1883,6 +1884,48 @@ def finish_job(take: T.Take) -> str:
     return "failed"
 
 
+def mark_submitted(take: T.Take, backend: str, job_id: str) -> None:
+    """The take is in a backend's hands: which one, and its id for the job."""
+    take.sidecar = T.update_sidecar(take.paths.sidecar, backend=backend, comfy_prompt_id=job_id)
+
+
+def collect_take(take: T.Take, run, saver: str, status: str) -> str:
+    """After a portable run (make_portable) has ended with `status`: the files
+    its saver reported go into the take's folder under their own names (the
+    take's stem), and the saver's record is merged into the take's record,
+    as h3pipe's save node did itself. Returns the take's status."""
+    from seriesmith.shotnodes import RECORD_SUFFIX
+
+    if status != "succeeded":
+        mark_failed(take, run.error or f"the job ended {status}")
+        return "failed"
+    record = None
+    got = []
+    for out in run.outputs():
+        if out.node != saver:
+            continue
+        if out.name.endswith(RECORD_SUFFIX):
+            tmp = os.path.join(take.paths.dir, f".{out.name}.part")
+            try:
+                record = T.read_json(out.save(tmp))
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+        else:
+            out.save(os.path.join(take.paths.dir, out.name))
+            got.append(out.name)
+    if not isinstance(record, dict):
+        mark_failed(take, f"the job finished but its saver reported no record "
+                          f"(got {', '.join(got) or 'nothing'})")
+        return "failed"
+    fields = {k: v for k, v in record.items() if k not in ("shot", "take")}
+    if fields.get("status") == "ok" and not os.path.isfile(take.paths.mp4):
+        fields.update(status="failed",
+                      save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
+    take.sidecar = T.update_sidecar(take.paths.sidecar, **fields)
+    return take.sidecar.get("status", "?")
+
+
 # ---------------------------------------------------------------------------
 # graph patching
 # ---------------------------------------------------------------------------
@@ -2141,14 +2184,19 @@ def latent_node(g: dict, saver: str, spec: dict) -> str:
 
 def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = None,
               save_frames: bool | None = None, review_copy: bool = True,
-              strip_meta: bool = False, inputs: dict | None = None) -> dict:
+              strip_meta: bool = False, inputs: dict | None = None,
+              portable: bool = False) -> dict:
     """`base` (the target's workflow as an API graph) patched for one take,
     following the job's target's binding: the loader (if the target has one)
     reads the take's frozen shotlist, the saver writes into the take, and the
     widgets the binding names get the job's values (model, LoRAs, steps, seed,
     and for a loader-less target the prompt, size, length, fps, ...). Then the
     target's own graph code, if any (keyframes: `inputs`, default
-    job.inputs), and `prune`."""
+    job.inputs), and `prune`.
+
+    `portable`: the graph any backend can run (make_portable): the loader is
+    given the shot and its files instead of the episode folder, and the saver
+    reports its files instead of writing the take."""
     t = job_target(job)
     b = t.binding
     g = copy.deepcopy(base)
@@ -2212,10 +2260,78 @@ def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = No
         add_duration_predictor(g, t, job)
     if b.prune:
         prune(g, saver)
+    if portable:
+        make_portable(g, job, take, loader if b.loader_class else None, saver)
     if strip_meta:
         for v in g.values():
             v.pop("_meta", None)
     return g
+
+
+# The portable loader and saver (comfy_nodes/shot.py), in place of h3pipe's,
+# which read and wrote the episode folder.
+PORTABLE_LOADER = "SeriesmithShotLoader"
+PORTABLE_SAVER = "SeriesmithSaveTake"
+PORTABLE = {"H3ShotListLoader": PORTABLE_LOADER, "H3SaveShot": PORTABLE_SAVER}
+
+
+class NotPortable(ValueError):
+    """A graph that still needs the episode folder (a target not ported to
+    the portable nodes yet: docs/PLAN.md, step 5)."""
+
+
+def shot_files(job: Job) -> list[str]:
+    """The files the loader reads for this take (ref_slots of what it
+    renders), episode-relative as the shotlist names them, each once, in slot
+    order. A missing one is left out: the loader then treats it as missing."""
+    out: list[str] = []
+    for r in ref_slots(job.doc, job.recompiled or job.shot):
+        p = r.get("path")
+        if p and p not in out and os.path.isfile(_abs(job.root, p)):
+            out.append(p)
+    return out
+
+
+def run_name(job: Job, take: T.Take) -> str:
+    """The saver's folder for one job, unique even when one take is tried
+    twice: <episode>_<pass>_<stem>_<8 hex>."""
+    ep = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(os.path.normpath(job.root)))
+    return f"{ep}_{job.pass_}_{take.paths.stem}_{uuid.uuid4().hex[:8]}"
+
+
+def make_portable(g: dict, job: Job, take: T.Take, loader: str | None, saver: str) -> None:
+    """The loader gets the take's frozen shotlist as text and its files as
+    uploads (File inputs the backend replaces with their names in ComfyUI's
+    input folder); the saver gets a folder of its own under ComfyUI's output
+    and reports what it writes there. NotPortable for a graph that still
+    reads the episode folder some other way."""
+    from seriesmith.backends import File
+    from seriesmith import shotnodes as SN
+
+    if loader is None:
+        raise NotPortable(f"{job.target} has no shot loader; it renders through the "
+                          f"episode folder until it is ported (docs/PLAN.md, step 5)")
+    for nid, ctype in ((loader, PORTABLE_LOADER), (saver, PORTABLE_SAVER)):
+        have = g[nid]["class_type"]
+        if have not in (ctype, *[k for k, v in PORTABLE.items() if v == ctype]):
+            raise NotPortable(f"{job.target}'s workflow uses {have}, which reads or writes "
+                              f"the episode folder (docs/PLAN.md, step 5)")
+        g[nid]["class_type"] = ctype
+    li = g[loader]["inputs"]
+    for k in ("project_root", "shotlist_file"):
+        li.pop(k, None)
+    files = shot_files(job)
+    if len(files) > SN.MAX_FILES:
+        raise NotPortable(f"{job.id} needs {len(files)} files; the loader takes {SN.MAX_FILES}")
+    li["shotlist"] = json.dumps(frozen_shotlist(job), ensure_ascii=False)
+    li["files"] = json.dumps(files, ensure_ascii=False)
+    for i, rel in enumerate(files):
+        li[SN.file_input(i)] = File(_abs(job.root, rel))
+    si = g[saver]["inputs"]
+    for k in ("project_root", "subfolder", "sidecar"):
+        si.pop(k, None)
+    si["run"] = run_name(job, take)
+    si["take"] = take.take
 
 
 def continuity_frame(g: dict, job: Job, take: T.Take, inputs: dict) -> None:

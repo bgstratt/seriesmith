@@ -1,34 +1,20 @@
 """
-ComfyUI-H3-Shotlist
-===================
+seriesmith shot nodes: render one shot through any Comfy API surface.
 
-Shot-list driven production nodes for MiniMax H3 Ref2VA.
-
-One shot per queue. Set the Shot Index primitive to `increment` and set
-batch count to the shot count to run a whole sequence unattended.
+Nothing here reads or writes the episode folder. seriesmith uploads what a
+shot needs and gives it to the loader; the saver writes into ComfyUI's own
+output folder and reports every file, so the backend (local ComfyUI through
+comfy-api-proxy, Comfy Cloud, a deployment) hands them back and seriesmith
+writes the take (docs/DESIGN.md, "seriesmith writes the takes").
 
 Nodes
 -----
-H3ShotListLoader   reads shotlist.json + the project's reference assets and
-                   emits everything MiniMaxH3ReferenceToVideo needs
-H3ShotInfo         readout of the current shot, for the canvas
-H3SaveShot         writes frames / audio / mp4 under a strict shot naming
-                   convention, honouring the shot's audio policy
-H3SaveRefTake      writes one reference-image take (h3refs) and closes its
-                   sidecar
-H3SaveRefAudio     the same for a voice-reference take: writes its wav and
-                   closes its sidecar
-
-Project layout expected
------------------------
-    <project_root>/
-        shotlist/shotlist.json
-        refs/<character>/<name>_sheet_4panel.png   horizontal 4-panel strip
-        refs/props/<name>.png                      single clean object image
-        refs/_bg/<location>.png                    background plate -> <Picture 4>
-        audio/master_dialogue.wav                  (source_track mode)
-        audio/voices/<character>_sample.wav        (clone mode)
-        renders/<shot_id>/...                      written by H3SaveShot
+SeriesmithShotLoader   the shot (its frozen one-shot shotlist, as JSON text)
+                       and its reference files (uploaded inputs) -> everything
+                       MiniMaxH3ReferenceToVideo needs
+SeriesmithSaveTake     writes the take's mp4, sound, thumbnails, latent and a
+                       record of what it did into
+                       <output>/seriesmith/<run>/, and reports each file
 
 Reference slots
 ---------------
@@ -39,6 +25,8 @@ There is no style reference image. Style is already carried by every sheet and
 plate (all drawn in it) and stated in the prompt text, so slot 4 buys concrete
 layout, palette, lighting direction and depth instead -- and keeps one location
 looking like one place across every cut in a sequence.
+
+Ported from h3pipe's comfy_nodes/h3_shotlist.py (H3ShotListLoader, H3SaveShot).
 """
 
 from __future__ import annotations
@@ -99,7 +87,7 @@ def _blank(h: int = 64, w: int = 64) -> torch.Tensor:
 
 
 # An unused subject socket's picture (H3's smallest canvas): it holds the
-# socket's number so the plate stays <Picture 4> (see H3ShotListLoader.load).
+# socket's number so the plate stays <Picture 4> (see SeriesmithShotLoader.load).
 PLACEHOLDER_SIZE = 32
 
 
@@ -256,24 +244,41 @@ def save_audio(audio: dict, path: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# H3ShotListLoader
+# SeriesmithShotLoader
 # ---------------------------------------------------------------------------
 
-class H3ShotListLoader:
-    """Emit one shot's worth of Ref2VA conditioning from shotlist.json."""
+# How many files one shot can bring: three subjects, a plate, three voice
+# samples and a recording, with room to spare.
+MAX_FILES = 24
+
+
+def file_input(i: int) -> str:
+    return f"file_{i:02d}"
+
+
+class SeriesmithShotLoader:
+    """Emit one shot's worth of Ref2VA conditioning from its frozen shotlist.
+
+    `shotlist` is the take's one-shot shotlist as JSON text. `files` is a JSON
+    list of the episode-relative paths that shotlist names (sheets, the plate,
+    voice samples, the recording); `file_00`, `file_01`, ... are those files,
+    uploaded, in the same order: each holds the name ComfyUI's input folder
+    knows it by. A path the shotlist names that isn't in `files` counts as
+    missing."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "project_root": ("STRING", {"default": "path/to/project/ep01"}),
-                "shotlist_file": ("STRING", {"default": "shotlist/shotlist.json"}),
+                "shotlist": ("STRING", {"multiline": True, "default": "{}"}),
+                "files": ("STRING", {"multiline": True, "default": "[]"}),
                 "index": ("INT", {"default": 0, "min": 0, "max": 100000}),
                 "panel_mode": (PANEL_MODES, {"default": "auto"}),
                 "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 60.0, "step": 1.0}),
             },
             "optional": {
                 "resolution_override": ("STRING", {"default": ""}),
+                **{file_input(i): ("STRING", {"default": ""}) for i in range(MAX_FILES)},
             },
         }
 
@@ -292,15 +297,31 @@ class H3ShotListLoader:
         "audio_policy", "info", "shot_count",
     )
     FUNCTION = "load"
-    CATEGORY = "H3/shotlist"
+    CATEGORY = "seriesmith"
 
     # -- helpers -----------------------------------------------------------
 
     @staticmethod
-    def _resolve(root: str, path: str) -> str:
-        if not path:
-            return ""
-        return path if os.path.isabs(path) else os.path.join(root, path)
+    def _resolver(files: str, uploaded: dict):
+        """path -> the uploaded file's place in ComfyUI's input folder ("" when
+        the shot's files don't include it)."""
+        import folder_paths
+
+        try:
+            names = json.loads(files or "[]")
+        except ValueError:
+            raise ValueError(f"files must be a JSON list of paths, got {files[:80]!r}") from None
+        if len(names) > MAX_FILES:
+            raise ValueError(f"{len(names)} files, but the loader takes at most {MAX_FILES}")
+        where = {}
+        for i, rel in enumerate(names):
+            name = (uploaded.get(file_input(i)) or "").strip()
+            if name:
+                where[str(rel).replace("\\", "/")] = folder_paths.get_annotated_filepath(name)
+
+        def resolve(path: str) -> str:
+            return where.get(str(path or "").replace("\\", "/"), "") if path else ""
+        return resolve
 
     @staticmethod
     def _panels_for(mode: str, cast_n: int, shot_size: str) -> tuple[str, list[int]]:
@@ -323,59 +344,19 @@ class H3ShotListLoader:
             return "face", [3]
         return "body", [0]
 
-    # -- cache key ---------------------------------------------------------
-
-    @classmethod
-    def IS_CHANGED(cls, project_root, shotlist_file, index, panel_mode, fps,
-                   resolution_override=""):
-        """Re-read when the shotlist or this shot's references change on disk.
-
-        Without this, ComfyUI caches the node's output against its widget
-        values, which do not change when you hand-edit a prompt in the
-        shotlist or regenerate a character sheet — the queue then renders the
-        stale shot and nothing you edited appears. Any exception here means
-        "assume changed", which is the safe direction.
-        """
-        def stamp(path: str) -> str:
-            try:
-                st = os.stat(path)
-                return f"{st.st_mtime_ns}:{st.st_size}"
-            except OSError:
-                return "-"
-
-        root = os.path.normpath(project_root)
-        sl_path = cls._resolve(root, shotlist_file)
-        parts = [stamp(sl_path), str(index), str(panel_mode), str(fps),
-                 str(resolution_override)]
-        try:
-            with open(sl_path, encoding="utf-8") as fh:
-                doc = json.load(fh)
-            shot = doc["shots"][int(index)]
-            book = doc.get("subjects", {})
-            files = [book.get(sid, {}).get("sheet", "") for sid in shot.get("subjects", [])]
-            files.append(shot.get("background", ""))
-            files += [r.get("sample", "") for r in shot.get("voice_refs", [])]
-            files.append(doc.get("defaults", {}).get("master_track", ""))
-            parts += [stamp(cls._resolve(root, f)) for f in files if f]
-        except Exception:
-            return float("nan")     # unreadable: always re-run
-        return "|".join(parts)
-
     # -- main --------------------------------------------------------------
 
-    def load(self, project_root, shotlist_file, index, panel_mode, fps,
-             resolution_override=""):
-        root = os.path.normpath(project_root)
-        sl_path = self._resolve(root, shotlist_file)
-        if not os.path.isfile(sl_path):
-            raise FileNotFoundError(f"shotlist not found: {sl_path}")
-
-        with open(sl_path, encoding="utf-8") as fh:
-            doc = json.load(fh)
+    def load(self, shotlist, files, index, panel_mode, fps, resolution_override="",
+             **uploaded):
+        resolve = self._resolver(files, uploaded)
+        try:
+            doc = json.loads(shotlist)
+        except ValueError as exc:
+            raise ValueError(f"shotlist is not JSON: {exc}") from None
 
         shots = doc.get("shots", [])
         if not shots:
-            raise ValueError(f"{sl_path} contains no shots")
+            raise ValueError("the shotlist contains no shots")
         shot = shots[index % len(shots)]
 
         defaults = doc.get("defaults", {})
@@ -431,7 +412,7 @@ class H3ShotListLoader:
         blanked: list[str] = []
 
         # Background first: it is also what fills any unused subject socket.
-        bg_path = self._resolve(root, shot.get("background", ""))
+        bg_path = resolve(shot.get("background", ""))
         if not bg_path or not os.path.isfile(bg_path):
             if not render_anyway:
                 raise FileNotFoundError(
@@ -467,7 +448,7 @@ class H3ShotListLoader:
         for sid in subject_ids[:3]:
             entry = book.get(sid, {})
             kind = entry.get("kind", "character")
-            path = self._resolve(root, entry.get("sheet", ""))
+            path = resolve(entry.get("sheet", ""))
             if not path or not os.path.isfile(path):
                 if not render_anyway:
                     raise FileNotFoundError(
@@ -549,7 +530,7 @@ class H3ShotListLoader:
                 )
             names = []
             for i, r in enumerate(vrefs[:3]):
-                p = self._resolve(root, r.get("sample", ""))
+                p = resolve(r.get("sample", ""))
                 if (not p or not os.path.isfile(p)) and render_anyway:
                     blanked.append(f"Audio {i + 1}")
                     names.append(f"<Audio {i + 1}>={r.get('subject')} MISSING (none)")
@@ -567,7 +548,7 @@ class H3ShotListLoader:
             # ONE clip: the slice of the recorded mix, which already contains
             # every voice in the shot.
             src = shot.get("audio_file") or defaults.get("master_track", "")
-            src = self._resolve(root, src)
+            src = resolve(src)
             if (not src or not os.path.isfile(src)) and render_anyway:
                 blanked.append("Audio 1")
                 src = ""
@@ -623,7 +604,7 @@ class H3ShotListLoader:
             f"seed: {seed}",
         ])
 
-        print(f"[h3] shot {pos + 1}/{len(shots)}  {shot.get('id', '?')}  "
+        print(f"[seriesmith] shot {pos + 1}/{len(shots)}  {shot.get('id', '?')}  "
               f"{width}x{height}  {length}f ({length / fps:.2f}s)  {steps} steps  "
               f"{policy}", flush=True)
 
@@ -637,29 +618,11 @@ class H3ShotListLoader:
 
 
 # ---------------------------------------------------------------------------
-# H3ShotInfo
-# ---------------------------------------------------------------------------
-
-class H3ShotInfo:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"info": ("STRING", {"forceInput": True})}}
-
-    RETURN_TYPES = ()
-    FUNCTION = "show"
-    OUTPUT_NODE = True
-    CATEGORY = "H3/shotlist"
-
-    def show(self, info):
-        return {"ui": {"text": [info]}}
-
-
-# ---------------------------------------------------------------------------
-# H3SaveShot
+# SeriesmithSaveTake
 # ---------------------------------------------------------------------------
 
 def loaded_refs(info: str) -> list[str]:
-    """The reference lines of H3ShotListLoader's `info` (under "refs:", and a
+    """The reference lines of SeriesmithShotLoader's `info` (under "refs:", and a
     RENDERED WITHOUT line), as a take records them; [] for none."""
     out, inside = [], False
     for line in (info or "").splitlines():
@@ -758,10 +721,10 @@ def _now() -> str:
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-class H3SaveShot:
-    """Write one shot's deliverables under a strict naming convention.
+class SeriesmithSaveTake:
+    """Write one take's files into <output>/seriesmith/<run>/ and report each,
+    so whatever runs the job can hand them back.
 
-    <project_root>/renders/<shot_id>/
         <shot_id>_t<take>.mp4          picture + the audio the policy selects
         <shot_id>_t<take>_h3.wav       H3's generated mix, always kept
         <shot_id>_t<take>_foley.wav    vocal-stripped bed (dub_keep_foley only)
@@ -771,17 +734,16 @@ class H3SaveShot:
         <shot_id>_t<take>.latent.safetensors
                                        the sampled latent, when `latent` is
                                        linked: what an upscale starts from
-        <shot_id>_t<take>.json         the take's sidecar, when `sidecar` is set:
-                                       status, finished, frames, fps, mp4,
-                                       thumb, strip and save_notes are filled in,
-                                       every other field is left alone
-        frames/<shot_id>_t<take>_%06d.png   optional PNG sequence
+        <shot_id>_t<take>.record.json  what the saver did: status, finished,
+                                       frames, fps, mp4, thumb, strip, latent,
+                                       save_notes, save_ms, loaded_refs,
+                                       continued_from -- the fields seriesmith
+                                       merges into the take's record
+        frames/<shot_id>_t<take>_%06d.png   optional PNG sequence (not reported)
 
-    `sidecar` is the path the queuer wrote the take's `queued` record to
-    (absolute, or relative to project_root); empty means there is none. The
-    rules are h3takes.py's (not importable inside ComfyUI, so followed here by
-    hand). The mp4 comes first: a failure writing thumbnails or the sidecar is
-    reported in the status string and never raised.
+    `run` names the folder, one per job, so two jobs never share one. The mp4
+    comes first: a failure writing thumbnails or the latent is reported in the
+    record and never raised.
     """
 
     @classmethod
@@ -791,16 +753,13 @@ class H3SaveShot:
                 "images": ("IMAGE",),
                 "shot_id": ("STRING", {"forceInput": True}),
                 "audio_policy": ("STRING", {"forceInput": True}),
-                "project_root": ("STRING", {"default": "path/to/project/ep01"}),
-                "subfolder": ("STRING", {"default": "renders"}),
+                "run": ("STRING", {"default": "take"}),
                 "take": ("INT", {"default": 1, "min": 1, "max": 999}),
                 "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 60.0, "step": 1.0}),
                 "save_frames": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "audio": ("AUDIO",),
-                # Last, so saved workflows keep their widget order.
-                "sidecar": ("STRING", {"default": ""}),
                 # the sampler's latent, kept for an upscale (h3jobs links it
                 # when the render asks for it)
                 "latent": ("LATENT",),
@@ -817,7 +776,7 @@ class H3SaveShot:
     RETURN_NAMES = ("shot_dir", "status")
     FUNCTION = "save"
     OUTPUT_NODE = True
-    CATEGORY = "H3/shotlist"
+    CATEGORY = "seriesmith"
 
     # -- vocal stripping ---------------------------------------------------
 
@@ -847,17 +806,19 @@ class H3SaveShot:
 
     # -- main --------------------------------------------------------------
 
-    def save(self, images, shot_id, audio_policy, project_root, subfolder,
-             take, fps, save_frames, audio=None, sidecar="", latent=None, ref_info="",
-             chain=""):
+    def save(self, images, shot_id, audio_policy, run, take, fps, save_frames, audio=None,
+             latent=None, ref_info="", chain=""):
+        import folder_paths
         from PIL import Image
 
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id) or "shot"
-        shot_dir = os.path.join(os.path.normpath(project_root), subfolder, safe)
+        run_safe = re.sub(r"[^A-Za-z0-9_.-]", "_", run) or "take"
+        subfolder = f"seriesmith/{run_safe}"
+        shot_dir = os.path.join(folder_paths.get_output_directory(), "seriesmith", run_safe)
         os.makedirs(shot_dir, exist_ok=True)
         stem = f"{safe}_t{take:02d}"
         notes: list[str] = []
-        # What this node spends, per step, in milliseconds (the sidecar's
+        # What this node spends, per step, in milliseconds (the record's
         # `save_ms`). ComfyUI's "Prompt executed in" covers the whole graph, so
         # without this there is no way to tell an ffmpeg encode from eight
         # LANCZOS resizes when a render feels slow. perf_counter is ~100 ns a
@@ -937,85 +898,49 @@ class H3SaveShot:
         except Exception as exc:
             notes.append(f"strip failed: {exc}")
 
-        # ---- sidecar -----------------------------------------------------
-        sidecar = (sidecar or "").strip()
-        if sidecar:
-            ms["total"] = round(sum(v for k, v in ms.items() if k != "total"))
-            try:
-                self._finish_sidecar(
-                    sidecar, os.path.normpath(project_root), shot_id, take, notes,
-                    stem=stem, status="ok" if mp4_ok else "failed",
-                    frames=int(images.shape[0]), fps=float(fps),
-                    mp4=os.path.basename(mp4) if mp4_ok else None,
-                    thumb=thumb, strip=strip, save_ms=ms, latent=latent_file,
-                    loaded_refs=loaded_refs(ref_info), continued_from=chain_record(chain))
-            except Exception as exc:
-                notes.append(f"sidecar update failed: {exc}")
-            else:
-                self._notify_take(project_root, subfolder, shot_dir, shot_id, take,
-                                  "ok" if mp4_ok else "failed", thumb)
+        # ---- record ------------------------------------------------------
+        ms["total"] = round(sum(v for k, v in ms.items() if k != "total"))
+        record = self.record(shot_id, take, notes, stem=stem,
+                             status="ok" if mp4_ok else "failed",
+                             frames=int(images.shape[0]), fps=float(fps),
+                             mp4=os.path.basename(mp4) if mp4_ok else None,
+                             thumb=thumb, strip=strip, save_ms=ms, latent=latent_file,
+                             loaded_refs=loaded_refs(ref_info),
+                             continued_from=chain_record(chain))
+        record_file = f"{stem}.record.json"
+        _write_json_atomic(os.path.join(shot_dir, record_file), record)
 
-        return (shot_dir, f"{stem}: " + "; ".join(notes))
+        # ---- report every file, so the backend hands each back -----------
+        def item(name):
+            return {"filename": name, "subfolder": subfolder, "type": "output"}
+        ui = {"files": [item(record_file)]}
+        if mp4_ok:
+            ui["gifs"] = [dict(item(os.path.basename(mp4)), format="video/h264-mp4")]
+        wavs = [n for n in (f"{stem}_h3.wav", f"{stem}_foley.wav")
+                if os.path.isfile(os.path.join(shot_dir, n))]
+        if wavs:
+            ui["audio"] = [item(n) for n in wavs]
+        jpgs = [n for n in (thumb, strip) if n]
+        if jpgs:
+            ui["images"] = [item(n) for n in jpgs]
+        if latent_file:
+            ui["latents"] = [item(latent_file)]
+        return {"ui": ui, "result": (shot_dir, f"{stem}: " + "; ".join(notes))}
 
-    # -- live update -------------------------------------------------------
-
-    @staticmethod
-    def _notify_take(project_root: str, subfolder: str, shot_dir: str, shot_id: str,
-                     take: int, status: str, thumb) -> None:
-        """Tell open h3pipe editors this take is closed (the `h3pipe.take`
-        event of docs/API.md). Only inside ComfyUI; never affects saving."""
-        try:
-            from server import PromptServer
-            server = getattr(PromptServer, "instance", None)
-            if server is None:
-                return
-            ep = os.path.abspath(project_root)
-            last = os.path.basename(os.path.normpath(subfolder or ""))
-            thumb_rel = (os.path.relpath(os.path.join(shot_dir, thumb), ep).replace(os.sep, "/")
-                         if thumb else None)
-            server.send_sync("h3pipe.take", {
-                "ep": ep, "pass": "proxy" if last == "renders_proxy" else "final",
-                "shot": shot_id, "take": int(take), "status": status, "thumb": thumb_rel})
-        except Exception:
-            pass
-
-    # -- sidecar -----------------------------------------------------------
+    # -- record ------------------------------------------------------------
 
     @staticmethod
-    def _finish_sidecar(sidecar: str, root: str, shot_id: str, take: int,
-                        notes: list[str], *, stem: str, status: str, frames: int,
-                        mp4, thumb, strip, fps: float | None = None,
-                        save_ms: dict | None = None, latent: str | None = None,
-                        loaded_refs: list | None = None,
-                        continued_from: dict | None = None) -> None:
-        """Close the take's record: set the saver's fields, leave the rest alone.
-
-        Warnings go into `notes` first, so they reach both save_notes and the
-        node's returned status string.
-        """
-        path = sidecar if os.path.isabs(sidecar) else os.path.join(root, sidecar)
-        name = os.path.basename(path)
-        data = None
-        try:
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            if not isinstance(data, dict):
-                notes.append(f"sidecar {name} is not a JSON object; rewritten")
-                data = None
-        except FileNotFoundError:
-            notes.append(f"sidecar {name} was missing; created")
-        except (OSError, ValueError) as exc:
-            notes.append(f"sidecar {name} unreadable ({exc.__class__.__name__}); rewritten")
-        if data is None:
-            data = {"shot": shot_id, "take": take}
-        elif data.get("shot") != shot_id or data.get("take") != take:
-            notes.append(f"warning: sidecar {name} is for shot {data.get('shot')!r} "
-                         f"take {data.get('take')!r}, but this is {shot_id!r} take {take}")
-        data.update(status=status, finished=_now(), frames=frames,
-                    mp4=mp4, thumb=thumb, strip=strip,
-                    save_notes=f"{stem}: " + "; ".join(notes))
+    def record(shot_id: str, take: int, notes: list[str], *, stem: str, status: str,
+               frames: int, mp4, thumb, strip, fps: float | None = None,
+               save_ms: dict | None = None, latent: str | None = None,
+               loaded_refs: list | None = None, continued_from: dict | None = None) -> dict:
+        """What the saver did, as the fields of the take's record it fills in
+        (h3pipe's H3SaveShot wrote these into the sidecar itself)."""
+        data = {"shot": shot_id, "take": take, "status": status, "finished": _now(),
+                "frames": frames, "mp4": mp4, "thumb": thumb, "strip": strip,
+                "save_notes": f"{stem}: " + "; ".join(notes)}
         if fps:
-            # the mp4's frame rate (the target's: Wan 14B saves 16 fps)
+            # the mp4's frame rate (the target's)
             data["fps"] = float(fps)
         if latent:
             # the take's latent file, beside it (an upscale starts from it)
@@ -1027,11 +952,9 @@ class H3SaveShot:
             # continuous: latent: the take whose tail the render held
             data["continued_from"] = continued_from
         if save_ms:
-            # what this node spent, in milliseconds, per step (frames, audio,
-            # mp4, thumb, strip, total). ComfyUI only reports the whole graph's
-            # time, so this is how a slow take is attributed.
+            # what this node spent, in milliseconds, per step
             data["save_ms"] = dict(save_ms)
-        _write_json_atomic(path, data)
+        return data
 
     # -- thumbnails --------------------------------------------------------
 
@@ -1121,7 +1044,7 @@ class H3SaveShot:
         elif tmpdir is None:
             from PIL import Image
 
-            tmpdir = tempfile.mkdtemp(prefix="h3shot_")
+            tmpdir = tempfile.mkdtemp(prefix="seriesmith_take_")
             cleanup = True
             arr = (images.clamp(0, 1).cpu().numpy() * 255.0 + 0.5).astype(np.uint8)
             for i, frame in enumerate(arr):
@@ -1174,232 +1097,13 @@ class H3SaveShot:
 
 
 # ---------------------------------------------------------------------------
-# H3SaveRefTake
-# ---------------------------------------------------------------------------
-
-class H3SaveRefTake:
-    """Write one reference-image take and close its sidecar (h3refs.py).
-
-    `sidecar` is the take's `queued` record, as h3refs reserved it (absolute
-    path). The image goes next to it, named by the sidecar's `image` field
-    (else <sidecar stem>.png). The sidecar then gets status, finished, image,
-    width, height and save_notes; every other field is left alone, and it is
-    rewritten atomically, as H3SaveShot does. Then the `h3pipe.ref` event
-    (docs/API.md) goes to open editors. Only the first image of a batch is
-    kept. A failure is reported in the sidecar and the status string, never
-    raised, so a queue of refs keeps going.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"images": ("IMAGE",),
-                             "sidecar": ("STRING", {"default": ""})}}
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("status",)
-    FUNCTION = "save"
-    OUTPUT_NODE = True
-    CATEGORY = "H3/refs"
-
-    def save(self, images, sidecar):
-        path = os.path.abspath((sidecar or "").strip())
-        if not (sidecar or "").strip() or not path.lower().endswith(".json"):
-            status = f"no sidecar given (got {sidecar!r}): nothing saved"
-            return {"ui": {"text": [status]}, "result": (status,)}
-        notes: list[str] = []
-        data = None
-        try:
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            if not isinstance(data, dict):
-                notes.append("sidecar was not a JSON object; rewritten")
-                data = None
-        except FileNotFoundError:
-            notes.append("sidecar was missing; created")
-        except (OSError, ValueError) as exc:
-            notes.append(f"sidecar unreadable ({exc.__class__.__name__}); rewritten")
-        data = data or {}
-        stem = os.path.splitext(os.path.basename(path))[0]
-        name = os.path.basename(data.get("image") or f"{stem}.png")
-        if os.path.splitext(name)[1].lower() != ".png":
-            name = os.path.splitext(name)[0] + ".png"
-        out = os.path.join(os.path.dirname(path), name)
-        n = int(images.shape[0])
-        if n > 1:
-            notes.append(f"{n} images in the batch; kept the first")
-        width = height = None
-        try:
-            img = H3SaveShot._frame(images, 0)
-            width, height = img.size
-            fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".png",
-                                       dir=os.path.dirname(out))
-            try:
-                with os.fdopen(fd, "wb") as fh:
-                    img.save(fh, format="PNG", compress_level=4)
-                os.replace(tmp, out)
-            except BaseException:
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-                raise
-            status = "ok"
-            notes.insert(0, f"{name} {width}x{height}")
-        except Exception as exc:
-            status = "failed"
-            notes.insert(0, f"image not written: {exc}")
-        data.update(status=status, finished=_now(), image=name if status == "ok" else None,
-                    width=width, height=height, save_notes=f"{stem}: " + "; ".join(notes))
-        try:
-            _write_json_atomic(path, data)
-        except Exception as exc:
-            notes.append(f"sidecar update failed: {exc}")
-        else:
-            self._notify(data, status)
-        text = f"{stem}: {status}; " + "; ".join(notes)
-        return {"ui": {"text": [text]}, "result": (text,)}
-
-    @staticmethod
-    def _notify(data: dict, status: str) -> None:
-        """The `h3pipe.ref` event of docs/API.md. Only inside ComfyUI; never
-        affects saving."""
-        try:
-            from server import PromptServer
-            server = getattr(PromptServer, "instance", None)
-            if server is None:
-                return
-            server.send_sync("h3pipe.ref", {
-                "ep": data.get("ep"), "ref": data.get("ref"), "view": data.get("view"),
-                "take": data.get("take"), "status": status})
-        except Exception:
-            pass
-
-
-# ---------------------------------------------------------------------------
-# H3SaveRefAudio
-# ---------------------------------------------------------------------------
-
-class H3SaveRefAudio:
-    """Write one voice-reference take and close its sidecar (h3refs.py).
-
-    The audio twin of H3SaveRefTake: an audio target (targets/audio/) puts
-    this in its workflow's SaveAudio's place, and it writes the take's wav
-    beside its sidecar, named by the sidecar's `image` field (else <sidecar
-    stem>.wav; always given a .wav extension, because that is what the
-    pipeline reads and what a voice sample is handed to a video model as).
-    A 16-bit PCM wav is written with the stdlib (save_audio), not
-    torchaudio: the same reason H3SaveShot does.
-
-    The sidecar then gets status, finished, image, duration, sample_rate,
-    channels and save_notes; every other field is left alone, and it is
-    rewritten atomically. Then the `h3pipe.ref` event goes to open editors.
-    Only the first clip of a batch is kept. A failure is reported in the
-    sidecar and the status string, never raised, so a queue of refs keeps
-    going.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {"audio": ("AUDIO",),
-                             "sidecar": ("STRING", {"default": ""})}}
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("status",)
-    FUNCTION = "save"
-    OUTPUT_NODE = True
-    CATEGORY = "H3/refs"
-
-    def save(self, audio, sidecar):
-        path = os.path.abspath((sidecar or "").strip())
-        if not (sidecar or "").strip() or not path.lower().endswith(".json"):
-            status = f"no sidecar given (got {sidecar!r}): nothing saved"
-            return {"ui": {"text": [status]}, "result": (status,)}
-        notes: list[str] = []
-        data = None
-        try:
-            with open(path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            if not isinstance(data, dict):
-                notes.append("sidecar was not a JSON object; rewritten")
-                data = None
-        except FileNotFoundError:
-            notes.append("sidecar was missing; created")
-        except (OSError, ValueError) as exc:
-            notes.append(f"sidecar unreadable ({exc.__class__.__name__}); rewritten")
-        data = data or {}
-        stem = os.path.splitext(os.path.basename(path))[0]
-        name = os.path.basename(data.get("image") or f"{stem}.wav")
-        if os.path.splitext(name)[1].lower() != ".wav":
-            name = os.path.splitext(name)[0] + ".wav"
-        out = os.path.join(os.path.dirname(path), name)
-        clip, rate, channels, seconds = self._one(audio, notes)
-        try:
-            fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".wav",
-                                       dir=os.path.dirname(out))
-            os.close(fd)
-            try:
-                save_audio(clip, tmp)
-                os.replace(tmp, out)
-            except BaseException:
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-                raise
-            status = "ok"
-            notes.insert(0, f"{name} {seconds:.2f}s, {rate} Hz, "
-                            f"{'mono' if channels == 1 else f'{channels} ch'}")
-        except Exception as exc:
-            status = "failed"
-            rate = channels = None
-            seconds = None
-            notes.insert(0, f"audio not written: {exc}")
-        data.update(status=status, finished=_now(), image=name if status == "ok" else None,
-                    duration=(round(seconds, 3) if seconds is not None else None),
-                    sample_rate=rate, channels=channels,
-                    save_notes=f"{stem}: " + "; ".join(notes))
-        try:
-            _write_json_atomic(path, data)
-        except Exception as exc:
-            notes.append(f"sidecar update failed: {exc}")
-        else:
-            H3SaveRefTake._notify(data, status)
-        text = f"{stem}: {status}; " + "; ".join(notes)
-        return {"ui": {"text": [text]}, "result": (text,)}
-
-    @staticmethod
-    def _one(audio, notes: list) -> tuple:
-        """(one clip as save_audio takes it, sample rate, channels, seconds).
-        A batch keeps its first clip."""
-        wav = audio["waveform"]
-        rate = int(audio["sample_rate"])
-        if wav.dim() == 3:
-            if int(wav.shape[0]) > 1:
-                notes.append(f"{int(wav.shape[0])} clips in the batch; kept the first")
-            wav = wav[:1]
-            channels, samples = int(wav.shape[1]), int(wav.shape[2])
-        elif wav.dim() == 2:
-            channels, samples = int(wav.shape[0]), int(wav.shape[1])
-        else:
-            channels, samples = 1, int(wav.shape[0])
-        return ({"waveform": wav, "sample_rate": rate}, rate, channels,
-                (samples / rate) if rate else 0.0)
-
-
-# ---------------------------------------------------------------------------
 
 NODE_CLASS_MAPPINGS = {
-    "H3ShotListLoader": H3ShotListLoader,
-    "H3ShotInfo": H3ShotInfo,
-    "H3SaveShot": H3SaveShot,
-    "H3SaveRefTake": H3SaveRefTake,
-    "H3SaveRefAudio": H3SaveRefAudio,
+    "SeriesmithShotLoader": SeriesmithShotLoader,
+    "SeriesmithSaveTake": SeriesmithSaveTake,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "H3ShotListLoader": "H3 Shot List Loader",
-    "H3ShotInfo": "H3 Shot Info",
-    "H3SaveShot": "H3 Save Shot",
-    "H3SaveRefTake": "H3 Save Ref Take",
-    "H3SaveRefAudio": "H3 Save Ref Audio",
+    "SeriesmithShotLoader": "seriesmith Shot Loader",
+    "SeriesmithSaveTake": "seriesmith Save Take",
 }

@@ -21,10 +21,11 @@ _ids = itertools.count(1)
 
 
 class FakeRun(Run):
-    def __init__(self, backend: "FakeBackend"):
+    def __init__(self, backend: "FakeBackend", job: dict):
         self.backend = backend.name
         self.id = f"fake-{next(_ids)}"
         self._fb = backend
+        self._job = job
         self.status = "queued"
 
     def refresh(self) -> str:
@@ -52,7 +53,8 @@ class FakeRun(Run):
         if self.status != "succeeded":
             return []
         out = []
-        for node, items in self._fb.outputs.items():
+        made = self._fb.outputs(self._job) if callable(self._fb.outputs) else self._fb.outputs
+        for node, items in made.items():
             for name, type_, data in items:
                 def fetch(path, data=data):
                     with open(path, "wb") as fh:
@@ -63,7 +65,8 @@ class FakeRun(Run):
 
 class FakeBackend(Backend):
     def __init__(self, name: str = "local", kind: str = "local", *,
-                 outputs: dict[str, list[tuple[str, str, bytes]]] | None = None,
+                 outputs: dict[str, list[tuple[str, str, bytes]]]
+                 | Callable[[dict], dict[str, list[tuple[str, str, bytes]]]] | None = None,
                  progress: list[float] | None = None, final: str = "succeeded",
                  error: str | None = "the fake failed", down: str | None = None):
         self.name, self.kind = name, kind
@@ -85,9 +88,13 @@ class FakeBackend(Backend):
         return v
 
     def submit(self, graph: dict) -> Run:
-        self.submitted.append(self._upload(graph))
-        return FakeRun(self)
+        """`outputs` may be a function of the submitted graph (what a saver
+        would write depends on the take)."""
+        g = self._upload(graph)
+        self.submitted.append(g)
+        return FakeRun(self, g)
 
     def call(self, model: str, arguments: dict) -> Run:
-        self.calls.append((model, self._upload(arguments)))
-        return FakeRun(self)
+        args = self._upload(arguments)
+        self.calls.append((model, args))
+        return FakeRun(self, args)

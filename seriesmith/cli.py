@@ -3,6 +3,7 @@ seriesmith — one command for every stage.
 
     seriesmith build series.json ep01.md -o <episode folder> [--proxy]
     seriesmith check series.json ep01.md [--proxy] [--pace]
+    seriesmith render <episode> [--only sh010] [--redo] [--backend local]
     seriesmith backends [--try NAME]        where jobs can run, and whether each answers
 
 More commands arrive as their stages are ported (docs/DESIGN.md).
@@ -33,6 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         return build.main(rest + ["--check"], prog="seriesmith check")
     if cmd == "backends":
         return backends_cmd(rest)
+    if cmd == "render":
+        from seriesmith import render
+        return render.main(rest)
     print(f"seriesmith: unknown command {cmd!r}\n\n{USAGE}", file=sys.stderr)
     return 2
 
