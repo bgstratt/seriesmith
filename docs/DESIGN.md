@@ -170,10 +170,9 @@ Python 3.10+. The core needs nothing outside the standard library; backends use
 
 Vertical slices, each ending with something that runs: core and compile;
 backends; the first render (H3 on your own GPU); the first hosted render
-(Router); every local target, continuity and deployments; takes, picks, cuts
-and notes; the server, the queue and both hosts; refs and the 360 tour;
-finishing. The work list, with what "done" means for each step, is
-[PLAN.md](PLAN.md).
+(Router); every local target; refs, the 360 tour and continuity; takes,
+picks, cuts and notes; the server, the queue and both hosts; finishing. The
+work list, with what "done" means for each step, is [PLAN.md](PLAN.md).
 
 ## Open questions
 

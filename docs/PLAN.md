@@ -143,24 +143,52 @@ some on the hosted model, from the same script. Without a key: tested end to
 end on the fake backend (tests/test_router_render.py), and Porchlights ep02
 sh180's request checked by eye (2026-10-10).
 
-## Step 5 — every local target, continuity, deployments
+## Step 5 — every local target; continuity and deployments (partly)
 
-- [ ] LTX-2, LTX ingredients, Wan (I2V, TI2V, VACE), H3 FL2V on the portable
-      graph.
-- [ ] Continuity across backends: `first: continuity` from the previous take's
-      last frame (uploaded), `continuous: latent` by uploading the previous
-      latent; pixel fallback where latents don't exist.
-- [ ] Deployments: building a target's workflow with its node packs and models
-      (`comfy build` / `comfy deploy`), the deployment URL in settings, rendering
-      there.
+- [x] LTX-2, LTX ingredients, Wan (I2V, TI2V, VACE), H3 FL2V on the portable
+      graph: their staged inputs (keyframes, a composed reference sheet, the
+      FL2V dialogue slice) go up as uploads (`jobs.stage_portable`,
+      `make_portable`). The sheet helper runs in seriesmith's own Python
+      (Pillow).
 
-## Step 6 — takes, picks, cuts, overrides, notes
+Done 2026-10-10, Porchlights ep02 sh180 in the scratch copy, h3pipe's take
+against seriesmith's through the proxy, same seed:
+- LTX-2: identical pictures. The sound differs, and differs just as much
+  between two fresh seriesmith renders of the same graph after clearing
+  ComfyUI's cache: LTX-2's audio isn't deterministic on this machine, whoever
+  queues it. (So an untouched LTX-2 shot re-renders with the same picture but
+  not the same sound.)
+- Wan VACE: identical pictures, and byte-identical composed reference sheets.
+- ltx2_ingredients wasn't tried: its checkpoint isn't installed here.
+
+Moved:
+- **Continuity** (`first: continuity`, `continuous: latent`) waits for the
+  refs stage (now step 6): in h3pipe a shot's keyframes are ref takes with
+  picks and freshness (h3refs), and the previous take a chain holds is found
+  through the cut. With those ported, seriesmith -- which hands the GPU one
+  job at a time and collects each take before the next -- cuts the first
+  frame, or uploads the previous take's latent (else its mp4) to a portable
+  chain node, just before staging the shot. Until then such shots render on
+  local only, through h3pipe's nodes.
+- **Deployments** wait for a Comfy API key, with the Router live run.
+
+## Step 6 — refs, the 360 tour, then continuity
+
+- [ ] Port `h3refs`, `kreagen`, `mksheet`, `h3tour` onto targets and backends:
+      refs as takes, made through the portable path (the image targets' graphs
+      and a portable ref saver), picks, supply.
+- [ ] Continuity across backends on top of it: `first: continuity` cut before
+      staging; `continuous: latent` with the previous take's latent (or mp4)
+      uploaded to a portable chain node.
+- [ ] A Router image target for refs (with the live Router run).
+
+## Step 7 — takes, picks, cuts, overrides, notes
 
 - [ ] Port `h3takes` (rest), the pick / override / cut parts of `h3edit`,
       `h3promote`, `h3source`, `h3issues` (notes that stay on a shot).
 - [ ] CLI: `takes`, `pick`, `override`, `issues`.
 
-## Step 7 — the server, the queue and both hosts
+## Step 8 — the server, the queue and both hosts
 
 - [ ] The server: h3pipe's route table and API (`comfy_nodes/h3pipe_api.py`,
       `docs/API.md`), mountable on seriesmith's own server and on ComfyUI's.
@@ -171,10 +199,6 @@ sh180's request checked by eye (2026-10-10).
       the jobs button and Jobs window with its Log.
 - [ ] Series and season import: a series config and a stack of scripts.
 - [ ] `seriesmith serve`.
-
-## Step 8 — refs and the 360 tour
-
-- [ ] Port `h3refs`, `kreagen`, `mksheet`, `h3tour` onto targets and backends.
 
 ## Step 9 — finishing
 
