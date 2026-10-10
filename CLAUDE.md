@@ -13,7 +13,9 @@ format.
 - `seriesmith/core/` — model-free: script parser -> story IR, series config, framing, speech pacing
 - `seriesmith/targets/` — one folder per model (`target.json`, prompt writer, compile, workflow)
 - `seriesmith/build.py` — script + series config -> story IR -> each target's shotlist, refs_todo
-- `seriesmith/cli.py` — the `seriesmith` command (`build`, `check`)
+- `seriesmith/cli.py` — the `seriesmith` command (`build`, `check`, `backends`)
+- `seriesmith/backends/` — where a job runs: local ComfyUI (via comfy-api-proxy), Cloud, deployments (`comfy.py`), Router (`router.py`), a fake for tests
+- `seriesmith/settings.py` — this machine's settings (backend URLs, API key); never the series config
 
 ## Rules
 

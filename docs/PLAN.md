@@ -45,30 +45,35 @@ From reading comfy-sdk 0.4.0 and comfy-api-proxy 0.1.6 (2026-10-10):
 - [x] Capabilities: `backends`, `reproducible`, `max_subjects`, `max_voices`,
       `continuous`, `latents`.
 
-## Step 2 — backends
+## Step 2 — backends ✅
 
 The job lifecycle, behind one interface, with nothing seriesmith-specific in it.
 
-- [ ] `seriesmith/backends/`: `Backend` (upload an input, submit, follow, cancel,
+- [x] `seriesmith/backends/`: `Backend` (upload an input, submit, follow, cancel,
       fetch outputs) and the job record it returns (id, status, progress,
       outputs with name, type and node).
-- [ ] `ComfyBackend` on comfy-sdk: one class for local (through the proxy),
+- [x] `ComfyBackend` on comfy-sdk: one class for local (through the proxy),
       Cloud and a deployment, differing only in base URL and key. Builds its SDK
       client under the environment lock.
-- [ ] `RouterBackend`: model + arguments in, the provider's result out; inputs
+- [x] `RouterBackend`: model + arguments in, the provider's result out; inputs
       uploaded as Cloud assets and passed as URLs; outputs downloaded.
-- [ ] `FakeBackend` for tests: records submissions, plays back canned progress
+- [x] `FakeBackend` for tests: records submissions, plays back canned progress
       and outputs.
-- [ ] Settings: where the proxy is, the Comfy API key, deployment URLs per
+- [x] Settings: where the proxy is, the Comfy API key, deployment URLs per
       target. Read from the environment and a user settings file, never from the
       series config (it gets shared).
-- [ ] `seriesmith backends`: lists each configured backend and whether it
+- [x] `seriesmith backends`: lists each configured backend and whether it
       answers.
-- [ ] Setup notes: installing comfy-api-proxy beside ComfyUI, with `--state-dir`.
+- [x] Setup notes: installing comfy-api-proxy beside ComfyUI, with `--state-dir`.
 
 **Done when** a trivial core workflow (an empty image, saved) runs on local
 ComfyUI through the proxy and its output is downloaded, from a test that is
 skipped when no proxy is running.
+
+Done 2026-10-10: `seriesmith backends --try local` uploads a picture, inverts it
+on ComfyUI 0.39 and checks what comes back (`tests/test_backends.py`,
+LiveLocalTest). The Router backend is written but untested against the real
+service until step 4 (it needs a key and credits).
 
 ## Step 3 — the first render: H3 on your own GPU
 
