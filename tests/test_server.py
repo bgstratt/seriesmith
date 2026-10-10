@@ -56,7 +56,7 @@ class StandaloneTest(unittest.TestCase):
     def test_the_api_answers_on_both_paths(self):
         async def body(client, app):
             out = []
-            for path in ("/h3pipe/episodes", "/api/h3pipe/episodes"):
+            for path in ("/seriesmith/episodes", "/api/seriesmith/episodes"):
                 r = await client.get(path)
                 out.append((r.status, await r.json()))
             return out
@@ -66,7 +66,7 @@ class StandaloneTest(unittest.TestCase):
 
     def test_the_root_given_on_the_command_line_counts(self):
         async def body(client, app):
-            r = await client.get("/h3pipe/config")
+            r = await client.get("/seriesmith/config")
             return await r.json()
         self.assertIn(os.path.abspath(self.shows), self.run_app(body)["roots"])
 
@@ -85,12 +85,12 @@ class StandaloneTest(unittest.TestCase):
         async def body(client, app):
             ws = await client.ws_connect("/ws")
             await asyncio.sleep(0.05)
-            app["events"].emit("h3pipe.take", {"shot": "sh010", "status": "ok"})
+            app["events"].emit("seriesmith.take", {"shot": "sh010", "status": "ok"})
             msg = await asyncio.wait_for(ws.receive_str(), 5)
             await ws.close()
             return json.loads(msg)
         self.assertEqual(self.run_app(body),
-                         {"type": "h3pipe.take", "data": {"shot": "sh010", "status": "ok"}})
+                         {"type": "seriesmith.take", "data": {"shot": "sh010", "status": "ok"}})
 
 
 class ComfyHostTest(unittest.TestCase):
@@ -117,7 +117,7 @@ class ComfyHostTest(unittest.TestCase):
         self.assertEqual(len(added), len(A.ROUTES))
 
     def test_it_stays_off_when_another_pack_serves_the_api(self):
-        server, added = self.server(["/h3pipe/episodes"])
+        server, added = self.server(["/seriesmith/episodes"])
         with self.assertLogs("seriesmith", "WARNING"):
             self.assertFalse(comfyui.register(server))
         self.assertEqual(added, [])

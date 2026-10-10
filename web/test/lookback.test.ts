@@ -1,6 +1,6 @@
 // Phase 8.6 (look-back): the client's new routes (discard, refs discard,
 // generate-missing, the multipart upload), the text helpers, the mock's
-// behaviour, and the per-view ref override (PUT /h3pipe/refs/override with `view`).
+// behaviour, and the per-view ref override (PUT /seriesmith/refs/override with `view`).
 import { describe, expect, it } from "vitest";
 import { ApiError, createHttpApi, type Transport } from "../src/api";
 import { discardRefText, discardTakeText, dragHasFiles, fileKindProblem, missingResultText, uploadText } from "../src/lib/lookback";
@@ -20,11 +20,11 @@ function recorder(answer: (path: string, init?: RequestInit) => { status?: numbe
 }
 
 describe("Phase 8.6 client", () => {
-  it("POST /h3pipe/discard and /h3pipe/refs/discard", async () => {
-    const { calls, api } = recorder((p) => ({ body: p === "/h3pipe/discard" ? `{"shot":"sh020","take":3,"pass":"proxy","moved":[],"cut_changed":true}` : `{"id":"location:kitchen"}` }));
+  it("POST /seriesmith/discard and /seriesmith/refs/discard", async () => {
+    const { calls, api } = recorder((p) => ({ body: p === "/seriesmith/discard" ? `{"shot":"sh020","take":3,"pass":"proxy","moved":[],"cut_changed":true}` : `{"id":"location:kitchen"}` }));
     const r = await api.discard({ ep: "E", pass: "proxy", shot: "sh020", take: 3 });
     expect(r.cut_changed).toBe(true);
-    expect(calls[0]).toMatchObject({ method: "POST", path: "/h3pipe/discard" });
+    expect(calls[0]).toMatchObject({ method: "POST", path: "/seriesmith/discard" });
     expect(JSON.parse(String(calls[0].body))).toEqual({ ep: "E", shot: "sh020", take: 3, pass: "proxy" });
     await api.refsDiscard({ ep: "E", ref: "location:kitchen", view: null, take: 2 });
     expect(JSON.parse(String(calls[1].body))).toEqual({ ep: "E", ref: "location:kitchen", take: 2 }); // no view for a non-character
@@ -32,7 +32,7 @@ describe("Phase 8.6 client", () => {
     expect(JSON.parse(String(calls[2].body)).view).toBe("02_side");
   });
 
-  it("POST /h3pipe/refs/generate-missing sends only what's set", async () => {
+  it("POST /seriesmith/refs/generate-missing sends only what's set", async () => {
     const { calls, api } = recorder(() => ({ body: `{"queued":[],"picked":[],"skipped":[],"errors":[]}` }));
     await api.refsGenerateMissing({ ep: "E", pass: "proxy", dry_run: true });
     expect(JSON.parse(String(calls[0].body))).toEqual({ ep: "E", pass: "proxy", dry_run: true });
@@ -79,15 +79,15 @@ describe("Phase 8.6 client", () => {
     expect(JSON.parse(String(calls[1].body)).pick).toBe(true);
   });
 
-  it("PUT /h3pipe/refs/defaults and a view's override", async () => {
+  it("PUT /seriesmith/refs/defaults and a view's override", async () => {
     const { calls, api } = recorder(() => ({ body: `{"defaults":{"target":"krea2"},"override":{"stale":false}}` }));
     await api.putRefDefaults("E", { keyframe_target: null });
-    expect(calls[0]).toMatchObject({ method: "PUT", path: "/h3pipe/refs/defaults" });
+    expect(calls[0]).toMatchObject({ method: "PUT", path: "/seriesmith/refs/defaults" });
     expect(JSON.parse(String(calls[0].body))).toEqual({ ep: "E", keyframe_target: null });
     await api.putRefOverride({ ep: "E", ref: "subject:ada", view: "04_face", fields: { prompt: "close" } });
     expect(JSON.parse(String(calls[1].body))).toEqual({ ep: "E", ref: "subject:ada", view: "04_face", fields: { prompt: "close" } });
     await api.deleteRefOverride("E", "subject:ada", "04_face");
-    expect(calls[2].path).toBe("/h3pipe/refs/override?ep=E&ref=subject%3Aada&view=04_face");
+    expect(calls[2].path).toBe("/seriesmith/refs/override?ep=E&ref=subject%3Aada&view=04_face");
   });
 });
 
@@ -149,7 +149,7 @@ describe("mock: Phase 8.6", () => {
     const kit = await api.refsDiscard({ ep, ref: "location:kitchen", view: null, take: 1 });
     expect(kit).toMatchObject({ exists: false, picked: null, cleared: true });
     expect(kit.takes.map((t) => t.take)).toEqual([2]);
-    expect(events.filter(([e]) => e === "h3pipe.ref").map(([, d]) => (d as { status: string }).status)).toEqual(["discarded", "cleared"]);
+    expect(events.filter(([e]) => e === "seriesmith.ref").map(([, d]) => (d as { status: string }).status)).toEqual(["discarded", "cleared"]);
     const other = await api.refsDiscard({ ep, ref: "location:kitchen_window", view: null, take: 2 });
     expect(other.takes.map((t) => t.take)).toEqual([1]);
     // numbers aren't reused

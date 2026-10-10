@@ -1,10 +1,10 @@
-// Phase 9b: editing the cut (order, trims, locks) as whole-list PUT /h3pipe/cut
+// Phase 9b: editing the cut (order, trims, locks) as whole-list PUT /seriesmith/cut
 // bodies. Pure: the actions apply these to the store optimistically, then PUT.
 //
-// A pass's cut in `GET /h3pipe/episode` is already reconciled (h3takes.resolve_cut):
+// A pass's cut in `GET /seriesmith/episode` is already reconciled (takes.resolve_cut):
 // every shot in cut order, with the entry's take / pass / trims / lock / note. An
 // edit writes that whole list back with one thing changed, exactly as
-// h3takes.cut_entry_to_json would (a take only when picked, a pass only for a
+// takes.cut_entry_to_json would (a take only when picked, a pass only for a
 // placeholder, zero trims and empty notes left out), so nothing else moves.
 
 import type { CutAudioSource, CutEntry, EpisodeStatus, Pass, ShotStatus } from "../types";
@@ -30,7 +30,7 @@ export function entryOf(s: ShotStatus, listPass: Pass): CutEntry {
   return e;
 }
 
-/** The whole pass's cut as PUT /h3pipe/cut entries, in cut order (orphans kept). */
+/** The whole pass's cut as PUT /seriesmith/cut entries, in cut order (orphans kept). */
 export function entriesOf(st: EpisodeStatus): CutEntry[] {
   return st.shots.map((s) => entryOf(s, st.pass));
 }

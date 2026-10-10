@@ -1,41 +1,41 @@
 #!/usr/bin/env python3
 """
-h3edit.py — look at and steer an episode's takes: list them, pick one for the
+edit.py — look at and steer an episode's takes: list them, pick one for the
 cut, set per-shot overrides. The command-line face of what the editor does;
 `episode_status` is what its routes will serve.
 
-    python h3.py takes    Shows\\ep05 [--proxy] [--only sh020,sh030] [--no-sweep]
-    python h3.py pick     Shows\\ep05 sh020 3 [--proxy] [--from proxy]
-    python h3.py pick     Shows\\ep05 sh020 latest [--proxy]
-    python h3.py override Shows\\ep05 sh020 --show [--proxy]
-    python h3.py override Shows\\ep05 sh020 --seed 1234 --steps 10 [--proxy | --both]
-    python h3.py override Shows\\ep05 sh020 --lora a.safetensors --lora b.safetensors:0.6
-    python h3.py override Shows\\ep05 sh020 --prompt-file sh020.txt
-    python h3.py override Shows\\ep05 sh020 --dump-prompt > sh020.txt
-    python h3.py override Shows\\ep05 sh020 --clear prompt seed
-    python h3.py override Shows\\ep05 sh020 --clear
-    python h3.py override Shows\\ep05 sh020 --target ltx2      # retarget (--target none: undo)
-    python h3.py override Shows\\ep05 --episode-target ltx2    # the episode's target (built: undo)
-    python h3.py keyframe Shows\\ep05 sh020 [--from-prev | --from sh010[:3]] [--first | --last]
+    seriesmith takes    Shows\\ep05 [--proxy] [--only sh020,sh030] [--no-sweep]
+    seriesmith pick     Shows\\ep05 sh020 3 [--proxy] [--from proxy]
+    seriesmith pick     Shows\\ep05 sh020 latest [--proxy]
+    seriesmith override Shows\\ep05 sh020 --show [--proxy]
+    seriesmith override Shows\\ep05 sh020 --seed 1234 --steps 10 [--proxy | --both]
+    seriesmith override Shows\\ep05 sh020 --lora a.safetensors --lora b.safetensors:0.6
+    seriesmith override Shows\\ep05 sh020 --prompt-file sh020.txt
+    seriesmith override Shows\\ep05 sh020 --dump-prompt > sh020.txt
+    seriesmith override Shows\\ep05 sh020 --clear prompt seed
+    seriesmith override Shows\\ep05 sh020 --clear
+    seriesmith override Shows\\ep05 sh020 --target ltx2      # retarget (--target none: undo)
+    seriesmith override Shows\\ep05 --episode-target ltx2    # the episode's target (built: undo)
+    seriesmith keyframe Shows\\ep05 sh020 [--from-prev | --from sh010[:3]] [--first | --last]
                                           [--frame N] [--proxy] [--pick | --no-pick]
-    python h3.py discard  Shows\\ep05 sh020 3 [--proxy]          # move a take to the trash
-    python h3.py cut      Shows\\ep05 [--proxy] [--show]         # the cut: order, trims, locks
-    python h3.py cut      Shows\\ep05 --move sh050 --before sh020
-    python h3.py cut      Shows\\ep05 --order sh010,sh030,sh020  # these first, the rest after
-    python h3.py cut      Shows\\ep05 --trim sh020 4 2           # frames off the head / tail
-    python h3.py cut      Shows\\ep05 --lock sh020 | --unlock sh020
-    python h3.py cut      Shows\\ep05 --out sh040 | --in sh040   # leave a shot out of the cut
-    python h3.py cut      Shows\\ep05 --flag sh020 | --unflag sh020 # come back to it
-    python h3.py cut      Shows\\ep05 --reset order|trims|audio|all
-    python h3.py cut      Shows\\ep05 --proxy --copy-from final [order|trims|audio|all]
-    python h3.py cut      Shows\\ep05 --audio sh020 take sh020:1 --at 0.2 --gain 1.5
-    python h3.py cut      Shows\\ep05 --audio sh030 file audio/line.wav | none | own
-    python h3.py targets  [Shows\\ep05] [--json]               # readiness of every target
+    seriesmith discard  Shows\\ep05 sh020 3 [--proxy]          # move a take to the trash
+    seriesmith cut      Shows\\ep05 [--proxy] [--show]         # the cut: order, trims, locks
+    seriesmith cut      Shows\\ep05 --move sh050 --before sh020
+    seriesmith cut      Shows\\ep05 --order sh010,sh030,sh020  # these first, the rest after
+    seriesmith cut      Shows\\ep05 --trim sh020 4 2           # frames off the head / tail
+    seriesmith cut      Shows\\ep05 --lock sh020 | --unlock sh020
+    seriesmith cut      Shows\\ep05 --out sh040 | --in sh040   # leave a shot out of the cut
+    seriesmith cut      Shows\\ep05 --flag sh020 | --unflag sh020 # come back to it
+    seriesmith cut      Shows\\ep05 --reset order|trims|audio|all
+    seriesmith cut      Shows\\ep05 --proxy --copy-from final [order|trims|audio|all]
+    seriesmith cut      Shows\\ep05 --audio sh020 take sh020:1 --at 0.2 --gain 1.5
+    seriesmith cut      Shows\\ep05 --audio sh030 file audio/line.wav | none | own
+    seriesmith targets  [Shows\\ep05] [--json]               # readiness of every target
 
 `takes` shows every take with its status, why it is stale (script / ref /
 preset / target / chain), and which take the cut uses. `pick` writes cut.json; `latest` puts a
 shot back on its newest usable take. `override` writes overrides.json: the
-next render or redo of that shot uses it (see h3render.py). Prompt, model,
+next render or redo of that shot uses it (see render.py). Prompt, model,
 LoRAs and steps are per pass (final unless --proxy; --both sets both); seed
 and note apply to both passes. They are written to the block of the target
 the shot renders on now, so a retargeted shot's settings are its new
@@ -63,7 +63,7 @@ clip, whose length never changes.
 `keyframe` cuts a frame out of another shot's take and adds it as the shot's
 first (or last) keyframe: by default the previous shot's last frame, from the
 take that shot's cut entry uses (continuity). It is picked when the shot has no
-keyframe yet (h3refs.keyframe_from_take).
+keyframe yet (refs.keyframe_from_take).
 
 Stdlib only.
 """
@@ -77,7 +77,7 @@ import subprocess
 import sys
 
 from seriesmith import jobs as J
-from seriesmith import peaks as h3peaks
+from seriesmith import peaks as PK
 from seriesmith import takes as T
 from seriesmith import upscale as U
 
@@ -248,7 +248,7 @@ def prompt_text(prompt) -> str:
 
 def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | None,
                target: str, cache: dict) -> list[str]:
-    """Why a take is stale (h3jobs.stale_reasons), judged against the entry its
+    """Why a take is stale (jobs.stale_reasons), judged against the entry its
     own target would render now: the built entry, or the shot retargeted to
     that target. `target` is what the shot's next render uses; a take made on
     another target is also stale `target`."""
@@ -454,14 +454,14 @@ def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
                 "save_notes": (t.sidecar or {}).get("save_notes", ""),
                 # Phase 13: its upscale (null: never upscaled)
                 "upscale": upscale_summary(root, t, cache),
-                # its post (h3post; null: never post-processed)
+                # its post (post; null: never post-processed)
                 "post": post_summary(root, t),
             } for t in takes],
         })
     d = doc0.get("defaults", {})
     track = episode_track(root)
     if track is not None:
-        # how many shots the build gave a dialogue window (h3align's work)
+        # how many shots the build gave a dialogue window (align's work)
         track["aligned"] = sum(1 for s in out if "audio_in" in s)
     return {"episode": doc0.get("episode", os.path.basename(root)),
             "title": doc0.get("title", ""), "pass": pass_,
@@ -476,7 +476,7 @@ def cut_audio(root: str, e: T.CutEntry, pass_: str) -> dict:
     """{"audio_file", "audio_why"} for one cut entry: the file its audio
     source will actually play (relative to the episode; null for `none`, for
     no source, and for a source that isn't there) and the badge's text
-    (h3takes.audio_label, with " (missing)" when the file is gone)."""
+    (takes.audio_label, with " (missing)" when the file is gone)."""
     if not e.audio:
         return {"audio_file": None, "audio_why": None}
     f = T.audio_source_file(root, e.audio, pass_)
@@ -489,18 +489,18 @@ def cut_audio(root: str, e: T.CutEntry, pass_: str) -> dict:
 def take_audio(root: str, t: T.Take) -> str | None:
     """The file whose sound the cut plays for a take, relative to the
     episode: its mp4 if that has an audio stream, else its _h3.wav, else None
-    (h3peaks.clip_audio, the rule of h3assemble's --audio auto)."""
-    p = h3peaks.clip_audio(t.paths.mp4, t.paths.h3_wav)
+    (peaks.clip_audio, the rule of assemble's --audio auto)."""
+    p = PK.clip_audio(t.paths.mp4, t.paths.h3_wav)
     return rel(root, p) if p else None
 
 
 def words_cache(recording: str) -> str:
-    """Where h3align caches a recording's word timings."""
+    """Where align caches a recording's word timings."""
     return recording + ".words.json"
 
 
 def has_words(recording: str) -> bool:
-    """Whether a usable transcript sits beside the recording (h3align's rule:
+    """Whether a usable transcript sits beside the recording (align's rule:
     the cache is newer than the recording, else it transcribes again)."""
     cache = words_cache(recording)
     try:
@@ -533,7 +533,7 @@ def episode_track(root: str) -> dict | None:
     if not os.path.isfile(full):
         return {"path": path, "duration": None, "rate": None, "exists": False,
                 "words": False}
-    info = h3peaks.media_info(full)
+    info = PK.media_info(full)
     dur = info["duration"]
     return {"path": path, "duration": round(dur, 6) if dur is not None else None,
             "rate": info["rate"], "exists": True, "words": has_words(full)}
@@ -621,7 +621,7 @@ def refs_used(root: str, job: J.Job) -> list[dict]:
         return []
     cfg = J.series_config(root) or {}
     # a variant (`of:`) shares the subject's voice, and so its voice ref: there
-    # is no voice:<variant> to point at (h3refs.series_refs)
+    # is no voice:<variant> to point at (refs.series_refs)
     from seriesmith.core.series_config import variant_of
     variants = variant_of(cfg)
     plates = {}
@@ -846,9 +846,9 @@ def replace_cut(root: str, pass_: str, entries: list[dict]) -> dict:
 def write_cut(root: str, pass_: str, entries: list[dict]) -> dict:
     """Write `entries` as pass `pass_`'s list in cut.json and return the cut.
     The file as it was goes to <ep>/_history/cut.json.<stamp> first (the
-    newest h3source.HISTORY_KEEP are kept); an edit that changes nothing
+    newest source.HISTORY_KEEP are kept); an edit that changes nothing
     writes nothing."""
-    from seriesmith import source as h3source                        # it imports this module: not at the top
+    from seriesmith import source as SRC                        # it imports this module: not at the top
     cut = T.load_cut(root)
     new = copy.deepcopy(cut)
     new[pass_] = [dict(e) for e in entries]
@@ -862,7 +862,7 @@ def write_cut(root: str, pass_: str, entries: list[dict]) -> dict:
     path = os.path.join(root, T.CUT_FILE)
     if os.path.isfile(path):
         with open(path, "rb") as fh:
-            h3source.save_history_bytes(root, T.CUT_FILE, fh.read())
+            SRC.save_history_bytes(root, T.CUT_FILE, fh.read())
     T.save_cut(root, new)
     return new
 
@@ -870,12 +870,12 @@ def write_cut(root: str, pass_: str, entries: list[dict]) -> dict:
 def pass_fps(root: str, pass_: str) -> float:
     """The frame rate a pass's cut (and its trims) counts in: assemble's (the
     series config's `series.fps`, else that pass's shotlist's, else 24)."""
-    from seriesmith import assemble as h3assemble
+    from seriesmith import assemble as ASM
     try:
         doc = J.load_shotlist(root, pass_)
     except FileNotFoundError:
         doc = {}
-    return h3assemble.episode_fps(root, doc)
+    return ASM.episode_fps(root, doc)
 
 
 def script_order(root: str, pass_: str) -> list[str]:
@@ -900,7 +900,7 @@ def take_span(root: str, e: T.CutEntry, fps: float) -> int | None:
 
 def dialogue_windows(root: str, pass_: str, fps: float) -> dict[str, int]:
     """Shot id -> the frames its dialogue window keeps, rounded against the
-    earliest window exactly as h3assemble does (shots without one left out)."""
+    earliest window exactly as assemble does (shots without one left out)."""
     try:
         shots = [d["shots"][i] for d, i in J.episode_shots(root, pass_)]
     except FileNotFoundError:
@@ -925,7 +925,7 @@ def check_trims(root: str, pass_: str, entries: list[dict]) -> None:
     """CutError for a trim that isn't a whole number >= 0, or trims that
     leave less than one frame of the take an entry uses (when its frame count
     is known; a take not rendered yet can be trimmed ahead). A shot with a
-    dialogue window counts from the window's frames, as h3assemble cuts the
+    dialogue window counts from the window's frames, as assemble cuts the
     clip to its window before the trims."""
     fps, windows = None, None
     for raw in entries:
@@ -962,7 +962,7 @@ def episode_file(root: str, path: str) -> str:
     """A media file an audio source names, as a full path. It must be relative
     to the episode and stay inside it — or inside the folder of a
     parent-folder series config, where the series' own audio lives (the rule
-    /h3pipe/file and /h3pipe/peaks follow). CutError otherwise, and for a file
+    /seriesmith/file and /seriesmith/peaks follow). CutError otherwise, and for a file
     that isn't there."""
     parts = [p for p in str(path).replace("\\", "/").split("/") if p not in ("", ".")]
     if (str(path).startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", str(path))
@@ -980,7 +980,7 @@ def episode_file(root: str, path: str) -> str:
 
 def check_audio(root: str, pass_: str, entries: list[dict]) -> None:
     """Check each entry's `audio` and rewrite it in its stored form (in
-    place). CutError for a bad shape (h3takes.audio_spec: an unknown key, a
+    place). CutError for a bad shape (takes.audio_spec: an unknown key, a
     negative `start`, a gain outside 0..4), a take that doesn't exist or has
     no sound, or a file outside the episode, missing, or with no audio
     stream."""
@@ -1001,14 +1001,14 @@ def check_audio(root: str, pass_: str, entries: list[dict]) -> None:
             if t is None:
                 raise CutError(f"{sid}: audio from {label}: there is no such take "
                                f"in the {spec['pass']} pass")
-            if h3peaks.clip_audio(t.paths.mp4, t.paths.h3_wav) is None:
+            if PK.clip_audio(t.paths.mp4, t.paths.h3_wav) is None:
                 raise CutError(f"{sid}: audio from {label}: that take has no sound")
         elif spec["source"] == "file":
             try:
                 full = episode_file(root, spec["path"])
             except CutError as e:
                 raise CutError(f"{sid}: {e}")
-            if not h3peaks.has_audio(full):
+            if not PK.has_audio(full):
                 raise CutError(f"{sid}: {spec['path']} has no audio stream")
         raw["audio"] = spec
 
@@ -1172,7 +1172,7 @@ def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
     """Change one entry's trim_in / trim_out / locked / note / audio / out /
     flag (a flag is allowed on a locked entry: it changes nothing played).
     Trims, audio sources and leaving it out on a locked entry are Locked unless
-    `force`; trims and audio are checked as PUT /h3pipe/cut checks them."""
+    `force`; trims and audio are checked as PUT /seriesmith/cut checks them."""
     entries = cut_entries(root, pass_)
     e = entries[_find(entries, shot_id, pass_)]
     if ({"trim_in", "trim_out", "audio", "out"} & set(fields)) and e.locked and not force:
@@ -1278,7 +1278,7 @@ def override_view(ov: dict, shot_id: str, built: dict[str, dict],
 def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None) -> list[T.Take]:
     """Close every queued take whose ComfyUI job is gone; return the takes changed.
 
-    `comfy` is an h3jobs.Comfy (anything with alive() and history()). The
+    `comfy` is a jobs.Comfy (anything with alive() and history()). The
     snapshot time is taken before the queue is read, as sweep_queued needs. A
     take whose job has left the queue is looked up in /history: an execution
     error marks it failed with the exception message; a job that finished is
@@ -1399,17 +1399,17 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
                 review_copy: bool = False, save_frames: bool | None = None,
                 runner=None, backend: str | None = None) -> dict:
     """Plan and queue a take for each shot (every shot when `shot_ids` is
-    None), as h3render does, without waiting for any of them.
+    None), as render does, without waiting for any of them.
 
     `base` is the workflow: one API graph for every shot (a single-target
     episode), or a function (target id -> API graph) for episodes whose shots
     render on different targets. A job's input images (keyframes) are
-    uploaded to ComfyUI first (h3jobs.stage_inputs). Its model files are
-    resolved to installed ones first (h3jobs.resolve_models: ComfyUI's
+    uploaded to ComfyUI first (jobs.stage_inputs). Its model files are
+    resolved to installed ones first (jobs.resolve_models: ComfyUI's
     lists, from `model_list(folder, class_type, field)` or `comfy`'s
     /object_info): a missing required file skips the shot, with
     `missing_files` saying what to download; a missing accelerator renders
-    the base preset. Then they are checked (h3jobs.check_models, with
+    the base preset. Then they are checked (jobs.check_models, with
     `model_resolve` and `model_cache`): a file of another family skips the
     shot, with `model_mismatch` listing the checks, unless the template
     allows it.
@@ -1584,7 +1584,7 @@ def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dic
     pruned to what the saver needs), its loader and saver, and target.json's
     `nodes`.
 
-    `graph` is the workflow a render would use now (h3jobs.target_graph_source,
+    `graph` is the workflow a render would use now (jobs.target_graph_source,
     which the routes and the CLI pass: a graph saved in the running ComfyUI
     wins over the repo's copy, so readiness must judge that one). Without it,
     the repo's copy.
@@ -1644,7 +1644,7 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
 
     `graph_of(target) -> (graph, where)` is the workflow each target would
     render with now (the routes and the CLI pass one built from
-    h3jobs.target_graph_source, so a graph saved in the running ComfyUI is what
+    jobs.target_graph_source, so a graph saved in the running ComfyUI is what
     the node check judges); None means the repo's copy, as before.
 
     `object_info` is ComfyUI's /object_info (None: it didn't answer, so
@@ -1733,7 +1733,7 @@ GRAPH_LABELS = {"env": "$ENV", "comfy": "saved in ComfyUI", "saved": "$COMFYUI_P
 
 
 def target_graphs(targets, comfy_url: str | None = None) -> dict[str, dict]:
-    """{target id: which graph its next render uses} (h3jobs.target_graph_source
+    """{target id: which graph its next render uses} (jobs.target_graph_source
     with the graph itself, for the node check). ComfyUI's saved workflows are
     listed once, so a machine that has saved none is one request, not one per
     target. A target whose workflow can't be read anywhere is reported, not
@@ -1816,12 +1816,12 @@ def revert_workflow(t, comfy, name: str | None = None) -> dict:
 
 
 def cmd_targets(root: str | None, argv: list[str]) -> int:
-    """h3.py targets [<episode>] [--json] [--comfy URL]: each target's
+    """seriesmith targets [<episode>] [--json] [--comfy URL]: each target's
     readiness on the running ComfyUI, the graph each one renders with, and
     --install-workflow / --revert-workflow to hand a graph to ComfyUI and take
     it back."""
     import json as _json
-    ap = argparse.ArgumentParser(prog="h3.py targets",
+    ap = argparse.ArgumentParser(prog="seriesmith targets",
                                  description="Which targets this ComfyUI can render, and what "
                                              "to download for the rest.")
     ap.add_argument("--json", action="store_true", help="print the readiness as JSON")
@@ -1894,13 +1894,13 @@ def cmd_targets(root: str | None, argv: list[str]) -> int:
 
 
 def cmd_target_from_workflow(argv: list[str]) -> int:
-    """h3.py target-from-workflow <workflow> [<episode>] [--save] ...: propose
-    the target.json for one of ComfyUI's saved workflows (h3inspect), print what
+    """seriesmith target-from-workflow <workflow> [<episode>] [--save] ...: propose
+    the target.json for one of ComfyUI's saved workflows (inspector), print what
     it could not work out, and with --save write it into the show's own
     targets."""
     import json as _json
     from seriesmith import inspector as IN
-    ap = argparse.ArgumentParser(prog="h3.py target-from-workflow",
+    ap = argparse.ArgumentParser(prog="seriesmith target-from-workflow",
                                  description="Turn a ComfyUI workflow into a target.")
     ap.add_argument("workflow", help="a name among ComfyUI's saved workflows, or a .json path")
     ap.add_argument("episode", nargs="?", help="the show to save it in (with --save)")
@@ -1986,13 +1986,13 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
     path = IN.save_spec(root, r["proposal"])
     print(f"\n  wrote {path}")
     print(f"      it is a draft: render one shot on it "
-          f"(h3render {os.path.basename(root)} --target {r['proposal']['id']}) before the "
+          f"(render {os.path.basename(root)} --target {r['proposal']['id']}) before the "
           f"editor offers it\n")
     return 0
 
 
 def _workflow_action(args) -> int:
-    """h3.py targets --install-workflow / --revert-workflow."""
+    """seriesmith targets --install-workflow / --revert-workflow."""
     tid = args.install_workflow or args.revert_workflow
     try:
         t = workflow_target(tid)
@@ -2047,8 +2047,8 @@ RUN_MODULE = ("import runpy, sys; sys.path.insert(0, sys.argv[1]); m = sys.argv[
 PACKAGE_PARENT = os.path.dirname(HERE)
 
 # h3pipe's script names, as callers still pass them -> seriesmith's modules
-TOOLS = {"h3build.py": "seriesmith.build", "h3assemble.py": "seriesmith.assemble",
-         "h3publish.py": "seriesmith.publish", "h3align.py": "seriesmith.align",
+TOOLS = {"build.py": "seriesmith.build", "assemble.py": "seriesmith.assemble",
+         "publish.py": "seriesmith.publish", "align.py": "seriesmith.align",
          "kreagen.py": "seriesmith.kreagen", "mksheet.py": "seriesmith.mksheet"}
 
 
@@ -2066,12 +2066,12 @@ def tool_cmd(script: str, args: list[str], python: str | None = None) -> list[st
 
 
 # A progress line a script prints for whoever runs it: `##<tool> {json}`
-# (h3assemble, h3publish; h3align has its own reader in h3track).
-PROGRESS_LINE = re.compile(r"^##(h3\w+) (\{.*\})\s*$")
+# (assemble, publish; align has its own reader in track).
+PROGRESS_LINE = re.compile(r"^##(\w+) (\{.*\})\s*$")
 
 
 def progress_line(prefix: str, event: dict) -> None:
-    """Print one progress line (`prefix` is "##h3assemble " and the like)."""
+    """Print one progress line (`prefix` is "##assemble " and the like)."""
     import json
     print(prefix + json.dumps(event), flush=True)
 
@@ -2142,7 +2142,7 @@ def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
 
 
 def build_episode(root: str, timeout: int = 600) -> dict:
-    """h3build for the final pass, then the proxy pass, as `h3.py build` runs
+    """build for the final pass, then the proxy pass, as `seriesmith build` runs
     it. A script error is a result (ok: false, the message in the pass's
     `error`), not an exception."""
     series_cfg, script = episode_series_config(root), episode_script(root)
@@ -2152,7 +2152,7 @@ def build_episode(root: str, timeout: int = 600) -> dict:
         return {"ok": False, "error": why, "passes": {}}
     passes = {}
     for ps in T.PASSES:
-        rc, out, err = run_tool("h3build.py", [series_cfg, script, "-o", root]
+        rc, out, err = run_tool("build.py", [series_cfg, script, "-o", root]
                                 + (["--proxy"] if ps == "proxy" else []), root, timeout)
         passes[ps] = {"ok": rc == 0, "report": out, "error": err.strip() if rc else ""}
     return {"ok": all(p["ok"] for p in passes.values()), "passes": passes}
@@ -2161,7 +2161,7 @@ def build_episode(root: str, timeout: int = 600) -> dict:
 def assemble_episode(root: str, pass_: str, partial: bool = True,
                      timeout: int = 3600, upscaled: bool = False,
                      size: str | None = None) -> dict:
-    """h3assemble for one pass, as `h3.py assemble` runs it. `output` is the
+    """assemble for one pass, as `seriesmith assemble` runs it. `output` is the
     cut's path relative to the episode (forward slashes), or None. `upscaled`
     (either pass): each clip from its fresh upscale, as <cut>_up.mp4; `size`
     ("1920x1080"): the cut's size."""
@@ -2174,7 +2174,7 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         args.append("--upscaled")
     if size:
         args += ["--size", size]
-    rc, out, err = run_tool("h3assemble.py", args, root, timeout)
+    rc, out, err = run_tool("assemble.py", args, root, timeout)
     output = None
     for line in out.splitlines():
         line = line.strip()
@@ -2182,14 +2182,14 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
             output = rel(root, line[3:].strip())
     ok = rc == 0 and output is not None
     return {"ok": ok, "output": output, "report": out,
-            "error": "" if ok else (err.strip() or "h3assemble wrote no cut")}
+            "error": "" if ok else (err.strip() or "assemble wrote no cut")}
 
 
 def publish_episode(root: str, cut: str, timeout: int = 3600) -> dict:
-    """h3publish on `cut` (relative to the episode): the series intro and outro
+    """publish on `cut` (relative to the episode): the series intro and outro
     around it, the episode's title drawn on, into <episode>/publish/. `output`
     as assemble_episode's; a failure's reason is in `error`."""
-    rc, out, err = run_tool("h3publish.py", [root, "--input", os.path.join(root, cut)],
+    rc, out, err = run_tool("publish.py", [root, "--input", os.path.join(root, cut)],
                             root, timeout)
     output = None
     for line in out.splitlines():
@@ -2199,7 +2199,7 @@ def publish_episode(root: str, cut: str, timeout: int = 3600) -> dict:
     ok = rc == 0 and output is not None
     why = next((ln.strip()[3:] for ln in out.splitlines() if ln.strip().startswith("!! ")), "")
     return {"ok": ok, "output": output, "report": out,
-            "error": "" if ok else (why or err.strip() or "h3publish wrote nothing")}
+            "error": "" if ok else (why or err.strip() or "publish wrote nothing")}
 
 
 # ---------------------------------------------------------------------------
@@ -2211,7 +2211,7 @@ def _pass(args) -> str:
 
 
 def cmd_takes(root: str, argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="h3.py takes")
+    ap = argparse.ArgumentParser(prog="seriesmith takes")
     ap.add_argument("--proxy", action="store_true")
     ap.add_argument("--only", help="comma-separated shot ids")
     ap.add_argument("--no-sweep", action="store_true",
@@ -2264,7 +2264,7 @@ def cmd_takes(root: str, argv: list[str]) -> int:
 
 
 def cmd_pick(root: str, argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="h3.py pick")
+    ap = argparse.ArgumentParser(prog="seriesmith pick")
     ap.add_argument("shot")
     ap.add_argument("take", help="take number, or 'latest' to follow the newest usable take")
     ap.add_argument("--proxy", action="store_true", help="edit the proxy cut")
@@ -2362,7 +2362,7 @@ def audio_from_args(ap, words: list[str], pass_: str, at: float | None,
 
 def cmd_cut(root: str, argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
-        prog="h3.py cut",
+        prog="seriesmith cut",
         description="Show or edit a pass's cut (cut.json): order, trims, locks. Each edit "
                     "keeps a copy of the old cut.json in _history/.")
     ap.add_argument("--proxy", action="store_true", help="the proxy cut")
@@ -2453,7 +2453,7 @@ def cmd_cut(root: str, argv: list[str]) -> int:
 
 def cmd_discard(root: str, argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
-        prog="h3.py discard",
+        prog="seriesmith discard",
         description="Move a take to renders[_proxy]/_trash/<shot>/ (nothing is deleted); "
                     "a cut entry that picked it goes back to the latest usable take.")
     ap.add_argument("shot")
@@ -2478,7 +2478,7 @@ def cmd_discard(root: str, argv: list[str]) -> int:
 
 
 def cmd_override(root: str, argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="h3.py override")
+    ap = argparse.ArgumentParser(prog="seriesmith override")
     ap.add_argument("shot", nargs="?", help="the shot (not needed with only --episode-target)")
     ap.add_argument("--episode-target", metavar="TARGET",
                     help="the episode's video target: every shot the script gives no target "
@@ -2564,7 +2564,7 @@ def cmd_override(root: str, argv: list[str]) -> int:
     if missing:
         print(f"  !! {args.shot} has no {'/'.join(missing)} build"
               + (f" that compiles for {target}" if target != built_target else "")
-              + " — run h3.py build first")
+              + " — run seriesmith build first")
         return 1
     user_fields = [f for f in T.SHOT_FIELDS + T.PASS_FIELDS if f != "base_hash"] + ["target"]
     changed = args.target is not None
@@ -2655,7 +2655,7 @@ def _frame_arg(v: str):
 
 def cmd_keyframe(root: str, argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
-        prog="h3.py keyframe",
+        prog="seriesmith keyframe",
         description="Make a shot's first (or last) keyframe from a frame of another "
                     "shot's take: by default the previous shot's last frame, from the "
                     "take the cut uses.")
@@ -2698,7 +2698,7 @@ def cmd_keyframe(root: str, argv: list[str]) -> int:
     pk.add_argument("--no-pick", action="store_true", help="only add it as a take")
     ap.add_argument("--note", default="")
     args = ap.parse_args(argv)
-    from seriesmith import refs as R                                   # h3refs imports this module
+    from seriesmith import refs as R                                   # refs imports this module
     pass_ = _pass(args)
     which = "last" if args.last else "first"
     if not args.shot and not args.missing:
@@ -2737,7 +2737,7 @@ def cmd_keyframe(root: str, argv: list[str]) -> int:
 
 
 def _keyframe_action(R, root: str, args, pass_: str, which: str) -> int:
-    """h3.py keyframe --clear / --generate / --missing."""
+    """seriesmith keyframe --clear / --generate / --missing."""
     try:
         s = R.load_series(root)
     except (FileNotFoundError, ValueError) as e:

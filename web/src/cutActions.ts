@@ -1,6 +1,6 @@
 // Phase 9b: editing the cut from the timeline (order, trims, locks), undo /
 // redo, and play-through (seek from the ruler, J / K / L, the recording).
-// Each edit is one PUT /h3pipe/cut of the whole pass's list, shown at once
+// Each edit is one PUT /seriesmith/cut of the whole pass's list, shown at once
 // (optimistic) and rolled back if the server refuses it.
 
 import { ApiError } from "./api";
@@ -354,8 +354,8 @@ export async function trimAtPlayhead(side: "in" | "out"): Promise<boolean> {
 }
 
 /**
- * Menu: back to script order and/or no trims (POST /h3pipe/cut/reset), or
- * the other pass's order and/or trims (POST /h3pipe/cut/copy). Undoable like
+ * Menu: back to script order and/or no trims (POST /seriesmith/cut/reset), or
+ * the other pass's order and/or trims (POST /seriesmith/cut/copy). Undoable like
  * any edit: the change is read back from the refreshed status.
  */
 async function serverEdit(label: string, run: (c: Ctx) => Promise<unknown>, fallback: ((list: CutEntry[], st: EpisodeStatus) => CutEntry[] | null) | null): Promise<boolean> {

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-h3track.py — the episode's dialogue recording: attaching one, and timing the
+track.py — the episode's dialogue recording: attaching one, and timing the
 script against it (docs/API.md, "Phase 9c A"). The work behind
-`GET /h3pipe/align/ready`, `POST /h3pipe/track` and `POST /h3pipe/align`.
+`GET /seriesmith/align/ready`, `POST /seriesmith/track` and `POST /seriesmith/align`.
 
-    align_ready()                      -> what h3align needs, and what is missing
+    align_ready()                      -> what align needs, and what is missing
     attach_track(ep, source)           -> copy a recording in, point the series config at it
     clear_track(ep)                    -> forget it (the file stays)
-    align(ep, ..., progress=...)       -> run h3align in a subprocess, stage by stage
+    align(ep, ..., progress=...)       -> run align in a subprocess, stage by stage
 
-The series config is written through the Phase 9a save path (h3source: a copy
+The series config is written through the Phase 9a save path (source: a copy
 in <ep>/_history/, an atomic write that keeps the file's line endings and BOM),
-which is also how h3align itself writes now, so the editor and the command line
+which is also how align itself writes now, so the editor and the command line
 keep one history.
 
-Nothing here transcribes: h3align does, in the Python that runs the pipeline
+Nothing here transcribes: align does, in the Python that runs the pipeline
 (the readiness check reports that interpreter and the pip line for whatever it
 is missing).
 
@@ -51,11 +51,11 @@ PROBE_TTL = 30.0                    # seconds a readiness probe is reused
 
 class TrackError(H.SourceError):
     """A request that can't be done; `status` is the answer's HTTP status
-    (h3source.SourceError, so the API's handler already knows it)."""
+    (source.SourceError, so the API's handler already knows it)."""
 
 
 # ---------------------------------------------------------------------------
-# readiness: what h3align needs, in the Python that would run it
+# readiness: what align needs, in the Python that would run it
 # ---------------------------------------------------------------------------
 
 # (pip name, import name) — one of the two whispers is enough
@@ -92,7 +92,7 @@ _probe_cache: dict[str, tuple[float, dict]] = {}
 
 def probe(python: str) -> dict:
     """{pip name: version string (maybe "") or None} in `python`, asked in a
-    subprocess so it is what h3align would really see. Falls back to this
+    subprocess so it is what align would really see. Falls back to this
     interpreter's own view if the probe can't run."""
     hit = _probe_cache.get(python)
     if hit and time.monotonic() - hit[0] < PROBE_TTL:
@@ -127,11 +127,11 @@ def has_deps(pkgs: dict) -> bool:
 
 
 def candidates() -> list[str]:
-    """Interpreters that could run h3align, best first: H3PIPE_ALIGN_PYTHON,
+    """Interpreters that could run align, best first: SERIESMITH_ALIGN_PYTHON,
     the one running this (ComfyUI's embedded Python in the editor), then a
     `python` on PATH. The editor's Python often has no Whisper while the
-    system one does, and h3align is a subprocess either way."""
-    out = [os.environ.get("H3PIPE_ALIGN_PYTHON") or "", sys.executable]
+    system one does, and align is a subprocess either way."""
+    out = [os.environ.get("SERIESMITH_ALIGN_PYTHON") or "", sys.executable]
     out += [shutil.which(n) or "" for n in ("python", "python3")]
     seen, keep = set(), []
     for p in out:
@@ -143,7 +143,7 @@ def candidates() -> list[str]:
 
 
 def align_python() -> str:
-    """The interpreter h3align runs in: the first candidate that has numpy and
+    """The interpreter align runs in: the first candidate that has numpy and
     a Whisper, else the first (so readiness reports against it)."""
     cands = candidates()
     for py in cands:
@@ -153,8 +153,8 @@ def align_python() -> str:
 
 
 def align_ready(python: str | None = None) -> dict:
-    """GET /h3pipe/align/ready: ffmpeg, numpy and a Whisper, checked against
-    the Python that would run h3align (`align_python`), with the pip line for
+    """GET /seriesmith/align/ready: ffmpeg, numpy and a Whisper, checked against
+    the Python that would run align (`align_python`), with the pip line for
     what is missing."""
     py = python or align_python()
     pkgs = probe(py)
@@ -337,7 +337,7 @@ def set_track(ep: str, rel: str | None) -> dict:
 
 
 def recording_path(ep: str, track: str | None = None) -> str | None:
-    """The recording h3align would use: `track` (absolute, or relative to the
+    """The recording align would use: `track` (absolute, or relative to the
     episode), else the series config's `audio.track`. None when there is
     none, or the file isn't there."""
     if not track:
@@ -355,7 +355,7 @@ def recording_path(ep: str, track: str | None = None) -> str | None:
 
 
 def attach_track(ep: str, source: str, name: str | None = None) -> dict:
-    """POST /h3pipe/track with a file: put it in <ep>/audio/, point the series
+    """POST /seriesmith/track with a file: put it in <ep>/audio/, point the series
     config at it. Returns set_track's answer plus {"path", "copied"}."""
     rel, copied = place_recording(ep, source, name)
     out = set_track(ep, rel)
@@ -364,7 +364,7 @@ def attach_track(ep: str, source: str, name: str | None = None) -> dict:
 
 
 def clear_track(ep: str) -> dict:
-    """POST /h3pipe/track with `track: null`: the series config forgets the
+    """POST /seriesmith/track with `track: null`: the series config forgets the
     recording (the file stays where it is)."""
     out = set_track(ep, None)
     out.update({"path": None, "copied": False})
@@ -372,15 +372,15 @@ def clear_track(ep: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# running h3align
+# running align
 # ---------------------------------------------------------------------------
 
-PROGRESS_PREFIX = "##h3align "       # h3align --progress; h3align.PROGRESS writes them
+PROGRESS_PREFIX = "##align "       # align --progress; align.PROGRESS writes them
 
 
 def _stream(cmd: list[str], cwd: str, timeout: float, on_progress) -> tuple[int, str]:
     """Run `cmd`, calling on_progress({"stage", "pct", "text"}) for every
-    h3align progress line; (exit code, everything else it printed)."""
+    align progress line; (exit code, everything else it printed)."""
     log: list[str] = []
     stopped: list[bool] = []
     p = subprocess.Popen(cmd, cwd=cwd, env=dict(os.environ, **E.TOOL_ENV),
@@ -410,39 +410,39 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress) -> tuple[int,
         rc = p.wait()
         killer.cancel()
     if stopped:
-        log.append(f"  !! h3align took longer than {int(timeout)}s and was stopped")
+        log.append(f"  !! align took longer than {int(timeout)}s and was stopped")
     return rc, "\n".join(log).strip()
 
 
 def why(log: str, rc: int) -> str:
-    """The line worth showing when h3align fails."""
+    """The line worth showing when align fails."""
     lines = [ln.strip() for ln in log.splitlines() if ln.strip()]
     for ln in reversed(lines):
         if ln.startswith("!!") or ln.startswith("  !!") or "Error" in ln:
             return ln.lstrip("! ").strip() or ln
-    return lines[-1] if lines else f"h3align exited {rc}"
+    return lines[-1] if lines else f"align exited {rc}"
 
 
 def align(ep: str, track: str | None = None, model: str | None = None, snap: bool = True,
           dry_run: bool = False, words: str | None = None, progress=None,
           timeout: float | None = None, python: str | None = None,
           check_deps: bool = True) -> dict:
-    """Run h3align on `ep` in a subprocess and return what it wrote:
+    """Run align on `ep` in a subprocess and return what it wrote:
     {"ok", "report", "changes", "notes", "script_hash", "series_hash", ...}
-    (h3align --json). `progress(event)` is called per stage. TrackError 409
+    (align --json). `progress(event)` is called per stage. TrackError 409
     with `missing` when a dependency isn't installed (a Whisper isn't one
-    when the recording already has a transcript), 500 when h3align fails."""
+    when the recording already has a transcript), 500 when align fails."""
     py = python or align_python()
     timeout = ALIGN_TIMEOUT if timeout is None else timeout
     if check_deps:
         ready = align_ready(py)
         # a transcript already beside the recording (or handed over) means no
-        # Whisper is needed: h3align reads the cache
+        # Whisper is needed: align reads the cache
         rec = recording_path(ep, track)
         cached = bool(words) or bool(rec and E.has_words(rec))
         need = [m for m in ready["missing"] if not (cached and m in WHISPER_NAMES)]
         if need:
-            raise TrackError(409, "h3align needs " + ", ".join(need)
+            raise TrackError(409, "align needs " + ", ".join(need)
                              + " (install them for the Python that runs the pipeline)",
                              missing=need, install=ready["install"],
                              python=ready["python"], ffmpeg=ready["ffmpeg"],

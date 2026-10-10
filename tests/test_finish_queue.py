@@ -111,7 +111,7 @@ class FinishQueueTest(ApiTest):
         self.assertEqual((rec["status"], rec["mp4"], rec["width"], rec["encoder"]),
                          ("ok", os.path.basename(t.paths.up_mp4), 1536, "h264_nvenc"))
         self.assertEqual(rec["scale"], up.scale)                     # the queuer's fields kept
-        self.assertIn(("h3pipe.upscale", {"ep": self.ep, "shot": "sh010", "take": 1,
+        self.assertIn(("seriesmith.upscale", {"ep": self.ep, "shot": "sh010", "take": 1,
                                           "status": "ok"}), self.events)
 
     def test_a_failed_save_fails_the_upscale(self):
@@ -227,7 +227,7 @@ class PostQueueTest(ApiTest):
         po = T.post_of(T.get_take(self.ep, "final", "sh010", 1))
         self.assertEqual((po["status"], po["mp4"]), ("ok", os.path.basename(t.paths.post_mp4)))
         self.assertTrue(po["fresh"])                                   # stamped with the upscale
-        self.assertIn(("h3pipe.post", {"ep": self.ep, "shot": "sh010", "take": 1,
+        self.assertIn(("seriesmith.post", {"ep": self.ep, "shot": "sh010", "take": 1,
                                        "status": "ok"}), self.events)
 
     def test_a_backend_not_set_up_is_an_error(self):

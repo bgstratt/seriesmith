@@ -1,5 +1,5 @@
 """
-Continuity keyframes (h3refs.keyframe_from_take, `h3.py keyframe`): a shot's
+Continuity keyframes (refs.keyframe_from_take, `seriesmith keyframe`): a shot's
 first keyframe cut out of the previous shot's take, in cut order, from the take
 the cut uses; the frame is exact; auto-pick; and the LTX takes that used a
 keyframe going `ref`-stale when it is re-extracted. On the mixed H3/LTX fixture
@@ -346,7 +346,7 @@ class KeyframeTest(unittest.TestCase):
     # -- the CLI -------------------------------------------------------------
 
     def cli(self, *args):
-        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "keyframe",
+        return subprocess.run([sys.executable, "-m", "seriesmith.commands", "keyframe",
                                self.root, *args], capture_output=True, text=True, env=ENV)
 
     def test_cli(self):

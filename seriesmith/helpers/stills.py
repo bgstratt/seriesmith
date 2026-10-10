@@ -2,13 +2,13 @@
 """
 h3_stills.py — the held moments of a camera-tour video, as plates (numpy, PIL).
 
-A tour (h3tour.py) is one H3 video that starts on a good frame of a place and
+A tour (tour.py) is one H3 video that starts on a good frame of a place and
 swings the camera from view to view, stopping on each; the video model keeps
 the place the same the whole way round, which separately drawn plates cannot.
 This finds the runs of frames where the camera holds still and saves the
 sharpest frame of each. Ported from h3sets' stills.py.
 
-The pipeline is stdlib only, so h3tour runs this file as a subprocess of the
+The pipeline is stdlib only, so tour runs this file as a subprocess of the
 running Python -- ComfyUI's under the editor's routes, which has numpy and
 PIL -- as h3_refsheet.py is run:
 

@@ -107,7 +107,7 @@ class LoaderTest(unittest.TestCase):
         self.assertEqual(variant_of(cfg), {})
 
     def test_variant_of_tolerates_an_unloaded_config(self):
-        """h3align reads series.json raw, `_note` strings and all."""
+        """align reads series.json raw, `_note` strings and all."""
         self.assertEqual(variant_of({"subjects": {"_note": "a comment",
                                                   "gina_towel": dict(TOWEL)}}),
                          {"gina_towel": "gina"})
@@ -218,7 +218,7 @@ class ParserTest(unittest.TestCase):
 
 
 class RefsTest(unittest.TestCase):
-    """h3refs: a sheet of its own, and no voice of its own."""
+    """refs: a sheet of its own, and no voice of its own."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

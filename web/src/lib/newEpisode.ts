@@ -1,5 +1,5 @@
 // Naming a new episode. The same rules the server
-// applies (h3source.check_name), so the dialog can say why before asking, plus
+// applies (source.check_name), so the dialog can say why before asking, plus
 // whether the folder it would go in is somewhere the editor can find it again.
 
 import { depthBelow, reachable } from "./browse";

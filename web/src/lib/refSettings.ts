@@ -1,5 +1,5 @@
 // P4: a ref's sampler settings in the Refs tab -- cfg and the image target's
-// knobs (h3refs.TUNABLE_PARAMS) as form text, turned into override fields, and
+// knobs (refs.TUNABLE_PARAMS) as form text, turned into override fields, and
 // a take's settings made the ref's ("Use these settings"). Pure functions.
 
 import { TUNABLE_PARAMS, type OverrideFields, type RefParams, type RefTake } from "../types";

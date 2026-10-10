@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-h3refs.py — references (refs) as takes, driven by the series config.
+refs.py — references (refs) as takes, driven by the series config.
 
 A ref is a conditioning input a render reads that the pipeline generates or
 you supply (docs/API.md, "References"). Refs are listed from the series config, not
@@ -36,7 +36,7 @@ The ref key is the id with ':' replaced by '__'. `ref_file` is the one helper
 that turns a ref path into a file; everything here goes through it. Paths
 handed to callers (the API) are relative to the episode, with forward slashes.
 
-A take's sidecar follows h3takes' rules (exclusive-create reservation, atomic
+A take's sidecar follows takes' rules (exclusive-create reservation, atomic
 updates, statuses queued/ok/failed). Queuer fields: version, ref, view, take,
 ep, status, queued, comfy_prompt_id, source ("generated" | "imported" |
 "frame"), seed, seed_source, prompt, model, loras, steps, cfg, width, height,
@@ -51,7 +51,7 @@ and picking the view that completes the set stitches the sheet with mksheet
 stdlib only).
 
 The prompt wording for every ref lives in the image target
-(targets/image/krea2/prompt.py), re-exported here: h3build writes the refs_todo
+(targets/image/krea2/prompt.py), re-exported here: build writes the refs_todo
 prompts with it (through the video target's ref requests), and kreagen and the
 editor generate with it. The model stack and graph are that target's too.
 
@@ -85,7 +85,7 @@ from seriesmith.core import series_config as SC  # noqa: E402
 # The wording of every reference prompt lives in targets/image/krea2/prompt.py,
 # the model stack's names in its target.json, and the graph code in its
 # graph.py. They are re-exported here under their old names (kreagen and the
-# tests read them from h3refs).
+# tests read them from refs).
 
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.targets import voice_prompt  # noqa: E402,F401
@@ -99,7 +99,7 @@ from seriesmith.targets.image.krea2.prompt import (  # noqa: E402,F401
 from seriesmith.core.series_config import members  # noqa: E402
 
 IMAGE_TARGET = TG.load_target(TG.DEFAULT_IMAGE_TARGET, "image")
-NEW_SEED_BITS = 53         # as h3jobs: a browser can hold these as numbers
+NEW_SEED_BITS = 53         # as jobs: a browser can hold these as numbers
 
 
 def seed_for(key: str) -> int:
@@ -137,7 +137,7 @@ class StitchError(RuntimeError):
 # ---------------------------------------------------------------------------
 
 def episode_series_config(ep: str) -> str | None:
-    """series.json in the episode folder, else in its parent (h3edit's rule)."""
+    """series.json in the episode folder, else in its parent (edit's rule)."""
     return E.episode_series_config(ep)
 
 
@@ -154,7 +154,7 @@ class Series:
 
 
 def load_series(ep: str) -> Series:
-    """The episode's series config, filtered as h3build reads it. FileNotFoundError if
+    """The episode's series config, filtered as build reads it. FileNotFoundError if
     there is none; ValueError if it can't be read."""
     from seriesmith.core.series_config import load_series_config
     ep = os.path.abspath(ep)
@@ -315,7 +315,7 @@ def keyframe_refs(ep: str, needs: dict | None = None) -> list[Ref]:
 # ---------------------------------------------------------------------------
 #
 # Which shots need a keyframe is decided from each shot's video target (the
-# one its next render uses: h3jobs.target_choice) and its script lines:
+# one its next render uses: jobs.target_choice) and its script lines:
 #
 #   capabilities.keyframes   the ends a target reads (optional ones)
 #   requires_first           the first is required (Wan 14B I2V)
@@ -465,7 +465,7 @@ SHEET_VIEW = "sheet"
 # viewer aims a camera into one and saves that view as a plate candidate of the
 # location or one of its angles.
 PANO_VIEW = "pano"
-# ...and the held frames of its camera tours (h3tour.py), the same way
+# ...and the held frames of its camera tours (tour.py), the same way
 TOUR_VIEW = "tour"
 LOCATION_VIEWS = (PANO_VIEW, TOUR_VIEW)
 
@@ -508,11 +508,11 @@ def ref_shot(ref: Ref) -> tuple[str, str]:
 
 
 def image_defaults(s: Series, ready=None) -> dict:
-    """The episode's ref-target defaults (GET /h3pipe/refs `defaults`):
+    """The episode's ref-target defaults (GET /seriesmith/refs `defaults`):
     {"target", "target_source", "keyframe_target", "keyframe_target_source",
     "voice_target", "voice_target_source"}, each source "editor"
     (overrides.json's episode.refs_target / episode.keyframe_target /
-    episode.voice_target, PUT /h3pipe/refs/defaults), "series" (the series
+    episode.voice_target, PUT /seriesmith/refs/defaults), "series" (the series
     config's `refs` block) or "default" (krea2; flux2_klein_edit for
     keyframes when `ready(target)` says it can render here, else the refs
     target; ltx2_voice for voices). RefError for a name that isn't a target
@@ -611,7 +611,7 @@ def set_image_defaults(ep: str, fields: dict) -> dict:
     return ov
 
 
-FACE_SIZES = ("cu", "mcu", "ecu")          # h3core/framing.py names
+FACE_SIZES = ("cu", "mcu", "ecu")          # core/framing.py names
 
 
 def picked_view_file(s: Series, subject: str, view: str) -> str | None:
@@ -1365,7 +1365,7 @@ def set_voice_sample(s: Series, subject: str, rel: str) -> bool:
     """Write `subjects.<subject>.voice_sample` into the series config through
     the Phase 9a save path (a _history copy, then an atomic write keeping the
     file's line endings and BOM). The JSON is rewritten as a promote writes
-    it (h3promote.dump_series: 2-space indent, key order kept). False when
+    it (promote.dump_series: 2-space indent, key order kept). False when
     the line was already that. RefError when the file can't be read as JSON
     or names no such subject."""
     import json
@@ -1661,7 +1661,7 @@ def stitch_sheet(views: list[str], out: str, panel_height: int = 1024,
 #
 # A line the model already spoke in a take is the best voice reference there
 # is: it is already the character. `voice_from_take` cuts `start..end` seconds
-# out of that take's sound (h3peaks.clip_audio picks the file, as the cut
+# out of that take's sound (peaks.clip_audio picks the file, as the cut
 # does: the mp4 when it carries sound, else the take's _h3.wav) and adds the
 # clip as a voice-ref candidate with source "from_take".
 
@@ -1694,11 +1694,11 @@ def voice_from_take(s: Series, ref: Ref, shot: str, take: int, pass_: str = "pro
     src = T.get_take(s.ep, pass_, shot, take)
     if src is None:
         raise UnknownRef(f"{shot} has no {pass_} take {take}")
-    from seriesmith import peaks as h3peaks
-    sound = h3peaks.clip_audio(src.paths.mp4, src.paths.h3_wav)
+    from seriesmith import peaks as PK
+    sound = PK.clip_audio(src.paths.mp4, src.paths.h3_wav)
     if not sound:
         raise NotUsable(f"{shot} {pass_} t{take:02d} has no sound to take a voice from")
-    dur = h3peaks.media_info(sound).get("duration")
+    dur = PK.media_info(sound).get("duration")
     start = float(start or 0.0)
     if end is None:
         end = dur if dur else start + 5.0
@@ -1751,7 +1751,7 @@ def voice_from_take(s: Series, ref: Ref, shot: str, take: int, pass_: str = "pro
 
 def extract_audio(src: str, start: float, end: float, out: str, timeout: int = 300) -> None:
     """`start..end` seconds of `src`'s sound as a 16-bit PCM wav at `out`
-    (ffmpeg, a subprocess, as h3assemble runs it). Mono is left alone: what
+    (ffmpeg, a subprocess, as assemble runs it). Mono is left alone: what
     the file has is what the sample gets."""
     rc, log = _run([_ffmpeg("ffmpeg"), "-v", "error", "-nostdin", "-y",
                     "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", src,
@@ -1779,7 +1779,7 @@ def check_import_type(ref: Ref, name: str) -> str:
 def import_take(s: Series, ref: Ref, view: str | None, source_path: str,
                 note: str = "", original_name: str | None = None) -> RefTake:
     """Add a file from disk as a new take (source "imported"), status ok.
-    `original_name` is an upload's own file name (POST /h3pipe/refs/import
+    `original_name` is an upload's own file name (POST /seriesmith/refs/import
     as multipart): `source_path` is then the upload's temporary file, which
     is not recorded, and the type is judged by the original name."""
     view = check_view(ref, view, required=True, allow_sheet=True)
@@ -1840,7 +1840,7 @@ def copy_take(s: Series, src: Ref, view: str | None, take: int, dest: Ref) -> Re
 #
 # A shot's first keyframe is usually the previous shot's last frame: the cut
 # then runs on without a jump. `keyframe_from_take` cuts that frame out of the
-# take the cut uses (ffmpeg, as a subprocess, like h3assemble) and adds it as a
+# take the cut uses (ffmpeg, as a subprocess, like assemble) and adds it as a
 # keyframe ref take with source "frame". The symmetric case, a shot's last
 # keyframe from the next shot's first frame, is there for FL2V targets.
 
@@ -3025,7 +3025,7 @@ def resolve_workflow(comfy_url: str | None, explicit: str | None = None, target=
 def target_ready(listing):
     """ready(target) for image_target_for: True when every required model
     file of the target's final pass resolves against ComfyUI's lists
-    (`listing`, h3jobs.model_lister's; None: can't tell, so ready)."""
+    (`listing`, jobs.model_lister's; None: can't tell, so ready)."""
     cache: dict = {}
 
     def ready(t) -> bool:
@@ -3136,7 +3136,7 @@ def compose_composite(s: Series, job: GenJob) -> None:
 
 def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload a job's reference images to ComfyUI's input folder
-    (h3pipe/<sha1>.png, through POST /upload/image) and record their names in
+    (seriesmith/<sha1>.png, through POST /upload/image) and record their names in
     job.inputs ({"references": [...]}). A character view cut out of a
     4-panel sheet (`crop`) is composed first (comfy_nodes/h3_refsheet.py,
     a PIL subprocess). Without `comfy` (a dry run) only the names are worked
@@ -3183,7 +3183,7 @@ def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
 def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload the voice sample an audio target copies (its speaker identity)
     to ComfyUI's input folder and record its name in job.inputs
-    ({"reference_audio": "h3pipe/<sha1>.wav"}). Only for a target whose
+    ({"reference_audio": "seriesmith/<sha1>.wav"}). Only for a target whose
     `capabilities.reference_audio` is true and a ref whose live file is on
     disk; otherwise nothing is staged and the target generates the voice
     from the wording alone. Without `comfy` (a dry run) only the name is
@@ -3211,7 +3211,7 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     `base` is krea2's workflow (a graph, or None for the built-in one), or a
     function (image target id -> graph); any other image target's workflow
     is resolved from `comfy` (its saved copy, else the repo's). `listing`
-    (h3jobs.model_lister's) resolves each job's model files by family
+    (jobs.model_lister's) resolves each job's model files by family
     (resolve_job_models) and says whether the default keyframe target is
     ready; a job whose required files aren't installed is an error. Each
     take goes on seriesmith's queue (`runner`), made on the backend
@@ -3299,7 +3299,7 @@ def finish_from_history(take: RefTake, entry: dict | None, comfy=None) -> str:
                           "fetched from ComfyUI's output folder: the graph's SaveAudio "
                           f"wrote {name}",
                           ext=os.path.splitext(name)[1].lower() or None)
-    return close_take(take, None, "closed by h3refs: the saver did not update the sidecar")
+    return close_take(take, None, "closed by refs: the saver did not update the sidecar")
 
 
 def wait_take(comfy, take: RefTake, pid: str, timeout: float, poll: float = 1.5) -> str:
@@ -3403,7 +3403,7 @@ def keyframe_plan(s: Series, shot: str, which: str, pass_: str = "proxy",
         return KeyframePlan("import", src, path=full)
     if method == "import":
         return KeyframePlan("skip", "the script says import: import one (the editor, or "
-                                    "POST /h3pipe/refs/import)")
+                                    "POST /seriesmith/refs/import)")
     if method == "continuity":
         try:
             src, _ = keyframe_source(s, shot, which, pass_)
@@ -3545,11 +3545,11 @@ def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS
                      dry_run: bool = False, base=None, listing=None, resolve=None,
                      cache=None, save_node: bool = True, runner=None,
                      backend: str | None = None) -> dict:
-    """POST /h3pipe/refs/generate-missing: fill every missing ref at once,
+    """POST /seriesmith/refs/generate-missing: fill every missing ref at once,
     without waiting. Series refs (missing_series) get one candidate each
     (queue_generate, the image target `target` or each ref's default);
     needed keyframes (missing_keyframes: required ones and ones the script
-    asks for) are filled as `h3.py keyframe --missing` does (keyframe_plan):
+    asks for) are filled as `seriesmith keyframe --missing` does (keyframe_plan):
     a frame of the neighbouring shot's take (continuity, picked), else a
     still queued with `keyframe_target`; a script path is imported and
     picked. A keyframe with a candidate queued or waiting is skipped.
@@ -3655,7 +3655,7 @@ def all_takes(s: Series) -> list[RefTake]:
 
 
 def sweep(s: Series, comfy) -> list[RefTake]:
-    """Close queued ref takes whose ComfyUI job is gone (h3edit.sweep_takes'
+    """Close queued ref takes whose ComfyUI job is gone (edit.sweep_takes'
     rules). Raises if ComfyUI can't be reached."""
     as_of = T.now()
     alive = comfy.alive()
@@ -3689,7 +3689,7 @@ def _norm(p: str) -> str:
 
 def used_by(s: Series, refs: list[Ref]) -> dict[str, dict[str, list[str]]]:
     """{ref id: {pass: [shot ids]}} from each pass's built shotlist (the slots
-    the loader fills, h3jobs.ref_slots), else that pass's refs_todo, else []."""
+    the loader fills, jobs.ref_slots), else that pass's refs_todo, else []."""
     by_path: dict[str, list[str]] = {}
     for r in refs:
         if r.path:
@@ -3731,7 +3731,7 @@ def used_by(s: Series, refs: list[Ref]) -> dict[str, dict[str, list[str]]]:
 
 
 # ---------------------------------------------------------------------------
-# the listing (GET /h3pipe/refs)
+# the listing (GET /seriesmith/refs)
 # ---------------------------------------------------------------------------
 
 def take_json(ep: str, ref: Ref, t: RefTake) -> dict:
@@ -3760,7 +3760,7 @@ def take_json(ep: str, ref: Ref, t: RefTake) -> dict:
             "queued": sc.get("queued"), "finished": sc.get("finished"),
             "comfy_prompt_id": sc.get("comfy_prompt_id"),
             "save_notes": sc.get("save_notes", ""),
-            # an upload's own file name (POST /h3pipe/refs/import, multipart)
+            # an upload's own file name (POST /seriesmith/refs/import, multipart)
             **({"original_name": sc["original_name"]} if sc.get("original_name") else {}),
             # a keyframe cut out of a video take (source "frame")
             **({"from": {"shot": sc.get("source_shot"), "take": sc.get("source_take"),
@@ -3890,12 +3890,12 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         if ref.kind == "location":
             # P5: its 360 panoramas (PANO_VIEW), apart from the plate's candidates
             out["panos"] = [take_json(s.ep, ref, t) for t in list_takes(ref, PANO_VIEW)]
-            # ...and its camera tours (h3tour.py): each run, and their held frames
-            from seriesmith import tour as h3tour
+            # ...and its camera tours (tour.py): each run, and their held frames
+            from seriesmith import tour as TR
             out["tours"] = [{k: d.get(k) for k in ("tour", "status", "move", "seconds", "seed",
                                                    "holds", "error", "queued", "finished",
                                                    "video")}
-                            for d in h3tour.list_tours(ref)]
+                            for d in TR.list_tours(ref)]
             out["tour_holds"] = [take_json(s.ep, ref, t) for t in list_takes(ref, TOUR_VIEW)]
         out["effective"] = effective(s, ref, None, ov_data, view_size, ready, defaults)
         if out["effective"]:
@@ -3936,7 +3936,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
 
 
 def refs_listing(ep: str, view_size=VIEW_SIZE, ready=None) -> dict:
-    """GET /h3pipe/refs: {"refs": every ref of the episode's series config,
+    """GET /seriesmith/refs: {"refs": every ref of the episode's series config,
     then the shot keyframes it needs or has (keyframe_refs), "defaults": the
     episode's image-target defaults (image_defaults)}. `ready(target)` says
     whether an image target can render here (target_ready)."""
@@ -3976,7 +3976,7 @@ def get_ref_json(ep: str, ref_id: str) -> dict:
 # ---------------------------------------------------------------------------
 #
 # One implementation, in Python, called by both the editor (POST
-# /h3pipe/refs/match) and the CLI (`h3.py supply`). The rules are worth stating
+# /seriesmith/refs/match) and the CLI (`seriesmith supply`). The rules are worth stating
 # once and being able to argue with, and two copies of them would drift.
 #
 # Matching is exact on a normalised name, never fuzzy: a file matches a slot
@@ -4135,7 +4135,7 @@ def match_files(s: Series, names: list[str], refs: list[Ref] | None = None) -> d
 
 
 def match_names(ep: str, names: list[str]) -> dict:
-    """POST /h3pipe/refs/match: match_files for an episode on disk."""
+    """POST /seriesmith/refs/match: match_files for an episode on disk."""
     return match_files(load_series(ep), names)
 
 
@@ -4200,7 +4200,7 @@ def supply_files(ep: str, paths: list[str], ref_id: str | None = None,
 
 
 def cmd_supply(root: str, argv: list[str]) -> int:
-    """`python h3.py supply <episode> <file-or-folder>... [--ref id[:view]]
+    """`seriesmith supply <episode> <file-or-folder>... [--ref id[:view]]
     [--no-pick] [--dry-run]` -- the CLI half of P8, and the way to fill a show
     whose pictures are already on disk."""
     paths, ref_id, view, pick, dry = [], None, None, True, False
@@ -4231,7 +4231,7 @@ def cmd_supply(root: str, argv: list[str]) -> int:
         paths.append(a)
         i += 1
     if not paths:
-        print("  !! usage: python h3.py supply <episode> <file-or-folder>... "
+        print("  !! usage: seriesmith supply <episode> <file-or-folder>... "
               "[--ref id[:view]] [--no-pick] [--dry-run]")
         return 2
     try:

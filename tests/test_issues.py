@@ -349,7 +349,7 @@ class TestExport(IssuesCase):
 
 class TestCli(IssuesCase):
     def run_cli(self, *args: str):
-        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "issues",
+        return subprocess.run([sys.executable, "-m", "seriesmith.commands", "issues",
                                self.ep, *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_add_list_export_clear(self):

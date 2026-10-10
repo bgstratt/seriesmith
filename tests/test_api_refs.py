@@ -67,12 +67,12 @@ class RefsApiTest(ApiTest):
         self.assertEqual(data["errors"], [])
         self.assertEqual([q["view"] for q in data["queued"]], R.VIEW_TAGS)
         self.assertEqual({q["seed"] for q in data["queued"]}, {str(R.seed_for("ada"))})
-        self.assertEqual([e for e in self.events_of("h3pipe.ref") if e["status"] == "queued"],
+        self.assertEqual([e for e in self.events_of("seriesmith.ref") if e["status"] == "queued"],
                          [{"ep": self.ep, "ref": "subject:ada", "view": v, "take": 1,
                            "status": "queued"} for v in R.VIEW_TAGS])
-        self.assertEqual({e["view"] for e in self.events_of("h3pipe.ref") if e["status"] == "ok"},
+        self.assertEqual({e["view"] for e in self.events_of("seriesmith.ref") if e["status"] == "ok"},
                          set(R.VIEW_TAGS))               # each ended, on the queue
-        self.assertEqual({d["ep"] for d in self.events_of("h3pipe.episode")}, {self.ep})
+        self.assertEqual({d["ep"] for d in self.events_of("seriesmith.episode")}, {self.ep})
         views = self.refs()["subject:ada"]["views"]
         t = views[0]["takes"][0]
         self.assertEqual((t["status"], t["source"], t["seed"]),
@@ -118,7 +118,7 @@ class RefsApiTest(ApiTest):
         r = self.ok(A.put_refs_pick(self.ctx, dict(body, take=2)))
         self.assertEqual((r["id"], r["picked"], r["exists"]), ("location:kitchen", 2, True))
         self.assertIn({"ep": self.ep, "ref": "location:kitchen", "view": None, "take": 2,
-                       "status": "picked"}, self.events_of("h3pipe.ref"))
+                       "status": "picked"}, self.events_of("seriesmith.ref"))
         self.err(A.put_refs_pick(self.ctx, dict(body, take=7)), 404)
         self.err(A.put_refs_pick(self.ctx, dict(body, take="x")), 400)
         self.err(A.put_refs_pick(self.ctx, {"ep": self.ep, "ref": "subject:ada", "take": 1}), 400)
@@ -164,7 +164,7 @@ class RefsApiTest(ApiTest):
         face = self.refs()["subject:ada"]["views"][3]
         self.assertEqual(face["override"]["fields"], ["loras", "prompt", "seed", "steps"])
         self.assertEqual(face["prompt"], "only the face")
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
         self.err(A.put_refs_override(self.ctx, {"ep": self.ep, "ref": "subject:ada",
                                                 "fields": {"prompt": "x"}}), 400)
         self.err(A.put_refs_override(self.ctx, dict(body, fields={"colour": 1})), 400)
@@ -191,21 +191,21 @@ class RefsApiTest(ApiTest):
         T.update_sidecar(t.paths.sidecar, status="queued")    # as it was before the restart
         self.events.clear()
         self.assertEqual(self.refs()["location:street"]["takes"][0]["status"], "failed")
-        self.assertEqual(self.events_of("h3pipe.ref"),
+        self.assertEqual(self.events_of("seriesmith.ref"),
                          [{"ep": self.ep, "ref": "location:street", "view": None, "take": 1,
                            "status": "failed"}])
 
     def test_routes_listed(self):
         got = {(m, p) for m, p, _, _ in A.ROUTES}
-        for want in (("GET", "/h3pipe/refs"), ("POST", "/h3pipe/refs/generate"),
-                     ("PUT", "/h3pipe/refs/pick"), ("POST", "/h3pipe/refs/import"),
-                     ("PUT", "/h3pipe/refs/override"), ("DELETE", "/h3pipe/refs/override")):
+        for want in (("GET", "/seriesmith/refs"), ("POST", "/seriesmith/refs/generate"),
+                     ("PUT", "/seriesmith/refs/pick"), ("POST", "/seriesmith/refs/import"),
+                     ("PUT", "/seriesmith/refs/override"), ("DELETE", "/seriesmith/refs/override")):
             self.assertIn(want, got)
 
 
 @unittest.skipUnless(test_api.HAVE_FF, "needs ffmpeg and ffprobe on PATH")
 class KeyframeApiTest(ApiTest):
-    """POST /h3pipe/refs/keyframe: continuity keyframes (h3refs.keyframe_from_take)."""
+    """POST /seriesmith/refs/keyframe: continuity keyframes (refs.keyframe_from_take)."""
 
     def kf(self, **body):
         return A.post_refs_keyframe(self.ctx, dict({"ep": self.ep, "pass": "proxy"}, **body))
@@ -218,7 +218,7 @@ class KeyframeApiTest(ApiTest):
         from test_keyframes import make_take, rgb_frames
         src = make_take(self.ep, "proxy", "sh010")
         r = self.ok(self.kf(shot="sh020"))
-        # the ref as GET /h3pipe/refs lists it
+        # the ref as GET /seriesmith/refs lists it
         self.assertEqual(r, self.refs()["shot:sh020:first"])
         self.assertEqual((r["id"], r["kind"], r["exists"], r["picked"], r["path"]),
                          ("shot:sh020:first", "keyframe", True, 1, "refs/shots/sh020/first.png"))
@@ -228,17 +228,17 @@ class KeyframeApiTest(ApiTest):
                                                                "frames": 17}))
         (px,) = rgb_frames(os.path.join(self.ep, t["image"]))
         self.assertEqual(px, rgb_frames(src.paths.mp4)[-1])
-        self.assertEqual(self.events_of("h3pipe.ref"),
+        self.assertEqual(self.events_of("seriesmith.ref"),
                          [{"ep": self.ep, "ref": "shot:sh020:first", "view": None, "take": 1,
                            "status": "ok"},
                           {"ep": self.ep, "ref": "shot:sh020:first", "view": None, "take": 1,
                            "status": "picked"}])
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
         # a given frame (a string from a form works too), not picked over the live one
         self.events.clear()
         r = self.ok(self.kf(shot="sh020", source_shot="sh010", source_take="1", frame="3"))
         self.assertEqual((r["picked"], r["takes"][1]["from"]["frame"]), (1, 3))
-        self.assertEqual([e["status"] for e in self.events_of("h3pipe.ref")], ["ok"])
+        self.assertEqual([e["status"] for e in self.events_of("seriesmith.ref")], ["ok"])
         r = self.ok(self.kf(shot="sh020", frame="first", pick=True))
         self.assertEqual((r["picked"], r["takes"][2]["from"]["frame"]), (3, 0))
         # the symmetric last keyframe, from the next shot's first frame
@@ -265,11 +265,11 @@ class KeyframeApiTest(ApiTest):
                                                  "shot": "sh020"}), 403)
         with mock.patch.object(R.shutil, "which", return_value=None):
             self.assertIn("ffprobe", self.err(self.kf(shot="sh020"), 500))
-        self.assertEqual(self.events_of("h3pipe.ref"), [])
+        self.assertEqual(self.events_of("seriesmith.ref"), [])
         self.assertNotIn("shot:sh020:first", self.refs())
 
     def test_route_listed(self):
-        self.assertIn(("POST", "/h3pipe/refs/keyframe"), {(m, p) for m, p, _, _ in A.ROUTES})
+        self.assertIn(("POST", "/seriesmith/refs/keyframe"), {(m, p) for m, p, _, _ in A.ROUTES})
 
 
 class ParentSeriesConfigApiTest(ApiTest):
@@ -350,10 +350,10 @@ class Phase85ApiTest(ApiTest):
         r = self.ok(A.delete_refs_pick(self.ctx, {"ep": self.ep, "ref": "shot:sh010:first"}))
         self.assertEqual((r["id"], r["exists"], r["cleared"], r["picked"]),
                          ("shot:sh010:first", False, True, None))
-        self.assertEqual(self.events_of("h3pipe.ref"),
+        self.assertEqual(self.events_of("seriesmith.ref"),
                          [{"ep": self.ep, "ref": "shot:sh010:first", "view": None, "take": 1,
                            "status": "cleared"}])
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
         # GET /refs (which auto-picks) leaves it cleared
         refs = {r["id"]: r for r in self.ok(A.get_refs(self.ctx, {"ep": self.ep}))["refs"]}
         self.assertFalse(refs["shot:sh010:first"]["exists"])
@@ -361,7 +361,7 @@ class Phase85ApiTest(ApiTest):
         # a voice the series config names no sample for has no file to clear
         self.err(A.delete_refs_pick(self.ctx, {"ep": self.ep, "ref": "voice:rex"}), 400)
         self.err(A.delete_refs_pick(self.ctx, {"ep": self.ep, "ref": "shot:nope:first"}), 404)
-        self.assertIn(("DELETE", "/h3pipe/refs/pick"), {(m, p) for m, p, _f, _t in A.ROUTES})
+        self.assertIn(("DELETE", "/seriesmith/refs/pick"), {(m, p) for m, p, _f, _t in A.ROUTES})
 
     def test_generate_keyframe_with_target(self):
         data = self.ok(A.post_refs_generate(self.ctx, {"ep": self.ep, "ref": "shot:sh010:first",

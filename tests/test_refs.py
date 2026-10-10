@@ -1,5 +1,5 @@
 """
-h3refs: refs listed from the series config, ref takes, picks (with the character sheet
+refs: refs listed from the series config, ref takes, picks (with the character sheet
 stitch), import, overrides, generating against test_render's FakeComfy, and the
 kreagen CLI rebuilt on top of it.
 """

@@ -1,5 +1,5 @@
 """
-Editing a ref's picture (h3refs.plan_edit): a take, or the live picture, changed
+Editing a ref's picture (refs.plan_edit): a take, or the live picture, changed
 as an instruction says, on an edit target, as a new take of the same ref and
 view -- with other refs' pictures brought in for the change.
 """

@@ -1,7 +1,7 @@
 """
 klein_erp_360: a location's 360 panorama by nomadoor's FLUX.2 Klein 9B 360 ERP
 outpaint LoRA (target.json beside this file). Its one reference is the plate on
-a green 2:1 canvas (comfy_nodes/h3_erp.py, made by h3refs.erp_canvas); the
+a green 2:1 canvas (comfy_nodes/h3_erp.py, made by refs.erp_canvas); the
 graph code loads it into the workflow's "Reference 1" LoadImage, which is both
 the reference latent and the latent the sampler starts from.
 

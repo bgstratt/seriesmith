@@ -1,5 +1,5 @@
 """
-LTX-2.5 (distilled): the story IR compiled into shotlist entries that h3jobs
+LTX-2.5 (distilled): the story IR compiled into shotlist entries that jobs
 patches straight into ComfyUI's LTX-2.5 image-to-video workflow (target.json
 beside this file). There is no loader node: every render value is a widget.
 
@@ -36,7 +36,7 @@ keyframes {first, last} (the conventional paths; optional), audio_intent and
 audio_note when the script asked for a policy LTX can't render, and for
 `dur: model` `length_estimated` (its `duration`/`length` are the build's
 estimate) plus `duration_predict` {min_seconds, max_seconds} (the duration
-head's range, used at queue time by h3jobs when the head is installed). `background`
+head's range, used at queue time by jobs when the head is installed). `background`
 is the plate the script names; LTX never reads it (the location is described
 in words), it is there so every target's entries look alike.
 
@@ -64,7 +64,7 @@ SAMPLING = dict(RECIPE.get("sampling") or {})
 
 
 def keyframe_path(shot_id: str, end: str) -> str:
-    """Where a shot's keyframe lives (h3refs' `shot:<id>:<end>` ref)."""
+    """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
     return RECIPE["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
                                           end=end)
 
@@ -125,7 +125,7 @@ def put_model_duration(ctx, shot: ir.Shot, pace: str, entry: dict) -> None:
 
 def shotlist_extra(preset) -> dict:
     """The preset values a shotlist's `defaults` carries (not the `dur: model`
-    ones, which h3jobs reads from the target)."""
+    ones, which jobs reads from the target)."""
     return {k: v for k, v in preset.extra.items()
             if not k.startswith("_") and k not in TG.DURATION_PRESET_KEYS}
 
@@ -334,8 +334,8 @@ def sheet_panels(doc: dict, shot: dict) -> list[dict]:
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """The keyframes a render reads when they exist, then the panels of the
     reference sheet it would draw. All `optional`: a missing one never blocks
-    a render (h3jobs.missing_refs skips them), it only leaves that element off
-    the sheet. The panels carry no `role`, so h3jobs.stage_inputs doesn't
+    a render (jobs.missing_refs skips them), it only leaves that element off
+    the sheet. The panels carry no `role`, so jobs.stage_inputs doesn't
     upload them one by one — stage_inputs below composes them into one sheet;
     their sha1 in the sidecar is what makes a take `ref`-stale when a view is
     re-picked."""
@@ -427,7 +427,7 @@ def lora_off(job) -> bool:
 
 def reference_lora(job) -> str | None:
     """The ingredients IC-LoRA file this job would load, or None when it isn't
-    installed. h3jobs.resolve_models has already resolved the `reference_lora`
+    installed. jobs.resolve_models has already resolved the `reference_lora`
     param against what ComfyUI lists (`how: "off"` means nothing of the family
     is installed); with nothing resolved (a dry run, or ComfyUI not asked) the
     target's own file is assumed, as every other unresolved param is."""
@@ -487,12 +487,12 @@ def stage_inputs(target, job, comfy=None) -> dict:
 
 def _stage_sheet(target, job, comfy=None) -> dict:
     """Compose the job's reference sheet and upload it to ComfyUI's input
-    folder: {"sheet": "h3pipe/<sha1>.png"}, or {} when this shot renders
+    folder: {"sheet": "seriesmith/<sha1>.png"}, or {} when this shot renders
     without one (the LoRA isn't installed, `lora: none`, no panel's file is on
     disk, or the sheet can't be composed — the behaviour ltx2 always had).
     The sheet is composed by ltx2_ingredients' code from this target's own
     `reference_sheet` recipe; it waits in the shot's folder until
-    h3jobs.start_job moves it into the take. Without `comfy` (a dry run)
+    jobs.start_job moves it into the take. Without `comfy` (a dry run)
     nothing is composed or written.
 
     Composing never stops the render here, unlike on ltx2_ingredients where

@@ -10,7 +10,7 @@ ahead (yaw 0, pitch 0) with a horizontal field of view `--fov`. Every canvas
 pixel whose ray falls inside the plate's frustum takes the plate's colour
 (bilinear), the rest is pure green.
 
-The pipeline is stdlib only, so h3refs runs this as a subprocess of the
+The pipeline is stdlib only, so refs runs this as a subprocess of the
 running Python (ComfyUI's under the editor), as h3_refsheet.py is run:
 
     python h3_erp.py PLATE OUT [--width 2048] [--fov 70] [--yaw 0] [--pitch 0]

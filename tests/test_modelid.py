@@ -1,6 +1,6 @@
 """
-Model families (targets/modelid.py, targets.check_model, h3jobs.check_models,
-GET /h3pipe/models): a model file is checked by name, then by the header of
+Model families (targets/modelid.py, targets.check_model, jobs.check_models,
+GET /seriesmith/models): a model file is checked by name, then by the header of
 its safetensors file. The headers here are synthetic (a header and no
 weights: every tensor is zero bytes long), written per test; the real-file
 check at the end runs only on a machine with the files installed.
@@ -366,7 +366,7 @@ class CheckModelTest(unittest.TestCase):
 
 
 class QueueTimeTest(ApiTest):
-    """h3jobs.check_models through POST /h3pipe/render (h3edit.queue_shots)."""
+    """jobs.check_models through POST /seriesmith/render (edit.queue_shots)."""
 
     def setUp(self):
         super().setUp()
@@ -393,7 +393,7 @@ class QueueTimeTest(ApiTest):
         self.assertIn("isn't named like MiniMax H3 Ref2VA", notes)
         self.assertIn("header says MiniMax H3", notes)
         # cached in the user folder
-        self.assertTrue(os.path.isfile(os.path.join(self.user, "default", "h3pipe",
+        self.assertTrue(os.path.isfile(os.path.join(self.user, "default", "seriesmith",
                                                     "modelid_cache.json")))
 
     def test_mismatch_blocks_unless_allowed(self):
@@ -510,7 +510,7 @@ class ModelsRouteTest(ApiTest):
         data = self.ok(A.get_models(self.ctx, {"target": "ltx2"}))
         self.assertFalse(data["fingerprint"])
         self.assertEqual([f["match"] for f in data["files"]].count("fingerprint"), 0)
-        self.assertIn(("GET", "/h3pipe/models"), {(m, p) for m, p, _f, _t in A.ROUTES})
+        self.assertIn(("GET", "/seriesmith/models"), {(m, p) for m, p, _f, _t in A.ROUTES})
 
     def test_targets_route_has_models(self):
         data = self.ok(A.get_targets(self.ctx, {}))
@@ -522,7 +522,7 @@ class ModelsRouteTest(ApiTest):
 class RenderCliModelTest(unittest.TestCase):
     """seriesmith render finds model files through $COMFYUI_PATH, and a file of
     another family blocks the shot until it is rendered anyway. (h3pipe's
-    version also ran h3render's --dry-run --check-nodes, which seriesmith
+    version also ran render's --dry-run --check-nodes, which seriesmith
     render doesn't have.)"""
 
     def setUp(self):

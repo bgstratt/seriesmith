@@ -1,5 +1,5 @@
 """
-Colour: every clip h3assemble re-encodes comes out BT.709, tagged so.
+Colour: every clip assemble re-encodes comes out BT.709, tagged so.
 
 Takes saved before 2026-10-05 are BT.601 and untagged (ffmpeg's default RGB
 conversion), which YouTube, browsers and HD players decode as BT.709: reds go

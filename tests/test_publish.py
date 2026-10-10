@@ -1,7 +1,7 @@
-"""h3publish: the series intro + the cut + the outro, the episode title drawn on.
+"""publish: the series intro + the cut + the outro, the episode title drawn on.
 
 The end-to-end tests build a tiny episode with testsrc clips of different sizes
-and check the output's size, rate and length: a cut h3assemble encoded has its
+and check the output's size, rate and length: a cut assemble encoded has its
 picture copied frame for frame, any other cut is re-encoded. Skipped when
 ffmpeg or ffprobe is not on PATH, or no font file is found.
 """
@@ -19,7 +19,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-from seriesmith import edit as h3edit  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
 from seriesmith import publish as P  # noqa: E402
 
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
@@ -86,7 +86,7 @@ class Helpers(unittest.TestCase):
 class EndToEnd(unittest.TestCase):
     def episode(self, show: str, assembled: bool, legacy: bool = False) -> str:
         """ep07 with 2 s titles (tagged BT.709, like ComfyUI's) and a 3 s cut:
-        encoded by h3assemble.conform, or a foreign ultrafast encode tagged
+        encoded by assemble.conform, or a foreign ultrafast encode tagged
         BT.709, or (`legacy`) one untagged, as cuts were before the colour fix."""
         ep = os.path.join(show, "ep07")
         os.makedirs(os.path.join(ep, "renders"))
@@ -104,7 +104,7 @@ class EndToEnd(unittest.TestCase):
         if assembled:
             raw = os.path.join(show, "raw.mp4")
             make_clip(raw, 3, "320x176", 24, sound=False)
-            P.h3assemble.conform(raw, cut, None, 24, 72, quality="review")
+            P.ASM.conform(raw, cut, None, 24, 72, quality="review")
         elif legacy:
             make_clip(cut, 3, "320x176", 24, sound=False)
         else:
@@ -163,12 +163,12 @@ class EndToEnd(unittest.TestCase):
             doc["publish"] = {"subtitle": doc["publish"]["subtitle"]}
             with open(cfg, "w", encoding="utf-8") as f:
                 json.dump(doc, f)
-            res = h3edit.publish_episode(ep, "renders/ep07.mp4")
+            res = E.publish_episode(ep, "renders/ep07.mp4")
             self.assertTrue(res["ok"], res["report"])
             self.assertEqual(res["output"], "publish/ep07.mp4")
             self.assertEqual(P.probe(os.path.join(ep, res["output"]))["frames"], 48 + 72 + 48)
             shutil.rmtree(os.path.join(show, "_titles"))
-            res = h3edit.publish_episode(ep, "renders/ep07.mp4")
+            res = E.publish_episode(ep, "renders/ep07.mp4")
             self.assertFalse(res["ok"])
             self.assertIn("no intro or outro", res["error"])
 
@@ -185,18 +185,18 @@ class EndToEnd(unittest.TestCase):
             self.bt709(out)
 
     def run_with_progress(self, ep: str) -> tuple[int, list, str]:
-        """h3publish as h3master runs it: through h3edit.run_tool, --progress."""
+        """publish as master runs it: through edit.run_tool, --progress."""
         events = []
-        rc, out, err = h3edit.run_tool("h3publish.py", [ep, "--progress"], ep, 600,
+        rc, out, err = E.run_tool("publish.py", [ep, "--progress"], ep, 600,
                                        progress=lambda tool, ev: events.append((tool, ev)))
         self.assertEqual(rc, 0, out + err)
-        self.assertNotIn("##h3publish", out)            # progress lines don't reach the log
+        self.assertNotIn("##publish", out)            # progress lines don't reach the log
         return rc, events, out
 
     def test_progress_says_the_picture_was_copied(self):
         with tempfile.TemporaryDirectory() as show:
             _, events, _ = self.run_with_progress(self.episode(show, assembled=True))
-            self.assertTrue(all(tool == "h3publish" for tool, _ in events))
+            self.assertTrue(all(tool == "publish" for tool, _ in events))
             stages = [ev["stage"] for _, ev in events]
             for want in ("titles", "join", "verify"):
                 self.assertIn(want, stages)

@@ -44,7 +44,7 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
   // with target_source known, only a shot override can be reverted; else the old rule
   const canRevert = tsrc ? tsrc === "override" : isRetargeted(src);
   if (!list) {
-    // a server without /h3pipe/targets: say what the shot renders on, if it says
+    // a server without /seriesmith/targets: say what the shot renders on, if it says
     return src?.target ? <div className="h3-small h3-muted" title={error ?? ""}>target: {src.target}</div> : null;
   }
   return (
@@ -216,7 +216,7 @@ function TakeReference({ d, take }: { d: ShotDetail; take: number | null }) {
   );
 }
 
-const RECT_KEY = "h3pipe.inspector.rect";
+const RECT_KEY = "seriesmith.inspector.rect";
 
 /** What the server says about the shot's next render (an ignored prompt
  * override, an audio fallback), and why it can't render on its target. */
@@ -371,7 +371,7 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
         </div>
       )}
       {diff.length > 0 && (
-        <div className="h3-small h3-muted" title="What the build compiled, before this shot's overrides (GET /h3pipe/shot's built_values)">
+        <div className="h3-small h3-muted" title="What the build compiled, before this shot's overrides (GET /seriesmith/shot's built_values)">
           Built: {diff.map((x) => `${x.field} ${shortName(x.built, 36)}`).join(" · ")}
         </div>
       )}

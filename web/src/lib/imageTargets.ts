@@ -57,7 +57,7 @@ function source(s: string | null | undefined): RefDefaultSource {
 }
 
 /**
- * The episode's image targets, as `GET /h3pipe/refs` `defaults` gives them.
+ * The episode's image targets, as `GET /seriesmith/refs` `defaults` gives them.
  * Without them (a series config whose `refs` block the server can't read): the
  * list's image default for both.
  */

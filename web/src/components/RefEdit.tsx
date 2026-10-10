@@ -1,4 +1,4 @@
-// Edit a ref's picture (POST /h3pipe/refs/generate with `edit`): a take, or
+// Edit a ref's picture (POST /seriesmith/refs/generate with `edit`): a take, or
 // the live picture, changed as an instruction says on an edit target, as a new
 // candidate of the same ref and view. Other refs' pictures can come along as
 // image 2 onward ("put her in the coat from image 2").

@@ -82,7 +82,7 @@ export function runSpans(shots: ShotStatus[], gap_s = RUN_GAP_S): Span[] {
   return run;
 }
 
-/** Where a pass stands. `shots` is one pass's shots, as GET /h3pipe/episode sends them. */
+/** Where a pass stands. `shots` is one pass's shots, as GET /seriesmith/episode sends them. */
 export function passProgress(shots: ShotStatus[] | null | undefined,
                             gap_s = RUN_GAP_S): PassProgress {
   const mine = (shots ?? []).filter((s) => !s.orphan);

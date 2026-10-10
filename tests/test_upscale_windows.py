@@ -1,5 +1,5 @@
 """
-A long take's re-sample sampled in windows along time (h3upscale.set_window /
+A long take's re-sample sampled in windows along time (upscale.set_window /
 windowed: the H3 targets' `upscale.windows`, obvpm's H3 Context Windowing), so
 1344x768 x2 = 2688x1536 fits the card on a shot longer than one window. A
 short take is sampled in one pass, as before; the recipe's `window` sets the

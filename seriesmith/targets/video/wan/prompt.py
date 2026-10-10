@@ -50,7 +50,7 @@ def acting(shot, book: dict) -> list[str]:
 
 
 def build_prompt(shot, seq, series_cfg: dict) -> str:
-    """The prose prompt for one shot (`shot` an h3core.ir.Shot, `seq` its
+    """The prose prompt for one shot (`shot` an core.ir.Shot, `seq` its
     ir.Sequence)."""
     book = series_cfg.get("subjects", {})
     look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")

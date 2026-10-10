@@ -3,7 +3,7 @@ A shot's slice of the dialogue recording, as a stereo PCM wav ComfyUI's
 LoadAudio reads (the dub anchor, see compile.stage_inputs).
 
 A PCM wav is cut with the stdlib `wave` module; anything else (mp3, m4a,
-flac, float wav) goes through ffmpeg, as h3assemble does. Mono becomes stereo:
+flac, float wav) goes through ffmpeg, as assemble does. Mono becomes stereo:
 H3's audio VAE encodes two channels.
 
 Stdlib only.

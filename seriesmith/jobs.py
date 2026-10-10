@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-h3jobs.py — turn "render this shot" into a queued ComfyUI job with a take record.
+jobs.py — turn "render this shot" into a queued ComfyUI job with a take record.
 
-Shared by h3render (the CLI) and, later, the ComfyUI routes behind the editor.
+Shared by render (the CLI) and, later, the ComfyUI routes behind the editor.
 The flow for one shot:
 
     doc  = load_shotlist(root, pass_)                  # the built shotlist
@@ -77,7 +77,7 @@ from dataclasses import dataclass, field
 from seriesmith import takes as T
 from seriesmith import targets as TG
 
-# The default video target's binding, under the names h3render and the routes
+# The default video target's binding, under the names render and the routes
 # have always imported. Job code reads the job's own target instead.
 _DEFAULT = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video").binding
 LOADER = _DEFAULT.loader_class
@@ -615,7 +615,7 @@ def graph_fingerprint(g: dict) -> list:
 
 def prefers_repo(target: "TG.Target") -> bool:
     """Whether this target's workflow is taken from the repo before
-    $COMFYUI_PATH's workflows folder (h3refs.resolve_workflow passes
+    $COMFYUI_PATH's workflows folder (refs.resolve_workflow passes
     prefer_repo for audio targets). A workflow saved in the RUNNING ComfyUI
     still wins over both, for every target."""
     return target.kind == "audio"
@@ -705,7 +705,7 @@ def node_of(graph: dict, ctype: str) -> str:
 # ---------------------------------------------------------------------------
 
 class Comfy:
-    def __init__(self, base: str, client_id: str = "h3render"):
+    def __init__(self, base: str, client_id: str = "render"):
         self.base = base.rstrip("/")
         self.client_id = client_id
 
@@ -824,7 +824,7 @@ class Comfy:
 
     def upload_input(self, path: str, name: str) -> str:
         """Copy a local image into ComfyUI's input folder as `name` (e.g.
-        "h3pipe/<sha1>.png"), overwriting; returns the name LoadImage reads.
+        "seriesmith/<sha1>.png"), overwriting; returns the name LoadImage reads.
         POST /upload/image, so it works however ComfyUI was installed, and
         from the routes as well as the CLI."""
         import uuid
@@ -955,7 +955,7 @@ def load_shotlist(root: str, pass_: str, target: str | None = None) -> dict:
     that target's own file in an episode that mixes targets."""
     path = os.path.join(root, shotlist_rel(pass_, target))
     if not os.path.isfile(path):
-        raise FileNotFoundError(f"{path} not found — run h3build first"
+        raise FileNotFoundError(f"{path} not found — run build first"
                                 + (" with --proxy" if pass_ == "proxy" else ""))
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
@@ -1117,7 +1117,7 @@ class RenderRequest:
     allow_missing_refs: bool = False   # render anyway: blank images / no audio ref
     size: str | None = None            # "WxH": render at this size, this run only
     # {shot: {"after", "pass"}}: continuity shots whose first frame is cut as the
-    # render starts (h3refs.refresh_continuity's `live`; H3ContinuityFrame)
+    # render starts (refs.refresh_continuity's `live`; H3ContinuityFrame)
     continuity: dict | None = None
     target: str | None = None          # render on this video target, this run only
     allow_model_mismatch: bool = False  # render even if a model file is another family
@@ -1688,7 +1688,7 @@ def estimate_seconds(doc: dict, shot: dict) -> str:
 
 def episode_story(root: str):
     """(the story IR from shotlist/shots.json, the series config) of a built
-    episode. The series config is looked up as h3edit does: the episode
+    episode. The series config is looked up as edit does: the episode
     folder, then its parent."""
     from seriesmith.core import ir
     from seriesmith.core.series_config import load_series_config
@@ -1948,7 +1948,7 @@ def finish_job(take: T.Take) -> str:
             mp4=os.path.basename(take.paths.mp4),
             thumb=os.path.basename(take.paths.thumb) if os.path.isfile(take.paths.thumb) else None,
             strip=os.path.basename(take.paths.strip) if os.path.isfile(take.paths.strip) else None,
-            save_notes="closed by h3jobs: the saver did not update the sidecar")
+            save_notes="closed by jobs: the saver did not update the sidecar")
         return "ok"
     mark_failed(take, "ComfyUI finished but the mp4 is missing")
     return "failed"
@@ -2094,7 +2094,7 @@ def apply_loras(g: dict, loras: list[dict], spec: dict | None = None) -> None:
         consumers = _consumers(g, src, slot)
         nid = str(_next_id(g))
         g[nid] = {"class_type": ctype, "inputs": {link: [src, slot], name_w: "", str_w: 1.0},
-                  "_meta": {"title": title or "LoRA 1 (h3jobs)"}}
+                  "_meta": {"title": title or "LoRA 1 (jobs)"}}
         for k, name in consumers:
             g[k]["inputs"][name] = [nid, 0]
         ids = [nid]
@@ -2120,7 +2120,7 @@ def apply_loras(g: dict, loras: list[dict], spec: dict | None = None) -> None:
         g[nid] = {"class_type": ctype,
                   "inputs": {link: [prev, 0], name_w: lo["name"],
                              str_w: float(lo.get("strength", 1.0))},
-                  "_meta": {"title": f"LoRA {i} (h3jobs)"}}
+                  "_meta": {"title": f"LoRA {i} (jobs)"}}
         prev = nid
     for k, name in consumers:
         g[k]["inputs"][name] = [prev, 0]
@@ -2496,7 +2496,7 @@ def chain_portable(g: dict, src: dict) -> None:
 def continuity_frame(g: dict, job: Job, take: T.Take, inputs: dict) -> None:
     """A continuity shot's first frame read when the job starts, not when it was
     queued: the LoadImage the target wired for the `first` input becomes
-    H3ContinuityFrame (h3refs.continuity_at_start), which cuts it again from
+    H3ContinuityFrame (refs.continuity_at_start), which cuts it again from
     the take the cut uses then (a take queued ahead of it in the same run has
     rendered by then) and falls back to the queued copy (`image`)."""
     name = inputs.get("first")
@@ -2882,11 +2882,11 @@ def check_models(job: Job, resolve=DEFAULT, cache=DEFAULT,
     return job.model_checks
 
 
-INPUT_SUBFOLDER = "h3pipe"
+INPUT_SUBFOLDER = "seriesmith"
 
 
 def input_name(path: str) -> str:
-    """The name a file gets in ComfyUI's input folder: input/h3pipe/<sha1>.<ext>.
+    """The name a file gets in ComfyUI's input folder: input/seriesmith/<sha1>.<ext>.
     By content, so re-picking a keyframe never serves a stale copy and the
     same picture is uploaded once."""
     ext = os.path.splitext(path)[1].lower() or ".png"
@@ -2896,8 +2896,8 @@ def input_name(path: str) -> str:
 def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     """Copy the images a job conditions on (a target's `role` ref slots that
     exist on disk: LTX's first / last keyframes) into ComfyUI's input folder
-    and record their names in job.inputs ({role: "h3pipe/<sha1>.png"}).
-    `comfy` uploads them (h3jobs.Comfy.upload_input: POST /upload/image, which
+    and record their names in job.inputs ({role: "seriesmith/<sha1>.png"}).
+    `comfy` uploads them (jobs.Comfy.upload_input: POST /upload/image, which
     works wherever ComfyUI runs); without it (a dry run) only the names are
     worked out. A target that makes an input of its own (ltx2_ingredients
     composes the shot's reference sheet) does it here too, in its

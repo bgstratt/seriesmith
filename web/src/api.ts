@@ -30,7 +30,7 @@ export type ImportedTake = RefTake & { view?: string | null };
 /** Upload progress: bytes sent so far, and the total (0 when unknown). */
 export type UploadProgress = (sent: number, total: number) => void;
 
-/** POST /h3pipe/refs/import (multipart) refuses a file over this (413). */
+/** POST /seriesmith/refs/import (multipart) refuses a file over this (413). */
 export const UPLOAD_LIMIT = 64 * 1024 * 1024;
 
 export interface Api {
@@ -42,9 +42,9 @@ export interface Api {
    * length it would really produce. Nothing is saved. */
   shot(ep: string, pass: Pass, shot: string, target?: string | null): Promise<ShotDetail>;
   build(ep: string): Promise<BuildResult>;
-  /** P5: POST /h3pipe/episode/new — a new episode from a template, in `parent`. */
+  /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
-  /** seriesmith: a series config and scripts into episode folders (POST /h3pipe/import) */
+  /** seriesmith: a series config and scripts into episode folders (POST /seriesmith/import) */
   importSeries(req: ImportSeriesRequest): Promise<ImportSeriesResult>;
   /** URL of a file inside the episode (for <img>/<video>); supports Range. */
   fileUrl(ep: string, path: string): string;
@@ -52,45 +52,45 @@ export interface Api {
   readJson<T = unknown>(ep: string, path: string): Promise<T>;
   render(req: RenderRequest): Promise<RenderResult>;
   cancel(take: TakeRef): Promise<CancelResult>;
-  /** POST /h3pipe/discard: move a take's files to `_trash/` (409 while queued). */
+  /** POST /seriesmith/discard: move a take's files to `_trash/` (409 while queued). */
   discard(take: TakeRef): Promise<DiscardResult>;
   pick(req: PickRequest): Promise<{ cut: CutFile }>;
   putCut(ep: string, pass: Pass, entries: CutEntry[]): Promise<{ cut: CutFile }>;
-  /** Phase 9b: POST /h3pipe/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
+  /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
-  /** Phase 9b: POST /h3pipe/cut/copy: one pass's order and/or trims onto the other (never picks). */
+  /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
   cutCopy(ep: string, from: Pass, to: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
-  /** Phase 9b: GET /h3pipe/peaks: `bins` peaks (0..255) of a media file over start..end seconds. */
+  /** Phase 9b: GET /seriesmith/peaks: `bins` peaks (0..255) of a media file over start..end seconds. */
   peaks(ep: string, path: string, bins: number, start?: number | null, end?: number | null): Promise<PeaksResult>;
-  /** Phase 9d: POST /h3pipe/audio/import as multipart: a media file from this
+  /** Phase 9d: POST /seriesmith/audio/import as multipart: a media file from this
    * computer into the episode, to be one clip's audio source. Answers where it
    * landed, relative to the episode. See the contract gap above. */
   uploadClipAudio(req: ClipAudioUploadRequest, onProgress?: UploadProgress): Promise<{ path: string }>;
   putOverride(req: OverrideRequest): Promise<OverrideResult>;
   deleteOverride(ep: string, shot: string, pass?: Pass): Promise<OverrideResult>;
   assemble(ep: string, pass: Pass, partial: boolean, opts?: AssembleOptions): Promise<AssembleResult>;
-  /** Phase 13: POST /h3pipe/upscale: queue upscales of final takes (409: this ComfyUI can't). */
+  /** Phase 13: POST /seriesmith/upscale: queue upscales of final takes (409: this ComfyUI can't). */
   upscale(req: UpscaleRequest): Promise<UpscaleResult>;
-  /** Phase 13: GET /h3pipe/upscale/options: pixel models and each target's latent upscale. */
+  /** Phase 13: GET /seriesmith/upscale/options: pixel models and each target's latent upscale. */
   upscaleOptions(ep?: string | null): Promise<UpscaleOptions>;
-  /** Phase 13e: PUT /h3pipe/upscale/recipe: one shot's upscale recipe (the
+  /** Phase 13e: PUT /seriesmith/upscale/recipe: one shot's upscale recipe (the
    * request's fields; null clears it) */
-  /** Phase 13e: POST /h3pipe/master: plan, queue the upscales, or assemble the master */
+  /** Phase 13e: POST /seriesmith/master: plan, queue the upscales, or assemble the master */
   master(req: { ep: string; pass?: Pass; action: "plan" | "queue" | "assemble" | "prores"; conform?: boolean;
                 allow_gaps?: boolean; prores?: boolean; order?: "cut" | "target";
                 post?: boolean | "off" | "present" | "recipe" }): Promise<MasterResult>;
-  /** POST /h3pipe/post: queue posts (each take's fresh upscale finished: enhance, motion blur) */
+  /** POST /seriesmith/post: queue posts (each take's fresh upscale finished: enhance, motion blur) */
   post(req: PostRequest): Promise<PostResult>;
-  /** GET /h3pipe/post/options: the tiers, the blur, readiness, the episode's post recipe */
+  /** GET /seriesmith/post/options: the tiers, the blur, readiness, the episode's post recipe */
   postOptions(ep?: string | null): Promise<PostOptions>;
-  /** DELETE /h3pipe/post: remove a take's post (409 while it is queued) */
+  /** DELETE /seriesmith/post: remove a take's post (409 while it is queued) */
   deletePost(ep: string, shot: string, take: number, pass?: Pass): Promise<{ shot: string; take: number; deleted: boolean }>;
-  /** GET /h3pipe/master/job: the master being assembled (or the last one), null: none */
+  /** GET /seriesmith/master/job: the master being assembled (or the last one), null: none */
   masterJob(ep: string): Promise<{ job: MasterJob | null }>;
-  /** Phase 13e: PUT /h3pipe/upscale/keep: mark a take's upscale Keep, or clear it */
+  /** Phase 13e: PUT /seriesmith/upscale/keep: mark a take's upscale Keep, or clear it */
   putUpscaleKeep(ep: string, shot: string, take: number, keep: boolean, pass?: Pass): Promise<{ shot: string; take: number; keep: boolean }>;
   putUpscaleRecipe(ep: string, shot: string, recipe: Record<string, unknown> | null): Promise<{ shot: string; recipe: Record<string, unknown> | null; text: string | null }>;
-  /** Phase 13: DELETE /h3pipe/upscale: remove a take's upscale (409 while it is queued). */
+  /** Phase 13: DELETE /seriesmith/upscale: remove a take's upscale (409 while it is queued). */
   deleteUpscale(ep: string, shot: string, take: number, pass?: Pass): Promise<{ shot: string; take: number; deleted: boolean }>;
   /** Folders on the ComfyUI machine; no path = the starting points. `files`
    * lists image or audio files too (for importing a ref). */
@@ -100,70 +100,70 @@ export interface Api {
    * series config); `version` busts the image cache after a re-pick. */
   refFileUrl(ep: string, path: string, version?: string | null): string;
   refsGenerate(req: RefGenerateRequest): Promise<RefGenerateResult>;
-  /** P5: POST /h3pipe/refs/tour, a camera tour of a location (answers once queued) */
+  /** P5: POST /seriesmith/refs/tour, a camera tour of a location (answers once queued) */
   refsTour(req: { ep: string; ref: string; move: string; seconds?: number; count?: number }): Promise<{ queued: { tour: number; comfy_prompt_id: string }[] }>;
-  /** P5: POST /h3pipe/refs/copy-take, a finished take copied into another ref as a candidate */
+  /** P5: POST /seriesmith/refs/copy-take, a finished take copied into another ref as a candidate */
   refsCopyTake(req: { ep: string; ref: string; view?: string | null; take: number; to: string }): Promise<RefTake>;
-  /** P5: POST /h3pipe/refs/tour-frame, any moment of a finished tour as a hold */
+  /** P5: POST /seriesmith/refs/tour-frame, any moment of a finished tour as a hold */
   refsTourFrame(req: { ep: string; ref: string; tour: number; seconds: number }): Promise<RefTake>;
-  /** POST /h3pipe/refs/generate-missing: one candidate for every missing series
+  /** POST /seriesmith/refs/generate-missing: one candidate for every missing series
    * ref, and every needed keyframe filled (continuity, a still, or the script's file). */
   refsGenerateMissing(req: RefGenerateMissingRequest): Promise<RefGenerateMissingResult>;
-  /** PUT /h3pipe/refs/pick. Phase 9c-B: picking a voice may write the series
+  /** PUT /seriesmith/refs/pick. Phase 9c-B: picking a voice may write the series
    * config's `voice_sample` (`series_changed: true` in the answer). */
   refsPick(req: RefPickRequest): Promise<RefPickResult>;
   refsImport(req: RefImportRequest): Promise<ImportedTake>;
-  /** POST /h3pipe/refs/import as multipart (drag and drop, a file picker), with
+  /** POST /seriesmith/refs/import as multipart (drag and drop, a file picker), with
    * upload progress where the transport can report it. */
   refsUpload(req: RefUploadRequest, onProgress?: UploadProgress): Promise<ImportedTake>;
   // ---- P10: a pass's issues (the notepad) ----
-  /** GET /h3pipe/issues: what was noted for a pass, each with `addressed`. */
+  /** GET /seriesmith/issues: what was noted for a pass, each with `addressed`. */
   issues(ep: string, pass?: Pass | null): Promise<Issue[]>;
-  /** POST /h3pipe/issues: note what is wrong with a shot as it was rendered. */
+  /** POST /seriesmith/issues: note what is wrong with a shot as it was rendered. */
   addIssue(req: IssueAddRequest): Promise<Issue>;
-  /** DELETE /h3pipe/issues: drop one by id. */
+  /** DELETE /seriesmith/issues: drop one by id. */
   resolveIssue(ep: string, id: string): Promise<Issue[]>;
-  /** DELETE /h3pipe/issues?clear=1: empty a pass, or only what has been addressed. */
+  /** DELETE /seriesmith/issues?clear=1: empty a pass, or only what has been addressed. */
   clearIssues(ep: string, pass?: Pass | null, addressedOnly?: boolean): Promise<Issue[]>;
-  /** GET /h3pipe/issues/export: the markdown to hand to an assistant. */
+  /** GET /seriesmith/issues/export: the markdown to hand to an assistant. */
   exportIssues(ep: string, pass?: Pass | null): Promise<string>;
-  /** P8: POST /h3pipe/refs/match -- which slot each file name means. Read-only,
+  /** P8: POST /seriesmith/refs/match -- which slot each file name means. Read-only,
    * names only (no file bodies), so the table can be shown before anything is sent. */
   refsMatch(ep: string, names: string[]): Promise<RefMatchResult>;
-  /** POST /h3pipe/refs/discard: move a candidate to `_trash/`; its pick is cleared.
+  /** POST /seriesmith/refs/discard: move a candidate to `_trash/`; its pick is cleared.
    * Returns the ref as `refs` lists it. */
   refsDiscard(req: RefDiscardRequest): Promise<Ref>;
   /** A shot's first / last keyframe from a frame of a video take (continuity);
    * returns the keyframe ref as `refs` lists it. */
   refsKeyframe(req: RefKeyframeRequest): Promise<Ref>;
-  /** DELETE /h3pipe/refs/pick: unpick a ref (its live file is removed; its takes
+  /** DELETE /seriesmith/refs/pick: unpick a ref (its live file is removed; its takes
    * stay). For a keyframe this is Clear: the shot renders without one. */
   refsUnpick(ep: string, ref: string, view?: string | null): Promise<Ref>;
-  /** PUT /h3pipe/refs/defaults: the episode's ref targets (null clears one; a
+  /** PUT /seriesmith/refs/defaults: the episode's ref targets (null clears one; a
    * key left out is kept). `voice_target` is an audio target (Phase 9c-B). */
   putRefDefaults(ep: string, fields: RefDefaultFields): Promise<{ defaults: RefDefaults }>;
-  /** POST /h3pipe/refs/voice-from-take: a span of a take's sound as a voice candidate. */
+  /** POST /seriesmith/refs/voice-from-take: a span of a take's sound as a voice candidate. */
   refsVoiceFromTake(req: VoiceFromTakeRequest): Promise<VoiceFromTakeResult>;
-  /** Phase 9c-A: GET /h3pipe/align/ready: what h3align needs, and in which Python. */
+  /** Phase 9c-A: GET /seriesmith/align/ready: what align needs, and in which Python. */
   alignReady(): Promise<AlignReady>;
-  /** POST /h3pipe/track: attach a recording by its path on the ComfyUI machine. */
+  /** POST /seriesmith/track: attach a recording by its path on the ComfyUI machine. */
   attachTrack(ep: string, sourcePath: string, pass?: Pass): Promise<TrackResult>;
-  /** POST /h3pipe/track as multipart: upload a recording from this computer. */
+  /** POST /seriesmith/track as multipart: upload a recording from this computer. */
   uploadTrack(req: TrackUploadRequest, onProgress?: UploadProgress): Promise<TrackResult>;
-  /** POST /h3pipe/track `{track: null}`: forget the recording (the file stays). */
+  /** POST /seriesmith/track `{track: null}`: forget the recording (the file stays). */
   clearTrack(ep: string, pass?: Pass): Promise<TrackResult>;
-  /** POST /h3pipe/align: run h3align (a 409's ApiError.data is an AlignMissing). */
+  /** POST /seriesmith/align: run align (a 409's ApiError.data is an AlignMissing). */
   align(req: AlignRequest): Promise<AlignResult>;
   putRefOverride(req: RefOverrideRequest): Promise<{ override: RefOverrideResult }>;
   deleteRefOverride(ep: string, ref: string, view?: string | null): Promise<{ override: RefOverrideResult }>;
-  /** ComfyUI's own lists (not h3pipe routes). */
+  /** ComfyUI's own lists (not seriesmith routes). */
   models(): Promise<string[]>;
   loras(): Promise<string[]>;
   comfyQueue(): Promise<ComfyQueue>;
   /** Phase 7: every target (video and image), for the target picker. A kind
    * filters; `ready: true` asks for each target's `readiness` (`?ready=1`). */
   targets(opts?: TargetKind | TargetsQuery): Promise<TargetList>;
-  /** PUT /h3pipe/episode-target: the episode's default target; null clears it
+  /** PUT /seriesmith/episode-target: the episode's default target; null clears it
    * (back to series.json's). */
   putEpisodeTarget(ep: string, target: string | null): Promise<EpisodeTargetResult>;
   /** Phase 11: copy a target's repo workflow into ComfyUI's saved workflows, to
@@ -185,20 +185,20 @@ export interface Api {
   /** ComfyUI's choices for one combo widget (`/object_info/<class_type>`), or
    * null when the node or widget isn't there. */
   widgetChoices(classType: string, field: string): Promise<string[] | null>;
-  /** GET /h3pipe/models: one model param's files, matching the target's family first. */
+  /** GET /seriesmith/models: one model param's files, matching the target's family first. */
   modelFiles(target: string, param: string, ep?: string | null): Promise<ModelList>;
-  /** Phase 9a: GET /h3pipe/source: the script or the series config, with its hash. */
+  /** Phase 9a: GET /seriesmith/source: the script or the series config, with its hash. */
   source(ep: string, file: SourceFile): Promise<SourceDoc>;
-  /** GET /h3pipe/source?…&hash_only=1: has the file changed on disk? */
+  /** GET /seriesmith/source?…&hash_only=1: has the file changed on disk? */
   sourceHash(ep: string, file: SourceFile): Promise<SourceHash>;
-  /** POST /h3pipe/source/check: parse and check `text` without writing it. */
+  /** POST /seriesmith/source/check: parse and check `text` without writing it. */
   checkSource(ep: string, file: SourceFile, text: string): Promise<SourceCheck>;
-  /** PUT /h3pipe/source: 409 (ApiError.data = {error, hash, text}) when the file
+  /** PUT /seriesmith/source: 409 (ApiError.data = {error, hash, text}) when the file
    * changed since `base_hash`; 400 for a series config that isn't JSON. */
   putSource(req: SourceSaveRequest): Promise<SourceSaveResult>;
-  /** GET /h3pipe/promote: what the authored files can take from the overrides. */
+  /** GET /seriesmith/promote: what the authored files can take from the overrides. */
   promotePlan(ep: string, shot?: string | null): Promise<PromotePlan>;
-  /** POST /h3pipe/promote: 409 when either file changed since the plan; 400 for
+  /** POST /seriesmith/promote: 409 when either file changed since the plan; 400 for
    * an id the plan (for the same `shot`) doesn't offer. */
   promote(ep: string, items: string[] | "all", hashes: PromoteHashes, shot?: string | null): Promise<PromoteResult>;
 }
@@ -206,14 +206,14 @@ export interface Api {
 /** A ref override route's answer: the (effective) override values, plus `stale`. */
 export type RefOverrideResult = NonNullable<RefOverrideInfo["values"]> & { stale?: boolean };
 
-/** PUT /h3pipe/refs/defaults: any of the three; null clears one. */
+/** PUT /seriesmith/refs/defaults: any of the three; null clears one. */
 export interface RefDefaultFields {
   target?: string | null;
   keyframe_target?: string | null;
   voice_target?: string | null;
 }
 
-/** Phase 9d: POST /h3pipe/audio/import as multipart/form-data. */
+/** Phase 9d: POST /seriesmith/audio/import as multipart/form-data. */
 export interface ClipAudioUploadRequest {
   ep: string;
   file: Blob;
@@ -221,7 +221,7 @@ export interface ClipAudioUploadRequest {
   name?: string;
 }
 
-/** POST /h3pipe/track as multipart/form-data (drag and drop, a file picker). */
+/** POST /seriesmith/track as multipart/form-data (drag and drop, a file picker). */
 export interface TrackUploadRequest {
   ep: string;
   file: Blob;
@@ -272,7 +272,7 @@ export function parseSeed(text: string): Seed {
 
 /**
  * JSON.parse that keeps every `"seed": <integer>` as a string. The routes already
- * send strings, but files read through /h3pipe/file (frozen shotlists, sidecars)
+ * send strings, but files read through /seriesmith/file (frozen shotlists, sidecars)
  * are raw JSON, and JSON.parse would round a 63-bit seed to the nearest double.
  * Only matches a real key (a `"seed"` inside a JSON string has escaped quotes).
  */
@@ -286,7 +286,7 @@ export function parseJsonSeedSafe<T = unknown>(text: string): T {
 // ---------------------------------------------------------------------------
 
 export interface Transport {
-  /** fetch a server path such as "/h3pipe/episodes" */
+  /** fetch a server path such as "/seriesmith/episodes" */
   fetch(path: string, init?: RequestInit): Promise<Response>;
   /** the absolute URL of a server path, for <img src> / <video src> */
   url(path: string): string;
@@ -323,8 +323,8 @@ function answer<T>(method: string, route: string, status: number, statusText: st
       ? (data as { error: string }).error
       : status === 413
         ? `The file is too big to upload (the limit is ${UPLOAD_LIMIT / 1024 / 1024} MB).`
-        : status === 404 && route.startsWith("/h3pipe/") && data === undefined
-          ? `${route} isn't there (HTTP 404). Is the h3pipe node pack loaded and up to date?`
+        : status === 404 && route.startsWith("/seriesmith/") && data === undefined
+          ? `${route} isn't there (HTTP 404). Is the seriesmith server up to date?`
           : `${method} ${route} failed: HTTP ${status} ${statusText}`.trim();
     throw new ApiError(msg, status, route, data);
   }
@@ -376,31 +376,31 @@ export function createHttpApi(t: Transport): Api {
   }
 
   return {
-    getConfig: () => get("/h3pipe/config"),
-    putConfig: (roots) => call("PUT", "/h3pipe/config", { roots }),
-    episodes: () => get("/h3pipe/episodes"),
-    episode: (ep, pass) => get(`/h3pipe/episode?${qs({ ep, pass })}`),
-    shot: (ep, pass, shot, target) => get(`/h3pipe/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
-    build: (ep) => call("POST", "/h3pipe/build", { ep }),
-    newEpisode: (req) => call("POST", "/h3pipe/episode/new", req),
-    importSeries: (req) => call("POST", "/h3pipe/import", req),
-    fileUrl: (ep, path) => t.url(`/h3pipe/file?${qs({ ep, path })}`),
-    readJson: (ep, path) => get(`/h3pipe/file?${qs({ ep, path })}`),
+    getConfig: () => get("/seriesmith/config"),
+    putConfig: (roots) => call("PUT", "/seriesmith/config", { roots }),
+    episodes: () => get("/seriesmith/episodes"),
+    episode: (ep, pass) => get(`/seriesmith/episode?${qs({ ep, pass })}`),
+    shot: (ep, pass, shot, target) => get(`/seriesmith/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
+    build: (ep) => call("POST", "/seriesmith/build", { ep }),
+    newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
+    importSeries: (req) => call("POST", "/seriesmith/import", req),
+    fileUrl: (ep, path) => t.url(`/seriesmith/file?${qs({ ep, path })}`),
+    readJson: (ep, path) => get(`/seriesmith/file?${qs({ ep, path })}`),
     render: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(req.seed)}`));
       }
-      return call("POST", "/h3pipe/render", req);
+      return call("POST", "/seriesmith/render", req);
     },
-    cancel: (take) => call("POST", "/h3pipe/cancel", take),
-    discard: ({ ep, pass, shot, take }) => call("POST", "/h3pipe/discard", { ep, shot, take, pass }),
-    pick: (req) => call("PUT", "/h3pipe/pick", req),
-    putCut: (ep, pass, entries) => call("PUT", "/h3pipe/cut", { ep, pass, entries }),
-    cutReset: (ep, pass, what) => call("POST", "/h3pipe/cut/reset", { ep, pass, what }),
-    cutCopy: (ep, from, to, what) => call("POST", "/h3pipe/cut/copy", { ep, from, to, what }),
+    cancel: (take) => call("POST", "/seriesmith/cancel", take),
+    discard: ({ ep, pass, shot, take }) => call("POST", "/seriesmith/discard", { ep, shot, take, pass }),
+    pick: (req) => call("PUT", "/seriesmith/pick", req),
+    putCut: (ep, pass, entries) => call("PUT", "/seriesmith/cut", { ep, pass, entries }),
+    cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
+    cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {
       const n = Math.max(1, Math.round(bins));
-      const r = await get<Partial<PeaksResult>>(`/h3pipe/peaks?${qs({
+      const r = await get<Partial<PeaksResult>>(`/seriesmith/peaks?${qs({
         ep, path, bins: String(n),
         start: start != null && Number.isFinite(start) ? String(round6(start)) : undefined,
         end: end != null && Number.isFinite(end) ? String(round6(end)) : undefined,
@@ -416,36 +416,36 @@ export function createHttpApi(t: Transport): Api {
       form.append("ep", req.ep);
       const name = req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "audio.wav");
       form.append("file", req.file, name);
-      return postForm("/h3pipe/audio/import", form, onProgress);
+      return postForm("/seriesmith/audio/import", form, onProgress);
     },
     putOverride: (req) => {
       const s = req.fields.seed;
       if (s !== undefined && s !== null && !isSeed(s)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(s)}`));
       }
-      return call("PUT", "/h3pipe/override", req);
+      return call("PUT", "/seriesmith/override", req);
     },
-    deleteOverride: (ep, shot, pass) => call("DELETE", `/h3pipe/override?${qs({ ep, shot, pass })}`),
-    assemble: (ep, pass, partial, opts) => call("POST", "/h3pipe/assemble", {
+    deleteOverride: (ep, shot, pass) => call("DELETE", `/seriesmith/override?${qs({ ep, shot, pass })}`),
+    assemble: (ep, pass, partial, opts) => call("POST", "/seriesmith/assemble", {
       ep, pass, partial,
       // only when set: older servers don't know them
       ...(opts?.upscaled ? { upscaled: true } : {}),
       ...(opts?.size ? { size: opts.size } : {}),
       ...(opts?.publish ? { publish: true } : {}),
     }),
-    upscale: (req) => call("POST", "/h3pipe/upscale", req),
-    upscaleOptions: (ep) => get(`/h3pipe/upscale/options${ep ? `?${qs({ ep })}` : ""}`),
-    master: (req) => call("POST", "/h3pipe/master", req),
-    post: (req) => call("POST", "/h3pipe/post", req),
-    postOptions: (ep) => get(`/h3pipe/post/options${ep ? `?${qs({ ep })}` : ""}`),
-    deletePost: (ep, shot, take, pass) => call("DELETE", `/h3pipe/post?${qs({ ep, shot, take: String(take), pass })}`),
-    masterJob: (ep) => get(`/h3pipe/master/job?${qs({ ep })}`),
-    putUpscaleKeep: (ep, shot, take, keep, pass) => call("PUT", "/h3pipe/upscale/keep", { ep, shot, take, keep, ...(pass ? { pass } : {}) }),
-    putUpscaleRecipe: (ep, shot, recipe) => call("PUT", "/h3pipe/upscale/recipe", { ep, shot, recipe }),
-    deleteUpscale: (ep, shot, take, pass) => call("DELETE", `/h3pipe/upscale?${qs({ ep, shot, take: String(take), pass })}`),
-    browse: (path, files) => get(`/h3pipe/browse?${qs({ path: path || undefined, files: files || undefined })}`),
-    refs: (ep) => get(`/h3pipe/refs?${qs({ ep })}`),
-    refFileUrl: (ep, path, version) => t.url(`/h3pipe/file?${qs({ ep, path, v: version || undefined })}`),
+    upscale: (req) => call("POST", "/seriesmith/upscale", req),
+    upscaleOptions: (ep) => get(`/seriesmith/upscale/options${ep ? `?${qs({ ep })}` : ""}`),
+    master: (req) => call("POST", "/seriesmith/master", req),
+    post: (req) => call("POST", "/seriesmith/post", req),
+    postOptions: (ep) => get(`/seriesmith/post/options${ep ? `?${qs({ ep })}` : ""}`),
+    deletePost: (ep, shot, take, pass) => call("DELETE", `/seriesmith/post?${qs({ ep, shot, take: String(take), pass })}`),
+    masterJob: (ep) => get(`/seriesmith/master/job?${qs({ ep })}`),
+    putUpscaleKeep: (ep, shot, take, keep, pass) => call("PUT", "/seriesmith/upscale/keep", { ep, shot, take, keep, ...(pass ? { pass } : {}) }),
+    putUpscaleRecipe: (ep, shot, recipe) => call("PUT", "/seriesmith/upscale/recipe", { ep, shot, recipe }),
+    deleteUpscale: (ep, shot, take, pass) => call("DELETE", `/seriesmith/upscale?${qs({ ep, shot, take: String(take), pass })}`),
+    browse: (path, files) => get(`/seriesmith/browse?${qs({ path: path || undefined, files: files || undefined })}`),
+    refs: (ep) => get(`/seriesmith/refs?${qs({ ep })}`),
+    refFileUrl: (ep, path, version) => t.url(`/seriesmith/file?${qs({ ep, path, v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(req.seed)}`));
@@ -456,22 +456,22 @@ export function createHttpApi(t: Transport): Api {
       const body: Record<string, unknown> = { ...rest };
       if (target) body.target = target;
       if (seconds != null) body.seconds = seconds;
-      return call("POST", "/h3pipe/refs/generate", body);
+      return call("POST", "/seriesmith/refs/generate", body);
     },
-    refsTour: (req) => call("POST", "/h3pipe/refs/tour", req),
-    refsCopyTake: (req) => call("POST", "/h3pipe/refs/copy-take", req),
-    refsTourFrame: (req) => call("POST", "/h3pipe/refs/tour-frame", req),
+    refsTour: (req) => call("POST", "/seriesmith/refs/tour", req),
+    refsCopyTake: (req) => call("POST", "/seriesmith/refs/copy-take", req),
+    refsTourFrame: (req) => call("POST", "/seriesmith/refs/tour-frame", req),
     refsGenerateMissing: (req) => {
       // only what's set: the server's defaults apply to the rest
       const body: Record<string, unknown> = { ep: req.ep };
       for (const k of ["pass", "kinds", "target", "keyframe_target", "backend"] as const) if (req[k] != null) body[k] = req[k];
       if (req.dry_run) body.dry_run = true;
-      return call("POST", "/h3pipe/refs/generate-missing", body);
+      return call("POST", "/seriesmith/refs/generate-missing", body);
     },
-    refsPick: (req) => call("PUT", "/h3pipe/refs/pick", req),
-    refsVoiceFromTake: (req) => call("POST", "/h3pipe/refs/voice-from-take", req),
+    refsPick: (req) => call("PUT", "/seriesmith/refs/pick", req),
+    refsVoiceFromTake: (req) => call("POST", "/seriesmith/refs/voice-from-take", req),
     alignReady: async () => {
-      const r = await get<Partial<AlignReady>>("/h3pipe/align/ready");
+      const r = await get<Partial<AlignReady>>("/seriesmith/align/ready");
       return {
         ready: !!r?.ready,
         ffmpeg: r?.ffmpeg ?? null,
@@ -484,16 +484,16 @@ export function createHttpApi(t: Transport): Api {
       };
     },
     attachTrack: (ep, sourcePath, pass) =>
-      call("POST", "/h3pipe/track", pass ? { ep, source_path: sourcePath, pass } : { ep, source_path: sourcePath }),
+      call("POST", "/seriesmith/track", pass ? { ep, source_path: sourcePath, pass } : { ep, source_path: sourcePath }),
     uploadTrack: (req, onProgress) => {
       const form = new FormData();
       form.append("ep", req.ep);
       if (req.pass) form.append("pass", req.pass);
       const name = req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "recording.wav");
       form.append("file", req.file, name);
-      return postForm("/h3pipe/track", form, onProgress);
+      return postForm("/seriesmith/track", form, onProgress);
     },
-    clearTrack: (ep, pass) => call("POST", "/h3pipe/track", pass ? { ep, track: null, pass } : { ep, track: null }),
+    clearTrack: (ep, pass) => call("POST", "/seriesmith/track", pass ? { ep, track: null, pass } : { ep, track: null }),
     align: (req) => {
       // only what's set: the server's own defaults (snap true, dry_run false) apply
       const body: Record<string, unknown> = { ep: req.ep };
@@ -502,9 +502,9 @@ export function createHttpApi(t: Transport): Api {
       if (req.snap === false) body.snap = false;
       if (req.dry_run) body.dry_run = true;
       if (req.pass) body.pass = req.pass;
-      return call("POST", "/h3pipe/align", body);
+      return call("POST", "/seriesmith/align", body);
     },
-    refsImport: ({ pick, ...req }) => call("POST", "/h3pipe/refs/import", pick ? { ...req, pick: true } : req),
+    refsImport: ({ pick, ...req }) => call("POST", "/seriesmith/refs/import", pick ? { ...req, pick: true } : req),
     refsUpload: (req, onProgress) => {
       const form = new FormData();
       form.append("ep", req.ep);
@@ -513,34 +513,34 @@ export function createHttpApi(t: Transport): Api {
       if (req.pick) form.append("pick", "1");
       const name = req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "upload");
       form.append("file", req.file, name);
-      return postForm("/h3pipe/refs/import", form, onProgress);
+      return postForm("/seriesmith/refs/import", form, onProgress);
     },
-    issues: (ep, pass) => get<{ issues: Issue[] }>(`/h3pipe/issues?${qs({ ep, pass: pass || undefined })}`)
+    issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
-    addIssue: (req) => call("POST", "/h3pipe/issues", req),
-    resolveIssue: (ep, id) => call<{ issues: Issue[] }>("DELETE", `/h3pipe/issues?${qs({ ep, id })}`)
+    addIssue: (req) => call("POST", "/seriesmith/issues", req),
+    resolveIssue: (ep, id) => call<{ issues: Issue[] }>("DELETE", `/seriesmith/issues?${qs({ ep, id })}`)
       .then((r) => r.issues),
     clearIssues: (ep, pass, addressedOnly) => call<{ issues: Issue[] }>(
       "DELETE",
-      `/h3pipe/issues?${qs({ ep, pass: pass || undefined, clear: "1",
+      `/seriesmith/issues?${qs({ ep, pass: pass || undefined, clear: "1",
                              addressed: addressedOnly ? "1" : undefined })}`,
     ).then((r) => r.issues),
-    exportIssues: (ep, pass) => get<{ text: string }>(`/h3pipe/issues/export?${qs({ ep, pass: pass || undefined })}`)
+    exportIssues: (ep, pass) => get<{ text: string }>(`/seriesmith/issues/export?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.text),
-    refsMatch: (ep, names) => call("POST", "/h3pipe/refs/match", { ep, names }),
-    refsDiscard: ({ ep, ref, view, take }) => call("POST", "/h3pipe/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
-    refsKeyframe: (req) => call("POST", "/h3pipe/refs/keyframe", req),
-    refsUnpick: (ep, ref, view) => call("DELETE", `/h3pipe/refs/pick?${qs({ ep, ref, view: view || undefined })}`),
-    putRefDefaults: (ep, fields) => call("PUT", "/h3pipe/refs/defaults", { ep, ...fields }),
+    refsMatch: (ep, names) => call("POST", "/seriesmith/refs/match", { ep, names }),
+    refsDiscard: ({ ep, ref, view, take }) => call("POST", "/seriesmith/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
+    refsKeyframe: (req) => call("POST", "/seriesmith/refs/keyframe", req),
+    refsUnpick: (ep, ref, view) => call("DELETE", `/seriesmith/refs/pick?${qs({ ep, ref, view: view || undefined })}`),
+    putRefDefaults: (ep, fields) => call("PUT", "/seriesmith/refs/defaults", { ep, ...fields }),
 
     putRefOverride: (req) => {
       const s = req.fields.seed;
       if (s !== undefined && s !== null && !isSeed(s)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(s)}`));
       }
-      return call("PUT", "/h3pipe/refs/override", req);
+      return call("PUT", "/seriesmith/refs/override", req);
     },
-    deleteRefOverride: (ep, ref, view) => call("DELETE", `/h3pipe/refs/override?${qs({ ep, ref, view: view || undefined })}`),
+    deleteRefOverride: (ep, ref, view) => call("DELETE", `/seriesmith/refs/override?${qs({ ep, ref, view: view || undefined })}`),
     models: async () => {
       try {
         const m = await get<string[]>("/models/diffusion_models");
@@ -553,32 +553,32 @@ export function createHttpApi(t: Transport): Api {
     loras: () => get("/models/loras"),
     targets: async (opts) => {
       const { kind, ready } = targetsQuery(opts);
-      const r = await get<Partial<TargetList>>(`/h3pipe/targets?${qs({ kind, ready: ready ? "1" : undefined })}`);
+      const r = await get<Partial<TargetList>>(`/seriesmith/targets?${qs({ kind, ready: ready ? "1" : undefined })}`);
       return { targets: Array.isArray(r?.targets) ? r.targets : [], default: r?.default ?? {} };
     },
     installWorkflow: async (target, opts) => {
-      const r = await call<WorkflowInstallResult | undefined>("POST", "/h3pipe/workflow/install", {
+      const r = await call<WorkflowInstallResult | undefined>("POST", "/seriesmith/workflow/install", {
         target, name: opts?.name, overwrite: opts?.overwrite ?? false,
       });
       return r ?? {};
     },
     revertWorkflow: async (target, name) => {
-      const r = await call<WorkflowInstallResult | undefined>("DELETE", `/h3pipe/workflow/install?${qs({ target, name })}`);
+      const r = await call<WorkflowInstallResult | undefined>("DELETE", `/seriesmith/workflow/install?${qs({ target, name })}`);
       return r ?? {};
     },
     workflows: async () => {
-      const r = await get<{ workflows?: WorkflowFile[] }>("/h3pipe/workflows");
+      const r = await get<{ workflows?: WorkflowFile[] }>("/seriesmith/workflows");
       return Array.isArray(r?.workflows) ? r.workflows : [];
     },
-    inspectTarget: (req) => call("POST", "/h3pipe/targets/inspect", req),
-    saveCustomTarget: (ep, target) => call("PUT", "/h3pipe/targets/custom", { ep, target }),
-    deleteCustomTarget: (ep, id) => call("DELETE", `/h3pipe/targets/custom?${qs({ ep, id })}`),
-    setTargetDraft: (ep, id, draft) => call("PUT", "/h3pipe/targets/custom", { ep, id, draft }),
+    inspectTarget: (req) => call("POST", "/seriesmith/targets/inspect", req),
+    saveCustomTarget: (ep, target) => call("PUT", "/seriesmith/targets/custom", { ep, target }),
+    deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
+    setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),
     putEpisodeTarget: async (ep, target) => {
       if (target !== null && (typeof target !== "string" || !target)) {
         return Promise.reject(new Error(`An episode target is a target id or null, got ${String(target)}`));
       }
-      const r = await call<EpisodeTargetResult | undefined>("PUT", "/h3pipe/episode-target", { ep, target });
+      const r = await call<EpisodeTargetResult | undefined>("PUT", "/seriesmith/episode-target", { ep, target });
       return r ?? {};
     },
     widgetChoices: async (classType, field) => {
@@ -586,19 +586,19 @@ export function createHttpApi(t: Transport): Api {
       return comboChoices(info, classType, field);
     },
     modelFiles: async (target, param, ep) => {
-      const r = await get<Partial<ModelList>>(`/h3pipe/models?${qs({ target, param, ep: ep || undefined })}`);
+      const r = await get<Partial<ModelList>>(`/seriesmith/models?${qs({ target, param, ep: ep || undefined })}`);
       return {
         target: r?.target ?? target, param: r?.param ?? param, family: r?.family ?? "", label: r?.label ?? r?.family ?? "",
         patterns: Array.isArray(r?.patterns) ? r.patterns : [], fingerprint: !!r?.fingerprint,
         files: Array.isArray(r?.files) ? r.files : [],
       };
     },
-    source: (ep, file) => get(`/h3pipe/source?${qs({ ep, file })}`),
-    sourceHash: (ep, file) => get(`/h3pipe/source?${qs({ ep, file, hash_only: "1" })}`),
-    checkSource: (ep, file, text) => call("POST", "/h3pipe/source/check", { ep, file, text }),
-    putSource: (req) => call("PUT", "/h3pipe/source", req),
-    promotePlan: (ep, shot) => get(`/h3pipe/promote?${qs({ ep, shot: shot || undefined })}`),
-    promote: (ep, items, hashes, shot) => call("POST", "/h3pipe/promote", shot ? { ep, items, hashes, shot } : { ep, items, hashes }),
+    source: (ep, file) => get(`/seriesmith/source?${qs({ ep, file })}`),
+    sourceHash: (ep, file) => get(`/seriesmith/source?${qs({ ep, file, hash_only: "1" })}`),
+    checkSource: (ep, file, text) => call("POST", "/seriesmith/source/check", { ep, file, text }),
+    putSource: (req) => call("PUT", "/seriesmith/source", req),
+    promotePlan: (ep, shot) => get(`/seriesmith/promote?${qs({ ep, shot: shot || undefined })}`),
+    promote: (ep, items, hashes, shot) => call("POST", "/seriesmith/promote", shot ? { ep, items, hashes, shot } : { ep, items, hashes }),
     comfyQueue: async () => {
       const q = await get<{ queue_running?: unknown[][]; queue_pending?: unknown[][] }>("/queue");
       const ids = (xs?: unknown[][]) => (xs ?? []).map((x) => String(x[1]));

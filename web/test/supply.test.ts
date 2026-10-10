@@ -1,5 +1,5 @@
 // P8: the Supply flow. The server decides where files go (POST
-// /h3pipe/refs/match); these are the rules the editor adds on top -- show the
+// /seriesmith/refs/match); these are the rules the editor adds on top -- show the
 // table before sending, upload one at a time, and keep a single file on the
 // old single-slot path.
 import { beforeEach, describe, expect, it, vi } from "vitest";

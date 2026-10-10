@@ -1,5 +1,5 @@
 """
-h3core.ir — the story IR: an episode as the script describes it, before any
+core.ir — the story IR: an episode as the script describes it, before any
 model decision. Written to `shotlist/shots.json` by every build.
 
 Durations are seconds as the script asked for them (no frame grid). Subjects
@@ -127,7 +127,7 @@ class Shot:
     last: str | None = None
     continuous: str | None = None    # `continuous:` on the shot: first | latent | none
     overlap: int | None = None       # `overlap:`: frames of the previous clip a latent holds
-    legacy: list = field(default_factory=list)   # old forms read, for `h3.py check`
+    legacy: list = field(default_factory=list)   # old forms read, for `seriesmith check`
 
     def continues(self, seq: "Sequence | None" = None) -> str | None:
         """How this shot follows the previous one (CONTINUOUS), else None: its

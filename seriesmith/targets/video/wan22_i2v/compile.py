@@ -1,6 +1,6 @@
 """
 Wan 2.2 14B image to video: the story IR compiled into shotlist entries that
-h3jobs patches into the two-stage Wan 2.2 14B I2V graph (target.json beside
+jobs patches into the two-stage Wan 2.2 14B I2V graph (target.json beside
 this file). No loader node: every render value is a widget.
 
     compile_episode(target, story, series_cfg, pass_, only=None) -> (doc, report)
@@ -10,7 +10,7 @@ this file). No loader node: every render value is a widget.
     patch_graph(target, graph, job, inputs) -> the keyframes, the stage split
 
 The first keyframe is what Wan animates, so it is required and has no
-render-anyway: its ref slot says `anyway: false` and why, so h3jobs blocks the
+render-anyway: its ref slot says `anyway: false` and why, so jobs blocks the
 shot (even with allow_missing_refs) and the CLI, routes and editor say
 "Wan 14B I2V needs a first frame: generate one, import one, give the shot
 `continuous: first` (the previous shot's last frame), or retarget to wan22_ti2v". With a last keyframe too, WanFirstLastFrameToVideo takes the

@@ -53,9 +53,9 @@ const byEl = new WeakMap<Element, Mounted>();
 const bySurface = new Map<Surface, Element>();
 
 export function injectStyles(doc: Document = document) {
-  if (doc.getElementById("h3pipe-editor-css")) return;
+  if (doc.getElementById("seriesmith-editor-css")) return;
   const style = doc.createElement("style");
-  style.id = "h3pipe-editor-css";
+  style.id = "seriesmith-editor-css";
   style.textContent = css;
   doc.head.appendChild(style);
 }
@@ -195,7 +195,7 @@ export function mountOverlay() {
   if (overlayRoot) return;
   injectStyles();
   const el = document.createElement("div");
-  el.id = "h3pipe-editor-overlay";
+  el.id = "seriesmith-editor-overlay";
   el.className = "h3-root h3-overlay";
   document.body.appendChild(el);
   overlayRoot = createRoot(el);

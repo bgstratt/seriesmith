@@ -1,5 +1,5 @@
-// Phase 9b in the mock: cut.json as h3takes keeps it (resolve_cut,
-// cut_entry_to_json), the PUT /h3pipe/cut checks, and /cut/reset and /cut/copy.
+// Phase 9b in the mock: cut.json as takes keeps it (resolve_cut,
+// cut_entry_to_json), the PUT /seriesmith/cut checks, and /cut/reset and /cut/copy.
 // Pure; mockApi.ts holds the state.
 
 import { GAIN_MAX, GAIN_MIN, audioOf, audioShot, audioWhy, normalizeAudio } from "../lib/audioSource";
@@ -29,7 +29,7 @@ export interface Resolved {
   flag: boolean;
 }
 
-/** h3takes.resolve_cut: listed entries keep their order, unlisted script shots
+/** takes.resolve_cut: listed entries keep their order, unlisted script shots
  * go after their nearest earlier script shot, listed shots gone from the script are orphans. */
 export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Resolved[] {
   const inScript = new Set(script);
@@ -65,7 +65,7 @@ export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Reso
   return out;
 }
 
-/** h3takes.cut_entry_to_json */
+/** takes.cut_entry_to_json */
 export function toJson(e: Resolved, listPass: Pass): CutEntry {
   const out: CutEntry = { shot: e.shot };
   if (e.pass !== listPass) out.pass = e.pass;
@@ -94,12 +94,12 @@ export class CutError extends Error {
 const isInt = (v: unknown) => typeof v === "number" && Number.isInteger(v);
 
 /**
- * PUT /h3pipe/cut's checks: duplicate shots and unknown fields, negative or
+ * PUT /seriesmith/cut's checks: duplicate shots and unknown fields, negative or
  * non-integer trims, and trims that leave less than a frame of a take whose
  * frame count is known (`framesOf`: [frames, their fps] or null).
  */
 /**
- * Phase 9d: the `audio` checks of PUT /h3pipe/cut — 400 for an unknown key, a
+ * Phase 9d: the `audio` checks of PUT /seriesmith/cut — 400 for an unknown key, a
  * take that doesn't exist or has no sound, a path outside the episode or with
  * no audio stream, a negative start, or a gain outside 0–4. `soundOf` answers
  * the file a source would play (null: there is none).
@@ -172,7 +172,7 @@ export function checkEntries(
   return entries as CutEntry[];
 }
 
-/** POST /h3pipe/cut/reset: script order (orphans after) and/or zero trims; picks, locks and notes
+/** POST /seriesmith/cut/reset: script order (orphans after) and/or zero trims; picks, locks and notes
  * kept, and a locked entry keeps its trims (API.md "Phase 9b as built"). */
 export function resetEntries(list: CutEntry[], pass: Pass, script: string[], what: CutWhat): CutEntry[] {
   let out = materialize(list, pass, script);
@@ -200,7 +200,7 @@ function dropAudio(e: CutEntry): CutEntry {
   return out;
 }
 
-/** POST /h3pipe/cut/copy: the other pass's order and/or trims (converted by frame rate, cut down
+/** POST /seriesmith/cut/copy: the other pass's order and/or trims (converted by frame rate, cut down
  * to leave a frame of a take whose length `framesOf` knows, `trim_out` first); never picks, and
  * a locked entry keeps its own trims. */
 export function copyEntries(
@@ -238,7 +238,7 @@ export function copyEntries(
   return out;
 }
 
-/** Orders the pass's statuses as the resolved cut and fills each `cut` (h3edit.episode_status).
+/** Orders the pass's statuses as the resolved cut and fills each `cut` (edit.episode_status).
  * `soundOf` (Phase 9d) answers what an audio source will actually play. */
 export function applyCut(
   shots: ShotStatus[], list: CutEntry[], pass: Pass, script: string[], otherTakes: (shot: string) => ShotStatus["takes"],

@@ -1,5 +1,5 @@
 // A show's own targets (Phase 12c): turn one of ComfyUI's saved workflows into
-// a target, confirm what h3pipe worked out and what it guessed, save it as a
+// a target, confirm what seriesmith worked out and what it guessed, save it as a
 // draft, probe-render one shot on it, then enable it for shots.
 
 import { useEffect, useMemo, useState } from "react";
@@ -96,7 +96,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
       {mine.map((t) => <MineRow key={t.id} t={t} />)}
       {!mine.length && (
         <div className="h3-small h3-muted">
-          None yet. Save a workflow in ComfyUI, then add it here: h3pipe reads the graph and works
+          None yet. Save a workflow in ComfyUI, then add it here: seriesmith reads the graph and works
           out which widget takes the prompt, the size, the length, the seed and the model.
         </div>
       )}
@@ -189,7 +189,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
         <select className="h3-in h3-grow" value={pick} onChange={(e) => setPick(e.target.value)}>
           <option value="">(choose one of ComfyUI's saved workflows)</option>
           {(files ?? []).map((f) => (
-            <option key={f.name} value={f.name}>{f.name}{f.target ? "  (h3pipe's own)" : ""}</option>
+            <option key={f.name} value={f.name}>{f.name}{f.target ? "  (seriesmith's own)" : ""}</option>
           ))}
         </select>
         <button className="h3-btn" disabled={!pick || busy} onClick={() => void read()}>
@@ -258,7 +258,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
           )}
           {!!proposal.warnings.length && (
             <details className="h3-small">
-              <summary>{proposal.warnings.length} thing(s) h3pipe guessed or couldn't bind</summary>
+              <summary>{proposal.warnings.length} thing(s) seriesmith guessed or couldn't bind</summary>
               <ul className="h3-missing-list">{proposal.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
             </details>
           )}

@@ -34,7 +34,7 @@ describe("mock API", () => {
       const s = (await api.episode(ep, "proxy")).shots.find((x) => x.shot === "sh050")!;
       expect(s.takes[0].status).toBe("ok");
       expect(s.cut.take).toBe(1);
-      expect(events).toEqual(expect.arrayContaining(["h3pipe.take", "execution_start", "progress", "execution_success"]));
+      expect(events).toEqual(expect.arrayContaining(["seriesmith.take", "execution_start", "progress", "execution_success"]));
     } finally {
       vi.useRealTimers();
     }
@@ -95,7 +95,7 @@ describe("mock refs", () => {
     expect(after.shots.filter((s) => s.missing_refs?.some((m) => m.path === bo.path))).toEqual([]);
   });
 
-  it("generates candidates: queued, progress, then ok with an image and an h3pipe.ref event", async () => {
+  it("generates candidates: queued, progress, then ok with an image and an seriesmith.ref event", async () => {
     vi.useFakeTimers();
     try {
       const events: [string, unknown][] = [];
@@ -107,7 +107,7 @@ describe("mock refs", () => {
       await vi.runAllTimersAsync();
       const cy = (await api.refs(ep)).refs.find((r) => r.id === "subject:cy")!;
       expect(cy.views!.every((v) => v.takes.length === 2 && v.takes.every((t) => t.status === "ok" && t.image))).toBe(true);
-      expect(events.some(([e, d]) => e === "h3pipe.ref" && (d as { status: string }).status === "ok" && (d as { ep: string }).ep === ep)).toBe(true);
+      expect(events.some(([e, d]) => e === "seriesmith.ref" && (d as { status: string }).status === "ok" && (d as { ep: string }).ep === ep)).toBe(true);
       // Phase 9c-B: a voice generates too (an audio target), and `seconds` is
       // only for a voice — a keyframe's is 400
       const v = await api.refsGenerate({ ep, ref: "voice:ada", view: null, count: 1, seed_mode: "auto", seed: null, prompt: null, model: null, loras: null, steps: null, note: "", seconds: 6 });

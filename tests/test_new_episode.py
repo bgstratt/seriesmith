@@ -1,13 +1,13 @@
 """
 A new episode from a template.
 
-  - `examples/starter/` is a real, correct pair: it passes h3build --check with
+  - `examples/starter/` is a real, correct pair: it passes build --check with
     no warnings, and it is honest about references (it lists them as missing).
-  - h3source.new_episode makes `<parent>/<name>/` with a series config and a
+  - source.new_episode makes `<parent>/<name>/` with a series config and a
     script that build. The template is the newest episode already there -- its
     cast and look carry over -- else the starter.
-  - POST /h3pipe/episode/new does the same inside a configured root, and
-    `python h3.py new <folder>/<name>` without the editor.
+  - POST /seriesmith/episode/new does the same inside a configured root, and
+    `seriesmith new <folder>/<name>` without the editor.
   - docs/AUTHORING.md's opening example IS the starter, so the pair the guide
     teaches is the pair the button writes (tools/sync_starter_doc.py).
 """
@@ -276,10 +276,10 @@ class TestDiscoveryFallback(unittest.TestCase):
 
 
 class TestCli(unittest.TestCase):
-    """`python h3.py new <folder>/<name>`."""
+    """`seriesmith new <folder>/<name>`."""
 
     def run_new(self, *args: str):
-        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "new", *args],
+        return subprocess.run([sys.executable, "-m", "seriesmith.commands", "new", *args],
                               capture_output=True, text=True, cwd=ROOT)
 
     def setUp(self):
@@ -292,7 +292,7 @@ class TestCli(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("starter template", out.stdout)
         self.assertIn("reference pictures go in", out.stdout)
-        self.assertIn("h3.py build", out.stdout)
+        self.assertIn("seriesmith build", out.stdout)
         self.assertTrue(os.path.isfile(os.path.join(self.show, "ep01", "ep01.md")))
 
     def test_the_second_one_comes_from_the_first(self):

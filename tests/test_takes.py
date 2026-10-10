@@ -1,4 +1,4 @@
-"""Unit tests for h3takes: take numbering and reservation, overrides, the cut."""
+"""Unit tests for takes: take numbering and reservation, overrides, the cut."""
 from __future__ import annotations
 
 import os

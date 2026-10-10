@@ -1,7 +1,7 @@
-"""End-to-end tests for h3assemble following cut.json.
+"""End-to-end tests for assemble following cut.json.
 
 Each test builds a tiny fake episode in a temp dir (a minimal shotlist and a few
-real mp4 takes made with ffmpeg's testsrc), runs h3assemble through its CLI and
+real mp4 takes made with ffmpeg's testsrc), runs assemble through its CLI and
 checks the output's frame count and its _shots.txt. Skipped when ffmpeg or
 ffprobe is not on PATH.
 """
@@ -136,19 +136,19 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(probe_frames(self.out()), 61)
 
     def test_progress_lines(self):
-        # --progress, read as h3master reads it (h3edit.run_tool): every step in
+        # --progress, read as master reads it (edit.run_tool): every step in
         # order, none of it in the log
-        from seriesmith import edit as h3edit
+        from seriesmith import edit as E
         self.shotlist([("sh010", 22), ("sh020", 39)])
         self.take("sh010", 22)
         self.take("sh020", 39)
         heard = []
-        rc, out, err = h3edit.run_tool("h3assemble.py", ["-o", self.root, "--progress"], self.root,
+        rc, out, err = E.run_tool("assemble.py", ["-o", self.root, "--progress"], self.root,
                                        120, progress=lambda tool, ev: heard.append((tool, ev)))
         self.assertEqual(rc, 0, out + err)
-        self.assertNotIn("##h3assemble", out)
+        self.assertNotIn("##assemble", out)
         self.assertIn("-> ", out)
-        self.assertEqual({tool for tool, _ in heard}, {"h3assemble"})
+        self.assertEqual({tool for tool, _ in heard}, {"assemble"})
         steps = [(ev["stage"], ev["done"], ev["total"], ev["text"]) for _, ev in heard]
         self.assertEqual(steps[:6], [("probe", 0, 2, "sh010"), ("probe", 1, 2, "sh020"),
                                      ("probe", None, None, "comparing the clips' encodings"),
@@ -156,7 +156,7 @@ class AssembleTest(unittest.TestCase):
                                      ("clips", 2, 2, "sh020")])
         self.assertEqual([s[0] for s in steps[6:]], ["join", "verify"])
         # without --progress, nothing of the sort
-        self.assertNotIn("##h3assemble", self.assemble().stdout)
+        self.assertNotIn("##assemble", self.assemble().stdout)
 
     def test_explicit_take_pick(self):
         self.shotlist([("sh010", 22), ("sh020", 39)])
@@ -341,8 +341,8 @@ class SelectiveTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         sys.path.insert(0, ROOT)
-        from seriesmith import assemble as h3assemble
-        cls.A = h3assemble
+        from seriesmith import assemble as ASM
+        cls.A = ASM
         cls._cache = tempfile.TemporaryDirectory()
         cls.clips = {}
         for n in (22, 39, 56):
@@ -351,7 +351,7 @@ class SelectiveTest(unittest.TestCase):
             cls.clips[("raw", n)] = raw
             # saved the way conform writes a clip: review quality, 32 kHz stereo
             p = os.path.join(cls._cache.name, f"64x64_{n}.mp4")
-            h3assemble.conform(raw, p, raw, 24.0, n, layout=(32000, 2))
+            ASM.conform(raw, p, raw, 24.0, n, layout=(32000, 2))
             cls.clips[("64x64", n)] = p
 
     @classmethod
@@ -501,7 +501,7 @@ class SelectiveTest(unittest.TestCase):
         self.assert_even_timing(self.out(), 113)
 
     def test_seeking_a_frame_lands_on_it(self):
-        """frame_md5s (and h3publish.frame_hashes) seek by time: on a concat with
+        """frame_md5s (and publish.frame_hashes) seek by time: on a concat with
         sound, whose picture starts after its sound, and on that picture alone,
         both must land on the frame asked for, as a full decode counts it."""
         self.three()
@@ -509,12 +509,12 @@ class SelectiveTest(unittest.TestCase):
         out = self.out()
         pic = os.path.join(self.root, "picture.mp4")
         ff("ffmpeg", "-y", "-v", "error", "-i", out, "-map", "0:v:0", "-c", "copy", pic)
-        from seriesmith import publish as h3publish
+        from seriesmith import publish as PUB
         for path in (out, pic):
             for first in (0, 1, 55, 56, 57, 110):
                 want = frame_md5s(path, first, 4)
                 self.assertEqual(self.A.frame_md5s(path, first, 4, 24.0), want, (path, first))
-                self.assertEqual(h3publish.frame_hashes(path, first, 4, {"fps": 24.0}), want)
+                self.assertEqual(PUB.frame_hashes(path, first, 4, {"fps": 24.0}), want)
 
     def test_timing_gap(self):
         p = os.path.join(self.root, "gap.mp4")
@@ -539,8 +539,8 @@ class FrameCountTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.dir = self._tmp.name
         sys.path.insert(0, ROOT)
-        from seriesmith import assemble as h3assemble
-        self.A = h3assemble
+        from seriesmith import assemble as ASM
+        self.A = ASM
 
     def tearDown(self):
         self._tmp.cleanup()

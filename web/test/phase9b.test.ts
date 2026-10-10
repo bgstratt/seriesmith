@@ -93,7 +93,7 @@ describe("reorder", () => {
     expect(outOfOrder([0, null, 2, 1])).toEqual([false, false, true, false]);
     expect(outOfOrder([])).toEqual([]);
   });
-  it("entriesOf writes back exactly what the status came from (h3takes.cut_entry_to_json)", () => {
+  it("entriesOf writes back exactly what the status came from (takes.cut_entry_to_json)", () => {
     const st = ep([
       shot("a"),
       shot("b", 48, {}, { picked: true, take: 2, trim_in: 3, locked: true, note: "keep" }),
@@ -228,7 +228,7 @@ describe("the recording under the cut", () => {
   const mk = (order: string[], trims: Record<string, [number, number]> = {}) =>
     ep(order.map((id) => shot(id, 60, { audio_in: windows[id][0], audio_out: windows[id][1] }, { trim_in: trims[id]?.[0] ?? 0, trim_out: trims[id]?.[1] ?? 0 })));
 
-  it("a dialogue window is the clip's span (h3assemble trims to it)", () => {
+  it("a dialogue window is the clip's span (assemble trims to it)", () => {
     const st = mk(["a"]);
     expect(windowOf(st.shots[0])).toEqual({ audioIn: 1, audioOut: 3 });
     expect(windowOf(shot("x", 48, { audio_in: 3, audio_out: 1 }))).toBeNull();
@@ -352,7 +352,7 @@ describe("peaks", () => {
 });
 
 // ---------------------------------------------------------------------------
-// the mock's cut routes (h3takes semantics)
+// the mock's cut routes (takes semantics)
 // ---------------------------------------------------------------------------
 
 describe("mock cut.json", () => {
@@ -490,7 +490,7 @@ describe("cut edits on the mock", () => {
     await expect(api.pick({ ep: EP, pass: "proxy", shot: "sh020", take: 2, from_pass: null })).rejects.toMatchObject({ status: 409 });
     await toggleLock("sh020");
     expect(lockedPickRefusal("sh020")).toBeNull();
-    // a pick keeps the cut's order (the mock materialises like h3takes.pick)
+    // a pick keeps the cut's order (the mock materialises like takes.pick)
     await moveClip("sh030", 0);
     await api.pick({ ep: EP, pass: "proxy", shot: "sh020", take: 2, from_pass: null });
     expect(ids((await api.episode(EP, "proxy")).shots).slice(0, 3)).toEqual(["sh030", "sh010", "sh020"]);
@@ -506,7 +506,7 @@ describe("cut edits on the mock", () => {
     });
     const saving = moveClip("sh010", 3);
     expect(order().slice(0, 3)).toEqual(["sh020", "sh030", "sh010"]);
-    // an h3pipe.episode refetch lands before the PUT: the server doesn't have it yet
+    // an seriesmith.episode refetch lands before the PUT: the server doesn't have it yet
     await refreshEpisode(EP, "proxy");
     expect(order().slice(0, 3)).toEqual(["sh020", "sh030", "sh010"]);
     // a second edit made now is written on top of the first
@@ -549,7 +549,7 @@ describe("cut edits on the mock", () => {
 
   it("an older server without the reset route: done here with a PUT", async () => {
     await moveClip("sh010", 3);
-    vi.spyOn(api, "cutReset").mockRejectedValueOnce(new ApiError("gone", 404, "/h3pipe/cut/reset"));
+    vi.spyOn(api, "cutReset").mockRejectedValueOnce(new ApiError("gone", 404, "/seriesmith/cut/reset"));
     expect(await resetCut("order")).toBe(true);
     expect(order()).toEqual(["sh010", "sh020", "sh030", "sh040", "sh050"]);
   });
@@ -616,7 +616,7 @@ describe("the client and the as-built shapes", () => {
   it("peaks: the query, a silent file (bins 0, peaks []), start / end", async () => {
     const { api, calls } = http({ duration: 3.2, bins: 0, peaks: [], silent: true, start: 0.5, end: 2 });
     const r = await api.peaks("E:\\ep", "renders_proxy/sh010/sh010_t01.mp4", 12.4, 0.5, 2.0000004);
-    expect(calls[0]).toBe("GET /h3pipe/peaks?ep=E%3A%5Cep&path=renders_proxy%2Fsh010%2Fsh010_t01.mp4&bins=12&start=0.5&end=2");
+    expect(calls[0]).toBe("GET /seriesmith/peaks?ep=E%3A%5Cep&path=renders_proxy%2Fsh010%2Fsh010_t01.mp4&bins=12&start=0.5&end=2");
     expect(r).toEqual({ duration: 3.2, bins: 0, peaks: [], silent: true, start: 0.5, end: 2 });
     // junk from an older server is survivable
     const junk = await http({ peaks: [1, "x", null, 300] }).api.peaks("E", "a.wav", 4);
@@ -626,7 +626,7 @@ describe("the client and the as-built shapes", () => {
     const { api, calls } = http({ cut: {} });
     await api.cutReset("E", "proxy", "trims");
     await api.cutCopy("E", "final", "proxy", "order");
-    expect(calls).toEqual(["POST /h3pipe/cut/reset", "POST /h3pipe/cut/copy"]);
+    expect(calls).toEqual(["POST /seriesmith/cut/reset", "POST /seriesmith/cut/copy"]);
   });
   it("trackState: missing, another drive, or playable", () => {
     expect(trackState(null)).toBeNull();

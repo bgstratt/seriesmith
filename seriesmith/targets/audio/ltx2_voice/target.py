@@ -17,7 +17,7 @@ REF_PATCH = "Reference audio (ID-LoRA)"     # the LTXVReferenceAudio node it add
 def patch_graph(target, graph: dict, job, inputs: dict) -> None:
     """Splice LTXVReferenceAudio in when this job copies a voice sample:
     `inputs["reference_audio"]` is the name ComfyUI's LoadAudio reads (the
-    sample, uploaded to its input folder by h3refs.stage_voice_reference).
+    sample, uploaded to its input folder by refs.stage_voice_reference).
 
     The node reads the model and the two conditionings that feed the guider
     named by `binding.reference_audio.guider`, and the guider then reads its

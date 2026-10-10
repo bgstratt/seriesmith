@@ -1,5 +1,5 @@
 """
-Phase 1 exit check, end to end through h3.py against a fake ComfyUI:
+Phase 1 exit check, end to end through seriesmith against a fake ComfyUI:
 redo gets a new seed; an overridden prompt renders and survives a rebuild;
 the cut can use a non-latest take; a script edit marks takes script-stale.
 """
@@ -35,7 +35,7 @@ class EditFlowTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def h3(self, *args, ok=True) -> str:
-        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", *args],
+        r = subprocess.run([sys.executable, "-m", "seriesmith.commands", *args],
                            capture_output=True, env=ENV, cwd=self._tmp.name)
         out = r.stdout.decode("utf-8") + r.stderr.decode("utf-8")
         if ok:
@@ -45,7 +45,7 @@ class EditFlowTest(unittest.TestCase):
         return out
 
     def render(self, *args) -> str:
-        """seriesmith render on the fake backend (h3pipe ran h3render against
+        """seriesmith render on the fake backend (h3pipe ran render against
         a fake ComfyUI here)."""
         rc, out, _ = render_fake(self.ep, "--proxy", *args)
         self.assertEqual(rc, 0, out)
@@ -193,9 +193,9 @@ class LibraryTest(unittest.TestCase):
         self.assertNotIn(chr(13), r["passes"]["final"]["error"])
 
     def test_run_tool_puts_the_pipeline_on_sys_path(self):
-        # h3assemble imports h3takes; that must work even where `python
+        # assemble imports takes; that must work even where `python
         # script.py` wouldn't add the script's folder (an embedded Python)
-        rc, out, err = E.run_tool("h3assemble.py", ["-o", self.ep, "--check"],
+        rc, out, err = E.run_tool("assemble.py", ["-o", self.ep, "--check"],
                                   self._tmp.name, 60)
         self.assertNotIn("ModuleNotFoundError", err)
         self.assertIn("no shotlist", err)

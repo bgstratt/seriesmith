@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 kreagen.py — generate every missing reference image on a local ComfyUI, as
-ref takes (h3refs.py), and put each one at the path the series config names.
+ref takes (refs.py), and put each one at the path the series config names.
 
     python3 kreagen.py --project-root .
     python3 kreagen.py --project-root . --only sam,core_wide --redo
@@ -48,7 +48,7 @@ closes the take. When a LoRA is given, the text encoder reads the LoRA's
 CLIP rather than the raw CLIPLoader output, so strength_clip is not inert;
 --no-lora-clip reproduces the original wiring of the built-in graph. The model
 file names are the krea2 image target's (targets/image/krea2/target.json, re-exported
-by h3refs) — point them at whatever image model you have, and pass --lora/--unet to
+by refs) — point them at whatever image model you have, and pass --lora/--unet to
 override per run.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ import sys
 
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
-# The graph code and wording moved to h3refs; re-exported under the old names.
+# The graph code and wording moved to refs; re-exported under the old names.
 from seriesmith.refs import (CFG, CLIP, CLIPTYPE, LORA, LORA_C, LORA_M, PREFIX,  # noqa: E402,F401
                     REFS_WORKFLOW, SAMPLER, SCHED, STEPS, UNET, VAE, VIEW_TMPL, VIEWS,
                     build_graph, parse_size, patch_workflow, seed_for)
@@ -383,7 +383,7 @@ def main() -> int:
     if not args.all and not args.clear:
         todo_p = os.path.join(root, "refs_todo.json")
         if not os.path.isfile(todo_p):
-            print(f"error: {todo_p} not found. Run h3build first (or pass --all to work "
+            print(f"error: {todo_p} not found. Run build first (or pass --all to work "
                   f"from series.json alone).", file=sys.stderr)
             return 1
         with open(todo_p, encoding="utf-8") as fh:
@@ -448,7 +448,7 @@ def main() -> int:
     base, wf = None, ""
     if not args.no_workflow:
         try:
-            # Same lookup as h3render: the copy saved in the running ComfyUI
+            # Same lookup as render: the copy saved in the running ComfyUI
             # first, so the graph matches its node versions. Keep that copy
             # LoRA-free (experiment under another name): references must follow
             # series.json's look, and --lora is how a run adds one.
@@ -573,7 +573,7 @@ def main() -> int:
 
     print(f"\n  done. {len(todo_now) - len(failed)} written"
           + (f", {len(failed)} failed: {', '.join(failed)}" if failed else "")
-          + "\n  re-run h3build to confirm the count.\n")
+          + "\n  re-run build to confirm the count.\n")
     return 1 if failed else 0
 
 

@@ -1,5 +1,5 @@
 """
-The caches that keep the episode status fast: h3takes.file_sha1 (a ref's sha1,
+The caches that keep the episode status fast: takes.file_sha1 (a ref's sha1,
 kept while its size and mtime hold) and targets._folders (the target listing,
 kept for a couple of seconds). Each must give the answer an uncached call would.
 """

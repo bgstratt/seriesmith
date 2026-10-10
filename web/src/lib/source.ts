@@ -9,7 +9,7 @@ import type { SourceCheck, SourceFile, SourceMessage, SourceShotSpan } from "../
 // ---------------------------------------------------------------------------
 
 /**
- * The shots' line spans in a script, the way h3core/story.py records them: a
+ * The shots' line spans in a script, the way core/story.py records them: a
  * shot runs from its `## id` line to the last line that belongs to it (a field,
  * dialogue or action); blank and comment lines after that don't count. Used while
  * the buffer doesn't parse (the server's `shots` is empty then) and between checks.

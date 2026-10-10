@@ -1,8 +1,8 @@
 // Phase 9c against REAL route JSON: test/local/p9c_* (gitignored, never
 // committed) are dumps taken from a SCRATCH COPY of a real episode through
-// the functions the routes call — h3track.align_ready / attach_track / align,
-// h3edit.track_info / episode_status / build_episode, h3refs.refs_listing /
-// voice_from_take, targets.list_targets("audio"), h3peaks.peaks. No render was
+// the functions the routes call — track.align_ready / attach_track / align,
+// edit.track_info / episode_status / build_episode, refs.refs_listing /
+// voice_from_take, targets.list_targets("audio"), peaks.peaks. No render was
 // queued and nothing outside the copy was written. Skipped without the dumps.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -70,7 +70,7 @@ describe.skipIf(!dumps.length)("Phase 9c on real episode dumps (test/local/p9c_*
       const b = alignBlockers(ready, false);
       expect(b.ok).toBe(ready.ready);
       if (!b.ok) {
-        expect(missingText(b)).toContain("h3align needs");
+        expect(missingText(b)).toContain("align needs");
         if (b.missing.some((m) => m !== "ffmpeg")) expect(b.install).toContain("pip install");
       }
       // this machine has no Whisper, so a cached transcript is what makes a run possible
@@ -100,7 +100,7 @@ describe.skipIf(!dumps.length)("Phase 9c on real episode dumps (test/local/p9c_*
       expect(build.passes.proxy?.ok).toBe(true);
     });
 
-    it(`${dir}: a real h3align run reports its changes`, () => {
+    it(`${dir}: a real align run reports its changes`, () => {
       const dry = load<AlignResult>(dir, "align_dry.json");
       const run = load<AlignResult>(dir, "align_run.json");
       if (!run) return;                                      // ffmpeg or numpy missing here
@@ -127,7 +127,7 @@ describe.skipIf(!dumps.length)("Phase 9c on real episode dumps (test/local/p9c_*
       const workaround = load<BuildResult>(dir, "build_after_align_workaround.json");
       if (!after) return;
       if (!after.ok && /which \.md/.test(buildError(after))) {
-        // a real backend gap: h3align leaves align_report.md beside the
+        // a real backend gap: align leaves align_report.md beside the
         // script, so an episode whose script isn't <folder>.md stops building
         expect(scriptClash(after)).toContain("align_report.md");
         expect(workaround?.ok).toBe(true);

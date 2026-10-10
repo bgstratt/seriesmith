@@ -1,5 +1,5 @@
 // Phase 13: what an upscale of a take would make, for the Upscale dialog. The
-// server decides (h3upscale.plan_upscale); this mirrors its rules so the
+// server decides (upscale.plan_upscale); this mirrors its rules so the
 // dialog can grey out a scale before anything is queued:
 //   - pixel: any scale above 1 up to the limit whose sides land on even numbers
 //   - a re-sample (resample mode, H3): the sides land on the target's `align` (32)
@@ -74,7 +74,7 @@ export function parseDeliver(v: string | null | undefined): { w: number; h: numb
 }
 
 /** What w×h is scaled to, aspect kept, before it is cropped to fill W×H ("crop")
- * or padded to fit inside it ("pad"); even sides (h3upscale.fit_size). */
+ * or padded to fit inside it ("pad"); even sides (upscale.fit_size). */
 export function fitSize(w: number, h: number, W: number, H: number, fit: "crop" | "pad"): [number, number] {
   if (fit === "crop") {
     const s = Math.max(W / w, H / h);

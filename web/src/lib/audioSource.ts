@@ -12,7 +12,7 @@
 import type { CutAudioKind, CutAudioSource, CutEntry, CutInfo, Pass, ShotStatus, TakeSummary } from "../types";
 import { tn } from "./format";
 
-/** PUT /h3pipe/cut refuses a gain outside this. */
+/** PUT /seriesmith/cut refuses a gain outside this. */
 export const GAIN_MIN = 0;
 export const GAIN_MAX = 4;
 export const GAIN_DEFAULT = 1;
@@ -215,7 +215,7 @@ export function sameAudio(a: CutAudioSource | null | undefined, b: CutAudioSourc
 // what the server would refuse, and what's merely worth saying
 // ---------------------------------------------------------------------------
 
-/** Why PUT /h3pipe/cut would answer 400 (null: it takes it). */
+/** Why PUT /seriesmith/cut would answer 400 (null: it takes it). */
 export function audioProblem(a: CutAudioSource | null | undefined, sourceHasSound = true): string | null {
   if (!a) return null;
   if (a.source !== "take" && a.source !== "file" && a.source !== "none") return `Unknown audio source "${String(a.source)}".`;
@@ -301,7 +301,7 @@ export function audioBadgeOf(cut: CutInfo | null | undefined, shot: string): Aud
 
 /** What the Play all toggle says when the recording is on: per-clip audio is ignored. */
 export const RECORDING_IGNORES_AUDIO =
-  "Play all is on the recording, so the clips' own audio sources are ignored (h3assemble --audio master wins too, and warns which clips it overrides).";
+  "Play all is on the recording, so the clips' own audio sources are ignored (assemble --audio master wins too, and warns which clips it overrides).";
 
 /** How many clips of the cut have an audio source of their own. */
 export function clipsWithAudio(shots: Pick<ShotStatus, "shot" | "cut">[]): string[] {

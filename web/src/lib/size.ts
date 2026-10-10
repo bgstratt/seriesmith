@@ -18,7 +18,7 @@ export function parseSize(text: string): string {
   return `${w}x${h}`;
 }
 
-/** A target's size rules, from its template (GET /h3pipe/targets): the grid, and
+/** A target's size rules, from its template (GET /seriesmith/targets): the grid, and
  * whether a size off it is snapped (LTX, Wan) or refused (H3). */
 export interface SizeRule {
   multiple: number;

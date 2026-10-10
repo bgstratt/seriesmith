@@ -1,7 +1,7 @@
 """
 Phase 8.6 (docs/API.md "Phase 8.6: look-back"): discarding takes and ref
 candidates to _trash/ (and that nothing lists or numbers from the trash),
-POST /h3pipe/refs/generate-missing, uploads on POST /h3pipe/refs/import, and
+POST /seriesmith/refs/generate-missing, uploads on POST /seriesmith/refs/import, and
 the keyframe polish (the framing wording, the composed reference for a
 single-reference edit target). The routes run through h3pipe_api with
 test_render's FakeComfy, as test_api does; the multipart adapter itself is in
@@ -93,7 +93,7 @@ class DiscardTakeTest(ApiTest):
         for p in res["moved"]:
             self.assertTrue(os.path.isfile(os.path.join(self.ep, p)), p)
         self.assertFalse([n for n in os.listdir(d) if n.startswith("sh010_t01")])
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
         # the listing: take 2 only, the cut back on the latest usable take
         _, shots = self.status()
         self.assertEqual([t["take"] for t in shots["sh010"]["takes"]], [2])
@@ -147,7 +147,7 @@ class DiscardTakeTest(ApiTest):
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "t01", "--proxy"]), 0)
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "1", "--proxy"]), 1)
         self.assertIn("moved", out.getvalue())
-        self.assertIn("discard", __import__("seriesmith.h3cli", fromlist=["EDIT"]).EDIT)
+        self.assertIn("discard", __import__("seriesmith.commands", fromlist=["EDIT"]).EDIT)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ class DiscardRefTest(RefsHelpers):
                                                    "take": 1}))
         self.assertEqual((r["picked"], r["cleared"], r["exists"]), (None, True, False))
         self.assertEqual([t["take"] for t in r["takes"]], [2])
-        self.assertEqual([e["status"] for e in self.events_of("h3pipe.ref")],
+        self.assertEqual([e["status"] for e in self.events_of("seriesmith.ref")],
                          ["discarded", "cleared"])
         trash = os.path.join(self.ep, "refs", "_takes", "_trash", "location__kitchen")
         self.assertEqual(sorted(os.listdir(trash)),
@@ -213,10 +213,10 @@ class DiscardRefTest(RefsHelpers):
 
     def test_routes_listed(self):
         got = {(m, p): takes for m, p, _, takes in A.ROUTES}
-        self.assertEqual(got[("POST", "/h3pipe/discard")], "body")
-        self.assertEqual(got[("POST", "/h3pipe/refs/discard")], "body")
-        self.assertEqual(got[("POST", "/h3pipe/refs/generate-missing")], "body")
-        self.assertEqual(got[("POST", "/h3pipe/refs/import")], "form")
+        self.assertEqual(got[("POST", "/seriesmith/discard")], "body")
+        self.assertEqual(got[("POST", "/seriesmith/refs/discard")], "body")
+        self.assertEqual(got[("POST", "/seriesmith/refs/generate-missing")], "body")
+        self.assertEqual(got[("POST", "/seriesmith/refs/import")], "form")
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +240,7 @@ class UploadTest(RefsHelpers):
         self.assertEqual(r["picked"], 1)
         sc = R.get_take(R.find_ref(R.load_series(self.ep), "location:kitchen"), None, 1).sidecar
         self.assertIsNone(sc["source_path"])                   # the temp file isn't recorded
-        self.assertEqual([e["status"] for e in self.events_of("h3pipe.ref")], ["ok", "picked"])
+        self.assertEqual([e["status"] for e in self.events_of("seriesmith.ref")], ["ok", "picked"])
         # a view, not picked ("0", or no field)
         t = self.ok(A.post_refs_import(self.ctx, self.upload("f.webp", ref="subject:ada",
                                                              view="04_face", pick="0")))
@@ -301,7 +301,7 @@ class GenerateMissingTest(RefsHelpers):
         self.assertEqual(out["errors"], [])
         self.assertEqual(sorted((q["ref"], q["view"]) for q in out["queued"]), got)
         self.assertTrue(all(q["take"] == 1 and q["prompt_id"] for q in out["queued"]))
-        self.assertEqual(len([e for e in self.events_of("h3pipe.ref")
+        self.assertEqual(len([e for e in self.events_of("seriesmith.ref")
                               if e["status"] == "queued"]), 6)
         # the candidates finished (FakeComfy) and wait to be picked: skipped now
         again = self.gm(kinds=["series"], dry_run=True)
@@ -471,7 +471,7 @@ class CompositeTest(Episode):
                          "one image composed of ada 01_threequarter, bo 01_threequarter, "
                          "kettle, kitchen")
         self.assertEqual(R.stage_references(self.s, job, None),
-                         {"references": ["h3pipe/dry_run_composite.png"]})
+                         {"references": ["seriesmith/dry_run_composite.png"]})
 
 
 if __name__ == "__main__":

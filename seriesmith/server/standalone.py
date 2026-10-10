@@ -3,13 +3,13 @@
 editor, in two hosts").
 
     http://127.0.0.1:8190/              the editor (seriesmith/server/static/)
-    /h3pipe/...                         its API (seriesmith.api), as under ComfyUI
+    /seriesmith/...                     its API (seriesmith.api) and the queue's
     /ws                                 events for the page: {"type", "data"}
 
-Events are the API's own (h3pipe.take, h3pipe.ref, ...) and, while the editor
-still queues some work on your ComfyUI directly (docs/PLAN.md, step 8), that
-ComfyUI's progress messages for it: the server listens on ComfyUI's websocket
-as the client the API queues under ("h3pipe") and passes them on.
+Events are the API's own (seriesmith.take, seriesmith.ref, ...) and the
+queue's (seriesmith.job, and each job's progress in ComfyUI's shapes, its id as
+the prompt id). The server also listens on ComfyUI's websocket (as client
+"seriesmith") and passes its messages on, for whether ComfyUI is there.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ DEFAULT_PORT = 8190
 # what the page listens for from ComfyUI (web/src/host.ts HostEvent)
 COMFY_EVENTS = {"progress", "executing", "execution_start", "execution_success",
                 "execution_error", "execution_interrupted", "execution_cached"}
-API_CLIENT_ID = "h3pipe"            # the client id the API queues on ComfyUI under
+API_CLIENT_ID = "seriesmith"            # the client id the API queues on ComfyUI under
 
 
 class Events:
@@ -93,8 +93,8 @@ def make_app(roots: list[str] | None = None, settings=None,
     user_dir = os.path.dirname(settings_path())
     env = dict(os.environ)
     if roots:
-        have = [r for r in env.get("H3PIPE_ROOTS", "").split(os.pathsep) if r]
-        env["H3PIPE_ROOTS"] = os.pathsep.join(have + [os.path.abspath(r) for r in roots])
+        have = [r for r in env.get("SERIESMITH_ROOTS", "").split(os.pathsep) if r]
+        env["SERIESMITH_ROOTS"] = os.pathsep.join(have + [os.path.abspath(r) for r in roots])
 
     # seriesmith's queue: renders from the page go through the backends
     from seriesmith.backends import available

@@ -1,7 +1,7 @@
-// P5: a location's camera tours (POST /h3pipe/refs/tour, h3tour.py). From the
+// P5: a location's camera tours (POST /seriesmith/refs/tour, tour.py). From the
 // live plate, H3 moves the camera where the move says and holds; each held
 // frame lands as one of the location's tour holds. A hold is used for the
-// location or one of its angles (POST /h3pipe/refs/copy-take) as a plate
+// location or one of its angles (POST /seriesmith/refs/copy-take) as a plate
 // candidate, optionally sharpened. Unlike a 360, a tour can move the camera to
 // a new spot, and its holds are full-size video frames.
 
@@ -111,7 +111,7 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
 
 /**
  * Use a tour hold for the location or one of its angles (POST
- * /h3pipe/refs/copy-take): a new plate candidate, optionally sharpened. Shared
+ * /seriesmith/refs/copy-take): a new plate candidate, optionally sharpened. Shared
  * by the Tour section and the viewer (a hold is never picked where it is).
  */
 export function HoldUseBar({ ep, r, take }: { ep: string; r: Ref; take: number }) {
@@ -163,7 +163,7 @@ export function HoldUseBar({ ep, r, take }: { ep: string; r: Ref; take: number }
 
 /**
  * A finished tour's video, to scrub: "Grab frame" keeps the moment showing as
- * a hold (POST /h3pipe/refs/tour-frame). The camera passes through views it
+ * a hold (POST /seriesmith/refs/tour-frame). The camera passes through views it
  * never stops on, and those are as good as the holds.
  */
 function TourVideo({ ep, r, tour, video }: { ep: string; r: Ref; tour: number; video: string }) {

@@ -52,7 +52,7 @@ def sheet_text(panels: list[dict], series_cfg: dict) -> str:
 
 
 def build_prompt(shot, seq, series_cfg: dict, panels: list[dict]) -> str:
-    """The prompt for one shot (`shot` an h3core.ir.Shot, `seq` its
+    """The prompt for one shot (`shot` an core.ir.Shot, `seq` its
     ir.Sequence) whose sheet has `panels` (the entry's `panels`)."""
     if not panels:
         return prose(shot, seq, series_cfg)

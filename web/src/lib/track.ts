@@ -1,11 +1,11 @@
 // Phase 9c-A: the episode's dialogue recording, in plain words. What the
-// attached track is, what h3align still needs (and in which Python), how far
+// attached track is, what align still needs (and in which Python), how far
 // a run has got, and what it changed. Pure functions; Track.tsx draws them.
 
 import type { AlignChange, AlignEvent, AlignMissing, AlignReady, AlignResult, BuildResult, Pass, Track } from "../types";
 import { fmtSeconds } from "./format";
 
-/** What /h3pipe/track takes (h3track.AUDIO_EXT). The browser's file picker and
+/** What /seriesmith/track takes (track.AUDIO_EXT). The browser's file picker and
  * drag and drop check against it before uploading. */
 export const TRACK_EXT = /\.(wav|mp3|flac|ogg|m4a|aac|opus)$/i;
 /** `accept` for the recording's file input. */
@@ -87,7 +87,7 @@ export interface AlignBlockers {
 
 /**
  * What still stands in the way of a run, given whether the recording already
- * has a transcript beside it (`track.words`): with one, h3align never
+ * has a transcript beside it (`track.words`): with one, align never
  * transcribes, so a missing Whisper doesn't stop it — only ffmpeg and numpy do.
  */
 export function alignBlockers(ready: AlignReady | AlignMissing | null | undefined, words = false): AlignBlockers {
@@ -114,7 +114,7 @@ export function missingText(b: AlignBlockers): string {
   if (b.ok) return "";
   const list = b.missing.length === 1 ? b.missing[0] : `${b.missing.slice(0, -1).join(", ")} and ${b.missing[b.missing.length - 1]}`;
   const where = b.python ? ` for ${b.python}` : "";
-  return `h3align needs ${list}${b.missing.some((m) => m !== "ffmpeg") ? where : ""}.`;
+  return `align needs ${list}${b.missing.some((m) => m !== "ffmpeg") ? where : ""}.`;
 }
 
 /** The installed version of each package the check probed, as a line. */
@@ -180,7 +180,7 @@ export function buildError(b: BuildResult | null | undefined): string {
 
 /**
  * A build that couldn't start because the episode folder has more than one
- * candidate script. h3align leaves `align_report.md` beside the script, and
+ * candidate script. align leaves `align_report.md` beside the script, and
  * an episode whose script isn't `<folder>.md` then has two .md files — so
  * every build after the first align fails until the report is moved or
  * renamed (reported as a backend gap). The editor says what to do.
@@ -188,7 +188,7 @@ export function buildError(b: BuildResult | null | undefined): string {
 export function scriptClash(b: BuildResult | null | undefined): string {
   const e = buildError(b);
   return /which \.md/i.test(e)
-    ? "The episode folder now has more than one .md, so the build can't tell which one is the script — h3align's `align_report.md` is beside it. "
+    ? "The episode folder now has more than one .md, so the build can't tell which one is the script — align's `align_report.md` is beside it. "
       + "Rename the script to match the folder (or move align_report.md) and build again."
     : "";
 }

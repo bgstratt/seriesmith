@@ -3,9 +3,9 @@ krea2: the wording of every reference image, the one source for it.
 
 A video target decides the SHAPE of a ref it needs (a 4-view character sheet,
 an object on a plain background, a location plate: targets.RefRequest); this
-module words it for the image model. h3build writes the refs_todo prompts
+module words it for the image model. build writes the refs_todo prompts
 through `ref_prompt`, and kreagen and the editor generate with `view_prompt`,
-`object_prompt` and `plate_prompt` (re-exported by h3refs).
+`object_prompt` and `plate_prompt` (re-exported by refs).
 
 Stdlib only.
 """
@@ -115,7 +115,7 @@ def sheet_prompt(design: str, look: str, base: dict | None = None) -> str:
     what holds the face across a change of clothes. It is an instruction about
     where to start, never part of what the picture shows, so it goes last and
     only here: view_prompt feeds a text-to-image model, where naming a file on
-    disk is noise (the real edit path is h3refs')."""
+    disk is noise (the real edit path is refs')."""
     out = (f"A character model sheet on a plain flat background: FOUR panels side "
            f"by side in a single horizontal strip, left to right — three-quarter "
            f"body, side profile full body, back view full body, and a "

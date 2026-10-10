@@ -4,7 +4,7 @@
 // synthetic, but enough to see missing refs block shots, and picks unblock them.
 // Candidate images are SVGs made on the fly (data: URLs).
 //
-// The shapes follow what h3refs.ref_json really sends (checked against a real
+// The shapes follow what refs.ref_json really sends (checked against a real
 // episode): `views: []` on every ref that isn't a character, a character's
 // top-level `effective` is just `{target}` and each view has its own prompt,
 // override and effective, a voice's candidates carry `audio` (with `image`
@@ -33,7 +33,7 @@ export class RefError extends Error {
   }
 }
 
-type Emit = (event: "progress" | "execution_start" | "execution_success" | "executing" | "h3pipe.ref" | "h3pipe.episode", detail: unknown) => void;
+type Emit = (event: "progress" | "execution_start" | "execution_success" | "executing" | "seriesmith.ref" | "seriesmith.episode", detail: unknown) => void;
 
 /** a ref as the mock keeps it: the contract's shape plus its override values */
 interface MRef extends Ref {
@@ -143,17 +143,17 @@ export const NEUTRAL_LINE = "The quick brown fox jumps over the lazy dog, and th
 
 export interface MockRefs {
   list(): Ref[];
-  /** GET /h3pipe/refs `defaults` */
+  /** GET /seriesmith/refs `defaults` */
   defaults(): RefDefaults;
-  /** PUT /h3pipe/refs/defaults: null clears; a key left out is kept */
+  /** PUT /seriesmith/refs/defaults: null clears; a key left out is kept */
   setDefaults(fields: { target?: string | null; keyframe_target?: string | null; voice_target?: string | null }): RefDefaults;
   /** Phase 9c-B: a voice candidate's playable wav (an object URL) */
   audio(path: string): string | undefined;
-  /** Phase 9c-B: how long a voice candidate is, for GET /h3pipe/peaks */
+  /** Phase 9c-B: how long a voice candidate is, for GET /seriesmith/peaks */
   audioSeconds(path: string): number | undefined;
   /** Phase 9c-B: a voice candidate's peaks at 200 a second */
   audioPeaks(path: string): number[] | undefined;
-  /** Phase 9c-B: POST /h3pipe/refs/voice-from-take */
+  /** Phase 9c-B: POST /seriesmith/refs/voice-from-take */
   voiceFromTake(req: {
     ref: string; shot: string; take: number; pass: Pass; start: number; end: number;
     pick?: boolean | null; note?: string; duration: number | null; sourceFile: string | null;
@@ -162,7 +162,7 @@ export interface MockRefs {
   info(id: string): { path: string | null; exists: boolean; kind: string; sha1: string | null } | undefined;
   /** the keyframes a shot needs now */
   keyframeNeeds(shot: string): KeyframeNeedSpec[];
-  /** DELETE /h3pipe/refs/pick */
+  /** DELETE /seriesmith/refs/pick */
   unpick(ref: string, view: string | null): Ref;
   /** register a picture served by path (a take's reference image) */
   addImage(path: string, url: string): void;
@@ -174,7 +174,7 @@ export interface MockRefs {
   import(req: RefImportRequest): RefTake & { view: string | null };
   /** the multipart import (Phase 8.6): a file by name, picked with `pick` */
   upload(req: { ref: string; view: string | null; name: string; pick: boolean }): RefTake & { view: string | null; original_name: string };
-  /** POST /h3pipe/refs/discard */
+  /** POST /seriesmith/refs/discard */
   discard(req: { ref: string; view: string | null; take: number }): Ref;
   /** a keyframe take cut out of a video take (the api resolves the source) */
   keyframe(req: { shot: string; which: "first" | "last"; from: RefFrameSource; pick: boolean | null }): Ref;
@@ -184,7 +184,7 @@ export interface MockRefs {
   dependents(ref: string): number[];
   /** Phase 9a: every ref override (and a character view's), for promote */
   overrideList(): { ref: string; view: string | null; subject: string | null; kind: string; values: Override }[];
-  /** P8: POST /h3pipe/refs/match, approximated for the dev page (see `match`) */
+  /** P8: POST /seriesmith/refs/match, approximated for the dev page (see `match`) */
   match(names: string[]): RefMatchResult;
   /** Phase 9a: drop some fields of a ref's (or a view's) override (promoted) */
   dropOverrideFields(ref: string, view: string | null, fields: string[]): void;
@@ -224,7 +224,7 @@ export function createMockRefs(opts: {
   // A wardrobe variant (`of:`) is resolved by the loader before any target sees
   // it, so the mock resolves it too: it inherits the subject's name, kind and
   // voice, its sheet path is derived from theirs, and it gets NO voice ref of
-  // its own (h3core.series_config, h3refs.series_refs). Without this the mock
+  // its own (core.series_config, refs.series_refs). Without this the mock
   // lists a second voice for one character and the editor is tested against
   // something the backend never returns.
   const rawOf = (r: Record<string, unknown>) =>
@@ -616,7 +616,7 @@ export function createMockRefs(opts: {
       finishTake(r, v, t);
       opts.emit("executing", null);
       opts.emit("execution_success", { prompt_id: pid });
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: v, take: t.take, status: "ok" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: v, take: t.take, status: "ok" });
     });
   }
 
@@ -743,13 +743,13 @@ export function createMockRefs(opts: {
       });
       t.from = { shot: req.shot, take: req.take, pass: req.pass, start: req.start, end: req.end };
       t.save_notes = `${req.start.toFixed(2)}-${req.end.toFixed(2)}s of ${req.shot} ${req.pass} t${String(req.take).padStart(2, "0")}`;
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "ok" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "ok" });
       // picked when the voice has no live file yet (as /refs/keyframe does)
       const pick = req.pick ?? (!r.exists && !r.cleared);
       let seriesChanged = false;
       if (pick) {
         seriesChanged = doPick(r, null, t.take);
-        opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "picked" });
+        opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "picked" });
       }
       // as built: `picked` is a boolean here, overwriting the listing's own,
       // and `source` is an object (the shot, take, span and the file)
@@ -773,7 +773,7 @@ export function createMockRefs(opts: {
       }
       const prev = v ? r.views?.find((x) => x.view === v)?.picked ?? null : r.picked;
       doClear(r, v);
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: v, take: prev, status: "cleared" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: v, take: prev, status: "cleared" });
       syncKeyframes();
       return view(r);
     },
@@ -818,7 +818,7 @@ export function createMockRefs(opts: {
           const pid = opts.nextPrompt();
           t.comfy_prompt_id = pid;
           out.queued.push({ ref: r.id, view: null, take: t.take, prompt_id: pid, seed, target: tid });
-          opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "queued" });
+          opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: null, take: t.take, status: "queued" });
           simulate(r, null, t, pid);
         }
         return out;
@@ -843,7 +843,7 @@ export function createMockRefs(opts: {
           const pid = opts.nextPrompt();
           t.comfy_prompt_id = pid;
           out.queued.push({ ref: r.id, view: v, take: t.take, prompt_id: pid, seed, target: t.target ?? imageTarget(r) });
-          opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: v, take: t.take, status: "queued" });
+          opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: v, take: t.take, status: "queued" });
           simulate(r, v, t, pid);
         }
       }
@@ -863,20 +863,20 @@ export function createMockRefs(opts: {
       if (!fsFileExists(req.source_path)) throw new RefError(`${req.source_path} doesn't exist on the ComfyUI machine`, 404);
       const name = req.source_path.split(/[\\/]/).pop() ?? "file";
       const t = importFile(r, req.view ?? null, name);
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view ?? null, take: t.take, status: "ok" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view ?? null, take: t.take, status: "ok" });
       if (req.pick) {
         doPick(r, req.view ?? null, t.take);
-        opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view ?? null, take: t.take, status: "picked" });
+        opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view ?? null, take: t.take, status: "picked" });
       }
       return { ...JSON.parse(JSON.stringify(t)), view: req.view ?? null };
     },
     upload(req) {
       const r = refFor(req.ref);
       const t = importFile(r, req.view, req.name);
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view, take: t.take, status: "ok" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view, take: t.take, status: "ok" });
       if (req.pick) {
         doPick(r, req.view, t.take);
-        opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view, take: t.take, status: "picked" });
+        opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view, take: t.take, status: "picked" });
       }
       return { ...JSON.parse(JSON.stringify(t)), view: req.view, original_name: req.name };
     },
@@ -893,8 +893,8 @@ export function createMockRefs(opts: {
       // series config names no sample for it (there is nothing to clear)
       const live = (r.kind !== "voice" || !!r.path) && (rv ? rv.picked : r.picked) === req.take;
       if (live) doClear(r, req.view);
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view, take: req.take, status: "discarded" });
-      if (live) opts.emit("h3pipe.ref", { ep: opts.ep, ref: r.id, view: req.view, take: req.take, status: "cleared" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view, take: req.take, status: "discarded" });
+      if (live) opts.emit("seriesmith.ref", { ep: opts.ep, ref: r.id, view: req.view, take: req.take, status: "cleared" });
       return view(r);
     },
     keyframe(req) {
@@ -911,12 +911,12 @@ export function createMockRefs(opts: {
       t.height = 256;
       t.save_notes = `frame ${f.frame} of ${f.frames} of ${f.shot} ${f.pass} t${String(f.take).padStart(2, "0")}`;
       images.set(t.image, svgImage(`${f.shot} t${String(f.take).padStart(2, "0")}`, `frame ${f.frame} → ${req.shot} ${req.which}`, `${f.shot}${f.take}${f.frame}`, "location", 448, 256));
-      opts.emit("h3pipe.ref", { ep: opts.ep, ref: id, view: null, take: t.take, status: "ok" });
+      opts.emit("seriesmith.ref", { ep: opts.ep, ref: id, view: null, take: t.take, status: "ok" });
       if (req.pick || (req.pick == null && !r.exists && !r.cleared)) {
         r.picked = t.take;
         setLive(r);
         opts.onLiveChange(r.id);
-        opts.emit("h3pipe.ref", { ep: opts.ep, ref: id, view: null, take: t.take, status: "picked" });
+        opts.emit("seriesmith.ref", { ep: opts.ep, ref: id, view: null, take: t.take, status: "picked" });
       }
       return view(r);
     },
@@ -935,8 +935,8 @@ export function createMockRefs(opts: {
     },
     /**
      * P8: which slot each file name means. The real rules are
-     * `h3refs.match_files` (one implementation, called through
-     * POST /h3pipe/refs/match); this is the dev page's stand-in for them and
+     * `refs.match_files` (one implementation, called through
+     * POST /seriesmith/refs/match); this is the dev page's stand-in for them and
      * stays deliberately simple -- slug equality against the path's stem, the
      * ref id, and a view's tag or word.
      */

@@ -1,6 +1,6 @@
 // Syntax highlighting for the episode script (epNN.md), as a CodeMirror
 // StreamLanguage. The format is docs/AUTHORING.md; the rules below mirror the
-// parser (h3core/story.py) line for line, so what's coloured as dialogue or a
+// parser (core/story.py) line for line, so what's coloured as dialogue or a
 // field is what the build reads as one:
 //
 //   = ep05  Title                episode header
@@ -17,7 +17,7 @@
 import { StreamLanguage, type StreamParser, type StringStream } from "@codemirror/language";
 import { tags as t, type Tag } from "@lezer/highlight";
 
-/** h3core/story.py META_KEYS */
+/** core/story.py META_KEYS */
 export const META_KEYS = new Set([
   "who", "cast", "with", "props", "size", "audio", "dur", "duration", "camera", "sound", "music", "policy", "continuous", "text",
   "pace", "plate", "retention", "model", "lora", "steps", "extras", "target", "profile", "first", "last", "overlap",

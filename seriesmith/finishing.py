@@ -33,7 +33,7 @@ from seriesmith.backends import File
 SAVER = "SeriesmithSaveUpscale"
 H3_SAVER = "H3SaveUpscale"
 RECORD_SUFFIX = ".record.json"
-EVENTS = {"upscale": "h3pipe.upscale", "post": "h3pipe.post"}
+EVENTS = {"upscale": "seriesmith.upscale", "post": "seriesmith.post"}
 
 
 @dataclass

@@ -374,7 +374,7 @@ def ti2v_graph() -> dict:
 
 
 class InspectTest(unittest.TestCase):
-    """h3inspect against a workflow whose real target.json we have: the
+    """inspector against a workflow whose real target.json we have: the
     proposal must recover the binding the shipped target hand-wrote."""
 
     @classmethod
@@ -505,8 +505,8 @@ class SaveCustomTest(unittest.TestCase):
 
 
 class InspectRoutesTest(ApiTest):
-    """GET /h3pipe/workflows, POST /h3pipe/targets/inspect, PUT and DELETE
-    /h3pipe/targets/custom."""
+    """GET /seriesmith/workflows, POST /seriesmith/targets/inspect, PUT and DELETE
+    /seriesmith/targets/custom."""
 
     def setUp(self):
         super().setUp()
@@ -519,7 +519,7 @@ class InspectRoutesTest(ApiTest):
         self.comfy.userdata["workflows/mine.json"] = ti2v_graph()
         self.ctx = A.Context(self.user, self.comfy.url,
                              emit=lambda e, d: self.events.append((e, d)),
-                             comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={},
+                             comfy=J.Comfy(self.comfy.url, client_id="seriesmith"), env={},
                              model_list=folder_list)
         self.ok(A.put_config(self.ctx, {"roots": [self.shows]}))
 

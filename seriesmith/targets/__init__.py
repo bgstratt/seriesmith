@@ -7,8 +7,8 @@ targets — everything model-specific, one folder per model.
 
 `kind` is "video" (a shot model: story IR -> shotlist entries), "image" (a
 reference model: a ref request -> a picture) or "audio" (a voice model: a
-voice ref -> a wav). The core (h3core, h3build,
-h3jobs, h3refs, the routes) only talks to a target through this module:
+voice ref -> a wav). The core (core, build,
+jobs, refs, the routes) only talks to a target through this module:
 
     load_target(id)            -> Target            (cached; TargetError if unknown)
     list_targets(kind=None)    -> [Target]          (video, then image; by id)
@@ -213,7 +213,7 @@ class Binding:
     (every node of the class); and "scale" (the value is multiplied first:
     a two-stage graph's base latent is half the output size). A LoRA spec is
     {"class_type", "name", "strength", "input", "chain", "insert_after"?}
-    (see h3jobs.apply_loras). {"via": "loader"} means the loader node reads it
+    (see jobs.apply_loras). {"via": "loader"} means the loader node reads it
     from the frozen shotlist, so the graph needs no patch.
 
     `loader` is optional: a target with none (LTX) gets every value patched
@@ -493,7 +493,7 @@ class Target:
         """The target's own graph surgery for one job, after the binding's
         widgets are patched (only targets that have it: supports("patch_graph")).
         `inputs` maps an input role ("first", "last") to the name ComfyUI's
-        LoadImage reads (see h3jobs.stage_inputs)."""
+        LoadImage reads (see jobs.stage_inputs)."""
         self._need("patch_graph")(self, graph, job, inputs)
 
     def stage_inputs(self, job, comfy=None) -> dict:
@@ -501,7 +501,7 @@ class Target:
         reserved (only targets that have it: supports("stage_inputs")):
         {role: the name LoadImage reads}. ltx2_ingredients composes the shot's
         reference sheet and uploads it (`comfy`; None is a dry run). Called by
-        h3jobs.stage_inputs."""
+        jobs.stage_inputs."""
         return self._need("stage_inputs")(self, job, comfy)
 
     def supports(self, name: str) -> bool:
@@ -784,7 +784,7 @@ class Target:
         return Preset(pass_, model=model, lora=lora, steps=steps, width=width, height=height,
                       extra=dict(base.extra), base=copy.deepcopy(base.base))
 
-    # -- description (GET /h3pipe/targets) ----------------------------------
+    # -- description (GET /seriesmith/targets) ----------------------------------
 
     def describe(self) -> dict:
         return {"id": self.id, "kind": self.kind, "label": self.label,
@@ -901,7 +901,7 @@ def custom_folders(root: str) -> list[tuple[str, str, str]]:
 # and re-reading each custom target.json each time was seconds per request.
 # A listing is reused for FOLDERS_TTL seconds; a target saved or deleted in this
 # process clears it at once (forget_targets), one written by another process
-# (h3inspect on the command line) shows up within the TTL.
+# (inspector on the command line) shows up within the TTL.
 _FOLDERS: dict[tuple, tuple[float, list]] = {}
 FOLDERS_TTL = 2.0
 
@@ -1560,7 +1560,7 @@ def wanted_files(target: Target, pass_: str, series_cfg: dict | None = None) -> 
     """What a pass loads with nothing but the target (and the series config's
     pass blocks) deciding: {param: file} for every model param, plus "loras"
     (a list of {"name", "strength"}; [] for none). For readiness; a job's own
-    values come from h3jobs.model_values."""
+    values come from jobs.model_values."""
     if series_cfg is not None and target.kind == "video":
         p = target.preset(pass_, series_cfg)
     else:

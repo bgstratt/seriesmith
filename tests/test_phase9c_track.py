@@ -1,14 +1,14 @@
 """
 Phase 9c A (docs/API.md "A. Attaching and aligning a recording"): the
-readiness check (GET /h3pipe/align/ready), attaching a recording (POST
-/h3pipe/track, by path and as an upload, and clearing it), running h3align
-(POST /h3pipe/align: progress events, dry runs, a missing dependency), and
-h3align's own writing through h3source (_history instead of .bak).
+readiness check (GET /seriesmith/align/ready), attaching a recording (POST
+/seriesmith/track, by path and as an upload, and clearing it), running align
+(POST /seriesmith/align: progress events, dry runs, a missing dependency), and
+align's own writing through source (_history instead of .bak).
 
 No Whisper is installed on this machine, so nothing here transcribes:
-h3track.probe is faked for the readiness answers, the align route runs a stub
-script that speaks h3align's --progress / --json protocol, and the real
-h3align is exercised with a hand-made <recording>.words.json cache, which is
+track.probe is faked for the readiness answers, the align route runs a stub
+script that speaks align's --progress / --json protocol, and the real
+align is exercised with a hand-made <recording>.words.json cache, which is
 the path it takes whenever a transcript is already there (it needs ffmpeg and
 numpy; those tests skip without them).
 """
@@ -28,8 +28,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-from seriesmith import align as h3align  # noqa: E402
-from seriesmith import build as h3build  # noqa: E402
+from seriesmith import align as AL  # noqa: E402
+from seriesmith import build as BLD  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import api as A  # noqa: E402
 from seriesmith import source as H  # noqa: E402
@@ -59,14 +59,14 @@ def write_wav(path: str, seconds: float, rate: int = 16000) -> None:
 
 
 def script_lines(ep: str) -> list[dict]:
-    """The script's dialogue lines, in order (as h3align reads them)."""
+    """The script's dialogue lines, in order (as align reads them)."""
     cfg = json.load(open(os.path.join(ep, "series.json"), encoding="utf-8"))
     subjects = {k for k in cfg.get("subjects", {}) if not k.startswith("_")}
     chars = {k for k, v in cfg["subjects"].items()
              if not k.startswith("_") and isinstance(v, dict)
              and v.get("kind", "character") == "character"}
     text = open(E.episode_script(ep), encoding="utf-8").read()
-    epi = h3build.parse_script(text, subjects, chars)
+    epi = BLD.parse_script(text, subjects, chars)
     return [{"shot": sh["id"], "text": d["line"]}
             for seq in epi["sequences"] for sh in seq["shots"] for d in sh["dialogue"]]
 
@@ -75,10 +75,10 @@ def fake_words(lines: list[dict], gap: float = 1.2, rate: float = 3.0,
                start: float = 1.5) -> tuple[list[dict], float]:
     """A transcript that says exactly what the script says, line by line:
     (the words with timings, how long the recording must be). This is the
-    cache h3align writes after a real transcription."""
+    cache align writes after a real transcription."""
     words, t = [], start
     for ln in lines:
-        for tok in h3align.tokens(ln["text"]):
+        for tok in AL.tokens(ln["text"]):
             words.append({"word": tok, "start": round(t, 3), "end": round(t + 1 / rate, 3)})
             t += 1 / rate
         t += gap
@@ -86,7 +86,7 @@ def fake_words(lines: list[dict], gap: float = 1.2, rate: float = 3.0,
 
 
 class ReadyTest(unittest.TestCase):
-    """GET /h3pipe/align/ready: what h3align needs, in the Python that runs it."""
+    """GET /seriesmith/align/ready: what align needs, in the Python that runs it."""
 
     def ready(self, numpy="1.26", faster=None, openai=None, ffmpeg="C:/ff/ffmpeg.exe"):
         pkgs = {"numpy": numpy, "faster-whisper": faster, "openai-whisper": openai}
@@ -123,7 +123,7 @@ class ReadyTest(unittest.TestCase):
 
     def test_picks_an_interpreter_that_has_the_packages(self):
         """The editor runs in ComfyUI's embedded Python, which usually has no
-        Whisper while the system one does. h3align is a subprocess, so the
+        Whisper while the system one does. align is a subprocess, so the
         ready check and the run use the first interpreter that has them."""
         this, other = sys.executable, os.path.join(os.sep, "py", "system.exe")
         pkgs = {this: {"numpy": "1.26", "faster-whisper": None, "openai-whisper": None},
@@ -171,7 +171,7 @@ class ReadyTest(unittest.TestCase):
 
 
 class TrackTest(ApiTest):
-    """POST /h3pipe/track."""
+    """POST /seriesmith/track."""
 
     def setUp(self):
         super().setUp()
@@ -201,12 +201,12 @@ class TrackTest(ApiTest):
         self.assertEqual(data["hash"],
                          self.ok(A.get_source(self.ctx, {"ep": self.ep, "file": "series",
                                                          "hash_only": "1"}))["hash"])
-        # the build runs; its final pass now wants the windows h3align writes
+        # the build runs; its final pass now wants the windows align writes
         # (source_track turns the dialogue shots into dubs), which is the next step
         self.assertTrue(data["build"]["passes"]["proxy"]["ok"], data["build"])
         self.assertIn("`audio: in-out` window", data["build"]["passes"]["final"]["error"])
         self.assertEqual(len(self.history()), 1)           # the old series config is kept
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
 
     def test_a_file_already_in_the_episode_is_used_in_place(self):
         inside = os.path.join(self.ep, "audio", "mine.wav")
@@ -281,7 +281,7 @@ class TrackTest(ApiTest):
 
 
 def stub_align(path: str, body: str) -> None:
-    """A fake h3align that speaks the --progress / --json protocol."""
+    """A fake align that speaks the --progress / --json protocol."""
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("import json, sys\n"
                  "a = sys.argv[1:]\n"
@@ -294,7 +294,7 @@ def stub_align(path: str, body: str) -> None:
 OK_BODY = """
 def ev(stage, pct, text):
     if prog:
-        print('##h3align ' + json.dumps({'stage': stage, 'pct': pct, 'text': text}),
+        print('##align ' + json.dumps({'stage': stage, 'pct': pct, 'text': text}),
               flush=True)
 
 ev('transcribe', 10, 'transcribing')
@@ -326,7 +326,7 @@ time.sleep(30)
 
 
 class AlignRouteTest(ApiTest):
-    """POST /h3pipe/align, against a stub h3align (nothing is transcribed)."""
+    """POST /seriesmith/align, against a stub align (nothing is transcribed)."""
 
     def setUp(self):
         super().setUp()
@@ -362,13 +362,13 @@ class AlignRouteTest(ApiTest):
         self.assertEqual(data["report"], "# Alignment\n")
         self.assertEqual(data["report_path"], "align_report.md")
         self.assertIn("some chatter", data["log"])
-        self.assertNotIn("##h3align", data["log"])
+        self.assertNotIn("##align", data["log"])
         self.assertTrue(data["build"]["ok"], data["build"])
         self.assertEqual(data["track"]["path"], "audio/ks01_mix.wav")
-        self.assertEqual([(e["stage"], e["pct"]) for e in self.events_of("h3pipe.align")],
+        self.assertEqual([(e["stage"], e["pct"]) for e in self.events_of("seriesmith.align")],
                          [("transcribe", 10), ("match", 65), ("write", 100)])
-        self.assertEqual(self.events_of("h3pipe.align")[0]["ep"], self.ep)
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.align")[0]["ep"], self.ep)
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
 
     def test_dry_run_changes_nothing(self):
         before = E.episode_status(self.ep, "proxy")
@@ -376,7 +376,7 @@ class AlignRouteTest(ApiTest):
         self.assertTrue(data["dry_run"])
         self.assertIsNone(data["build"])
         self.assertIsNone(data["script_hash"])
-        self.assertEqual(self.events_of("h3pipe.episode"), [])
+        self.assertEqual(self.events_of("seriesmith.episode"), [])
         self.assertEqual(E.episode_status(self.ep, "proxy"), before)
 
     def test_missing_dependency_is_409(self):
@@ -386,10 +386,10 @@ class AlignRouteTest(ApiTest):
         self.assertEqual(data["missing"], ["faster-whisper"])
         self.assertIn("faster-whisper", data["error"])
         self.assertFalse(data["words"])
-        self.assertEqual(self.events_of("h3pipe.align"), [])
+        self.assertEqual(self.events_of("seriesmith.align"), [])
 
     def test_a_cached_transcript_needs_no_whisper(self):
-        """h3align reads <recording>.words.json when it is newer than the
+        """align reads <recording>.words.json when it is newer than the
         recording, so re-aligning doesn't need Whisper at all."""
         rec = os.path.join(self.ep, "audio", "ks01_mix.wav")
         write_wav(rec, 0.2)
@@ -421,11 +421,11 @@ class AlignRouteTest(ApiTest):
         self.align({"model": 7}, 400)
         self.align({"snap": "yes"}, 400)
         self.align({"dry_run": "1"}, 400)
-        self.assertEqual(self.events_of("h3pipe.align"), [])
+        self.assertEqual(self.events_of("seriesmith.align"), [])
 
 
 class AlignArgsTest(ApiTest):
-    """What the route passes h3align (h3track.align builds the command line)."""
+    """What the route passes align (track.align builds the command line)."""
 
     def test_command_line(self):
         seen = {}
@@ -458,13 +458,13 @@ class AlignArgsTest(ApiTest):
         self.assertEqual(cmd[cmd.index("--model") + 1], "tiny.en")
         self.assertEqual(seen["cwd"], self.ep)
         self.assertEqual(seen["timeout"], K.ALIGN_TIMEOUT)
-        self.assertEqual([e["stage"] for e in self.events_of("h3pipe.align")], ["write"])
+        self.assertEqual([e["stage"] for e in self.events_of("seriesmith.align")], ["write"])
 
 
-@unittest.skipUnless(HAVE_FF and HAVE_NUMPY, "h3align needs ffmpeg and numpy")
+@unittest.skipUnless(HAVE_FF and HAVE_NUMPY, "align needs ffmpeg and numpy")
 class AlignWritesTest(ApiTest):
-    """The real h3align, with a hand-made transcript cache instead of Whisper:
-    what it writes, and that it goes through h3source (no .bak)."""
+    """The real align, with a hand-made transcript cache instead of Whisper:
+    what it writes, and that it goes through source (no .bak)."""
 
     def setUp(self):
         super().setUp()
@@ -482,7 +482,7 @@ class AlignWritesTest(ApiTest):
         return res, events
 
     def test_report_is_not_mistaken_for_the_script(self):
-        """h3align leaves align_report.md in the episode folder. An episode
+        """align leaves align_report.md in the episode folder. An episode
         whose script isn't <folder>.md then had two .md files, and every later
         build, source read and promote failed with "can't tell which .md"."""
         script = E.episode_script(self.ep)
@@ -506,7 +506,7 @@ class AlignWritesTest(ApiTest):
         # the script now carries the windows, and the old `dur:` lines are comments
         text = open(script, encoding="utf-8").read()
         self.assertIn("audio: ", text)
-        self.assertIn("// dur: 2.5   (h3align)", text)
+        self.assertIn("// dur: 2.5   (align)", text)
         # the series config points at the recording
         cfg = json.load(open(os.path.join(self.ep, "series.json"), encoding="utf-8"))
         self.assertEqual(cfg["audio"]["mode"], "source_track")
@@ -588,7 +588,7 @@ class AlignWritesTest(ApiTest):
         self.assertTrue(data["track"]["words"])
         self.assertEqual(data["track"]["aligned"],
                          len([c for c in data["changes"] if c["audio_in"] is not None]))
-        self.assertTrue([e for e in self.events_of("h3pipe.align")])
+        self.assertTrue([e for e in self.events_of("seriesmith.align")])
 
 
 if __name__ == "__main__":

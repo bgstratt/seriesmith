@@ -6,7 +6,7 @@
 //  - REAL_SHAPES below: small pieces copied from real answers (committed);
 //  - test/local/<name>/*.json (gitignored, never committed): whole answers dumped
 //    from a scratch copy of a real episode through the functions the routes call
-//    (h3edit.episode_status / shot_detail, h3refs.refs_listing, the Phase 8.6
+//    (edit.episode_status / shot_detail, refs.refs_listing, the Phase 8.6
 //    handlers). Those tests are skipped when the folder isn't there.
 //
 // Components are rendered to HTML with react-dom/server (no effects run), with
@@ -33,7 +33,7 @@ import type { EpisodeStatus, Pass, Ref, RefList, ShotDetail, TargetList } from "
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOCAL = join(HERE, "local");
 
-/** Pieces of real answers (h3refs.ref_json, h3edit.refs_used), trimmed. */
+/** Pieces of real answers (refs.ref_json, edit.refs_used), trimmed. */
 const REAL_SHAPES = {
   narrator: {
     id: "subject:narrator", key: "subject__narrator", scope: "series", kind: "character", name: "the Narrator", subject: "narrator",

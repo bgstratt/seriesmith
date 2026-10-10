@@ -88,7 +88,7 @@ SIZE_HINT = dict(_h3.RECIPE["size_hints"])
 
 def compile_episode(ep: dict, series_cfg: dict, proxy: bool) -> tuple[dict, dict]:
     """The parser-shaped episode compiled for the default target (the old
-    signature; h3build itself compiles the IR through the episode's target)."""
+    signature; build itself compiles the IR through the episode's target)."""
     return _h3.compile_legacy(DEFAULT_TARGET, ep, series_cfg, "proxy" if proxy else "final")
 
 
@@ -100,7 +100,7 @@ def compile_groups(story: ir.Episode, series_cfg: dict, pass_: str,
 
     Story warnings -- the ones that are about the script rather than any
     model -- are added to the first report, which is the one `--check` prints
-    and the editor reads (h3source.check_text)."""
+    and the editor reads (source.check_text)."""
     groups = TG.episode_targets(story, series_cfg) if groups is None else groups
     check_story(story, series_cfg)
     built = [(t, *t.compile_episode(story, series_cfg, pass_, only=ids)) for t, ids in groups]

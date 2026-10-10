@@ -29,7 +29,7 @@ import { useTargets } from "./Targets";
 import { Thumb } from "./Thumb";
 
 // v2: round 2 moved the default place so the viewer and the inspector sit side by side
-export const VIEWER_RECT_KEY = "h3pipe.viewer.rect.v2";
+export const VIEWER_RECT_KEY = "seriesmith.viewer.rect.v2";
 const RECT_KEY = VIEWER_RECT_KEY;
 
 /** Keep B on A's clock: play/pause/seek/rate follow A. */
@@ -289,7 +289,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
             const el = e.currentTarget;
             openMenu(e.clientX, e.clientY, v.shot, t.take, v.pass, frameAt(el.currentTime, fps, el.duration, el.ended));
           }}
-          onError={(e) => console.warn("h3pipe viewer: video error", (e.currentTarget as HTMLVideoElement).error)}
+          onError={(e) => console.warn("seriesmith viewer: video error", (e.currentTarget as HTMLVideoElement).error)}
         />
       ) : (
         <div className="h3-empty-state" style={{ color: "#aaa" }}>
@@ -583,7 +583,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
           }
         }
       }
-      // the recording follows the cut's clock (as h3assemble --audio master lays it)
+      // the recording follows the cut's clock (as assemble --audio master lays it)
       const a = au.current;
       if (a) {
         const want = recordingAt(recStart.current, store.get().cutPlay.pos);
@@ -721,7 +721,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
             playsInline
             preload="auto"
             className={cur?.mp4 && shown.active === i ? "h3-on" : ""}
-            onError={(e) => console.warn("h3pipe play all: video error", (e.currentTarget as HTMLVideoElement).error)}
+            onError={(e) => console.warn("seriesmith play all: video error", (e.currentTarget as HTMLVideoElement).error)}
           />
         ))}
         {cur && !cur.mp4 && (
@@ -744,7 +744,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
           ref={au}
           preload="auto"
           src={api().fileUrl(ep, track.path)}
-          onError={(e) => console.warn("h3pipe play all: recording error", (e.currentTarget as HTMLAudioElement).error)}
+          onError={(e) => console.warn("seriesmith play all: recording error", (e.currentTarget as HTMLAudioElement).error)}
         />
       )}
       <div className="h3-transport">
@@ -767,7 +767,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
             className="h3-seg"
             title={ts.why
               ? `Audio: ${ts.why}, so Play all plays the clips' own sound`
-              : `Audio: each clip's own sound (and any clip's own audio source), or the recorded dialogue (${ts.path}) under the cut, as h3assemble --audio master lays it.\n\n${RECORDING_IGNORES_AUDIO}`}
+              : `Audio: each clip's own sound (and any clip's own audio source), or the recorded dialogue (${ts.path}) under the cut, as assemble --audio master lays it.\n\n${RECORDING_IGNORES_AUDIO}`}
           >
             <button className={!recording ? "h3-on" : ""} onClick={() => setCutAudio("clips")}>clips</button>
             <button className={recording ? "h3-on" : ""} disabled={!!ts.why} onClick={() => setCutAudio("recording")}>recording</button>

@@ -504,7 +504,7 @@ class VoiceApiTest(ApiTest):
         self.assertEqual(data["errors"], [])
         (q,) = data["queued"]
         self.assertEqual((q["ref"], q["target"], q["take"]), ("voice:rex", VOICE, 1))
-        self.assertEqual([e for e in self.events_of("h3pipe.ref") if e["status"] == "queued"],
+        self.assertEqual([e for e in self.events_of("seriesmith.ref") if e["status"] == "queued"],
                          [{"ep": self.ep, "ref": "voice:rex", "view": None, "take": 1,
                            "status": "queued"}])
         rex = self.refs()["voice:rex"]
@@ -541,7 +541,7 @@ class VoiceApiTest(ApiTest):
         take = next(x for x in out["takes"] if x["take"] == out["take"])
         self.assertEqual(take["source"], "from_take")
         self.assertEqual(take["from"]["start"], 0.5)
-        self.assertIn(("POST", "/h3pipe/refs/voice-from-take"),
+        self.assertIn(("POST", "/seriesmith/refs/voice-from-take"),
                       {(m, p) for m, p, _f, _t in A.ROUTES})
         self.err(A.post_refs_voice_from_take(self.ctx, {
             "ep": self.ep, "ref": "subject:ada", "shot": "sh020", "take": t.take,

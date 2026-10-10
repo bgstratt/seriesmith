@@ -1,9 +1,9 @@
 """
 Phase 9d (docs/API.md "Phase 9d: a shot's audio from elsewhere"): a cut
-entry's `audio` — its shape (h3takes.audio_spec), what PUT /h3pipe/cut
+entry's `audio` — its shape (takes.audio_spec), what PUT /seriesmith/cut
 refuses, the round trip through cut.json, the episode status's `audio`,
-`audio_file` and `audio_why`, reset/copy, `h3.py cut --audio`, and real
-assembles where h3assemble lays the chosen sound under a clip.
+`audio_file` and `audio_why`, reset/copy, `seriesmith cut --audio`, and real
+assembles where assemble lays the chosen sound under a clip.
 
 The route tests run through h3pipe_api with test_api's built kitchen_sink
 episode; the assemble tests build tiny episodes with ffmpeg and are skipped
@@ -129,7 +129,7 @@ class SpecTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# PUT /h3pipe/cut, the status, reset/copy, the CLI
+# PUT /seriesmith/cut, the status, reset/copy, the CLI
 # ---------------------------------------------------------------------------
 
 class Base(ApiTest):
@@ -314,7 +314,7 @@ class ResetCopyTest(Base):
 
 
 class AudioImportTest(Base):
-    """POST /h3pipe/audio/import: a media file into <ep>/audio/, whose `path`
+    """POST /seriesmith/audio/import: a media file into <ep>/audio/, whose `path`
     goes straight into a cut entry's audio source."""
 
     def outside(self, name="line.wav", amp=6000):
@@ -365,7 +365,7 @@ class AudioImportTest(Base):
         # it is not the episode's recording, and nothing was rebuilt
         data = self.status()[0]
         self.assertNotEqual((data["track"] or {}).get("path"), rel)
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
 
     def test_a_file_already_inside_the_episode_stays_put(self):
         steps_wav(os.path.join(self.ep, "audio", "here.wav"), [1000])
@@ -373,7 +373,7 @@ class AudioImportTest(Base):
         self.assertEqual(got, {"path": "audio/here.wav", "copied": False})
 
     def test_it_is_a_route(self):
-        self.assertIn(("POST", "/h3pipe/audio/import", A.post_audio_import, "form"),
+        self.assertIn(("POST", "/seriesmith/audio/import", A.post_audio_import, "form"),
                       A.ROUTES)
 
 
@@ -414,7 +414,7 @@ class CliTest(Base):
 
     def test_through_h3(self):
         self.sounding_take("sh020")
-        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "cut", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "cut", self.ep,
                             "--proxy", "--audio", "sh010", "take", "sh020:1"],
                            capture_output=True, text=True, timeout=180,
                            env=dict(os.environ, PYTHONIOENCODING="utf-8"))
@@ -425,7 +425,7 @@ class CliTest(Base):
 
 
 # ---------------------------------------------------------------------------
-# h3assemble: the sound really under the clip
+# assemble: the sound really under the clip
 # ---------------------------------------------------------------------------
 
 def ff(*args: str) -> subprocess.CompletedProcess:

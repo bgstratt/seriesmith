@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-h3publish.py — the episode as it goes out: the series intro, the cut, the outro.
+publish.py — the episode as it goes out: the series intro, the cut, the outro.
 
-    python h3.py publish Shows\\ep05              # the final review cut
-    python h3.py publish Shows\\ep05 --proxy      # the proxy review cut
-    python h3.py publish Shows\\ep05 --input some.mp4 --check
+    seriesmith publish Shows\\ep05              # the final review cut
+    seriesmith publish Shows\\ep05 --proxy      # the proxy review cut
+    seriesmith publish Shows\\ep05 --input some.mp4 --check
 
-`h3.py master` (and the editor's Master) run this on the master they make, so a
+`seriesmith master` (and the editor's Master) run this on the master they make, so a
 master is the finished episode, titles included, whenever the clips are there.
 
 The intro and outro are clips made once for the whole series: _titles/INTRO.mp4
@@ -19,12 +19,12 @@ titles match. Output: <episode>/publish/<input name>.mp4.
 
 The cut's picture is copied, not re-encoded. Only the two title clips are
 encoded, scaled to the cut's size and rate with the same libx264 settings
-h3assemble used for the cut (its `master` or `review` quality, whichever gives
+assemble used for the cut (its `master` or `review` quality, whichever gives
 the cut's own H.264 headers), and the three are joined with the concat
 demuxer. The sound is re-encoded as one track, so there are no gaps at the
 joins. Before it is kept, the result is checked: the frame count adds up and
 the frames on both sides of each join decode to exactly the frames that went
-in. When the cut can't be copied (not an h3assemble encode, another codec, a
+in. When the cut can't be copied (not an assemble encode, another codec, a
 check fails), the whole thing is re-encoded instead and the reason is printed;
 `--reencode` asks for that directly.
 
@@ -58,9 +58,9 @@ import subprocess
 import sys
 import tempfile
 
-from seriesmith import assemble as h3assemble  # noqa: E402
-from seriesmith import edit as h3edit  # noqa: E402
-from seriesmith import takes as h3takes  # noqa: E402
+from seriesmith import assemble as ASM  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
 SUBTITLE = {
     "font": "C:/Windows/Fonts/segoescb.ttf",
@@ -75,11 +75,11 @@ SUBTITLE = {
 }
 AUDIO = ["-c:a", "aac", "-b:a", "256k"]
 JOIN_FRAMES = 12      # frames checked on each side of a join
-# --progress: `##h3publish {"stage", "done", "total", "text"}` per step (titles,
+# --progress: `##publish {"stage", "done", "total", "text"}` per step (titles,
 # join, verify, reencode with a frame count), then one `done` line saying how the
 # picture got there: {"stage": "done", "picture": "copied" | "re-encoded", "why"}.
-# h3master reads it into the master's report.
-PROGRESS = "##h3publish "
+# master reads it into the master's report.
+PROGRESS = "##publish "
 # what has to agree for the cut's picture to be copied next to the title clips
 MATCH = ("codec_name", "profile", "pix_fmt", "width", "height", "r_frame_rate",
          "field_order", "color_range", "color_space", "color_primaries", "color_transfer")
@@ -100,7 +100,7 @@ def say(stage: str, done: int | None = None, total: int | None = None, text: str
         **more) -> None:
     """A progress line, when --progress asked for them."""
     if _progress:
-        h3edit.progress_line(PROGRESS, {"stage": stage, "done": done, "total": total,
+        E.progress_line(PROGRESS, {"stage": stage, "done": done, "total": total,
                                         "text": text, **more})
 
 
@@ -160,9 +160,9 @@ def publish_config(series_cfg: dict) -> dict:
 
 
 def default_input(root: str, pass_: str) -> str | None:
-    """The pass's review cut. (A master gets its titles from h3master itself.)"""
+    """The pass's review cut. (A master gets its titles from master itself.)"""
     name = os.path.basename(os.path.normpath(root))
-    cut = os.path.join(root, h3takes.pass_subfolder(pass_), f"{name}.mp4")
+    cut = os.path.join(root, T.pass_subfolder(pass_), f"{name}.mp4")
     return cut if os.path.isfile(cut) else None
 
 
@@ -217,7 +217,7 @@ def _text(sub: dict, h: int, color: str, alpha: str) -> str:
 
 
 def titled(label: str, out: str, sub: dict, w: int, h: int, fps: float,
-           dur: float, alpha: str, tags: str = "setsar=1," + h3assemble.BT709_TAGS,
+           dur: float, alpha: str, tags: str = "setsar=1," + ASM.BT709_TAGS,
            matrix: str = "bt709") -> list[str]:
     """[label] scaled to the cut, the subtitle drawn with a soft glow under it -> [out]v.
     `tags` sets the picture's aspect and colour tags (see cut_tags); `matrix` is
@@ -259,7 +259,7 @@ def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict) -
         parts.append("[inv]")
         pieces.append((i, intro["audio"], intro["duration"]))
         i += 1
-    lines.append(f"[{i}:v]setsar=1,{','.join(h3assemble.to_bt709(cut.get('color_space') or ''))}[cv]")
+    lines.append(f"[{i}:v]setsar=1,{','.join(ASM.to_bt709(cut.get('color_space') or ''))}[cv]")
     parts.append("[cv]")
     pieces.append((i, cut["audio"], cut["duration"]))
     i += 1
@@ -281,7 +281,7 @@ def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict) -
 def cut_tags(cut: dict) -> str:
     """Filters giving a title clip the cut's pixel aspect and colour tags: x264
     writes both into the stream's headers, which must match the cut's. A clip
-    from ComfyUI is tagged BT.709; an h3assemble cut is untagged."""
+    from ComfyUI is tagged BT.709; an assemble cut is untagged."""
     sar = "setsar=1" if cut["sar"] not in ("N/A", "0:1") else "setsar=0"
     tag = {"range": "color_range", "color_primaries": "color_primaries",
            "color_trc": "color_transfer", "colorspace": "color_space"}
@@ -297,11 +297,11 @@ def x264_crf(path: str) -> float | None:
 
 
 def quality_order(path: str) -> list[str]:
-    """h3assemble's qualities, the one the cut's crf names first."""
+    """assemble's qualities, the one the cut's crf names first."""
     crf = x264_crf(path)
-    order = sorted(h3assemble.QUALITY_ARGS)
+    order = sorted(ASM.QUALITY_ARGS)
     for q in order:
-        args = h3assemble.QUALITY_ARGS[q]
+        args = ASM.QUALITY_ARGS[q]
         if crf is not None and float(args[args.index("-crf") + 1]) == crf:
             order.remove(q)
             return [q] + order
@@ -322,7 +322,7 @@ def copy_blocker(cut: dict) -> str | None:
         return "the cut's frames can't be counted"
     if cut.get("color_space") != "bt709":
         # assembled before 2026-10-05: BT.601 and untagged, which players read
-        # as BT.709; only a re-encode can convert it (h3assemble.to_bt709)
+        # as BT.709; only a re-encode can convert it (assemble.to_bt709)
         return "the cut isn't BT.709 (assembled before the colour fix): re-encoded to convert it"
     return None
 
@@ -330,7 +330,7 @@ def copy_blocker(cut: dict) -> str | None:
 def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str,
                  quality: str) -> None:
     """The title clip with the subtitle drawn on, picture only, encoded the way
-    h3assemble.conform encodes a clip at `quality`."""
+    assemble.conform encodes a clip at `quality`."""
     w, h, fps = cut["width"], cut["height"], cut["fps"]
     src = probe(clip)
     frames = src["frames"] or round(src["duration"] * fps)
@@ -340,7 +340,7 @@ def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str
         f.write(graph)
     r = run(["ffmpeg", "-y", "-v", "error", "-i", clip, "-/filter_complex", "title_graph.txt",
              "-map", "[tv]", "-frames:v", str(frames),
-             "-c:v", "libx264", *h3assemble.QUALITY_ARGS[quality], "-pix_fmt", "yuv420p",
+             "-c:v", "libx264", *ASM.QUALITY_ARGS[quality], "-pix_fmt", "yuv420p",
              "-r", f"{fps:g}", "-video_track_timescale", str(cut["timescale"]), "-an", dst],
             cwd=tmp)
     if r.returncode != 0:
@@ -349,7 +349,7 @@ def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str
 
 def frame_hashes(path: str, first: int, count: int, info: dict) -> list[str]:
     """framemd5 of `count` decoded frames from frame `first` on."""
-    at = h3assemble.picture_offset(path) + (first - 0.5) / info["fps"]
+    at = ASM.picture_offset(path) + (first - 0.5) / info["fps"]
     r = run(["ffmpeg", "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
              "-map", "0:v:0", "-frames:v", str(count), "-f", "framemd5", "-"], timeout=600)
     if r.returncode != 0 or r.stderr.strip():
@@ -405,7 +405,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
             break
     if not used:
         return "the title clips can't be encoded with the cut's H.264 headers " \
-               "(the cut wasn't encoded by h3assemble)"
+               "(the cut wasn't encoded by assemble)"
     for kind, path in made.items():
         p = probe(path)
         diff = [k for k in MATCH if p[k] != cut[k]]
@@ -455,7 +455,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     if why:
         return why
     shutil.move(joined, out)
-    print(f"    picture copied; title clips encoded at h3assemble's {used} quality, "
+    print(f"    picture copied; title clips encoded at assemble's {used} quality, "
           f"sound re-encoded")
     return None
 
@@ -471,7 +471,7 @@ def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, 
             cmd += ["-i", p]
     cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
             "-/filter_complex", "graph.txt", "-map", "[v]", "-map", "[a]",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", *h3assemble.QUALITY_ARGS[quality],
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", *ASM.QUALITY_ARGS[quality],
             *AUDIO, "-movflags", "+faststart", os.path.join(tmp, "out.mp4")]
     total = sum((i["frames"] or round(i["duration"] * cut["fps"])) for i in (pi, cut, po) if i)
     r = run_counted(cmd, total, "reencode", cwd=tmp)
@@ -507,7 +507,7 @@ def _clip(root: str, block: dict, key: str) -> str | None:
 def titles(root: str) -> tuple[str | None, str | None]:
     """The episode's (intro, outro) clips, either None when there isn't one:
     the series config's publish block, else the _titles files."""
-    cfg = h3edit.episode_series_config(root)
+    cfg = E.episode_series_config(root)
     block = {}
     if cfg:
         with open(cfg, encoding="utf-8") as f:
@@ -518,8 +518,8 @@ def titles(root: str) -> tuple[str | None, str | None]:
 def publish(root: str, src: str | None = None, pass_: str = "final", out: str | None = None,
             quality: str | None = None, check: bool = False, reencode: bool = False) -> str:
     root = os.path.abspath(root)
-    script = h3edit.episode_script(root)
-    cfg_path = h3edit.episode_series_config(root)
+    script = E.episode_script(root)
+    cfg_path = E.episode_series_config(root)
     if not script or not cfg_path:
         raise PublishError(f"{root} needs its script and a series.json")
     with open(cfg_path, encoding="utf-8") as f:
@@ -583,12 +583,12 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None, help="output file (default <episode>/publish/<input>.mp4)")
     ap.add_argument("--reencode", action="store_true",
                     help="re-encode the whole cut instead of copying its picture")
-    ap.add_argument("--quality", choices=sorted(h3assemble.QUALITY_ARGS), default=None,
+    ap.add_argument("--quality", choices=sorted(ASM.QUALITY_ARGS), default=None,
                     help="x264 settings when re-encoding (default: master for a master, "
                          "else review)")
     ap.add_argument("--check", action="store_true", help="report only")
     ap.add_argument("--progress", action="store_true",
-                    help="print a ##h3publish progress line per step (for h3master)")
+                    help="print a ##publish progress line per step (for master)")
     a = ap.parse_args(argv)
     global _progress
     _progress = a.progress

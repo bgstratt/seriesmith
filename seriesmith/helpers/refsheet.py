@@ -210,7 +210,7 @@ def composite_layout(aspects: list[float], width: int, height: int,
 
 
 def composite(spec: dict, out: str) -> dict:
-    """A single-reference edit target's one reference (h3refs.compose_composite):
+    """A single-reference edit target's one reference (refs.compose_composite):
     the plate covering the frame (or `background`), with the figures pasted
     over it by composite_layout. spec = {"mode": "composite", "width",
     "height", "background", "figure_height", "gap", "plate": {"path",

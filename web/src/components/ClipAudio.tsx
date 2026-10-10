@@ -3,7 +3,7 @@
 // inside the episode (browse or upload), or silence; draws both waveforms with
 // the clip's picture length marked against the source; and moves `start` and
 // `offset` by dragging or by typing. Saving goes through the ordinary cut-edit
-// path (PUT /h3pipe/cut), so it is optimistic, undoable and in the history.
+// path (PUT /seriesmith/cut), so it is optimistic, undoable and in the history.
 
 import {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -40,7 +40,7 @@ const EMPTY: number[] = [];
 
 /**
  * The speaker badge a clip whose audio isn't its own shows. In recording mode
- * it is dimmed: Play all (and `h3assemble --audio master`) ignore per-clip
+ * it is dimmed: Play all (and `assemble --audio master`) ignore per-clip
  * audio then.
  */
 export function AudioBadge({ shot, cut, dim }: { shot: string; cut: ShotStatus["cut"]; dim?: boolean }) {

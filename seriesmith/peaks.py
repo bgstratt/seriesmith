@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-h3peaks.py — what the editor needs to know about a media file's sound: does it
+peaks.py — what the editor needs to know about a media file's sound: does it
 have any, how long is it, and its waveform peaks.
 
 - `has_audio(path)`: an mp4/mov/m4a is read by its boxes (moov > trak > mdia >
@@ -8,11 +8,11 @@ have any, how long is it, and its waveform peaks.
   answer is cached per (path, size, mtime) for this process.
 - `clip_audio(mp4, wav)`: the file whose sound a take plays in the cut: the mp4
   if it has an audio stream, else its `_h3.wav`, else None (silence). This is
-  h3assemble's `--audio auto` rule; assemble calls it too.
+  assemble's `--audio auto` rule; assemble calls it too.
 - `media_info(path)`: {"duration", "rate"} (seconds, sample rate), from the wav
   header or the mp4's boxes, else ffprobe; None values when it can't tell.
 - `peaks(ep, path, rel, bins, start, end)`: the max absolute amplitude per bin
-  (0..255, mono), for GET /h3pipe/peaks. Computed once per file at RATE bins a
+  (0..255, mono), for GET /seriesmith/peaks. Computed once per file at RATE bins a
   second (stdlib `wave` for PCM wav, else `ffmpeg -ac 1 -ar 8000 -f s16le`),
   cached in <ep>/_cache/peaks/<sha1 of path|size|mtime>.json, then resampled.
 
@@ -197,7 +197,7 @@ def has_audio(path: str) -> bool:
 def clip_audio(mp4: str, wav: str | None) -> str | None:
     """The file whose sound a take plays in the cut: the mp4 if it has an audio
     stream, else the take's `_h3.wav` if it exists, else None (silence).
-    h3assemble's `--audio auto`."""
+    assemble's `--audio auto`."""
     if mp4 and os.path.isfile(mp4) and has_audio(mp4):
         return mp4
     if wav and os.path.isfile(wav):
@@ -375,7 +375,7 @@ def resample(pk: list[int], rate: float, bins: int, start: float, end: float) ->
 
 def peaks(ep: str, path: str, rel: str, bins: int | None = None,
           start: float | None = None, end: float | None = None) -> dict:
-    """GET /h3pipe/peaks: {"duration", "bins", "peaks", "start", "end"} (plus
+    """GET /seriesmith/peaks: {"duration", "bins", "peaks", "start", "end"} (plus
     "silent": true and no peaks for a file without sound). `bins` defaults to
     RATE a second of the range. ValueError for a bad range."""
     whole = file_peaks(ep, path, rel)

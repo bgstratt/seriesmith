@@ -93,7 +93,7 @@ function CopyButton({ text, what }: { text: string; what: string }) {
 /**
  * "Model: <label> [status] · from series.json": the episode's default target.
  * Clicking opens a picker of the video targets with their readiness; the
- * choice is written to overrides.json (PUT /h3pipe/episode-target), and the
+ * choice is written to overrides.json (PUT /seriesmith/episode-target), and the
  * snippet makes it permanent in series.json.
  */
 export function EpisodeTarget() {
@@ -244,7 +244,7 @@ function EpisodeTargetPicker({ list, video, current, source, series, onChoose }:
 // the What's missing window
 // ---------------------------------------------------------------------------
 
-const RECT_KEY = "h3pipe.missing.rect";
+const RECT_KEY = "seriesmith.missing.rect";
 
 function defaultMissingRect(): Rect {
   const W = window.innerWidth || 1280;
@@ -296,7 +296,7 @@ export function MissingWindow() {
 function AllTargets({ video, list }: { video: Target[]; list: TargetList }) {
   const anyReadiness = video.some((t) => t.readiness);
   if (!anyReadiness) {
-    return <div className="h3-note">This server doesn't report readiness yet (GET /h3pipe/targets?ready=1). Update the h3pipe node pack, then Refresh.</div>;
+    return <div className="h3-note">This server doesn't report readiness yet (GET /seriesmith/targets?ready=1). Update the seriesmith node pack, then Refresh.</div>;
   }
   return (
     <>
@@ -364,7 +364,7 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
   const label = targetLabel(list, id);
   if (!t) return <div className="h3-note h3-note-err">{id} isn't a target this server knows.</div>;
   if (!t.readiness) {
-    return <div className="h3-note">This server didn't report {label}'s readiness (GET /h3pipe/targets?ready=1). Update the h3pipe node pack, then Refresh.</div>;
+    return <div className="h3-note">This server didn't report {label}'s readiness (GET /seriesmith/targets?ready=1). Update the seriesmith node pack, then Refresh.</div>;
   }
   const r = normReadiness(t.readiness);
   const groups = missingGroups(r);
@@ -434,7 +434,7 @@ function GraphCard({ t }: { t: Target }) {
     env ? `$${g.env} points at it` :
     saved ? "saved in this ComfyUI — open it on the canvas, edit, save" :
     g.source === "saved" ? "$COMFYUI_PATH's workflows folder" :
-    g.source === "repo" ? "the repo's copy (h3pipe ships it)" :
+    g.source === "repo" ? "the repo's copy (seriesmith ships it)" :
     "no workflow of that name was found: renders will fail";
   const confirmInstall = async () => {
     if (await installWorkflow(t.id)) return;

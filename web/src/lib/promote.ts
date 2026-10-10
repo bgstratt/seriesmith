@@ -58,7 +58,7 @@ export type PromoteOutcome =
   | { kind: "error"; message: string };
 
 /**
- * POST /h3pipe/promote with the plan's hashes. A 409 (a file changed since the
+ * POST /seriesmith/promote with the plan's hashes. A 409 (a file changed since the
  * plan) fetches a fresh plan for the same scope instead: the caller shows it
  * and asks again.
  */

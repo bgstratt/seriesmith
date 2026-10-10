@@ -1,6 +1,6 @@
-// Phase 9c-A in the mock: what h3align needs (this machine has ffmpeg and
+// Phase 9c-A in the mock: what align needs (this machine has ffmpeg and
 // numpy but no Whisper, as the real one does), and a simulated run that sends
-// the `h3pipe.align` stages and writes dialogue windows. Deterministic.
+// the `seriesmith.align` stages and writes dialogue windows. Deterministic.
 
 import type { AlignReady, AlignRequest, AlignResult, Pass } from "../types";
 
@@ -15,7 +15,7 @@ export interface AlignShot {
 
 export interface MockAlignDeps {
   ep: string;
-  emit: (event: "h3pipe.align", detail: unknown) => void;
+  emit: (event: "seriesmith.align", detail: unknown) => void;
   wait: (ms: number) => Promise<void>;
   shots: () => AlignShot[];
   /** the recording now, or null when the series config names none */
@@ -79,16 +79,16 @@ function r3(n: number): number {
 export function createMockAlign(deps: MockAlignDeps) {
   return {
     ready: mockAlignReady,
-    /** POST /h3pipe/align: the stages, then the report. */
+    /** POST /seriesmith/align: the stages, then the report. */
     async run(req: AlignRequest & { pass?: Pass }): Promise<AlignResult> {
       const track = deps.track();
       if (!track) throw new AlignError("the series config names no recording (audio.track)", 400);
       const ready = mockAlignReady();
-      // a cached transcript means no Whisper is needed: h3align reads it
+      // a cached transcript means no Whisper is needed: align reads it
       const need = ready.missing.filter((m) => !(track.words && (m === "faster-whisper" || m === "openai-whisper")));
       if (need.length) {
         throw new AlignError(
-          `h3align needs ${need.join(", ")} (install them for the Python that runs the pipeline)`,
+          `align needs ${need.join(", ")} (install them for the Python that runs the pipeline)`,
           409,
           {
             missing: need,
@@ -102,17 +102,17 @@ export function createMockAlign(deps: MockAlignDeps) {
       const dry = !!req.dry_run;
       const shots = deps.shots();
       const spoken = shots.filter((s) => s.dialogue);
-      deps.emit("h3pipe.align", {
+      deps.emit("seriesmith.align", {
         ep: deps.ep, stage: "transcribe", pct: 10,
         text: track.words ? `reading ${track.path}.words.json` : `transcribing ${track.path} with ${req.model || "medium.en"}`,
       });
       await deps.wait(500);
-      deps.emit("h3pipe.align", {
+      deps.emit("seriesmith.align", {
         ep: deps.ep, stage: "match", pct: 65,
         text: `${spoken.length * 13} words, ${spoken.length} lines`,
       });
       await deps.wait(400);
-      // windows laid end to end from 1 s, as h3align would time them
+      // windows laid end to end from 1 s, as align would time them
       const windows: Record<string, { audioIn: number; audioOut: number }> = {};
       const changes: AlignResult["changes"] = [];
       let at = 1;
@@ -127,13 +127,13 @@ export function createMockAlign(deps: MockAlignDeps) {
         changes.push({ shot: s.shot, audio_in, audio_out, note: `${(audio_out - audio_in).toFixed(2)}s of dialogue` });
         at = audio_out + 0.25;
       }
-      deps.emit("h3pipe.align", { ep: deps.ep, stage: "write", pct: 90, text: dry ? "dry run" : `writing ${spoken.length} windows` });
+      deps.emit("seriesmith.align", { ep: deps.ep, stage: "write", pct: 90, text: dry ? "dry run" : `writing ${spoken.length} windows` });
       await deps.wait(250);
       if (!dry) {
         deps.write(windows);
         deps.cached(true);
       }
-      deps.emit("h3pipe.align", { ep: deps.ep, stage: "write", pct: 100, text: dry ? "dry run — nothing written" : "done" });
+      deps.emit("seriesmith.align", { ep: deps.ep, stage: "write", pct: 100, text: dry ? "dry run — nothing written" : "done" });
       const report = [
         `# align report — ${deps.ep}`,
         "",
@@ -156,7 +156,7 @@ export function createMockAlign(deps: MockAlignDeps) {
         series_hash: dry ? null : `mock${(Date.now() + 1).toString(16)}`,
         track: null,
         build: null,
-        log: `h3align ${deps.ep}${dry ? " --dry-run" : ""}\n  ${spoken.length} lines matched\n  ${dry ? "nothing written" : "wrote align_report.md"}\n`,
+        log: `align ${deps.ep}${dry ? " --dry-run" : ""}\n  ${spoken.length} lines matched\n  ${dry ? "nothing written" : "wrote align_report.md"}\n`,
       };
     },
   };

@@ -1,4 +1,4 @@
-// Phase 9b: waveforms under the timeline's clips, from GET /h3pipe/peaks.
+// Phase 9b: waveforms under the timeline's clips, from GET /seriesmith/peaks.
 // Peaks are fetched per clip at the zoom's resolution (rounded up to a power of
 // two bins per second, so zooming doesn't refetch on every step), cached, and
 // resampled to the canvas's pixels when drawn.

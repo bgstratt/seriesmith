@@ -11,19 +11,19 @@ export type HostEvent =
   | "execution_success"
   | "execution_error"
   | "execution_interrupted"
-  | "h3pipe.take"
-  | "h3pipe.episode"
-  | "h3pipe.ref"
-  /** Phase 9c-A: an h3align run's stages (transcribe / match / write) */
-  | "h3pipe.align"
+  | "seriesmith.take"
+  | "seriesmith.episode"
+  | "seriesmith.ref"
+  /** Phase 9c-A: an align run's stages (transcribe / match / write) */
+  | "seriesmith.align"
   /** P10: a pass's notepad changed (a note added, resolved or cleared) */
-  | "h3pipe.issues"
+  | "seriesmith.issues"
   /** Phase 13: a take's upscale was queued, finished, failed or deleted */
-  | "h3pipe.upscale"
+  | "seriesmith.upscale"
   /** a take's post was queued, finished, failed or deleted */
-  | "h3pipe.post"
+  | "seriesmith.post"
   /** a master being assembled: each step, then done or failed (a MasterJob) */
-  | "h3pipe.master"
+  | "seriesmith.master"
   /** seriesmith: a job of its queue changed (standalone page) */
   | "seriesmith.job"
   /** seriesmith: the queue's lanes changed (an order, a pause) */
@@ -52,7 +52,7 @@ export interface Host {
 
 const noopHost: Host = {
   on: () => () => {},
-  toast: (sev, summary, detail) => console.log(`[h3pipe ${sev}] ${summary}`, detail ?? ""),
+  toast: (sev, summary, detail) => console.log(`[seriesmith ${sev}] ${summary}`, detail ?? ""),
   // (a noop host's toast drops the action)
   show: () => {},
 };
@@ -73,6 +73,6 @@ export function setApi(a: Api) {
 }
 
 export function api(): Api {
-  if (!currentApi) throw new Error("h3pipe: API not installed");
+  if (!currentApi) throw new Error("seriesmith: API not installed");
   return currentApi;
 }

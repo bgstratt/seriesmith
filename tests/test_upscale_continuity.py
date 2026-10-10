@@ -1,5 +1,5 @@
 """
-A continuity shot's upscale (h3upscale.set_continuity): its take started from
+A continuity shot's upscale (upscale.set_continuity): its take started from
 the previous shot's last low-res frame, so its upscale starts from that shot's
 UPSCALED last frame (kept by H3SaveUpscale's `last_frame`, read when it runs by
 H3LoadTakeFrame), and the two upscales meet on one picture instead of jumping

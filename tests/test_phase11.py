@@ -71,7 +71,7 @@ class ClientTest(unittest.TestCase):
 
 
 class GraphSourceTest(unittest.TestCase):
-    """h3jobs.target_graph_source: which graph is in force, and `differs`."""
+    """jobs.target_graph_source: which graph is in force, and `differs`."""
 
     def setUp(self):
         self.fake = FakeComfy()
@@ -164,7 +164,7 @@ class GraphSourceTest(unittest.TestCase):
 
 
 class InstallTest(unittest.TestCase):
-    """h3edit.install_workflow / revert_workflow."""
+    """edit.install_workflow / revert_workflow."""
 
     def setUp(self):
         self.fake = FakeComfy()
@@ -234,7 +234,7 @@ class InstallTest(unittest.TestCase):
 
 
 class RoutesTest(ApiTest):
-    """POST / DELETE /h3pipe/workflow/install, and GET /h3pipe/targets' graph."""
+    """POST / DELETE /seriesmith/workflow/install, and GET /seriesmith/targets' graph."""
 
     def setUp(self):
         super().setUp()
@@ -322,7 +322,7 @@ class RoutesTest(ApiTest):
 
 
 class CliTest(unittest.TestCase):
-    """h3.py targets: the graph line, --install-workflow, --revert-workflow."""
+    """seriesmith targets: the graph line, --install-workflow, --revert-workflow."""
 
     def setUp(self):
         self.fake = FakeComfy()

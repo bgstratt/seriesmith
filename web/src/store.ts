@@ -204,7 +204,7 @@ export interface TrackPanelState {
   ep: string;
 }
 
-/** Phase 9c-A: an h3align run, from the `h3pipe.align` events. */
+/** Phase 9c-A: an align run, from the `seriesmith.align` events. */
 export interface AlignRun {
   ep: string;
   busy: boolean;
@@ -237,7 +237,7 @@ export interface ClipAudioState {
 
 /**
  * P8: the Supply window -- files dropped in bulk, matched to ref slots by name
- * (POST /h3pipe/refs/match) and shown before anything is sent. `done` fills in
+ * (POST /seriesmith/refs/match) and shown before anything is sent. `done` fills in
  * as the uploads go through, one file at a time.
  */
 export interface SupplyState {
@@ -309,7 +309,7 @@ export interface AppState {
   masterAsk: MasterAsk | null;
   /** the episode's master job: being assembled, or the last one (null: none known) */
   masterJob: MasterJob | null;
-  /** refs by episode (GET /h3pipe/refs) */
+  /** refs by episode (GET /seriesmith/refs) */
   refs: Record<string, Ref[]>;
   refsError: Record<string, string>;
   refsLoading: Record<string, boolean>;
@@ -335,7 +335,7 @@ export interface AppState {
   models: string[] | null;
   loras: string[] | null;
   modelsError: string | null;
-  /** Phase 7: GET /h3pipe/targets (null until loaded, or on a server without it) */
+  /** Phase 7: GET /seriesmith/targets (null until loaded, or on a server without it) */
   targets: TargetList | null;
   targetsError: string | null;
   /** readiness (`?ready=1`) is being fetched */
@@ -346,7 +346,7 @@ export interface AppState {
   missingPanel: MissingPanelState | null;
   /** ComfyUI choices of the combo widgets targets bind, by "class_type|field" */
   widgetChoices: Record<string, string[]>;
-  /** GET /h3pipe/models, by "target|param" */
+  /** GET /seriesmith/models, by "target|param" */
   modelFiles: Record<string, ModelList>;
   zoom: number;
   build: { busy: boolean; result: BuildResult | null; error: string | null };
@@ -377,7 +377,7 @@ export interface AppState {
   cutMenu: { x: number; y: number } | null;
   /** Phase 9c-A: the Recording window (null: closed) */
   trackPanel: TrackPanelState | null;
-  /** Phase 9c-A: GET /h3pipe/align/ready, once loaded (null: not asked yet) */
+  /** Phase 9c-A: GET /seriesmith/align/ready, once loaded (null: not asked yet) */
   alignReady: AlignReady | null;
   alignReadyError: string | null;
   /** Phase 9c-A: the run going now, with its live progress (null: none) */
@@ -521,7 +521,7 @@ export function clampZoom(z: number): number {
 // remembered between sessions: last episode, pass and zoom (localStorage)
 // ---------------------------------------------------------------------------
 
-export const PREFS_KEY = "h3pipe.editor.v1";
+export const PREFS_KEY = "seriesmith.editor.v1";
 
 export interface Prefs {
   ep?: string | null;

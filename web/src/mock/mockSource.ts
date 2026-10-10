@@ -8,8 +8,8 @@
 // - The series config is the kitchen_sink fixture (tests/fixtures), which the
 //   mock refs are built from, with the episode's own subjects and locations
 //   (read out of the same prompts) added, so the script checks clean.
-// - The check is a TypeScript subset of h3core/story.py (the same line rules and
-//   messages), not the real `h3.py check`.
+// - The check is a TypeScript subset of core/story.py (the same line rules and
+//   messages), not the real `seriesmith check`.
 
 import seriesRaw from "../../../tests/fixtures/kitchen_sink/series.json?raw";
 import { localShotSpans, unifiedDiff } from "../lib/source";
@@ -154,7 +154,7 @@ export function buildSeries(title: string, shots: MockShotSource[]): string {
 }
 
 // ---------------------------------------------------------------------------
-// checking (a subset of h3core/story.py)
+// checking (a subset of core/story.py)
 // ---------------------------------------------------------------------------
 
 const META_KEYS = new Set([
@@ -341,7 +341,7 @@ export interface PromoteInput {
   shots: { shot: string; final: Override; proxy: Override }[];
   episodeTarget: string | null;
   refOverrides: { ref: string; view: string | null; subject: string | null; kind: string; values: Override }[];
-  /** only this shot (GET /h3pipe/promote?shot=…) */
+  /** only this shot (GET /seriesmith/promote?shot=…) */
   only?: string | null;
 }
 

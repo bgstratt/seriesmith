@@ -7,7 +7,7 @@ seriesmith — one command for every stage.
     seriesmith backends [--try NAME]        where jobs can run, and whether each answers
     seriesmith serve [--root FOLDER]        the editor in your browser (port 8190)
 
-and h3pipe's commands, through seriesmith.h3cli (`seriesmith <command> --help`):
+and h3pipe's commands, through seriesmith.commands (`seriesmith <command> --help`):
 
     new, takes, pick, override, keyframe, discard, cut, issues, supply, promote,
     targets, refs, align, assemble, upscale, post, master, publish, all
@@ -46,13 +46,13 @@ def main(argv: list[str] | None = None) -> int:
         return standalone.main(rest)
     # everything else h3pipe's `h3.py` did (takes, pick, override, cut, refs,
     # supply, issues, promote, assemble, upscale, post, master, publish, new,
-    # targets, align, all): its dispatcher, ported as seriesmith.h3cli
-    from seriesmith import h3cli
-    if cmd in h3cli.STAGES or cmd in h3cli.EDIT or cmd in h3cli.OTHER:
+    # targets, align, all): its dispatcher, ported as seriesmith.commands
+    from seriesmith import commands
+    if cmd in commands.STAGES or cmd in commands.EDIT or cmd in commands.OTHER:
         saved = sys.argv
         sys.argv = ["seriesmith", cmd, *rest]
         try:
-            return h3cli.main()
+            return commands.main()
         finally:
             sys.argv = saved
     print(f"seriesmith: unknown command {cmd!r}\n\n{USAGE}", file=sys.stderr)

@@ -1,5 +1,5 @@
 // Phase 9b: the episode's recorded dialogue (`track`) under Play all, as
-// `h3assemble --audio master` lays it: the recording runs continuously from the
+// `assemble --audio master` lays it: the recording runs continuously from the
 // first clip's dialogue window (its `audio_in`, else the earliest window) plus
 // that clip's trim-in, one second of recording per second of cut. Each clip
 // with a window *should* hear its own slice (`audio_in` + its trim-in); when
@@ -12,7 +12,7 @@ import type { PlayItem } from "./playlist";
 /**
  * Whether the episode's recording can be played and drawn: null for no track,
  * else `why` is set when it can't (missing, or an absolute path on another
- * drive, which /h3pipe/file and /h3pipe/peaks can't serve).
+ * drive, which /seriesmith/file and /seriesmith/peaks can't serve).
  */
 export function trackState(track: Track | null | undefined): { path: string; why: string | null } | null {
   if (!track || typeof track.path !== "string" || !track.path) return null;
@@ -58,7 +58,7 @@ export interface MasterSync {
   start: number;
   /** clips with a dialogue window that hear someone else's slice */
   drifts: Drift[];
-  /** h3assemble's warnings, in its words; empty when the recording lines up */
+  /** assemble's warnings, in its words; empty when the recording lines up */
   warnings: string[];
 }
 

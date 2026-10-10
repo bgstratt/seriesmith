@@ -1,4 +1,4 @@
-// The inspector's override form: text fields in, the minimal PUT /h3pipe/override
+// The inspector's override form: text fields in, the minimal PUT /seriesmith/override
 // `fields` out (only what changed; null clears a field, per docs/API.md).
 
 import { parseSeed } from "../api";

@@ -1,5 +1,5 @@
 """
-P5: a location's 360 panoramas (h3refs.plan_pano): its live plate made one
+P5: a location's 360 panoramas (refs.plan_pano): its live plate made one
 equirectangular picture by the Qwen-Image 2.1 pano360 LoRA, kept as takes of
 the location's `pano` pseudo-view, never picked into the plate.
 """

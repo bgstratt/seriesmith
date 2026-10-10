@@ -1,6 +1,6 @@
 // Phase 8.6: files into ref slots. Drop an image (or, on a voice, an audio file)
 // onto a ref, a character's view or a keyframe, or pick one with the file
-// picker: it uploads (multipart POST /h3pipe/refs/import, pick=1) and goes live.
+// picker: it uploads (multipart POST /seriesmith/refs/import, pick=1) and goes live.
 //
 // P8: a drop or a pick of SEVERAL files goes through Supply instead, which
 // matches them to slots by name and shows that before sending anything.

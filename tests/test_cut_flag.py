@@ -2,7 +2,7 @@
 A shot flagged to come back to (cut.json `"flag": true`): a bookmark for a
 re-render or a new prompt. It changes nothing the cut plays or assembles; a
 locked entry takes one; reset and copying the other pass keep each pass's own.
-Set by PUT /h3pipe/cut (the editor's M key), `h3.py cut --flag / --unflag`.
+Set by PUT /seriesmith/cut (the editor's M key), `seriesmith cut --flag / --unflag`.
 """
 
 from __future__ import annotations

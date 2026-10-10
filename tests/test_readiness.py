@@ -7,15 +7,15 @@ target (docs/API.md "Readiness, requirement tiers, and the episode target").
     family substitute chosen by precision, an accelerator falling back to the
     pass's `base` preset, an optional file turning its feature off, a required
     file blocking with its download record. Never a file of another family.
-  - h3jobs.resolve_models on a planned job: the base preset's steps and
+  - jobs.resolve_models on a planned job: the base preset's steps and
     sampler reach the take, the LoRA loader leaves the graph, the sidecar
     records `resolved`; a missing required file skips the shot before a take
-    is reserved (POST /h3pipe/render: `missing_files`).
-  - h3edit.readiness over a fake /object_info; `GET /h3pipe/targets?ready=1`;
-    `h3.py targets` output.
+    is reserved (POST /seriesmith/render: `missing_files`).
+  - edit.readiness over a fake /object_info; `GET /seriesmith/targets?ready=1`;
+    `seriesmith targets` output.
   - The downloads data: every file a target names has an entry, every URL a
     source; every accelerator has a base preset.
-  - The episode target: precedence, PUT /h3pipe/episode-target, the CLI, and
+  - The episode target: precedence, PUT /seriesmith/episode-target, the CLI, and
     a shot pinned to its built target.
   - The user's machine, read-only, when ComfyUI answers at 127.0.0.1:8188.
 """
@@ -686,7 +686,7 @@ class EpisodeTargetTest(ApiTest):
         got = self.ok(A.put_episode_target(self.ctx, {"ep": self.ep, "target": "ltx2"}))
         self.assertEqual(got, {"target": "ltx2", "target_source": "editor",
                                "series_target": None})
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
         ov = T.load_overrides(self.ep)
         self.assertEqual(ov["episode"], {"id": "ks01", "target": "ltx2"})
         data, by = self.status()

@@ -103,7 +103,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   const alias = new Map<string, string>();
   let nextPrompt = 1;
   let chain: Promise<void> = Promise.resolve();
-  /** the episode's master job (GET /h3pipe/master/job) */
+  /** the episode's master job (GET /seriesmith/master/job) */
   let masterJob: import("../types").MasterJob | null = null;
 
   const wait = (ms = opts.latency ?? 120) => (ms > 0 ? new Promise<void>((r) => setTimeout(r, ms)) : Promise.resolve());
@@ -152,8 +152,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     return out;
   }
 
-  /** The refs a shot's current target reads (GET /h3pipe/shot `refs_used`), as
-   * h3edit.refs_used sends them: `kind` image | audio, `need` on every entry,
+  /** The refs a shot's current target reads (GET /seriesmith/shot `refs_used`), as
+   * edit.refs_used sends them: `kind` image | audio, `need` on every entry,
    * `thumb` only when the file is there, `id` null for a composed sheet. */
   function refsUsedOf(shot: string, target: string): RefUsed[] {
     const caps = MOCK_TARGETS.targets.find((t) => t.id === target)?.capabilities;
@@ -290,7 +290,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   };
   const otherPass = (p: Pass): Pass => (p === "proxy" ? "final" : "proxy");
 
-  /** recompute the cut the way h3edit does: cut order (resolve_cut), each
+  /** recompute the cut the way edit does: cut order (resolve_cut), each
    * shot's take (latest usable, or the pick), trims, locks (Phase 9b) */
   function recut(pass: Pass) {
     const e = status[pass];
@@ -306,7 +306,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   /** shots with no dialogue (no window on the track) */
   const SILENT = new Set(["sh040", "sh100", "sh230", "sh330"]);
   const TRACK_PATH = "audio/ep05_dialogue.wav";
-  /** windows laid end to end in script order from 1 s, as h3align would time them */
+  /** windows laid end to end in script order from 1 s, as align would time them */
   let windows: Record<string, MockWindow> = {};
   let trackEnd = 1;
   for (const sh of (status.proxy ?? status.final)!.shots) {
@@ -334,7 +334,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
 
   /**
    * What an audio source will actually play, relative to the episode (null:
-   * there is nothing to play, which PUT /h3pipe/cut answers 400 for).
+   * there is nothing to play, which PUT /seriesmith/cut answers 400 for).
    */
   function audioSourceFile(own: string, a: CutAudioSource): string | null {
     if (a.source === "none") return null;
@@ -404,7 +404,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     return null;
   }
 
-  /** The sound of one take, for voice-from-take (h3peaks.clip_audio's rule:
+  /** The sound of one take, for voice-from-take (peaks.clip_audio's rule:
    * the mp4 when it carries sound, else the take's `_h3.wav`). */
   function takeAudio(pass: Pass, shot: string, take: number): { path: string; seconds: number } | null {
     const sh = status[pass]?.shots.find((x) => x.shot === shot);
@@ -502,12 +502,12 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       name,
       source: saved ? "comfy" : "repo",
       where: saved ? `http://127.0.0.1:8188 (user workflows/${name})`
-        : `C:\repos\h3pipe\targets\${t.kind}\${t.id}\workflow.json`,
+        : `C:\repos\seriesmith\targets\${t.kind}\${t.id}\workflow.json`,
       env: "H3_WORKFLOW",
       env_set: false,
       installed: saved,
       differs: saved && t.id === H3,
-      repo: `C:\repos\h3pipe\targets\${t.kind}\${t.id}\workflow.json`,
+      repo: `C:\repos\seriesmith\targets\${t.kind}\${t.id}\workflow.json`,
       error: "",
     };
   };
@@ -559,7 +559,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   }
   syncEpisodeTarget();
 
-  /** PUT / DELETE /h3pipe/override's answer: both passes, and the targets. */
+  /** PUT / DELETE /seriesmith/override's answer: both passes, and the targets. */
   function overrideResult(shot: string): OverrideResult {
     const res: OverrideResult = { override: {} };
     for (const p of ["final", "proxy"] as Pass[]) {
@@ -616,7 +616,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       recut(pass);
       emit("executing", null);
       emit("execution_success", { prompt_id: pid });
-      emit("h3pipe.take", { ep: EP, pass, shot, take, status: "ok", thumb: files.thumb });
+      emit("seriesmith.take", { ep: EP, pass, shot, take, status: "ok", thumb: files.thumb });
     });
   }
 
@@ -685,10 +685,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   }
 
   // -------------------------------------------------------------------------
-  // Phase 9c-A: attaching a recording, and running h3align
+  // Phase 9c-A: attaching a recording, and running align
   // -------------------------------------------------------------------------
 
-  /** `track` as GET /h3pipe/episode and the track routes send it. */
+  /** `track` as GET /seriesmith/episode and the track routes send it. */
   function trackInfo(pass: Pass): Track | null {
     if (!trackPath) return null;
     const shots = status[pass]?.shots ?? [];
@@ -698,7 +698,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     };
   }
 
-  /** POST /h3pipe/track: the file lands in <ep>/audio/ (or is used in place). */
+  /** POST /seriesmith/track: the file lands in <ep>/audio/ (or is used in place). */
   function attach(source: string, pass: Pass, upload: boolean): TrackResult {
     const name = source.replace(/\\/g, "/").split("/").pop() ?? "recording.wav";
     if (!/\.(wav|mp3|flac|ogg|m4a|aac|opus)$/i.test(name)) {
@@ -708,7 +708,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     if (!upload && !inEp && !fsFileExists(source)) {
       throw new MockError(`${source} doesn't exist on the ComfyUI machine`, 404);
     }
-    // h3track.audio_name: anything outside A-Za-z0-9 ._()- becomes _, at most
+    // track.audio_name: anything outside A-Za-z0-9 ._()- becomes _, at most
     // 120 characters, and only the extension is lowercased (spaces are kept)
     const dot = name.lastIndexOf(".");
     const safe = name.slice(0, dot).replace(/[^A-Za-z0-9 ._()-]+/g, "_").slice(0, 120) + name.slice(dot).toLowerCase();
@@ -719,7 +719,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     trackPath = path;
     // a recording the editor just attached has no transcript beside it yet
     if (!same) trackWords = false;
-    emit("h3pipe.episode", { ep: EP });
+    emit("seriesmith.episode", { ep: EP });
     return {
       track: trackInfo(pass),
       hash: mockHash(`${files.series.text}|${path}`),
@@ -740,7 +740,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     const spoken = (status.proxy ?? status.final)!.shots.filter((s) => !s.orphan && !SILENT.has(s.shot));
     const missing = trackPath && spoken.every((s) => !windows[s.shot]) ? spoken[0] : null;
     if (missing) {
-      const error = `shot ${missing.shot}: policy dub_keep_foley needs an \`audio: in-out\` window (run h3align)`;
+      const error = `shot ${missing.shot}: policy dub_keep_foley needs an \`audio: in-out\` window (run align)`;
       return { ok: false, passes: { final: { ok: false, report: "", error }, proxy: { ok: false, report: "", error } } };
     }
     return {
@@ -854,7 +854,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(900);
       need(ep);
       const report = `  ep05.md -> shotlist/shotlist.json\n  ${fx.summary.shots} shots, 0 warnings\n`;
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return {
         ok: true,
         passes: {
@@ -886,7 +886,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const first = !fsExists(`${req.parent.replace(/[\\/]+$/, "")}${sep}ep01`) && !made.length;
       const m = { ep, name, title: req.title?.trim() || fx.summary.series };
       made.push(m);
-      emit("h3pipe.episode", { ep });
+      emit("seriesmith.episode", { ep });
       return {
         ep, template: first ? "starter" : "episode",
         from: first ? "examples/starter" : EP,
@@ -968,7 +968,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
           model: p?.model ?? cur.model, loras: null, steps: p?.steps ?? cur.steps,
         };
         const prompt = target === H3 ? req.prompt ?? eff.prompt : eff.prompt;
-        // a model file of another family is skipped unless allowed (h3jobs.check_models)
+        // a model file of another family is skipped unless allowed (jobs.check_models)
         const bad = mockModelFiles(target, "model")?.files.find((f) => f.name === (req.model ?? eff.model) && f.mismatch);
         if (bad && !req.allow_model_mismatch) {
           out.skipped.push({
@@ -1011,7 +1011,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         fx.shotlist[`${stem}.shotlist.json`] = { shots: [{ prompt }] };
         td.files.shotlist = `${stem}.shotlist.json`;
         out.queued.push({ shot, take, prompt_id: pid, seed, seed_source: src, target });
-        emit("h3pipe.take", { ep: EP, pass: req.pass, shot, take, status: "queued", thumb: null });
+        emit("seriesmith.take", { ep: EP, pass: req.pass, shot, take, status: "queued", thumb: null });
         simulate(req.pass, shot, take, pid);
       }
       return out;
@@ -1028,7 +1028,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const td = det(ref.pass, ref.shot).takes.find((x) => x.take === ref.take);
       if (td) td.status = "failed";
       emit("execution_interrupted", { prompt_id: String(td?.sidecar?.comfy_prompt_id ?? "") });
-      emit("h3pipe.take", { ...ref, status: "failed", thumb: null });
+      emit("seriesmith.take", { ...ref, status: "failed", thumb: null });
       t.finished = new Date().toISOString();
       return { shot: ref.shot, pass: ref.pass, take: ref.take, status: "failed", save_notes: "cancelled", finished: t.finished };
     },
@@ -1056,7 +1056,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         return rest;
       });
       recut(ref.pass);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { shot: ref.shot, take: ref.take, pass: ref.pass, moved, cut_changed: changed };
     },
     async pick(req) {
@@ -1065,7 +1065,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const from = req.from_pass ?? req.pass;
       shotSt(req.pass, req.shot);
       const s = shotSt(from, req.shot);
-      // h3takes.pick: the whole resolved order goes into the file, this entry's take changed
+      // takes.pick: the whole resolved order goes into the file, this entry's take changed
       const list = materialize(cut[req.pass], req.pass, scriptOrder[req.pass]);
       const entry = list.find((c) => c.shot === req.shot)!;
       if (entry.locked && !req.force) {
@@ -1085,7 +1085,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       else delete entry.pass;
       cut[req.pass] = list;
       recut(req.pass);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...cut } };
     },
     async putCut(ep, pass, entries) {
@@ -1093,7 +1093,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       cut[pass] = clone(checkEntries(entries, st(pass).fps || 24, (e) => entryFrames(pass, e), (shot, a) => audioSourceFile(shot, a)));
       recut(pass);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
     },
     async cutReset(ep, pass, what) {
@@ -1103,7 +1103,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       st(pass);
       cut[pass] = resetEntries(cut[pass], pass, scriptOrder[pass], what);
       recut(pass);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
     },
     async cutCopy(ep, from, to, what) {
@@ -1114,7 +1114,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!["order", "trims", "all"].includes(what)) throw new MockError(`what must be order, trims or all`, 400);
       cut[to] = copyEntries(cut[from], from, st(from).fps || 24, cut[to], to, st(to).fps || 24, scriptOrder[to], what, (e) => entryFrames(to, e));
       recut(to);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
     },
     async peaks(ep, path, bins, start, end) {
@@ -1162,7 +1162,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         }
       }
       syncOverrideSummary(req.shot);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return overrideResult(req.shot);
     },
     async deleteOverride(ep, shot, pass) {
@@ -1176,7 +1176,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         d.override_stale = false;
       }
       syncOverrideSummary(shot);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return overrideResult(shot);
     },
     async assemble(ep, pass, _partial, opts) {
@@ -1207,7 +1207,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
                       start_step: pixel ? null : (req.start_step ?? 7 - (req.detail ?? 0)), comfy_prompt_id: null, mp4: t.mp4 ?? `${stem}.mp4`, save_notes: "mock" };
         out.queued.push({ shot: w.shot, take: w.take, route: t.upscale.route!, scale: 2, start_step: t.upscale.start_step!,
                           width: 1920, height: 1088, prompt_id: `mock-up-${w.shot}` });
-        emit("h3pipe.upscale", { ep: EP, shot: w.shot, take: w.take, status: "ok" });
+        emit("seriesmith.upscale", { ep: EP, shot: w.shot, take: w.take, status: "ok" });
       }
       return out;
     },
@@ -1238,12 +1238,12 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
           if (!(t.upscale?.status === "ok" && t.upscale.fresh)) {
             t.upscale = { status: "ok", fresh: true, width: 1920, height: 1080, route: "latent", method: "latent", start_step: 7,
                           comfy_prompt_id: null, mp4: t.mp4, save_notes: "mock" };
-            emit("h3pipe.upscale", { ep: EP, shot: s.shot, take: t.take, status: "ok" });
+            emit("seriesmith.upscale", { ep: EP, shot: s.shot, take: t.take, status: "ok" });
           }
           if ((req.post === true || req.post === "recipe") && !(t.post?.status === "ok" && t.post.fresh)) {
             t.post = { status: "ok", fresh: true, width: 1920, height: 1080, mp4: t.mp4, save_notes: "mock",
                        recipe: { enhance: { method: "seedvr2" }, motion_blur: 0.3 } };
-            emit("h3pipe.post", { ep: EP, shot: s.shot, take: t.take, status: "ok" });
+            emit("seriesmith.post", { ep: EP, shot: s.shot, take: t.take, status: "ok" });
           }
         }
       }
@@ -1257,7 +1257,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (masterJob?.state === "running") {
         throw new MockError("a master of this episode is already being assembled by the editor", 409, { job: masterJob });
       }
-      // the job, step by step, as h3master reports it
+      // the job, step by step, as master reports it
       const job: import("../types").MasterJob = {
         ep: EP, pass: req.pass ?? "final", state: "running", elsewhere: false, by: "the editor",
         started: "2026-10-04T08:13:32-05:00", finished: null, step: "assemble", stage: "start",
@@ -1266,7 +1266,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const step = async (fields: Partial<typeof job>) => {
         Object.assign(job, fields);
         masterJob = { ...job };
-        emit("h3pipe.master", { ...job });
+        emit("seriesmith.master", { ...job });
         await wait();
       };
       const n = rows.length;
@@ -1293,7 +1293,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const t = st(pass ?? "final").shots.find((s) => s.shot === shot)?.takes.find((x) => x.take === take);
       if (!t?.upscale || t.upscale.status !== "ok") throw new MockError(`${shot} take ${take} has no finished upscale`, 409);
       t.upscale.keep = keep;
-      emit("h3pipe.upscale", { ep: EP, shot, take, status: keep ? "kept" : "unkept" });
+      emit("seriesmith.upscale", { ep: EP, shot, take, status: keep ? "kept" : "unkept" });
       return { shot, take, keep };
     },
     async putUpscaleRecipe(ep, shot, recipe) {
@@ -1331,12 +1331,12 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const out: import("../types").PostResult = { queued: [], skipped: [], errors: [] };
       for (const w of want) {
         const t = fin.shots.find((s) => s.shot === w.shot)?.takes.find((x) => x.take === w.take);
-        if (!t || !(t.upscale?.status === "ok" && t.upscale.fresh)) { out.errors.push({ shot: w.shot, take: w.take, error: "no upscale yet (h3.py upscale first)" }); continue; }
+        if (!t || !(t.upscale?.status === "ok" && t.upscale.fresh)) { out.errors.push({ shot: w.shot, take: w.take, error: "no upscale yet (seriesmith upscale first)" }); continue; }
         if (t.post?.fresh && !req.redo) { out.skipped.push({ shot: w.shot, take: w.take, reason: "a fresh post with these settings" }); continue; }
         t.post = { status: "ok", fresh: true, width: t.upscale.width, height: t.upscale.height, mp4: t.mp4, save_notes: "mock",
                    recipe: { enhance: { method: "seedvr2" }, motion_blur: req.blur ?? 0.3 } };
         out.queued.push({ shot: w.shot, take: w.take, what: "SeedVR2 7b, then motion blur 0.3", width: 1920, height: 1080, prompt_id: `mock-post-${w.shot}` });
-        emit("h3pipe.post", { ep: EP, shot: w.shot, take: w.take, status: "ok" });
+        emit("seriesmith.post", { ep: EP, shot: w.shot, take: w.take, status: "ok" });
       }
       return out;
     },
@@ -1362,7 +1362,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const t = st(pass ?? "final").shots.find((s) => s.shot === shot)?.takes.find((x) => x.take === take);
       if (!t?.post) throw new MockError(`${shot} take ${take} has no post`, 404);
       t.post = null;
-      emit("h3pipe.post", { ep: EP, shot, take, status: "deleted" });
+      emit("seriesmith.post", { ep: EP, shot, take, status: "deleted" });
       return { shot, take, deleted: true };
     },
     async deleteUpscale(ep, shot, take, pass) {
@@ -1371,7 +1371,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const t = st(pass ?? "final").shots.find((s) => s.shot === shot)?.takes.find((x) => x.take === take);
       if (!t?.upscale) throw new MockError(`${shot} take ${take} has no upscale`, 404);
       t.upscale = null;
-      emit("h3pipe.upscale", { ep: EP, shot, take, status: "deleted" });
+      emit("seriesmith.upscale", { ep: EP, shot, take, status: "deleted" });
       return { shot, take, deleted: true };
     },
     async browse(path, files) {
@@ -1390,7 +1390,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         throw new MockError("give target, keyframe_target and/or voice_target", 400);
       }
       const defaults = refs.setDefaults(fields);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { defaults };
     },
     async refsGenerateMissing(req) {
@@ -1466,7 +1466,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         }
       }
 
-      if (!req.dry_run && (out.queued.length || out.picked.length)) emit("h3pipe.episode", { ep: EP });
+      if (!req.dry_run && (out.queued.length || out.picked.length)) emit("seriesmith.episode", { ep: EP });
       return out;
     },
     async refsUpload(req, onProgress) {
@@ -1480,7 +1480,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         onProgress?.(Math.round((total * q) / 4), total);
       }
       const t = refs.upload({ ref: req.ref, view: req.view ?? null, name, pick: !!req.pick });
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return t;
     },
     // ---- P10: a pass's issues (the notepad) ----
@@ -1520,7 +1520,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
           : null,
       };
       issues.push(item);
-      emit("h3pipe.issues", { ep: EP, pass: item.pass, shot: item.shot, id: item.id });
+      emit("seriesmith.issues", { ep: EP, pass: item.pass, shot: item.shot, id: item.id });
       return { ...item, addressed: false };
     },
     async resolveIssue(ep, id) {
@@ -1528,7 +1528,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       const i = issues.findIndex((x) => x.id === id);
       if (i >= 0) issues.splice(i, 1);
-      emit("h3pipe.issues", { ep: EP, removed: i >= 0 ? 1 : 0 });
+      emit("seriesmith.issues", { ep: EP, removed: i >= 0 ? 1 : 0 });
       return issues.map((x) => ({ ...x, addressed: issueAddressed(x) }));
     },
     async clearIssues(ep, pass, addressedOnly) {
@@ -1539,7 +1539,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         if (addressedOnly && !issueAddressed(issues[i])) continue;
         issues.splice(i, 1);
       }
-      emit("h3pipe.issues", { ep: EP, pass: pass ?? null });
+      emit("seriesmith.issues", { ep: EP, pass: pass ?? null });
       return issues
         .filter((x) => !pass || x.pass === pass)
         .map((x) => ({ ...x, addressed: issueAddressed(x) }));
@@ -1576,14 +1576,14 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait();
       need(req.ep);
       const r = refs.discard({ ref: req.ref, view: req.view ?? null, take: req.take });
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return r;
     },
     async refsUnpick(ep, ref, view) {
       await wait();
       need(ep);
       const r = refs.unpick(ref, view ?? null);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return r;
     },
     refFileUrl(_ep, path) {
@@ -1613,7 +1613,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait();
       need(req.ep);
       const r = refs.pick(req);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return r;
     },
     async refsImport(req) {
@@ -1657,21 +1657,21 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
           }
         }
       }
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return r;
     },
     async putRefOverride(req) {
       await wait();
       need(req.ep);
       const override = refs.putOverride(req.ref, req.fields, req.view ?? null);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { override };
     },
     async deleteRefOverride(ep, ref, view) {
       await wait();
       need(ep);
       const override = refs.deleteOverride(ref, view ?? null);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { override };
     },
     async models() {
@@ -1704,7 +1704,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(400);
       const name = req.workflow || "my_own_wan_experiment.json";
       const id = req.id || "my_wan";
-      // the mock stands in for h3inspect: a plausible proposal with one thing
+      // the mock stands in for inspector: a plausible proposal with one thing
       // it couldn't settle and the warnings the real one always gives
       return {
         proposal: {
@@ -1755,7 +1755,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       } as (typeof MOCK_TARGETS)["targets"][number];
       if (existing >= 0) MOCK_TARGETS.targets[existing] = entry;
       else MOCK_TARGETS.targets.push(entry);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { ok: true, id, path: `${ep}\targets\${id}\target.json`, draft: entry.draft };
     },
     async setTargetDraft(ep, id, draft) {
@@ -1764,7 +1764,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const t = MOCK_TARGETS.targets.find((x) => x.id === id && x.custom);
       if (!t) throw new MockError(`no custom target called '${id}'`, 404);
       t.draft = draft;
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { ok: true, id, draft };
     },
     async deleteCustomTarget(ep, id) {
@@ -1772,7 +1772,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       const i = MOCK_TARGETS.targets.findIndex((t) => t.id === id && t.custom);
       if (i >= 0) MOCK_TARGETS.targets.splice(i, 1);
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { ok: true, id, deleted: i >= 0 };
     },
     async installWorkflow(target, opts) {
@@ -1798,11 +1798,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait();
       need(ep);
       if (target !== null && !MOCK_TARGETS.targets.some((t) => t.id === target && t.kind === "video")) {
-        throw new MockError(`${String(target)} isn't a video target (GET /h3pipe/targets?kind=video)`, 400);
+        throw new MockError(`${String(target)} isn't a video target (GET /seriesmith/targets?kind=video)`, 400);
       }
       episodeTarget = target;
       syncEpisodeTarget();
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       const s = st("proxy");
       return { target: s.target, target_source: s.target_source, series_target: s.series_target };
     },
@@ -1855,9 +1855,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
           const first = c.errors[0];
           const error = `${first.file === "series" ? "series.json" : scriptName}: line ${first.line}: ${first.message}`;
           build = { ok: false, passes: { final: { ok: false, report: "", error }, proxy: { ok: false, report: "", error } } };
-          emit("h3pipe.episode", { ep: EP });
+          emit("seriesmith.episode", { ep: EP });
         }
-      } else emit("h3pipe.episode", { ep: EP });
+      } else emit("seriesmith.episode", { ep: EP });
       return { hash: files[req.file].hash, check: c, build };
     },
     async promotePlan(ep, shot) {
@@ -1892,11 +1892,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       }
       afterSourceWrite();
       const build = await api.build(ep);
-      if (refChanged) emit("h3pipe.ref", { ep: EP });
+      if (refChanged) emit("seriesmith.ref", { ep: EP });
       const after = planPromote(promoteInput(null));
       return { promoted: r.promoted, left: after.left, hashes: { script: files.script.hash, series: files.series.hash }, build };
     },
-    // ---- Phase 9c-A: the recording and h3align ----
+    // ---- Phase 9c-A: the recording and align ----
     async alignReady() {
       await wait(60);
       return align.ready();
@@ -1923,14 +1923,14 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!trackPath) throw new MockError("the series config names no recording", 400);
       trackPath = null;
       trackWords = false;
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return { track: null, hash: mockHash(files.series.text + "|no-track"), build: await api.build(ep), path: null, copied: false, reformatted: false };
     },
     async align(req) {
       need(req.ep);
       const r = await align.run(req);
       const build = req.dry_run ? null : await api.build(req.ep);
-      if (!req.dry_run) emit("h3pipe.episode", { ep: EP });
+      if (!req.dry_run) emit("seriesmith.episode", { ep: EP });
       return { ...r, track: trackInfo(req.pass ?? "proxy"), build };
     },
     // ---- Phase 9c-B: a line from a take as a voice sample ----
@@ -1945,7 +1945,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         ref: req.ref, shot: req.shot, take: req.take, pass: req.pass, start: req.start, end: req.end,
         pick: req.pick ?? null, note: req.note ?? "", duration: src?.seconds ?? null, sourceFile: src?.path ?? null,
       });
-      emit("h3pipe.episode", { ep: EP });
+      emit("seriesmith.episode", { ep: EP });
       return r;
     },
     async comfyQueue() {

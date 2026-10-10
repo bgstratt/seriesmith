@@ -14,7 +14,7 @@ export function keyframeRefId(shot: string, end: KeyframeEnd): string {
   return `shot:${shot}:${end}`;
 }
 
-/** A shot's keyframe refs, as `GET /h3pipe/refs` lists them (only those that exist). */
+/** A shot's keyframe refs, as `GET /seriesmith/refs` lists them (only those that exist). */
 export function shotKeyframes(refs: Ref[] | undefined, shot: string): Partial<Record<KeyframeEnd, Ref>> {
   const out: Partial<Record<KeyframeEnd, Ref>> = {};
   for (const end of KEYFRAME_ENDS) {
@@ -26,7 +26,7 @@ export function shotKeyframes(refs: Ref[] | undefined, shot: string): Partial<Re
 
 /**
  * The shot `step` places from `shot` in the cut (-1: the previous shot, 1: the
- * next), skipping orphans as assemble does (h3edit.cut_neighbour). The status
+ * next), skipping orphans as assemble does (edit.cut_neighbour). The status
  * lists shots in cut order. null at either end, or if the shot isn't there.
  */
 export function cutNeighbour(st: Pick<EpisodeStatus, "shots"> | undefined, shot: string, step: -1 | 1): string | null {

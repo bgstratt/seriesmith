@@ -143,7 +143,7 @@ export function takePeaks(path: string, seconds: number): number[] {
   return out;
 }
 
-/** GET /h3pipe/peaks over full-resolution peaks: the start..end slice, resampled to `bins`. */
+/** GET /seriesmith/peaks over full-resolution peaks: the start..end slice, resampled to `bins`. */
 export function slicePeaks(full: number[], duration: number, bins: number, start?: number | null, end?: number | null): PeaksResult {
   const s = Math.max(0, start ?? 0);
   const e = Math.min(duration, end ?? duration);

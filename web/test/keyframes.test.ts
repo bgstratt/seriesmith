@@ -63,7 +63,7 @@ describe("keyframes", () => {
     expect(shotKeyframes(undefined, "sh020")).toEqual({});
   });
 
-  it("posts /h3pipe/refs/keyframe with the body as given", async () => {
+  it("posts /seriesmith/refs/keyframe with the body as given", async () => {
     const calls: { path: string; body: string }[] = [];
     const api = createHttpApi({
       fetch: async (path, init) => {
@@ -74,7 +74,7 @@ describe("keyframes", () => {
     });
     const r = await api.refsKeyframe({ ep: "C:\\ep05", pass: "proxy", shot: "sh020", which: "first", source_shot: "sh010", source_take: 2, frame: 40 });
     expect(r.id).toBe("shot:sh020:first");
-    expect(calls[0].path).toBe("/h3pipe/refs/keyframe");
+    expect(calls[0].path).toBe("/seriesmith/refs/keyframe");
     expect(JSON.parse(calls[0].body)).toEqual({ ep: "C:\\ep05", pass: "proxy", shot: "sh020", which: "first", source_shot: "sh010", source_take: 2, frame: 40 });
   });
 });
@@ -93,7 +93,7 @@ describe("mock /refs/keyframe", () => {
     let r = await api.refsKeyframe({ ep, pass: "proxy", shot, which: "first" });
     expect(r).toMatchObject({ id: `shot:${shot}:first`, kind: "keyframe", scope: "shot", exists: true, picked: 1 });
     expect(r.takes[0]).toMatchObject({ source: "frame", from: { shot: prev.shot, take: prev.cut.take, pass: "proxy", frame: (prev.length ?? 73) - 1 } });
-    expect(events.filter(([e]) => e === "h3pipe.ref").map(([, d]) => (d as { status: string }).status)).toEqual(["ok", "picked"]);
+    expect(events.filter(([e]) => e === "seriesmith.ref").map(([, d]) => (d as { status: string }).status)).toEqual(["ok", "picked"]);
     expect((await api.refs(ep)).refs.map((x) => x.id)).toContain(`shot:${shot}:first`);
     r = await api.refsKeyframe({ ep, pass: "proxy", shot, which: "first", frame: 0 });
     expect(r.picked).toBe(1); // a live keyframe: the new take waits for a pick

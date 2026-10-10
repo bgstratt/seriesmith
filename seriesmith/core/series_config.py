@@ -1,5 +1,5 @@
 """
-h3core.series_config — loading series.json, the series config.
+core.series_config — loading series.json, the series config.
 
 Keys starting with `_` in `subjects` and `locations` are comments/disabled
 entries and are dropped, as are non-object values. Everything else is returned
@@ -28,9 +28,9 @@ What a variant inherits, and what it must not:
                                 render the base's clothes.
 
 `of` is kept on the resolved entry: `variant_of()` reads it, the parser uses it
-to bind a base's dialogue to the variant on screen (h3core.story), and the refs
+to bind a base's dialogue to the variant on screen (core.story), and the refs
 listing uses it to give a variant its own sheet but no voice of its own
-(h3refs.series_refs).
+(refs.series_refs).
 
 A character with `members: N` (2 or more) is a **group**: N distinct people in
 one reference picture -- the ladies at the edge of the ballroom, the same four
@@ -43,7 +43,7 @@ A location with `of: <another location>` is an **angle** of it: the same place
 from another camera (the bay from the drive, from inside the SUV). Nothing is
 inherited -- an angle has its own `description` and `plate`, and a shot still
 names it with `plate:` -- but an edit target generates its plate from the
-master's, so every angle is visibly the same place (h3refs.angle_reference_images),
+master's, so every angle is visibly the same place (refs.angle_reference_images),
 and the editor lists the angles under their master.
 """
 
@@ -256,7 +256,7 @@ def _resolve_variants(subjects: dict) -> dict:
 def variant_of(series_cfg: dict) -> dict:
     """{variant id: the id it is a variant of}; empty for a series with none.
 
-    Safe on a series config that hasn't been through the loader (h3align reads
+    Safe on a series config that hasn't been through the loader (align reads
     the raw JSON, which still has its `_note` strings), so it never assumes an
     entry is an object."""
     return {k: v["of"] for k, v in series_cfg.get("subjects", {}).items()

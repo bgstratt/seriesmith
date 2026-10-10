@@ -8,7 +8,7 @@ edit.queue_shots) as `seriesmith render` does from the command line.
 The take is staged and reserved at once (its record says `queued`, which
 backend, and the queue's job id as its prompt id, which is how the editor
 follows it); the queue's job then renders it (render.run_take) on its
-backend's lane and, when it ends, sends the editor "h3pipe.take" as h3pipe's
+backend's lane and, when it ends, sends the editor "seriesmith.take" as h3pipe's
 save node did.
 """
 from __future__ import annotations
@@ -212,15 +212,15 @@ class Runner:
                 qjob.error = str(e)[:800]
                 result = "failed"
             report(line=f"take {result}")
-            self._emit("h3pipe.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
+            self._emit("seriesmith.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
                                       "take": take.take, "status": result})
-            self._emit("h3pipe.episode", {"ep": ep})
+            self._emit("seriesmith.episode", {"ep": ep})
             return "succeeded" if result == "ok" else (
                 "canceled" if qjob.cancel_asked else "failed")
 
         def cancelled(qjob: QJob) -> None:
             R.mark_failed(take, "canceled before it ran")
-            self._emit("h3pipe.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
+            self._emit("seriesmith.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
                                       "take": take.take, "status": "failed"})
 
         qjob = QJob(kind="ref", lane=backend.name, title=title, work=work,
@@ -250,7 +250,7 @@ class Runner:
 
         def tell(status: str) -> None:
             self._emit(event, {"ep": ep, "shot": take.shot, "take": take.take, "status": status})
-            self._emit("h3pipe.episode", {"ep": ep})
+            self._emit("seriesmith.episode", {"ep": ep})
 
         def work(qjob: QJob, report) -> str:
             def progress(p):
@@ -318,7 +318,7 @@ class Runner:
         ep, n = s.ep, side["tour"]
 
         def hold(take) -> None:
-            self._emit("h3pipe.ref", {"ep": ep, "ref": ref.id, "view": R.TOUR_VIEW,
+            self._emit("seriesmith.ref", {"ep": ep, "ref": ref.id, "view": R.TOUR_VIEW,
                                       "take": take.take, "status": "ok"})
 
         def work(qjob: QJob, report) -> str:
@@ -358,13 +358,13 @@ class Runner:
                                 error="canceled" if qjob.cancel_asked else str(e)[:800])
                     TR.save_side(ref, side)
                 result = "canceled" if qjob.cancel_asked else "failed"
-            self._emit("h3pipe.episode", {"ep": ep})
+            self._emit("seriesmith.episode", {"ep": ep})
             return result
 
         def cancelled(qjob: QJob) -> None:
             side.update(status="failed", finished=T.now(), error="canceled before it ran")
             TR.save_side(ref, side)
-            self._emit("h3pipe.episode", {"ep": ep})
+            self._emit("seriesmith.episode", {"ep": ep})
 
         qjob = QJob(kind="tour", lane=backend.name, title=f"{_ep_name(ep)} {ref.id} tour t{n:02d}",
                     work=work, info={"ep": ep, "ref": ref.id, "tour": n, "backend": backend.name},
@@ -377,9 +377,9 @@ class Runner:
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take
         from seriesmith import edit as E
-        self._emit("h3pipe.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
+        self._emit("seriesmith.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
                                    "status": t.status, "thumb": E.rel(ep, t.paths.thumb)})
-        self._emit("h3pipe.episode", {"ep": ep})
+        self._emit("seriesmith.episode", {"ep": ep})
 
 
 def _to_wav(path: str) -> bool:

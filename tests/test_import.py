@@ -1,5 +1,5 @@
 """
-Series import (source.import_series, POST /h3pipe/import): a series config and
+Series import (source.import_series, POST /seriesmith/import): a series config and
 a stack of scripts in, one episode folder per script out, named by its header.
 """
 from __future__ import annotations
@@ -98,7 +98,7 @@ class ImportTest(unittest.TestCase):
 
     def test_the_route(self):
         ctx = A.Context(os.path.join(self._tmp.name, "user"),
-                        env={"H3PIPE_ROOTS": self.shows}, model_resolve=None)
+                        env={"SERIESMITH_ROOTS": self.shows}, model_resolve=None)
         status, res = A.post_import(ctx, {"parent": self.shows, "show": "Kitchen",
                                           "series": self.series,
                                           "scripts": [{"name": n, "text": t}

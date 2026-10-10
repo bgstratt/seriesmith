@@ -1,8 +1,8 @@
 """
 Phase 9a (docs/API.md "Phase 9a: script and series config windows, promote"):
-GET/PUT /h3pipe/source and POST /h3pipe/source/check (h3source: hashes, 409s,
+GET/PUT /seriesmith/source and POST /seriesmith/source/check (source: hashes, 409s,
 _history/ copies, line endings and the BOM kept, in-memory checks with line
-numbers), and promote (h3promote: the plan, what maps where and what is left,
+numbers), and promote (promote: the plan, what maps where and what is left,
 applying it, the overrides it drops, and that every shot renders with exactly
 the values it did before). The routes run through h3pipe_api with test_api's
 built kitchen_sink episode; the aiohttp adapter is in test_routes.
@@ -197,7 +197,7 @@ class SourceTest(ApiTest):
         self.assertEqual(len(hist), 1)
         self.assertEqual(read_bytes(hist[0]), old)
         self.assertRegex(os.path.basename(hist[0]), r"^ks01\.md\.\d{8}-\d{6}$")
-        self.assertIn(("h3pipe.episode", {"ep": self.ep}), self.events)
+        self.assertIn(("seriesmith.episode", {"ep": self.ep}), self.events)
         # a second save in the same second gets its own copy
         r = self.put(got["text"], r["hash"])
         self.assertEqual(len(H.history(self.ep, "ks01.md")), 2)
@@ -295,7 +295,7 @@ class PromoteTest(ApiTest):
         T.save_overrides(self.ep, ov)
 
     def render_values(self) -> dict:
-        """What every shot's next render uses, per pass, through h3jobs.plan_job
+        """What every shot's next render uses, per pass, through jobs.plan_job
         (the real thing, on disk): target, model, LoRAs, steps."""
         ov = T.load_overrides(self.ep)
         out = {}
@@ -453,7 +453,7 @@ class PromoteTest(ApiTest):
             self.assertEqual(json.load(fh)["refs"], {"target": "flux2_klein"})
         self.assertEqual(len(H.history(self.ep, "ks01.md")), 1)
         self.assertEqual(len(H.history(self.ep, "series.json")), 1)
-        self.assertIn(("h3pipe.episode", {"ep": self.ep}), self.events)
+        self.assertIn(("seriesmith.episode", {"ep": self.ep}), self.events)
         # and the rebuild put sh060 on ltx2 by the script
         self.assertIn("shotlist.ltx2.json", os.listdir(os.path.join(self.ep, "shotlist")))
         # nothing left to promote but what can't be
@@ -595,7 +595,7 @@ class PromoteTest(ApiTest):
         r = self.promote(["ref:location:kitchen:prompt", "ref:subject:bo:prompt"],
                          p["hashes"])
         self.assertTrue(r["build"]["ok"])
-        self.assertIn(("h3pipe.ref", {"ep": self.ep, "ref": "location:kitchen", "view": None,
+        self.assertIn(("seriesmith.ref", {"ep": self.ep, "ref": "location:kitchen", "view": None,
                                       "take": None, "status": "promoted"}), self.events)
         s2 = R.load_series(self.ep)
         self.assertEqual(s2.series_cfg["locations"]["kitchen"]["description"],

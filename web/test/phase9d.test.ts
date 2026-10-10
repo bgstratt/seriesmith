@@ -1,6 +1,6 @@
 // Phase 9d: a shot's audio from elsewhere. The offset / start / gain maths and
 // its clamping, the badge's words, then the edits end to end on the mock API
-// (optimistic, undoable, saved as one PUT /h3pipe/cut), and SSR of the new
+// (optimistic, undoable, saved as one PUT /seriesmith/cut), and SSR of the new
 // window and the surfaces that show the badge.
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
@@ -215,7 +215,7 @@ describe("normalizeAudio writes what cut.json holds", () => {
   });
 });
 
-describe("audioProblem: what PUT /h3pipe/cut would refuse", () => {
+describe("audioProblem: what PUT /seriesmith/cut would refuse", () => {
   it("takes the clip's own sound and silence without complaint", () => {
     expect(audioProblem(null)).toBeNull();
     expect(audioProblem({ source: "none" })).toBeNull();
@@ -410,7 +410,7 @@ describe("audio travels with the cut entries", () => {
 // the mock's own checks (what the route would answer)
 // ---------------------------------------------------------------------------
 
-describe("the mock's PUT /h3pipe/cut audio checks", () => {
+describe("the mock's PUT /seriesmith/cut audio checks", () => {
   const ok = () => "a.wav";
   const put = (audio: unknown) => () => checkEntries([{ shot: "sh010", audio }], 24, () => null, ok);
   it("takes a well-formed source", () => {
@@ -607,7 +607,7 @@ describe("a clip's audio, end to end on the mock", () => {
 
   it("a server without the upload route says to browse instead", async () => {
     openClipAudio("sh030");
-    setApi({ ...api, uploadClipAudio: () => Promise.reject(new ApiError("nope", 404, "/h3pipe/audio/import")) });
+    setApi({ ...api, uploadClipAudio: () => Promise.reject(new ApiError("nope", 404, "/seriesmith/audio/import")) });
     expect(await uploadClipAudio(new File([new Uint8Array(4)], "x.wav", { type: "audio/wav" }))).toBe(false);
     expect(store.get().clipAudio!.upload!.error).toContain("no upload route");
     setApi(api);

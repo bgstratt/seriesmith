@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-h3promote.py — move editor overrides into the authored files ("promote"),
+promote.py — move editor overrides into the authored files ("promote"),
 then drop them (docs/API.md, "Phase 9a").
 
-    python h3.py promote Shows\\ep05                 # the plan: what would move, the diffs
-    python h3.py promote Shows\\ep05 sh020           # only sh020's overrides
-    python h3.py promote Shows\\ep05 --all           # promote everything that can be
-    python h3.py promote Shows\\ep05 --item shot:sh020:model --item episode:target
-    python h3.py promote Shows\\ep05 --all --dry-run # the plan, even with --all
+    seriesmith promote Shows\\ep05                 # the plan: what would move, the diffs
+    seriesmith promote Shows\\ep05 sh020           # only sh020's overrides
+    seriesmith promote Shows\\ep05 --all           # promote everything that can be
+    seriesmith promote Shows\\ep05 --item shot:sh020:model --item episode:target
+    seriesmith promote Shows\\ep05 --all --dry-run # the plan, even with --all
 
 What moves where (anything else stays in overrides.json, listed under `left`
 with the reason):
@@ -35,7 +35,7 @@ script or the series config.
 
 Every plan is checked before it is offered: the promoted files are parsed and
 compiled in memory and every shot must render with the same target, model,
-LoRAs and steps in both passes as it does now (h3jobs' precedence: the build,
+LoRAs and steps in both passes as it does now (jobs' precedence: the build,
 then the override). A ref's generate prompt must come out as the override's
 text. What fails that check goes to `left`.
 
@@ -44,7 +44,7 @@ replaced, else a new line goes after the shot's last `key:` line (or right
 after its `##` line); sequence headers are never touched. The series config is
 rewritten as JSON with a 2-space indent, key order and non-ASCII text kept.
 Both files keep their line endings and BOM and get a _history/ copy
-(h3source).
+(source).
 
 Stdlib only.
 """
@@ -159,7 +159,7 @@ def script_targets(story, cfg: dict) -> dict[str, str | None]:
 
 def effective_targets(story, cfg: dict, ov: dict) -> dict[str, str]:
     """{shot: the video target its next render uses}: the override's, the
-    script's, the episode's (overrides.json), the build's (h3jobs.target_choice)."""
+    script's, the episode's (overrides.json), the build's (jobs.target_choice)."""
     built = TG.shot_targets(story, cfg)
     script = script_targets(story, cfg)
     return {sid: (T.shot_target(ov, sid) or script[sid] or T.episode_target(ov) or built[sid])
@@ -168,7 +168,7 @@ def effective_targets(story, cfg: dict, ov: dict) -> dict[str, str]:
 
 def render_values(story, cfg: dict, ov: dict) -> dict[tuple[str, str], dict]:
     """{(shot, pass): {"target", "model", "loras", "steps"}} a render of each
-    shot would use now (seed and prompt aside), as h3jobs.plan_job picks them:
+    shot would use now (seed and prompt aside), as jobs.plan_job picks them:
     the shot compiled for its effective target, then the override for that
     target. A shot that can't be compiled there has {"error": ...}."""
     targets = effective_targets(story, cfg, ov)
@@ -275,8 +275,8 @@ def key_line(text: str, span: tuple[int, int], key: str) -> int | None:
 
 # The series config as the promote writes it (2-space indent, key order and
 # non-ASCII text kept, a final newline if the file had one), and whether a text
-# is already in that shape. They live in h3source now: every route that writes
-# the series config (the promote, POST /h3pipe/track, h3align) writes it alike.
+# is already in that shape. They live in source now: every route that writes
+# the series config (the promote, POST /seriesmith/track, align) writes it alike.
 dump_series = H.dump_series
 formatted = H.formatted
 
@@ -669,7 +669,7 @@ def _check(st: State, items: list[dict], before: dict) -> tuple[list[dict], list
 
 def make_plan(ep: str, shot: str | None = None, only: set[str] | None = None,
               st: State | None = None) -> dict:
-    """GET /h3pipe/promote: {"items", "left", "diffs", "hashes"}; with `only`,
+    """GET /seriesmith/promote: {"items", "left", "diffs", "hashes"}; with `only`,
     just those candidate ids are promoted. Private keys (a leading `_`) are
     for apply: `_candidates` (every id before the checks), `_texts` (the
     promoted files), items' `_edit` / `_set`; public() strips them."""
@@ -732,7 +732,7 @@ def plan(ep: str, shot: str | None = None) -> dict:
 
 def apply(ep: str, ids, hashes: dict | None, shot: str | None = None,
           build: bool = True) -> dict:
-    """POST /h3pipe/promote: promote the plan items `ids` (a list of ids, or
+    """POST /seriesmith/promote: promote the plan items `ids` (a list of ids, or
     "all"; `shot` narrows the plan as GET does) if both files still hash to
     `hashes` (else Conflict, 409). Writes the files (with _history/ copies),
     drops exactly the promoted override fields, rebuilds. Returns
@@ -801,7 +801,7 @@ def apply(ep: str, ids, hashes: dict | None, shot: str | None = None,
 # ---------------------------------------------------------------------------
 
 def cmd_promote(root: str, argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="h3.py promote",
+    ap = argparse.ArgumentParser(prog="seriesmith promote",
                                  description="Move overrides into the script and the "
                                              "series config, then drop them.")
     ap.add_argument("shot", nargs="?", help="only this shot's overrides")

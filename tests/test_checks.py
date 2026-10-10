@@ -6,7 +6,7 @@ Two kinds. A missing series-config field used to surface as a bare KeyError
 attributed to the script (`error in ep01.md: 'name'`); it is a sentence about
 series.json now. And a scene whose speakers all share one plate builds fine
 but cuts badly, so it is a warning, printed by every build and `--check` and
-carried into the editor's Script window by h3source.check_text.
+carried into the editor's Script window by source.check_text.
 """
 from __future__ import annotations
 

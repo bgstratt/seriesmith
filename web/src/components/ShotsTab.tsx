@@ -78,7 +78,7 @@ function EpisodeHeader() {
   if (configError && !config) {
     return (
       <div className="h3-pad h3-col">
-        <div className="h3-note h3-note-err">Can't read the h3pipe config: {configError}</div>
+        <div className="h3-note h3-note-err">Can't read the seriesmith config: {configError}</div>
         <button className="h3-btn" onClick={() => void loadEpisodes()}>Retry</button>
       </div>
     );
@@ -86,7 +86,7 @@ function EpisodeHeader() {
   if (config && !config.roots.length) {
     return (
       <div className="h3-pad h3-col">
-        <div className="h3-title">Welcome to h3pipe</div>
+        <div className="h3-title">Welcome to seriesmith</div>
         <div className="h3-muted">
           Tell the editor where your shows live: a folder that holds episode folders (each with a
           <span className="h3-mono"> series.json</span> and a script). Browse to it and add it as a root, or
@@ -138,7 +138,7 @@ function BuildBar() {
     <div className="h3-pad h3-col" style={{ gap: 4, paddingTop: 0 }}>
       <div className="h3-row h3-wrap">
         <PassToggle />
-        <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run h3build for both passes from the script and series config">
+        <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run build for both passes from the script and series config">
           <i className={b.busy ? "pi pi-spin pi-spinner" : "pi pi-cog"} /> {b.busy ? "Building…" : "Build"}
         </button>
         <button

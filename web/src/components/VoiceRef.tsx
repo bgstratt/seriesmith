@@ -1,6 +1,6 @@
 // Phase 9c-B: voice refs. A voice row generates samples with the episode's
 // audio target (count, prompt, seconds), lists its candidates with a player
-// and the waveform (GET /h3pipe/peaks, the same drawing as the timeline's
+// and the waveform (GET /seriesmith/peaks, the same drawing as the timeline's
 // lane), and can take a line straight out of a shot take's sound.
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-h3tour — a camera tour of a location on MiniMax H3, and its held frames as plates.
+tour — a camera tour of a location on MiniMax H3, and its held frames as plates.
 
 Start from a location's live plate, say where the camera goes and where it
 stops, and H3's image-to-video model moves through the place keeping it the
 same -- the same walls, signs and furniture -- which separately drawn plates
 cannot. The video's held moments (helpers/stills.py: motion under a
 threshold, the sharpest frame of each run) become takes of the location's
-`tour` pseudo-view (h3refs.TOUR_VIEW), never picked into the plate; one is
+`tour` pseudo-view (refs.TOUR_VIEW), never picked into the plate; one is
 copied into the location or an angle of it as a plate candidate
-(h3refs.copy_take). Ported from h3sets' tour.py and stills.py.
+(refs.copy_take). Ported from h3sets' tour.py and stills.py.
 
-    python h3tour.py EPISODE location:ambulance_bay_night "The camera turns slowly to the left ... and holds"
+    python tour.py EPISODE location:ambulance_bay_night "The camera turns slowly to the left ... and holds"
         [--seconds 6] [--count 1] [--backend NAME]
 
 The graph (workflows/h3_tour.json) is h3sets' H3 FL2VA image-to-video graph:
@@ -131,7 +131,7 @@ def plan_tours(s: R.Series, ref: R.Ref, move: str, image, seconds: float = DEFAU
                 "frame": R.ep_rel(s.ep, ref.file), "frame_sha1": T.file_sha1(ref.file),
                 "comfy_prompt_id": None, "holds": [], "error": ""}
         T.write_json(_tour_file(ref, n, ".json"), side)
-        g = tour_graph(base, prompt, image, seconds, sd, f"h3pipe/tours/{ref.key}_t{n:02d}")
+        g = tour_graph(base, prompt, image, seconds, sd, f"seriesmith/tours/{ref.key}_t{n:02d}")
         out.append((side, g))
     return out
 

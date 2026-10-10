@@ -224,7 +224,7 @@ function fakeServer(text: string) {
     },
     putSource: async (req: { text: string; base_hash: string }) => {
       calls.push(`put:${req.base_hash}`);
-      if (req.base_hash !== disk.hash) throw new ApiError("changed on disk", 409, "/h3pipe/source", { error: "changed on disk", hash: disk.hash, text: disk.text });
+      if (req.base_hash !== disk.hash) throw new ApiError("changed on disk", 409, "/seriesmith/source", { error: "changed on disk", hash: disk.hash, text: disk.text });
       disk.text = req.text;
       disk.hash = `h${++disk.n}`;
       return { hash: disk.hash, check: { ok: true, errors: [], warnings: [], shots: [] }, build: { ok: true, passes: {} } };
@@ -412,7 +412,7 @@ describe("the promote dialog", () => {
   it("confirms with the plan's hashes; a 409 fetches a fresh plan", async () => {
     const fresh = { ...PLAN, hashes: { script: "s2", series: "c1" } };
     const promote = vi.fn()
-      .mockRejectedValueOnce(new ApiError("changed on disk", 409, "/h3pipe/promote", { error: "changed on disk", hash: "s2" }))
+      .mockRejectedValueOnce(new ApiError("changed on disk", 409, "/seriesmith/promote", { error: "changed on disk", hash: "s2" }))
       .mockResolvedValueOnce({ promoted: ["episode:target"], left: [], hashes: fresh.hashes, build: null });
     const promotePlan = vi.fn().mockResolvedValue(fresh);
     const api = { promote, promotePlan } as unknown as Api;
@@ -422,7 +422,7 @@ describe("the promote dialog", () => {
     const b = await confirmPromote(api, "ep", null, fresh, ["episode:target"]);
     expect(promote).toHaveBeenLastCalledWith("ep", ["episode:target"], { script: "s2", series: "c1" }, null);
     expect(b.kind).toBe("done");
-    promote.mockRejectedValueOnce(new ApiError("boom", 500, "/h3pipe/promote"));
+    promote.mockRejectedValueOnce(new ApiError("boom", 500, "/seriesmith/promote"));
     expect(await confirmPromote(api, "ep", null, fresh, [])).toEqual({ kind: "error", message: "boom" });
   });
 });
@@ -528,7 +528,7 @@ describe("mock source routes", () => {
 
 // ---------------------------------------------------------------------------
 // real files: test/local/<name>/ (gitignored) holds a scratch copy of a real
-// episode's script + series.json, and spans.json from h3core.story._parse
+// episode's script + series.json, and spans.json from core.story._parse
 // ---------------------------------------------------------------------------
 
 const LOCAL = join(dirname(fileURLToPath(import.meta.url)), "local");
@@ -561,7 +561,7 @@ describe.skipIf(!realDirs.length)("a real script and series config", () => {
       if (!existsSync(spansFile)) return;
       expect(localShotSpans(script)).toEqual(JSON.parse(readFileSync(spansFile, "utf-8")));
     });
-    // answers of the real routes' functions (h3source / h3promote) on a scratch copy,
+    // answers of the real routes' functions (source / promote) on a scratch copy,
     // dumped by the session's scratch script into the same folder
     const answer = <T,>(name: string): T | null => (existsSync(join(dir, name)) ? JSON.parse(readFileSync(join(dir, name), "utf-8")) : null);
     it(`${md}: real source answers: shots are the local scan's, messages land on their lines`, () => {

@@ -79,44 +79,44 @@ class RoutesTest(unittest.TestCase):
 
     def test_requests(self):
         async def fn(c):
-            r = await c.put("/h3pipe/config", json={"roots": [self.shows]})
+            r = await c.put("/seriesmith/config", json={"roots": [self.shows]})
             self.assertEqual(r.status, 200, await r.text())
             self.assertEqual((await r.json())["roots"], [self.shows])
             self.assertTrue(os.path.isfile(os.path.join(self._tmp.name, "user", "default",
-                                                        "h3pipe", "config.json")))
-            r = await c.get("/h3pipe/config")
+                                                        "seriesmith", "config.json")))
+            r = await c.get("/seriesmith/config")
             self.assertEqual((await r.json())["comfy"], "http://127.0.0.1:8188")
 
-            r = await c.put("/h3pipe/config", data=b"{nope",
+            r = await c.put("/seriesmith/config", data=b"{nope",
                             headers={"Content-Type": "application/json"})
             self.assertEqual(r.status, 400)
             self.assertIn("JSON", (await r.json())["error"])
 
-            r = await c.get("/h3pipe/episode", params={"ep": self._tmp.name})
+            r = await c.get("/seriesmith/episode", params={"ep": self._tmp.name})
             self.assertEqual(r.status, 403)
-            r = await c.get("/h3pipe/episode", params={"ep": self.ep})
+            r = await c.get("/seriesmith/episode", params={"ep": self.ep})
             self.assertEqual(r.status, 404)                # not built
             self.assertIn("error", await r.json())
 
             q = {"ep": self.ep, "path": "clip.mp4"}
-            r = await c.get("/h3pipe/file", params=q)
+            r = await c.get("/seriesmith/file", params=q)
             self.assertEqual(r.status, 200)
             self.assertEqual(r.headers["Content-Type"], "video/mp4")
             self.assertEqual(r.headers["Cache-Control"], "no-cache")
             self.assertEqual(len(await r.read()), 1024)
-            r = await c.get("/h3pipe/file", params=q, headers={"Range": "bytes=256-511"})
+            r = await c.get("/seriesmith/file", params=q, headers={"Range": "bytes=256-511"})
             self.assertEqual(r.status, 206)
             self.assertEqual(await r.read(), bytes(range(256)))
-            r = await c.get("/h3pipe/file", params={"ep": self.ep, "path": "../x"})
+            r = await c.get("/seriesmith/file", params={"ep": self.ep, "path": "../x"})
             self.assertEqual(r.status, 400)
             self.assertIn("error", await r.json())
 
-            r = await c.get("/h3pipe/episodes")
+            r = await c.get("/seriesmith/episodes")
             self.assertEqual(await r.json(), [])
         self.run_client(fn)
 
     def test_multipart_import(self):
-        """POST /h3pipe/refs/import as multipart/form-data (Phase 8.6): the file
+        """POST /seriesmith/refs/import as multipart/form-data (Phase 8.6): the file
         is streamed to a temporary file, imported, and the temporary file goes."""
         from aiohttp import FormData
         from test_render import FIXTURE, png_bytes
@@ -138,24 +138,24 @@ class RoutesTest(unittest.TestCase):
             return f
 
         async def fn(c):
-            r = await c.put("/h3pipe/config", json={"roots": [self.shows]})
+            r = await c.put("/seriesmith/config", json={"roots": [self.shows]})
             self.assertEqual(r.status, 200)
             with mock.patch.object(self.R.tempfile, "mkstemp", mkstemp):
-                r = await c.post("/h3pipe/refs/import",
+                r = await c.post("/seriesmith/refs/import",
                                  data=form("Kitchen.png", png_bytes(8, 8), pick="1"))
                 self.assertEqual(r.status, 200, await r.text())
                 t = await r.json()
                 self.assertEqual((t["take"], t["original_name"]), (1, "Kitchen.png"))
                 self.assertTrue(os.path.isfile(os.path.join(self.ep, "refs", "_bg",
                                                             "kitchen.png")))
-                r = await c.post("/h3pipe/refs/import", data=form("notes.txt", b"hello"))
+                r = await c.post("/seriesmith/refs/import", data=form("notes.txt", b"hello"))
                 self.assertEqual(r.status, 400)
                 with mock.patch.object(self.R.A, "MAX_UPLOAD", 100):
-                    r = await c.post("/h3pipe/refs/import",
+                    r = await c.post("/seriesmith/refs/import",
                                      data=form("big.png", png_bytes(64, 64, (1, 2, 3))))
                     self.assertEqual(r.status, 413)
             # the JSON form still works on the same route
-            r = await c.post("/h3pipe/refs/import", json={"ep": self.ep, "ref": "location:kitchen",
+            r = await c.post("/seriesmith/refs/import", json={"ep": self.ep, "ref": "location:kitchen",
                                                           "source_path": "rel.png"})
             self.assertEqual(r.status, 400)
             self.assertIn("absolute", (await r.json())["error"])
@@ -172,88 +172,88 @@ class RoutesTest(unittest.TestCase):
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ep01.md"))
 
         async def fn(c):
-            r = await c.put("/h3pipe/config", json={"roots": [self.shows]})
+            r = await c.put("/seriesmith/config", json={"roots": [self.shows]})
             self.assertEqual(r.status, 200)
-            r = await c.get("/h3pipe/source", params={"ep": self.ep, "file": "script"})
+            r = await c.get("/seriesmith/source", params={"ep": self.ep, "file": "script"})
             self.assertEqual(r.status, 200, await r.text())
             src = await r.json()
             self.assertEqual(src["path"], "ep01.md")
             self.assertEqual(src["shots"][0]["id"], "sh010")
-            r = await c.get("/h3pipe/source", params={"ep": self.ep, "file": "script",
+            r = await c.get("/seriesmith/source", params={"ep": self.ep, "file": "script",
                                                       "hash_only": "1"})
             self.assertEqual(set(await r.json()), {"file", "hash", "mtime"})
-            r = await c.post("/h3pipe/source/check", json={
+            r = await c.post("/seriesmith/source/check", json={
                 "ep": self.ep, "file": "script", "text": src["text"].replace("size: ws",
                                                                              "size: huge")})
             chk = await r.json()
             self.assertEqual((chk["ok"], chk["errors"][0]["line"]), (False, 12))
-            r = await c.put("/h3pipe/source", json={"ep": self.ep, "file": "script",
+            r = await c.put("/seriesmith/source", json={"ep": self.ep, "file": "script",
                                                     "text": "x", "base_hash": "stale",
                                                     "rebuild": False})
             self.assertEqual(r.status, 409)
             body = await r.json()
             self.assertEqual((body["error"], body["hash"], body["text"]),
                              ("changed on disk", src["hash"], src["text"]))
-            s = await (await c.get("/h3pipe/source",
+            s = await (await c.get("/seriesmith/source",
                                    params={"ep": self.ep, "file": "series"})).json()
-            r = await c.put("/h3pipe/source", json={"ep": self.ep, "file": "series",
+            r = await c.put("/seriesmith/source", json={"ep": self.ep, "file": "series",
                                                     "text": s["text"] + "}",
                                                     "base_hash": s["hash"], "rebuild": False})
             self.assertEqual(r.status, 400)
             self.assertIn("line", await r.json())
-            r = await c.put("/h3pipe/source", json={"ep": self.ep, "file": "script",
+            r = await c.put("/seriesmith/source", json={"ep": self.ep, "file": "script",
                                                     "text": src["text"] + "\n",
                                                     "base_hash": src["hash"], "rebuild": False})
             self.assertEqual(r.status, 200, await r.text())
             saved = await r.json()
             self.assertIsNone(saved["build"])
             self.assertTrue(saved["check"]["ok"])
-            r = await c.get("/h3pipe/promote", params={"ep": self.ep})
+            r = await c.get("/seriesmith/promote", params={"ep": self.ep})
             self.assertEqual(r.status, 200, await r.text())
             plan = await r.json()
             self.assertEqual((plan["items"], plan["hashes"]["script"]), ([], saved["hash"]))
-            r = await c.post("/h3pipe/promote", json={"ep": self.ep, "items": "all",
+            r = await c.post("/seriesmith/promote", json={"ep": self.ep, "items": "all",
                                                       "hashes": {"script": src["hash"],
                                                                  "series": s["hash"]}})
             self.assertEqual(r.status, 409)
             self.assertEqual((await r.json())["file"], "script")
         self.run_client(fn)
-        self.assertIn(("h3pipe.episode", {"ep": self.ep}), self.sent)
+        self.assertIn(("seriesmith.episode", {"ep": self.ep}), self.sent)
 
     def test_cut_edits_and_peaks(self):
-        """Phase 9b through aiohttp: GET /h3pipe/peaks (a stdlib wav, the cache,
+        """Phase 9b through aiohttp: GET /seriesmith/peaks (a stdlib wav, the cache,
         a path that climbs out) and the cut routes' JSON and statuses
         (test_phase9b has the rest)."""
         from test_phase9b import steps_wav
         steps_wav(os.path.join(self.ep, "audio", "mix.wav"), [1000, 32767])
 
         async def fn(c):
-            r = await c.put("/h3pipe/config", json={"roots": [self.shows]})
+            r = await c.put("/seriesmith/config", json={"roots": [self.shows]})
             self.assertEqual(r.status, 200)
             q = {"ep": self.ep, "path": "audio/mix.wav", "bins": "2"}
             for _ in range(2):                             # computed, then cached
-                r = await c.get("/h3pipe/peaks", params=q)
+                r = await c.get("/seriesmith/peaks", params=q)
                 self.assertEqual(r.status, 200, await r.text())
                 self.assertEqual(await r.json(), {"duration": 1.0, "bins": 2, "start": 0.0,
                                                   "end": 1.0, "peaks": [8, 255]})
             self.assertEqual(len(os.listdir(os.path.join(self.ep, "_cache", "peaks"))), 1)
-            r = await c.get("/h3pipe/peaks", params=dict(q, path="../x.wav"))
+            r = await c.get("/seriesmith/peaks", params=dict(q, path="../x.wav"))
             self.assertEqual(r.status, 400)
-            r = await c.get("/h3pipe/peaks", params=dict(q, bins="many"))
+            r = await c.get("/seriesmith/peaks", params=dict(q, bins="many"))
             self.assertEqual(r.status, 400)
-            r = await c.get("/h3pipe/peaks", params=dict(q, path="nope.wav"))
+            r = await c.get("/seriesmith/peaks", params=dict(q, path="nope.wav"))
             self.assertEqual(r.status, 404)
-            r = await c.post("/h3pipe/cut/reset", json={"ep": self.ep, "pass": "proxy",
+            r = await c.post("/seriesmith/cut/reset", json={"ep": self.ep, "pass": "proxy",
                                                         "what": "order"})
             self.assertEqual(r.status, 404)                # not built
-            r = await c.post("/h3pipe/cut/copy", json={"ep": self.ep, "from": "final",
+            r = await c.post("/seriesmith/cut/copy", json={"ep": self.ep, "from": "final",
                                                        "to": "final", "what": "all"})
             self.assertEqual(r.status, 400)
             self.assertIn("error", await r.json())
         self.run_client(fn)
 
     def test_models_through_folder_paths(self):
-        """GET /h3pipe/models inside ComfyUI: the list and the paths come from
+        """GET /seriesmith/models inside ComfyUI: the list and the paths come from
         folder_paths, the fingerprints are cached in the user folder."""
         from test_modelid import ltx_tensors, wan14_tensors, write_st
         models = os.path.join(self._tmp.name, "models", "diffusion_models")
@@ -267,16 +267,16 @@ class RoutesTest(unittest.TestCase):
             and os.path.isfile(os.path.join(models, name)) else None)
 
         async def fn(c):
-            r = await c.get("/h3pipe/models", params={"target": "ltx2", "param": "model"})
+            r = await c.get("/seriesmith/models", params={"target": "ltx2", "param": "model"})
             self.assertEqual(r.status, 200, await r.text())
             data = await r.json()
             self.assertEqual([(f["name"], f["match"], f["mismatch"]) for f in data["files"]],
                              [("renamed.safetensors", "fingerprint", False),
                               ("wan_low.safetensors", "other", True)])
-            r = await c.get("/h3pipe/models", params={"target": "ltx2", "param": "loras"})
+            r = await c.get("/seriesmith/models", params={"target": "ltx2", "param": "loras"})
             self.assertEqual(r.status, 400)
         self.run_client(fn)
-        self.assertTrue(os.path.isfile(os.path.join(self._tmp.name, "user", "default", "h3pipe",
+        self.assertTrue(os.path.isfile(os.path.join(self._tmp.name, "user", "default", "seriesmith",
                                                     "modelid_cache.json")))
 
     def test_no_pipeline_no_routes(self):
@@ -284,7 +284,7 @@ class RoutesTest(unittest.TestCase):
         server.PromptServer.instance.routes = web.RouteTableDef()
         self.R.REGISTERED = False
         with mock.patch.object(self.R.A, "IMPORT_ERROR", "h3pipe: can't import"), \
-                self.assertLogs("h3pipe", "WARNING"):
+                self.assertLogs("seriesmith", "WARNING"):
             self.assertFalse(self.R.register(server.PromptServer.instance))
         self.assertEqual(list(server.PromptServer.instance.routes), [])
 

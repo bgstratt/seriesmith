@@ -1,8 +1,8 @@
-// The Post-process dialog (h3post, docs/POST_PROCESSING.md), opened from a
+// The Post-process dialog (post, docs/POST_PROCESSING.md), opened from a
 // take's menu (one take) or the cut menu (that pass's whole cut). A post is a
 // take's fresh upscale finished: an enhance step (the tiers: draft, a pixel
 // model at 1x; production, SeedVR2 7B; cinematic, SUPIR) then motion blur.
-// What it offers comes from GET /h3pipe/post/options: the tiers, whether this
+// What it offers comes from GET /seriesmith/post/options: the tiers, whether this
 // ComfyUI can run each, and the episode's post.master recipe.
 
 import { useEffect, useState } from "react";

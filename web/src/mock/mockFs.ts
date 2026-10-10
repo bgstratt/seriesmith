@@ -1,4 +1,4 @@
-// A fake folder tree for GET /h3pipe/browse on the dev page. The mock's one
+// A fake folder tree for GET /seriesmith/browse on the dev page. The mock's one
 // episode lives at C:\Shows\DeanStories\ep05; D:\Stock holds files to import.
 
 import type { BrowseDir, BrowseFile, BrowseResult } from "../types";
@@ -94,7 +94,7 @@ export class FsError extends Error {
   }
 }
 
-/** The /h3pipe/browse answer. `files` (not in the contract yet) lists files too. */
+/** The /seriesmith/browse answer. `files` (not in the contract yet) lists files too. */
 export function browse(path: string | null | undefined, files: boolean): BrowseResult {
   if (!path) {
     const dirs: BrowseDir[] = [

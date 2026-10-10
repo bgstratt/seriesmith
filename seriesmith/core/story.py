@@ -1,10 +1,10 @@
 """
-h3core.story — the script parser: epNN.md text + the series config's ids -> story IR.
+core.story — the script parser: epNN.md text + the series config's ids -> story IR.
 
     parse_story(text, subject_ids, character_ids, series, variants) -> ir.Episode
     parse_script(text, subject_ids, character_ids, variants)        -> dict (legacy)
 
-`parse_script` is the original parser and still returns the dict h3align and
+`parse_script` is the original parser and still returns the dict align and
 the H3 compile code were written against. `parse_story` runs the same parser,
 records each sequence's header line and each shot's line span, and converts the
 result into the IR. The format itself is docs/AUTHORING.md.
@@ -26,7 +26,7 @@ META_KEYS = {"who", "cast", "with", "props", "size", "audio", "dur", "duration",
              "camera", "sound", "music", "policy", "continuous", "text",
              "pace", "plate", "retention", "model", "lora", "steps", "extras",
              "target", "profile", "first", "last", "overlap"}
-SIZES = framing.ALIASES          # every name `size:` takes (h3core/framing.py)
+SIZES = framing.ALIASES          # every name `size:` takes (core/framing.py)
 
 # Voice-only delivery markers. A speaker tagged with one of these is NOT added
 # to the visible cast: they cost no reference slot and are never drawn. Without
@@ -96,7 +96,7 @@ def _parse(text: str, subject_ids: set[str], character_ids: set[str],
     of it. Line numbers are 1-based, as in error messages.
 
     `variants` is {variant id: the id it is a variant of}
-    (h3core.series_config.variant_of): with it, a shot whose cast names a
+    (core.series_config.variant_of): with it, a shot whose cast names a
     variant takes its base's dialogue (`GINA:` where `who: gina_towel`). See
     `_bind_variants`. Without it a script parses exactly as it always did.
     """
@@ -398,7 +398,7 @@ def _model_clamp(spec: str, n: int, line: str) -> dict:
 def parse_script(text: str, subject_ids: set[str], character_ids: set[str],
                  variants: dict[str, str] | None = None) -> dict:
     """Parse the screenplay-flavoured script into an episode structure (the
-    legacy dict: what h3align reads). `variants`: see `_parse`."""
+    legacy dict: what align reads). `variants`: see `_parse`."""
     return _parse(text, subject_ids, character_ids, variants)[0]
 
 

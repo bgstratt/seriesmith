@@ -1,5 +1,5 @@
 """
-The post pass (h3post.py, docs/POST_PROCESSING.md): an upscale finished by an
+The post pass (post.py, docs/POST_PROCESSING.md): an upscale finished by an
 enhance step (pixel, SeedVR2, SUPIR; the tiers name them) and motion blur.
 
 What it refuses, when a post is fresh, the graph for each step, readiness,
@@ -129,7 +129,7 @@ class PostTest(ApiTest):
         self.assertTrue(px["frequency_split"])
         save = g["pp_save"]["inputs"]
         self.assertTrue(save["stamp_source"])
-        self.assertEqual(save["event"], "h3pipe.post")
+        self.assertEqual(save["event"], "seriesmith.post")
         self.assertTrue(save["out_mp4"].endswith(".post.mp4"))
         self.assertTrue(save["sidecar"].endswith(".post.json"))
         self.assertTrue(save["source_mp4"].endswith(".up.mp4"))         # the upscale's audio
@@ -212,7 +212,7 @@ class PostTest(ApiTest):
         out = self.ok(A.queue_post(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 1}],
                                               "enhance": "draft", "blur": 0.3}))
         self.assertEqual([q["shot"] for q in out["queued"]], ["sh010"])
-        self.assertIn(("h3pipe.post", {"ep": self.ep, "shot": "sh010", "take": 1,
+        self.assertIn(("seriesmith.post", {"ep": self.ep, "shot": "sh010", "take": 1,
                                        "status": "queued"}), self.events)
         self.assertTrue(T.post_of(t)["fresh"])               # the fake saver stamped it
         # the take's view says so

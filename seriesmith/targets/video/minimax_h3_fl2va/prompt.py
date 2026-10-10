@@ -74,7 +74,7 @@ def _and(items: list[str]) -> str:
 
 
 def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
-    """The three-field prompt for one shot (`shot` an h3core.ir.Shot, `seq`
+    """The three-field prompt for one shot (`shot` an core.ir.Shot, `seq`
     its ir.Sequence), for the audio policy it renders with: dub makes the
     anchored recording the whole soundtrack, dub_keep_foley lays the
     soundscape under it."""

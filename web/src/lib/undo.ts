@@ -1,7 +1,7 @@
 // Phase 9b: session undo / redo of cut edits. An edit is stored as what it
 // changed (the order, and the trims / lock of the shots it touched), not as a
 // snapshot of the whole list, so undoing it later doesn't also undo a pick or a
-// render that happened since. Undo and redo are each one PUT /h3pipe/cut.
+// render that happened since. Undo and redo are each one PUT /seriesmith/cut.
 
 import type { CutEntry } from "../types";
 import { sameAudio } from "./audioSource";

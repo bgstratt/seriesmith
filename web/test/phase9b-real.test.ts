@@ -1,6 +1,6 @@
 // Phase 9b against REAL route JSON: test/local/p9b_* (gitignored, never
-// committed) are dumps of h3edit.episode_status from scratch copies of a real
-// episode: as it is, after cut edits made through h3edit (a move, trims, a
+// committed) are dumps of edit.episode_status from scratch copies of a real
+// episode: as it is, after cut edits made through edit (a move, trims, a
 // lock), and given a recorded dialogue track (series config audio.track and
 // `audio:` windows, rebuilt). Skipped when the dumps aren't there.
 import { existsSync, readFileSync, readdirSync } from "node:fs";

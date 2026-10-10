@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-h3upscale.py — a take, refined at 2x (either pass).
+upscale.py — a take, refined at 2x (either pass).
 
 An upscale is a version of its take, not a new take: <stem>.up.mp4 beside it,
 with <stem>.up.json. It re-samples the take at twice the size from late in the
@@ -11,7 +11,7 @@ stream, copied on. The start is a fraction of the take's own schedule (the
 target's `start`, 0.875: step 7 of 8), so a take on the no-turbo base preset
 starts at the same noise level.
 
-    python h3upscale.py <episode> [--proxy] [--only sh760,sh770] [--take N] [--redo]
+    python upscale.py <episode> [--proxy] [--only sh760,sh770] [--take N] [--redo]
                         [--scale 2] [--start-step 7] [--vae] [--check]
 
 Without --only: every shot of the pass's cut (final, or --proxy) whose take (the pick, else the
@@ -561,7 +561,7 @@ def recipe_kwargs(fields: dict, recipe: dict | None = None) -> dict:
 
 
 def recipe_from_request(body: dict) -> dict:
-    """The upscale request's choices (POST /h3pipe/upscale's fields) as a
+    """The upscale request's choices (POST /seriesmith/upscale's fields) as a
     per-shot recipe (RECIPE_FIELDS): what the dialog saves for one shot."""
     out = {}
     for k in ("method", "scale", "detail", "start_step", "pixel_model", "seedvr2_model",
@@ -724,7 +724,7 @@ def continuity_source(take: T.Take, root: str) -> "tuple[T.Take, str] | None":
     keyframe the take rendered with: (source take, input name), else None.
     The render's sidecar names its first keyframe's sha1 (`refs`, role first);
     the keyframe candidate with that picture says where it was cut from
-    (h3refs.keyframe_from_take: source shot, take, pass, frame)."""
+    (refs.keyframe_from_take: source shot, take, pass, frame)."""
     sc = take.sidecar or {}
     first = (sc.get("inputs") or {}).get("first")
     ref = next((r for r in sc.get("refs") or [] if r.get("role") == "first"), None)
@@ -1396,7 +1396,7 @@ def seedvr2_chain(g: dict, images: list, model: str, width: int, height: int, se
     """SeedVR2 on `images` to width x height (the same size: a restoration),
     finished against them by SeriesmithFinishUpscale with `finish`; the node ids start
     with `prefix`. Returns the link to the result. The upscale's and the post
-    pass's (h3post). `chunk`: pixel frames per temporal chunk (4n+1), 0 for
+    pass's (post). `chunk`: pixel frames per temporal chunk (4n+1), 0 for
     auto, which sizes chunks to the VRAM free at the time, so two runs can split
     a shot differently; `overlap`: latent frames crossfaded between chunks."""
     p = prefix

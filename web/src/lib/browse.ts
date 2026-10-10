@@ -67,7 +67,7 @@ export function sameDir(a: string, b: string): boolean {
 /**
  * Phase 9d: an absolute path as the routes want it — relative to the episode,
  * forward slashes, or `../…` for a file beside a parent-folder series config.
- * Null when it is somewhere else entirely (/h3pipe/file can't serve it).
+ * Null when it is somewhere else entirely (/seriesmith/file can't serve it).
  */
 export function epRelative(path: string, ep: string): string | null {
   const p = path.replace(/\\/g, "/").replace(/\/+$/, "");

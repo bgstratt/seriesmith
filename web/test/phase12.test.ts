@@ -39,9 +39,9 @@ describe("the wizard's calls", () => {
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, path, body });
-      const answer = path.startsWith("/h3pipe/workflows")
+      const answer = path.startsWith("/seriesmith/workflows")
         ? { workflows: [{ name: "mine.json" }] }
-        : path.startsWith("/h3pipe/targets/inspect")
+        : path.startsWith("/seriesmith/targets/inspect")
           ? { proposal: { id: "my_wan" }, matched: {}, ambiguous: [], warnings: [], models: [], nodes: {}, problems: [] }
           : { ok: true, id: "my_wan", draft: true };
       return new Response(JSON.stringify(answer),
@@ -53,21 +53,21 @@ describe("the wizard's calls", () => {
 
   it("asks ComfyUI for its workflows", async () => {
     expect(await api.workflows()).toEqual([{ name: "mine.json" }]);
-    expect(calls.at(-1)).toMatchObject({ method: "GET", path: "/h3pipe/workflows" });
+    expect(calls.at(-1)).toMatchObject({ method: "GET", path: "/seriesmith/workflows" });
   });
 
   it("inspects a workflow by name", async () => {
     const r = await api.inspectTarget({ ep: "C:\\Shows\\ep01", workflow: "mine.json", id: "my_wan" });
     expect((r as TargetProposal).proposal).toMatchObject({ id: "my_wan" });
     expect(calls.at(-1)).toMatchObject({
-      method: "POST", path: "/h3pipe/targets/inspect",
+      method: "POST", path: "/seriesmith/targets/inspect",
       body: { ep: "C:\\Shows\\ep01", workflow: "mine.json", id: "my_wan" },
     });
   });
 
   it("saves, flips the draft flag and deletes", async () => {
     await api.saveCustomTarget("C:\\Shows\\ep01", { id: "my_wan" });
-    expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/h3pipe/targets/custom" });
+    expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/seriesmith/targets/custom" });
     await api.setTargetDraft("C:\\Shows\\ep01", "my_wan", false);
     expect(calls.at(-1)?.body).toMatchObject({ id: "my_wan", draft: false });
     await api.deleteCustomTarget("C:\\Shows\\ep01", "my_wan");

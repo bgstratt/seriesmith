@@ -43,7 +43,7 @@ export function clipTake(s: ShotStatus, other: EpisodeStatus | undefined): TakeS
 
 /**
  * cut.json trims are frames dropped from the head (`trim_in`) and tail
- * (`trim_out`) of a clip `frames` long, as h3assemble applies them. Returns the
+ * (`trim_out`) of a clip `frames` long, as assemble applies them. Returns the
  * window in seconds, or null when the trims leave nothing (assemble skips it).
  * `clipFps` is the clip's own rate when it isn't the cut's (`fps`): its
  * `frames` are at that rate, the trims at the cut's (assemble converts first).
@@ -86,7 +86,7 @@ export function windowOf(s: ShotStatus): { audioIn: number; audioOut: number } |
   return typeof a === "number" && typeof b === "number" && Number.isFinite(a) && Number.isFinite(b) && b > a ? { audioIn: a, audioOut: b } : null;
 }
 
-/** The earliest dialogue window start (h3assemble's `base_in`), else 0. */
+/** The earliest dialogue window start (assemble's `base_in`), else 0. */
 export function baseIn(st: EpisodeStatus | undefined): number {
   let m = Infinity;
   for (const s of st?.shots ?? []) {
@@ -98,7 +98,7 @@ export function baseIn(st: EpisodeStatus | undefined): number {
 
 /**
  * The frames of a clip the cut can use, before its cut.json trims, as
- * h3assemble counts them: a shot timed against recorded dialogue is its
+ * assemble counts them: a shot timed against recorded dialogue is its
  * window (H3 renders it rounded up to its frame grid), at most what's on
  * disk; else the whole take. `frames` at `rate`, the cut's clock at `fps`.
  */

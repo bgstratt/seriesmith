@@ -1,5 +1,5 @@
 """
-Wan 2.2 14B Fun VACE: the story IR compiled into shotlist entries that h3jobs
+Wan 2.2 14B Fun VACE: the story IR compiled into shotlist entries that jobs
 patches into a two-stage WanVaceToVideo graph (target.json beside this file),
 which keeps the shot's characters and props looking like their picked refs
 through VACE's reference image. No loader node: every value is a widget.
@@ -16,7 +16,7 @@ The reference image is made at queue time from the files on disk then, as
 ltx2_ingredients makes its sheet: seriesmith/helpers/refsheet.py (PIL, a
 subprocess of the running Python) composes one panel per subject at the
 render size on white, the PNG is uploaded to ComfyUI's input folder, and
-h3jobs.start_job moves it into the take as <shot>_tNN_reference.png with its
+jobs.start_job moves it into the take as <shot>_tNN_reference.png with its
 sha1 in the sidecar's `refs` (beside the panel files', which are what make a
 take `ref`-stale when a view is re-picked).
 
@@ -93,8 +93,8 @@ def _label(p: dict) -> str:
 
 def stage_inputs(target, job, comfy=None) -> dict:
     """Compose the job's reference image and upload it to ComfyUI's input
-    folder: {"reference": "h3pipe/<sha1>.png"}. It waits in the shot's folder
-    until h3jobs.start_job moves it into the take (job.staged). Without
+    folder: {"reference": "seriesmith/<sha1>.png"}. It waits in the shot's folder
+    until jobs.start_job moves it into the take (job.staged). Without
     `comfy` (a dry run) nothing is composed or written: the name is a
     stand-in. No panel on disk: {} and the shot renders without a reference."""
     from seriesmith import jobs as J
@@ -200,7 +200,7 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
         have, _ = reference_panels(job)
         if have:
             raise ValueError(f"{job.id}: its reference image wasn't staged "
-                             f"(h3jobs.stage_inputs composes and uploads it)")
+                             f"(jobs.stage_inputs composes and uploads it)")
         vi.pop("reference_image", None)
     if inputs.get("first") or inputs.get("last"):
         add_control(g, vace, job, inputs.get("first"), inputs.get("last"))

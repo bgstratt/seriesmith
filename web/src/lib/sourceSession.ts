@@ -3,11 +3,11 @@
 // edits made in another editor. No React and no CodeMirror here, so the conflict
 // flow is testable on its own; the window binds it to the editor.
 //
-//   load()      GET /h3pipe/source
+//   load()      GET /seriesmith/source
 //   edit(text)  the buffer changed: dirty, and a check ~400 ms later
 //   poll()      GET …&hash_only=1: changed on disk? clean buffer → reload
 //               silently; dirty → a conflict (Reload / Keep mine)
-//   save()      PUT /h3pipe/source {base_hash, rebuild}; a 409 → a conflict
+//   save()      PUT /seriesmith/source {base_hash, rebuild}; a 409 → a conflict
 //   reload()    take the disk's text (drops the buffer's edits)
 //   keepMine()  keep the buffer, now based on the disk's hash (after a failed
 //               save: resend with the new hash)
@@ -153,7 +153,7 @@ export class SourceSession {
     }, delay);
   }
 
-  /** POST /h3pipe/source/check of the buffer; an answer for older text is dropped. */
+  /** POST /seriesmith/source/check of the buffer; an answer for older text is dropped. */
   async runCheck(): Promise<void> {
     const text = this.get().text;
     const seq = ++this.checkSeq;

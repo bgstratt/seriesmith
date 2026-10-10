@@ -83,7 +83,7 @@ class RefQueueTest(unittest.TestCase):
         self.assertIn("SaveImage", kinds)
         self.assertNotIn("H3SaveRefTake", kinds)
         self.assertFalse(any("sidecar" in (v.get("inputs") or {}) for v in g.values()))
-        self.assertIn(("h3pipe.ref", {"ep": self.ep, "ref": "subject:kettle", "view": None,
+        self.assertIn(("seriesmith.ref", {"ep": self.ep, "ref": "subject:kettle", "view": None,
                                       "take": q["take"], "status": "ok"}), self.events)
 
     def test_a_failed_job_fails_the_take(self):

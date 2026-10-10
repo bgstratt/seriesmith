@@ -7,7 +7,7 @@ binding says where its latent comes from (`saver.latent`), and the build's
 warning for a value it doesn't know. H3SaveShot's side (writing and loading
 the file) is in test_save_node.py; the route's in test_api.py.
 
-13b, the upscale of a take (h3upscale.py): what it refuses, when an upscale
+13b, the upscale of a take (upscale.py): what it refuses, when an upscale
 is fresh, and the graph it builds from the target's render graph on both
 routes. The nodes it adds are in test_upscale_nodes.py.
 """
@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-from seriesmith import build as h3build  # noqa: E402
+from seriesmith import build as BLD  # noqa: E402
 from seriesmith import upscale as U  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import api as A  # noqa: E402
@@ -82,12 +82,12 @@ class LatentDefaultTest(unittest.TestCase):
         with open(os.path.join(KITCHEN, "script.md"), encoding="utf-8") as fh:
             story = parse_story(fh.read(), subject_ids(cfg), character_ids(cfg),
                                 series_info(cfg), variant_of(cfg))
-        quiet = h3build.story_warnings(story, cfg)
+        quiet = BLD.story_warnings(story, cfg)
         self.assertFalse([w for w in quiet if "save_latents" in w])
         cfg["upscale"] = {"save_latents": "always"}
-        self.assertEqual(h3build.story_warnings(story, cfg), quiet)
+        self.assertEqual(BLD.story_warnings(story, cfg), quiet)
         cfg["upscale"] = {"save_latents": "yes"}
-        extra = [w for w in h3build.story_warnings(story, cfg) if "save_latents" in w]
+        extra = [w for w in BLD.story_warnings(story, cfg) if "save_latents" in w]
         self.assertEqual(len(extra), 1)
         self.assertIn("'yes'", extra[0])
 
@@ -262,7 +262,7 @@ class UpscaleRouteTest(UpscaleTest):
         res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"]}))
         self.assertEqual([(q["shot"], q["take"], q["route"]) for q in res["queued"]],
                          [("sh010", 1, "latent")])
-        self.assertIn("queued", [d["status"] for d in self.events_of("h3pipe.upscale")])
+        self.assertIn("queued", [d["status"] for d in self.events_of("seriesmith.upscale")])
         g = self.comfy.graphs[-1]
         self.assertTrue(any(v["class_type"] == "SeriesmithSaveUpscale" for v in g.values()))
         up = self.status_take()["upscale"]
@@ -975,9 +975,9 @@ class RecipeTest(ApiTest):
             story = parse_story(fh.read(), subject_ids(cfg), character_ids(cfg),
                                 series_info(cfg), variant_of(cfg))
         cfg["upscale"] = {"master": RECIPE}
-        self.assertFalse([w for w in h3build.story_warnings(story, cfg) if "upscale.master" in w])
+        self.assertFalse([w for w in BLD.story_warnings(story, cfg) if "upscale.master" in w])
         cfg["upscale"] = {"master": {"targets": {"*": {"method": "magic"}}}}
-        self.assertTrue([w for w in h3build.story_warnings(story, cfg) if "method 'magic'" in w])
+        self.assertTrue([w for w in BLD.story_warnings(story, cfg) if "method 'magic'" in w])
 
     def test_routes(self):
         t = self.final_take()

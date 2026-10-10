@@ -16,7 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-from seriesmith import build as h3build  # noqa: E402
+from seriesmith import build as BLD  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import api as A  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
@@ -104,7 +104,7 @@ class TemplateTest(unittest.TestCase):
         self.assertEqual([self.t.snap(n) for n in (1, 5, 6, 22, 23, 73, 74)],
                          [5, 5, 22, 22, 39, 73, 90])
         self.assertEqual(self.t.frames(3.04, 24), 73)
-        self.assertEqual(h3build.snap_up(100), self.t.snap(100))
+        self.assertEqual(BLD.snap_up(100), self.t.snap(100))
         with self.assertRaises(ValueError) as cm:
             self.t.snap(3593)
         self.assertEqual(str(cm.exception), "3593 frames is longer than H3's maximum of 3592 "
@@ -132,10 +132,10 @@ class PresetTest(unittest.TestCase):
         t = TG.load_target(H3)
         p = t.preset("final", {"series": {}})
         self.assertEqual((p.model, p.steps, p.width, p.height),
-                         (h3build.FINAL_MODEL, 8, 1344, 768))
+                         (BLD.FINAL_MODEL, 8, 1344, 768))
         p = t.preset("proxy", {"series": {"model": "m.safetensors"}})
         self.assertEqual((p.model, p.lora, p.steps, p.width, p.height),
-                         ("m.safetensors", h3build.PROXY_LORA, 4, 512, 288))
+                         ("m.safetensors", BLD.PROXY_LORA, 4, 512, 288))
         p = t.preset("proxy", {"series": {}, "proxy": {"model": "p", "steps": 6, "width": 448}})
         self.assertEqual((p.model, p.steps, p.width), ("p", 6, 448))
         with self.assertRaises(KeyError):
@@ -495,7 +495,7 @@ class TargetsRouteTest(ApiTest):
         audio = self.ok(A.get_targets(self.ctx, {"kind": "audio"}))["targets"]
         self.assertEqual([t["id"] for t in audio], ["ltx2_voice"])
         self.err(A.get_targets(self.ctx, {"kind": "sound"}), 400)
-        self.assertIn(("GET", "/h3pipe/targets"), {(m, p) for m, p, _f, _t in A.ROUTES})
+        self.assertIn(("GET", "/seriesmith/targets"), {(m, p) for m, p, _f, _t in A.ROUTES})
 
     def test_target_in_status_detail_and_sidecar(self):
         data, shots = self.status("proxy")

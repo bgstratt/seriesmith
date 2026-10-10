@@ -215,7 +215,7 @@ export const MOCK_WIDGET_CHOICES: Record<string, string[]> = {
 };
 
 /**
- * What GET /h3pipe/models says about the mock's files: the names a family's
+ * What GET /seriesmith/models says about the mock's files: the names a family's
  * patterns match, the "headers" of a few others (a renamed H3 merge passes,
  * the Wan file is another family), the rest unknown.
  */
@@ -266,7 +266,7 @@ export function mockModelFiles(target: string, param: string): ModelList | null 
     if (h) {
       return { name, match: "other", mismatch: true, family: h.family, label: h.label, confidence: h.confidence, detail: `${name.replace(/\.safetensors$/, "")} is ${h.label} (${h.confidence}), but this ${t.short ?? t.id} target's ${param} must be ${label}` };
     }
-    return { name, match: "other", mismatch: false, family: null, label: "", confidence: "unknown", detail: `${param} ${name} isn't named like ${label} and its header matches no family h3pipe knows` };
+    return { name, match: "other", mismatch: false, family: null, label: "", confidence: "unknown", detail: `${param} ${name} isn't named like ${label} and its header matches no family seriesmith knows` };
   });
   const rank = { name: 0, fingerprint: 1, other: 2 };
   files.sort((a, b) => rank[a.match] - rank[b.match]);
@@ -304,7 +304,7 @@ export function ltxPrompt(h3: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// readiness (GET /h3pipe/targets?ready=1)
+// readiness (GET /seriesmith/targets?ready=1)
 // ---------------------------------------------------------------------------
 
 /**
@@ -382,7 +382,7 @@ export function resetMockInstalls() {
   installed.clear();
 }
 
-/** A target's readiness as GET /h3pipe/targets?ready=1 would give it now. */
+/** A target's readiness as GET /seriesmith/targets?ready=1 would give it now. */
 export function mockReadiness(id: string): Readiness {
   const all = MOCK_MISSING[id] ?? [];
   const missing = all.filter((m) => !installed.has(m.want));

@@ -1,6 +1,6 @@
 """
 MiniMax H3 FL2VA (first/last frame to video + audio): the story IR compiled
-into shotlist entries that h3jobs patches straight into ComfyUI's MiniMax H3
+into shotlist entries that jobs patches straight into ComfyUI's MiniMax H3
 image-to-video workflow (target.json beside this file). There is no loader
 node: every render value is a widget, as with ltx2.
 
@@ -53,7 +53,7 @@ DUB = ("dub", "dub_keep_foley")
 
 
 def keyframe_path(shot_id: str, end: str) -> str:
-    """Where a shot's keyframe lives (h3refs' `shot:<id>:<end>` ref)."""
+    """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
     return RECIPE["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
                                           end=end)
 
@@ -142,7 +142,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
                                         f"recording is missing")
         elif not windowed:
             raise ValueError(f"shot {shot.id}: policy {policy} needs an `audio: in-out` "
-                             f"window on the recorded track (h3align.py writes these).")
+                             f"window on the recorded track (`seriesmith align` writes these).")
         elif not ctx.recording:
             raise ValueError(f"shot {shot.id}: uses an `audio:` window but series.json has "
                              f"no audio.track set.")
@@ -293,7 +293,7 @@ def _recording(doc: dict, shot: dict) -> str:
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """The keyframes a render reads when they exist (`optional`: missing ones
     never block a render), and for a dub shot the recording it anchors. The
-    recording has no `role`: h3jobs.stage_inputs doesn't upload the whole
+    recording has no `role`: jobs.stage_inputs doesn't upload the whole
     file; this target's stage_inputs cuts and uploads the shot's slice."""
     out = [{"slot": f"{end} frame", "kind": "image", "path": p, "role": end,
             "optional": True}

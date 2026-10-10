@@ -11,7 +11,7 @@ export const VOICE_DEFAULT = "ltx2_voice";
 /**
  * How long a generated sample may be when nothing says. The server clamps a
  * request into the target's own range and refuses one outside it, but
- * `GET /h3pipe/targets` only publishes `capabilities.max_seconds` — the
+ * `GET /seriesmith/targets` only publishes `capabilities.max_seconds` — the
  * minimum isn't served (see the report's contract gaps), so this is the
  * floor the field offers.
  */
@@ -94,10 +94,10 @@ export function fromTakeText(t: Pick<RefTake, "from" | "source">): string {
 }
 
 // ---------------------------------------------------------------------------
-// the span (POST /h3pipe/refs/voice-from-take)
+// the span (POST /seriesmith/refs/voice-from-take)
 // ---------------------------------------------------------------------------
 
-/** h3refs.MIN_CLIP / MAX_CLIP: a shorter span is a click, not a voice. */
+/** refs.MIN_CLIP / MAX_CLIP: a shorter span is a click, not a voice. */
 export const SPAN_MIN = 0.2;
 export const SPAN_MAX = 30;
 

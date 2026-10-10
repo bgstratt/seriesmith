@@ -70,7 +70,7 @@ class ApiTest(unittest.TestCase):
         self.events: list[tuple[str, dict]] = []
         self.ctx = A.Context(self.user, self.comfy.url,
                              emit=lambda e, d: self.events.append((e, d)),
-                             comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={})
+                             comfy=J.Comfy(self.comfy.url, client_id="seriesmith"), env={})
         # seriesmith's queue, its local backend playing each graph as FakeComfy would
         self.ctx.runner = play_runner(self.comfy, emit=lambda e, d: self.events.append((e, d)))
         self.ok(A.put_config(self.ctx, {"roots": [self.shows]}))
@@ -123,7 +123,7 @@ class ConfigAndRootsTest(ApiTest):
         cfg = self.ok(A.get_config(self.ctx, {}))
         self.assertEqual(cfg, {"roots": [os.path.abspath(self.shows)],
                                "comfy": self.comfy.url, "review_copy": False, "version": 1})
-        self.assertTrue(os.path.isfile(os.path.join(self.user, "default", "h3pipe",
+        self.assertTrue(os.path.isfile(os.path.join(self.user, "default", "seriesmith",
                                                     "config.json")))
         self.err(A.put_config(self.ctx, {"roots": [os.path.join(self.tmp, "nope")]}), 400)
         self.err(A.put_config(self.ctx, {"roots": "x"}), 400)
@@ -141,7 +141,7 @@ class ConfigAndRootsTest(ApiTest):
         other = os.path.join(self.tmp, "Other")
         os.makedirs(other)
         ctx = A.Context(os.path.join(self.tmp, "fresh"), env={
-            "H3PIPE_ROOTS": os.pathsep.join([self.shows, other])})
+            "SERIESMITH_ROOTS": os.pathsep.join([self.shows, other])})
         self.assertEqual(self.ok(A.get_config(ctx, {}))["roots"], [self.shows, other])
         self.assertEqual(self.ok(A.get_config(A.Context(self.user + "2", env={}), {}))["roots"],
                          [])
@@ -174,7 +174,7 @@ class ConfigAndRootsTest(ApiTest):
             self.assertEqual(p["error"], "")
             self.assertIn("shotlist", p["report"])
         self.assertTrue(os.path.isfile(os.path.join(self.ep, "shotlist", "shotlist_proxy.json")))
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual(self.events_of("seriesmith.episode"), [{"ep": self.ep}])
 
         shutil.copy(os.path.join(HERE, "fixtures", "errors", "bad_size.md"),
                     os.path.join(self.ep, "ks01.md"))
@@ -193,7 +193,7 @@ class ConfigAndRootsTest(ApiTest):
 
 
 class NewEpisodeTest(ApiTest):
-    """P5: POST /h3pipe/episode/new. `parent` is the show's folder, and the
+    """P5: POST /seriesmith/episode/new. `parent` is the show's folder, and the
     checks are every other path route's: inside a configured root, or 403."""
 
     def test_makes_one_and_lists_it(self):
@@ -212,7 +212,7 @@ class NewEpisodeTest(ApiTest):
         self.assertTrue(data["check"]["ok"], data["check"])
         self.assertEqual(data["episode"]["name"], "ep09")
         self.assertEqual(data["episode"]["built"], {"final": False, "proxy": False})
-        self.assertIn({"ep": ep}, self.events_of("h3pipe.episode"))
+        self.assertIn({"ep": ep}, self.events_of("seriesmith.episode"))
         listed = {e["name"] for e in self.ok(A.get_episodes(self.ctx, {}))}
         self.assertIn("ep09", listed)
 
@@ -248,7 +248,7 @@ class NewEpisodeTest(ApiTest):
 
 
 class RefMatchTest(ApiTest):
-    """P8: POST /h3pipe/refs/match, and the sheet view through the ref routes."""
+    """P8: POST /seriesmith/refs/match, and the sheet view through the ref routes."""
 
     def names(self, *names):
         return self.ok(A.post_refs_match(self.ctx, {"ep": self.ep, "names": list(names)}))
@@ -260,7 +260,7 @@ class RefMatchTest(ApiTest):
         self.assertEqual((m["ref"], m["view"]), ("subject:ada", "sheet"))
         self.assertIn("ada_sheet_4panel", m["why"])
         self.assertEqual(len(r["unmatched"]), 1)
-        self.assertEqual(self.events_of("h3pipe.ref"), [])
+        self.assertEqual(self.events_of("seriesmith.ref"), [])
 
     def test_an_empty_list_and_a_bad_one(self):
         self.assertEqual(self.names(), {"matched": [], "unmatched": []})
@@ -298,7 +298,7 @@ class RefMatchTest(ApiTest):
 
 
 class ShotDetailP9Test(ApiTest):
-    """P9: `GET /h3pipe/shot?target=` answers for a one-off run on that target,
+    """P9: `GET /seriesmith/shot?target=` answers for a one-off run on that target,
     and `built_values` says what the build compiled where an override changed
     it. Both come from the same planner as `effective`, so they can be compared
     field by field."""
@@ -379,7 +379,7 @@ class IssuesRouteTest(ApiTest):
         self.assertTrue(item["id"])
         self.assertTrue(item["script"])
         self.assertTrue(item["prompt"])
-        self.assertEqual(self.events_of("h3pipe.issues"),
+        self.assertEqual(self.events_of("seriesmith.issues"),
                          [{"ep": self.ep, "pass": "proxy", "shot": "sh010", "id": item["id"]}])
         listed = self.ok(A.get_issues(self.ctx, {"ep": self.ep, "pass": "proxy"}))["issues"]
         self.assertEqual([x["id"] for x in listed], [item["id"]])
@@ -539,7 +539,7 @@ class SweepTest(ApiTest):
         t = shots["sh010"]["takes"][0]
         self.assertEqual(t["status"], "failed")
         self.assertEqual(t["save_notes"], "boom")
-        self.assertEqual(self.events_of("h3pipe.take")[-1],
+        self.assertEqual(self.events_of("seriesmith.take")[-1],
                          {"ep": self.ep, "pass": "proxy", "shot": "sh010", "take": 1,
                           "status": "failed", "thumb": None})
 
@@ -667,10 +667,10 @@ class RenderTest(ApiTest):
         si = next(v["inputs"] for v in g.values() if v["class_type"] == J.PORTABLE_SAVER)
         self.assertTrue(si["run"].startswith("ks01_proxy_sh010_t01_"))
         # each queued, then each ended (its job may end before the route answers)
-        self.assertEqual(sorted(d["status"] for d in self.events_of("h3pipe.take")),
+        self.assertEqual(sorted(d["status"] for d in self.events_of("seriesmith.take")),
                          ["ok", "ok", "queued", "queued"])
-        self.assertTrue(self.events_of("h3pipe.episode"))
-        self.assertEqual({d["ep"] for d in self.events_of("h3pipe.episode")}, {self.ep})
+        self.assertTrue(self.events_of("seriesmith.episode"))
+        self.assertEqual({d["ep"] for d in self.events_of("seriesmith.episode")}, {self.ep})
 
         data = self.render("sh010")
         self.assertEqual(data["queued"], [])
@@ -713,7 +713,7 @@ class RenderTest(ApiTest):
         t = T.get_take(self.ep, "proxy", "sh020", 1)
         self.assertEqual(t.status, "failed")
         self.assertIn("bad input", t.sidecar["save_notes"])
-        self.assertEqual(self.events_of("h3pipe.take")[-1]["status"], "failed")
+        self.assertEqual(self.events_of("seriesmith.take")[-1]["status"], "failed")
 
     def test_bad_input(self):
         for body in ({"seed": "12x"}, {"seed": -1}, {"seed_mode": "odd"}, {"shots": "sh010"},
@@ -745,7 +745,7 @@ class CancelTest(ApiTest):
         self.assertEqual((data["status"], data["save_notes"]),
                          ("failed", "canceled before it ran"))
         self.assertEqual(self.ctx.runner.queue.jobs[q["prompt_id"]].status, "canceled")
-        self.assertEqual(self.events_of("h3pipe.take")[-1]["status"], "failed")
+        self.assertEqual(self.events_of("seriesmith.take")[-1]["status"], "failed")
         self.assertEqual(self.comfy.posts, [])
 
     def test_running_job_is_stopped(self):
@@ -779,7 +779,7 @@ class CutTest(ApiTest):
         _, shots = self.status()
         self.assertEqual((shots["sh010"]["cut"]["take"], shots["sh010"]["cut"]["picked"]),
                          (1, True))
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
         cut = self.pick(None)["cut"]
         self.assertIn({"shot": "sh010"}, cut["proxy"])
         self.assertEqual(self.status()[1]["sh010"]["cut"]["take"], 2)
@@ -816,7 +816,7 @@ class CutTest(ApiTest):
         self.assertLess(names.index(order[0]), names.index("sh999"))
         self.assertEqual(len(names), len(order) + 1)
         self.assertTrue(shots["sh999"]["orphan"])
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
         for bad in ([{"take": 1}], [{"shot": "a"}, {"shot": "a"}], [{"shot": "a", "trim_in": -1}],
                     [{"shot": "a", "colour": "red"}], "x"):
             self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": bad}), 400)
@@ -845,7 +845,7 @@ class OverrideTest(ApiTest):
         self.assertEqual(b["seed"], int(big))
         self.assertEqual(b["proxy"]["base_hash"], J.story_hash(self.built("proxy")))
         self.assertNotIn("final", b)
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
         # a render now uses it
         (q,) = self.render("sh020")["queued"]
         self.assertEqual((q["seed"], q["seed_source"]), (big, "override"))
@@ -877,7 +877,7 @@ class OverrideTest(ApiTest):
                                            "fields": {"size": "huge"}}), 400)
         via_api = T.read_json(os.path.join(self.ep, "overrides.json"))
         os.remove(os.path.join(self.ep, "overrides.json"))
-        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "override", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "override", self.ep,
                             "sh020", "--proxy", "--size", "1344x768"], capture_output=True, env=ENV)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(T.read_json(os.path.join(self.ep, "overrides.json")), via_api)
@@ -887,7 +887,7 @@ class OverrideTest(ApiTest):
         self.put({"steps": 10, "seed": "5", "loras": ["b.safetensors:0.4"]})
         via_api = T.read_json(os.path.join(self.ep, "overrides.json"))
         os.remove(os.path.join(self.ep, "overrides.json"))
-        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "override", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "override", self.ep,
                             "sh020", "--proxy", "--steps", "10", "--seed", "5",
                             "--lora", "b.safetensors:0.4"], capture_output=True, env=ENV)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

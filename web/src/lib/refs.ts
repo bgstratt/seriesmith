@@ -25,12 +25,12 @@ export const VIEWS: { view: string; label: string }[] = [
 
 /**
  * P8: the reserved pseudo-view for a character's whole supplied sheet
- * (h3refs.SHEET_VIEW). Not one of VIEWS: nothing generates a sheet, it is the
+ * (refs.SHEET_VIEW). Not one of VIEWS: nothing generates a sheet, it is the
  * four views stitched -- or one you supply ready-made.
  */
 export const SHEET_VIEW = "sheet";
 
-/** P5: a location's pseudo-views (h3refs.PANO_VIEW / TOUR_VIEW): never picked where they are. */
+/** P5: a location's pseudo-views (refs.PANO_VIEW / TOUR_VIEW): never picked where they are. */
 export const PANO_VIEW = "pano";
 export const TOUR_VIEW = "tour";
 

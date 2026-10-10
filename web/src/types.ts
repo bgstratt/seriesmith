@@ -58,7 +58,7 @@ export interface TakeSummary {
   audio?: string | null;
   /** Phase 13: the take's upscale (null: never upscaled; absent from older servers). */
   upscale?: TakeUpscale | null;
-  /** its post (h3post: the upscale finished; null: never post-processed; absent from older servers) */
+  /** its post (post: the upscale finished; null: never post-processed; absent from older servers) */
   post?: TakePost | null;
   /** Phase 13: the take's size, from its sidecar (the Upscale dialog's arithmetic) */
   width?: number | null;
@@ -199,7 +199,7 @@ export interface Track {
   aligned?: number;
 }
 
-/** Phase 9b: GET /h3pipe/peaks. */
+/** Phase 9b: GET /seriesmith/peaks. */
 export interface PeaksResult {
   /** seconds of the whole file */
   duration: number;
@@ -213,7 +213,7 @@ export interface PeaksResult {
   end?: number | null;
 }
 
-/** Phase 9b: what POST /h3pipe/cut/reset and /cut/copy touch. Phase 9d adds
+/** Phase 9b: what POST /seriesmith/cut/reset and /cut/copy touch. Phase 9d adds
  * "audio" (and "all" clears it too). */
 export type CutWhat = "order" | "trims" | "audio" | "all";
 
@@ -251,7 +251,7 @@ export interface CutAudioSource {
 // Phase 9c-A: attaching and aligning a recording
 // ---------------------------------------------------------------------------
 
-/** GET /h3pipe/align/ready: what h3align needs, in the Python that would run it. */
+/** GET /seriesmith/align/ready: what align needs, in the Python that would run it. */
 export interface AlignReady {
   ready: boolean;
   /** the ffmpeg on PATH, or null */
@@ -269,7 +269,7 @@ export interface AlignReady {
   models?: { default?: string; choices?: string[] };
 }
 
-/** POST /h3pipe/track: attach (or clear) the episode's dialogue recording. */
+/** POST /seriesmith/track: attach (or clear) the episode's dialogue recording. */
 export interface TrackResult {
   track: Track | null;
   /** the series config's hash after the write */
@@ -304,7 +304,7 @@ export interface AlignChange {
   note?: string;
 }
 
-/** POST /h3pipe/align. */
+/** POST /seriesmith/align. */
 export interface AlignResult {
   ok: boolean;
   dry_run: boolean;
@@ -322,11 +322,11 @@ export interface AlignResult {
   series_hash: string | null;
   track: Track | null;
   build: BuildResult | null;
-  /** everything h3align printed (progress lines removed) */
+  /** everything align printed (progress lines removed) */
   log: string;
 }
 
-/** The body of POST /h3pipe/align's 409: a dependency isn't installed. */
+/** The body of POST /seriesmith/align's 409: a dependency isn't installed. */
 export interface AlignMissing {
   error: string;
   missing: string[];
@@ -337,7 +337,7 @@ export interface AlignMissing {
   words?: boolean;
 }
 
-/** The `h3pipe.align` event, while a run is going. */
+/** The `seriesmith.align` event, while a run is going. */
 export interface AlignEvent {
   ep: string;
   stage: "transcribe" | "match" | "write" | (string & {});
@@ -345,7 +345,7 @@ export interface AlignEvent {
   text: string;
 }
 
-/** PUT /h3pipe/episode-target: the episode's target fields, as GET /h3pipe/episode has them. */
+/** PUT /seriesmith/episode-target: the episode's target fields, as GET /seriesmith/episode has them. */
 export interface EpisodeTargetResult {
   target?: string | null;
   target_source?: EpisodeTargetSource | null;
@@ -414,7 +414,7 @@ export interface Override {
   params?: RefParams | null;
 }
 
-/** P4: the sampler knobs a ref override may set (h3refs.TUNABLE_PARAMS), each
+/** P4: the sampler knobs a ref override may set (refs.TUNABLE_PARAMS), each
  * only where the image target has that widget. */
 export type RefParams = Partial<Record<"sampler" | "scheduler" | "denoise" | "shift" | "guidance", string | number>>;
 export const TUNABLE_PARAMS = ["sampler", "scheduler", "denoise", "shift", "guidance"] as const;
@@ -452,7 +452,7 @@ export interface Effective {
 /** What a ref is to a shot (API.md "Inspector: the refs a shot uses"). */
 export type RefRole = "subject" | "plate" | "first" | "last" | "reference_sheet" | "voice" | "recording";
 
-/** One ref a shot's current target reads (`GET /h3pipe/shot` `refs_used`). */
+/** One ref a shot's current target reads (`GET /seriesmith/shot` `refs_used`). */
 export interface RefUsed {
   /** null for a recording, or a plate the series config doesn't name */
   id: string | null;
@@ -509,7 +509,7 @@ export interface BuildResult {
   error?: string;
 }
 
-/** P5: POST /h3pipe/episode/new. `parent` is the show's folder, inside a root;
+/** P5: POST /seriesmith/episode/new. `parent` is the show's folder, inside a root;
  *  `name` becomes the folder and the script's stem. `series_id` and `title`
  *  name the series only when this is its first episode. */
 export interface NewEpisodeRequest {
@@ -595,11 +595,11 @@ export interface RenderSkip {
   missing_files?: MissingFile[];
   /** the shot's target (a missing-files skip) */
   target?: string;
-  /** the model checks that stopped the shot (h3jobs.check_models) */
+  /** the model checks that stopped the shot (jobs.check_models) */
   model_mismatch?: { param: string; file: string; family: string; label: string; message: string }[];
 }
 
-/** POST /h3pipe/render. What a render will change (an audio fallback, an ignored
+/** POST /seriesmith/render. What a render will change (an audio fallback, an ignored
  * prompt override) isn't here: it is in shot detail's `effective.notes`
  * beforehand and the take's sidecar `notes` after. */
 export interface RenderResult {
@@ -615,7 +615,7 @@ export interface TakeRef {
   take: number;
 }
 
-/** POST /h3pipe/cancel: the take's new status (failed, "cancelled"). */
+/** POST /seriesmith/cancel: the take's new status (failed, "cancelled"). */
 export interface CancelResult {
   shot: string;
   pass: Pass;
@@ -625,7 +625,7 @@ export interface CancelResult {
   finished: string | null;
 }
 
-/** POST /h3pipe/discard (Phase 8.6): the take's files moved to `_trash/`. */
+/** POST /seriesmith/discard (Phase 8.6): the take's files moved to `_trash/`. */
 export interface DiscardResult {
   shot: string;
   take: number;
@@ -695,7 +695,7 @@ export interface OverrideRequest {
   fields: OverrideFields;
 }
 
-/** PUT / DELETE /h3pipe/override: each pass's override (with its `stale`),
+/** PUT / DELETE /seriesmith/override: each pass's override (with its `stale`),
  * the target the next render uses and the one the build compiled for. */
 export interface OverrideResult {
   override: Partial<Record<Pass, Override & { stale?: boolean }>>;
@@ -713,16 +713,16 @@ export interface AssembleResult {
   published?: string | null;
 }
 
-/** Phase 13: POST /h3pipe/assemble's extras. `upscaled` (final pass): each clip
+/** Phase 13: POST /seriesmith/assemble's extras. `upscaled` (final pass): each clip
  * from its fresh upscale, as <ep>_up.mp4; `size`: the cut's size ("1920x1080");
- * `publish`: then the series intro and outro around it, titled (h3publish). */
+ * `publish`: then the series intro and outro around it, titled (publish). */
 export interface AssembleOptions {
   upscaled?: boolean;
   size?: string | null;
   publish?: boolean;
 }
 
-/** Phase 13: a final take's upscale (<stem>.up.mp4), as GET /h3pipe/episode says it. */
+/** Phase 13: a final take's upscale (<stem>.up.mp4), as GET /seriesmith/episode says it. */
 export interface TakeUpscale {
   status: "queued" | "ok" | "failed";
   /** made from the take's mp4 as it is now (false once the take is re-rendered) */
@@ -758,7 +758,7 @@ export interface TakeUpscale {
   save_notes: string;
 }
 
-/** Phase 13: POST /h3pipe/upscale. `shots`: their takes in the pass's cut
+/** Phase 13: POST /seriesmith/upscale. `shots`: their takes in the pass's cut
  * (null: the whole cut); `takes`: that pass's takes named directly (wins). */
 export interface UpscaleRequest {
   ep: string;
@@ -819,7 +819,7 @@ export interface TakePost {
   save_notes: string;
 }
 
-/** POST /h3pipe/post. `recipe` (or neither `enhance` nor `blur`): the series' post.master. */
+/** POST /seriesmith/post. `recipe` (or neither `enhance` nor `blur`): the series' post.master. */
 export interface PostRequest {
   ep: string;
   pass?: Pass;
@@ -840,13 +840,13 @@ export interface PostResult {
   errors: { shot: string; take?: number; error: string }[];
 }
 
-/** whether this ComfyUI can run a post step (h3post.not_ready's sentences) */
+/** whether this ComfyUI can run a post step (post.not_ready's sentences) */
 export interface PostReadiness {
   status: "ready" | "not_ready" | "unknown";
   missing: string[];
 }
 
-/** GET /h3pipe/post/options */
+/** GET /seriesmith/post/options */
 export interface PostOptions {
   tiers: { id: string; enhance: Record<string, unknown>; text: string; readiness: PostReadiness }[];
   methods: string[];
@@ -858,7 +858,7 @@ export interface PostOptions {
             problems: string[] } | null;
 }
 
-/** GET /h3pipe/upscale/options: what the Upscale dialog can offer here. */
+/** GET /seriesmith/upscale/options: what the Upscale dialog can offer here. */
 export interface UpscaleOptions {
   pixel: { status: "ready" | "not_ready" | "unknown"; missing: string[]; models: string[]; default: string };
   /** SeedVR2 (core nodes, its own model files): absent from older servers */
@@ -880,7 +880,7 @@ export interface UpscaleOptions {
   recipe?: RecipeView | null;
 }
 
-/** Phase 13e: POST /h3pipe/master's plan: each shot of the cut against the recipe. */
+/** Phase 13e: POST /seriesmith/master's plan: each shot of the cut against the recipe. */
 export interface MasterPlan {
   pass: Pass;
   size: [number, number];
@@ -908,15 +908,15 @@ export interface MasterResult {
   output?: string;
   mov?: string | null;
   report?: string;
-  /** the intro / outro the master was made with (h3publish), null: none found */
+  /** the intro / outro the master was made with (publish), null: none found */
   titles?: MasterTitles | null;
-  /** assemble: the job as it ended (GET /h3pipe/master/job has the same) */
+  /** assemble: the job as it ended (GET /seriesmith/master/job has the same) */
   job?: MasterJob;
   /** the master already made at the recipe's size and its ProRes .mov (null: none yet) */
   existing?: { output: string; mov: string | null } | null;
 }
 
-/** The titles h3publish put on a master, and how it laid the cut in between:
+/** The titles publish put on a master, and how it laid the cut in between:
  * `copied` (only the title clips encoded) or `re-encoded` (the whole cut; `why`). */
 export interface MasterTitles {
   intro: string | null;
@@ -926,17 +926,17 @@ export interface MasterTitles {
 }
 
 /** A master being assembled, or the last one this ComfyUI assembled
- * (GET /h3pipe/master/job, and every `h3pipe.master` event). */
+ * (GET /seriesmith/master/job, and every `seriesmith.master` event). */
 export interface MasterJob {
   ep: string;
   pass: Pass | null;
   state: "running" | "done" | "failed";
-  /** started by something other than this editor (`h3.py master`): no progress to show */
+  /** started by something other than this editor (`seriesmith master`): no progress to show */
   elsewhere: boolean;
   by: string | null;
   started: string | null;
   finished: string | null;
-  /** where it is: assemble (h3assemble) or titles (h3publish) */
+  /** where it is: assemble (assemble) or titles (publish) */
   step: "assemble" | "titles" | null;
   /** probe, clips, join, prores, verify (assemble); titles, join, verify, reencode, prores (titles) */
   stage: string | null;
@@ -1071,7 +1071,7 @@ export interface RefTake {
   image: string | null;
   /** a voice's candidate recording (then `image` is null) */
   audio?: string | null;
-  /** "frame": a keyframe cut out of a video take (POST /h3pipe/refs/keyframe);
+  /** "frame": a keyframe cut out of a video take (POST /seriesmith/refs/keyframe);
    * "from_take" (Phase 9c): a voice sample cut out of a take's sound */
   source: "generated" | "imported" | "frame" | "from_take" | "edited" | "pano" | "tour";
   /** where a "frame" or "from_take" take came from */
@@ -1096,7 +1096,7 @@ export interface RefTake {
   height?: number | null;
   /** the image target it was generated with */
   target?: string | null;
-  /** an upload's file name (POST /h3pipe/refs/import, multipart) */
+  /** an upload's file name (POST /seriesmith/refs/import, multipart) */
   original_name?: string;
   // ---- Phase 9c-B: a voice candidate ----
   /** how long it was asked to be (whole seconds after the grid snapped it) */
@@ -1129,7 +1129,7 @@ export interface RefView {
   /** 01_threequarter | 02_side | 03_back | 04_face */
   view: string;
   picked: number | null;
-  /** Clear (DELETE /h3pipe/refs/pick) removed its pick; auto-pick leaves it alone */
+  /** Clear (DELETE /seriesmith/refs/pick) removed its pick; auto-pick leaves it alone */
   cleared?: boolean;
   /** what this view generates with now */
   prompt?: string | null;
@@ -1195,10 +1195,10 @@ export interface EditRef {
 }
 
 /** Where an image-target default comes from: set in the editor for the episode
- * (PUT /h3pipe/refs/defaults), the series config's `refs` block, or built in. */
+ * (PUT /seriesmith/refs/defaults), the series config's `refs` block, or built in. */
 export type RefDefaultSource = "editor" | "series" | "default";
 
-/** GET /h3pipe/refs `defaults`: the image targets refs and keyframes generate with. */
+/** GET /seriesmith/refs `defaults`: the image targets refs and keyframes generate with. */
 export interface RefDefaults {
   /** the image target series refs generate with */
   target?: string | null;
@@ -1345,7 +1345,7 @@ export interface RefGenerateRequest {
   backend?: string;
 }
 
-/** P5: one camera tour of a location (h3tour.py) */
+/** P5: one camera tour of a location (tour.py) */
 export interface RefTour {
   tour: number;
   status: "queued" | "ok" | "failed" | (string & {});
@@ -1366,7 +1366,7 @@ export interface RefEditWith {
   take?: number | null;
 }
 
-/** POST /h3pipe/refs/generate `edit`: change a picture the ref already has.
+/** POST /seriesmith/refs/generate `edit`: change a picture the ref already has.
  * `take` null edits the live picture; `wrap` false sends the instruction
  * (the request's `prompt`) exactly as typed, for a LoRA's trigger syntax. */
 export interface RefEditRequest {
@@ -1393,7 +1393,7 @@ export interface RefGenerateResult {
   errors: { ref?: string; view?: string | null; error: string; take?: number }[];
 }
 
-/** POST /h3pipe/refs/generate-missing (Phase 8.6). */
+/** POST /seriesmith/refs/generate-missing (Phase 8.6). */
 export interface RefGenerateMissingRequest {
   ep: string;
   pass?: Pass;
@@ -1422,7 +1422,7 @@ export interface RefGenerateMissingResult {
 }
 
 
-/** P8: POST /h3pipe/refs/match -- which slot does each file name mean? */
+/** P8: POST /seriesmith/refs/match -- which slot does each file name mean? */
 export interface RefMatch {
   file: string;
   ref: string;
@@ -1459,7 +1459,7 @@ export interface RefImportRequest {
   pick?: boolean;
 }
 
-/** POST /h3pipe/refs/import as multipart/form-data (Phase 8.6, drag and drop). */
+/** POST /seriesmith/refs/import as multipart/form-data (Phase 8.6, drag and drop). */
 export interface RefUploadRequest {
   ep: string;
   ref: string;
@@ -1471,7 +1471,7 @@ export interface RefUploadRequest {
   name?: string;
 }
 
-/** POST /h3pipe/refs/discard (Phase 8.6): move a candidate to `_trash/`. */
+/** POST /seriesmith/refs/discard (Phase 8.6): move a candidate to `_trash/`. */
 export interface RefDiscardRequest {
   ep: string;
   ref: string;
@@ -1504,7 +1504,7 @@ export interface VoiceClipSource {
   file?: string | null;
 }
 
-/** POST /h3pipe/refs/voice-from-take: a line a take already spoke as a sample. */
+/** POST /seriesmith/refs/voice-from-take: a line a take already spoke as a sample. */
 export interface VoiceFromTakeRequest {
   ep: string;
   ref: string;
@@ -1535,11 +1535,11 @@ export type VoiceFromTakeResult = Omit<Ref, "picked"> & {
   series_changed?: boolean;
 };
 
-/** PUT /h3pipe/refs/pick: the ref, and whether the series config gained a
+/** PUT /seriesmith/refs/pick: the ref, and whether the series config gained a
  * `voice_sample` line (Phase 9c-B). */
 export type RefPickResult = Ref & { series_changed?: boolean };
 
-/** POST /h3pipe/refs/keyframe: a shot's first / last keyframe from a frame of a take. */
+/** POST /seriesmith/refs/keyframe: a shot's first / last keyframe from a frame of a take. */
 export interface RefKeyframeRequest {
   ep: string;
   pass: Pass;
@@ -1567,7 +1567,7 @@ export interface RefEvent {
   ref: string;
   view: string | null;
   take: number | null;
-  /** queued | ok | failed | picked, or cleared (DELETE /h3pipe/refs/pick) */
+  /** queued | ok | failed | picked, or cleared (DELETE /seriesmith/refs/pick) */
   status: TakeStatus | "picked" | "cleared" | (string & {});
 
 }
@@ -1649,14 +1649,14 @@ export interface Target {
   draft?: boolean;
 }
 
-/** Phase 12b: one saved ComfyUI workflow (GET /h3pipe/workflows). */
+/** Phase 12b: one saved ComfyUI workflow (GET /seriesmith/workflows). */
 export interface WorkflowFile {
   name: string;
-  /** a workflow one of h3pipe's own targets already drives */
+  /** a workflow one of seriesmith's own targets already drives */
   target?: boolean;
 }
 
-/** Phase 12b: POST /h3pipe/targets/inspect — the target.json it proposes, and
+/** Phase 12b: POST /seriesmith/targets/inspect — the target.json it proposes, and
  * what it could not work out. `proposal` is saved as-is once confirmed. */
 export interface TargetProposal {
   proposal: Record<string, unknown>;
@@ -1677,7 +1677,7 @@ export interface TargetProposal {
   can_save?: boolean;
 }
 
-/** PUT / DELETE /h3pipe/targets/custom. */
+/** PUT / DELETE /seriesmith/targets/custom. */
 export interface CustomTargetResult {
   ok?: boolean;
   id?: string;
@@ -1688,7 +1688,7 @@ export interface CustomTargetResult {
 }
 
 /**
- * Phase 11: the graph a target renders with (GET /h3pipe/targets `graph`).
+ * Phase 11: the graph a target renders with (GET /seriesmith/targets `graph`).
  * `source` is where it comes from, in the order a render resolves it: the
  * target's env var, a workflow saved in the running ComfyUI, $COMFYUI_PATH's
  * workflows folder, then the repo's own copy.
@@ -1761,7 +1761,7 @@ export interface Readiness {
   nodes_missing: string[];
 }
 
-/** POST / DELETE /h3pipe/workflow/install (Phase 11). */
+/** POST / DELETE /seriesmith/workflow/install (Phase 11). */
 export interface WorkflowInstallResult {
   ok?: boolean;
   target?: string;
@@ -1775,7 +1775,7 @@ export interface WorkflowInstallResult {
   graph?: TargetGraph;
 }
 
-/** One file of GET /h3pipe/models: how it stands against the param's family. */
+/** One file of GET /seriesmith/models: how it stands against the param's family. */
 export interface ModelFile {
   name: string;
   /** named like the family, its header says so, or anything else */
@@ -1789,7 +1789,7 @@ export interface ModelFile {
   base?: string;
 }
 
-/** GET /h3pipe/models?target=…&param=… */
+/** GET /seriesmith/models?target=…&param=… */
 export interface ModelList {
   target: string;
   param: string;
@@ -1820,7 +1820,7 @@ export interface SourceShotSpan {
   end_line: number;
 }
 
-/** GET /h3pipe/source */
+/** GET /seriesmith/source */
 export interface SourceDoc {
   file: SourceFile;
   /** relative to the episode (`../series.json` for a parent-folder series config) */
@@ -1833,7 +1833,7 @@ export interface SourceDoc {
   shots: SourceShotSpan[];
 }
 
-/** GET /h3pipe/source?…&hash_only=1 */
+/** GET /seriesmith/source?…&hash_only=1 */
 export interface SourceHash {
   file: SourceFile;
   hash: string;
@@ -1851,7 +1851,7 @@ export interface SourceMessage {
   message: string;
 }
 
-/** POST /h3pipe/source/check (and `check` of PUT /h3pipe/source) */
+/** POST /seriesmith/source/check (and `check` of PUT /seriesmith/source) */
 /**
  * P10: an issue noted while watching a pass — what is wrong with a shot **as it
  * was rendered**. The snapshot fields are taken when the note is made and never
@@ -1908,14 +1908,14 @@ export interface SourceSaveRequest {
   rebuild: boolean;
 }
 
-/** PUT /h3pipe/source */
+/** PUT /seriesmith/source */
 export interface SourceSaveResult {
   hash: string;
   check: SourceCheck;
   build: BuildResult | null;
 }
 
-/** The body of a 409 from PUT /h3pipe/source or POST /h3pipe/promote. */
+/** The body of a 409 from PUT /seriesmith/source or POST /seriesmith/promote. */
 export interface SourceConflictBody {
   error: string;
   /** as built: which file changed */
@@ -1955,7 +1955,7 @@ export interface PromoteHashes {
   series: string;
 }
 
-/** GET /h3pipe/promote */
+/** GET /seriesmith/promote */
 export interface PromotePlan {
   items: PromoteItem[];
   left: PromoteLeft[];
@@ -1963,7 +1963,7 @@ export interface PromotePlan {
   hashes: PromoteHashes;
 }
 
-/** POST /h3pipe/promote */
+/** POST /seriesmith/promote */
 export interface PromoteResult {
   promoted: string[];
   left: PromoteLeft[];

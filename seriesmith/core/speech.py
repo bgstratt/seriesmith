@@ -1,5 +1,5 @@
 """
-h3core.speech — how long dialogue takes to say, and how fast a window forces it.
+core.speech — how long dialogue takes to say, and how fast a window forces it.
 
 A shot's length has to hold its dialogue at a rate a person can follow. A video
 model will happily fit any line into any window by speeding the delivery up,
@@ -11,7 +11,7 @@ Rates are syllables per second of actual speech. Conversational English runs
 reading as a person talking fast and starts reading as a sped-up recording.
 
 Dialogue here is a list of dicts with at least "who" and "line" (the parser's
-shape), so the same functions serve the IR adapter and h3align.
+shape), so the same functions serve the IR adapter and align.
 """
 
 from __future__ import annotations

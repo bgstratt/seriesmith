@@ -63,9 +63,9 @@ const api = comfyApi as ComfyApi;
 // Round 2: the Queue tab is gone (ComfyUI's own queue is enough) and the
 // inspector is a floating window in the overlay, not a sidebar tab.
 const IDS: Record<Surface, string> = {
-  shots: "h3pipe-shots",
-  refs: "h3pipe-refs",
-  timeline: "h3pipe-timeline",
+  shots: "seriesmith-shots",
+  refs: "seriesmith-refs",
+  timeline: "seriesmith-timeline",
 };
 
 const comfyHost: Host = {
@@ -82,7 +82,7 @@ const comfyHost: Host = {
     }
     const t = app.extensionManager?.toast;
     if (t?.add) t.add({ severity, summary, detail, life: severity === "error" ? 10000 : 4000 });
-    else console[severity === "error" ? "error" : "log"](`[h3pipe] ${summary}`, detail ?? "");
+    else console[severity === "error" ? "error" : "log"](`[seriesmith] ${summary}`, detail ?? "");
   },
   show(surface) {
     const em = app.extensionManager;
@@ -97,7 +97,7 @@ const comfyHost: Host = {
       if (sb && sb.activeSidebarTabId !== id) sb.toggleSidebarTab?.(id);
       else if (!sb) em?.command?.execute?.(`Workspace.ToggleSidebarTab.${id}`);
     } catch (e) {
-      console.warn("[h3pipe] couldn't open", surface, e);
+      console.warn("[seriesmith] couldn't open", surface, e);
     }
   },
 };
@@ -117,21 +117,21 @@ export function install() {
   setApi(createHttpApi({
     fetch: (p, init) => api.fetchApi(p, init),
     url: (p) => api.apiURL(p),
-    // XMLHttpRequest, for upload progress (the h3pipe routes need no user header)
+    // XMLHttpRequest, for upload progress (the seriesmith routes need no user header)
     upload: (p, form, onProgress) => xhrUpload(api.apiURL(p), form, onProgress),
   }));
 
   app.registerExtension({
-    name: "h3pipe.editor",
+    name: "seriesmith.editor",
     bottomPanelTabs: [tab("timeline", "h3 Timeline")],
     async setup() {
       const em = app.extensionManager;
       if (!em?.registerSidebarTab) {
-        console.error("[h3pipe] this ComfyUI frontend has no extensionManager.registerSidebarTab; the editor needs frontend >= 1.3");
+        console.error("[seriesmith] this ComfyUI frontend has no extensionManager.registerSidebarTab; the editor needs frontend >= 1.3");
         return;
       }
-      em.registerSidebarTab({ ...tab("shots", "h3 Shots"), icon: "pi pi-video", tooltip: "h3pipe: episode, shots and takes" });
-      em.registerSidebarTab({ ...tab("refs", "h3 Refs"), icon: "h3-ico-images", tooltip: "h3pipe: references (characters, props, locations, voices)" });
+      em.registerSidebarTab({ ...tab("shots", "h3 Shots"), icon: "pi pi-video", tooltip: "seriesmith: episode, shots and takes" });
+      em.registerSidebarTab({ ...tab("refs", "h3 Refs"), icon: "h3-ico-images", tooltip: "seriesmith: references (characters, props, locations, voices)" });
       mountOverlay();
       await start();
     },

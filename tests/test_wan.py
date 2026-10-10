@@ -18,7 +18,7 @@ shared code in targets/video/wan).
   - every flattened, patched graph passes check_graph against the trimmed
     /object_info (tests/fixtures/workflows/object_info_wan.json, from the
     running ComfyUI)
-  - the take records its fps (16 for 14B); h3assemble converts a 16 fps clip
+  - the take records its fps (16 for 14B); assemble converts a 16 fps clip
     in a 24 fps cut by duration, and scales a clip of another size
 """
 from __future__ import annotations

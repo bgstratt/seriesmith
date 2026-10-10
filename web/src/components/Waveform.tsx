@@ -1,7 +1,7 @@
 // Phase 9b: the waveform lane under the timeline's clips. Each clip draws its
 // own audio (`take.audio`, over the part the cut plays), or, with Play all on
 // the recording, its slice of the episode's `track` (its dialogue window, trims
-// applied). Peaks come from GET /h3pipe/peaks at the zoom's resolution, through
+// applied). Peaks come from GET /seriesmith/peaks at the zoom's resolution, through
 // a shared cache; a clip only asks once it scrolls into view.
 
 import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";

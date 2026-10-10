@@ -79,7 +79,7 @@ const json = (body: string, status = 200) => new Response(body, { status, header
 describe("createHttpApi", () => {
   it("returns seeds as exact strings even if the server sent numbers", async () => {
     const { api } = fake({
-      "GET /h3pipe/episode": () => json(`{"episode":"ep05","pass":"proxy","shots":[{"shot":"sh020","takes":[{"take":1,"seed":${BIG}}]}]}`),
+      "GET /seriesmith/episode": () => json(`{"episode":"ep05","pass":"proxy","shots":[{"shot":"sh020","takes":[{"take":1,"seed":${BIG}}]}]}`),
     });
     const st = await api.episode("C:\\ep05", "proxy");
     expect(st.shots[0].takes[0].seed).toBe(BIG);
@@ -88,7 +88,7 @@ describe("createHttpApi", () => {
   it("sends a typed seed as the same string", async () => {
     let body = "";
     const { api } = fake({
-      "POST /h3pipe/render": (init) => {
+      "POST /seriesmith/render": (init) => {
         body = String(init?.body);
         return json(`{"queued":[{"shot":"sh020","take":3,"prompt_id":"p1","seed":"${BIG}","seed_source":"typed"}],"skipped":[],"errors":[]}`);
       },
@@ -112,16 +112,16 @@ describe("createHttpApi", () => {
   });
 
   it("puts ep/pass/shot in the query string, encoded", async () => {
-    const { api, calls } = fake({ "GET /h3pipe/shot": () => json(`{"shot":"sh020"}`) });
+    const { api, calls } = fake({ "GET /seriesmith/shot": () => json(`{"shot":"sh020"}`) });
     await api.shot("C:\\Shows\\My Show\\ep05", "final", "sh020");
-    expect(calls[0].path).toBe("/h3pipe/shot?ep=C%3A%5CShows%5CMy+Show%5Cep05&pass=final&shot=sh020");
+    expect(calls[0].path).toBe("/seriesmith/shot?ep=C%3A%5CShows%5CMy+Show%5Cep05&pass=final&shot=sh020");
     expect(api.fileUrl("C:\\ep05", "renders_proxy/sh020/sh020_t01.mp4")).toBe(
-      "http://comfy/h3pipe/file?ep=C%3A%5Cep05&path=renders_proxy%2Fsh020%2Fsh020_t01.mp4",
+      "http://comfy/seriesmith/file?ep=C%3A%5Cep05&path=renders_proxy%2Fsh020%2Fsh020_t01.mp4",
     );
   });
 
   it("turns {error} bodies into ApiError with the status", async () => {
-    const { api } = fake({ "PUT /h3pipe/pick": () => json(`{"error":"sh020 t03 is failed with no mp4"}`, 409) });
+    const { api } = fake({ "PUT /seriesmith/pick": () => json(`{"error":"sh020 t03 is failed with no mp4"}`, 409) });
     const e = await api.pick({ ep: "x", pass: "proxy", shot: "sh020", take: 3, from_pass: null }).catch((x) => x);
     expect(e).toBeInstanceOf(ApiError);
     expect(e.status).toBe(409);
@@ -130,7 +130,7 @@ describe("createHttpApi", () => {
 
   it("explains a missing route and a network failure", async () => {
     const { api } = fake({});
-    await expect(api.episodes()).rejects.toThrow(/node pack loaded/);
+    await expect(api.episodes()).rejects.toThrow(/server up to date/);
     const broken = createHttpApi({ fetch: () => Promise.reject(new TypeError("Failed to fetch")), url: (p) => p });
     await expect(broken.getConfig()).rejects.toThrow(/Can't reach ComfyUI.*Failed to fetch/);
   });

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-h3align.py — time a script against recorded dialogue and write the `audio:`
-windows h3build needs for lip-synced (dub) shots.
+align.py — time a script against recorded dialogue and write the `audio:`
+windows build needs for lip-synced (dub) shots.
 
-    python h3align.py DeanStories\\ep05 audio\\ep05_dialogue.wav --dry-run
-    python h3align.py DeanStories\\ep05 audio\\ep05_dialogue.wav
-    python h3align.py DeanStories\\ep05                     # re-align; track from the series config
+    python align.py DeanStories\\ep05 audio\\ep05_dialogue.wav --dry-run
+    python align.py DeanStories\\ep05 audio\\ep05_dialogue.wav
+    python align.py DeanStories\\ep05                     # re-align; track from the series config
 
 What it does
     1. Transcribes the recording with word timestamps (faster-whisper), and
@@ -22,12 +22,12 @@ What it does
     4. Rewrites the script: `audio: in-out` on every shot it placed, old `dur:`
        lines kept as comments. Points the series config at the recording
        (audio.mode = source_track). Both files are written the way the editor
-       writes them (h3source): the old one is copied to <episode>/_history/
+       writes them (source): the old one is copied to <episode>/_history/
        first and the write is atomic, so the editor and the command line keep
        one history.
 
 Because the windows are contiguous, the assembled picture lines up with the
-recording end to end: h3assemble trims each clip to its window, and the
+recording end to end: assemble trims each clip to its window, and the
 recording from the first window's start is the episode's dialogue track.
 
 Recording tips
@@ -42,11 +42,11 @@ Needs
     The Whisper model downloads once on first use (--model, default medium.en).
 
 For the editor
-    --progress prints one `##h3align {json}` line per stage (transcribe,
+    --progress prints one `##align {json}` line per stage (transcribe,
     match, write) and --json PATH writes the result (the windows it placed,
     the notes, the report and the files' new hashes) as JSON. Everything else
-    is unchanged: h3track.py runs this script with both and turns the lines
-    into `h3pipe.align` events (docs/API.md, "Phase 9c").
+    is unchanged: track.py runs this script with both and turns the lines
+    into `seriesmith.align` events (docs/API.md, "Phase 9c").
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from seriesmith import build as h3build  # noqa: E402  (parse_script, parse_story)
+from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 
 SR = 16000
@@ -104,7 +104,7 @@ def shot_grids(series_cfg_path: str, script_text: str):
     cfg = load_series_config(series_cfg_path)
     default = TG.video_target(cfg)
     try:
-        story = h3build.parse_story(script_text, subject_ids(cfg), character_ids(cfg),
+        story = BLD.parse_story(script_text, subject_ids(cfg), character_ids(cfg),
                                     series_info(cfg), variant_of(cfg))
         by_shot = TG.shot_targets(story, cfg)
     except Exception:
@@ -351,7 +351,7 @@ def rewrite_script(text: str, windows: dict[str, list[float] | None]) -> str:
         if cur and windows.get(cur) and re.match(r"^\s*audio\s*:", line):
             continue                              # replaced above
         if cur and windows.get(cur) and re.match(r"^\s*(dur|duration)\s*:", line):
-            out.append(f"// {line.strip()}   (h3align)")
+            out.append(f"// {line.strip()}   (align)")
             continue
         if re.match(r"^#\s", line):
             cur = None
@@ -359,7 +359,7 @@ def rewrite_script(text: str, windows: dict[str, list[float] | None]) -> str:
     return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
 
-PROGRESS = "##h3align "     # the prefix of a --progress line (h3track reads them)
+PROGRESS = "##align "     # the prefix of a --progress line (track reads them)
 
 
 def progress(on: bool, stage: str, pct: int, text: str) -> None:
@@ -441,7 +441,7 @@ def main() -> int:
                     help="set audio.retention in series.json (default depends on policy)")
     ap.add_argument("--dry-run", action="store_true", help="report only; change no files")
     ap.add_argument("--progress", action="store_true",
-                    help="print a `##h3align {json}` line per stage (for the editor)")
+                    help="print a `##align {json}` line per stage (for the editor)")
     ap.add_argument("--json", dest="json_out", metavar="PATH",
                     help="write the result (windows, notes, report, hashes) as JSON")
     args = ap.parse_args()
@@ -478,7 +478,7 @@ def main() -> int:
              and v.get("kind", "character") == "character"}
     script_src = HS.read_file(ep, "script", md_p)
     text = script_src.text
-    epi = h3build.parse_script(text, subjects, chars, variant_of(series_cfg))
+    epi = BLD.parse_script(text, subjects, chars, variant_of(series_cfg))
     snap_of = shot_grids(series_cfg_p, text)
     shots, lines = [], []
     for seq in epi["sequences"]:
@@ -578,14 +578,14 @@ def main() -> int:
     hist = os.path.join(ep, HS.HISTORY)
     print(f"\n  -> {md_p}  (old copy in {hist})\n  -> {series_cfg_p}  "
           f"(audio.mode source_track, track {rec_rel}; old copy in {hist})\n  -> {rep}\n"
-          f"  next: python h3.py build {ep}\n")
+          f"  next: seriesmith build {ep}\n")
     progress(prog, "write", 100, "written")
     write_result(args.json_out, result)
     return 0
 
 
 def write_result(path: str | None, result: dict) -> None:
-    """--json: the run as the editor reads it (h3track.align)."""
+    """--json: the run as the editor reads it (track.align)."""
     if path:
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(result, fh, ensure_ascii=False, indent=1)

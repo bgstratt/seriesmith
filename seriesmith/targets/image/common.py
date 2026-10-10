@@ -32,7 +32,7 @@ from seriesmith.core import framing as sizes   # this module has its own framing
 from seriesmith.core.series_config import members
 from seriesmith.targets.image.krea2 import prompt as KP
 
-FACE_SIZES = ("cu", "mcu", "ecu")          # h3core/framing.py names; any spelling matches
+FACE_SIZES = ("cu", "mcu", "ecu")          # core/framing.py names; any spelling matches
 
 
 def ref_prompt(target, req, series_cfg: dict) -> str:
@@ -148,7 +148,7 @@ def reference_intro(refs: list[dict], word: str = "image") -> str:
 
 
 def edit_prompt(instruction: str, refs: list[dict], word: str = "image") -> str:
-    """A free edit of a picture you already have (h3refs.plan_edit): the
+    """A free edit of a picture you already have (refs.plan_edit): the
     first reference is the picture being edited, any after it are other refs
     brought in for the change ("put her in the coat from image 2"). The
     instruction is the person's own words; around it, the rest of the picture
@@ -177,7 +177,7 @@ def edit_prompt(instruction: str, refs: list[dict], word: str = "image") -> str:
 def keyframe_prompt(shot, seq, series_cfg: dict, which: str,
                     refs: list[dict] | None = None, word: str = "image") -> str:
     """The still for `shot`'s `which` ("first" | "last") keyframe, from its
-    IR (`shot` an h3core.ir.Shot, `seq` its Sequence): the look, the framing
+    IR (`shot` an core.ir.Shot, `seq` its Sequence): the look, the framing
     of the location, who is in frame and what they look like, and the action
     at that moment. `refs` (an edit target's reference images, in order:
     {"role": "subject" | "plate", "subject"?, "location"?, "name", "kind"})

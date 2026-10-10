@@ -32,14 +32,14 @@ export class Boundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     const stack = info.componentStack ?? "";
     this.setState({ stack });
-    console.error(`[h3pipe] ${this.props.name} crashed:`, error, stack);
+    console.error(`[seriesmith] ${this.props.name} crashed:`, error, stack);
   }
 
   /** Everything worth pasting into a bug report. */
   report(): string {
     const e = this.state.error;
     return [
-      `h3pipe editor: ${this.props.name} crashed`,
+      `seriesmith editor: ${this.props.name} crashed`,
       String(e?.stack || e),
       this.state.stack && `Component stack:${this.state.stack}`,
     ].filter(Boolean).join("\n");

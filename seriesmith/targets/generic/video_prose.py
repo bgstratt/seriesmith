@@ -104,7 +104,7 @@ def default_policy(target) -> str:
 
 
 def keyframe_path(recipe: dict, shot_id: str, end: str) -> str:
-    """Where a shot's keyframe lives (h3refs' `shot:<id>:<end>` ref)."""
+    """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
     return recipe["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
                                           end=end)
 

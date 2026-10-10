@@ -49,7 +49,7 @@ import torch
 
 GRID_STEP, GRID_BASE, GRID_MAX = 17, 5, 3592
 
-# Take thumbnails. STRIP_FRAMES must match h3takes.STRIP_FRAMES: the editor
+# Take thumbnails. STRIP_FRAMES must match takes.STRIP_FRAMES: the editor
 # reads the strip as that many equal-width cells.
 STRIP_FRAMES = 8
 THUMB_LONG_SIDE = 480
@@ -77,7 +77,7 @@ def snap_up(frames: int) -> int:
 # BT.601 and untagged, which YouTube, browsers and HD players decode as
 # BT.709: reds go orange and skin shifts (measured 2026-10-05: pure red came
 # out Y 81, BT.601's value, where BT.709's is 63). Takes, upscales and
-# renders all encode through this; h3assemble converts the older BT.601 takes.
+# renders all encode through this; assemble converts the older BT.601 takes.
 RGB_TO_BT709 = ("scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
                 "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709")
 
@@ -405,7 +405,7 @@ class SeriesmithShotLoader:
         size = (shot.get("size") or "medium").lower()
         panels_total = int(defaults.get("sheet_panels", 4))
 
-        # `missing_refs: blank` (set by h3jobs when a render is asked for anyway)
+        # `missing_refs: blank` (set by jobs when a render is asked for anyway)
         # turns a missing picture into flat grey and a missing audio reference
         # into none, instead of failing the shot.
         render_anyway = shot.get("missing_refs") == "blank"
@@ -647,7 +647,7 @@ def chain_record(text: str) -> dict | None:
 
 
 def _write_json_atomic(path: str, data) -> None:
-    """Same bytes and atomicity as h3takes.write_json (not importable here):
+    """Same bytes and atomicity as takes.write_json (not importable here):
     temp file in the same folder, then os.replace; LF, indent 2, trailing newline."""
     d = os.path.dirname(os.path.abspath(path))
     os.makedirs(d, exist_ok=True)
@@ -717,7 +717,7 @@ def load_latent(path: str) -> dict:
 
 
 def _now() -> str:
-    """ISO-8601 local time with offset, seconds precision (as h3takes.now)."""
+    """ISO-8601 local time with offset, seconds precision (as takes.now)."""
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
@@ -760,7 +760,7 @@ class SeriesmithSaveTake:
             },
             "optional": {
                 "audio": ("AUDIO",),
-                # the sampler's latent, kept for an upscale (h3jobs links it
+                # the sampler's latent, kept for an upscale (jobs links it
                 # when the render asks for it)
                 "latent": ("LATENT",),
                 # the loader's `info`: its reference lines (each picture, how

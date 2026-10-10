@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-h3takes.py — the on-disk contract for takes, overrides and the cut.
+takes.py — the on-disk contract for takes, overrides and the cut.
 
 Everything that reads or writes a take, `overrides.json` or `cut.json` goes
-through here: h3render, h3assemble, h3.py and (later) the ComfyUI routes. The
+through here: render, assemble, seriesmith and (later) the ComfyUI routes. The
 one exception is the H3SaveShot node, which runs inside ComfyUI where this file
 is not importable; it follows the sidecar rules below by hand.
 
@@ -83,7 +83,7 @@ class StillQueued(Exception):
 
 
 def safe_id(shot_id: str) -> str:
-    """The folder/file-safe form of a shot id. Same rule as the node and h3render."""
+    """The folder/file-safe form of a shot id. Same rule as the node and render."""
     return re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id) or "shot"
 
 
@@ -94,7 +94,7 @@ def pass_subfolder(pass_: str) -> str:
 
 
 def shot_dir(root: str, pass_: str, shot_id: str, folder: str | None = None) -> str:
-    """`folder` overrides the pass's standard subfolder (h3render --subfolder)."""
+    """`folder` overrides the pass's standard subfolder (render --subfolder)."""
     return os.path.join(root, folder or pass_subfolder(pass_), safe_id(shot_id))
 
 
@@ -131,14 +131,14 @@ class TakePaths:
     @property
     def up_sidecar(self) -> str: return self._p(".up.json")
     # the upscale's last frame at the size it was made (before the delivery
-    # crop): what a continuity shot's upscale starts from (h3upscale)
+    # crop): what a continuity shot's upscale starts from (upscale)
     @property
     def up_last(self) -> str: return self._p(".up_last.png")
     # the upscale's re-sampled latent, kept when the next shot in the cut is
-    # `continuous: latent`: that shot's upscale holds its tail (h3upscale)
+    # `continuous: latent`: that shot's upscale holds its tail (upscale)
     @property
     def up_latent(self) -> str: return self._p(".up.latent.safetensors")
-    # the post pass (h3post): a version of the upscale, made from its .up.mp4
+    # the post pass (post): a version of the upscale, made from its .up.mp4
     @property
     def post_mp4(self) -> str: return self._p(".post.mp4")
     @property
@@ -628,7 +628,7 @@ def set_shot_target(data: dict, shot_id: str, target: str | None) -> dict:
 def episode_target(data: dict) -> str | None:
     """The episode's video target set in the editor (overrides.json's
     top-level {"episode": {"target": "<id>"}}), or None. It is the default of
-    every shot the script gives no target of its own (h3jobs.target_choice).
+    every shot the script gives no target of its own (jobs.target_choice).
     An older file's "episode" is just the episode's name: no target."""
     ep = data.get("episode")
     t = ep.get("target") if isinstance(ep, dict) else None
@@ -745,7 +745,7 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # to the list it is in; naming the other pass makes it a placeholder.
 #
 # An entry may also carry `audio` (Phase 9d): where the clip's sound comes
-# from, absent or null meaning "this take's own" (h3peaks.clip_audio).
+# from, absent or null meaning "this take's own" (peaks.clip_audio).
 #
 #   {"shot": "sh020", "take": 3,
 #    "audio": {"source": "take", "shot": "sh020", "take": 1, "pass": "final",
@@ -756,12 +756,12 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # An entry may be `"out": true`: the shot is left out of the cut. It stays in
 # the script and keeps its takes, its place and its pick, but assemble, Play
 # all, the cut's upscales and Master skip it, and the timeline shows it as a
-# stub (the editor's "Leave out of the cut", `h3.py cut --out SH`; `--in SH`
+# stub (the editor's "Leave out of the cut", `seriesmith cut --out SH`; `--in SH`
 # puts it back). Each pass's cut has its own.
 #
 # An entry may be `"flag": true`: a bookmark, "come back to this one" (to
 # re-render it, or change its prompt). It changes nothing the cut plays or
-# assembles; the timeline shows a badge (the editor's M key, `h3.py cut --flag
+# assembles; the timeline shows a badge (the editor's M key, `seriesmith cut --flag
 # SH`; `--unflag SH`). A locked entry can be flagged. Each pass's cut has its
 # own; resetting or copying the cut keeps a pass's flags as they are.
 #
@@ -865,16 +865,16 @@ def audio_spec(raw, list_pass: str = PASSES[0]) -> dict | None:
 def audio_source_file(root: str, spec: dict | None, list_pass: str = PASSES[0]) -> str | None:
     """The file a cut entry's audio source plays, absolute, or None: silence
     (`source: none`), no source at all, or a source that isn't there. A take's
-    sound follows the h3peaks.clip_audio rule (its mp4, else its `_h3.wav`),
+    sound follows the peaks.clip_audio rule (its mp4, else its `_h3.wav`),
     from its pass's standard folder."""
     if not spec or spec.get("source") == "none":
         return None
     if spec.get("source") == "file":
         p = os.path.normpath(os.path.join(root, *str(spec["path"]).split("/")))
         return p if os.path.isfile(p) else None
-    from seriesmith import peaks as h3peaks           # imported on demand
+    from seriesmith import peaks as PK           # imported on demand
     tp = take_paths(root, spec.get("pass") or list_pass, spec["shot"], spec["take"])
-    return h3peaks.clip_audio(tp.mp4, tp.h3_wav)
+    return PK.clip_audio(tp.mp4, tp.h3_wav)
 
 
 def audio_label(spec: dict | None, list_pass: str = PASSES[0]) -> str:

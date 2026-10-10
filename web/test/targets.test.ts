@@ -185,13 +185,13 @@ describe("HTTP client: targets", () => {
   }
   const json = (o: unknown) => new Response(JSON.stringify(o), { status: 200 });
 
-  it("GETs /h3pipe/targets and tolerates a missing default", async () => {
-    const { api, calls } = fake({ "/h3pipe/targets": () => json({ targets: [{ id: H3, kind: "video", label: "H3" }] }) });
+  it("GETs /seriesmith/targets and tolerates a missing default", async () => {
+    const { api, calls } = fake({ "/seriesmith/targets": () => json({ targets: [{ id: H3, kind: "video", label: "H3" }] }) });
     const r = await api.targets("video");
-    expect(calls[0]).toBe("/h3pipe/targets?kind=video");
+    expect(calls[0]).toBe("/seriesmith/targets?kind=video");
     expect(r).toEqual({ targets: [{ id: H3, kind: "video", label: "H3" }], default: {} });
     await api.targets();
-    expect(calls[1]).toBe("/h3pipe/targets?");
+    expect(calls[1]).toBe("/seriesmith/targets?");
   });
 
   it("reads a widget's choices from /object_info", async () => {

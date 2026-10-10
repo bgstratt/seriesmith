@@ -1,9 +1,9 @@
 """
-h3master — an episode's master in one action.
+master — an episode's master in one action.
 
 The plan (each shot of the cut: upscale / ok / kept / queued / gap, by the
 series recipe), queueing its upscales, what it keeps, the strict assembly into
-<episode>/master/ with its report, the route and `h3.py master`.
+<episode>/master/ with its report, the route and `seriesmith master`.
 """
 
 from __future__ import annotations
@@ -153,8 +153,8 @@ class MasterTest(ApiTest):
                 fh.write("#\n")
             return 0, f"  -> renders/{name}.mp4\n", ""
 
-        from seriesmith import edit as h3edit
-        with mock.patch.object(h3edit, "run_tool", fake_tool):
+        from seriesmith import edit as E
+        with mock.patch.object(E, "run_tool", fake_tool):
             res = M.assemble_master(plan, allow_gaps=True)
         self.assertTrue(res["ok"], res)
         args = calls[0]
@@ -172,10 +172,10 @@ class MasterTest(ApiTest):
         md = open(res["report_md"], encoding="utf-8").read()
         self.assertIn("| shot | take | target | status | recipe | note |", md)
         # no _titles: the master is made without an intro or outro, and says so
-        self.assertEqual(len(calls), 1)                 # h3assemble only
+        self.assertEqual(len(calls), 1)                 # assemble only
         self.assertIsNone(res["titles"])
         self.assertIn("No intro or outro.", md)
-        # _titles in the show folder: the master gets them, in place (h3publish)
+        # _titles in the show folder: the master gets them, in place (publish)
         titles = os.path.join(os.path.dirname(self.ep), "_titles")
         os.makedirs(titles, exist_ok=True)
         for f in ("INTRO.mp4", "OUTRO.mp4"):
@@ -183,12 +183,12 @@ class MasterTest(ApiTest):
         published = []
 
         def with_titles(script, args, cwd, timeout, progress=None, rc=0, said="  -> titled\n"):
-            if script == "h3assemble.py":
+            if script == "assemble.py":
                 return fake_tool(script, args, cwd, timeout)
             published.append(args)
             return rc, said, ""
 
-        with mock.patch.object(h3edit, "run_tool", with_titles):
+        with mock.patch.object(E, "run_tool", with_titles):
             res = M.assemble_master(plan, allow_gaps=True)
         self.assertTrue(res["ok"], res)
         master = os.path.join(self.ep, "master", name + ".mp4")
@@ -199,8 +199,8 @@ class MasterTest(ApiTest):
         self.assertEqual(pub[pub.index("--quality") + 1], "master")
         self.assertTrue(res["titles"]["intro"].endswith("_titles/INTRO.mp4"))
         self.assertIn("Titles: intro", open(res["report_md"], encoding="utf-8").read())
-        # h3publish failing: not ok, the untitled master left where it is
-        with mock.patch.object(h3edit, "run_tool",
+        # publish failing: not ok, the untitled master left where it is
+        with mock.patch.object(E, "run_tool",
                                lambda s, a, c, t, progress=None:
                                with_titles(s, a, c, t, None, 1, "  !! no font\n")):
             res = M.assemble_master(plan, allow_gaps=True)
@@ -217,7 +217,7 @@ class MasterTest(ApiTest):
         res = self.ok(A.post_master(self.ctx, {"ep": self.ep, "action": "queue"}))
         self.assertEqual(res["queued"], rendered)
         self.assertEqual(res["plan"]["counts"]["upscale"], 0)
-        self.assertTrue(any(d["status"] == "queued" for d in self.events_of("h3pipe.upscale")))
+        self.assertTrue(any(d["status"] == "queued" for d in self.events_of("seriesmith.upscale")))
         res = self.ok(A.post_master(self.ctx, {"ep": self.ep}))
         self.assertEqual(res["plan"]["counts"]["ok"], len(rendered))
         if res["plan"]["counts"]["gap"]:
@@ -254,7 +254,7 @@ class MasterTest(ApiTest):
             with open(mov, "wb") as fh:
                 fh.write(b"prores")
         # held by a run assembling: busy
-        lock = M.take_lock(self.ep, "h3.py master")
+        lock = M.take_lock(self.ep, "seriesmith master")
         with self.assertRaises(M.MasterBusy):
             M.prores_only(self.ep)
         M.release_lock(lock)
@@ -271,17 +271,17 @@ class MasterTest(ApiTest):
         self.assertTrue(ex["output"].endswith(name + ".mp4") and ex["mov"].endswith(name + ".mov"))
 
     def talking_tool(self, name, picture="re-encoded", why="the cut is hevc, not H.264"):
-        """A run_tool stand-in: h3assemble writes the master and says where it
-        is; h3publish says what it did with the picture."""
+        """A run_tool stand-in: assemble writes the master and says where it
+        is; publish says what it did with the picture."""
         def tool(script, args, cwd, timeout, progress=None):
-            if script == "h3assemble.py":
-                progress("h3assemble", {"stage": "probe", "done": 0, "total": 2, "text": "sh010"})
-                progress("h3assemble", {"stage": "clips", "done": 1, "total": 2, "text": "sh010"})
+            if script == "assemble.py":
+                progress("assemble", {"stage": "probe", "done": 0, "total": 2, "text": "sh010"})
+                progress("assemble", {"stage": "clips", "done": 1, "total": 2, "text": "sh010"})
                 with open(os.path.join(self.ep, "renders", name + ".mp4"), "wb") as fh:
                     fh.write(b"master")
                 return 0, "", ""
-            progress("h3publish", {"stage": "titles", "done": None, "total": None, "text": "intro"})
-            progress("h3publish", {"stage": "done", "picture": picture, "why": why})
+            progress("publish", {"stage": "titles", "done": None, "total": None, "text": "intro"})
+            progress("publish", {"stage": "done", "picture": picture, "why": why})
             return 0, "", ""
         return tool
 
@@ -292,11 +292,11 @@ class MasterTest(ApiTest):
             open(os.path.join(titles, f), "wb").close()
 
     def test_progress_and_how_the_picture_went_in(self):
-        from seriesmith import edit as h3edit
+        from seriesmith import edit as E
         plan, name = self.ready_plan()
         self.make_titles()
         heard = []
-        with mock.patch.object(h3edit, "run_tool", self.talking_tool(name)):
+        with mock.patch.object(E, "run_tool", self.talking_tool(name)):
             res = M.assemble_master(plan, allow_gaps=True, progress=heard.append)
         self.assertTrue(res["ok"], res)
         self.assertIn({"step": "assemble", "stage": "clips", "done": 1, "total": 2, "text": "sh010"},
@@ -310,15 +310,15 @@ class MasterTest(ApiTest):
                       "the cut is hevc, not H.264.", md)
         rep = json.load(open(os.path.join(self.ep, "master", "ks01_master.json"), encoding="utf-8"))
         self.assertEqual(rep["titles"]["picture"], "re-encoded")
-        with mock.patch.object(h3edit, "run_tool", self.talking_tool(name, "copied", "")):
+        with mock.patch.object(E, "run_tool", self.talking_tool(name, "copied", "")):
             res = M.assemble_master(plan, allow_gaps=True)
         self.assertIn("Picture: the cut copied as assembled; only the title clips were encoded.",
                       open(res["report_md"], encoding="utf-8").read())
         self.assertIsNone(M.assembling(self.ep))                 # the lock went with the run
 
     def test_prores_is_made_once_from_the_finished_master(self):
-        from seriesmith import assemble as h3assemble
-        from seriesmith import edit as h3edit
+        from seriesmith import assemble as ASM
+        from seriesmith import edit as E
         plan, name = self.ready_plan()
         calls, made = [], []
 
@@ -332,9 +332,9 @@ class MasterTest(ApiTest):
             open(mov, "wb").close()
 
         mov = os.path.join(self.ep, "master", name + ".mov")
-        # no titles: h3assemble makes the .mov beside the cut it assembled
-        with mock.patch.object(h3edit, "run_tool", tool), \
-                mock.patch.object(h3assemble, "prores_from", prores):
+        # no titles: assemble makes the .mov beside the cut it assembled
+        with mock.patch.object(E, "run_tool", tool), \
+                mock.patch.object(ASM, "prores_from", prores):
             M.assemble_master(plan, allow_gaps=True, prores=True)
         self.assertIn("--intermediate", calls[0][1])
         self.assertEqual(made, [])
@@ -342,11 +342,11 @@ class MasterTest(ApiTest):
         self.make_titles()
         open(mov, "wb").close()                          # an earlier master's
         calls.clear()
-        with mock.patch.object(h3edit, "run_tool", tool), \
-                mock.patch.object(h3assemble, "prores_from", prores):
+        with mock.patch.object(E, "run_tool", tool), \
+                mock.patch.object(ASM, "prores_from", prores):
             res = M.assemble_master(plan, allow_gaps=True, prores=True)
         self.assertTrue(res["ok"], res)
-        assemble = next(a for s, a in calls if s == "h3assemble.py")
+        assemble = next(a for s, a in calls if s == "assemble.py")
         self.assertNotIn("--intermediate", assemble)
         self.assertEqual(made, [(os.path.join(self.ep, "master", name + ".mp4"), mov)])
         self.assertEqual(res["mov"], mov)
@@ -354,12 +354,12 @@ class MasterTest(ApiTest):
         made.clear()
 
         def failing(script, args, cwd, timeout, progress=None):
-            if script == "h3publish.py":
+            if script == "publish.py":
                 return 1, "  !! no font\n", ""
             return tool(script, args, cwd, timeout, progress)
 
-        with mock.patch.object(h3edit, "run_tool", failing), \
-                mock.patch.object(h3assemble, "prores_from", prores):
+        with mock.patch.object(E, "run_tool", failing), \
+                mock.patch.object(ASM, "prores_from", prores):
             res = M.assemble_master(plan, allow_gaps=True, prores=True)
         self.assertFalse(res["ok"])
         self.assertIsNone(res["mov"])
@@ -367,20 +367,20 @@ class MasterTest(ApiTest):
         self.assertEqual(made, [])
 
     def test_one_run_at_a_time(self):
-        from seriesmith import edit as h3edit
+        from seriesmith import edit as E
         import subprocess
         plan, name = self.ready_plan()
         self.assertIsNone(M.assembling(self.ep))
-        lock = M.take_lock(self.ep, "h3.py master")
+        lock = M.take_lock(self.ep, "seriesmith master")
         held = M.assembling(self.ep)
-        self.assertEqual((held["pid"], held["by"]), (os.getpid(), "h3.py master"))
-        with self.assertRaisesRegex(M.MasterBusy, "already being assembled by h3.py master"):
+        self.assertEqual((held["pid"], held["by"]), (os.getpid(), "seriesmith master"))
+        with self.assertRaisesRegex(M.MasterBusy, "already being assembled by seriesmith master"):
             M.take_lock(self.ep, "the editor")
 
         def never(*a, **k):
             raise AssertionError("a second run must not start ffmpeg")
 
-        with mock.patch.object(h3edit, "run_tool", never):
+        with mock.patch.object(E, "run_tool", never):
             with self.assertRaises(M.MasterBusy):
                 M.assemble_master(plan, allow_gaps=True)
         M.release_lock(lock)
@@ -390,37 +390,37 @@ class MasterTest(ApiTest):
         dead.wait()
         with open(M.lock_path(self.ep), "w", encoding="utf-8") as fh:
             json.dump({"pid": dead.pid, "host": __import__("socket").gethostname(),
-                       "by": "h3.py master", "started": "2026-10-04T08:13:32-05:00"}, fh)
+                       "by": "seriesmith master", "started": "2026-10-04T08:13:32-05:00"}, fh)
         self.assertIsNone(M.assembling(self.ep))
         M.release_lock(M.take_lock(self.ep, "the editor"))
         # another machine's can't be checked: held while it's fresh, stale after a day
         with open(M.lock_path(self.ep), "w", encoding="utf-8") as fh:
-            json.dump({"pid": 1, "host": "elsewhere", "by": "h3.py master", "started": ""}, fh)
+            json.dump({"pid": 1, "host": "elsewhere", "by": "seriesmith master", "started": ""}, fh)
         self.assertIsNotNone(M.assembling(self.ep))
         old = os.path.getmtime(M.lock_path(self.ep)) - (M.LOCK_FOREIGN_HOURS + 1) * 3600
         os.utime(M.lock_path(self.ep), (old, old))
         self.assertIsNone(M.assembling(self.ep))
         M.release_lock(M.lock_path(self.ep))
         # a run that blows up still lets go
-        with mock.patch.object(h3edit, "run_tool", never):
+        with mock.patch.object(E, "run_tool", never):
             with self.assertRaises(AssertionError):
                 M.assemble_master(plan, allow_gaps=True)
         self.assertFalse(os.path.exists(M.lock_path(self.ep)))
 
     def test_route_job(self):
-        from seriesmith import edit as h3edit
+        from seriesmith import edit as E
         plan, name = self.ready_plan()
         self.make_titles()
         A._MASTER_JOBS.clear()
         self.addCleanup(A._MASTER_JOBS.clear)
         self.assertIsNone(self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"])
         body = {"ep": self.ep, "action": "assemble", "allow_gaps": True}
-        with mock.patch.object(h3edit, "run_tool", self.talking_tool(name)):
+        with mock.patch.object(E, "run_tool", self.talking_tool(name)):
             res = self.ok(A.post_master(self.ctx, body))
         self.assertEqual(res["output"], f"master/{name}.mp4")
         self.assertEqual(res["job"]["state"], "done")
         self.assertEqual(res["titles"]["picture"], "re-encoded")
-        seen = self.events_of("h3pipe.master")
+        seen = self.events_of("seriesmith.master")
         self.assertEqual(seen[0]["state"], "running")
         self.assertIn(("assemble", "clips", 1, 2), [(e["step"], e["stage"], e["done"], e["total"])
                                                     for e in seen])
@@ -429,15 +429,15 @@ class MasterTest(ApiTest):
         job = self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"]
         self.assertEqual((job["state"], job["report"], job["titles"]["picture"]),
                          ("done", "master/ks01_master.md", "re-encoded"))
-        # `h3.py master` assembling it: the editor sees it running, and won't start another
-        lock = M.take_lock(self.ep, "h3.py master")
+        # `seriesmith master` assembling it: the editor sees it running, and won't start another
+        lock = M.take_lock(self.ep, "seriesmith master")
         try:
             job = self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"]
             self.assertEqual((job["state"], job["elsewhere"], job["by"]),
-                             ("running", True, "h3.py master"))
+                             ("running", True, "seriesmith master"))
             code, data = A.post_master(self.ctx, body)
             self.assertEqual(code, 409, data)
-            self.assertIn("already being assembled by h3.py master", data["error"])
+            self.assertIn("already being assembled by seriesmith master", data["error"])
             self.assertTrue(data["job"]["elsewhere"])
         finally:
             M.release_lock(lock)
@@ -453,12 +453,12 @@ class MasterTest(ApiTest):
         # not ready to assemble (still to upscale): refused before anything is
         # claimed or announced
         A._MASTER_JOBS.clear()
-        before = len(self.events_of("h3pipe.master"))
+        before = len(self.events_of("seriesmith.master"))
         with mock.patch.object(M, "plan_master",
                                lambda *a, **k: M.Plan(self.ep, "final", RECIPE, (1920, 1080),
                                                       [M.Row("sh010", None, "upscale")])):
             self.err(A.post_master(self.ctx, body), 409)
-        self.assertEqual(len(self.events_of("h3pipe.master")), before)
+        self.assertEqual(len(self.events_of("seriesmith.master")), before)
         self.assertIsNone(self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"])
 
     def test_printer(self):

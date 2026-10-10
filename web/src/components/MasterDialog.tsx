@@ -1,14 +1,14 @@
-// Phase 13e: Master, from the cut menu. The plan (POST /h3pipe/master
+// Phase 13e: Master, from the cut menu. The plan (POST /seriesmith/master
 // action "plan": what each shot of the cut is against the series recipe),
 // then queue its upscales, then assemble the master into <episode>/master/.
 // The plan is read again whenever the episode's status changes (an upscale
 // landing), so the buttons follow the queue.
 //
 // Assembling takes a while (half an hour for a long episode), so it's a job
-// the server keeps: the dialog asks for it on opening (GET /h3pipe/master/job)
-// and follows its `h3pipe.master` events, so closing and reopening it, or
+// the server keeps: the dialog asks for it on opening (GET /seriesmith/master/job)
+// and follows its `seriesmith.master` events, so closing and reopening it, or
 // reloading the page, shows the run still going rather than offering to start
-// another one. A run `h3.py master` started is shown too, without progress,
+// another one. A run `seriesmith master` started is shown too, without progress,
 // and asked about again every few seconds until it ends.
 
 import { useEffect, useState } from "react";
@@ -50,24 +50,24 @@ function MasterBody() {
   const [opt, setOptState] = useState(() => {
     let post: PostMode = "off";
     try {
-      const v = localStorage.getItem("h3pipe.masterPost");
+      const v = localStorage.getItem("seriesmith.masterPost");
       post = v === "recipe" || v === "1" ? "recipe" : v === "present" ? "present" : "off";
     } catch { /* not kept */ }
     return { conform: false, allow_gaps: false, prores: false, post };
   });
   const setOpt = (o: typeof opt) => {
     setOptState(o);
-    try { localStorage.setItem("h3pipe.masterPost", o.post); } catch { /* not kept */ }
+    try { localStorage.setItem("seriesmith.masterPost", o.post); } catch { /* not kept */ }
   };
   const byRecipe = opt.post === "recipe";
   // how the upscales are queued: in cut order (watching: stop at the first bad one) or
   // grouped by target (a batch: each model loads once). Remembered.
   const [order, setOrderState] = useState<"cut" | "target">(() => {
-    try { return localStorage.getItem("h3pipe.masterOrder") === "target" ? "target" : "cut"; } catch { return "cut"; }
+    try { return localStorage.getItem("seriesmith.masterOrder") === "target" ? "target" : "cut"; } catch { return "cut"; }
   });
   const setOrder = (o: "cut" | "target") => {
     setOrderState(o);
-    try { localStorage.setItem("h3pipe.masterOrder", o); } catch { /* not kept */ }
+    try { localStorage.setItem("seriesmith.masterOrder", o); } catch { /* not kept */ }
   };
 
   // the master already made (and its .mov), from the last plan: ProRes from it

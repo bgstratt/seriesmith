@@ -1,6 +1,6 @@
 """
 Wan 2.2 5B text/image to video: the story IR compiled into shotlist entries
-that h3jobs patches into the Wan 2.2 5B graph (target.json beside this file).
+that jobs patches into the Wan 2.2 5B graph (target.json beside this file).
 No loader node: every render value is a widget.
 
     compile_episode(target, story, series_cfg, pass_, only=None) -> (doc, report)

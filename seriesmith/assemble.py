@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-h3assemble.py — stitch the rendered shots into one cut.
+assemble.py — stitch the rendered shots into one cut.
 
 Reads a shotlist and the episode's cut.json, picks a take for each shot and
 concatenates them in cut order.
 
-    python3 h3assemble.py -o .                              # the final cut
-    python3 h3assemble.py -o . --shotlist shotlist/shotlist_proxy.json
-    python3 h3assemble.py -o . --partial                    # assemble what exists
-    python3 h3assemble.py -o . --check                      # report, write nothing
+    python3 assemble.py -o .                              # the final cut
+    python3 assemble.py -o . --shotlist shotlist/shotlist_proxy.json
+    python3 assemble.py -o . --partial                    # assemble what exists
+    python3 assemble.py -o . --check                      # report, write nothing
 
 The pass comes from the shotlist's name (`_proxy` in it means proxy, anything
 else final); `--pass` overrides it. Takes are read from the pass's folder
@@ -35,13 +35,13 @@ cut.json (next to shotlist/) holds one ordered list per pass:
 - `trim_in`/`trim_out` drop frames from the head/tail, after the dialogue-window
   trim below.
 - `audio` lays another take's sound, a file's, or silence under the clip
-  (Phase 9d; see h3takes). It is cut or padded to the clip, so the clip's
+  (Phase 9d; see takes). It is cut or padded to the clip, so the clip's
   length never changes. `--audio master` overrides it (and says so);
   `--audio none` silences it; `--audio auto`/`mp4`/`h3` apply to the clips
   that have no source of their own.
 
 Shots timed against recorded dialogue (`audio_in`/`audio_out` in the
-shotlist, written by h3align) are trimmed to their exact window, because H3
+shotlist, written by align) are trimmed to their exact window, because H3
 renders them rounded up to its frame grid. The trimmed cut lines up with the
 recording end to end; `--audio master` lays the recording under it to check
 sync. A trimmed clip is re-encoded (x264, CRF 16; CRF 12 at --quality
@@ -69,15 +69,15 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
-from seriesmith import jobs as h3jobs  # noqa: E402
-from seriesmith import peaks as h3peaks  # noqa: E402
-from seriesmith import takes as h3takes  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
 NOT_RENDERED = "not rendered"
-# --progress: one line per step for whoever runs this (h3master, through
-# h3edit.run_tool): `##h3assemble {"stage", "done", "total", "text"}`. Stages:
+# --progress: one line per step for whoever runs this (master, through
+# edit.run_tool): `##assemble {"stage", "done", "total", "text"}`. Stages:
 # probe (reading each clip), clips (writing each), join, prores, verify.
-PROGRESS = "##h3assemble "
+PROGRESS = "##assemble "
 
 
 def run(cmd: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
@@ -132,7 +132,7 @@ def frame_rate(path: str) -> float | None:
 
 def episode_fps(root: str, doc: dict) -> float:
     """The cut's frame rate: the series config's `series.fps` (the episode's
-    folder, then its parent, as h3edit finds it), else the shotlist's, else 24.
+    folder, then its parent, as edit finds it), else the shotlist's, else 24.
     Every clip is converted to it."""
     for d in (root, os.path.dirname(os.path.normpath(root))):
         p = os.path.join(d, "series.json")
@@ -509,7 +509,7 @@ def tc(seconds: float) -> str:
     return f"{int(h):02d}:{int(m):02d}:{s:06.3f}"
 
 
-def why_unusable(t: h3takes.Take | None, n: int) -> str:
+def why_unusable(t: T.Take | None, n: int) -> str:
     if t is None:
         return f"t{n:02d} does not exist"
     if t.status == "queued":
@@ -521,13 +521,13 @@ def why_unusable(t: h3takes.Take | None, n: int) -> str:
     return f"t{n:02d} is {t.status}"
 
 
-def choose_take(root: str, e: h3takes.CutEntry, folder: str | None,
-                forced: int | None) -> tuple[h3takes.Take | None, str | None]:
+def choose_take(root: str, e: T.CutEntry, folder: str | None,
+                forced: int | None) -> tuple[T.Take | None, str | None]:
     """The take a cut entry uses, or (None, why not)."""
     n = forced if forced is not None else e.take
     if n is None:
-        takes = h3takes.list_takes(root, e.pass_, e.shot, folder)
-        t = h3takes.latest_usable(takes)
+        takes = T.list_takes(root, e.pass_, e.shot, folder)
+        t = T.latest_usable(takes)
         if t is not None:
             return t, None
         if not takes:
@@ -538,7 +538,7 @@ def choose_take(root: str, e: h3takes.CutEntry, folder: str | None,
         n = int(n)
     except (TypeError, ValueError):
         return None, f"take {n!r} in cut.json is not a number"
-    t = h3takes.get_take(root, e.pass_, e.shot, n, folder)
+    t = T.get_take(root, e.pass_, e.shot, n, folder)
     if t is not None and t.usable:
         return t, None
     src = "--take" if forced is not None else "cut.json"
@@ -551,7 +551,7 @@ def main() -> int:
     ap.add_argument("-o", "--out", default=".", help="project root")
     ap.add_argument("--shotlist", default="shotlist/shotlist.json",
                     help="shotlist to follow (default %(default)s)")
-    ap.add_argument("--pass", dest="pass_", choices=h3takes.PASSES, default=None,
+    ap.add_argument("--pass", dest="pass_", choices=T.PASSES, default=None,
                     help="which pass's cut and takes to use (default: proxy if the "
                          "shotlist's name contains _proxy, else final)")
     ap.add_argument("--subfolder", default=None,
@@ -572,12 +572,12 @@ def main() -> int:
                     help="assemble the shots that exist instead of refusing")
     ap.add_argument("--check", action="store_true", help="report only")
     ap.add_argument("--progress", action="store_true",
-                    help="print a ##h3assemble progress line per step (for h3master)")
+                    help="print a ##assemble progress line per step (for master)")
     ap.add_argument("--upscaled", action="store_true",
-                    help="each clip from its fresh upscale (h3upscale), the "
+                    help="each clip from its fresh upscale (upscale), the "
                          "cut at the upscale size; clips without one are scaled up")
     ap.add_argument("--post", action="store_true",
-                    help="with --upscaled: a clip's fresh post (h3post) in place of its "
+                    help="with --upscaled: a clip's fresh post (post) in place of its "
                          "upscale where it has one")
     ap.add_argument("--quality", choices=sorted(QUALITY_ARGS), default="review",
                     help="how clips that must be re-encoded are written: review (x264 CRF 16) or "
@@ -605,7 +605,7 @@ def main() -> int:
         except ValueError:
             ap.error(f"--size wants WxH with even sides, e.g. 1920x1080, not {args.size!r}")
         want_size = (w_, h_)
-    sub = args.subfolder or h3takes.pass_subfolder(pass_)
+    sub = args.subfolder or T.pass_subfolder(pass_)
 
     def folder_for(src_pass: str) -> str | None:
         # An explicit --subfolder is this pass's folder. A placeholder's take
@@ -635,10 +635,10 @@ def main() -> int:
         doc = json.load(fh)
     shots = doc.get("shots", [])
     if os.path.normcase(os.path.abspath(sl)) == os.path.normcase(
-            os.path.abspath(os.path.join(root, h3jobs.shotlist_rel(pass_)))):
+            os.path.abspath(os.path.join(root, J.shotlist_rel(pass_)))):
         # an episode that mixes targets: the other targets' shots are in
         # shotlist.<target>[_proxy].json; the cut follows script order
-        shots = [d["shots"][i] for d, i in h3jobs.episode_shots(root, pass_)]
+        shots = [d["shots"][i] for d, i in J.episode_shots(root, pass_)]
     by_id = {s["id"]: s for s in shots}
     # the cut's frame rate; a take at another (Wan 14B's 16 fps) is converted
     fps = episode_fps(root, doc)
@@ -650,9 +650,9 @@ def main() -> int:
             print(f"error: {tool} not found on PATH", file=sys.stderr)
             return 1
 
-    cut_data = h3takes.load_cut(root)
+    cut_data = T.load_cut(root)
     has_cut = bool(cut_data.get(pass_))
-    entries = h3takes.resolve_cut(cut_data, pass_, [s["id"] for s in shots])
+    entries = T.resolve_cut(cut_data, pass_, [s["id"] for s in shots])
 
     # ---- resolve each cut entry to a file -------------------------------
     windows = [s["audio_in"] for s in shots if "audio_in" in s]
@@ -674,7 +674,7 @@ def main() -> int:
             rows.append(("out", e, None))
             continue
         s = by_id[e.shot]
-        if e.pass_ not in h3takes.PASSES:
+        if e.pass_ not in T.PASSES:
             t, why = None, f"unknown pass {e.pass_!r} in cut.json"
         else:
             t, why = choose_take(root, e, folder_for(e.pass_), args.take)
@@ -692,10 +692,10 @@ def main() -> int:
         # same shot's length.
         # --upscaled: the take's fresh upscale plays in its place (same frames,
         # same audio stream, twice the size)
-        up = h3takes.upscale_of(t) if args.upscaled else None
+        up = T.upscale_of(t) if args.upscaled else None
         clip = t.paths.up_mp4 if up and up["fresh"] else t.paths.mp4
         # --post: its fresh post (made from that upscale) in the upscale's place
-        po = h3takes.post_of(t, up) if args.post and up and up["fresh"] else None
+        po = T.post_of(t, up) if args.post and up and up["fresh"] else None
         if po and po["fresh"]:
             clip = t.paths.post_mp4
         n = frame_count(clip)
@@ -734,8 +734,8 @@ def main() -> int:
             continue
         # where this clip's sound comes from (cut.json's `audio`): the file it
         # plays, or None when there is nothing to play (it goes silent)
-        audio_src = h3takes.audio_source_file(root, e.audio, pass_)
-        if audio_src and not h3peaks.has_audio(audio_src):
+        audio_src = T.audio_source_file(root, e.audio, pass_)
+        if audio_src and not PK.has_audio(audio_src):
             audio_src = None
         p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip,
              "upscaled": clip != t.paths.mp4, "posted": clip == t.paths.post_mp4,
@@ -833,12 +833,12 @@ def main() -> int:
     sourced = [p for p in plan if p["audio_spec"]]
     if sourced and args.audio not in ("none", "master"):
         print(f"  {len(sourced)} clip(s) take their sound from elsewhere: "
-              + ", ".join(f"{p['id']} <- {h3takes.audio_label(p['audio_spec'], pass_)}"
+              + ", ".join(f"{p['id']} <- {T.audio_label(p['audio_spec'], pass_)}"
                           for p in sourced[:8]))
         gone = [p for p in sourced
                 if p["audio_src"] is None and p["audio_spec"]["source"] != "none"]
         for p in gone:
-            print(f"    ! {p['id']}: {h3takes.audio_label(p['audio_spec'], pass_)} "
+            print(f"    ! {p['id']}: {T.audio_label(p['audio_spec'], pass_)} "
                   f"is not there or has no sound; the clip is silent")
     if bad:
         print("  frame-count mismatches (the edit will drift):")
@@ -886,7 +886,7 @@ def main() -> int:
             if has_cut and not p["listed"]:
                 flags.append("not in cut.json")
             if p["audio_spec"]:
-                flags.append("audio " + h3takes.audio_label(p["audio_spec"], pass_)
+                flags.append("audio " + T.audio_label(p["audio_spec"], pass_)
                              + ("" if p["audio_src"] or
                                 p["audio_spec"]["source"] == "none" else " MISSING"))
             if not p["wav"]:
@@ -938,8 +938,8 @@ def main() -> int:
             p["sound"], p["sourced"] = p["wav"], False
         else:                                       # auto, mp4
             # the mp4's own sound, else its _h3.wav, else silence
-            # (h3peaks.clip_audio: the editor's take `audio` is the same rule)
-            p["sound"], p["sourced"] = h3peaks.clip_audio(p["path"], p["wav"]), False
+            # (peaks.clip_audio: the editor's take `audio` is the same rule)
+            p["sound"], p["sourced"] = PK.clip_audio(p["path"], p["wav"]), False
     # Only the clips that need it are re-encoded, the rest copied, when the
     # copies agree on their encoding and the re-encoded clips come out with the
     # same headers (conform at the quality the copies were saved with: a master's
@@ -1094,7 +1094,7 @@ def main() -> int:
                      + (f"  from {p['src_fps']:g}fps" if p["convert"] else "")
                      + (f"  trim {p['trim_in']}/{p['trim_out']}"
                         if p["trim_in"] or p["trim_out"] else "")
-                     + (f"  audio {h3takes.audio_label(p['audio_spec'], pass_)}"
+                     + (f"  audio {T.audio_label(p['audio_spec'], pass_)}"
                         if p["audio_spec"] else "")
                      + "\n")
 

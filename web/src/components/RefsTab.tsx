@@ -52,7 +52,7 @@ const FILTERS: { id: RefFilter; label: string; title: string }[] = [
 export const KEYFRAMES_EMPTY = "No shot's target reads keyframes. Use a previous shot's frame (right-click a shot) or import one";
 const NO_FILE = "series.json names no file for this (e.g. a voice-only character has no sheet)";
 
-/** The episode's image targets for refs and keyframes (GET /h3pipe/refs `defaults`). */
+/** The episode's image targets for refs and keyframes (GET /seriesmith/refs `defaults`). */
 function useRefDefaults(): ResolvedRefDefaults {
   const list = useApp((s) => s.targets);
   const served = useApp((s) => (s.ep ? s.refDefaults[s.ep] : null));
@@ -62,7 +62,7 @@ function useRefDefaults(): ResolvedRefDefaults {
 /**
  * "Refs render with: Krea 2 ✓ · Keyframes with: Flux 2 Klein edit ✓". Each is
  * a picker over the image targets. A choice is the episode's (PUT
- * /h3pipe/refs/defaults, kept in overrides.json); the first option goes back to
+ * /seriesmith/refs/defaults, kept in overrides.json); the first option goes back to
  * the series config's (or the built-in) default. An episode choice offers the
  * series.json snippet that makes it permanent.
  */

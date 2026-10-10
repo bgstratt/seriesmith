@@ -28,7 +28,7 @@ no duration head), with a warning and a note in the take.
 
 The sheet itself is made at queue time (stage_inputs), from the files on disk
 then: sheet.py runs seriesmith/helpers/refsheet.py (PIL) with the running Python,
-the PNG is uploaded to ComfyUI's input folder, and h3jobs.start_job moves it
+the PNG is uploaded to ComfyUI's input folder, and jobs.start_job moves it
 into the take as <shot>_tNN_refsheet.png and records its sha1 in the sidecar's
 `refs` (beside the panel files', which are what make a take `ref`-stale when a
 view is re-picked).
@@ -340,7 +340,7 @@ def compile_without(target, story: ir.Episode, series_cfg: dict, pass_: str,
                     entry: dict, missing: list[dict]) -> dict:
     """`entry` compiled again as if the `missing` refs (ref_slots dicts)
     didn't exist: they leave the sheet and the prompt's `Reference sheet:`
-    half. ValueError when the build is out of date (h3jobs then renders the
+    half. ValueError when the build is out of date (jobs then renders the
     built entry, the sheet made of the files that exist)."""
     shot_ir = next((s for s in story.shots() if s.id == entry["id"]), None)
     if shot_ir is None:
@@ -424,8 +424,8 @@ def _label(p: dict) -> str:
 
 def stage_inputs(target, job, comfy=None) -> dict:
     """Compose the job's reference sheet and upload it to ComfyUI's input
-    folder: {"sheet": "h3pipe/<sha1>.png"}. It waits in the shot's folder
-    until h3jobs.start_job moves it into the take (job.staged). Without
+    folder: {"sheet": "seriesmith/<sha1>.png"}. It waits in the shot's folder
+    until jobs.start_job moves it into the take (job.staged). Without
     `comfy` (a dry run) nothing is composed or written: the name is a stand-in.
     No panel on disk: {} and the job renders text-only."""
     from seriesmith import jobs as J
@@ -439,7 +439,7 @@ def stage_inputs(target, job, comfy=None) -> dict:
                          f"renders this shot text-only, without the IC-LoRA")
         return {}
     # the IC-LoRA by name, or another installed file of its family that
-    # h3jobs.resolve_models put in its place
+    # jobs.resolve_models put in its place
     ic_pats = (target.models.get("loras") or {}).get("patterns") or []
     if job.loras is not None and not any(
             lo.get("name") == IC_LORA or TG.modelid.name_matches(lo.get("name") or "", ic_pats)
@@ -499,7 +499,7 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
     have, _ = sheet_panels(job)
     if have:
         raise ValueError(f"{job.id}: its reference sheet wasn't staged "
-                         f"(h3jobs.stage_inputs composes and uploads it)")
+                         f"(jobs.stage_inputs composes and uploads it)")
     for k in _of(g, "LTXVAddGuide"):
         _splice(g, k, {0: "positive", 1: "negative", 2: "latent"})
     for k in _of(g, "LTXVCropGuides"):

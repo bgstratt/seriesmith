@@ -235,7 +235,7 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
   );
 
   return (
-    <FloatingWindow storageKey={`h3pipe.win.source.${file}`} defaultRect={defaultRect(file)} head={head} className="h3-source-win" minW={340} minH={240}>
+    <FloatingWindow storageKey={`seriesmith.win.source.${file}`} defaultRect={defaultRect(file)} head={head} className="h3-source-win" minW={340} minH={240}>
       <div
         className="h3-source-body"
         onKeyDownCapture={(e) => {

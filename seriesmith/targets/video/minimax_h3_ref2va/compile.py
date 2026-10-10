@@ -6,8 +6,8 @@ Everything H3-specific about a build is here or in target.json beside it: the
 17k+5 frame grid and the /32 size rule (template), reference slots, panels and
 the plate as Picture 4 (recipe), the 3-voice clone limit, audio policy and
 retention, the turbo-LoRA presets and their step-count check, and the Ref2VA
-prompt (prompt.py). The core hands over the parsed story (h3core.ir) and the
-series config; seeds still come from h3core.ir.stable_seed.
+prompt (prompt.py). The core hands over the parsed story (core.ir) and the
+series config; seeds still come from core.ir.stable_seed.
 
     compile_episode(target, story, series_cfg, pass_) -> (doc, report)
     compile_shot(target, shot_ir, series_cfg, preset, ctx) -> one entry
@@ -55,7 +55,7 @@ GENERATE_MODES = ("generate", "generated", "generated_audio")
 # ---------------------------------------------------------------------------
 # Story IR -> the episode dict the compile code reads
 #
-# This is the parser's original dict shape (h3core.story.parse_script), rebuilt
+# This is the parser's original dict shape (core.story.parse_script), rebuilt
 # from the IR so that compile only ever sees what the IR carries. Values the
 # parser could not interpret (`unparsed`) go back in verbatim, so compile
 # rejects them with the same message it always has.
@@ -445,7 +445,7 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         if "audio_in" not in shot:
             raise ValueError(
                 f"shot {shot['id']}: policy {policy} needs an `audio: in-out` window "
-                f"on the recorded track (h3align.py writes these).")
+                f"on the recorded track (`seriesmith align` writes these).")
         if retention == "fully_copy" and shot.get("sound") and policy == "dub_keep_foley":
             warnings.append(
                 f"{shot['id']}: fully_copy makes the recording the whole soundtrack, so "
@@ -570,7 +570,7 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
 
     book, warnings = ctx.book, ctx.warnings
     doc = {
-        # h3assemble names the review cut from these
+        # assemble names the review cut from these
         "episode": ep["id"],
         "title": ep.get("title", ""),
         "prompt_prefix": "",
@@ -669,7 +669,7 @@ def compile_shot(target, shot_ir: ir.Shot, series_cfg: dict, preset, ctx=None) -
 
 def compile_without(target, story: ir.Episode, series_cfg: dict, pass_: str,
                     entry: dict, missing: list[dict]) -> dict:
-    """`entry` (a built shot) compiled again as if the `missing` refs (h3jobs
+    """`entry` (a built shot) compiled again as if the `missing` refs (jobs
     ref_slots dicts) didn't exist, for rendering anyway: a missing subject
     drops out of the Picture slots and is described in words, a missing plate
     leaves <Picture 4> unmentioned (the loader still feeds grey there), and a

@@ -60,7 +60,7 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
         g[sw]["inputs"]["switch"] = True               # the empty latent
         return
     # a job that wants a fresh canvas of its own size even with references
-    # (a 360 panorama: h3refs.plan_pano) samples from the empty latent
+    # (a 360 panorama: refs.plan_pano) samples from the empty latent
     g[sw]["inputs"]["switch"] = (getattr(job, "values", None) or {}).get("latent") == "empty"
     g[load]["inputs"]["image"] = names[0]
     g[enc]["inputs"][REF_INPUT.format(REF_BASE)] = [load, 0]

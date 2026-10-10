@@ -31,7 +31,7 @@ function RenderBody() {
   const one = ask.shots.length === 1 ? ask.shots[0] : null;
   // the shot's own detail, and — when a one-off target is chosen — the detail
   // for THAT target, which is what says the size and length it would produce
-  // (P9: GET /h3pipe/shot?target=…). Its frame grid changes the length, so the
+  // (P9: GET /seriesmith/shot?target=…). Its frame grid changes the length, so the
   // preset alone can't answer.
   const ownDetail = useDetail(one, ask.pass);
   const oneStatus = one ? st?.shots.find((s) => s.shot === one) : undefined;

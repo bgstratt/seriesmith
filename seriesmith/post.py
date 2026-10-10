@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-h3post.py — the post pass: an upscale, finished (docs/POST_PROCESSING.md).
+post.py — the post pass: an upscale, finished (docs/POST_PROCESSING.md).
 
 A post is a version of the upscale, the way an upscale is a version of its
 take: <stem>.post.mp4 beside it, with <stem>.post.json. It is made from the
 take's fresh .up.mp4, at the same size and frame count, its audio the
 upscale's own stream copied on, and it is stale when that upscale changes.
 
-    python h3.py post <episode> [--proxy] [--only sh760,sh770] [--take N] [--redo]
+    seriesmith post <episode> [--proxy] [--only sh760,sh770] [--take N] [--redo]
                       [--enhance TIER|METHOD] [--strength 0.2] [--blur 0.25]
                       [--recipe] [--check]
 
@@ -280,8 +280,8 @@ def plan_post(root: str, take: T.Take, *, enhance=None, blur: float = 0.0, redo:
         job.quality = up.get("quality") if up.get("quality") in U.QUALITIES else "review"
     if not up or not up.get("fresh"):
         job.action = "error"
-        job.why = ("no upscale yet (h3.py upscale first)" if not up
-                   else "its upscale is stale or unfinished (h3.py upscale first)")
+        job.why = ("no upscale yet (seriesmith upscale first)" if not up
+                   else "its upscale is stale or unfinished (seriesmith upscale first)")
         return job
     job.width = int(up.get("width") or 0)
     job.height = int(up.get("height") or 0)
@@ -374,7 +374,7 @@ def post_graph(job: PostJob) -> dict:
         "fps": job.fps, "sidecar": rel(root, take.paths.post_sidecar), "encoder": job.encoder,
         # the upscale it's made from is stamped as it's saved: it may be queued
         # behind that upscale, which isn't there yet
-        "stamp_source": True, "event": "h3pipe.post",
+        "stamp_source": True, "event": "seriesmith.post",
         **({"quality": job.quality} if job.quality != "review" else {})}}
     return g
 

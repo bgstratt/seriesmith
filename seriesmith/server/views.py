@@ -2,7 +2,7 @@
 The editor's API (seriesmith.api) as aiohttp views, for any host: parse the
 query or JSON body (or, for a multipart upload, stream it to a temporary
 file), run the handler off the event loop, answer JSON, or stream a file for
-GET /h3pipe/file. A host supplies the Context for each request
+GET /seriesmith/file. A host supplies the Context for each request
 (`make_context`). Ported from h3pipe's comfy_nodes/h3pipe_routes.py.
 """
 from __future__ import annotations

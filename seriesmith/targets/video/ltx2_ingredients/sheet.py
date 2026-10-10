@@ -2,7 +2,7 @@
 The reference sheet, composed by seriesmith/helpers/refsheet.py (PIL) run as a
 subprocess of the running Python: ComfyUI's under the editor's routes, which
 has PIL; the CLI's otherwise, which may not (then the error says so). The
-pipeline itself stays stdlib only, as h3refs.stitch_sheet does with mksheet.
+pipeline itself stays stdlib only, as refs.stitch_sheet does with mksheet.
 
 Stdlib only.
 """

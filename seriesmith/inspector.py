@@ -1,5 +1,5 @@
 """
-h3inspect — read a ComfyUI workflow and propose the target.json that drives it.
+inspector — read a ComfyUI workflow and propose the target.json that drives it.
 
 A target is data: which node widget takes the prompt, the size, the length, the
 seed, the model and the LoRAs; what the legal frame counts are; which files it
@@ -16,7 +16,7 @@ so this works it out and says what it could not.
          "problems": [...]}                 the graph itself is wrong
 
 Nothing here writes: the routes save the proposal (once the author has
-confirmed it) and `h3.py target-from-workflow` prints it.
+confirmed it) and `seriesmith target-from-workflow` prints it.
 
 What is inferred, and from where:
 
@@ -105,7 +105,7 @@ def widget_specs(object_info: dict, ctype: str) -> dict:
                 continue
             kind, meta = spec[0], (spec[1] if len(spec) > 1 and isinstance(spec[1], dict) else {})
             # a combo is either [[choices], {...}] (a file list) or
-            # ["COMBO", {"options": [...]}] (an enum), as h3jobs.choices_in reads
+            # ["COMBO", {"options": [...]}] (an enum), as jobs.choices_in reads
             if isinstance(kind, list):
                 out[name] = ("COMBO", dict(meta, choices=[str(c) for c in kind]))
             elif kind == "COMBO":
@@ -873,7 +873,7 @@ def validate_spec(spec: dict, graph: dict | None = None,
 
     The id and kind are checked, then every binding param is resolved against
     the graph the target names — the same way a render resolves it
-    (h3jobs.select_nodes), so a spec that would fail at queue time fails here
+    (jobs.select_nodes), so a spec that would fail at queue time fails here
     instead.
     """
     out = []
@@ -901,7 +901,7 @@ def validate_spec(spec: dict, graph: dict | None = None,
         return out
     fake = TG.Target(os.path.join(TG.HERE, "video", "_proposal"), dict(spec, id=tid or "x"))
     # check the graph as a job leaves it: the saver takes its node's place first
-    # (h3jobs.prepare_saver), so params on the saver itself resolve
+    # (jobs.prepare_saver), so params on the saver itself resolve
     prepared = copy.deepcopy(graph)
     try:
         J.prepare_saver(prepared, fake.binding)

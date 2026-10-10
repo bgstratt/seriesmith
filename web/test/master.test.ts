@@ -24,8 +24,8 @@ describe("master job in words", () => {
   });
 
   it("names a run it didn't start", () => {
-    expect(masterStageText({ ...JOB, elsewhere: true, by: "h3.py master" }))
-      .toBe("Being assembled by h3.py master since 08:13");
+    expect(masterStageText({ ...JOB, elsewhere: true, by: "seriesmith master" }))
+      .toBe("Being assembled by seriesmith master since 08:13");
     expect(masterFraction({ ...JOB, elsewhere: true })).toBeNull();
   });
 
@@ -63,7 +63,7 @@ describe("mock master job", () => {
     const res = await first;
     expect(res.job?.state).toBe("done");
     expect(res.titles?.picture).toBe("copied");
-    const seen = events.filter(([e]) => e === "h3pipe.master").map(([, d]) => d as MasterJob);
+    const seen = events.filter(([e]) => e === "seriesmith.master").map(([, d]) => d as MasterJob);
     expect(seen[0].state).toBe("running");
     expect(seen.some((j) => j.stage === "clips" && j.done === 1)).toBe(true);
     expect(seen.at(-1)!.state).toBe("done");

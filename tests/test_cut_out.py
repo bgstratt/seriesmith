@@ -1,8 +1,8 @@
 """
 A shot left out of the cut (cut.json `"out": true`): it stays in the script
 with its takes, its place and its pick, and assemble, Play all's neighbours,
-the cut's upscales and Master skip it. Set by PUT /h3pipe/cut (the editor),
-`h3.py cut --out / --in`; a locked entry refuses; copying the other pass's
+the cut's upscales and Master skip it. Set by PUT /seriesmith/cut (the editor),
+`seriesmith cut --out / --in`; a locked entry refuses; copying the other pass's
 order copies it; reset keeps it.
 """
 

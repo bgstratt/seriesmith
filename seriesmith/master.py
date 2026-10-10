@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-h3master.py — an episode's master, in one action.
+master.py — an episode's master, in one action.
 
-    python h3.py master <episode> [<episode> ...] [--check] [--wait] [--conform]
+    seriesmith master <episode> [<episode> ...] [--check] [--wait] [--conform]
                         [--allow-gaps] [--prores] [--proxy] [--post [recipe|present]]
-    python h3.py master <episode> --prores-only    # the .mov from the master already made
+    seriesmith master <episode> --prores-only    # the .mov from the master already made
 
 Every shot of the pass's cut (final by default) is upscaled by the series
 config's recipe (`upscale.master`: each take through its own target's section,
@@ -27,7 +27,7 @@ What it does with each shot of the cut (`plan_master`):
   another size than the master's.
 
 With --post (the dialog's Post-process), each shot is also finished by the
-series config's `post.master` (h3post: enhance, motion blur; its shot's own in
+series config's `post.master` (post: enhance, motion blur; its shot's own in
 overrides.json's "post") and the master is assembled from the posts:
 
 - `post`: its upscale is good but it has no post, one made from an older
@@ -38,13 +38,13 @@ overrides.json's "post") and the master is assembled from the posts:
 
 With --post present (the dialog's Post-process: Where present) nothing is
 post-processed: each shot plays its fresh post where it has one (made from the
-take menu or `h3.py post`, for the shots that need it) and its upscale
+take menu or `seriesmith post`, for the shots that need it) and its upscale
 otherwise, and no post recipe is needed.
 
 Assembling takes a while (every clip re-encoded at the master quality, then the
 titles), so it says where it is as it goes, and only one run assembles an
 episode's master at a time: <episode>/master/.assembling.json is held while one
-does, and a second (another `h3.py master`, or the editor's Master) is refused.
+does, and a second (another `seriesmith master`, or the editor's Master) is refused.
 
 The cut is never changed: `master` works from the picks as they are. Without
 --wait, a run queues what needs it and a later run (or the editor) assembles
@@ -105,8 +105,8 @@ class Row:
     why: str = ""
     job: U.UpscaleJob | None = None      # an `upscale` row's planned job
     recipe: str = ""                     # the shot's recipe, in words
-    post_job: object = None              # --post: its planned post (h3post.PostJob)
-    post_kw: dict | None = None          # --post: its post recipe (h3post.recipe_for)
+    post_job: object = None              # --post: its planned post (post.PostJob)
+    post_kw: dict | None = None          # --post: its post recipe (post.recipe_for)
 
     def view(self) -> dict:
         rec = T.upscale_of(self.take) if self.take else None
@@ -236,7 +236,7 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
 
 def continuity_rows(plan: Plan, recipe: dict, shots: dict, mode: str | None,
                     post_shots: dict, conform: bool) -> None:
-    """Continuity shots (h3upscale.set_continuity): a shot whose first
+    """Continuity shots (upscale.set_continuity): a shot whose first
     keyframe is the previous shot's last frame starts its upscale from that
     shot's upscaled last frame, so the cut doesn't jump in colour. Two upscales
     that are otherwise fresh are made again for it (never a Keep): the source's,
@@ -278,7 +278,7 @@ def continuity_rows(plan: Plan, recipe: dict, shots: dict, mode: str | None,
 
 
 def chain_rows(plan: Plan, r: Row, by_take: dict, remake) -> None:
-    """continuity_rows for a `continuous: latent` take (h3upscale.set_chain):
+    """continuity_rows for a `continuous: latent` take (upscale.set_chain):
     its upscale holds the previous take's upscaled latent tail. That upscale is
     made again when it kept no latent (made before it was asked to), and this
     one when it wasn't held (made before, or it ran before that latent
@@ -381,7 +381,7 @@ def in_order(rows: list, order: str = "cut") -> list:
         first.setdefault(load_key(r.job), i)
     out = sorted(rows, key=lambda r: first[load_key(r.job)])
     # a continuity shot's upscale reads the previous shot's upscaled last frame
-    # when it runs (h3upscale.set_continuity), a latent chain's that shot's
+    # when it runs (upscale.set_continuity), a latent chain's that shot's
     # upscaled latent (set_chain): it goes after that upscale
     def key(take):
         return (take.shot, take.take) if take is not None else None
@@ -511,7 +511,7 @@ def master_name(root: str, size: tuple) -> str:
 
 # While a master is being assembled, <episode>/master/.assembling.json says who
 # by and since when, so a second run (the editor's button pressed again, or
-# `h3.py master` beside the editor) is refused instead of redoing the same
+# `seriesmith master` beside the editor) is refused instead of redoing the same
 # half hour of ffmpeg over the same files. A lock whose process is gone is stale.
 LOCK_FILE = ".assembling.json"
 LOCK_FOREIGN_HOURS = 24      # another machine's lock can't be checked: this old, it's stale
@@ -622,12 +622,12 @@ def existing_master(root: str) -> str | None:
     return mp4 if os.path.isfile(mp4) else None
 
 
-def prores_only(root: str, by: str = "h3.py master") -> dict:
+def prores_only(root: str, by: str = "seriesmith master") -> dict:
     """The ProRes 422 HQ .mov of the master already made, beside it (what
     --prores does at the end of an assembly, without assembling again), and the
     report's `prores` set. MasterError without a master; MasterBusy while one
     is being assembled. {"output", "mov"} (absolute paths)."""
-    from seriesmith import assemble as h3assemble
+    from seriesmith import assemble as ASM
     mp4 = existing_master(root)
     if mp4 is None:
         raise MasterError("there is no master of this episode at the recipe's size yet: "
@@ -635,7 +635,7 @@ def prores_only(root: str, by: str = "h3.py master") -> dict:
     lock = take_lock(root, by)
     try:
         mov = mp4[:-4] + ".mov"
-        why = h3assemble.prores_from(mp4, mov)
+        why = ASM.prores_from(mp4, mov)
         if why:
             raise MasterError(f"the ProRes .mov couldn't be made: {why}")
     finally:
@@ -659,13 +659,13 @@ def prores_only(root: str, by: str = "h3.py master") -> dict:
 
 
 def assemble_master(plan: Plan, allow_gaps: bool = False, prores: bool = False,
-                    timeout: int = 3600, progress=None, by: str = "h3.py master") -> dict:
+                    timeout: int = 3600, progress=None, by: str = "seriesmith master") -> dict:
     """The cut from its upscales at the master size into <episode>/master/, and
     the report beside it. Refused while anything is still to upscale or on its
     way, and with gaps unless `allow_gaps`; MasterBusy while another run is
     assembling this episode's master. `progress(event)` hears each step:
     {"step": "assemble" | "titles", "stage", "done", "total", "text"} (the
-    stages are h3assemble's and h3publish's progress lines).
+    stages are assemble's and publish's progress lines).
     {"ok", "output", "mov", "report", "error"}."""
     check_assemble(plan, allow_gaps)
     lock = take_lock(plan.root, by)
@@ -700,7 +700,7 @@ def _tell(progress, step: str):
 
 
 def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> dict:
-    from seriesmith import edit as h3edit
+    from seriesmith import edit as E
     name = master_name(plan.root, plan.size)
     sub = "renders_proxy" if plan.pass_ == "proxy" else "renders"
     args = ["-o", plan.root, "--upscaled", *(["--post"] if plan.post_mode != "off" else []),
@@ -711,18 +711,18 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> d
         args += ["--shotlist", "shotlist/shotlist_proxy.json", "--subfolder", sub]
     if gaps:
         args.append("--partial")
-    # the .mov is made from the finished master: by h3assemble when nothing is
+    # the .mov is made from the finished master: by assemble when nothing is
     # laid around the cut, else once, after the titles (add_titles) -- not
     # encoded from the untitled cut only to be made again
     retitle = prores and _has_titles(plan.root)
     if prores and not retitle:
         args += ["--intermediate", "prores"]
-    rc, out, err = h3edit.run_tool("h3assemble.py", args, plan.root, timeout,
+    rc, out, err = E.run_tool("assemble.py", args, plan.root, timeout,
                                    progress=_tell(progress, "assemble"))
     made = os.path.join(plan.root, sub, name + ".mp4")
     if rc != 0 or not os.path.isfile(made):
         return {"ok": False, "output": None, "mov": None, "report": out,
-                "error": err.strip() or out.strip()[-400:] or "h3assemble wrote no cut"}
+                "error": err.strip() or out.strip()[-400:] or "assemble wrote no cut"}
     dst = master_dir(plan.root)
     os.makedirs(dst, exist_ok=True)
     old_mov = os.path.join(dst, name + ".mov")
@@ -751,28 +751,28 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> d
 
 def _has_titles(root: str) -> bool:
     """An intro or an outro will be laid around the master. A series config
-    h3publish can't read counts as none here; add_titles reports it."""
-    from seriesmith import publish as h3publish
+    publish can't read counts as none here; add_titles reports it."""
+    from seriesmith import publish as PUB
     try:
-        return any(h3publish.titles(root))
+        return any(PUB.titles(root))
     except Exception:
         return False
 
 
 def add_titles(plan: Plan, mp4: str, mov: str | None, timeout: int = 3600,
                progress=None) -> tuple[dict, str]:
-    """The series intro and outro around the master, in place (h3publish), when
+    """The series intro and outro around the master, in place (publish), when
     the episode has them; the .mov made again from the titled master. Returns
     ({"titles": {"intro", "outro", "picture", "why"} or None, "report"}, why it
-    failed or ""). `picture` is how h3publish laid the cut in: "copied" (only
+    failed or ""). `picture` is how publish laid the cut in: "copied" (only
     the title clips encoded), "re-encoded" (the whole cut, `why` says why) or
     None when it didn't say."""
-    from seriesmith import assemble as h3assemble
-    from seriesmith import edit as h3edit
-    from seriesmith import publish as h3publish
+    from seriesmith import assemble as ASM
+    from seriesmith import edit as E
+    from seriesmith import publish as PUB
     try:
-        intro, outro = h3publish.titles(plan.root)
-    except h3publish.PublishError as e:
+        intro, outro = PUB.titles(plan.root)
+    except PUB.PublishError as e:
         return {}, str(e)
     if not intro and not outro:
         return {"titles": None, "report": "\n  no _titles/INTRO.mp4 or OUTRO.mp4: "
@@ -787,16 +787,16 @@ def add_titles(plan: Plan, mp4: str, mov: str | None, timeout: int = 3600,
         else:
             tell(tool, ev)
 
-    rc, out, err = h3edit.run_tool("h3publish.py", [plan.root, "--input", mp4, "--out", mp4,
+    rc, out, err = E.run_tool("publish.py", [plan.root, "--input", mp4, "--out", mp4,
                                                     "--quality", quality, "--progress"],
                                    plan.root, timeout, progress=hear)
     if rc != 0:
         why = next((ln.strip()[3:] for ln in out.splitlines() if ln.strip().startswith("!! ")),
-                   err.strip()[-300:] or "h3publish failed")
+                   err.strip()[-300:] or "publish failed")
         return {"report": "\n" + out}, why
     if mov:
-        tell("h3master", {"stage": "prores", "text": os.path.basename(mov)})
-        why = h3assemble.prores_from(mp4, mov)
+        tell("master", {"stage": "prores", "text": os.path.basename(mov)})
+        why = ASM.prores_from(mp4, mov)
         if why:
             return {"report": "\n" + out}, f"the ProRes .mov couldn't be made again: {why}"
     return {"titles": {"intro": fwd(plan.root, intro) if intro else None,
@@ -809,7 +809,7 @@ def picture_line(titles: dict) -> str:
     """How the titles step laid the cut in, in words."""
     if titles.get("picture") == "copied":
         return "Picture: the cut copied as assembled; only the title clips were encoded."
-    why = titles.get("why") or "h3publish didn't say why"
+    why = titles.get("why") or "publish didn't say why"
     return f"Picture: the whole cut re-encoded when the titles went on, because {why}."
 
 
@@ -870,7 +870,7 @@ def print_plan(plan: Plan) -> None:
 
 
 def master_episode(root: str, args, comfy, runner) -> int:
-    """One episode of `h3.py master`: plan, queue, (wait), assemble."""
+    """One episode of `seriesmith master`: plan, queue, (wait), assemble."""
     try:
         plan = plan_master(root, args.pass_, args.conform, args.post)
     except MasterError as e:
@@ -951,7 +951,7 @@ def stage_words(ev: dict) -> str:
 
 
 class Printer:
-    """`h3.py master`'s progress: one line per stage, the counts written over
+    """`seriesmith master`'s progress: one line per stage, the counts written over
     in place on a terminal."""
 
     def __init__(self, out=None):
@@ -980,7 +980,7 @@ class Printer:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="h3.py master", description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog="seriesmith master", description=__doc__.split("\n\n")[0])
     ap.add_argument("episodes", nargs="+", help="episode folders (a show folder: every episode in it)")
     ap.add_argument("--proxy", dest="pass_", action="store_const", const="proxy", default="final",
                     help="the proxy cut (a check of the flow; masters are the final's)")
@@ -1002,7 +1002,7 @@ def main(argv=None) -> int:
     ap.add_argument("--post", nargs="?", const="recipe", default="off",
                     choices=("recipe", "present"),
                     help="(after the episodes) recipe, or --post alone: each shot also "
-                         "post-processed by the series config's post.master (h3post: enhance, "
+                         "post-processed by the series config's post.master (post: enhance, "
                          "motion blur), the master made from the posts; present: each shot's "
                          "fresh post where it has one, its upscale otherwise, nothing queued")
     ap.add_argument("--order", choices=ORDERS, default="cut",

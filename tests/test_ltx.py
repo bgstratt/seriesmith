@@ -1,7 +1,7 @@
 """
 Phase 8: LTX-2 as a second video target, and retargeting shots.
 
-  - h3jobs.ui_to_api flattens ComfyUI subgraphs: the user's three saved LTX
+  - jobs.ui_to_api flattens ComfyUI subgraphs: the user's three saved LTX
     workflows (tests/fixtures/workflows, copied from ComfyUI's user folder)
     convert to graphs whose every link resolves and every required input is
     set, checked against a trimmed /object_info of the same install.
@@ -10,7 +10,7 @@ Phase 8: LTX-2 as a second video target, and retargeting shots.
   - Episodes that mix targets (tests/fixtures/mixed): per-target shotlists,
     finding a shot in whichever holds it, status and detail merged.
   - Retargeting without a rebuild: overrides.json `target`, a request's
-    `target`, the routes and `h3.py override --target`.
+    `target`, the routes and `seriesmith override --target`.
 """
 from __future__ import annotations
 
@@ -389,7 +389,7 @@ class MixedEpisodeTest(unittest.TestCase):
         try:
             got = J.stage_inputs(job, J.Comfy(comfy.url))
             self.assertEqual(list(got), ["first"])
-            self.assertTrue(got["first"].startswith("h3pipe/") and got["first"].endswith(".png"))
+            self.assertTrue(got["first"].startswith("seriesmith/") and got["first"].endswith(".png"))
             self.assertEqual(comfy.uploads, {got["first"]: PNG})
         finally:
             comfy.close()
@@ -518,7 +518,7 @@ class MixedEpisodeTest(unittest.TestCase):
     def test_override_cli_writes_the_shots_own_target(self):
         env = dict(ENV)
         run = lambda *a: subprocess.run(  # noqa: E731
-            [sys.executable, "-m", "seriesmith.h3cli", "override", self.root, *a],
+            [sys.executable, "-m", "seriesmith.commands", "override", self.root, *a],
             capture_output=True, env=env, text=True, encoding="utf-8")
         r = run("sh020", "--seed", "11", "--steps", "3", "--proxy")
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
@@ -538,9 +538,9 @@ class MixedEpisodeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
 
     def test_h3align_snaps_to_each_shots_grid(self):
-        from seriesmith import align as h3align
+        from seriesmith import align as AL
         with open(os.path.join(MIXED, "script.md"), encoding="utf-8") as fh:
-            snap = h3align.shot_grids(os.path.join(MIXED, "series.json"), fh.read())
+            snap = AL.shot_grids(os.path.join(MIXED, "series.json"), fh.read())
         self.assertEqual(snap("sh010")(50), 56)                    # H3: 17k+5
         self.assertEqual(snap("sh020")(50), 57)                    # ltx2: 8k+1
 
@@ -560,7 +560,7 @@ class RetargetRouteTest(unittest.TestCase):
         build_mixed(self.ep)
         self.comfy = FakeComfy()
         self.ctx = A.Context(os.path.join(self._tmp.name, "user"), self.comfy.url,
-                             comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={},
+                             comfy=J.Comfy(self.comfy.url, client_id="seriesmith"), env={},
                              runner=self.comfy.runner)
         self.ok(A.put_config(self.ctx, {"roots": [self.shows]}))
 

@@ -1,4 +1,4 @@
-// Model families (GET /h3pipe/models): the picker's groups and warning, the
+// Model families (GET /seriesmith/models): the picker's groups and warning, the
 // render flag, the toast for a model-mismatch skip, the HTTP client's route
 // and the mock's.
 import { describe, expect, it } from "vitest";
@@ -14,7 +14,7 @@ const list: ModelList = {
     { name: "ltx-2.5-distilled.safetensors", match: "name", mismatch: false, family: "ltx2.5", label: "LTX 2.5", confidence: "name", detail: "" },
     { name: "renamed.safetensors", match: "fingerprint", mismatch: false, family: "ltx2.5", label: "LTX 2.5", confidence: "metadata", detail: "model renamed isn't named like LTX 2.5, but its header says LTX 2.5 (metadata)" },
     { name: "wan_low.safetensors", match: "other", mismatch: true, family: "wan2.2-i2v-14b-low", label: "Wan 2.2 I2V 14B low-noise", confidence: "name", detail: "wan_low is Wan 2.2 I2V 14B low-noise (tensors + name), but this LTX-2 target's model must be LTX 2.5" },
-    { name: "flux.safetensors", match: "other", mismatch: false, family: null, label: "", confidence: "unknown", detail: "model flux isn't named like LTX 2.5 and its header matches no family h3pipe knows" },
+    { name: "flux.safetensors", match: "other", mismatch: false, family: null, label: "", confidence: "unknown", detail: "model flux isn't named like LTX 2.5 and its header matches no family seriesmith knows" },
   ],
 };
 
@@ -61,7 +61,7 @@ describe("render anyway (model mismatch)", () => {
   });
 });
 
-describe("HTTP client: /h3pipe/models", () => {
+describe("HTTP client: /seriesmith/models", () => {
   it("GETs the route with target, param and ep, and fills in a thin answer", async () => {
     const calls: string[] = [];
     const t: Transport = {
@@ -72,7 +72,7 @@ describe("HTTP client: /h3pipe/models", () => {
       url: (p) => p,
     };
     const r = await createHttpApi(t).modelFiles("ltx2", "model", "C:/Shows/ep01");
-    expect(calls[0]).toBe("/h3pipe/models?target=ltx2&param=model&ep=C%3A%2FShows%2Fep01");
+    expect(calls[0]).toBe("/seriesmith/models?target=ltx2&param=model&ep=C%3A%2FShows%2Fep01");
     expect(r).toMatchObject({ target: "ltx2", param: "model", family: "ltx2.5", label: "ltx2.5", patterns: [], fingerprint: false });
     expect(r.files).toHaveLength(1);
   });

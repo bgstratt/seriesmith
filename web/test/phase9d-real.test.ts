@@ -1,7 +1,7 @@
 // Phase 9d against REAL route JSON: test/local/p9d_* (gitignored, never
 // committed) are dumps taken from a SCRATCH COPY of a real episode through the
-// functions the routes call — h3edit.episode_status for both passes, and
-// h3peaks.peaks / media_info for the takes' own sound. No render was queued and
+// functions the routes call — edit.episode_status for both passes, and
+// peaks.peaks / media_info for the takes' own sound. No render was queued and
 // nothing outside the copy was written. Skipped without the dumps.
 //
 // The backend's 9d routes weren't merged when these were taken, so the dumps
@@ -72,7 +72,7 @@ describe.skipIf(!dumps.length)("Phase 9d on real episode dumps (test/local/p9d_*
       for (const s of withSound) {
         for (const t of takesWithSound(s.takes)) {
           expect(t.audio).toMatch(/\.(mp4|wav)$/);
-          // h3peaks.clip_audio: the mp4 when it carries sound, else the take's _h3.wav
+          // peaks.clip_audio: the mp4 when it carries sound, else the take's _h3.wav
           expect(t.audio === t.mp4 || t.audio!.endsWith("_h3.wav")).toBe(true);
         }
         expect(takeAudioFile(proxy.shots, s.shot, takesWithSound(s.takes)[0].take)).toBeTruthy();

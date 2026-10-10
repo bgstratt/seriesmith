@@ -1,10 +1,10 @@
 """
-Phase 9b (docs/API.md "Phase 9b: timeline editing"): cut edits (PUT /h3pipe/cut's
-trim checks and _history/ copies, POST /h3pipe/cut/reset and /cut/copy), the
+Phase 9b (docs/API.md "Phase 9b: timeline editing"): cut edits (PUT /seriesmith/cut's
+trim checks and _history/ copies, POST /seriesmith/cut/reset and /cut/copy), the
 episode status's new fields (cut.order, script_index, out_of_order, track,
-audio_in/audio_out, take audio), locked picks, GET /h3pipe/peaks (h3peaks:
+audio_in/audio_out, take audio), locked picks, GET /seriesmith/peaks (peaks:
 stdlib wav, ffmpeg for the rest, the cache, resampling, path safety) and
-`h3.py cut`. The routes run through h3pipe_api with test_api's built
+`seriesmith cut`. The routes run through h3pipe_api with test_api's built
 kitchen_sink episode; the aiohttp adapter is in test_routes.
 """
 from __future__ import annotations
@@ -162,7 +162,7 @@ class CutEditTest(Base):
         for i in range(H.HISTORY_KEEP + 3):
             self.put_cut([{"shot": "sh030", "note": f"n{i}"}])
         self.assertEqual(len(self.history()), H.HISTORY_KEEP)
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
 
     def test_reset(self):
         self.render("sh010")
@@ -187,7 +187,7 @@ class CutEditTest(Base):
         res = self.ok(A.post_cut_reset(self.ctx, {"ep": self.ep, "pass": "proxy",
                                                   "what": "all"}))["cut"]["proxy"]
         self.assertEqual(res, [{"shot": s} for s in self.order])
-        self.assertEqual(self.events_of("h3pipe.episode")[-1], {"ep": self.ep})
+        self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
         self.err(A.post_cut_reset(self.ctx, {"ep": self.ep, "pass": "proxy", "what": "x"}), 400)
         self.err(A.post_cut_reset(self.ctx, {"ep": self.ep, "pass": "draft",
                                              "what": "all"}), 400)
@@ -497,7 +497,7 @@ class CliTest(Base):
         self.assertGreater(len(H.history(self.ep, "cut.json")), 5)
 
     def test_through_h3(self):
-        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "cut", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "cut", self.ep,
                             "--proxy", "--move", self.order[2], "--before", self.order[0]],
                            capture_output=True, text=True, timeout=120,
                            env=dict(os.environ, PYTHONIOENCODING="utf-8"))

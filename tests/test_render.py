@@ -322,7 +322,7 @@ class FakeComfy:
     'hold' (accepted, and left pending in the queue) or 'reject' (node_errors).
     `running`/`pending` are what /queue reports; other POSTs land in `posts`.
 
-    A reference-image graph (h3refs) is played too: H3SaveRefTake writes a
+    A reference-image graph (refs) is played too: H3SaveRefTake writes a
     flat PNG (its colour from the seed) beside the sidecar and closes it; a
     graph that kept SaveImage gets its PNG in the job's outputs, served by
     /view. `nodes` is what /object_info knows (drop "H3SaveRefTake" to play a

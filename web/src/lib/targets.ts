@@ -172,7 +172,7 @@ export function pickerChoices(
 }
 
 // ---------------------------------------------------------------------------
-// model families (GET /h3pipe/models)
+// model families (GET /seriesmith/models)
 // ---------------------------------------------------------------------------
 
 /** The render dialog's checkbox that sends allow_model_mismatch. */
@@ -292,7 +292,7 @@ export interface RunSize {
 
 /**
  * What a run on `chosen` renders at. Shot detail's `effective` is exact only for
- * the shot's own target (GET /h3pipe/shot takes no target; see api.ts); for
+ * the shot's own target (GET /seriesmith/shot takes no target; see api.ts); for
  * another target the preset's size is a hint and the length isn't known.
  */
 export function runSize(d: Pick<ShotDetail, "effective" | "pass" | "target" | "built_target"> | undefined, chosen: string, fallback: string, list: TargetList | null | undefined): RunSize {

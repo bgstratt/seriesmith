@@ -563,13 +563,13 @@ class ModelIdCache:
 
 
 def temp_cache() -> ModelIdCache:
-    """The CLI's cache: h3pipe_modelid_cache.json in the temp folder."""
-    return ModelIdCache(os.path.join(tempfile.gettempdir(), "h3pipe_modelid_cache.json"))
+    """The CLI's cache: seriesmith_modelid_cache.json in the temp folder."""
+    return ModelIdCache(os.path.join(tempfile.gettempdir(), "seriesmith_modelid_cache.json"))
 
 
 def user_cache(user_dir: str) -> ModelIdCache:
-    """The routes' cache: <ComfyUI user dir>/default/h3pipe/modelid_cache.json."""
-    return ModelIdCache(os.path.join(user_dir, "default", "h3pipe", "modelid_cache.json"))
+    """The routes' cache: <ComfyUI user dir>/default/seriesmith/modelid_cache.json."""
+    return ModelIdCache(os.path.join(user_dir, "default", "seriesmith", "modelid_cache.json"))
 
 
 # ---------------------------------------------------------------------------

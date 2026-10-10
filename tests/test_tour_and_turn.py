@@ -1,6 +1,6 @@
 """
-P5: a location's camera tour (h3tour.py) and a character's views turned from
-one it has (h3refs.plan_edit `from_view` / `turn`).
+P5: a location's camera tour (tour.py) and a character's views turned from
+one it has (refs.plan_edit `from_view` / `turn`).
 
 The tour's ComfyUI run and its stills step are faked: the graph it queues,
 what it refuses, and what happens to its holds (takes of the location's
@@ -182,7 +182,7 @@ class TourQueueTest(Base):
         self.assertEqual(len(d["holds"]), 1)
         with open(R.ref_file(self.s.ep, d["video"]), "rb") as fh:
             self.assertEqual(fh.read(), b"mp4")
-        self.assertIn(("h3pipe.ref", {"ep": self.s.ep, "ref": ref.id, "view": R.TOUR_VIEW,
+        self.assertIn(("seriesmith.ref", {"ep": self.s.ep, "ref": ref.id, "view": R.TOUR_VIEW,
                                       "take": d["holds"][0], "status": "ok"}), events)
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-h3source.py — an episode's two authored files, the script (epNN.md) and the
+source.py — an episode's two authored files, the script (epNN.md) and the
 series config (series.json), as the editor reads, checks and saves them
 (docs/API.md, "Phase 9a").
 
@@ -9,8 +9,8 @@ series config (series.json), as the editor reads, checks and saves them
     save_source(ep, file, text, base_hash)    -> {"hash", "check"}  (Conflict on a stale hash)
 
 The check never writes: it parses the given text with the file on disk beside
-it (h3core's parser and series config loader) and compiles the final pass the
-way `h3build --check` does (h3build.compile_groups), collecting the same
+it (core's parser and series config loader) and compiles the final pass the
+way `build --check` does (build.compile_groups), collecting the same
 errors and warnings with 1-based line numbers into the file they are about.
 
 A save keeps the file as it was: its line endings (CRLF or LF, whichever it
@@ -118,7 +118,7 @@ def source_path(ep: str, file: str) -> str:
 
 def read_file(ep: str, file: str, path: str) -> Source:
     """A Source for a path given by name rather than found in the episode
-    (h3align's `--script`, the series config it was pointed at). Its history
+    (align's `--script`, the series config it was pointed at). Its history
     copies still go to the episode's `_history/`."""
     with open(path, "rb") as fh:
         return Source(ep, file, path, fh.read())
@@ -129,7 +129,7 @@ def read_source(ep: str, file: str) -> Source:
 
 
 def source_json(src: Source, hash_only: bool = False) -> dict:
-    """GET /h3pipe/source."""
+    """GET /seriesmith/source."""
     if hash_only:
         return {"file": src.file, "hash": src.hash, "mtime": src.mtime}
     out = {"file": src.file, "path": src.rel, "text": src.text, "hash": src.hash,
@@ -278,7 +278,7 @@ def script_shots(text: str, ep: str, cfg: dict | None = None) -> list[dict]:
 
 
 def check_text(ep: str, file: str, text: str) -> dict:
-    """POST /h3pipe/source/check: `text` as the episode's `file`, checked
+    """POST /seriesmith/source/check: `text` as the episode's `file`, checked
     beside the other file on disk, writing nothing. A script is parsed against
     the series config and compiled; a series config must be JSON and load,
     then the script on disk is checked with it."""
@@ -356,7 +356,7 @@ def check_text(ep: str, file: str, text: str) -> dict:
         return {"file": "script", "line": None}
 
     # 3. the build: every target the episode uses compiles its shots (final
-    # pass, as `h3.py check` runs it)
+    # pass, as `seriesmith check` runs it)
     try:
         built = B.compile_groups(story, cfg, "final")
     except (ValueError, KeyError, TG.TargetError) as e:
@@ -463,7 +463,7 @@ def write_source(src: Source, text: str) -> str:
 
 def dump_series(raw: dict, like: str) -> str:
     """A series config as the editor writes it: 2-space indent, key order and
-    non-ASCII text kept, a final newline if the file had one (h3promote's
+    non-ASCII text kept, a final newline if the file had one (promote's
     format, shared by every route that edits the series config)."""
     return json.dumps(raw, indent=2, ensure_ascii=False) + ("\n" if like.endswith("\n") else "")
 
@@ -477,7 +477,7 @@ def formatted(text: str) -> bool:
 
 
 def save_source(ep: str, file: str, text: str, base_hash: str | None) -> dict:
-    """PUT /h3pipe/source without the rebuild: Conflict (409) when the file's
+    """PUT /seriesmith/source without the rebuild: Conflict (409) when the file's
     hash isn't `base_hash`; SourceError 400 for a series config that isn't
     JSON (with its line/col). A script with errors is saved. Returns
     {"hash", "check", "changed"}."""
@@ -668,7 +668,7 @@ def skeleton_script(raw: dict, name: str, title: str) -> str | None:
     return (f"= {name}  {title}\n"
             f"\n"
             f"// A place to start: one shot that builds. Write the episode over it --\n"
-            f"// docs/AUTHORING.md is the format, `python h3.py check` says what is wrong,\n"
+            f"// docs/AUTHORING.md is the format, `seriesmith check` says what is wrong,\n"
             f"// and every subject and location comes from series.json by short name.\n"
             f"\n"
             f"# sq01  {where}\n"
@@ -795,7 +795,7 @@ def _rename_track(raw: dict, old: str, new: str) -> None:
 
 
 def cmd_new(argv: list[str]) -> int:
-    """`python h3.py new Shows\\ep02 [--title "..."] [--series-id ...]` — the CLI
+    """`seriesmith new Shows\\ep02 [--title "..."] [--series-id ...]` — the CLI
     side of new_episode: the path's folder is the show, its name the episode."""
     args, title, series_id = [], None, None
     i = 0
@@ -814,7 +814,7 @@ def cmd_new(argv: list[str]) -> int:
         args.append(a)
         i += 1
     if len(args) != 1:
-        print('  !! usage: python h3.py new <folder>\\<name> [--title "..."] [--series-id <id>]')
+        print('  !! usage: seriesmith new <folder>\\<name> [--title "..."] [--series-id <id>]')
         return 2
     path = os.path.abspath(args[0])
     parent, name = os.path.dirname(path), os.path.basename(path)
@@ -834,5 +834,5 @@ def cmd_new(argv: list[str]) -> int:
         print(f"  !! {e.get('message', e)}")
     for w in check.get("warnings") or []:
         print(f"  ~~ {w.get('message', w)}")
-    print(f"  -- next: python h3.py build {res['ep']}")
+    print(f"  -- next: seriesmith build {res['ep']}")
     return 0 if check.get("ok", True) else 1

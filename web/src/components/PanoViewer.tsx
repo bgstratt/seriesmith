@@ -1,4 +1,4 @@
-// P5: a location's 360 panoramas. "Make 360" (POST /h3pipe/refs/generate with
+// P5: a location's 360 panoramas. "Make 360" (POST /seriesmith/refs/generate with
 // `pano`) turns the live plate into an equirectangular 360 with the Qwen
 // pano360 LoRA; the viewer aims a camera into one (drag to turn, wheel to
 // zoom) and saves that view as a plate candidate of the location or one of its
@@ -17,7 +17,7 @@ import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { SHARPEN } from "./RefEdit";
 import { useTargets } from "./Targets";
 
-const RECT_KEY = "h3pipe.pano.rect";
+const RECT_KEY = "seriesmith.pano.rect";
 const SIZES = ["1344x768", "1536x640", "1024x1024", "768x1344"];
 const PREVIEW_W = 640;
 const SHARPEN_TARGET = "qwen_rapid_aio";

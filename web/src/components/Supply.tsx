@@ -1,6 +1,6 @@
 // P8: supplying references in bulk. Files dropped on the Refs tab (or picked
 // with the button) are matched to slots by name on the server
-// (POST /h3pipe/refs/match) and shown here before anything is sent: a picture
+// (POST /seriesmith/refs/match) and shown here before anything is sent: a picture
 // routed to the wrong slot means a render with the wrong character in it, so
 // the guess is always on screen first.
 

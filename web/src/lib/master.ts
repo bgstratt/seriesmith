@@ -1,6 +1,6 @@
 // A master being assembled, in words: what the Master dialog says under its
-// progress bar, from the job's step and stage (h3master's events; the stages
-// are h3assemble's and h3publish's progress lines). Pure functions.
+// progress bar, from the job's step and stage (master's events; the stages
+// are assemble's and publish's progress lines). Pure functions.
 
 import type { MasterJob, MasterTitles } from "../types";
 
@@ -73,7 +73,7 @@ export function masterFraction(job: MasterJob): number | null {
 }
 
 /** How the titles went on, for the dialog and the toast: null when there were
- * none, or h3publish didn't say. */
+ * none, or publish didn't say. */
 export function pictureText(t: MasterTitles | null | undefined): string | null {
   if (!t?.picture) return null;
   if (t.picture === "copied") return "The cut's picture was copied as assembled; only the title clips were encoded.";

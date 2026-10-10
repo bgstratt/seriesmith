@@ -9,7 +9,7 @@ import type { ModelList } from "../types";
 
 /** Model picker from ComfyUI's diffusion_models (or unet) list. `""` = the placeholder. */
 /** `choices` (a target's own list) replaces ComfyUI's generic one. `grouped`
- * (GET /h3pipe/models) puts the files of the target's family first, the rest
+ * (GET /seriesmith/models) puts the files of the target's family first, the rest
  * under "Other files (unverified)", and warns when one of those is picked. */
 export function ModelSelect({ value, onChange, placeholder, choices, grouped }: { value: string; onChange: (v: string) => void; placeholder?: string; choices?: string[]; grouped?: ModelList }) {
   const models = useApp((s) => s.models);

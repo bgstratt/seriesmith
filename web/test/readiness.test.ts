@@ -220,12 +220,12 @@ describe("the HTTP client", () => {
   it("asks for readiness with ready=1", async () => {
     const { api, calls } = fake(() => ({ targets: [{ id: "a", kind: "video", label: "A", readiness: { status: "ready" } }], default: {} }));
     const r = await api.targets({ ready: true });
-    expect(calls[0].path).toBe("/h3pipe/targets?ready=1");
+    expect(calls[0].path).toBe("/seriesmith/targets?ready=1");
     expect(r.targets[0].readiness?.status).toBe("ready");
     await api.targets({ kind: "video", ready: true });
-    expect(calls[1].path).toBe("/h3pipe/targets?kind=video&ready=1");
+    expect(calls[1].path).toBe("/seriesmith/targets?kind=video&ready=1");
     await api.targets("video");
-    expect(calls[2].path).toBe("/h3pipe/targets?kind=video");
+    expect(calls[2].path).toBe("/seriesmith/targets?kind=video");
   });
 
   it("PUTs the episode target, null clearing it", async () => {
@@ -233,8 +233,8 @@ describe("the HTTP client", () => {
     expect(await api.putEpisodeTarget("C:\\ep05", "ltx2")).toMatchObject({ target_source: "editor" });
     await api.putEpisodeTarget("C:\\ep05", null);
     expect(calls.map((c) => [c.method, c.path, c.body])).toEqual([
-      ["PUT", "/h3pipe/episode-target", { ep: "C:\\ep05", target: "ltx2" }],
-      ["PUT", "/h3pipe/episode-target", { ep: "C:\\ep05", target: null }],
+      ["PUT", "/seriesmith/episode-target", { ep: "C:\\ep05", target: "ltx2" }],
+      ["PUT", "/seriesmith/episode-target", { ep: "C:\\ep05", target: null }],
     ]);
     await expect(api.putEpisodeTarget("ep", "" as unknown as string)).rejects.toThrow(/target id or null/);
   });
@@ -278,7 +278,7 @@ describe("mock readiness and the episode target", () => {
 
     const r = await api.putEpisodeTarget(ep, WAN_VACE);
     expect(r).toMatchObject({ target: WAN_VACE, target_source: "editor" });
-    expect(events).toContain("h3pipe.episode");
+    expect(events).toContain("seriesmith.episode");
     st = await api.episode(ep, "proxy");
     expect(st.target_source).toBe("editor");
     expect(st.shots.find((s) => s.shot === "sh010")!.target).toBe(WAN_VACE);

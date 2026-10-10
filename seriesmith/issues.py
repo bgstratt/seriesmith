@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-h3issues.py — a pass's issues: the notepad you fill while watching a proxy.
+issues.py — a pass's issues: the notepad you fill while watching a proxy.
 
 The loop it serves: render a cheap proxy to see structure, watch it, jot what is
 wrong with each bad shot, hand the lot to an assistant, fix the script or the
@@ -48,7 +48,7 @@ MAX_NOTE = 4000
 
 class IssueError(Exception):
     """A request that can't be done: `status` is the HTTP status the editor
-    answers with (the same shape as h3source.SourceError)."""
+    answers with (the same shape as source.SourceError)."""
 
     def __init__(self, status: int, message: str, **data):
         super().__init__(message)
@@ -305,10 +305,10 @@ def export_json(ep: str, pass_: str | None = None, include_addressed: bool = Fal
 
 
 # ---------------------------------------------------------------------------
-# the CLI: python h3.py issues <episode> ...
+# the CLI: seriesmith issues <episode> ...
 # ---------------------------------------------------------------------------
 
-USAGE = """  !! usage: python h3.py issues <episode> [--proxy | --final]
+USAGE = """  !! usage: seriesmith issues <episode> [--proxy | --final]
        --add <shot> "what is wrong"   note a shot (--take N for a particular one)
        --add-from <file>              one per line: "sh0140: the truck is on the wrong side"
        (nothing)                      list them, addressed ones marked

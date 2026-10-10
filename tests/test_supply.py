@@ -10,7 +10,7 @@ Supplying references you already have.
     stays a perfectly good way to supply one.
   - match_files: which slot a file name means, exactly and explicably, with
     anything ambiguous left alone.
-  - supply_files / `h3.py supply`: a folder of pictures into their slots.
+  - supply_files / `seriesmith supply`: a folder of pictures into their slots.
 """
 from __future__ import annotations
 
@@ -372,7 +372,7 @@ class TestSupplyCli(unittest.TestCase):
         self._tmp.cleanup()
 
     def run_supply(self, *args: str):
-        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "supply",
+        return subprocess.run([sys.executable, "-m", "seriesmith.commands", "supply",
                                self.ep, *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_dry_run_prints_the_table_and_writes_nothing(self):

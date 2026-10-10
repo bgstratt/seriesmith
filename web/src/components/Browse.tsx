@@ -1,4 +1,4 @@
-// The folder browser (GET /h3pipe/browse): choosing project roots, opening an
+// The folder browser (GET /seriesmith/browse): choosing project roots, opening an
 // episode, and picking a file on the ComfyUI machine to import as a ref.
 
 import { useCallback, useEffect, useState } from "react";
@@ -13,7 +13,7 @@ import { useApp, type BrowseState } from "../store";
 import type { BrowseDir, BrowseFile, BrowseResult } from "../types";
 import { Dialog } from "./Dialogs";
 
-const LAST_KEY = "h3pipe.browse.last";
+const LAST_KEY = "seriesmith.browse.last";
 
 function lastPath(purpose: string): string | null {
   try {
@@ -65,7 +65,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const forClip = b.purpose === "clip-audio";
   const ep = useApp((s) => s.ep);
   // Phase 9c-A: picking the episode's recording works like an import, but the
-  // file goes to POST /h3pipe/track instead of becoming a ref candidate
+  // file goes to POST /seriesmith/track instead of becoming a ref candidate
   const importing = b.purpose === "import" || forTrack || forClip;
   const roots = config?.roots ?? [];
 

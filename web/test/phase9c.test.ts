@@ -1,5 +1,5 @@
 // Phase 9c: the dialogue recording (attach, align) and generated voice refs.
-// The pure maths first (what h3align needs, the span a voice is cut from,
+// The pure maths first (what align needs, the span a voice is cut from,
 // the waveform reuse), then both halves end to end on the mock API, then the
 // components rendered to HTML so a shape they can't take throws here.
 import { createElement } from "react";
@@ -30,7 +30,7 @@ import { initialState, statusKey, store } from "../src/store";
 import type { AlignReady, AlignResult, BuildResult, Ref, Track } from "../src/types";
 
 // ---------------------------------------------------------------------------
-// A: what h3align needs, and what the recording is
+// A: what align needs, and what the recording is
 // ---------------------------------------------------------------------------
 
 const READY: AlignReady = {
@@ -41,12 +41,12 @@ const READY: AlignReady = {
   models: { default: "medium.en", choices: ["tiny.en", "medium.en"] },
 };
 
-describe("what h3align needs", () => {
+describe("what align needs", () => {
   it("a missing Whisper stops a first run, but not one with a cached transcript", () => {
     const first = alignBlockers(READY, false);
     expect(first).toMatchObject({ ok: false, missing: ["faster-whisper"], whisperSkipped: false });
     expect(first.install).toBe(READY.install);
-    expect(missingText(first)).toContain("h3align needs faster-whisper");
+    expect(missingText(first)).toContain("align needs faster-whisper");
     expect(missingText(first)).toContain(READY.python);
     // the same answer, with a transcript beside the recording: it can run
     const again = alignBlockers(READY, true);
@@ -144,7 +144,7 @@ describe("the build after attaching", () => {
   const dub = (error: string): BuildResult => ({ ok: false, passes: { final: { ok: false, report: "", error }, proxy: { ok: true, report: "", error: "" } } });
 
   it("“align to finish” is the expected failure, not an error", () => {
-    const b = dub("error in ep37.md: shot sh010: policy dub_keep_foley needs an `audio: in-out` window on the recorded track (h3align.py writes these).");
+    const b = dub("error in ep37.md: shot sh010: policy dub_keep_foley needs an `audio: in-out` window on the recorded track (align.py writes these).");
     expect(needsAlignBuild(b)).toBe(true);
     expect(buildError(b)).toContain("dub_keep_foley");
     expect(needsAlignBuild(dub("shot sh010: the plate refs/_bg/x.png is missing"))).toBe(false);
@@ -153,7 +153,7 @@ describe("the build after attaching", () => {
   });
 
   it("a build that couldn't start at all carries `error` and no passes", () => {
-    // as built: h3align leaves align_report.md beside the script, so an
+    // as built: align leaves align_report.md beside the script, so an
     // episode whose script isn't <folder>.md stops building
     const b: BuildResult = { ok: false, error: "can't tell which .md in the folder is the script", passes: {} };
     expect(buildError(b)).toBe(b.error);
@@ -351,7 +351,7 @@ describe("the recording, end to end on the mock", () => {
     expect(st().track).toBeNull();
     expect(await attachTrack("C:\\Shows\\DeanStories\\audio\\ep05 take 2.wav")).toBe(true);
     await refreshEpisode(EP, "proxy");
-    // it lands in <episode>/audio/, its name made safe (h3track keeps spaces)
+    // it lands in <episode>/audio/, its name made safe (track keeps spaces)
     expect(st().track!.path).toBe("audio/ep05 take 2.wav");
     // a recording just attached has no transcript beside it
     expect(st().track!.words).toBe(false);
@@ -382,7 +382,7 @@ describe("the recording, end to end on the mock", () => {
     expect(await runAlign({})).toBe(false);
     expect(store.get().alignRun!.error).toContain("faster-whisper");
     expect(store.get().alignReady!.missing).toContain("faster-whisper");
-    expect(toasts.some((t) => t.summary === "h3align can't run yet")).toBe(true);
+    expect(toasts.some((t) => t.summary === "align can't run yet")).toBe(true);
     // install one and it goes through
     mockPipInstall("faster-whisper");
     await loadAlignReady(true);
@@ -393,7 +393,7 @@ describe("the recording, end to end on the mock", () => {
 
   it("a dry run writes nothing; a real run reports its stages and the changed shots", async () => {
     const stages: string[] = [];
-    listeners.set("h3pipe.align", [(d) => stages.push((d as { stage: string }).stage)]);
+    listeners.set("seriesmith.align", [(d) => stages.push((d as { stage: string }).stage)]);
     const dry = await runAlign({ dryRun: true });
     expect(dry).toBe(true);
     expect(stages).toEqual(["transcribe", "match", "write", "write"]);

@@ -1,6 +1,6 @@
 // Phase 9c-A: the Recording window. Attach the episode's dialogue recording
 // (browse the ComfyUI machine, type a path, or drop a file in), see what is
-// attached, and run h3align against it — with what to install when h3align
+// attached, and run align against it — with what to install when align
 // can't run, live progress, and the report it wrote.
 
 import { useRef, useState, type DragEvent } from "react";
@@ -28,7 +28,7 @@ export function TrackButton() {
   if (!ep) return null;
   const title = t
     ? `Recording: ${t.text}${t.problem ? ` — ${t.problem}` : ""}\n${alignedText(t.aligned, st?.pass ?? "proxy")}\nClick to attach another, align the script, or clear it.`
-    : "No dialogue recording. Click to attach one and time the script against it (h3align).";
+    : "No dialogue recording. Click to attach one and time the script against it (align).";
   return (
     <button className={`h3-btn h3-icon${t ? " h3-on" : ""}`} title={title} onClick={() => openTrackPanel()}>
       <i className="pi pi-volume-up" />
@@ -108,7 +108,7 @@ function DropRecording() {
   );
 }
 
-/** What h3align needs and where, or "ready". */
+/** What align needs and where, or "ready". */
 function Readiness({ words }: { words: boolean }) {
   const ready = useApp((s) => s.alignReady);
   const err = useApp((s) => s.alignReadyError);
@@ -116,16 +116,16 @@ function Readiness({ words }: { words: boolean }) {
   if (err && !ready) {
     return (
       <div className="h3-note h3-note-err h3-small">
-        Couldn't check what h3align needs: {err}{" "}
+        Couldn't check what align needs: {err}{" "}
         <button className="h3-link" onClick={() => void loadAlignReady(true)}>retry</button>
       </div>
     );
   }
-  if (!ready) return <div className="h3-muted h3-small">Checking what h3align needs…</div>;
+  if (!ready) return <div className="h3-muted h3-small">Checking what align needs…</div>;
   if (b.ok) {
     return (
       <div className="h3-small h3-muted">
-        <span className="h3-ok">Ready.</span> h3align runs in {ready.python || "the pipeline's Python"}.
+        <span className="h3-ok">Ready.</span> align runs in {ready.python || "the pipeline's Python"}.
         {b.whisperSkipped && " No Whisper is needed: the recording already has a transcript beside it."}
         {packagesText(ready) ? ` (${packagesText(ready)})` : ""}
       </div>
@@ -153,7 +153,7 @@ function Readiness({ words }: { words: boolean }) {
   );
 }
 
-/** The live stages of a run (`h3pipe.align`). */
+/** The live stages of a run (`seriesmith.align`). */
 function AlignProgress() {
   const run = useApp((s) => s.alignRun);
   if (!run?.busy) return null;
@@ -307,14 +307,14 @@ export function TrackWindow() {
             </select>
           </label>
         )}
-        <label className="h3-check h3-small" title="Snap each window to the frame grid (h3align's --no-snap turns it off)">
+        <label className="h3-check h3-small" title="Snap each window to the frame grid (align's --no-snap turns it off)">
           <input type="checkbox" checked={snap} disabled={running} onChange={(e) => setSnap(e.target.checked)} /> snap to frames
         </label>
         <span className="h3-grow" />
         <button
           className="h3-btn"
           disabled={!t || running || !blockers.ok}
-          title={!t ? "Attach a recording first" : !blockers.ok ? missingText(blockers) : "Run h3align and show what it would write, without writing anything"}
+          title={!t ? "Attach a recording first" : !blockers.ok ? missingText(blockers) : "Run align and show what it would write, without writing anything"}
           onClick={() => void runAlign({ dryRun: true, model: model || null, snap })}
         >
           <i className={running && run?.dryRun ? "pi pi-spin pi-spinner" : "pi pi-eye"} /> Dry run

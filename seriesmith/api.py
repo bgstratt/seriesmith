@@ -68,14 +68,14 @@ class ApiError(Exception):
 class Context:
     """What a handler needs from its host.
 
-    user_dir   ComfyUI's user folder (config lives in <user_dir>/default/h3pipe/)
+    user_dir   ComfyUI's user folder (config lives in <user_dir>/default/seriesmith/)
     comfy_url  this ComfyUI's own base URL
     emit       emit(event, data): a live-update event to every open editor
-    comfy      an h3jobs.Comfy-like client (default: one for comfy_url, with
-               client_id "h3pipe"); tests pass a fake
-    env        environment for $H3PIPE_ROOTS (default os.environ)
+    comfy      a jobs.Comfy-like client (default: one for comfy_url, with
+               client_id "seriesmith"); tests pass a fake
+    env        environment for $SERIESMITH_ROOTS (default os.environ)
     model_resolve  resolve(folder, name) -> a model file's path or None
-               (default h3jobs.model_resolver(): ComfyUI's folder_paths);
+               (default jobs.model_resolver(): ComfyUI's folder_paths);
                None checks model files by name only
     model_list list(folder, class_type, field) -> the files ComfyUI offers
                (default: folder_paths.get_filename_list, else /object_info)
@@ -116,7 +116,7 @@ class Context:
 
     @property
     def model_cache(self):
-        """identify() results, in <user_dir>/default/h3pipe/modelid_cache.json."""
+        """identify() results, in <user_dir>/default/seriesmith/modelid_cache.json."""
         if self._model_cache is None:
             self._model_cache = TG.modelid.user_cache(self.user_dir)
         return self._model_cache
@@ -159,7 +159,7 @@ class Context:
     @property
     def comfy(self):
         if self._comfy is None:
-            self._comfy = J.Comfy(self.comfy_url, client_id="h3pipe")
+            self._comfy = J.Comfy(self.comfy_url, client_id="seriesmith")
         return self._comfy
 
     def emit(self, event: str, data: dict) -> None:
@@ -188,8 +188,8 @@ def handler(fn):
         except FileNotFoundError as e:
             return 404, {"error": str(e)}
         except Exception as e:                            # the message is for a person
-            # the modules that carry their own HTTP status (h3source's Conflict,
-            # h3issues' refusals) answer with it rather than a 500
+            # the modules that carry their own HTTP status (source's Conflict,
+            # issues' refusals) answer with it rather than a 500
             if P is not None and isinstance(e, P.H.SourceError):
                 return e.status, dict({"error": str(e)}, **e.data)
             if IS is not None and isinstance(e, IS.IssueError):
@@ -239,7 +239,7 @@ def seed_in(v, what: str = "seed") -> int | None:
 # ---------------------------------------------------------------------------
 
 def config_path(ctx: Context) -> str:
-    return os.path.join(ctx.user_dir, "default", "h3pipe", "config.json")
+    return os.path.join(ctx.user_dir, "default", "seriesmith", "config.json")
 
 
 def load_roots(ctx: Context) -> list[str]:
@@ -252,7 +252,7 @@ def load_roots(ctx: Context) -> list[str]:
             raise ApiError(500, f"{p} is unreadable: {e}")
         roots = data.get("roots") if isinstance(data, dict) else None
         return [r for r in (roots or []) if isinstance(r, str) and r]
-    env = ctx.env.get("H3PIPE_ROOTS", "")
+    env = ctx.env.get("SERIESMITH_ROOTS", "")
     return [r for r in env.split(os.pathsep) if r.strip()]
 
 
@@ -311,7 +311,7 @@ def check_ep(ctx: Context, ep) -> str:
     real = _real(ep)
     if not any(_inside(real, _real(r)) for r in load_roots(ctx)):
         raise ApiError(403, f"{ep} is not inside a configured root "
-                            "(set them with PUT /h3pipe/config)")
+                            "(set them with PUT /seriesmith/config)")
     if not os.path.isdir(ep):
         raise ApiError(404, f"no episode folder at {ep}")
     ep = os.path.abspath(ep)
@@ -350,13 +350,13 @@ def body_dict(body) -> dict:
 
 
 def take_event(ctx: Context, ep: str, t, status: str | None = None) -> None:
-    ctx.emit("h3pipe.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
+    ctx.emit("seriesmith.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
                              "status": status or t.status,
                              "thumb": E.rel(ep, t.paths.thumb)})
 
 
 def episode_event(ctx: Context, ep: str) -> None:
-    ctx.emit("h3pipe.episode", {"ep": ep})
+    ctx.emit("seriesmith.episode", {"ep": ep})
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +400,7 @@ def get_episodes(ctx: Context, query: dict):
 
 
 def sweep(ctx: Context, ep: str, pass_: str) -> list:
-    """Close queued takes whose job is gone (see h3edit.sweep_takes). A ComfyUI
+    """Close queued takes whose job is gone (see edit.sweep_takes). A ComfyUI
     that doesn't answer means no sweep this time, not an error."""
     try:
         changed = E.sweep_takes(ep, pass_, ctx.comfy)
@@ -465,7 +465,7 @@ def post_build(ctx: Context, body):
 @handler
 def post_episode_new(ctx: Context, body):
     """A new episode: `<parent>/<name>/` with a series config and a script that
-    build (h3source.new_episode).
+    build (source.new_episode).
 
     `parent` is the folder the episodes live in — the show's folder, not the
     episode's — and must be inside a configured root. 400 for a name that isn't
@@ -518,7 +518,7 @@ def check_folder(ctx: Context, path, what: str = "folder") -> str:
         raise ApiError(400, f"{what} must be an absolute path, not {path!r}")
     if not any(_inside(_real(path), _real(r)) for r in load_roots(ctx)):
         raise ApiError(403, f"{path} is not inside a configured root "
-                            "(set them with PUT /h3pipe/config)")
+                            "(set them with PUT /seriesmith/config)")
     if not os.path.isdir(path):
         raise ApiError(404, f"no folder at {path}")
     return os.path.abspath(path)
@@ -798,7 +798,7 @@ def wait_reason(w: dict) -> str:
 
 
 def continuity_before_render(ep: str, pass_: str, shots) -> dict:
-    """h3refs.refresh_continuity for a render's shots ({"cut", "wait", "errors"});
+    """refs.refresh_continuity for a render's shots ({"cut", "wait", "errors"});
     nothing to do for an episode whose series config can't be read."""
     try:
         s = R.load_series(ep)
@@ -846,7 +846,7 @@ def post_cancel(ctx: Context, body):
 
 @handler
 def post_discard(ctx: Context, body):
-    """Move a take to renders[_proxy]/_trash/<shot>/ (h3edit.discard_take);
+    """Move a take to renders[_proxy]/_trash/<shot>/ (edit.discard_take);
     a cut entry that picked it goes back to the latest usable take."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
@@ -884,12 +884,12 @@ def still_queued(ctx: Context) -> set:
 
 
 def upscale_event(ctx: Context, ep: str, shot: str, take: int, status: str) -> None:
-    ctx.emit("h3pipe.upscale", {"ep": ep, "shot": shot, "take": take, "status": status})
+    ctx.emit("seriesmith.upscale", {"ep": ep, "shot": shot, "take": take, "status": status})
 
 
 @handler
 def post_upscale(ctx: Context, body):
-    """Queue upscales of a pass's takes (h3upscale; `pass`, default final):
+    """Queue upscales of a pass's takes (upscale; `pass`, default final):
     `shots` (their cut takes; null
     for the whole final cut) or `takes` ([{shot, take}]), with optional `redo`,
     `scale`, `start_step` and `vae`. `recipe: true` upscales each take by the
@@ -1064,16 +1064,16 @@ def recipe_view(ep: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
-# the post pass (h3post, docs/POST_PROCESSING.md)
+# the post pass (post, docs/POST_PROCESSING.md)
 # ---------------------------------------------------------------------------
 
 def post_event(ctx: Context, ep: str, shot: str, take: int, status: str) -> None:
-    ctx.emit("h3pipe.post", {"ep": ep, "shot": shot, "take": take, "status": status})
+    ctx.emit("seriesmith.post", {"ep": ep, "shot": shot, "take": take, "status": status})
 
 
 @handler
 def queue_post(ctx: Context, body):
-    """Queue posts of a pass's takes (h3post; `pass`, default final): `shots`
+    """Queue posts of a pass's takes (post; `pass`, default final): `shots`
     (their cut takes; null for the whole cut) or `takes` ([{shot, take}]). Each
     take needs a fresh upscale. `recipe: true` (or neither `enhance` nor `blur`
     given) posts each by the series config's `post.master` with its shot's
@@ -1231,7 +1231,7 @@ def delete_post(ctx: Context, query: dict):
 
 @handler
 def post_master(ctx: Context, body):
-    """Phase 13e: an episode's master (h3master). `action`: "plan" (what each
+    """Phase 13e: an episode's master (master). `action`: "plan" (what each
     shot of the cut is: upscale / post / ok / kept / queued / gap), "queue"
     (queue the upscale ones by the recipe, and with `post` their posts behind
     them and the post ones) or "assemble" (the master from the upscales, or with
@@ -1311,7 +1311,7 @@ def _master_key(ep: str) -> str:
 def master_job(M, ep: str) -> dict | None:
     """The episode's master job: this process's (running, done or failed), or
     {"state": "running", "elsewhere": true, ...} for a run this process didn't
-    start (`h3.py master`), from the episode's master lock; None for neither."""
+    start (`seriesmith master`), from the episode's master lock; None for neither."""
     job = _MASTER_JOBS.get(_master_key(ep))
     if job and job["state"] == "running":
         return dict(job)
@@ -1326,7 +1326,7 @@ def master_job(M, ep: str) -> dict | None:
 
 def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dict:
     """Assemble the master as a job others can see (master_job, the
-    `h3pipe.master` events), and answer with what it made. 409 while another
+    `seriesmith.master` events), and answer with what it made. 409 while another
     run is assembling this episode's master, from this editor or not."""
     key = _master_key(ep)
     try:
@@ -1347,7 +1347,7 @@ def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dic
         _MASTER_JOBS[key] = job
 
     def tell():
-        ctx.emit("h3pipe.master", dict(job))
+        ctx.emit("seriesmith.master", dict(job))
 
     def progress(ev: dict) -> None:
         job.update(step=ev.get("step"), stage=ev.get("stage"), done=ev.get("done"),
@@ -1359,12 +1359,12 @@ def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dic
         res = M.assemble_master(plan, flags["allow_gaps"], flags["prores"], progress=progress,
                                 by="the editor")
     except M.MasterBusy as e:
-        # `h3.py master` got there first: this job never started
+        # `seriesmith master` got there first: this job never started
         if before is None:
             _MASTER_JOBS.pop(key, None)
         else:
             _MASTER_JOBS[key] = before
-        ctx.emit("h3pipe.master", dict(job, state="failed", error=str(e), finished=T.now()))
+        ctx.emit("seriesmith.master", dict(job, state="failed", error=str(e), finished=T.now()))
         raise ApiError(409, str(e), job=master_job(M, ep))
     except Exception as e:
         job.update(state="failed", error=f"assembling the master failed: {e}", finished=T.now())
@@ -1564,7 +1564,7 @@ def _cut_entry(raw) -> dict:
             e["flag"] = True
     if raw.get("audio") is not None:
         # the shape and what it points at are checked together, in
-        # h3edit.check_audio (E.replace_cut), so the CLI checks them too
+        # edit.check_audio (E.replace_cut), so the CLI checks them too
         e["audio"] = raw["audio"]
     unknown = set(raw) - set(T.ENTRY_FIELDS)
     if unknown:
@@ -1603,7 +1603,7 @@ def _cut_what(v) -> str:
 @handler
 def post_cut_reset(ctx: Context, body):
     """Script order (picks, locks, notes kept), no trims and/or no audio
-    sources (h3edit.reset_cut)."""
+    sources (edit.reset_cut)."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"))
@@ -1620,7 +1620,7 @@ def post_cut_reset(ctx: Context, body):
 @handler
 def post_cut_copy(ctx: Context, body):
     """One pass's order, trims and/or audio sources onto the other
-    (h3edit.copy_cut)."""
+    (edit.copy_cut)."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     for k in ("from", "to"):
@@ -1657,7 +1657,7 @@ def _num(query: dict, key: str, cast, lo=None):
 
 @handler
 def get_peaks(ctx: Context, query: dict):
-    """A media file's waveform (h3peaks.peaks): max |amplitude| per bin, 0..255."""
+    """A media file's waveform (peaks.peaks): max |amplitude| per bin, 0..255."""
     ep = check_ep(ctx, query.get("ep"))
     full, rel = ep_file(ctx, ep, query.get("path"), escape_status=400)
     bins = _num(query, "bins", int, 1)
@@ -1814,7 +1814,7 @@ _GRAPHS: dict = {}                                        # (Phase 11) the graph
 
 
 def target_graphs(ctx: Context, refresh: bool = False) -> dict:
-    """{target id: which workflow its next render uses} (h3edit.target_graphs:
+    """{target id: which workflow its next render uses} (edit.target_graphs:
     $ENV, the running ComfyUI's saved workflows, $COMFYUI_PATH, then the repo's
     copy), kept READY_TTL seconds per ComfyUI address. Each entry carries the
     graph itself, for readiness' node check; the route strips it."""
@@ -1896,7 +1896,7 @@ def get_workflows(ctx: Context, query: dict):
 
 @handler
 def post_targets_inspect(ctx: Context, body):
-    """Propose the target.json for a workflow (h3inspect). Read-only: it writes
+    """Propose the target.json for a workflow (inspector). Read-only: it writes
     nothing, and says what it could not work out (`ambiguous`, `warnings`)."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
@@ -2028,7 +2028,7 @@ def _graph_view(ctx: Context, t) -> dict:
 
 
 def target_readiness(ctx: Context) -> dict:
-    """Every target's readiness (h3edit.readiness) on this ComfyUI, from its
+    """Every target's readiness (edit.readiness) on this ComfyUI, from its
     /object_info and model folders, kept READY_TTL seconds per ComfyUI
     address. The handler runs off the event loop (h3pipe_routes); /object_info
     is one self-request, and headers are only read to find a family
@@ -2081,11 +2081,11 @@ def get_models(ctx: Context, query: dict):
     "fingerprint" (its header says so) or "other" (anything else: unknown,
     unreadable, or another family, `mismatch` true). Matching files first, in
     ComfyUI's order. Headers are read only for files whose name doesn't
-    match, and cached (<user dir>/default/h3pipe/modelid_cache.json). `ep`
+    match, and cached (<user dir>/default/seriesmith/modelid_cache.json). `ep`
     (optional) adds that series config's model_families."""
     tid = query.get("target")
     if not tid or not isinstance(tid, str):
-        raise ApiError(400, "target is required (a target id from /h3pipe/targets)")
+        raise ApiError(400, "target is required (a target id from /seriesmith/targets)")
     try:
         t = TG.load_target(tid)
     except TG.TargetError as e:
@@ -2145,7 +2145,7 @@ def post_assemble(ctx: Context, body):
     size = body.get("size")
     if size is not None and (not isinstance(size, str) or not re.fullmatch(r"\d+x\d+", size)):
         raise ApiError(400, "size must look like 1920x1080, or be null")
-    # the cut with the series intro and outro around it (h3publish)
+    # the cut with the series intro and outro around it (publish)
     publish = body.get("publish", False)
     if not isinstance(publish, bool):
         raise ApiError(400, "publish must be true or false")
@@ -2193,12 +2193,12 @@ def _view(ref, v, required: bool = False, sheet: bool = False):
 
 
 def ref_event(ctx: Context, ep: str, ref_id: str, view, take, status: str) -> None:
-    ctx.emit("h3pipe.ref", {"ep": ep, "ref": ref_id, "view": view, "take": take,
+    ctx.emit("seriesmith.ref", {"ep": ep, "ref": ref_id, "view": view, "take": take,
                             "status": status})
 
 
 def sweep_refs(ctx: Context, s) -> list:
-    """Close queued ref takes whose job is gone (h3refs.sweep). A ComfyUI that
+    """Close queued ref takes whose job is gone (refs.sweep). A ComfyUI that
     doesn't answer means no sweep this time, not an error."""
     try:
         changed = R.sweep(s, ctx.comfy)
@@ -2212,7 +2212,7 @@ def sweep_refs(ctx: Context, s) -> list:
 
 def auto_pick_refs(ctx: Context, s) -> None:
     """Refs with no live file yet take their first finished candidate
-    (h3refs.auto_pick); a stitch failure is left for an explicit pick to report."""
+    (refs.auto_pick); a stitch failure is left for an explicit pick to report."""
     picked = False
     for ref in R.series_refs(s) + R.keyframe_refs(s.ep):
         try:
@@ -2227,7 +2227,7 @@ def auto_pick_refs(ctx: Context, s) -> None:
 
 def image_ready(ctx: Context):
     """ready(target) for the image-target defaults: its required files are
-    among what ComfyUI offers (h3refs.target_ready)."""
+    among what ComfyUI offers (refs.target_ready)."""
     return R.target_ready(J.model_lister(ctx.comfy, ctx.model_choices))
 
 
@@ -2246,7 +2246,7 @@ def put_refs_defaults(ctx: Context, body):
     `target` for series refs, `keyframe_target` for shot keyframes,
     `voice_target` for voices (an audio target); null clears one, a key left
     out is kept. Never writes series.json. Returns the defaults as GET
-    /h3pipe/refs gives them."""
+    /seriesmith/refs gives them."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)
@@ -2272,10 +2272,10 @@ def put_refs_defaults(ctx: Context, body):
 
 @handler
 def delete_refs_pick(ctx: Context, query: dict):
-    """Unpick a ref (h3refs.clear_pick): its live file goes, every take stays,
+    """Unpick a ref (refs.clear_pick): its live file goes, every take stays,
     and auto-pick leaves it alone until something is picked. For a shot
     keyframe this is Clear: the shot no longer uses one. Returns the ref as
-    GET /h3pipe/refs lists it."""
+    GET /seriesmith/refs lists it."""
     ep = check_ep(ctx, query.get("ep"))
     s = _series(ep)
     ref = _ref(s, query.get("ref"))
@@ -2326,7 +2326,7 @@ def post_refs_generate(ctx: Context, body):
         if kind != "audio":
             raise ApiError(400, f"seconds is only for a voice ref, not {ref.id}")
     pass_ = check_pass(body.get("pass"), "final")
-    # an edit of a picture the ref already has (h3refs.plan_edit): `prompt` is
+    # an edit of a picture the ref already has (refs.plan_edit): `prompt` is
     # the instruction, `edit` says which picture and what else comes along
     cfg = body.get("cfg")
     if cfg is not None and (isinstance(cfg, bool) or not isinstance(cfg, (int, float))):
@@ -2387,17 +2387,17 @@ def post_refs_generate(ctx: Context, body):
 
 @handler
 def post_refs_tour(ctx: Context, body):
-    """P5: a camera tour of a location on H3 (h3tour.py), from its live plate:
+    """P5: a camera tour of a location on H3 (tour.py), from its live plate:
     `{ep, ref, move, seconds?, count?}`. Queues the videos and answers at once;
     a background thread waits for each, finds its held frames and adds them as
-    the location's `tour` takes, sending `h3pipe.ref` as each lands. Returns
+    the location's `tour` takes, sending `seriesmith.ref` as each lands. Returns
     {"queued": [{tour, comfy_prompt_id}]}."""
-    from seriesmith import tour as h3tour
+    from seriesmith import tour as TR
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)
     ref = _ref(s, body.get("ref"))
-    seconds = body.get("seconds", h3tour.DEFAULT_SECONDS)
+    seconds = body.get("seconds", TR.DEFAULT_SECONDS)
     count = body.get("count", 1)
     seed = seed_in(body.get("seed")) if body.get("seed") else None
     backend = finish_backend(ctx, body)
@@ -2405,8 +2405,8 @@ def post_refs_tour(ctx: Context, body):
     # found when the video comes back
     try:
         ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
-               h3tour.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
-    except (h3tour.TourError, R.RefError) as e:
+               TR.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
+    except (TR.TourError, R.RefError) as e:
         raise ApiError(400, str(e))
     episode_event(ctx, ep)
     return 200, {"queued": [{"tour": n, "comfy_prompt_id": i} for n, i in ids]}
@@ -2415,16 +2415,16 @@ def post_refs_tour(ctx: Context, body):
 @handler
 def post_refs_tour_frame(ctx: Context, body):
     """P5: any moment of a finished tour's video as a hold: `{ep, ref, tour,
-    seconds}` (h3tour.grab_frame). Returns the new take."""
-    from seriesmith import tour as h3tour
+    seconds}` (tour.grab_frame). Returns the new take."""
+    from seriesmith import tour as TR
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)
     ref = _ref(s, body.get("ref"))
     tour = check_take(body.get("tour"), "tour")
     try:
-        t = h3tour.grab_frame(s, ref, tour, body.get("seconds"))
-    except (h3tour.TourError, R.RefError) as e:
+        t = TR.grab_frame(s, ref, tour, body.get("seconds"))
+    except (TR.TourError, R.RefError) as e:
         raise ApiError(400, str(e))
     ref_event(ctx, ep, ref.id, R.TOUR_VIEW, t.take, "ok")
     episode_event(ctx, ep)
@@ -2491,12 +2491,12 @@ def put_refs_pick(ctx: Context, body):
     return 200, out
 
 
-MAX_UPLOAD = 64 * 1024 * 1024        # POST /h3pipe/refs/import as multipart
-MATCH_LIMIT = 500                    # names in one POST /h3pipe/refs/match
+MAX_UPLOAD = 64 * 1024 * 1024        # POST /seriesmith/refs/import as multipart
+MATCH_LIMIT = 500                    # names in one POST /seriesmith/refs/match
 
 
 class Upload:
-    """A file the adapter received in a multipart POST /h3pipe/refs/import
+    """A file the adapter received in a multipart POST /seriesmith/refs/import
     and saved to a temporary file (it deletes it after the handler)."""
 
     def __init__(self, path: str, filename: str, size: int):
@@ -2569,7 +2569,7 @@ def post_refs_import(ctx: Context, body):
 @handler
 def post_refs_match(ctx: Context, body):
     """P8: which slot does each of these file names mean? Body `{ep, names}`,
-    answer `{matched, unmatched}` (h3refs.match_files). Read-only, and the names
+    answer `{matched, unmatched}` (refs.match_files). Read-only, and the names
     are names -- no file is sent, so the editor can show the table it is about
     to act on before a single byte is uploaded."""
     body = body_dict(body)
@@ -2584,9 +2584,9 @@ def post_refs_match(ctx: Context, body):
 
 @handler
 def post_refs_discard(ctx: Context, body):
-    """Move a ref candidate to refs/_takes/_trash/ (h3refs.discard_take); if it
-    was the pick, the ref (view) is cleared as DELETE /h3pipe/refs/pick does.
-    Returns the ref as GET /h3pipe/refs lists it."""
+    """Move a ref candidate to refs/_takes/_trash/ (refs.discard_take); if it
+    was the pick, the ref (view) is cleared as DELETE /seriesmith/refs/pick does.
+    Returns the ref as GET /seriesmith/refs lists it."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)
@@ -2623,9 +2623,9 @@ def _opt_image_target(body: dict, key: str) -> str | None:
 
 @handler
 def post_refs_generate_missing(ctx: Context, body):
-    """Every missing ref at once (h3refs.generate_missing): a candidate for
+    """Every missing ref at once (refs.generate_missing): a candidate for
     each series ref this pass uses with no live file (not cleared, nothing
-    queued or waiting), and every needed keyframe filled as `h3.py keyframe
+    queued or waiting), and every needed keyframe filled as `seriesmith keyframe
     --missing` does. Returns {queued, picked, skipped, errors}; `dry_run`
     writes and queues nothing."""
     body = body_dict(body)
@@ -2674,7 +2674,7 @@ def post_refs_generate_missing(ctx: Context, body):
 def post_refs_keyframe(ctx: Context, body):
     """A shot's first (or last) keyframe from a frame of another shot's take:
     by default the previous (next) shot in the pass's cut, the take its cut
-    entry uses, its last (first) frame (h3refs.keyframe_from_take)."""
+    entry uses, its last (first) frame (refs.keyframe_from_take)."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"))
@@ -2735,7 +2735,7 @@ def _span(body: dict, key: str):
 def post_refs_voice_from_take(ctx: Context, body):
     """A line the model already spoke becomes a voice sample: cut
     `start`..`end` seconds out of a shot take's sound into a new candidate of
-    the voice ref (h3refs.voice_from_take, source "from_take"). No model
+    the voice ref (refs.voice_from_take, source "from_take"). No model
     runs. Picked when the voice has no live file yet (`pick` forces or
     forbids it); picking a voice whose character has no `voice_sample` also
     writes the series config."""
@@ -2822,7 +2822,7 @@ def put_refs_override(ctx: Context, body):
             raise ApiError(400, "target must be an image target id or null")
         clean["target"] = t or None
     # P4: size ("WxH"), cfg, negative and params (sampler knobs) are checked
-    # by h3refs.set_ref_override
+    # by refs.set_ref_override
     for k in ("size", "cfg", "negative", "params"):
         if k in fields:
             v = fields[k]
@@ -2937,7 +2937,7 @@ def post_promote(ctx: Context, body):
 
 @handler
 def get_align_ready(ctx: Context, query: dict):
-    """What h3align needs (ffmpeg, numpy, a Whisper), checked against the
+    """What align needs (ffmpeg, numpy, a Whisper), checked against the
     Python that would run it, with the pip line for whatever is missing."""
     return 200, K.align_ready()
 
@@ -2979,9 +2979,9 @@ def post_track(ctx: Context, body):
 @handler
 def post_audio_import(ctx: Context, body):
     """A media file into <ep>/audio/, for a cut entry's `audio.path`
-    (h3track.import_audio): `source_path` (a file on this machine) or `file`
+    (track.import_audio): `source_path` (a file on this machine) or `file`
     (multipart, as /refs/import and /track). The answer's `path` is relative
-    to the episode and goes straight into PUT /h3pipe/cut.
+    to the episode and goes straight into PUT /seriesmith/cut.
 
     It is only a file in the episode: it does not become the episode's
     dialogue recording and it is not a ref candidate, so nothing is rebuilt
@@ -3006,7 +3006,7 @@ def post_audio_import(ctx: Context, body):
 
 @handler
 def post_align(ctx: Context, body):
-    """Run h3align on the episode (a subprocess), sending `h3pipe.align` as it
+    """Run align on the episode (a subprocess), sending `seriesmith.align` as it
     goes. 409 with `missing` when a dependency isn't installed; `dry_run`
     writes nothing."""
     body = body_dict(body)
@@ -3027,7 +3027,7 @@ def post_align(ctx: Context, body):
             raise ApiError(400, f"{name} must be true or false")
 
     def progress(ev):
-        ctx.emit("h3pipe.align", {"ep": ep, "stage": ev["stage"], "pct": ev["pct"],
+        ctx.emit("seriesmith.align", {"ep": ep, "stage": ev["stage"], "pct": ev["pct"],
                                   "text": ev["text"]})
 
     res = K.align(ep, track=track, model=(model or "").strip() or None, snap=snap,
@@ -3050,7 +3050,7 @@ def post_align(ctx: Context, body):
 
 @handler
 def get_issues(ctx: Context, query: dict):
-    """The issues noted for a pass (h3issues.list_issues), each with
+    """The issues noted for a pass (issues.list_issues), each with
     `addressed`: its shot has been rebuilt or rendered again since."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = query.get("pass")
@@ -3066,7 +3066,7 @@ def post_issues(ctx: Context, body):
     ep = check_ep(ctx, body.get("ep"))
     item = IS.add(ep, check_pass(body.get("pass")), check_shot(body.get("shot")),
                   body.get("note"), check_take(body.get("take"), nullable=True))
-    ctx.emit("h3pipe.issues", {"ep": ep, "pass": item["pass"], "shot": item["shot"],
+    ctx.emit("seriesmith.issues", {"ep": ep, "pass": item["pass"], "shot": item["shot"],
                                "id": item["id"]})
     return 200, item
 
@@ -3085,7 +3085,7 @@ def delete_issues(ctx: Context, query: dict):
         gone = IS.clear(ep, pass_, _flag(query.get("addressed")))
     else:
         raise ApiError(400, "give an `id` to resolve, or clear=1 to empty the pass")
-    ctx.emit("h3pipe.issues", {"ep": ep, "pass": pass_, "removed": gone})
+    ctx.emit("seriesmith.issues", {"ep": ep, "pass": pass_, "removed": gone})
     return 200, {"removed": gone, "issues": IS.list_issues(ep, pass_)}
 
 
@@ -3106,72 +3106,72 @@ def get_issues_export(ctx: Context, query: dict):
 # (method, path, handler, what it takes: "query", "body" (JSON) or "form" (JSON, or
 # multipart/form-data whose file field arrives as an Upload))
 ROUTES = [
-    ("GET", "/h3pipe/config", get_config, "query"),
-    ("PUT", "/h3pipe/config", put_config, "body"),
-    ("GET", "/h3pipe/episodes", get_episodes, "query"),
-    ("GET", "/h3pipe/browse", get_browse, "query"),
-    ("GET", "/h3pipe/episode", get_episode, "query"),
-    ("GET", "/h3pipe/shot", get_shot, "query"),
-    ("POST", "/h3pipe/build", post_build, "body"),
-    ("POST", "/h3pipe/episode/new", post_episode_new, "body"),
-    ("POST", "/h3pipe/import", post_import, "body"),
-    ("GET", "/h3pipe/issues", get_issues, "query"),
-    ("POST", "/h3pipe/issues", post_issues, "body"),
-    ("DELETE", "/h3pipe/issues", delete_issues, "query"),
-    ("GET", "/h3pipe/issues/export", get_issues_export, "query"),
-    ("GET", "/h3pipe/file", get_file, "query"),
-    ("POST", "/h3pipe/render", post_render, "body"),
-    ("POST", "/h3pipe/cancel", post_cancel, "body"),
-    ("POST", "/h3pipe/discard", post_discard, "body"),
-    ("POST", "/h3pipe/upscale", post_upscale, "body"),
-    ("GET", "/h3pipe/upscale/options", get_upscale_options, "query"),
-    ("PUT", "/h3pipe/upscale/recipe", put_upscale_recipe, "body"),
-    ("PUT", "/h3pipe/upscale/keep", put_upscale_keep, "body"),
-    ("POST", "/h3pipe/master", post_master, "body"),
-    ("GET", "/h3pipe/master/job", get_master_job, "query"),
-    ("DELETE", "/h3pipe/upscale", delete_upscale, "query"),
-    ("POST", "/h3pipe/post", queue_post, "body"),
-    ("GET", "/h3pipe/post/options", get_post_options, "query"),
-    ("DELETE", "/h3pipe/post", delete_post, "query"),
-    ("PUT", "/h3pipe/pick", put_pick, "body"),
-    ("PUT", "/h3pipe/cut", put_cut, "body"),
-    ("POST", "/h3pipe/cut/reset", post_cut_reset, "body"),
-    ("POST", "/h3pipe/cut/copy", post_cut_copy, "body"),
-    ("GET", "/h3pipe/peaks", get_peaks, "query"),
-    ("PUT", "/h3pipe/override", put_override, "body"),
-    ("DELETE", "/h3pipe/override", delete_override, "query"),
-    ("PUT", "/h3pipe/episode-target", put_episode_target, "body"),
-    ("POST", "/h3pipe/assemble", post_assemble, "body"),    ("GET", "/h3pipe/targets", get_targets, "query"),
-    ("GET", "/h3pipe/models", get_models, "query"),
-    ("GET", "/h3pipe/workflows", get_workflows, "query"),
-    ("POST", "/h3pipe/targets/inspect", post_targets_inspect, "body"),
-    ("PUT", "/h3pipe/targets/custom", put_targets_custom, "body"),
-    ("DELETE", "/h3pipe/targets/custom", delete_targets_custom, "query"),
-    ("POST", "/h3pipe/workflow/install", post_workflow_install, "body"),
-    ("DELETE", "/h3pipe/workflow/install", delete_workflow_install, "query"),
-    ("GET", "/h3pipe/refs", get_refs, "query"),
-    ("POST", "/h3pipe/refs/generate", post_refs_generate, "body"),
-    ("POST", "/h3pipe/refs/tour", post_refs_tour, "body"),
-    ("POST", "/h3pipe/refs/copy-take", post_refs_copy_take, "body"),
-    ("POST", "/h3pipe/refs/tour-frame", post_refs_tour_frame, "body"),
-    ("PUT", "/h3pipe/refs/pick", put_refs_pick, "body"),
-    ("DELETE", "/h3pipe/refs/pick", delete_refs_pick, "query"),
-    ("PUT", "/h3pipe/refs/defaults", put_refs_defaults, "body"),
-    ("POST", "/h3pipe/refs/import", post_refs_import, "form"),
-    ("POST", "/h3pipe/refs/match", post_refs_match, "body"),
-    ("POST", "/h3pipe/refs/discard", post_refs_discard, "body"),
-    ("POST", "/h3pipe/refs/generate-missing", post_refs_generate_missing, "body"),
-    ("POST", "/h3pipe/refs/keyframe", post_refs_keyframe, "body"),
-    ("POST", "/h3pipe/refs/voice-from-take", post_refs_voice_from_take, "body"),
-    ("PUT", "/h3pipe/refs/override", put_refs_override, "body"),
-    ("DELETE", "/h3pipe/refs/override", delete_refs_override, "query"),
-    ("GET", "/h3pipe/source", get_source, "query"),
-    ("POST", "/h3pipe/source/check", post_source_check, "body"),
-    ("PUT", "/h3pipe/source", put_source, "body"),
-    ("GET", "/h3pipe/promote", get_promote, "query"),
-    ("POST", "/h3pipe/promote", post_promote, "body"),
-    ("GET", "/h3pipe/align/ready", get_align_ready, "query"),
-    ("POST", "/h3pipe/track", post_track, "form"),
-    ("POST", "/h3pipe/audio/import", post_audio_import, "form"),
-    ("POST", "/h3pipe/align", post_align, "body"),
+    ("GET", "/seriesmith/config", get_config, "query"),
+    ("PUT", "/seriesmith/config", put_config, "body"),
+    ("GET", "/seriesmith/episodes", get_episodes, "query"),
+    ("GET", "/seriesmith/browse", get_browse, "query"),
+    ("GET", "/seriesmith/episode", get_episode, "query"),
+    ("GET", "/seriesmith/shot", get_shot, "query"),
+    ("POST", "/seriesmith/build", post_build, "body"),
+    ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
+    ("POST", "/seriesmith/import", post_import, "body"),
+    ("GET", "/seriesmith/issues", get_issues, "query"),
+    ("POST", "/seriesmith/issues", post_issues, "body"),
+    ("DELETE", "/seriesmith/issues", delete_issues, "query"),
+    ("GET", "/seriesmith/issues/export", get_issues_export, "query"),
+    ("GET", "/seriesmith/file", get_file, "query"),
+    ("POST", "/seriesmith/render", post_render, "body"),
+    ("POST", "/seriesmith/cancel", post_cancel, "body"),
+    ("POST", "/seriesmith/discard", post_discard, "body"),
+    ("POST", "/seriesmith/upscale", post_upscale, "body"),
+    ("GET", "/seriesmith/upscale/options", get_upscale_options, "query"),
+    ("PUT", "/seriesmith/upscale/recipe", put_upscale_recipe, "body"),
+    ("PUT", "/seriesmith/upscale/keep", put_upscale_keep, "body"),
+    ("POST", "/seriesmith/master", post_master, "body"),
+    ("GET", "/seriesmith/master/job", get_master_job, "query"),
+    ("DELETE", "/seriesmith/upscale", delete_upscale, "query"),
+    ("POST", "/seriesmith/post", queue_post, "body"),
+    ("GET", "/seriesmith/post/options", get_post_options, "query"),
+    ("DELETE", "/seriesmith/post", delete_post, "query"),
+    ("PUT", "/seriesmith/pick", put_pick, "body"),
+    ("PUT", "/seriesmith/cut", put_cut, "body"),
+    ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
+    ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
+    ("GET", "/seriesmith/peaks", get_peaks, "query"),
+    ("PUT", "/seriesmith/override", put_override, "body"),
+    ("DELETE", "/seriesmith/override", delete_override, "query"),
+    ("PUT", "/seriesmith/episode-target", put_episode_target, "body"),
+    ("POST", "/seriesmith/assemble", post_assemble, "body"),    ("GET", "/seriesmith/targets", get_targets, "query"),
+    ("GET", "/seriesmith/models", get_models, "query"),
+    ("GET", "/seriesmith/workflows", get_workflows, "query"),
+    ("POST", "/seriesmith/targets/inspect", post_targets_inspect, "body"),
+    ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
+    ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),
+    ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
+    ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),
+    ("GET", "/seriesmith/refs", get_refs, "query"),
+    ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
+    ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
+    ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),
+    ("POST", "/seriesmith/refs/tour-frame", post_refs_tour_frame, "body"),
+    ("PUT", "/seriesmith/refs/pick", put_refs_pick, "body"),
+    ("DELETE", "/seriesmith/refs/pick", delete_refs_pick, "query"),
+    ("PUT", "/seriesmith/refs/defaults", put_refs_defaults, "body"),
+    ("POST", "/seriesmith/refs/import", post_refs_import, "form"),
+    ("POST", "/seriesmith/refs/match", post_refs_match, "body"),
+    ("POST", "/seriesmith/refs/discard", post_refs_discard, "body"),
+    ("POST", "/seriesmith/refs/generate-missing", post_refs_generate_missing, "body"),
+    ("POST", "/seriesmith/refs/keyframe", post_refs_keyframe, "body"),
+    ("POST", "/seriesmith/refs/voice-from-take", post_refs_voice_from_take, "body"),
+    ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),
+    ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),
+    ("GET", "/seriesmith/source", get_source, "query"),
+    ("POST", "/seriesmith/source/check", post_source_check, "body"),
+    ("PUT", "/seriesmith/source", put_source, "body"),
+    ("GET", "/seriesmith/promote", get_promote, "query"),
+    ("POST", "/seriesmith/promote", post_promote, "body"),
+    ("GET", "/seriesmith/align/ready", get_align_ready, "query"),
+    ("POST", "/seriesmith/track", post_track, "form"),
+    ("POST", "/seriesmith/audio/import", post_audio_import, "form"),
+    ("POST", "/seriesmith/align", post_align, "body"),
 ]

@@ -3,8 +3,8 @@ krea2: the graph one reference take runs, patched from the workflow file
 (target.json binding.workflow, the moved krea2_refs_t2i.json) or built in.
 
 The model stack's names (UNET, CLIP, VAE, sampler...) are data in target.json;
-these are the functions that put them into a graph. h3refs re-exports them
-under their old names, and kreagen through h3refs.
+these are the functions that put them into a graph. refs re-exports them
+under their old names, and kreagen through refs.
 
 Stdlib only.
 """

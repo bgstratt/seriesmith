@@ -12,7 +12,7 @@ import type { ModelList, Target, TargetList } from "../types";
 import { useStatus } from "./hooks";
 
 export interface TargetsInfo {
-  /** null until loaded, or on a server without /h3pipe/targets */
+  /** null until loaded, or on a server without /seriesmith/targets */
   list: TargetList | null;
   video: Target[];
   /** the series default video target (the episode's own, else the list's) */
@@ -46,12 +46,12 @@ export interface TargetPickers {
   models: string[] | null | undefined;
   loras: string[] | null | undefined;
   target: Target | undefined;
-  /** GET /h3pipe/models for the model param: the files grouped by the target's
+  /** GET /seriesmith/models for the model param: the files grouped by the target's
    * family (undefined: not loaded, or a server without the route) */
   modelFiles: ModelList | undefined;
   /** the target has a low-noise model (`models.model_low`: Wan 2.2 14B) */
   twoStage: boolean;
-  /** GET /h3pipe/models for `model_low` */
+  /** GET /seriesmith/models for `model_low` */
   modelLowFiles: ModelList | undefined;
 }
 
@@ -67,7 +67,7 @@ export function useTargetPickers(targetId: string | null | undefined): TargetPic
   useEffect(() => {
     if (hasFamily && target) void loadModelFiles(target.id, "model");
   }, [hasFamily, target]);
-  // Phase 8.5: a two-stage target's low-noise model (GET /h3pipe/models?param=model_low)
+  // Phase 8.5: a two-stage target's low-noise model (GET /seriesmith/models?param=model_low)
   const twoStage = !!target?.models?.model_low;
   const modelLowFiles = useApp((s) => (twoStage && target ? s.modelFiles[`${target.id}|model_low`] : undefined));
   useEffect(() => {

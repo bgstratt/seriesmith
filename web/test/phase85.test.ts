@@ -251,20 +251,20 @@ describe("the ≈ rule", () => {
 });
 
 describe("Phase 8.5 routes", () => {
-  it("DELETE /h3pipe/refs/pick, and generate's target only when set", async () => {
+  it("DELETE /seriesmith/refs/pick, and generate's target only when set", async () => {
     const calls: { method: string; path: string; body: string }[] = [];
     const api = createHttpApi({
       fetch: async (path, init) => {
         calls.push({ method: String(init?.method), path, body: String(init?.body) });
-        return new Response(path.startsWith("/h3pipe/refs/pick") ? `{"id":"shot:sh020:first","exists":false,"takes":[],"picked":null}` : `{"queued":[],"errors":[]}`, { status: 200 });
+        return new Response(path.startsWith("/seriesmith/refs/pick") ? `{"id":"shot:sh020:first","exists":false,"takes":[],"picked":null}` : `{"queued":[],"errors":[]}`, { status: 200 });
       },
       url: (p) => p,
     });
     const r = await api.refsUnpick("C:\\ep05", "shot:sh020:first");
     expect(r?.id).toBe("shot:sh020:first");
-    expect(calls[0]).toMatchObject({ method: "DELETE", path: "/h3pipe/refs/pick?ep=C%3A%5Cep05&ref=shot%3Ash020%3Afirst" });
+    expect(calls[0]).toMatchObject({ method: "DELETE", path: "/seriesmith/refs/pick?ep=C%3A%5Cep05&ref=shot%3Ash020%3Afirst" });
     await api.refsUnpick("ep", "subject:ada", "04_face");
-    expect(calls[1].path).toBe("/h3pipe/refs/pick?ep=ep&ref=subject%3Aada&view=04_face");
+    expect(calls[1].path).toBe("/seriesmith/refs/pick?ep=ep&ref=subject%3Aada&view=04_face");
     const base = { ep: "ep", ref: "subject:ada", view: null, count: 1, seed_mode: "auto" as const, seed: null, prompt: null, model: null, loras: null, steps: null, note: "" };
     await api.refsGenerate(base);
     expect(JSON.parse(calls[2].body)).not.toHaveProperty("target");
@@ -314,13 +314,13 @@ describe("mock: Phase 8.5", () => {
     expect(r.skipped[0].missing_refs!.some((m) => m.anyway === false)).toBe(true);
   });
 
-  it("clears a keyframe (h3pipe.ref cleared), generates one with a target, serves refs_used", async () => {
+  it("clears a keyframe (seriesmith.ref cleared), generates one with a target, serves refs_used", async () => {
     const events: [string, unknown][] = [];
     const api = createMockApi((e, d) => events.push([e, d]), { latency: 0 });
     const ep = (await api.episodes())[0].ep;
     const cleared = await api.refsUnpick(ep, "shot:sh070:first");
     expect(cleared).toMatchObject({ exists: false, picked: null });
-    expect(events.map(([e, d]) => (e === "h3pipe.ref" ? (d as { status: string }).status : e))).toEqual(["cleared", "h3pipe.episode"]);
+    expect(events.map(([e, d]) => (e === "seriesmith.ref" ? (d as { status: string }).status : e))).toEqual(["cleared", "seriesmith.episode"]);
     const d = await api.shot(ep, "proxy", "sh070");
     expect(d.refs_used!.find((u) => u.role === "first")).toMatchObject({ exists: false, need: "required" });
     const g = await api.refsGenerate({

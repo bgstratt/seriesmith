@@ -1,6 +1,6 @@
 // Phase 13: the Upscale dialog, opened from a take's menu (one take, either
 // pass) or the cut menu (that pass's whole cut). What it offers comes from
-// GET /h3pipe/upscale/options: the pixel method's models on this ComfyUI, and
+// GET /seriesmith/upscale/options: the pixel method's models on this ComfyUI, and
 // which targets have a latent upscale (and whether it's ready here).
 
 import { useEffect, useState } from "react";

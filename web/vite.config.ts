@@ -16,7 +16,7 @@ import react from "@vitejs/plugin-react";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 // Bare ids in the source (typed in src/comfy-env.d.ts), rewritten to the
-// paths ComfyUI serves, relative to /extensions/<pack>/h3pipe-editor.js.
+// paths ComfyUI serves, relative to /extensions/<pack>/seriesmith-editor.js.
 const COMFY_EXTERNALS: Record<string, string> = {
   "comfyui/app": "../../scripts/app.js",
   "comfyui/api": "../../scripts/api.js",
@@ -53,7 +53,7 @@ export default defineConfig(({ command, mode }) => {
           lib: {
             entry: resolve(HERE, "src/main.ts"),
             formats: ["es"],
-            fileName: () => "h3pipe-editor.js",
+            fileName: () => "seriesmith-editor.js",
           },
           rollupOptions: {
             external: Object.keys(COMFY_EXTERNALS),

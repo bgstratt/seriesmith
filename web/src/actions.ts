@@ -80,7 +80,7 @@ export async function start() {
 
 let targetsLoading: Promise<void> | null = null;
 
-/** GET /h3pipe/targets?ready=1 once (readiness included; a server that doesn't
+/** GET /seriesmith/targets?ready=1 once (readiness included; a server that doesn't
  * know `ready` just leaves it out, and a failing `ready=1` falls back to the
  * plain list). A server without the route leaves `targets` null, and the UI
  * keeps its pre-target behaviour (no picker, unfiltered model lists). */
@@ -208,7 +208,7 @@ export async function revertWorkflow(target: string): Promise<boolean> {
 // a show's own targets, from a ComfyUI workflow (Phase 12)
 // ---------------------------------------------------------------------------
 
-/** GET /h3pipe/workflows: what ComfyUI has saved, for the wizard's picker. */
+/** GET /seriesmith/workflows: what ComfyUI has saved, for the wizard's picker. */
 export async function loadWorkflows(): Promise<WorkflowFile[]> {
   try {
     return await api().workflows();
@@ -218,7 +218,7 @@ export async function loadWorkflows(): Promise<WorkflowFile[]> {
   }
 }
 
-/** POST /h3pipe/targets/inspect: the target.json a workflow suggests. */
+/** POST /seriesmith/targets/inspect: the target.json a workflow suggests. */
 export async function inspectTarget(req: { workflow?: string; graph?: unknown; id?: string; label?: string }): Promise<TargetProposal | null> {
   const ep = get().ep;
   return withBusy("target-inspect", async () => {
@@ -231,7 +231,7 @@ export async function inspectTarget(req: { workflow?: string; graph?: unknown; i
   });
 }
 
-/** PUT /h3pipe/targets/custom: save it (a draft until a render proves it). */
+/** PUT /seriesmith/targets/custom: save it (a draft until a render proves it). */
 export async function saveCustomTarget(target: Record<string, unknown>): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
@@ -345,7 +345,7 @@ export function loadWidgetChoices(classType: string, field: string): Promise<voi
 
 const modelFilesLoading = new Map<string, Promise<void>>();
 
-/** GET /h3pipe/models for one target's model param (cached per target and
+/** GET /seriesmith/models for one target's model param (cached per target and
  * param; failures are quiet: an older server has no such route, and the
  * picker keeps its flat list). */
 export function loadModelFiles(target: string, param = "model", force = false): Promise<void> {
@@ -552,7 +552,7 @@ async function afterStatus(ep: string, pass: Pass, st: EpisodeStatus) {
       else if (!needDetail.includes(s.shot)) needDetail.push(s.shot);
     }
   }
-  // servers from before comfy_prompt_id: one /h3pipe/shot per shot with a queued take
+  // servers from before comfy_prompt_id: one /seriesmith/shot per shot with a queued take
   for (const shot of needDetail.slice(0, 24)) {
     const d = await loadDetail(shot, pass, true, ep);
     for (const t of d?.takes ?? []) {
@@ -750,7 +750,7 @@ export async function pickTake(shot: string, take: number | null, fromPass: Pass
     }
     host().toast("success", take != null ? `${shot}: the ${pass} cut now uses ${tn(take)}` : `${shot}: back to the latest usable take`);
     // show the pick at once; the status that follows (this refresh, and the
-    // server's h3pipe.episode event) fills in everything else
+    // server's seriesmith.episode event) fills in everything else
     if (take != null && (!fromPass || fromPass === pass)) showPick(ep, pass, shot, take);
     void refreshEpisode(ep, pass);
   });
@@ -999,9 +999,9 @@ export async function cancelTake(ref: TakeRef) {
 }
 
 /**
- * Phase 13: queue upscales (POST /h3pipe/upscale): named final takes, or the
+ * Phase 13: queue upscales (POST /seriesmith/upscale): named final takes, or the
  * final cut's take of each of `shots` (null: the whole final cut). Says what
- * was queued and why anything wasn't; the h3pipe.upscale events refresh the
+ * was queued and why anything wasn't; the seriesmith.upscale events refresh the
  * status as each one finishes.
  */
 export async function upscale(req: Omit<UpscaleRequest, "ep">, busyKey: string) {
@@ -1041,9 +1041,9 @@ export function closeUpscale() {
 }
 
 /**
- * Queue posts (POST /h3pipe/post): each take's fresh upscale finished by the
+ * Queue posts (POST /seriesmith/post): each take's fresh upscale finished by the
  * series recipe or the dialog's choice. Says what was queued and why anything
- * wasn't; the h3pipe.post events refresh the status as each one finishes.
+ * wasn't; the seriesmith.post events refresh the status as each one finishes.
  */
 export async function queuePost(req: Omit<PostRequest, "ep">, busyKey: string) {
   const s = get();
@@ -1081,7 +1081,7 @@ export function closePost() {
   set({ postAsk: null });
 }
 
-/** Remove a take's post (DELETE /h3pipe/post). Asks first. */
+/** Remove a take's post (DELETE /seriesmith/post). Asks first. */
 export async function removePost(ref: TakeRef) {
   set({ menu: null });
   if (!confirm(`Remove ${ref.shot} ${tn(ref.take)}'s post? Its upscale stays.`)) return;
@@ -1104,7 +1104,7 @@ export function closeMaster() {
   set({ masterAsk: null });
 }
 
-/** GET /h3pipe/master/job: the episode's master as it is now (the Master
+/** GET /seriesmith/master/job: the episode's master as it is now (the Master
  * dialog asks on opening, so a run started before it was closed shows). */
 export async function loadMasterJob(): Promise<void> {
   const ep = get().ep;
@@ -1148,7 +1148,7 @@ export interface UpscaleForm {
   grain: number;
 }
 
-/** The POST /h3pipe/upscale body (less `ep`) for the dialog's choices: only
+/** The POST /seriesmith/upscale body (less `ep`) for the dialog's choices: only
  * what differs from the server's defaults is sent. */
 export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { shot: string; take: number }[] | null },
                                  /** a take's re-sample starts with a pixel model (Wan) */ refineNeedsModel = false): Omit<UpscaleRequest, "ep"> {
@@ -1185,7 +1185,7 @@ export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { sho
   return req;
 }
 
-/** Phase 13: remove a take's upscale (DELETE /h3pipe/upscale). Asks first. */
+/** Phase 13: remove a take's upscale (DELETE /seriesmith/upscale). Asks first. */
 /** Phase 13e: mark a take's upscale Keep (Master and a wholesale redo leave it alone), or clear it. */
 export async function keepUpscale(ref: TakeRef, keep: boolean) {
   set({ menu: null });
@@ -1213,7 +1213,7 @@ export async function removeUpscale(ref: TakeRef) {
 }
 
 /**
- * Discard a take (POST /h3pipe/discard): its files move to `_trash/` beside
+ * Discard a take (POST /seriesmith/discard): its files move to `_trash/` beside
  * them (nothing is deleted), and a cut that picked it goes back to the latest
  * usable take. Refused for a queued take (cancel it first). Asks first.
  */
@@ -1503,47 +1503,47 @@ export function wireEvents() {
     if (rr) host().toast("error", `${refLabel(rr.ref, rr.view)} ${tn(rr.take)} failed in ComfyUI`, [e.node_type, e.exception_message].filter(Boolean).join(": "));
     finished(d);
   });
-  h.on("h3pipe.take", (d) => {
+  h.on("seriesmith.take", (d) => {
     const t = (d ?? {}) as TakeEvent;
     if (!sameEp(t.ep, get().ep)) return;
     if (t.status === "ok" && isTracked(t)) host().toast("success", `${t.shot} ${tn(t.take)} rendered`);
     scheduleRefresh();
   });
-  h.on("h3pipe.upscale", (d) => {
+  h.on("seriesmith.upscale", (d) => {
     const u = (d ?? {}) as UpscaleEvent;
     if (!sameEp(u.ep, get().ep)) return;
     if (u.status === "ok") host().toast("success", `${u.shot} ${tn(u.take)} upscaled`);
     if (u.status === "failed") host().toast("error", `${u.shot} ${tn(u.take)}'s upscale failed`, "Its .up.json says why (Show details).");
     scheduleRefresh();
   });
-  h.on("h3pipe.post", (d) => {
+  h.on("seriesmith.post", (d) => {
     const u = (d ?? {}) as UpscaleEvent;
     if (!sameEp(u.ep, get().ep)) return;
     if (u.status === "ok") host().toast("success", `${u.shot} ${tn(u.take)} post-processed`);
     if (u.status === "failed") host().toast("error", `${u.shot} ${tn(u.take)}'s post failed`, "Its .post.json says why.");
     scheduleRefresh();
   });
-  h.on("h3pipe.episode", (d) => {
+  h.on("seriesmith.episode", (d) => {
     const ep = (d as { ep?: string } | null)?.ep;
     if (!sameEp(ep, get().ep)) return;
     scheduleRefresh();
     if (get().ep && get().refs[get().ep!]) scheduleRefsRefresh();
   });
-  h.on("h3pipe.master", (d) => {
+  h.on("seriesmith.master", (d) => {
     const j = (d ?? null) as MasterJob | null;
     if (!j || !sameEp(j.ep, get().ep)) return;
     set({ masterJob: j });
     if (j.state === "done") host().toast("success", "Master assembled", j.output ?? undefined);
     if (j.state === "failed" && j.error) host().toast("error", "The master wasn't assembled", j.error);
   });
-  h.on("h3pipe.align", (d) => {
+  h.on("seriesmith.align", (d) => {
     const a = (d ?? {}) as AlignEvent;
     if (!sameEp(a.ep, get().ep)) return;
     set((s) => (s.alignRun
       ? { alignRun: { ...s.alignRun, stage: a.stage || s.alignRun.stage, pct: num(a.pct), text: a.text ?? "" } }
       : {}));
   });
-  h.on("h3pipe.ref", (d) => {
+  h.on("seriesmith.ref", (d) => {
     const r = (d ?? {}) as RefEvent;
     if (!sameEp(r.ep, get().ep)) return;
     const tracked = Object.values(get().refPrompts).some((x) => x.ref === r.ref && (x.view ?? null) === (r.view ?? null) && x.take === r.take);
@@ -1867,7 +1867,7 @@ export async function generateRef(req: Omit<RefGenerateRequest, "ep">): Promise<
 }
 
 /**
- * Generate missing (POST /h3pipe/refs/generate-missing): one candidate for
+ * Generate missing (POST /seriesmith/refs/generate-missing): one candidate for
  * every missing series ref, and every needed keyframe filled (continuity from
  * the neighbouring take, else a still; a script path imported). A dry run
  * first lists what it would do, to confirm: it can be a lot of GPU work.
@@ -1931,7 +1931,7 @@ export function dismissMissingResult() {
 }
 
 /**
- * The episode's image target for refs or keyframes (PUT /h3pipe/refs/defaults,
+ * The episode's image target for refs or keyframes (PUT /seriesmith/refs/defaults,
  * kept in overrides.json; series.json isn't changed). null goes back to the
  * series config's, else the built-in default.
  */
@@ -1973,7 +1973,7 @@ export async function generateKeyframe(shot: string, which: KeyframeEnd = "first
 }
 
 /**
- * Unpick a ref (DELETE /h3pipe/refs/pick): its live file goes, its candidates
+ * Unpick a ref (DELETE /seriesmith/refs/pick): its live file goes, its candidates
  * stay. For a keyframe this is Clear: the shot renders without one. Asks
  * first (a series ref gets a stronger warning).
  */
@@ -2039,7 +2039,7 @@ function replaceRef(ep: string, ref: Ref) {
 }
 
 /**
- * Discard a candidate (POST /h3pipe/refs/discard): it moves to
+ * Discard a candidate (POST /seriesmith/refs/discard): it moves to
  * `refs/_takes/_trash/` (nothing is deleted). If it's the live pick, the ref
  * (or view) is cleared as Clear does. Refused for a queued one. Asks first.
  */
@@ -2089,7 +2089,7 @@ ${text}`;
 
 /**
  * Upload a file into a ref slot (a character's view, a keyframe, any ref):
- * multipart POST /h3pipe/refs/import with pick=1, so it goes live at once.
+ * multipart POST /seriesmith/refs/import with pick=1, so it goes live at once.
  * Progress and errors show on the slot (store.uploads).
  */
 export async function uploadRef(ref: string, view: string | null, file: File, pick = true): Promise<boolean> {
@@ -2145,7 +2145,7 @@ ${warn.body}`)) return false;
 
 /**
  * Files dropped in bulk (or picked). The server says which slot each name means
- * (POST /h3pipe/refs/match) and the window shows that table before a byte is
+ * (POST /seriesmith/refs/match) and the window shows that table before a byte is
  * sent: routing a picture by guessing its name is only safe if the guess is on
  * screen first.
  *
@@ -2359,7 +2359,7 @@ export async function copyIssueExport(): Promise<void> {
   } catch {
     // no clipboard (no focus, insecure context): the CLI writes the same document
     host().toast("warn", "The clipboard is blocked",
-                 `Run: python h3.py issues "${ep}" --${pass} --export -o issues.md`);
+                 `Run: seriesmith issues "${ep}" --${pass} --export -o issues.md`);
   }
 }
 
@@ -2414,7 +2414,7 @@ ${warn.body}`)) return false;
 
 /**
  * A shot's first (or last) keyframe from a frame of a video take
- * (POST /h3pipe/refs/keyframe). With no source: the neighbouring shot in the
+ * (POST /seriesmith/refs/keyframe). With no source: the neighbouring shot in the
  * cut (previous for first, next for last) and the take its cut entry uses.
  */
 export async function keyframeFromTake(opts: {
@@ -2616,7 +2616,7 @@ export function closeTrackPanel() {
   set({ trackPanel: null });
 }
 
-/** GET /h3pipe/align/ready (cached; `force` asks again after an install). */
+/** GET /seriesmith/align/ready (cached; `force` asks again after an install). */
 export async function loadAlignReady(force = false): Promise<void> {
   if (!force && get().alignReady) return;
   try {
@@ -2649,7 +2649,7 @@ function afterTrack(ep: string, r: TrackResult, what: string) {
   }
 }
 
-/** POST /h3pipe/track with a path on the ComfyUI machine. */
+/** POST /seriesmith/track with a path on the ComfyUI machine. */
 export async function attachTrack(sourcePath: string): Promise<boolean> {
   const ep = get().ep;
   if (!ep || !sourcePath.trim()) return false;
@@ -2667,7 +2667,7 @@ export async function attachTrack(sourcePath: string): Promise<boolean> {
   });
 }
 
-/** POST /h3pipe/track as multipart: a file from this computer. */
+/** POST /seriesmith/track as multipart: a file from this computer. */
 export async function uploadTrack(file: File): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
@@ -2699,7 +2699,7 @@ export async function uploadTrack(file: File): Promise<boolean> {
   }
 }
 
-/** POST /h3pipe/track `{track: null}`: the series config forgets it (the file stays). */
+/** POST /seriesmith/track `{track: null}`: the series config forgets it (the file stays). */
 export async function clearTrack(ask = true): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
@@ -2721,8 +2721,8 @@ export async function clearTrack(ask = true): Promise<boolean> {
 }
 
 /**
- * POST /h3pipe/align: time the script against the recording. Progress arrives
- * as `h3pipe.align` events while it runs; a 409 means a dependency is missing
+ * POST /seriesmith/align: time the script against the recording. Progress arrives
+ * as `seriesmith.align` events while it runs; a 409 means a dependency is missing
  * (the panel then says what to install, and into which Python).
  */
 export async function runAlign(opts: { dryRun?: boolean; model?: string | null; snap?: boolean } = {}): Promise<boolean> {
@@ -2751,7 +2751,7 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
       // the script changed on disk: open windows, the episode and its refs follow
       afterAuthoredWrite(r.build ?? null);
       set((s) => ({ trackBuild: { ...s.trackBuild, [ep]: r.build ?? null } }));
-      // h3align leaves align_report.md beside the script: a folder whose
+      // align leaves align_report.md beside the script: a folder whose
       // script isn't <folder>.md then has two .md files and won't build
       const clash = scriptClash(r.build ?? null);
       if (clash) host().toast("warn", "Aligned, but the rebuild couldn't start", clash);
@@ -2763,7 +2763,7 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
     if (data) {
       // keep the readiness panel truthful: the 409 carries the same fields
       set((s) => ({ alignReady: { ...(s.alignReady ?? { ready: false, python: "", install: "", ffmpeg: null, missing: [] }), ...data, ready: false } }));
-      host().toast("warn", "h3align can't run yet", `${data.error}\n${data.install || ""}`.trim());
+      host().toast("warn", "align can't run yet", `${data.error}\n${data.install || ""}`.trim());
     } else {
       report("Align failed", e);
     }
@@ -2841,7 +2841,7 @@ export function browseClipAudio(shot: string) {
 /**
  * A file chosen in the browser becomes the draft's path: it has to be inside
  * the episode (or beside a parent-folder series config), which is what
- * PUT /h3pipe/cut takes.
+ * PUT /seriesmith/cut takes.
  */
 export function useClipAudioFile(chosen: string): boolean {
   const s = get();
@@ -2864,7 +2864,7 @@ export function useClipAudioFile(chosen: string): boolean {
 
 /**
  * Upload a media file from this computer into the episode and use it as this
- * clip's audio (POST /h3pipe/audio/import; see the contract gap in api.ts).
+ * clip's audio (POST /seriesmith/audio/import; see the contract gap in api.ts).
  */
 export async function uploadClipAudio(file: File): Promise<boolean> {
   const ep = get().ep;
@@ -2893,7 +2893,7 @@ export async function uploadClipAudio(file: File): Promise<boolean> {
       upload: {
         name: file.name, sent: 0, total: file.size,
         error: gone
-          ? "This ComfyUI has no upload route for clip audio yet (POST /h3pipe/audio/import). Copy the file into the episode and use Browse instead."
+          ? "This ComfyUI has no upload route for clip audio yet (POST /seriesmith/audio/import). Copy the file into the episode and use Browse instead."
           : errText(e),
       },
     });
@@ -2902,7 +2902,7 @@ export async function uploadClipAudio(file: File): Promise<boolean> {
 }
 
 /**
- * POST /h3pipe/refs/voice-from-take: `start..end` of a take's sound becomes a
+ * POST /seriesmith/refs/voice-from-take: `start..end` of a take's sound becomes a
  * voice candidate (no model runs). It is picked when the voice has no live
  * file yet — and that pick can write the series config's `voice_sample`.
  */

@@ -172,7 +172,7 @@ class EditorRenderTest(unittest.TestCase):
                                       backends={fb.name: fb})
             async with TestClient(TestServer(app)) as client:
                 ws = await client.ws_connect("/ws")
-                r = await client.post("/h3pipe/render", json={
+                r = await client.post("/seriesmith/render", json={
                     "ep": self.ep, "pass": "proxy", "shots": ["sh010"],
                     "backend": "deployment"})
                 res = await r.json()
@@ -182,7 +182,7 @@ class EditorRenderTest(unittest.TestCase):
                 while True:
                     m = await asyncio.wait_for(ws.receive_json(), 10)
                     heard.append(m["type"])
-                    if m["type"] == "h3pipe.take" and m["data"]["status"] == "ok":
+                    if m["type"] == "seriesmith.take" and m["data"]["status"] == "ok":
                         break
                 jobs = await (await client.get("/seriesmith/jobs")).json()
                 await ws.close()

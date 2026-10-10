@@ -54,13 +54,13 @@ class LoadTest(unittest.TestCase):
 
 class RefTest(unittest.TestCase):
     def test_the_ref_is_one_wide_picture(self):
-        from seriesmith import refs as h3refs
+        from seriesmith import refs as R
         e = series_config_from(cfg())["subjects"]["ladies"]
-        r = h3refs.Ref("subject:ladies", "series", "character", "the ladies", "", ROOT, e,
+        r = R.Ref("subject:ladies", "series", "character", "the ladies", "", ROOT, e,
                        "ladies")
         self.assertFalse(r.has_views)
         self.assertEqual(r.views, [None])
-        w, h = h3refs.gen_size(r)
+        w, h = R.gen_size(r)
         self.assertGreater(w, h)
 
     def test_the_wording_asks_for_n_people_in_a_row(self):
