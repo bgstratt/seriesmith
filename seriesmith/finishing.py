@@ -237,7 +237,7 @@ def collect(fin: Finish, run, saver: str, status: str, extra: dict | None = None
             continue
         part = dst + ".part"
         out.save(part)
-        os.replace(part, dst)
+        T._shared(lambda: os.replace(part, dst))
         got.append(n)
     if not isinstance(record, dict):
         mark_failed(fin, "the job finished but its saver reported no record "

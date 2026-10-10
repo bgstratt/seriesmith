@@ -112,7 +112,7 @@ class LatentRouteTest(ApiTest):
                                          "allow_missing_refs": True,
                                          "allow_model_mismatch": True}))
         g = self.comfy.graphs[-1]
-        saver = next(v["inputs"] for v in g.values() if v["class_type"] == J.SAVER)
+        saver = next(v["inputs"] for v in g.values() if v["class_type"] == J.PORTABLE_SAVER)
         self.assertNotIn("latent", saver)
         sc = T.get_take(self.ep, "final", "sh010", 1).sidecar
         self.assertNotIn("save_latent", sc)
@@ -262,9 +262,9 @@ class UpscaleRouteTest(UpscaleTest):
         res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"]}))
         self.assertEqual([(q["shot"], q["take"], q["route"]) for q in res["queued"]],
                          [("sh010", 1, "latent")])
-        self.assertEqual(self.events_of("h3pipe.upscale")[-1]["status"], "queued")
+        self.assertIn("queued", [d["status"] for d in self.events_of("h3pipe.upscale")])
         g = self.comfy.graphs[-1]
-        self.assertTrue(any(v["class_type"] == "H3SaveUpscale" for v in g.values()))
+        self.assertTrue(any(v["class_type"] == "SeriesmithSaveUpscale" for v in g.values()))
         up = self.status_take()["upscale"]
         self.assertEqual((up["status"], up["fresh"], up["route"]), ("ok", True, "latent"))
         self.assertTrue(up["mp4"].endswith("sh010_t01.up.mp4"))
@@ -330,7 +330,7 @@ class LtxUpscaleTest(UpscaleTest):
                                          "target": "ltx2", "allow_missing_refs": True,
                                          "allow_model_mismatch": True}))
         g = self.comfy.graphs[-1]
-        saver = next(k for k, v in g.items() if v["class_type"] == J.SAVER)
+        saver = next(k for k, v in g.items() if v["class_type"] == J.PORTABLE_SAVER)
         final = g[saver]["inputs"]["latent"][0]
         # the saver keeps the FINAL sampler's latent, not the first stage's
         self.assertEqual(g[final]["class_type"], "SamplerCustomAdvanced")

@@ -35,7 +35,7 @@ from seriesmith.core import ir  # noqa: E402
 from seriesmith.core.series_config import (character_ids, load_series_config,  # noqa: E402
                                   series_info, subject_ids, variant_of)
 from seriesmith.core.story import parse_story  # noqa: E402
-from test_render import FIXTURE, FakeComfy, build_episode  # noqa: E402
+from test_render import FIXTURE, FakeComfy, build_episode, settle  # noqa: E402
 
 try:
     from PIL import Image
@@ -548,7 +548,8 @@ class RenderTest(unittest.TestCase):
         comfy = FakeComfy()
         try:
             out = E.queue_shots(self.root, "proxy", ["sh010"], J.RenderRequest("", target=ING),
-                                J.Comfy(comfy.url), lambda tid: self.base)
+                                J.Comfy(comfy.url), lambda tid: self.base, runner=comfy.runner)
+            settle(comfy.runner)
         finally:
             comfy.close()
         self.assertEqual([(q["shot"], q["target"]) for q in out["queued"]], [("sh010", ING)])
@@ -556,7 +557,11 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(take.status, "ok")
         self.assertTrue(os.path.isfile(os.path.join(take.paths.dir,
                                                     take.paths.stem + "_refsheet.png")))
-        self.assertEqual(len(comfy.uploads), 1)
+        # the composed sheet went up with the job, from the take's folder
+        (f,) = [v["inputs"]["image"] for v in comfy.graphs[-1].values()
+                if v["class_type"] == "LoadImage"]
+        self.assertEqual(os.path.normcase(f.path), os.path.normcase(
+            os.path.join(take.paths.dir, take.paths.stem + "_refsheet.png")))
 
 
 if __name__ == "__main__":

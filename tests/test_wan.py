@@ -346,8 +346,12 @@ class RenderTest(unittest.TestCase):
         job = self.plan("sh010", I2V, allow_missing_refs=True)
         self.assertEqual((job.action, job.recompiled, job.missing_mode), ("blocked", None, ""))
         # the routes' queue skips it with the reason (no ComfyUI is touched)
+        from seriesmith.queue import Queue
+        from seriesmith.runner import Runner
         out = E.queue_shots(self.root, "proxy", ["sh010"],
-                            J.RenderRequest("", target=I2V, allow_missing_refs=True), None, {})
+                            J.RenderRequest("", target=I2V, allow_missing_refs=True), None, {},
+                            runner=Runner(Queue(), {}))
+        self.addCleanup(setattr, T, "MANAGED", None)
         self.assertEqual(out["queued"], [])
         self.assertEqual(out["skipped"][0]["reason"], why)
         # the episode status tells the editor it can't render anyway

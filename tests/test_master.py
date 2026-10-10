@@ -31,6 +31,13 @@ RECIPE = {"deliver": "1080p", "fit": "crop", "quality": "master",
 
 
 class MasterTest(ApiTest):
+    def queue_master(self, plan, **kw):
+        """M.queue_master on the test's queue, waited for."""
+        out = M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url, runner=self.ctx.runner,
+                             **kw)
+        self.settle()
+        return out
+
     def setUp(self):
         super().setUp()
         self.comfy.nodes |= set(U.UPSCALE_NODES) | set(U.PIXEL_NODES)
@@ -95,14 +102,14 @@ class MasterTest(ApiTest):
         self.assertTrue(all(r.status == "gap" for r in unrendered))
         self.assertFalse(plan.ready)
         # queue: each rendered shot by its target's section, at the master size
-        queued, errors = M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url)
+        queued, errors = self.queue_master(plan)
         self.assertEqual(([r.shot for r in queued], errors), (rendered, []))
         rec = T.upscale_of(T.get_take(self.ep, "final", rendered[0], 1))
         self.assertEqual((rec["status"], rec["width"], rec["height"], rec["quality"]),
                          ("ok", 1920, 1080, "master"))
         plan = M.plan_master(self.ep)
         self.assertEqual({self.by_shot(plan)[s].status for s in rendered}, {"ok"})
-        self.assertEqual(M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url), ([], []))   # nothing to redo
+        self.assertEqual(self.queue_master(plan), ([], []))   # nothing to redo
         # the recipe changes: kept, not redone, unless --conform; a Keep stays even then
         a, b = rendered[0], rendered[-1]
         U.set_keep(T.get_take(self.ep, "final", a, 1), True)
@@ -128,7 +135,7 @@ class MasterTest(ApiTest):
         plan = M.plan_master(self.ep)
         with self.assertRaisesRegex(M.MasterError, "still to upscale"):
             M.assemble_master(plan)
-        M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url)
+        self.queue_master(plan)
         plan = M.plan_master(self.ep)
         gaps = plan.of("gap")
         if gaps:
@@ -224,7 +231,7 @@ class MasterTest(ApiTest):
         """A cut whose upscales have all landed (gaps allowed), and the master's name."""
         self.render_all()
         self.set_recipe(RECIPE)
-        M.queue_master(M.plan_master(self.ep), self.ctx.comfy, self.ctx.comfy_url)
+        self.queue_master(M.plan_master(self.ep))
         return M.plan_master(self.ep), M.master_name(self.ep, (1920, 1080))
 
     def test_prores_only(self):
@@ -496,11 +503,11 @@ class MasterTest(ApiTest):
         with self.assertRaisesRegex(M.MasterError, "still to upscale or post-process"):
             M.check_assemble(plan)
         # one queue takes each shot all the way: upscale, then its post right behind
-        queued, errors = M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url)
+        queued, errors = self.queue_master(plan)
         self.assertEqual(([r.shot for r in queued], errors), (rendered, []))
-        saves = [n["inputs"]["out_mp4"] for g in self.comfy.graphs[-2 * len(rendered):]
-                 for n in g.values() if n["class_type"] == "H3SaveUpscale"]
-        self.assertTrue(saves[0].endswith(".up.mp4") and saves[1].endswith(".post.mp4"))
+        saves = [n["inputs"]["name"] for g in self.comfy.graphs[-2 * len(rendered):]
+                 for n in g.values() if n["class_type"] == "SeriesmithSaveUpscale"]
+        self.assertTrue(saves[0].endswith(".up") and saves[1].endswith(".post"))
         t = T.get_take(self.ep, "final", rendered[0], 1)
         self.assertTrue(T.post_of(t)["fresh"])
         rows = self.by_shot(M.plan_master(self.ep, post=True))
@@ -513,7 +520,7 @@ class MasterTest(ApiTest):
         self.assertIn("post was made with other settings", rows[rendered[0]].why)
         plan = M.plan_master(self.ep, post=True, conform=True)
         self.assertEqual(self.by_shot(plan)[rendered[0]].status, "post")
-        queued, errors = M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url)
+        queued, errors = self.queue_master(plan)
         self.assertEqual((len(queued), errors), (len(rendered), []))
         self.assertEqual({r.status for r in M.plan_master(self.ep, post=True).rows
                           if r.shot in rendered}, {"ok"})
@@ -533,7 +540,7 @@ class MasterTest(ApiTest):
     def test_post_where_present(self):
         rendered = self.render_all()
         self.set_recipe(RECIPE)
-        M.queue_master(M.plan_master(self.ep), self.ctx.comfy, self.ctx.comfy_url)
+        self.queue_master(M.plan_master(self.ep))
         self.comfy.nodes |= {"OpticalFlowLoader", "SeriesmithMotionBlur"}
         self.comfy.info["OpticalFlowLoader"] = {"input": {"required": {
             "model_name": [["raft_large_C_T_SKHT_V2-ff5fadd5.pth"], {}]}}}
@@ -552,7 +559,7 @@ class MasterTest(ApiTest):
         self.assertTrue(rows[rendered[-1]].recipe.endswith("; its upscale"))
         self.assertEqual(rows[rendered[0]].view()["post"]["status"], "ok")
         self.assertEqual((plan.view()["post"], plan.view()["post_mode"]), (True, "present"))
-        self.assertEqual(M.queue_master(plan, self.ctx.comfy, self.ctx.comfy_url), ([], []))
+        self.assertEqual(self.queue_master(plan), ([], []))
         # the assembly is told to prefer fresh posts
         calls = []
 

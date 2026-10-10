@@ -79,18 +79,30 @@ class Base(unittest.TestCase):
 
 
 class TourTest(Base):
-    def test_the_graph_gets_the_frame_move_length_and_seed(self):
-        comfy = FakeComfy()
+    def tour(self, move="turn left and hold", found=None, mode="node", seconds=6.0):
+        """One tour on seriesmith's queue (Runner.enqueue_tour), its backend
+        playing the graph (FakeComfy `mode`), its holds `found`: the sidecar."""
+        from test_render import FakeComfy as Played, settle
+        c = Played()
+        self.addCleanup(c.close)
+        c.mode = mode
         ref = R.find_ref(self.s, "location:kitchen")
-        (side,) = TOUR.start_tour(self.s, ref, "The camera turns left and holds", comfy, 5)
-        g = comfy.queued[0]
+        with mock.patch.object(TOUR, "find_holds", return_value=found or {"fps": 24, "holds": []}):
+            ((side, g),) = TOUR.plan_tours(self.s, ref, move, None, seconds)
+            n, qid = c.runner.enqueue_tour(self.s, ref, side, g, "local")
+            settle(c.runner)
+        return next(d for d in TOUR.list_tours(ref) if d["tour"] == n)
+
+    def test_the_graph_gets_the_frame_move_length_and_seed(self):
+        ref = R.find_ref(self.s, "location:kitchen")
+        ((side, g),) = TOUR.plan_tours(self.s, ref, "The camera turns left and holds", None, 5)
         by = {v["class_type"]: v["inputs"] for v in g.values()}
-        self.assertEqual(by["LoadImage"]["image"], comfy.uploaded[0])
+        self.assertIsNone(by["LoadImage"]["image"])     # the plate, put in as it's queued
         self.assertTrue(by["MiniMaxH3ImageToVideo"]["prompt"].startswith(
             "The camera turns left and holds. Nothing in the place moves"))
         self.assertEqual(by["PrimitiveFloat"]["value"], 5.0)
         self.assertEqual(by["RandomNoise"]["noise_seed"], side["seed"])
-        self.assertEqual((side["status"], side["comfy_prompt_id"]), ("queued", "pid1"))
+        self.assertEqual((side["status"], side["comfy_prompt_id"]), ("queued", None))
         self.assertEqual([d["tour"] for d in TOUR.list_tours(ref)], [1])
 
     def test_what_is_refused(self):
@@ -105,9 +117,7 @@ class TourTest(Base):
             TOUR.check_request(R.find_ref(self.s, "location:kitchen_on_sink"), "go", 6, 1)
 
     def test_holds_land_on_the_tour_view_and_copy_into_an_angle(self):
-        comfy = FakeComfy()
         ref = R.find_ref(self.s, "location:kitchen")
-        (side,) = TOUR.start_tour(self.s, ref, "turn left and hold", comfy)
         holds_dir = os.path.join(self._tmp.name, "holds")
         os.makedirs(holds_dir)
         found = {"fps": 24, "holds": []}
@@ -116,12 +126,9 @@ class TourTest(Base):
             shutil.copy(self.png, p)
             found["holds"].append({"hold": k, "start": k - 1.0, "end": k - 0.5, "frame": k,
                                    "sharpness": 1.0, "path": p})
-        seen = []
-        with mock.patch.object(TOUR, "find_holds", return_value=found):
-            side = TOUR.finish_tour(self.s, ref, side, comfy, on_hold=seen.append)
+        side = self.tour(found=found)
         self.assertEqual(side["status"], "ok", side.get("error"))
         self.assertEqual(len(side["holds"]), 2)
-        self.assertEqual(len(seen), 2)
         js = R.ref_json(self.s, ref)
         self.assertEqual([t["take"] for t in js["tour_holds"]], side["holds"])
         self.assertEqual(js["tours"][0]["status"], "ok")
@@ -133,13 +140,9 @@ class TourTest(Base):
         self.assertIn("tour t01 hold 2", t.sidecar["note"])
 
     def test_a_failed_tour_says_why(self):
-        comfy = FakeComfy()
-        comfy.wait = mock.Mock(side_effect=RuntimeError("out of memory"))
-        ref = R.find_ref(self.s, "location:kitchen")
-        (side,) = TOUR.start_tour(self.s, ref, "turn left and hold", comfy)
-        side = TOUR.finish_tour(self.s, ref, side, comfy)
+        side = self.tour(mode="error")
         self.assertEqual(side["status"], "failed")
-        self.assertIn("out of memory", side["error"])
+        self.assertIn("boom", side["error"])
 
 
 class TourQueueTest(Base):
@@ -235,9 +238,8 @@ class TurningPointTest(unittest.TestCase):
 class GrabFrameTest(Base):
     def test_any_moment_becomes_a_hold(self):
         import subprocess
-        comfy = FakeComfy()
         ref = R.find_ref(self.s, "location:kitchen")
-        (side,) = TOUR.start_tour(self.s, ref, "turn left and hold", comfy)
+        ((side, _g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
         mp4 = TOUR._tour_file(ref, side["tour"], ".mp4")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
                         "testsrc=size=320x180:rate=24:duration=2", "-pix_fmt", "yuv420p", mp4],

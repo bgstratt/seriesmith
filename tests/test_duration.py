@@ -36,7 +36,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.core import ir  # noqa: E402
 from seriesmith.core.story import ScriptError, parse_script, parse_story  # noqa: E402
-from test_render import ENV, FakeComfy, stub_refs  # noqa: E402
+from test_render import ENV, FakeComfy, settle, stub_refs  # noqa: E402
 
 WF = os.path.join(HERE, "fixtures", "workflows")
 MIXED = os.path.join(HERE, "fixtures", "mixed")
@@ -352,7 +352,9 @@ class QueueTest(unittest.TestCase):
         self.comfy.info = head_info([HEAD])
         self.comfy.predicted_frames = 199                # the model chose 8.29 s
         out = E.queue_shots(self.root, "proxy", ["sh010", "sh025"], J.RenderRequest(""),
-                            J.Comfy(self.comfy.url), lambda tid: self.base)
+                            J.Comfy(self.comfy.url), lambda tid: self.base,
+                            runner=self.comfy.runner)
+        settle(self.comfy.runner)
         self.assertEqual(out["errors"], [])
         self.assertEqual(len(out["queued"]), 2)
         st = E.episode_status(self.root, "proxy")

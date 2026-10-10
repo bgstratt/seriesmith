@@ -1422,10 +1422,11 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
     right but for a frame or two. It costs ~2.5 s a shot and ~16-50 GB an
     episode, so it is asked for per render.
 
-    With `runner` (seriesmith's queue, runner.Runner) each take goes there
-    instead, rendered on the backend jobs.backend_choice gives it (`backend`
-    asks for one); its prompt_id is the queue's job id and `backend` says
-    where. Without it, h3pipe's way: straight onto `comfy`'s queue.
+    Each take goes on seriesmith's queue (`runner`, runner.Runner), rendered
+    on the backend jobs.backend_choice gives it (`backend` asks for one); its
+    prompt_id is the queue's job id and `backend` says where. `comfy` (this
+    machine's ComfyUI, or None) is only asked: its model lists, and whether
+    the duration head is installed.
 
     Returns {"queued": [{shot, take, prompt_id, seed, seed_source, target}],
     "skipped": [{shot, take, reason}], "errors": [{shot, error, take?}]}. A
@@ -1434,6 +1435,8 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
     docs = J.load_shotlists(root, pass_)
     ov = T.load_overrides(root)
     index = {d["shots"][i]["id"]: (d, i) for d, i in J.episode_shots(root, pass_, docs)}
+    if runner is None:
+        raise ValueError("queue_shots needs seriesmith's queue (runner.Runner)")
     out = {"queued": [], "skipped": [], "errors": []}
     listing = J.model_lister(comfy, model_list)
     queued_ids: dict[str, str] = {}          # runner: shot -> its queue job, for `after`
@@ -1478,55 +1481,37 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
                                    + " (pass allow_model_mismatch: true to render anyway)",
                                    "model_mismatch": [c for c in job.model_checks if c["block"]]})
             continue
-        if runner is not None:
-            # seriesmith's queue: the take reserved now, staged and rendered on
-            # its backend when its job starts (runner.Runner), the queue's job
-            # id as its prompt id. A shot continuing another (a live
-            # continuity first frame, or `continuous: latent`) waits for the
-            # job of the shot before it in the cut, when that is in this batch.
-            try:
-                t = J.job_target(job)
-                graph = None if t.spec.get("router") else (
-                    base(job.target) if callable(base) else base)
-                name, _src, note = J.backend_choice(ov, sid, t, backend, root)
-                if note:
-                    job.notes.append(note)
-                live = job.continuity
-                before = (live or {}).get("after") if live else None
-                if before is None and (job.recompiled or job.shot).get("hold"):
-                    if cut_order is None:
-                        cut_order = [e.shot for e in cut_entries(root, pass_)]
-                    k = cut_order.index(sid) if sid in cut_order else 0
-                    before = cut_order[k - 1] if k > 0 else None
-                take, qid = runner.enqueue_render(job, graph, name, probe=comfy,
-                                                  continuity=live,
-                                                  after=queued_ids.get(before))
-                queued_ids[sid] = qid
-            except Exception as e:
-                out["errors"].append({"shot": sid, "error": str(e)[:800]})
-                continue
-            out["queued"].append({"shot": sid, "take": take.take, "prompt_id": qid,
-                                  "seed": job.seed, "seed_source": job.seed_source,
-                                  "target": job.target, "backend": name})
-            continue
+        # the take reserved now, staged and rendered on its backend when its
+        # job starts (runner.Runner), the queue's job id as its prompt id. A
+        # shot continuing another (a live continuity first frame, or
+        # `continuous: latent`) waits for the job of the shot before it in the
+        # cut, when that is in this batch.
         try:
-            graph = base(job.target) if callable(base) else base
-            J.stage_inputs(job, comfy if hasattr(comfy, "upload_input") else None)
-            take = J.start_job(job)
+            t = J.job_target(job)
+            graph = None if t.spec.get("router") else (
+                base(job.target) if callable(base) else base)
+            name, _src, note = J.backend_choice(ov, sid, t, backend, root)
+            if note:
+                job.notes.append(note)
+            live = job.continuity
+            before = (live or {}).get("after") if live else None
+            if before is None and (job.recompiled or job.shot).get("hold"):
+                if cut_order is None:
+                    cut_order = [e.shot for e in cut_entries(root, pass_)]
+                k = cut_order.index(sid) if sid in cut_order else 0
+                before = cut_order[k - 1] if k > 0 else None
+            take, qid = runner.enqueue_render(job, graph, name, probe=comfy,
+                                              continuity=live,
+                                              after=queued_ids.get(before),
+                                              save_frames=save_frames,
+                                              review_copy=review_copy)
+            queued_ids[sid] = qid
         except Exception as e:
             out["errors"].append({"shot": sid, "error": str(e)[:800]})
             continue
-        try:
-            pid = comfy.queue(J.graph_for(graph, job, take, review_copy=review_copy,
-                                          save_frames=save_frames))
-            J.mark_queued(take, pid)
-        except Exception as e:
-            J.mark_failed(take, str(e)[:800])
-            out["errors"].append({"shot": sid, "take": take.take, "error": str(e)[:800]})
-            continue
-        out["queued"].append({"shot": sid, "take": take.take, "prompt_id": pid,
+        out["queued"].append({"shot": sid, "take": take.take, "prompt_id": qid,
                               "seed": job.seed, "seed_source": job.seed_source,
-                              "target": job.target})
+                              "target": job.target, "backend": name})
     return out
 
 

@@ -22,7 +22,7 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
-from test_render import stub_refs, ENV, FIXTURE, FakeComfy, WORKFLOW  # noqa: E402
+from test_render import stub_refs, ENV, FIXTURE, FakeComfy, WORKFLOW, play_runner, settle  # noqa: E402
 
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 _BUILT = None                                            # one build, copied per test
@@ -71,21 +71,32 @@ class ApiTest(unittest.TestCase):
         self.ctx = A.Context(self.user, self.comfy.url,
                              emit=lambda e, d: self.events.append((e, d)),
                              comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={})
+        # seriesmith's queue, its local backend playing each graph as FakeComfy would
+        self.ctx.runner = play_runner(self.comfy, emit=lambda e, d: self.events.append((e, d)))
         self.ok(A.put_config(self.ctx, {"roots": [self.shows]}))
 
     def tearDown(self):
+        for b in self.comfy.backends.values():
+            b.release()
+        T.MANAGED = None
         self.comfy.close()
         self._tmp.cleanup()
+
+    def settle(self):
+        """Wait for the queue's jobs (those a held run keeps aside)."""
+        settle(self.ctx.runner)
 
     # -- helpers -------------------------------------------------------------
 
     def ok(self, res, status=200):
+        self.settle()
         code, data = res
         self.assertEqual(code, status, data)
         json.dumps(data)                                  # always serialisable
         return data
 
     def err(self, res, status):
+        self.settle()
         code, data = res
         self.assertEqual(code, status, data)
         self.assertIsInstance(data.get("error"), str)
@@ -521,18 +532,16 @@ class ReadTest(ApiTest):
 
 
 class SweepTest(ApiTest):
-    def test_history_error_marks_take_failed_with_its_message(self):
+    def test_a_failed_job_marks_take_failed_with_its_message(self):
         self.comfy.mode = "error"
-        (q,) = self.render("sh010")["queued"]
-        self.assertEqual(T.get_take(self.ep, "proxy", "sh010", 1).status, "queued")
-        self.events.clear()
+        self.render("sh010")
         _, shots = self.status()
         t = shots["sh010"]["takes"][0]
         self.assertEqual(t["status"], "failed")
         self.assertEqual(t["save_notes"], "boom")
-        self.assertEqual(self.events_of("h3pipe.take"),
-                         [{"ep": self.ep, "pass": "proxy", "shot": "sh010", "take": 1,
-                           "status": "failed", "thumb": None}])
+        self.assertEqual(self.events_of("h3pipe.take")[-1],
+                         {"ep": self.ep, "pass": "proxy", "shot": "sh010", "take": 1,
+                          "status": "failed", "thumb": None})
 
     def test_pending_job_is_left_alone(self):
         self.comfy.mode = "hold"
@@ -551,14 +560,6 @@ class SweepTest(ApiTest):
         t = shots["sh010"]["takes"][0]
         self.assertEqual(t["status"], "failed")
         self.assertIn("left the ComfyUI queue", t["save_notes"])
-
-    def test_finished_job_the_saver_did_not_close(self):
-        self.comfy.mode = "oldnode"
-        self.render("sh010")
-        _, shots = self.status()
-        t = shots["sh010"]["takes"][0]
-        self.assertEqual(t["status"], "ok")
-        self.assertIn("h3jobs", t["save_notes"])
 
     def test_no_comfy_means_no_sweep(self):
         T.reserve_take(self.ep, "proxy", "sh010",
@@ -589,7 +590,7 @@ class RenderTest(ApiTest):
 
         self.render("sh010")
         classes = {v["class_type"] for v in self.comfy.graphs[-1].values()}
-        self.assertIn(J.SAVER, classes)                   # the take itself
+        self.assertIn(J.PORTABLE_SAVER, classes)                   # the take itself
         self.assertNotIn("SaveVideo", classes)            # nothing in ComfyUI/output
         self.assertNotIn("CreateVideo", classes)
 
@@ -597,7 +598,7 @@ class RenderTest(ApiTest):
         self.render("sh020")
         classes = {v["class_type"] for v in self.comfy.graphs[-1].values()}
         self.assertIn("SaveVideo", classes)
-        self.assertIn(J.SAVER, classes)
+        self.assertIn(J.PORTABLE_SAVER, classes)
 
     def test_the_shipped_h3_graph_has_no_review_branch(self):
         """It was removed on 2026-09-21: renders write the take and nothing else."""
@@ -612,11 +613,11 @@ class RenderTest(ApiTest):
         PNG sequence for retouching; absent leaves the workflow's own value."""
         self.render("sh010")
         si = next(v["inputs"] for v in self.comfy.graphs[-1].values()
-                  if v["class_type"] == J.SAVER)
+                  if v["class_type"] == J.PORTABLE_SAVER)
         self.assertFalse(si["save_frames"])               # the graph's own default
         self.render("sh020", save_frames=True)
         si = next(v["inputs"] for v in self.comfy.graphs[-1].values()
-                  if v["class_type"] == J.SAVER)
+                  if v["class_type"] == J.PORTABLE_SAVER)
         self.assertTrue(si["save_frames"])
         self.err(A.post_render(self.ctx, {"ep": self.ep, "pass": "proxy", "shots": ["sh030"],
                                           "save_frames": "yes"}), 400)
@@ -626,7 +627,7 @@ class RenderTest(ApiTest):
         and says so in the sidecar; proxy doesn't; save_latent overrides both."""
         def saver_inputs():
             return next(v["inputs"] for v in self.comfy.graphs[-1].values()
-                        if v["class_type"] == J.SAVER)
+                        if v["class_type"] == J.PORTABLE_SAVER)
 
         def sampler_id():
             return next(k for k, v in self.comfy.graphs[-1].items()
@@ -663,11 +664,13 @@ class RenderTest(ApiTest):
         self.assertEqual(t.sidecar["note"], "first")
         self.assertTrue(os.path.isfile(t.paths.shotlist))
         g = self.comfy.graphs[0]
-        si = next(v["inputs"] for v in g.values() if v["class_type"] == J.SAVER)
-        self.assertEqual(si["subfolder"], "renders_proxy")
-        self.assertEqual([d["status"] for d in self.events_of("h3pipe.take")],
-                         ["queued", "queued"])
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        si = next(v["inputs"] for v in g.values() if v["class_type"] == J.PORTABLE_SAVER)
+        self.assertTrue(si["run"].startswith("ks01_proxy_sh010_t01_"))
+        # each queued, then each ended (its job may end before the route answers)
+        self.assertEqual(sorted(d["status"] for d in self.events_of("h3pipe.take")),
+                         ["ok", "ok", "queued", "queued"])
+        self.assertTrue(self.events_of("h3pipe.episode"))
+        self.assertEqual({d["ep"] for d in self.events_of("h3pipe.episode")}, {self.ep})
 
         data = self.render("sh010")
         self.assertEqual(data["queued"], [])
@@ -702,16 +705,15 @@ class RenderTest(ApiTest):
         self.assertIn("not in", data["errors"][0]["error"])
         self.assertEqual([q["shot"] for q in data["queued"]], ["sh010"])
 
+        # a graph the backend refuses: the take is queued, and fails when its job starts
         self.comfy.mode = "reject"
         self.events.clear()
         data = self.render("sh020")
-        (e,) = data["errors"]
-        self.assertEqual((e["shot"], e["take"]), ("sh020", 1))
-        self.assertIn("bad input", e["error"])
+        self.assertEqual([q["shot"] for q in data["queued"]], ["sh020"])
         t = T.get_take(self.ep, "proxy", "sh020", 1)
         self.assertEqual(t.status, "failed")
         self.assertIn("bad input", t.sidecar["save_notes"])
-        self.assertEqual(self.events_of("h3pipe.take")[0]["status"], "failed")
+        self.assertEqual(self.events_of("h3pipe.take")[-1]["status"], "failed")
 
     def test_bad_input(self):
         for body in ({"seed": "12x"}, {"seed": -1}, {"seed_mode": "odd"}, {"shots": "sh010"},
@@ -734,21 +736,25 @@ class CancelTest(ApiTest):
                                        "take": take})
         return self.ok(res) if status == 200 else self.err(res, status)
 
-    def test_pending_job_is_deleted(self):
+    def test_waiting_job_leaves_the_queue(self):
+        self.comfy.mode = "hold"
+        self.render("sh020")                              # runs, held: sh010 waits behind it
+        (q,) = self.render("sh010")["queued"]
+        self.assertEqual(self.ctx.runner.queue.jobs[q["prompt_id"]].status, "queued")
+        data = self.cancel()
+        self.assertEqual((data["status"], data["save_notes"]),
+                         ("failed", "canceled before it ran"))
+        self.assertEqual(self.ctx.runner.queue.jobs[q["prompt_id"]].status, "canceled")
+        self.assertEqual(self.events_of("h3pipe.take")[-1]["status"], "failed")
+        self.assertEqual(self.comfy.posts, [])
+
+    def test_running_job_is_stopped(self):
         self.comfy.mode = "hold"
         (q,) = self.render("sh010")["queued"]
         data = self.cancel()
-        self.assertEqual((data["status"], data["save_notes"]), ("failed", "cancelled"))
-        self.assertEqual(self.comfy.posts, [("/queue", {"delete": [q["prompt_id"]]})])
-        self.assertEqual(T.get_take(self.ep, "proxy", "sh010", 1).status, "failed")
-        self.assertEqual(self.events_of("h3pipe.take")[-1]["status"], "failed")
-
-    def test_running_job_is_interrupted(self):
-        self.comfy.mode = "hold"
-        (q,) = self.render("sh010")["queued"]
-        self.comfy.running, self.comfy.pending = self.comfy.pending, []
-        self.cancel()
-        self.assertEqual(self.comfy.posts, [("/interrupt", {"prompt_id": q["prompt_id"]})])
+        self.assertEqual((data["status"], data["save_notes"]), ("failed", "canceled"))
+        self.assertEqual(self.ctx.runner.queue.jobs[q["prompt_id"]].status, "canceled")
+        self.assertEqual(self.comfy.posts, [])
 
     def test_not_queued(self):
         self.render("sh010")

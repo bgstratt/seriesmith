@@ -35,7 +35,9 @@ class Runner:
 
     def enqueue_render(self, job: J.Job, base: dict | None, backend_name: str,
                        probe=None, continuity: dict | None = None,
-                       after: str | None = None) -> tuple[T.Take, str]:
+                       after: str | None = None,
+                       save_frames: bool | None = None,
+                       review_copy: bool | None = None) -> tuple[T.Take, str]:
         """Reserve the take and queue its render; its inputs are staged when
         the job starts (stage_portable), so a continuity shot cuts its first
         frame from the take the cut uses then (`continuity`: h3pipe's live
@@ -58,7 +60,9 @@ class Runner:
         take = J.start_job(job)
         ep = job.root
         title = f"{_ep_name(ep)} {job.id} t{take.take:02d}"
-        gkw = dict(review_copy=self.review_copy, portable=True)
+        gkw = dict(review_copy=self.review_copy if review_copy is None else review_copy,
+                   portable=True,
+                   **({"save_frames": save_frames} if save_frames is not None else {}))
         chained = bool((job.recompiled or job.shot).get("hold"))
 
         def stage(report) -> None:
@@ -75,6 +79,11 @@ class Runner:
                             f"({'its latent' if job.chain_from.get('latent') else 'its frames'})")
             J.stage_portable(job, local_probe)
             J.place_staged(job, take)
+            # what staging decided (`dur: model`: predicted or the estimate, and
+            # why) goes into the record reserved before it
+            take.sidecar = T.update_sidecar(
+                take.paths.sidecar, length_source=job.length_source,
+                **({"notes": list(job.notes)} if job.notes else {}))
 
         def work(qjob: QJob, report) -> str:
             def progress(p):
@@ -110,7 +119,8 @@ class Runner:
             j2 = copy.copy(job)
             j2.take, j2.forced, j2.staged, j2.input_files = job.take + 1, False, [], {}
             j2.chain_from = None
-            self.enqueue_render(j2, base, backend_name, probe, continuity)
+            self.enqueue_render(j2, base, backend_name, probe, continuity,
+                                save_frames=save_frames, review_copy=review_copy)
             return None                                  # enqueue_render submitted it
 
         qjob = QJob(kind="render", lane=backend.name, title=title, work=work,
@@ -153,6 +163,11 @@ class Runner:
         else:
             g = R.graph_for(base, job, take, lora_clip=lora_clip, portable=True)
             J.files_as_uploads(g, collector.files)
+            from seriesmith.shotnodes import uses_h3pipe
+            if uses_h3pipe(g):
+                R.mark_failed(take, f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
+                raise J.NotPortable(f"{job.ref.id} still uses h3pipe's nodes: "
+                                    f"{', '.join(uses_h3pipe(g))}")
             savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio")]
         want = "audio" if job.is_audio else "image"
         ep = s.ep
@@ -179,12 +194,18 @@ class Runner:
                 fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
                 os.close(fd)
                 try:
-                    with open(outs[0].save(tmp), "rb") as fh:
+                    outs[0].save(tmp)
+                    ext = os.path.splitext(outs[0].name)[1].lower() if job.is_audio else None
+                    if job.is_audio and ext != ".wav":
+                        # ComfyUI's own SaveAudio writes flac; a voice sample is a
+                        # wav (as h3pipe's saver made it), so it is converted here
+                        ext = ".wav" if _to_wav(tmp) else ext
+                    with open(tmp, "rb") as fh:
                         data = fh.read()
                 finally:
                     os.remove(tmp)
-                ext = (os.path.splitext(outs[0].name)[1].lower() if job.is_audio
-                       else R.image_ext(data) if hosted else None)
+                if not job.is_audio and hosted:
+                    ext = R.image_ext(data)
                 result = R.close_take(take, data, f"from {backend.name}: {outs[0].name}", ext=ext)
             except Exception as e:                       # noqa: BLE001  the take fails
                 R.mark_failed(take, "canceled" if qjob.cancel_asked else str(e)[:800])
@@ -236,6 +257,9 @@ class Runner:
                 report(p.value, p.step, p.steps)
             try:
                 g, extra = F.portable(fin)
+                from seriesmith.shotnodes import uses_h3pipe
+                if uses_h3pipe(g):
+                    raise J.NotPortable(f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
                 for n in fin.notes:
                     report(line=n)
                 run = backend.submit(g)
@@ -358,6 +382,27 @@ class Runner:
         self._emit("h3pipe.episode", {"ep": ep})
 
 
+def _to_wav(path: str) -> bool:
+    """`path` (any audio ffmpeg reads) rewritten in place as a 16-bit PCM wav;
+    False (left as it was) when there's no ffmpeg or it fails."""
+    import os
+    import shutil
+    import subprocess
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        return False
+    out = path + ".wav"
+    try:
+        subprocess.run([exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
+                       capture_output=True, check=True, timeout=120)
+        os.replace(out, path)
+        return True
+    except Exception:                                    # noqa: BLE001  keep what came back
+        if os.path.exists(out):
+            os.remove(out)
+        return False
+
+
 def _ep_name(ep: str) -> str:
     import os
     return os.path.basename(os.path.normpath(ep))
@@ -367,3 +412,49 @@ def take_root(take: T.Take) -> str:
     """The episode folder a take belongs to (renders/<shot>/ -> the episode)."""
     import os
     return os.path.dirname(os.path.dirname(take.paths.dir))
+
+
+def wait(queue: Queue, ids, timeout: float | None = None, poll: float = 0.25) -> dict[str, str]:
+    """Wait for the queue's jobs `ids` to end: {id: status}. A job still queued
+    or running at `timeout` (seconds; None: no limit) is cancelled and comes
+    back as "timeout"."""
+    import time
+
+    from seriesmith.queue import DONE
+    ids = [i for i in ids if i]
+    end = None if timeout is None else time.time() + timeout
+    while True:
+        jobs = {i: queue.jobs.get(i) for i in ids}
+        if all(j is None or j.status in DONE for j in jobs.values()):
+            return {i: (j.status if j is not None else "gone") for i, j in jobs.items()}
+        if end is not None and time.time() > end:
+            out = {}
+            for i, j in jobs.items():
+                if j is not None and j.status not in DONE:
+                    queue.cancel(i)
+                    out[i] = "timeout"
+                else:
+                    out[i] = j.status if j is not None else "gone"
+            return out
+        time.sleep(poll)
+
+
+def cli_runner(backend: str | None = None, settings=None, log=print) -> Runner:
+    """A queue and runner of the command line's own, on the backends the
+    settings set up. When the work will run on this machine's ComfyUI
+    (`backend` local, or None: each job's own, usually local), comfy-api-proxy
+    is started in front of it if it isn't running (server.standalone.ensure_proxy).
+    ValueError when `backend` isn't set up here."""
+    from seriesmith.backends import available
+    from seriesmith.settings import load_settings
+    s = settings or load_settings()
+    backends = available(s)
+    if backend and J.backend_kind(backend) != "deployment" and backend not in backends:
+        raise ValueError(f"{backend} isn't set up on this machine (seriesmith backends: "
+                         f"{', '.join(backends)})")
+    if backend in (None, "", "local"):
+        from seriesmith.server.standalone import ensure_proxy
+        note = ensure_proxy(s)
+        if log and "not" in note:
+            log(f"  ! {note}")
+    return Runner(Queue(), backends)

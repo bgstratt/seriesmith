@@ -1109,7 +1109,7 @@ def _atomic_write(path: str, data: bytes) -> None:
     try:
         with open(tmp, "wb") as fh:
             fh.write(data)
-        os.replace(tmp, path)
+        T._shared(lambda: os.replace(tmp, path))
     except BaseException:
         try:
             os.remove(tmp)
@@ -1124,7 +1124,7 @@ def _atomic_copy(src: str, dst: str) -> None:
                        f".tmp_{uuid.uuid4().hex}_{os.path.basename(dst)}")
     try:
         shutil.copyfile(src, tmp)
-        os.replace(tmp, dst)
+        T._shared(lambda: os.replace(tmp, dst))
     except BaseException:
         try:
             os.remove(tmp)
@@ -3213,13 +3213,17 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     is resolved from `comfy` (its saved copy, else the repo's). `listing`
     (h3jobs.model_lister's) resolves each job's model files by family
     (resolve_job_models) and says whether the default keyframe target is
-    ready; a job whose required files aren't installed is an error. Edit
-    targets' reference images are uploaded first (stage_references).
+    ready; a job whose required files aren't installed is an error. Each
+    take goes on seriesmith's queue (`runner`), made on the backend
+    jobs.backend_choice gives it (`backend` asks for one); its reference
+    pictures go up with it (Runner.enqueue_ref).
 
     Returns {"queued": [{ref, view, take, prompt_id, seed, seed_source,
     target}], "errors": [{ref, view, take?, error}]}; a take that fails to
     queue is marked failed and the others still go. Raises RefError /
     UnknownRef for a request that can't be planned at all."""
+    if runner is None:
+        raise ValueError("queue_generate needs seriesmith's queue (runner.Runner)")
     jobs = plan_generate(s, req, rng=rng, ready=target_ready(listing))
     out = {"queued": [], "errors": []}
     graphs: dict = {}
@@ -3251,48 +3255,21 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
                                                              "folder", "url", "source")}
                                       for m in blocked]})
             continue
-        if runner is not None:
-            # seriesmith's queue: staged and reserved now, made on its backend
-            # (runner.Runner.enqueue_ref), the queue's job id as its prompt id
-            try:
-                g0 = graph_base(job.target)
-                name, _src, note = J.backend_choice({}, job.ref.id, job.target, backend, s.ep)
-                if note:
-                    job.notes.append(note)
-                take, qid = runner.enqueue_ref(s, job, g0, name, lora_clip=lora_clip)
-            except Exception as e:
-                out["errors"].append({"ref": job.ref.id, "view": job.view, "error": str(e)[:800]})
-                continue
-            out["queued"].append({"ref": job.ref.id, "view": job.view, "take": take.take,
-                                  "prompt_id": qid, "seed": job.seed,
-                                  "seed_source": job.seed_source, "target": job.target.id,
-                                  "backend": name})
-            continue
-        if job.target.spec.get("router"):
-            out["errors"].append({"ref": job.ref.id, "view": job.view, "target": job.target.id,
-                                  "error": f"{job.target.short} is a hosted model: it runs on "
-                                           f"seriesmith's queue (backend router)"})
-            continue
+        # staged and reserved now, made on its backend (Runner.enqueue_ref),
+        # the queue's job id as its prompt id
         try:
             g0 = graph_base(job.target)
-            up = comfy if hasattr(comfy, "upload_input") else None
-            stage_references(s, job, up)
-            stage_voice_reference(s, job, up)
-            take = start_gen(s, job)
+            name, _src, note = J.backend_choice({}, job.ref.id, job.target, backend, s.ep)
+            if note:
+                job.notes.append(note)
+            take, qid = runner.enqueue_ref(s, job, g0, name, lora_clip=lora_clip)
         except Exception as e:
             out["errors"].append({"ref": job.ref.id, "view": job.view, "error": str(e)[:800]})
             continue
-        try:
-            pid = comfy.queue(graph_for(g0, job, take, save_node, lora_clip))
-            mark_queued(take, pid)
-        except Exception as e:
-            mark_failed(take, str(e)[:800])
-            out["errors"].append({"ref": job.ref.id, "view": job.view, "take": take.take,
-                                  "error": str(e)[:800]})
-            continue
         out["queued"].append({"ref": job.ref.id, "view": job.view, "take": take.take,
-                              "prompt_id": pid, "seed": job.seed,
-                              "seed_source": job.seed_source, "target": job.target.id})
+                              "prompt_id": qid, "seed": job.seed,
+                              "seed_source": job.seed_source, "target": job.target.id,
+                              "backend": name})
     return out
 
 
@@ -3359,21 +3336,26 @@ def _finished(entry: dict | None) -> bool:
 
 def generate_and_wait(s: Series, req: GenRequest, comfy, base=None, timeout: float = 900,
                       listing=None, resolve=None, cache=None, pick: bool | None = None,
-                      log=print) -> list[RefTake]:
-    """queue_generate, then wait for each take (wait_take), then pick the
-    first finished one when the ref has no live file and wasn't cleared (the
-    auto-pick rule; `pick` True always, False never). Returns the finished
-    takes. RuntimeError when nothing could be queued."""
+                      log=print, runner=None, backend: str | None = None) -> list[RefTake]:
+    """queue_generate, then wait for each take, then pick the first finished
+    one when the ref has no live file and wasn't cleared (the auto-pick rule;
+    `pick` True always, False never). Returns the finished takes.
+    RuntimeError when nothing could be queued. `runner`: seriesmith's queue
+    (default: the command line's own, runner.cli_runner(backend))."""
+    from seriesmith import runner as RN
     ref = find_ref(s, req.ref)
-    out = queue_generate(s, req, comfy, base, listing=listing, resolve=resolve, cache=cache)
+    runner = runner or RN.cli_runner(backend, log=log)
+    out = queue_generate(s, req, comfy, base, listing=listing, resolve=resolve, cache=cache,
+                         runner=runner, backend=backend)
     for e in out["errors"]:
         log(f"  !! {e['ref']}{' ' + e['view'] if e.get('view') else ''}: {e['error']}")
     if not out["queued"]:
         raise RuntimeError("nothing was queued")
     done = []
+    RN.wait(runner.queue, [q["prompt_id"] for q in out["queued"]], timeout)
     for q in out["queued"]:
         t = get_take(ref, q["view"], q["take"])
-        status = wait_take(comfy, t, q["prompt_id"], timeout)
+        status = (t.sidecar or {}).get("status", "?")
         log(f"  .. {q['ref']}{' ' + q['view'] if q.get('view') else ''} t{q['take']:02d} "
             f"({q['target']}): {status}")
         if status == "ok":
@@ -3440,7 +3422,8 @@ def import_keyframe(s: Series, ref: Ref, plan: KeyframePlan) -> RefTake:
 
 def fill_keyframe(s: Series, shot: str, which: str, comfy=None, pass_: str = "proxy",
                   base=None, listing=None, resolve=None, cache=None, dry_run: bool = False,
-                  target: str | None = None, timeout: float = 900, log=print) -> FillResult:
+                  target: str | None = None, timeout: float = 900, log=print,
+                  runner=None, backend: str | None = None) -> FillResult:
     """Fill one needed keyframe by its method (keyframe_needs): `continuity`
     cuts the previous shot's last frame (keyframe_from_take; the pass's cut)
     and falls back to generating when that shot has no usable take; an image
@@ -3478,7 +3461,8 @@ def fill_keyframe(s: Series, shot: str, which: str, comfy=None, pass_: str = "pr
         return FillResult(ref.id, "generate",
                           f"would generate with {job.target.id} at {job.width}x{job.height}"
                           + (f", references: {refs}" if refs else "") + f"\n{job.prompt}")
-    done = generate_and_wait(s, req, comfy, base, timeout, listing, resolve, cache, log=log)
+    done = generate_and_wait(s, req, comfy, base, timeout, listing, resolve, cache, log=log,
+                             runner=runner, backend=backend)
     return FillResult(ref.id, "generate", f"{len(done)} take(s)",
                       done[0].take if done else None)
 

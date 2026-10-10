@@ -230,12 +230,13 @@ class PostQueueTest(ApiTest):
         self.assertIn(("h3pipe.post", {"ep": self.ep, "shot": "sh010", "take": 1,
                                        "status": "ok"}), self.events)
 
-    def test_a_backend_without_the_queue_is_refused(self):
+    def test_a_backend_not_set_up_is_an_error(self):
         self.ready_comfy()
         self.upscaled()
-        self.err(A.queue_post(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 1}],
-                                         "enhance": "draft", "backend": "cloud"}), 400)
-
+        out = self.ok(A.queue_post(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 1}],
+                                              "enhance": "draft", "backend": "cloud"}))
+        self.assertEqual(out["queued"], [])
+        self.assertIn("cloud isn't set up", out["errors"][0]["error"])
 
 if __name__ == "__main__":
     unittest.main()

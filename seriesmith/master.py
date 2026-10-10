@@ -401,15 +401,17 @@ def in_order(rows: list, order: str = "cut") -> list:
 
 def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut", runner=None,
                  backend: str | None = None) -> tuple[list, list]:
-    """Queue the plan's `upscale` rows on ComfyUI, in cut order or grouped by
-    what they load (in_order), and with --post the posts: an upscale row's
+    """Queue the plan's `upscale` rows on seriesmith's queue (`runner`, on
+    `backend`, default local; Runner.enqueue_finish), in cut order or grouped
+    by what they load (in_order), and with --post the posts: an upscale row's
     right behind its upscale in cut order (after all the upscales when grouped
-    by target), then the `post` rows. Returns (queued rows, [(row, error)]).
-    MasterError when this ComfyUI can't run them.
-
-    `runner` (seriesmith's queue) and `backend`: each goes on the queue
-    instead (Runner.enqueue_finish), a post after its upscale and an upscale
-    that starts from the previous shot's upscale after that one."""
+    by target), then the `post` rows. A post waits for its upscale, and an
+    upscale that starts from the previous shot's upscale for that one.
+    Returns (queued rows, [(row, error)]). MasterError when this ComfyUI
+    (`comfy`, asked) can't run them."""
+    if runner is None:
+        raise ValueError("queue_master needs seriesmith's queue (runner.Runner)")
+    backend = backend or "local"
     ups = in_order(plan.of("upscale"), order)
     posts = plan.of("post")
     if not ups and not posts:
@@ -438,11 +440,7 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut", runner=N
         from seriesmith import post as P
         try:
             P.start(r.post_job)
-            g = P.post_graph(r.post_job)
-            if runner is not None:
-                send("post", r.post_job, g, after=up_ids.get(r.shot))
-            else:
-                P.mark_queued(r.post_job, comfy.queue(g))
+            send("post", r.post_job, P.post_graph(r.post_job), after=up_ids.get(r.shot))
             return True
         except Exception as e:
             if os.path.isfile(r.take.paths.post_sidecar):
@@ -454,10 +452,7 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut", runner=N
         try:
             g = U.graph_of(r.job, bases, comfy_url)
             U.start(r.job)
-            if runner is not None:
-                up_ids[r.shot] = send("upscale", r.job, g, after=U.waits_for(r.job, up_ids))
-            else:
-                U.mark_queued(r.job, comfy.queue(g))
+            up_ids[r.shot] = send("upscale", r.job, g, after=U.waits_for(r.job, up_ids))
             r.status, r.why = "queued", "queued by this run"
             queued.append(r)
         except Exception as e:
@@ -477,10 +472,11 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut", runner=N
     return queued, errors
 
 
-def wait_master(plan: Plan, comfy, timeout: int = 3600) -> list:
+def wait_master(plan: Plan, runner, timeout: int = 3600) -> list:
     """Follow every queued row's upscale, and with --post its post, to its end
-    (ComfyUI's history by its prompt id). Returns the rows whose upscale or
-    post didn't finish ok."""
+    (seriesmith's queue, by the job id its record names). Returns the rows
+    whose upscale or post didn't finish ok."""
+    from seriesmith import runner as RN
     stages = [("upscale", T.upscale_of)]
     if plan.post is not None:
         stages.append(("post", T.post_of))
@@ -491,15 +487,8 @@ def wait_master(plan: Plan, comfy, timeout: int = 3600) -> list:
             if rec.get("status") != "queued":
                 continue
             pid = rec.get("comfy_prompt_id")
-            t0 = time.time()
-            try:
-                if pid:
-                    comfy.wait(pid, timeout)
-                while (of(r.take) or {}).get("status") == "queued" and time.time() - t0 < 60:
-                    time.sleep(0.5)                     # the saver's record lands just after
-            except Exception as e:
-                bad.append((r, f"its {name}: {e}"))
-                break
+            if pid in runner.queue.jobs:
+                RN.wait(runner.queue, [pid], timeout)
             rec = of(r.take) or {}
             if rec.get("status") != "ok":
                 bad.append((r, rec.get("save_notes") or f"its {name} is {rec.get('status')}"))
@@ -880,7 +869,7 @@ def print_plan(plan: Plan) -> None:
     print(f"  {counts}")
 
 
-def master_episode(root: str, args, comfy) -> int:
+def master_episode(root: str, args, comfy, runner) -> int:
     """One episode of `h3.py master`: plan, queue, (wait), assemble."""
     try:
         plan = plan_master(root, args.pass_, args.conform, args.post)
@@ -899,7 +888,8 @@ def master_episode(root: str, args, comfy) -> int:
     for _ in range(3):
         if plan.of("upscale") or plan.of("post"):
             try:
-                queued, errors = queue_master(plan, comfy, args.comfy, args.order)
+                queued, errors = queue_master(plan, comfy, args.comfy, args.order,
+                                              runner=runner, backend=args.backend)
             except MasterError as e:
                 print(f"  !! {e}")
                 return 1
@@ -913,11 +903,9 @@ def master_episode(root: str, args, comfy) -> int:
                 return 1
         if not plan.of("queued"):
             break
-        if not args.wait:
-            print("  run it again once they've finished (or --wait) to assemble the master")
-            return 0
+        # this process's queue runs them: it waits for them (--wait is the default)
         print(f"  waiting for {len(plan.of('queued'))} shot(s)...", flush=True)
-        bad = wait_master(plan, comfy, args.timeout)
+        bad = wait_master(plan, runner, args.timeout)
         for r, e in bad:
             print(f"  !! {r.shot}: {e}")
         if bad:
@@ -998,7 +986,11 @@ def main(argv=None) -> int:
                     help="the proxy cut (a check of the flow; masters are the final's)")
     ap.add_argument("--check", action="store_true", help="the plan only: queue and write nothing")
     ap.add_argument("--wait", action="store_true",
-                    help="follow the queued upscales and assemble when they're done")
+                    help="(always so now: the upscales run in this process's queue, and the "
+                         "master is assembled when they're done)")
+    ap.add_argument("--backend", default=None,
+                    help="where the upscales and posts run (default local: this machine's "
+                         "ComfyUI, through comfy-api-proxy)")
     ap.add_argument("--conform", action="store_true",
                     help="also redo upscales made with other settings than the recipe's (never a Keep)")
     ap.add_argument("--allow-gaps", action="store_true",
@@ -1026,6 +1018,7 @@ def main(argv=None) -> int:
         print("  !! no episodes found")
         return 2
     comfy = J.Comfy(args.comfy)
+    runner = None
     results = {}
     for root in roots:
         if args.prores_only:
@@ -1037,7 +1030,14 @@ def main(argv=None) -> int:
                 print(f"  !! {os.path.basename(root)}: {e}")
                 results[root] = 1
             continue
-        results[root] = master_episode(root, args, comfy)
+        if runner is None and not args.check:
+            from seriesmith import runner as RN
+            try:
+                runner = RN.cli_runner(args.backend)
+            except ValueError as e:
+                print(f"  !! {e}")
+                return 1
+        results[root] = master_episode(root, args, comfy, runner)
     if len(roots) > 1:
         print("\n  " + ", ".join(f"{os.path.basename(r)} {'ok' if rc == 0 else 'not done'}"
                                  for r, rc in results.items()))

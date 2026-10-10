@@ -170,11 +170,10 @@ class RouterRefTest(unittest.TestCase):
         self.assertTrue(take.paths.image.endswith(".jpg"), take.paths.image)
         self.assertEqual((take.sidecar["width"], take.sidecar["height"]), (1344, 768))
 
-    def test_a_hosted_target_needs_the_queue(self):
-        res = R.queue_generate(self.s, R.GenRequest("location:kitchen", None, target="krea_2_router"),
-                               None, None)
-        (err,) = res["errors"]
-        self.assertIn("hosted model", err["error"])
+    def test_every_take_needs_the_queue(self):
+        with self.assertRaisesRegex(ValueError, "needs seriesmith's queue"):
+            R.queue_generate(self.s, R.GenRequest("location:kitchen", None, target="krea_2_router"),
+                             None, None)
 
 
 if __name__ == "__main__":

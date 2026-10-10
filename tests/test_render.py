@@ -21,6 +21,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import shotnodes as SN  # noqa: E402
+from seriesmith.backends import Progress  # noqa: E402
+from seriesmith.backends.fake import FakeBackend, FakeRun  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 WORKFLOW = os.path.join(ROOT, "seriesmith", "targets", "video", "minimax_h3_ref2va", "workflow.json")
@@ -345,6 +348,7 @@ class FakeComfy:
         self.pending: list[str] = []
         self.posts: list[tuple[str, dict]] = []
         self.uploads: dict[str, bytes] = {}       # /upload/image: "sub/name" -> bytes
+        self.backends: dict = {}                  # play_runner's PlayBackends, by name
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -594,9 +598,215 @@ class FakeComfy:
                              "outputs": outputs}
         return pid
 
+    @property
+    def runner(self):
+        """seriesmith's queue with a local backend playing this fake's graphs
+        (play_runner), made on first use."""
+        if getattr(self, "_runner", None) is None:
+            self._runner = play_runner(self)
+        return self._runner
+
     def close(self):
+        for b in self.backends.values():
+            b.release()
+        T.MANAGED = None
         self.server.shutdown()
 
+
+# ---------------------------------------------------------------------------
+# a backend that plays portable graphs, as FakeComfy plays h3pipe's
+# ---------------------------------------------------------------------------
+
+class PlayRun(FakeRun):
+    """A FakeRun whose end follows its FakeComfy's `mode` when it was
+    submitted: "error" fails (boom), "hold" waits until cancelled (or the
+    backend's release())."""
+
+    def __init__(self, backend, job, mode):
+        super().__init__(backend, job)
+        self.mode = mode
+        self._go = threading.Event()
+
+    def watch(self, on_progress=None, on_status=None) -> str:
+        if self.status in ("succeeded", "failed", "canceled"):
+            return self.status
+        self.status = "running"
+        if on_status:
+            on_status("running")
+        if self.mode == "hold":
+            self._fb.held.append(self)
+            self._go.wait()
+            if self.status == "canceled":
+                return self.status
+        if on_progress:
+            on_progress(Progress(1.0))
+        if self.mode == "error":
+            self.status, self.error = "failed", "boom"
+        else:
+            self.status = "succeeded"
+        return self.status
+
+    def cancel(self) -> None:
+        self.status = "canceled"
+        self._go.set()
+
+
+class PlayBackend(FakeBackend):
+    """What a backend gives back for each portable graph seriesmith sends, as
+    FakeComfy does for h3pipe's: a shot (SeriesmithSaveTake: an mp4, a record
+    at the shot's length), an upscale or post (SeriesmithSaveUpscale: the mp4
+    at the size its graph asks for), a reference picture (SaveImage: a flat
+    PNG of its latent's size, coloured by its seed), a voice (SaveAudio: a wav
+    of the asked length, named .flac as ComfyUI's SaveAudio names it), a tour
+    (SaveVideo). Every graph lands in the FakeComfy's `graphs`; its `mode`
+    ("reject": refused at submit, "error", "hold") is honoured."""
+
+    def __init__(self, fake, name: str = "local", kind: str = "local"):
+        super().__init__(name, kind, outputs=self.play)
+        self.fake = fake
+        self.held: list[PlayRun] = []
+
+    def submit(self, graph: dict):
+        if self.fake.mode == "reject":
+            from seriesmith.backends import BackendError
+            raise BackendError("invalid prompt: node 11: bad input")
+        g = self._upload(graph)
+        self.submitted.append(g)
+        self.fake.graphs.append(g)
+        return PlayRun(self, g, self.fake.mode)
+
+    def release(self) -> None:
+        """Let every held run finish."""
+        for r in self.held:
+            r._go.set()
+        self.held = []
+
+    def play(self, g: dict) -> dict:
+        kinds = {v["class_type"]: k for k, v in g.items()}
+        if J.PORTABLE_SAVER in kinds:
+            return self.play_shot(g, kinds[J.PORTABLE_SAVER])
+        if "SeriesmithSaveUpscale" in kinds:
+            return self.play_upscale(g, kinds["SeriesmithSaveUpscale"])
+        if "SaveAudio" in kinds:
+            return self.play_audio(g, kinds["SaveAudio"])
+        if "SaveVideo" in kinds:
+            return {kinds["SaveVideo"]: [("tour_00001_.mp4", "video", b"mp4")]}
+        if "SaveImage" in kinds:
+            return self.play_image(g, kinds["SaveImage"])
+        return {}
+
+    def play_shot(self, g: dict, saver: str) -> dict:
+        si = g[saver]["inputs"]
+        shot = None
+        for v in g.values():
+            if v["class_type"] == J.PORTABLE_LOADER:
+                shot = json.loads(v["inputs"]["shotlist"])["shots"][0]
+        if shot is None:
+            # a loader-less target (ltx2): the saver names the shot, the latent its length
+            lat = next((v["inputs"] for v in g.values()
+                        if v["class_type"] == "EmptyLTXVLatentVideo"), {})
+            length = lat.get("length", 73)
+            if isinstance(length, list):
+                length = self.fake.predicted_frames      # `dur: model`: the model's choice
+            shot = {"id": si.get("shot_id") if isinstance(si.get("shot_id"), str)
+                    else si["run"].split("_")[-3], "length": length}
+        take = si["take"]
+        stem = f"{T.safe_id(shot['id'])}_t{take:02d}"
+        items = [(f"{stem}.mp4", "video", b"")]
+        latent = False          # as FakeComfy: no latent file (tests write one when they need it)
+        if si.get("save_frames"):
+            items += [(f"{stem}_{i:06d}.png", "file", b"png") for i in range(2)]
+        items.append((stem + SN.RECORD_SUFFIX, "file", json.dumps({
+            "shot": shot["id"], "take": take, "status": "ok", "finished": T.now(),
+            "frames": shot.get("length"), "mp4": f"{stem}.mp4", "thumb": None, "strip": None,
+            **({"latent": f"{stem}.latent.safetensors"} if latent else {}),
+            "save_notes": "fake"}).encode()))
+        return {saver: items}
+
+    def play_upscale(self, g: dict, saver: str) -> dict:
+        si = g[saver]["inputs"]
+        px = next((v["inputs"] for v in g.values()
+                   if v["class_type"] in ("SeriesmithPixelUpscale", "ImageScale")), None)
+        loader = next((v["inputs"] for v in g.values() if v["class_type"] == J.PORTABLE_LOADER),
+                      None)
+        w = h = None
+        if px is not None:                       # the pixel method: its node says the size
+            w, h = px["width"], px["height"]
+        elif loader is not None and loader.get("resolution_override"):
+            w, h = (int(x) for x in loader["resolution_override"].split("x"))
+        if si.get("width") and si.get("height"):  # a delivery size: the saver makes it
+            w, h = si["width"], si["height"]
+        name = si["name"]
+        items = [(f"{name}.mp4", "video", b"upscaled")]
+        if si.get("last_frame"):
+            items.append((f"{name}_last.png", "image", b"last"))
+        if "latent" in si:
+            items.append((f"{name}.latent.safetensors", "latent", b"uplatent"))
+        rec = {"status": "ok", "finished": T.now(), "audio": "copied", "save_notes": "fake"}
+        if w and h:
+            rec.update(width=w, height=h)
+        if "chain_hold" in si:
+            rec["chain_hold"] = {"held": True}
+        items.append((name + SN.RECORD_SUFFIX, "file", json.dumps(rec).encode()))
+        return {saver: items}
+
+    def play_image(self, g: dict, saver: str) -> dict:
+        lat = next((v["inputs"] for v in g.values()
+                    if v["class_type"] in ("EmptyLatentImage", "EmptySD3LatentImage",
+                                           "EmptyFlux2LatentImage")), {"width": 64, "height": 64})
+        seed = next((v["inputs"].get("seed", v["inputs"].get("noise_seed", 0))
+                     for v in g.values() if v["class_type"].startswith("KSampler")), 0)
+        if not isinstance(seed, int):
+            seed = 0
+        png = png_bytes(lat["width"], lat["height"],
+                        (seed % 256, (seed >> 8) % 256, (seed >> 16) % 256))
+        return {saver: [("ComfyUI_00001_.png", "image", png)]}
+
+    def play_audio(self, g: dict, saver: str) -> dict:
+        lat = next((v["inputs"] for v in g.values()
+                    if v["class_type"] == "LTXVEmptyLatentAudio"), None)
+        seconds = (lat["frames_number"] / float(lat["frame_rate"] or 24)) if lat else 1.0
+        return {saver: [("ComfyUI_00001_.flac", "audio", wav_bytes(seconds))]}
+
+
+def play_runner(fake, emit=None, name: str = "local"):
+    """A Runner whose `name` backend plays portable graphs for `fake`
+    (FakeComfy): what the editor's and the command line's queue use in tests."""
+    from seriesmith.queue import Queue
+    from seriesmith.runner import Runner
+    pb = PlayBackend(fake, name, "local" if name == "local" else J.backend_kind(name))
+    fake.backends[name] = pb
+    return Runner(Queue(emit), {name: pb}, emit=emit)
+
+
+def settle(runner, timeout: float = 20.0) -> None:
+    """Wait until every job of `runner`'s queue has ended, except those its
+    held runs keep (FakeComfy mode "hold")."""
+    import time as _t
+    from seriesmith.queue import DONE
+    end = _t.time() + timeout
+    while _t.time() < end:
+        busy = [j for j in runner.queue.jobs.values() if j.status not in DONE]
+        if not busy:
+            return
+        backends = list(runner.backends.values())
+        holding = sum(len(getattr(b, "held", [])) for b in backends)
+        running = sum(1 for j in busy if j.status == "running")
+        if holding and holding >= running and all(
+                getattr(b, "fake", None) is not None and b.fake.mode == "hold" for b in backends):
+            return
+        _t.sleep(0.02)
+    raise AssertionError("the queue didn't settle: " + ", ".join(
+        f"{j.title} {j.status}" for j in runner.queue.jobs.values() if j.status not in DONE))
+
+
+
+def queue_generate(fake, *args, **kw):
+    """refs.queue_generate on `fake`'s queue (FakeComfy.runner), waited for."""
+    from seriesmith import refs as R
+    out = R.queue_generate(*args, runner=fake.runner, **kw)
+    settle(fake.runner)
+    return out
 
 class WorkflowLookupTest(unittest.TestCase):
     def test_order(self):

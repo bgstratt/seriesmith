@@ -27,6 +27,9 @@ environment and start it beside ComfyUI:
 - `comfy-api-proxy status` / `stop` manage the background process.
 - The proxy can't see ComfyUI's model lists or installed nodes; seriesmith asks
   ComfyUI for those directly (`comfyui_url`).
+- You rarely start it yourself: `seriesmith serve`, and every command that
+  queues work on `local` (render, upscale, post, master, tour, kreagen), start
+  it when it isn't running and ComfyUI is.
 
 Check it:
 
@@ -35,13 +38,16 @@ Check it:
 
 ## The seriesmith nodes
 
-Shots render through seriesmith's own loader and saver nodes (`comfy_nodes/`).
-Link the folder into ComfyUI's `custom_nodes` and restart ComfyUI:
+Everything seriesmith sends a backend runs on its own nodes (`comfy_nodes/`):
+the shot loader and saver, the `continuous: latent` chain, the upscale loaders
+and saver, and the upscale and post compute nodes. h3pipe's node pack isn't
+needed (the runner refuses a graph that would use it). Link the folder into
+ComfyUI's `custom_nodes` and restart ComfyUI:
 
     mklink /J "<ComfyUI>\custom_nodes\seriesmith" "<seriesmith>\comfy_nodes"     (Windows)
     ln -s "<seriesmith>/comfy_nodes" "<ComfyUI>/custom_nodes/seriesmith"           (elsewhere)
 
-They sit happily beside h3pipe's node pack. A target's own model nodes (H3's
+They sit happily beside h3pipe's node pack if you keep it for h3pipe. A target's own model nodes (H3's
 `H3SLAAttention` from ComfyUI-PlagueKind-Nodes, for one) are still needed;
 `seriesmith render --dry-run` writes the graph a shot would run.
 

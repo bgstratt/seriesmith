@@ -5,14 +5,14 @@ h3tour — a camera tour of a location on MiniMax H3, and its held frames as pla
 Start from a location's live plate, say where the camera goes and where it
 stops, and H3's image-to-video model moves through the place keeping it the
 same -- the same walls, signs and furniture -- which separately drawn plates
-cannot. The video's held moments (comfy_nodes/h3_stills.py: motion under a
+cannot. The video's held moments (helpers/stills.py: motion under a
 threshold, the sharpest frame of each run) become takes of the location's
 `tour` pseudo-view (h3refs.TOUR_VIEW), never picked into the plate; one is
 copied into the location or an angle of it as a plate candidate
 (h3refs.copy_take). Ported from h3sets' tour.py and stills.py.
 
     python h3tour.py EPISODE location:ambulance_bay_night "The camera turns slowly to the left ... and holds"
-        [--seconds 6] [--count 1] [--comfy URL]
+        [--seconds 6] [--count 1] [--backend NAME]
 
 The graph (workflows/h3_tour.json) is h3sets' H3 FL2VA image-to-video graph:
 the fl2va model, the 4-step turbo LoRA, the first frame only, SaveVideo.
@@ -34,7 +34,6 @@ import subprocess
 import sys
 import zlib
 
-from seriesmith import jobs as J
 from seriesmith import refs as R
 from seriesmith import takes as T
 
@@ -141,30 +140,6 @@ def save_side(ref: R.Ref, side: dict) -> None:
     T.write_json(_tour_file(ref, side["tour"], ".json"), side)
 
 
-def start_tour(s: R.Series, ref: R.Ref, move: str, comfy, seconds: float = DEFAULT_SECONDS,
-               count: int = 1, seed: int | None = None) -> list[dict]:
-    """Queue `count` tours of location `ref` from its live plate on ComfyUI;
-    returns their sidecars (status queued, `comfy_prompt_id`)."""
-    check_request(ref, move, seconds, count)
-    name = J.input_name(ref.file)
-    comfy.upload_input(ref.file, name)
-    out = []
-    for side, g in plan_tours(s, ref, move, name, seconds, count, seed):
-        side["comfy_prompt_id"] = comfy.queue(g)
-        save_side(ref, side)
-        out.append(side)
-    return out
-
-
-def _video_of(outputs: dict) -> dict | None:
-    for out in (outputs or {}).values():
-        for key in ("videos", "images", "gifs"):
-            for f in out.get(key, []) or []:
-                if str(f.get("filename", "")).lower().endswith((".mp4", ".webm", ".mov")):
-                    return f
-    return None
-
-
 def find_holds(video: str, out_dir: str, python: str | None = None, timeout: int = 600) -> dict:
     """Run h3_stills.py on `video`: its JSON (holds written into out_dir)."""
     cmd = [python or sys.executable, HELPER, video, out_dir, R._ffmpeg("ffmpeg"),
@@ -203,27 +178,6 @@ def grab_frame(s: R.Series, ref: R.Ref, tour: int, seconds: float) -> R.RefTake:
     return take
 
 
-def finish_tour(s: R.Series, ref: R.Ref, side: dict, comfy, timeout: int = 1800,
-                on_hold=None) -> dict:
-    """Wait for a queued tour, keep its video, find its holds and add each as a
-    take of the location's TOUR_VIEW. Returns the sidecar (status ok or failed).
-    `on_hold(take)` is called for each hold added."""
-    try:
-        outputs = comfy.wait(side["comfy_prompt_id"], timeout)
-        f = _video_of(outputs)
-        if f is None:
-            raise TourError("ComfyUI finished without saving a video")
-
-        def write(path):
-            with open(path, "wb") as fh:
-                fh.write(comfy.view(f))
-        return keep_tour(s, ref, side, write, os.path.splitext(f["filename"])[1], on_hold)
-    except Exception as e:                      # noqa: BLE001 (any failure is the tour's)
-        side.update(status="failed", finished=T.now(), error=str(e)[:800])
-    save_side(ref, side)
-    return side
-
-
 def keep_tour(s: R.Series, ref: R.Ref, side: dict, write, ext: str = ".mp4",
               on_hold=None) -> dict:
     """A finished tour's video kept (`write(path)` puts it there), its holds
@@ -256,15 +210,24 @@ def keep_tour(s: R.Series, ref: R.Ref, side: dict, write, ext: str = ".mp4",
     return side
 
 
-def run_tour(s: R.Series, ref: R.Ref, move: str, comfy, seconds: float = DEFAULT_SECONDS,
-             count: int = 1, seed: int | None = None, timeout: int = 1800, log=print) -> list[dict]:
-    """start_tour, then finish each in turn."""
+def run_tour(s: R.Series, ref: R.Ref, move: str, runner, seconds: float = DEFAULT_SECONDS,
+             count: int = 1, seed: int | None = None, timeout: int = 1800,
+             backend: str | None = None, log=print) -> list[dict]:
+    """`count` tours queued on seriesmith's queue (`runner`, Runner.enqueue_tour,
+    on `backend`, default local) and waited for. Returns their sidecars."""
+    from seriesmith import runner as RN
+    ids = []
+    for side, g in plan_tours(s, ref, move, None, seconds, count, seed):
+        n, qid = runner.enqueue_tour(s, ref, side, g, backend or "local")
+        log(f"  .. {ref.id} tour t{n:02d} queued")
+        ids.append((n, qid))
+    RN.wait(runner.queue, [q for _, q in ids], timeout)
     done = []
-    for side in start_tour(s, ref, move, comfy, seconds, count, seed):
-        log(f"  .. {ref.id} tour t{side['tour']:02d} queued")
-        side = finish_tour(s, ref, side, comfy, timeout)
-        log(f"  .. tour t{side['tour']:02d}: {side['status']}"
-            + (f", {len(side['holds'])} hold(s)" if side["status"] == "ok" else f": {side['error']}"))
+    for n, _ in ids:
+        side = next(d for d in list_tours(ref) if d.get("tour") == n)
+        log(f"  .. tour t{n:02d}: {side['status']}"
+            + (f", {len(side['holds'])} hold(s)" if side["status"] == "ok"
+               else f": {side.get('error')}"))
         done.append(side)
     return done
 
@@ -278,15 +241,18 @@ def main(argv=None) -> int:
     ap.add_argument("--seconds", type=float, default=DEFAULT_SECONDS)
     ap.add_argument("--count", type=int, default=1)
     ap.add_argument("--seed", type=int, default=None)
-    ap.add_argument("--comfy", default="http://127.0.0.1:8188")
+    ap.add_argument("--backend", default=None,
+                    help="where it runs (default local: this machine's ComfyUI, through "
+                         "comfy-api-proxy)")
     ap.add_argument("--timeout", type=int, default=1800)
     a = ap.parse_args(argv)
     s = R.load_series(os.path.abspath(a.episode))
     try:
         ref = R.find_ref(s, a.ref if a.ref.startswith("location:") else f"location:{a.ref}")
-        done = run_tour(s, ref, a.move, J.Comfy(a.comfy, client_id="h3tour"), a.seconds,
-                        a.count, a.seed, a.timeout)
-    except (TourError, R.RefError, R.UnknownRef) as e:
+        from seriesmith import runner as RN
+        done = run_tour(s, ref, a.move, RN.cli_runner(a.backend), a.seconds, a.count, a.seed,
+                        a.timeout, a.backend)
+    except (TourError, R.RefError, R.UnknownRef, ValueError) as e:
         print(f"  !! {e}")
         return 1
     for side in done:

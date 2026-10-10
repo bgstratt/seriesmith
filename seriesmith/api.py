@@ -88,15 +88,31 @@ class Context:
         self.comfy_url = (comfy_url or DEFAULT_COMFY).rstrip("/")
         self._emit = emit
         self._comfy = comfy
-        # seriesmith's queue (runner.Runner): renders go through the backends.
-        # None (the ComfyUI host, for now): straight onto this ComfyUI's queue.
-        self.runner = runner
+        # seriesmith's queue (runner.Runner): every job goes through it and the
+        # backends. A host that gives none gets one on first use (`runner`).
+        self._runner = runner
         self.env = os.environ if env is None else env
         if model_resolve is _UNSET:
             model_resolve = J.model_resolver() if J is not None else None
         self.model_resolve = model_resolve
         self._model_list = model_list
         self._model_cache = None
+
+    @property
+    def runner(self):
+        """seriesmith's queue and runner: the host's, else one of this
+        context's own on the backends the settings set up, its events going
+        out through `emit`."""
+        if self._runner is None:
+            from seriesmith.backends import available
+            from seriesmith.queue import Queue
+            from seriesmith.runner import Runner
+            self._runner = Runner(Queue(self.emit), available(), emit=self.emit)
+        return self._runner
+
+    @runner.setter
+    def runner(self, value) -> None:
+        self._runner = value
 
     @property
     def model_cache(self):
@@ -665,8 +681,6 @@ def _opt_backend(ctx: Context, body: dict) -> str | None:
     if not isinstance(backend, str) or J.backend_kind(backend) not in TG.BACKENDS:
         raise ApiError(400, f"backend must be one of {', '.join(TG.BACKENDS)} "
                             f"(deployment[:<target>]), not {backend!r}")
-    if ctx.runner is None:
-        raise ApiError(400, "this host renders on its own ComfyUI only")
     return backend
 
 
@@ -802,10 +816,13 @@ def post_cancel(ctx: Context, body):
     take = check_take(body.get("take"))
     owned = T.get_take(ep, pass_, shot, take)
     sc = (owned.sidecar or {}) if owned else {}
-    if ctx.runner is not None and sc.get("queue") == "seriesmith" and sc.get("status") == "queued":
+    if sc.get("queue") == "seriesmith" and sc.get("status") == "queued":
         # seriesmith's queue has it: a waiting job leaves it, a running one stops
         try:
             ctx.runner.queue.cancel(sc.get("comfy_prompt_id"))
+            # a running one stops in a moment: answer with how it ended
+            from seriesmith import runner as RN
+            RN.wait(ctx.runner.queue, [sc.get("comfy_prompt_id")], 15, poll=0.05)
         except KeyError:
             J.mark_failed(owned, "canceled (its queue job was gone)")
         t = T.get_take(ep, pass_, shot, take)
@@ -850,13 +867,9 @@ def post_discard(ctx: Context, body):
 # upscale (Phase 13)
 # ---------------------------------------------------------------------------
 
-def finish_backend(ctx: Context, body: dict) -> str | None:
-    """Where an upscale or post runs: with seriesmith's queue, the request's
-    `backend` or this machine's own ComfyUI ("local"); None without it (queued
-    on ComfyUI directly)."""
-    if ctx.runner is None:
-        _opt_backend(ctx, body)                      # a `backend` here is a 400
-        return None
+def finish_backend(ctx: Context, body: dict) -> str:
+    """Where an upscale, post or tour runs: the request's `backend`, else this
+    machine's own ComfyUI ("local")."""
     return _opt_backend(ctx, body) or "local"
 
 
@@ -866,8 +879,7 @@ def still_queued(ctx: Context) -> set:
         alive = set(ctx.comfy.alive())
     except Exception:
         alive = set()
-    if ctx.runner is not None:
-        alive |= ctx.runner.queue.alive()
+    alive |= ctx.runner.queue.alive()
     return alive
 
 
@@ -1007,6 +1019,7 @@ def post_upscale(ctx: Context, body):
         missing = U.not_ready(jobs, info)
         if missing:
             raise ApiError(409, "this ComfyUI can't run these upscales: " + "; ".join(missing))
+        from seriesmith import finishing as F
         bases: dict = {}
         backend = finish_backend(ctx, body)
         ids: dict = {}
@@ -1014,13 +1027,8 @@ def post_upscale(ctx: Context, body):
             try:
                 g = U.graph_of(up, bases, ctx.comfy_url)
                 U.start(up)
-                if backend:
-                    from seriesmith import finishing as F
-                    pid = ids[up.shot] = ctx.runner.enqueue_finish(
-                        F.of_upscale(up, g), backend, after=U.waits_for(up, ids))
-                else:
-                    pid = ctx.comfy.queue(g)
-                    U.mark_queued(up, pid)
+                pid = ids[up.shot] = ctx.runner.enqueue_finish(
+                    F.of_upscale(up, g), backend, after=U.waits_for(up, ids))
             except Exception as e:
                 if os.path.isfile(up.take.paths.up_sidecar):
                     U.mark_failed(up, str(e)[:800])
@@ -1134,16 +1142,12 @@ def queue_post(ctx: Context, body):
         missing = P.not_ready(jobs, info)
         if missing:
             raise ApiError(409, "this ComfyUI can't run these posts: " + "; ".join(missing))
+        from seriesmith import finishing as F
         backend = finish_backend(ctx, body)
         for job in jobs:
             try:
                 P.start(job)
-                if backend:
-                    from seriesmith import finishing as F
-                    pid = ctx.runner.enqueue_finish(F.of_post(job, P.post_graph(job)), backend)
-                else:
-                    pid = ctx.comfy.queue(P.post_graph(job))
-                    P.mark_queued(job, pid)
+                pid = ctx.runner.enqueue_finish(F.of_post(job, P.post_graph(job)), backend)
             except Exception as e:
                 if os.path.isfile(job.take.paths.post_sidecar):
                     P.mark_failed(job, str(e)[:800])
@@ -1273,8 +1277,7 @@ def post_master(ctx: Context, body):
         try:
             backend = finish_backend(ctx, body)
             queued, errors = M.queue_master(plan, ctx.comfy, ctx.comfy_url, order,
-                                            runner=ctx.runner if backend else None,
-                                            backend=backend)
+                                            runner=ctx.runner, backend=backend)
         except M.MasterError as e:
             raise ApiError(409, str(e))
         for r in queued:
@@ -2382,9 +2385,6 @@ def post_refs_generate(ctx: Context, body):
     return 200, seeds_out(result)
 
 
-_TOUR_THREADS: dict = {}
-
-
 @handler
 def post_refs_tour(ctx: Context, body):
     """P5: a camera tour of a location on H3 (h3tour.py), from its live plate:
@@ -2401,34 +2401,15 @@ def post_refs_tour(ctx: Context, body):
     count = body.get("count", 1)
     seed = seed_in(body.get("seed")) if body.get("seed") else None
     backend = finish_backend(ctx, body)
-    if backend:
-        # seriesmith's queue: each tour a job, its plate uploaded, its holds
-        # found when the video comes back
-        try:
-            ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
-                   h3tour.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
-        except (h3tour.TourError, R.RefError) as e:
-            raise ApiError(400, str(e))
-        episode_event(ctx, ep)
-        return 200, {"queued": [{"tour": n, "comfy_prompt_id": i} for n, i in ids]}
+    # each tour a job on seriesmith's queue: its plate uploaded, its holds
+    # found when the video comes back
     try:
-        sides = h3tour.start_tour(s, ref, body.get("move") or "", ctx.comfy, seconds, count, seed)
+        ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
+               h3tour.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
     except (h3tour.TourError, R.RefError) as e:
         raise ApiError(400, str(e))
-
-    def finish():
-        for side in sides:
-            h3tour.finish_tour(s, ref, side, ctx.comfy,
-                               on_hold=lambda t: ref_event(ctx, ep, ref.id, R.TOUR_VIEW,
-                                                           t.take, "ok"))
-            episode_event(ctx, ep)
-
-    th = threading.Thread(target=finish, name=f"h3tour {ref.id}", daemon=True)
-    _TOUR_THREADS[(ep, ref.id)] = th
-    th.start()
     episode_event(ctx, ep)
-    return 200, {"queued": [{"tour": d["tour"], "comfy_prompt_id": d["comfy_prompt_id"]}
-                            for d in sides]}
+    return 200, {"queued": [{"tour": n, "comfy_prompt_id": i} for n, i in ids]}
 
 
 @handler

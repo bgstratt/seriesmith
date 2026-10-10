@@ -60,6 +60,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -202,10 +203,29 @@ def discard_files(files: list[str], trash: str) -> list[str]:
 # JSON files
 # ---------------------------------------------------------------------------
 
+# Windows: a file being replaced (os.replace) can't be opened for a moment,
+# and one held open by a reader can't be replaced -- PermissionError, both
+# ways. seriesmith's queue writes a take's record on its own threads while the
+# editor's routes read it, so each side waits that moment out and tries again.
+_SHARING_TRIES, _SHARING_WAIT = 80, 0.025          # about 2 s
+
+
+def _shared(fn):
+    for i in range(_SHARING_TRIES):
+        try:
+            return fn()
+        except PermissionError:
+            if i == _SHARING_TRIES - 1:
+                raise
+            time.sleep(_SHARING_WAIT)
+
+
 def read_json(path: str, default=None):
-    try:
+    def read():
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
+    try:
+        return _shared(read)
     except FileNotFoundError:
         return default
 
@@ -219,7 +239,7 @@ def write_json(path: str, data) -> None:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(data, fh, ensure_ascii=False, indent=2)
             fh.write("\n")
-        os.replace(tmp, path)
+        _shared(lambda: os.replace(tmp, path))
     except BaseException:
         try:
             os.remove(tmp)
@@ -444,11 +464,25 @@ def claim_number(first: int, sidecar_of, data_for, taken=None) -> tuple[int, dic
         return n, data
 
 
+_LOCKS: dict = {}
+_LOCKS_LOCK = threading.Lock()
+
+
+def _lock_for(path: str) -> threading.Lock:
+    key = os.path.normcase(os.path.abspath(path))
+    with _LOCKS_LOCK:
+        return _LOCKS.setdefault(key, threading.Lock())
+
+
 def update_sidecar(path: str, **fields) -> dict:
-    data = read_json(path, {}) or {}
-    data.update(fields)
-    write_json(path, data)
-    return data
+    """`fields` merged into the record at `path`: one read-modify-write at a
+    time per file in this process (the queue's threads and the routes both
+    update records), so neither loses the other's fields."""
+    with _lock_for(path):
+        data = read_json(path, {}) or {}
+        data.update(fields)
+        write_json(path, data)
+        return data
 
 
 def _parse_time(s) -> _dt.datetime | None:

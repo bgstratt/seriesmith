@@ -34,7 +34,7 @@ import test_phase85  # noqa: E402
 from seriesmith.targets.image import common as IC  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase85 import OBJECT_INFO, Episode, write_png  # noqa: E402
-from test_render import png_bytes  # noqa: E402
+from test_render import png_bytes, queue_generate  # noqa: E402
 
 try:
     from PIL import Image
@@ -301,7 +301,8 @@ class GenerateMissingTest(RefsHelpers):
         self.assertEqual(out["errors"], [])
         self.assertEqual(sorted((q["ref"], q["view"]) for q in out["queued"]), got)
         self.assertTrue(all(q["take"] == 1 and q["prompt_id"] for q in out["queued"]))
-        self.assertEqual(len(self.events_of("h3pipe.ref")), 6)
+        self.assertEqual(len([e for e in self.events_of("h3pipe.ref")
+                              if e["status"] == "queued"]), 6)
         # the candidates finished (FakeComfy) and wait to be picked: skipped now
         again = self.gm(kinds=["series"], dry_run=True)
         self.assertEqual(again["queued"], [])
@@ -424,13 +425,16 @@ class CompositeTest(Episode):
     def test_generate_uploads_one_composed_reference(self):
         write_png(os.path.join(self.s.home, "refs", "_bg", "kitchen.png"), 64, 36, (0, 0, 255))
         c = self.fake()
-        out = R.queue_generate(self.s, R.GenRequest("shot:sh020:first", target="flux_kontext"),
-                               J.Comfy(c.url), None, rng=random.Random(3))
+        out = queue_generate(c, self.s, R.GenRequest("shot:sh020:first", target="flux_kontext"),
+                             J.Comfy(c.url), None, rng=random.Random(3))
         self.assertEqual(out["errors"], [])
         g = c.graphs[-1]
-        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
-        (name,) = [v["inputs"]["image"] for v in g.values() if v["class_type"] == "LoadImage"]
-        im = Image.open(io.BytesIO(c.uploads[name])).convert("RGB")
+        (f,) = [v["inputs"]["image"] for v in g.values() if v["class_type"] == "LoadImage"]
+        self.assertEqual(J.check_graph(
+            {k: dict(v, inputs={i: (x.path if hasattr(x, "path") else x)
+                                for i, x in v["inputs"].items()}) for k, v in g.items()},
+            OBJECT_INFO), [])
+        im = Image.open(f.path).convert("RGB")                       # uploaded with the job
         ref = R.find_ref(self.s, "shot:sh020:first")
         sc = R.get_take(ref, None, out["queued"][0]["take"]).sidecar
         self.assertEqual(im.size, (sc["width"], sc["height"]))
@@ -450,9 +454,9 @@ class CompositeTest(Episode):
         from seriesmith.targets.video.ltx2_ingredients import sheet as SH
         c = self.fake()
         with mock.patch.object(SH, "compose", side_effect=SH.SheetError("needs PIL")):
-            out = R.queue_generate(self.s, R.GenRequest("shot:sh020:first",
-                                                        target="flux_kontext"),
-                                   J.Comfy(c.url), None, rng=random.Random(3))
+            out = queue_generate(c, self.s, R.GenRequest("shot:sh020:first",
+                                                         target="flux_kontext"),
+                                 J.Comfy(c.url), None, rng=random.Random(3))
         self.assertEqual(out["errors"], [])
         ref = R.find_ref(self.s, "shot:sh020:first")
         sc = R.get_take(ref, None, out["queued"][0]["take"]).sidecar

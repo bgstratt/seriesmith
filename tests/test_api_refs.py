@@ -22,7 +22,7 @@ from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
-from test_render import FIXTURE, png_bytes  # noqa: E402
+from test_render import FIXTURE, play_runner, png_bytes  # noqa: E402
 
 try:
     import PIL  # noqa: F401
@@ -67,10 +67,12 @@ class RefsApiTest(ApiTest):
         self.assertEqual(data["errors"], [])
         self.assertEqual([q["view"] for q in data["queued"]], R.VIEW_TAGS)
         self.assertEqual({q["seed"] for q in data["queued"]}, {str(R.seed_for("ada"))})
-        self.assertEqual([e for e in self.events_of("h3pipe.ref")],
+        self.assertEqual([e for e in self.events_of("h3pipe.ref") if e["status"] == "queued"],
                          [{"ep": self.ep, "ref": "subject:ada", "view": v, "take": 1,
                            "status": "queued"} for v in R.VIEW_TAGS])
-        self.assertEqual(self.events_of("h3pipe.episode"), [{"ep": self.ep}])
+        self.assertEqual({e["view"] for e in self.events_of("h3pipe.ref") if e["status"] == "ok"},
+                         set(R.VIEW_TAGS))               # each ended, on the queue
+        self.assertEqual({d["ep"] for d in self.events_of("h3pipe.episode")}, {self.ep})
         views = self.refs()["subject:ada"]["views"]
         t = views[0]["takes"][0]
         self.assertEqual((t["status"], t["source"], t["seed"]),
@@ -99,10 +101,10 @@ class RefsApiTest(ApiTest):
                                                  "seed": 1.5}), 400)
         self.err(A.post_refs_generate(self.ctx, {"ep": self.ep, "ref": "subject:ada",
                                                  "prompt": "one for all"}), 400)
+        # a graph the backend refuses: queued, and failed when its job starts
         self.comfy.mode = "reject"
         data = self.gen("location:kitchen")
-        (e,) = data["errors"]
-        self.assertEqual(e["take"], 1)
+        self.assertEqual([q["take"] for q in data["queued"]], [1])
         self.assertEqual(self.refs()["location:kitchen"]["takes"][0]["status"], "failed")
 
     def test_pick_and_conflicts(self):
@@ -111,6 +113,7 @@ class RefsApiTest(ApiTest):
         body = {"ep": self.ep, "ref": "location:kitchen", "take": 1}
         self.err(A.put_refs_pick(self.ctx, body), 409)
         self.comfy.mode = "node"
+        self.comfy.backends["local"].release()         # t01 finishes; t02 runs after it
         self.gen("location:kitchen")
         r = self.ok(A.put_refs_pick(self.ctx, dict(body, take=2)))
         self.assertEqual((r["id"], r["picked"], r["exists"]), ("location:kitchen", 2, True))
@@ -180,10 +183,12 @@ class RefsApiTest(ApiTest):
         self.comfy.mode = "hold"
         self.gen("location:street")
         self.assertEqual(self.refs()["location:street"]["takes"][0]["status"], "queued")
-        self.comfy.pending.clear()                       # the job vanished
-        # ...a while ago (a take queued in the snapshot's own second is left alone)
+        # the job vanished: the server restarted, its queue with it (the old
+        # one's held run is never let go)
+        self.comfy.mode = "node"
+        self.ctx.runner = play_runner(self.comfy, emit=lambda e, d: self.events.append((e, d)))
         (t,) = R.list_takes(R.find_ref(R.load_series(self.ep), "location:street"))
-        T.update_sidecar(t.paths.sidecar, queued="2026-01-01T00:00:00+00:00")
+        T.update_sidecar(t.paths.sidecar, status="queued")    # as it was before the restart
         self.events.clear()
         self.assertEqual(self.refs()["location:street"]["takes"][0]["status"], "failed")
         self.assertEqual(self.events_of("h3pipe.ref"),

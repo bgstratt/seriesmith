@@ -925,6 +925,11 @@ class SeriesmithSaveTake:
             ui["images"] = [item(n) for n in jpgs]
         if latent_file:
             ui["latents"] = [item(latent_file)]
+        if save_frames and os.path.isdir(frame_dir):
+            # the PNG sequence, reported too: seriesmith puts it in the take's frames/
+            ui["files"] += [{"filename": n, "subfolder": f"{subfolder}/frames", "type": "output"}
+                            for n in sorted(os.listdir(frame_dir))
+                            if n.startswith(stem + "_") and n.endswith(".png")]
         return {"ui": ui, "result": (shot_dir, f"{stem}: " + "; ".join(notes))}
 
     # -- record ------------------------------------------------------------

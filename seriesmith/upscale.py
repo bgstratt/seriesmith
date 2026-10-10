@@ -1808,6 +1808,9 @@ def main(argv=None) -> int:
                     help="delete the latents of the pass's takes its cut doesn't use, and of takes "
                          "whose upscale is fresh (with --check: only list them)")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188")
+    ap.add_argument("--backend", default=None,
+                    help="where they run (default local: this machine's ComfyUI, through "
+                         "comfy-api-proxy)")
     ap.add_argument("--timeout", type=int, default=3600)
     args = ap.parse_args(argv)
 
@@ -1883,6 +1886,13 @@ def main(argv=None) -> int:
         for m in missing:
             print(f"       {m}")
         return 1
+    from seriesmith import finishing as F
+    from seriesmith import runner as RN
+    try:
+        runner = RN.cli_runner(args.backend)
+    except ValueError as e:
+        print(f"  !! {e}")
+        return 1
     bases: dict = {}
     done = failed = 0
     t_all = time.time()
@@ -1891,17 +1901,14 @@ def main(argv=None) -> int:
         try:
             g = graph_of(up, bases, args.comfy)
             start(up)
-            pid = comfy.queue(g)
-            mark_queued(up, pid)
-            comfy.wait(pid, args.timeout)
+            qid = runner.enqueue_finish(F.of_upscale(up, g), args.backend or "local")
+            if RN.wait(runner.queue, [qid], args.timeout)[qid] == "timeout":
+                raise RuntimeError(f"not done after {args.timeout}s (cancelled)")
             rec = T.upscale_of(up.take) or {}
             if rec.get("status") != "ok":
                 raise RuntimeError(rec.get("save_notes") or "the upscale wasn't written")
             done += 1
             print(f"  -> {up.take.paths.up_mp4}  [{time.time() - t0:.1f}s]", flush=True)
-        except TimeoutError as e:
-            failed += 1
-            print(f"  !! {up.label}: {e} (left queued in ComfyUI)", flush=True)
         except Exception as e:
             failed += 1
             if os.path.isfile(up.take.paths.up_sidecar):

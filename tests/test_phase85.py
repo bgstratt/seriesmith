@@ -26,7 +26,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.core import story as S  # noqa: E402
 from seriesmith.targets.image import common as IC  # noqa: E402
-from test_render import FIXTURE, FakeComfy, png_bytes  # noqa: E402
+from test_render import FIXTURE, FakeComfy, png_bytes, queue_generate  # noqa: E402
 
 MIXED = os.path.join(HERE, "fixtures", "mixed")
 OBJECT_INFO = json.load(open(os.path.join(HERE, "fixtures", "workflows",
@@ -438,8 +438,8 @@ class KeyframeGenerateTest(Episode):
 
     def gen(self, ref, **kw):
         c = self.fake()
-        return R.queue_generate(self.s, R.GenRequest(ref, **kw), J.Comfy(c.url), None,
-                                rng=random.Random(3))
+        return queue_generate(c, self.s, R.GenRequest(ref, **kw), J.Comfy(c.url), None,
+                              rng=random.Random(3))
 
     def test_edit_target_gets_the_references(self):
         out = self.gen("shot:sh020:first", target="flux2_klein_edit")
@@ -447,11 +447,13 @@ class KeyframeGenerateTest(Episode):
         (q,) = out["queued"]
         self.assertEqual(q["target"], "flux2_klein_edit")
         g = self.comfy.graphs[-1]
-        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
         loads = [v["inputs"]["image"] for v in g.values() if v["class_type"] == "LoadImage"]
         self.assertEqual(len(loads), 4)                    # ada, bo, the kettle, the plate
-        self.assertTrue(all(n.startswith("h3pipe/") for n in loads))
-        self.assertEqual(sorted(self.comfy.uploads), sorted(set(loads)))
+        # each picture goes up with the job: a local file the backend uploads
+        self.assertTrue(all(os.path.isfile(f.path) for f in loads))
+        named = {k: dict(v, inputs={i: (x.path if hasattr(x, "path") else x)
+                                    for i, x in v["inputs"].items()}) for k, v in g.items()}
+        self.assertEqual(J.check_graph(named, OBJECT_INFO), [])
         prompt = next(v for v in g.values() if v["_meta"].get("title") == "Positive prompt")
         text = prompt["inputs"]["text"]
         self.assertTrue(text.startswith("Image 1 is Ada"))
@@ -496,8 +498,8 @@ class KeyframeGenerateTest(Episode):
         r = R.ref_json(self.s, R.find_ref(self.s, "shot:sh030:first"))
         self.assertEqual(r["effective"]["target"], "flux2_klein_edit")
         # not ready: the refs target (krea2), text to image
-        out = R.queue_generate(self.s, R.GenRequest("shot:sh030:first"),
-                               J.Comfy(self.fake().url), None, rng=random.Random(1),
+        out = queue_generate(self.fake(), self.s, R.GenRequest("shot:sh030:first"),
+                             J.Comfy(self.fake().url), None, rng=random.Random(1),
                                listing=lambda spec: ["krea2_turbo_fp8_scaled.safetensors",
                                                      "qwen3vl_4b_fp8_scaled.safetensors",
                                                      "wan_2.1_vae.safetensors"])
@@ -524,16 +526,14 @@ class SheetCropTest(Episode):
         self.episode_target("ltx2")
         write_png(os.path.join(self.s.home, "refs", "ada", "ada_sheet_4panel.png"), 256, 64)
         c = self.fake()
-        out = R.queue_generate(self.s, R.GenRequest("shot:sh010:first",
-                                                    target="flux2_klein_edit"),
-                               J.Comfy(c.url), None, rng=random.Random(3))
+        out = queue_generate(c, self.s, R.GenRequest("shot:sh010:first",
+                                                     target="flux2_klein_edit"),
+                             J.Comfy(c.url), None, rng=random.Random(3))
         self.assertEqual(out["errors"], [])
-        (name,) = [v["inputs"]["image"] for v in c.graphs[-1].values()
-                   if v["class_type"] == "LoadImage"]
-        self.assertIn(name, c.uploads)
+        (f,) = [v["inputs"]["image"] for v in c.graphs[-1].values()
+                if v["class_type"] == "LoadImage"]
         from PIL import Image
-        import io
-        self.assertEqual(Image.open(io.BytesIO(c.uploads[name])).size, (1024, 1024))
+        self.assertEqual(Image.open(f.path).size, (1024, 1024))      # uploaded with the job
 
 
 class ContinuityFillTest(Episode):

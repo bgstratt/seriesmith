@@ -540,6 +540,9 @@ def main(argv=None) -> int:
                     help="how the .post.mp4 is encoded (default: as its upscale was)")
     ap.add_argument("--check", action="store_true", help="list the jobs, queue nothing")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188")
+    ap.add_argument("--backend", default=None,
+                    help="where they run (default local: this machine's ComfyUI, through "
+                         "comfy-api-proxy)")
     ap.add_argument("--timeout", type=int, default=3600)
     args = ap.parse_args(argv)
 
@@ -590,23 +593,27 @@ def main(argv=None) -> int:
         for m in missing:
             print(f"       {m}")
         return 1
+    from seriesmith import finishing as F
+    from seriesmith import runner as RN
+    try:
+        runner = RN.cli_runner(args.backend)
+    except ValueError as e:
+        print(f"  !! {e}")
+        return 1
     done = failed = 0
     t_all = time.time()
     for job in todo:
         t0 = time.time()
         try:
             start(job)
-            pid = comfy.queue(post_graph(job))
-            mark_queued(job, pid)
-            comfy.wait(pid, args.timeout)
+            qid = runner.enqueue_finish(F.of_post(job, post_graph(job)), args.backend or "local")
+            if RN.wait(runner.queue, [qid], args.timeout)[qid] == "timeout":
+                raise RuntimeError(f"not done after {args.timeout}s (cancelled)")
             rec = T.post_of(job.take) or {}
             if rec.get("status") != "ok":
                 raise RuntimeError(rec.get("save_notes") or "the post wasn't written")
             done += 1
             print(f"  -> {job.take.paths.post_mp4}  [{time.time() - t0:.1f}s]", flush=True)
-        except TimeoutError as e:
-            failed += 1
-            print(f"  !! {job.label}: {e} (left queued in ComfyUI)", flush=True)
         except Exception as e:
             failed += 1
             if os.path.isfile(job.take.paths.post_sidecar):

@@ -39,10 +39,12 @@ The image target (--target, else the episode's: the editor's choice, the series
 config's refs.target, else krea2) decides the graph, and the banner names it. For
 krea2 it is krea2_refs_t2i.json (the copy saved in the running ComfyUI, else
 this repo's), or a built-in krea2 turbo graph; any other target uses its own
-workflow (targets/image/<id>/). Its SaveImage is replaced by the
-node pack's H3SaveRefTake, which writes the take and closes its sidecar; on a
-ComfyUI whose node pack predates that node, SaveImage stays and kreagen fetches
-the image over HTTP. When a LoRA is given, the text encoder reads the LoRA's
+workflow (targets/image/<id>/), and a hosted one (krea_2_router) a Router call.
+Every take goes through seriesmith's queue, on this process's own queue
+(runner.cli_runner): --backend picks where (default: each target's own,
+usually local -- this machine's ComfyUI through comfy-api-proxy, started if it
+isn't running); the graph keeps its SaveImage and the picture that comes back
+closes the take. When a LoRA is given, the text encoder reads the LoRA's
 CLIP rather than the raw CLIPLoader output, so strength_clip is not inert;
 --no-lora-clip reproduces the original wiring of the built-in graph. The model
 file names are the krea2 image target's (targets/image/krea2/target.json, re-exported
@@ -238,7 +240,8 @@ def edit(s, ep: str, args) -> int:
     listing = J.model_lister(comfy)
     try:
         done = R.generate_and_wait(s, req, comfy, timeout=args.timeout, listing=listing,
-                                   cache=R.TG.modelid.temp_cache(), pick=bool(args.pick))
+                                   cache=R.TG.modelid.temp_cache(), pick=bool(args.pick),
+                                   backend=args.backend or None)
     except (R.RefError, R.UnknownRef, RuntimeError) as e:
         print(f"  !! {args.edit}: {e}")
         return 1
@@ -517,25 +520,15 @@ def main() -> int:
         print("  nothing to do — pass --redo to make new takes.\n")
         return 0
 
-    comfy = J.Comfy(args.comfy, client_id="kreagen")
-    runner = None
-    if args.backend:
-        runner = backend_runner(args.backend)
-        if runner is None:
-            return 1
+    comfy = J.Comfy(args.comfy, client_id="kreagen")       # asked only: its model lists
+    from seriesmith import runner as RN
     try:
-        use_node = comfy.has_node(R.SAVER)
-    except Exception as e:
-        if runner is None or args.backend == "local":
-            print(f"  !! can't reach ComfyUI at {args.comfy}: {e}\n")
-            return 1
-        use_node, comfy = True, None             # nothing asks this machine's ComfyUI
-    if runner is None and not use_node:
-        print(f"  ! this ComfyUI has no {R.SAVER} node (update the h3pipe node pack and\n"
-              f"    restart ComfyUI). Saving through SaveImage and fetching each image\n"
-              f"    over HTTP instead.\n")
+        runner = RN.cli_runner(args.backend or None)
+    except ValueError as e:
+        print(f"  !! {e}", end="\n\n")
+        return 1
 
-    listing = J.model_lister(comfy) if comfy is not None else None
+    listing = J.model_lister(comfy)
     cache = R.TG.modelid.temp_cache()
     failed = []
     for j in todo_now:
@@ -551,37 +544,17 @@ def main() -> int:
                     raise RuntimeError("model files not installed: " + "; ".join(
                         R.TG.missing_message(m) for m in blocked))
                 g0 = base
-                hosted = bool(job.target.spec.get("router"))
-                if hosted and runner is None:
-                    raise RuntimeError(f"{job.target.short} is a hosted model: pass "
-                                       f"--backend router")
-                if hosted:
-                    g0 = None                    # one call, no workflow
+                if job.target.spec.get("router"):
+                    g0 = None                    # a hosted model: one call, no workflow
                 elif not job.is_krea2:
                     if job.target.id not in graphs:
                         graphs[job.target.id], _ = R.resolve_workflow(args.comfy, None,
                                                                       job.target)
                     g0 = graphs[job.target.id]
-                if runner is not None:
-                    take = run_on_backend(runner, args.backend, s, job, g0,
-                                          not args.no_lora_clip, args.timeout)
-                    made.append((job, take))
-                    continue
-                if not job.is_krea2:
-                    R.stage_references(s, job, comfy)
-                    R.stage_voice_reference(s, job, comfy)
-                take = R.start_gen(s, job)
-                try:
-                    pid = comfy.queue(R.graph_for(g0, job, take, save_node=use_node,
-                                                  lora_clip=not args.no_lora_clip))
-                except Exception as e:
-                    R.mark_failed(take, str(e)[:800])
-                    raise
-                R.mark_queued(take, pid)
-                status = R.wait_take(comfy, take, pid, args.timeout)
-                if status != "ok":
-                    raise RuntimeError(f"t{take.take:02d} {status}: "
-                                       f"{(take.sidecar or {}).get('save_notes', '')}"[:400])
+                name, _src, _note = J.backend_choice({}, r.id, job.target, args.backend or None,
+                                                     ep)
+                take = run_on_backend(runner, name, s, job, g0, not args.no_lora_clip,
+                                      args.timeout)
                 made.append((job, take))
             if j["had"] and not args.pick:
                 print(f"  -> {len(made)} new take(s) in "
@@ -604,34 +577,16 @@ def main() -> int:
     return 1 if failed else 0
 
 
-def backend_runner(name: str):
-    """A queue of this process's own and a runner on seriesmith's backends,
-    for --backend (None, said why, when that backend isn't set up)."""
-    from seriesmith.backends import available
-    from seriesmith.queue import Queue
-    from seriesmith.runner import Runner
-    backends = available()
-    if name not in backends:
-        print(f"  !! {name} isn't set up on this machine (seriesmith backends: "
-              f"{', '.join(backends)})\n")
-        return None
-    return Runner(Queue(), backends)
-
-
 def run_on_backend(runner, backend: str, s, job, base, lora_clip: bool, timeout: int):
     """One ref take made on a backend (Runner.enqueue_ref) and waited for.
     Returns the take; RuntimeError when it didn't come back ok."""
-    import time
+    from seriesmith import runner as RN
     take, qid = runner.enqueue_ref(s, job, base, backend, lora_clip=lora_clip)
-    end = time.time() + timeout
-    qjob = runner.queue.jobs[qid]
-    while qjob.status not in ("succeeded", "failed", "canceled"):
-        if time.time() > end:
-            runner.queue.cancel(qid)
-            raise RuntimeError(f"t{take.take:02d} took longer than {timeout}s (cancelled)")
-        time.sleep(0.5)
-    if qjob.status != "succeeded":
-        raise RuntimeError(f"t{take.take:02d} {qjob.status}: {qjob.error}"[:400])
+    status = RN.wait(runner.queue, [qid], timeout)[qid]
+    if status == "timeout":
+        raise RuntimeError(f"t{take.take:02d} took longer than {timeout}s (cancelled)")
+    if status != "succeeded":
+        raise RuntimeError(f"t{take.take:02d} {status}: {runner.queue.jobs[qid].error}"[:400])
     return R.get_take(job.ref, job.view, take.take)
 
 

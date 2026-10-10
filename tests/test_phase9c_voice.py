@@ -36,7 +36,7 @@ import test_api  # noqa: E402
 from seriesmith.targets.audio import common as AC  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase85 import Episode  # noqa: E402
-from test_render import wav_bytes  # noqa: E402
+from test_render import queue_generate, wav_bytes  # noqa: E402
 
 OBJECT_INFO = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                           "object_info_audio.json"), encoding="utf-8"))
@@ -272,14 +272,15 @@ class VoiceGenerateTest(Episode):
 
     def test_queue_and_close(self):
         comfy = J.Comfy(self.fake().url)
-        out = R.queue_generate(self.s, R.GenRequest("voice:ada", seconds=6.0), comfy,
-                               listing=J.model_lister(comfy))
+        out = queue_generate(self.fake(), self.s, R.GenRequest("voice:ada", seconds=6.0), comfy,
+                             listing=J.model_lister(comfy))
         self.assertEqual(out["errors"], [])
         (q,) = out["queued"]
         self.assertEqual((q["ref"], q["target"], q["take"]), ("voice:ada", VOICE, 1))
         ref = R.find_ref(self.s, "voice:ada")
         t = R.get_take(ref, None, 1)
         self.assertEqual(t.status, "ok")
+        # ComfyUI's own SaveAudio writes flac: the take is converted to a wav
         self.assertTrue(t.paths.image.endswith("_t01.wav"))
         self.assertAlmostEqual(PK.media_info(t.paths.image)["duration"], 145 / 24.0, places=2)
         j = R.take_json(self.ep, ref, t)
@@ -503,7 +504,7 @@ class VoiceApiTest(ApiTest):
         self.assertEqual(data["errors"], [])
         (q,) = data["queued"]
         self.assertEqual((q["ref"], q["target"], q["take"]), ("voice:rex", VOICE, 1))
-        self.assertEqual(self.events_of("h3pipe.ref"),
+        self.assertEqual([e for e in self.events_of("h3pipe.ref") if e["status"] == "queued"],
                          [{"ep": self.ep, "ref": "voice:rex", "view": None, "take": 1,
                            "status": "queued"}])
         rex = self.refs()["voice:rex"]

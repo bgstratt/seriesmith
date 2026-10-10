@@ -23,7 +23,8 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
-from test_render import ENV, FIXTURE, FakeComfy, png_bytes, stub_refs  # noqa: E402
+from test_render import (ENV, FIXTURE, FakeComfy, png_bytes, play_runner, settle,  # noqa: E402
+                         stub_refs)
 
 REFS_WF = os.path.join(ROOT, "seriesmith", "targets", "image", "krea2", "workflow.json")
 H3_WF = os.path.join(ROOT, "seriesmith", "targets", "video", "minimax_h3_ref2va", "workflow.json")
@@ -74,13 +75,18 @@ class RefsTest(unittest.TestCase):
     def fake(self) -> FakeComfy:
         if self.comfy is None:
             self.comfy = FakeComfy()
+            # seriesmith's queue, its local backend playing each graph
+            self.runner = play_runner(self.comfy)
+            self.addCleanup(setattr, T, "MANAGED", None)
         return self.comfy
 
     def gen(self, ref, view=None, rng=None, **kw):
         c = self.fake()
         base = J.load_graph(REFS_WF)
-        return R.queue_generate(self.s, R.GenRequest(ref, view, **kw),
-                                J.Comfy(c.url), base, rng=rng or random.Random(3))
+        out = R.queue_generate(self.s, R.GenRequest(ref, view, **kw), J.Comfy(c.url), base,
+                               rng=rng or random.Random(3), runner=self.runner)
+        settle(self.runner)
+        return out
 
     def png(self, name="in.png", w=64, h=32, rgb=(1, 2, 3)) -> str:
         p = os.path.join(self.tmp, name)
@@ -267,12 +273,11 @@ class GenerateTest(RefsTest):
             self.assertEqual(t.sidecar["source"], "generated")
             self.assertTrue(t.sidecar["prompt"].startswith("A single character reference view"))
             self.assertEqual(t.sidecar["ep"], self.ep)
-        # the graph: the workflow's SaveImage became H3SaveRefTake on the take's sidecar
+        # the graph keeps the workflow's own SaveImage: the picture comes back
+        # from the backend and closes the take (Runner.enqueue_ref)
         g = self.comfy.graphs[0]
-        self.assertFalse([v for v in g.values() if v["class_type"] == "SaveImage"])
-        (saver,) = [v for v in g.values() if v["class_type"] == R.SAVER]
-        self.assertEqual(os.path.normcase(saver["inputs"]["sidecar"]),
-                         os.path.normcase(R.list_takes(ada, "01_threequarter")[0].paths.sidecar))
+        self.assertFalse([v for v in g.values() if v["class_type"] == R.SAVER])
+        (saver,) = [v for v in g.values() if v["class_type"] == "SaveImage"]
         self.assertEqual(saver["inputs"]["images"], ["22:9", 0])
         ks = next(v for v in g.values() if v["class_type"] == "KSampler")["inputs"]
         self.assertEqual((ks["seed"], ks["steps"]), (R.seed_for("ada"), R.STEPS))
@@ -341,9 +346,6 @@ class GenerateTest(RefsTest):
         c = self.fake()
         c.mode = "error"
         (q,) = self.gen("location:street")["queued"]
-        t = R.list_takes(self.ref("location:street"))[0]
-        self.assertEqual(t.status, "queued")
-        R.sweep(self.s, J.Comfy(c.url))
         t = R.list_takes(self.ref("location:street"))[0]
         self.assertEqual((t.status, t.sidecar["save_notes"]), ("failed", "boom"))
 
@@ -524,7 +526,8 @@ class StaleTest(RefsTest):
         c = self.fake()
         comfy = J.Comfy(c.url)
         res = E.queue_shots(self.ep, "proxy", ["sh010"], J.RenderRequest(""), comfy,
-                            J.load_graph(H3_WF))
+                            J.load_graph(H3_WF), runner=self.runner)
+        settle(self.runner)
         self.assertEqual(len(res["queued"]), 1, res)
         doc = J.load_shotlist(self.ep, "proxy")
         shot = doc["shots"][0]
@@ -543,6 +546,23 @@ class KreagenTest(RefsTest):
         return subprocess.run([sys.executable, "-m", "seriesmith.kreagen",
                                "--project-root", root or self.ep, *args],
                               capture_output=True, env=ENV, cwd=root or self.ep)
+
+    def kreagen_here(self, *args):
+        """kreagen in this process, its backends the fake's (a local one
+        playing each graph): (exit code, what it printed)."""
+        import io
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from seriesmith import kreagen as K
+        c = self.fake()
+        pb = c.backends["local"]
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["kreagen", "--project-root", self.ep, *args]), \
+                mock.patch("seriesmith.backends.available", return_value={"local": pb}), \
+                mock.patch("seriesmith.server.standalone.ensure_proxy", return_value="ok"), \
+                redirect_stdout(out):
+            rc = K.main()
+        return rc, out.getvalue()
 
     def test_list_and_dry_run(self):
         r = self.run_kreagen("--list", "--comfy", "http://127.0.0.1:9", "--no-workflow")
@@ -572,9 +592,8 @@ class KreagenTest(RefsTest):
     def test_generate_picks_then_redo_keeps_live_files(self):
         c = self.fake()
         base = ["--comfy", c.url, "--workflow", REFS_WF, "--timeout", "60"]
-        r = self.run_kreagen(*base, "--only", "ada,kitchen,kettle")
-        out = r.stdout.decode("utf-8").replace("\r\n", "\n")
-        self.assertEqual(r.returncode, 0, out + r.stderr.decode())
+        rc, out = self.kreagen_here(*base, "--only", "ada,kitchen,kettle")
+        self.assertEqual(rc, 0, out)
         sheet = os.path.join(self.ep, "refs", "ada", "ada_sheet_4panel.png")
         plate = os.path.join(self.ep, "refs", "_bg", "kitchen.png")
         for p in (sheet, plate, os.path.join(self.ep, "refs", "props", "kettle.png")):
@@ -587,29 +606,16 @@ class KreagenTest(RefsTest):
         self.assertEqual(len(c.graphs), 11)
         before = T.file_sha1(plate)
         # --redo: a new take, the live file untouched
-        r = self.run_kreagen(*base, "--only", "kitchen", "--redo")
-        self.assertEqual(r.returncode, 0, r.stdout.decode())
+        rc, out = self.kreagen_here(*base, "--only", "kitchen", "--redo")
+        self.assertEqual(rc, 0, out)
         kitchen = self.ref("location:kitchen")
         self.assertEqual([t.take for t in R.list_takes(kitchen)], [1, 2])
         self.assertEqual(R.list_takes(kitchen)[1].sidecar["seed_source"], "new")
         self.assertEqual(T.file_sha1(plate), before)
         # --redo --pick: the new take goes live
-        r = self.run_kreagen(*base, "--only", "kitchen", "--redo", "--pick")
-        self.assertEqual(r.returncode, 0, r.stdout.decode())
+        rc, out = self.kreagen_here(*base, "--only", "kitchen", "--redo", "--pick")
+        self.assertEqual(rc, 0, out)
         self.assertEqual(T.file_sha1(plate), T.file_sha1(R.list_takes(kitchen)[2].paths.image))
-
-    def test_old_node_pack_falls_back_to_save_image(self):
-        c = self.fake()
-        c.nodes.discard(R.SAVER)
-        r = self.run_kreagen("--comfy", c.url, "--workflow", REFS_WF, "--only", "street")
-        out = r.stdout.decode("utf-8").replace("\r\n", "\n")
-        self.assertEqual(r.returncode, 0, out + r.stderr.decode())
-        self.assertIn("no H3SaveRefTake node", out)
-        self.assertTrue(os.path.isfile(os.path.join(self.ep, "refs", "_bg", "street.png")))
-        g = c.graphs[-1]
-        self.assertTrue([v for v in g.values() if v["class_type"] == "SaveImage"])
-        (t,) = R.list_takes(self.ref("location:street"))
-        self.assertEqual(t.status, "ok")
 
 
 class SaveNodeTest(unittest.TestCase):

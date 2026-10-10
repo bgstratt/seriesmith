@@ -269,18 +269,25 @@ With the UI there to try each one:
 
 ## Step 9 — leaving h3pipe behind
 
-- [ ] Nothing of h3pipe's node pack needed: every node seriesmith's graphs use
+- [x] Nothing of h3pipe's node pack needed: every node seriesmith's graphs use
       is in its own pack.
       - [x] The upscale and post compute nodes (comfy_nodes/finish.py:
             SeriesmithPixelUpscale, FinishUpscale, HoldAudio, FramesToBatch,
             MotionBlur), copied unchanged under seriesmith's names; live
             2026-10-10, sh180's latent upscale and draft + blur post came out
             frame-identical to h3pipe's nodes.
-      - [ ] What the direct routes (no queue: the command line, the ComfyUI
-            host) still load from h3pipe's pack: H3ShotListLoader / H3SaveShot,
-            H3LoadTake* / H3SaveUpscale, H3SaveRefTake / H3SaveRefAudio,
-            H3ChainLatent, H3ContinuityFrame. Either they go through the
-            portable nodes too, or the direct routes go.
+      - [x] The direct routes are gone: every render, ref, voice, upscale,
+            post, master and tour goes through seriesmith's queue and a
+            backend -- the editor's routes on the server's queue (an
+            api.Context without one makes its own), the command line on its
+            own in-process queue (runner.cli_runner, which starts the proxy
+            for `local`; `master` always waits now). The runner refuses a graph
+            that still names an h3pipe node (shotnodes.uses_h3pipe). A voice
+            from ComfyUI's SaveAudio (flac) is kept as a wav. Records are
+            written safely across the queue's threads on Windows
+            (takes._shared, a lock per record). Live 2026-10-10: a render of
+            ep02 sh140 from the server and a pixel upscale from
+            `seriesmith upscale`.
 - [ ] The docs (AUTHORING.md and the rest) moved here, renamed where generic;
       the old h3 names inside the code (h3cli, the `h3` aliases) tidied away.
 

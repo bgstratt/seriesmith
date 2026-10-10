@@ -32,7 +32,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.core import ir  # noqa: E402
 from test_ltx_ingredients import needs_pil, real_refs  # noqa: E402
-from test_render import ENV, FakeComfy, stub_refs  # noqa: E402
+from test_render import ENV, FakeComfy, settle, stub_refs  # noqa: E402
 
 WF = os.path.join(HERE, "fixtures", "workflows")
 MIXED = os.path.join(HERE, "fixtures", "mixed")
@@ -497,14 +497,18 @@ class MixedEpisodeTest(unittest.TestCase):
                         J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", H3, "workflow.json")))
 
             out = E.queue_shots(self.root, "proxy", ["sh010", "sh020"],
-                                J.RenderRequest(""), J.Comfy(comfy.url), base_for)
+                                J.RenderRequest(""), J.Comfy(comfy.url), base_for,
+                                runner=comfy.runner)
+            settle(comfy.runner)
             self.assertEqual([(q["shot"], q["target"]) for q in out["queued"]],
                              [("sh010", H3), ("sh020", LTX)])
             self.assertEqual(asked, [H3, LTX])
             self.assertEqual([t.status for t in T.list_takes(self.root, "proxy", "sh020")], ["ok"])
             # a request target retargets the H3 shot; it gets a new take
             out = E.queue_shots(self.root, "proxy", ["sh010"],
-                                J.RenderRequest("", target=LTX), J.Comfy(comfy.url), base_for)
+                                J.RenderRequest("", target=LTX), J.Comfy(comfy.url), base_for,
+                                runner=comfy.runner)
+            settle(comfy.runner)
             self.assertEqual(out["queued"][0]["take"], 2)
             self.assertEqual(T.read_sidecar(T.list_takes(self.root, "proxy", "sh010")[1]
                                             .paths.sidecar)["target"], LTX)
@@ -556,7 +560,8 @@ class RetargetRouteTest(unittest.TestCase):
         build_mixed(self.ep)
         self.comfy = FakeComfy()
         self.ctx = A.Context(os.path.join(self._tmp.name, "user"), self.comfy.url,
-                             comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={})
+                             comfy=J.Comfy(self.comfy.url, client_id="h3pipe"), env={},
+                             runner=self.comfy.runner)
         self.ok(A.put_config(self.ctx, {"roots": [self.shows]}))
 
     def tearDown(self):
@@ -564,6 +569,7 @@ class RetargetRouteTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def ok(self, res):
+        settle(self.comfy.runner)
         self.assertEqual(res[0], 200, res[1])
         return res[1]
 

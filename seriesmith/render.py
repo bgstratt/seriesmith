@@ -361,6 +361,9 @@ def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
     if hosted(target):
         return "call", target.module.router_call(target, job)
     g = J.graph_for(base, job, take, **gkw)
+    from seriesmith.shotnodes import uses_h3pipe
+    if gkw.get("portable") and uses_h3pipe(g):
+        raise J.NotPortable(f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
     bound = episode_bound(g)
     if bound and backend.kind != "local":
         raise J.NotPortable(f"reads the episode folder ({', '.join(bound)}): local only for now")

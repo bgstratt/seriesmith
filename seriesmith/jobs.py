@@ -1963,6 +1963,9 @@ def mark_submitted(take: T.Take, backend: str, job_id: str, prompt_id: str | Non
                                     comfy_prompt_id=prompt_id or job_id)
 
 
+FRAME_FILE = re.compile(r".+_t\d+_\d{6}\.png$")
+
+
 def collect_take(take: T.Take, run, saver: str, status: str) -> str:
     """After a portable run (make_portable) has ended with `status`: the files
     its saver reported go into the take's folder under their own names (the
@@ -1985,6 +1988,9 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
             finally:
                 if os.path.exists(tmp):
                     os.remove(tmp)
+        elif FRAME_FILE.match(out.name):
+            # save_frames: the PNG sequence, in frames/ beside the take as h3pipe kept it
+            out.save(os.path.join(take.paths.dir, "frames", out.name))
         else:
             out.save(os.path.join(take.paths.dir, out.name))
             got.append(out.name)
