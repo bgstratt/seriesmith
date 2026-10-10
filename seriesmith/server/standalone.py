@@ -221,6 +221,47 @@ def make_app(roots: list[str] | None = None, settings=None,
     return app
 
 
+def ensure_proxy(settings) -> str:
+    """comfy-api-proxy answering at settings.local_url: started beside this
+    Python (its own background process, state in %LOCALAPPDATA%\\seriesmith\\
+    proxy) when it isn't and the local ComfyUI is up. Returns what happened."""
+    import shutil
+    import subprocess
+    from urllib.parse import urlparse
+
+    from seriesmith.backends.comfy import health
+    if health(settings.local_url, timeout=2.0) is None:
+        return f"comfy-api-proxy: {settings.local_url}"
+    if health(settings.comfyui_url.rstrip("/") + "/..", timeout=2.0) and \
+            not _answers(settings.comfyui_url):
+        return f"comfy-api-proxy: not started (no ComfyUI at {settings.comfyui_url})"
+    exe = os.path.join(os.path.dirname(sys.executable), "comfy-api-proxy" +
+                       (".exe" if os.name == "nt" else ""))
+    if not os.path.isfile(exe):
+        exe = shutil.which("comfy-api-proxy") or ""
+    if not exe:
+        return "comfy-api-proxy: not installed (pip install comfy-api-proxy; docs/SETUP.md)"
+    u = urlparse(settings.local_url)
+    if u.hostname not in ("127.0.0.1", "localhost"):
+        return f"comfy-api-proxy: {settings.local_url} doesn't answer (not started: not this machine)"
+    state = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                         "seriesmith", "proxy")
+    os.makedirs(state, exist_ok=True)
+    r = subprocess.run([exe, "start", "--comfyui", settings.comfyui_url, "--port",
+                        str(u.port or 8189), "--state-dir", state],
+                       capture_output=True, text=True, timeout=60)
+    return "comfy-api-proxy: " + ((r.stdout or r.stderr).strip().splitlines() or ["started"])[-1]
+
+
+def _answers(url: str) -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/system_stats", timeout=2):
+            return True
+    except Exception:                                     # noqa: BLE001
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
     ap = argparse.ArgumentParser(prog="seriesmith serve",
@@ -239,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"seriesmith: {e}", file=sys.stderr)
         return 1
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if "local" in app["backends"]:
+        print("  " + ensure_proxy(app["settings"]), flush=True)
     print(f"  seriesmith editor: http://{args.host}:{args.port}/   (Ctrl+C stops it)", flush=True)
     web.run_app(app, host=args.host, port=args.port, print=None)
     return 0
