@@ -2884,6 +2884,19 @@ def post_source_check(ctx: Context, body):
 
 
 @handler
+def post_shot_preview(ctx: Context, body):
+    """The shot form's preview: `{ep, pass, text, shot}` -- the script with the
+    shot as edited -- compiled in memory (source.preview_shot)."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"), "proxy")
+    text, shot = body.get("text"), body.get("shot")
+    if not isinstance(text, str) or not isinstance(shot, str) or not shot:
+        raise ApiError(400, "text (the script) and shot (its id) are required")
+    return 200, P.H.preview_shot(ep, text, shot, pass_)
+
+
+@handler
 def put_source(ctx: Context, body):
     """Save the script or the series config (409 when it changed on disk
     since `base_hash`), then rebuild unless `rebuild` is false."""
@@ -3168,6 +3181,7 @@ ROUTES = [
     ("GET", "/seriesmith/source", get_source, "query"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),
+    ("POST", "/seriesmith/shot/preview", post_shot_preview, "body"),
     ("GET", "/seriesmith/promote", get_promote, "query"),
     ("POST", "/seriesmith/promote", post_promote, "body"),
     ("GET", "/seriesmith/align/ready", get_align_ready, "query"),

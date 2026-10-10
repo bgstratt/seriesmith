@@ -268,6 +268,38 @@ class SourceTest(ApiTest):
         self.assertEqual(J.find_shot(self.ep, "final", "sh040")[0]["shots"][
             J.find_shot(self.ep, "final", "sh040")[1]]["steps"], 11)
 
+    def test_shot_preview(self):
+        before = {p: read_bytes(p) for p in (self.script, self.series)}
+        text = self.get()["text"]
+
+        def preview(t, shot="sh010", pass_="proxy"):
+            return self.ok(A.post_shot_preview(self.ctx, {"ep": self.ep, "pass": pass_,
+                                                          "text": t, "shot": shot}))
+
+        got = preview(text)
+        self.assertTrue(got["ok"], got)
+        self.assertEqual(got["shot"], "sh010")
+        self.assertTrue(got["target"] and got["target_label"])
+        self.assertIsInstance(got["prompt"], str)
+        self.assertTrue(got["prompt"])
+        self.assertTrue(got["frames"] and got["fps"] and got["width"] and got["height"])
+        json.dumps(got)
+        # an edit shows in the prompt, in memory only
+        lines = text.split("\n")
+        at = next(i for i, ln in enumerate(lines) if ln.strip() == "## sh010")
+        lines.insert(at + 1, "Marigold lanterns sway in the window.")
+        edited = preview("\n".join(lines))
+        self.assertIn("Marigold lanterns", edited["prompt"])
+        self.assertNotIn("Marigold lanterns", got["prompt"])
+        # what the script or the build refuses comes back as a message
+        lines.insert(at + 1, "size: huge")
+        bad = preview("\n".join(lines))
+        self.assertFalse(bad["ok"])
+        self.assertTrue(bad["error"])
+        self.assertFalse(preview(text, "sh999")["ok"])
+        self.assertEqual({p: read_bytes(p) for p in before}, before)
+        self.err(A.post_shot_preview(self.ctx, {"ep": self.ep, "text": text}), 400)
+
     def test_bad_requests(self):
         got = self.get()
         self.err(A.put_source(self.ctx, {"ep": self.ep, "file": "script", "text": "x"}), 400)

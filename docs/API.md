@@ -2104,6 +2104,15 @@ built" with [differs]/[added]/[settled].
   [{"file", "line", "col"?, "message"}], "warnings": [{...same}], "shots": [...]}` — the
   same messages `seriesmith check` prints, with 1-based line numbers into the given text. A JSON
   syntax error carries its line/col.
+- **`POST /seriesmith/shot/preview`** `{ep, pass, text, shot}`: the shot form's preview.
+  `text` (the script with one shot as edited) is parsed and compiled for `pass` in memory;
+  **nothing is written**. Returns `{"ok": true, "shot", "target", "target_label", "prompt"`
+  (what the model is told, one string), `"negative", "frames", "fps", "seconds", "width",
+  "height", "audio_policy", "subjects", "background", "pacing", "warnings"}`. `pacing` is
+  null without dialogue, else `{"held", "syllables", "rate", "fits", "verdict"` (ok | tight
+  | CRAMMED), `"pace", "pace_rate", "ceiling"}` — the numbers `seriesmith build --pace`
+  prints; `warnings` are the build's that name this shot. A script or build that refuses
+  it is `{"ok": false, "error", "line"}` (200: the form shows it).
 
 ### Saving
 - **`PUT /seriesmith/source`** `{ep, file, text, base_hash, rebuild: true}`:

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, loadEpisodes, loadIssues, openBrowse, openInspector, openIssues, openMenu, openSeriesForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, loadEpisodes, loadIssues, openBrowse, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -436,6 +436,7 @@ function IssuesButton() {
 
 export function ShotsTab() {
   const ep = useApp((s) => s.ep);
+  const selShot = useApp((s) => s.shot);
   return (
     <div className="h3-surface">
       <div className="h3-bar" style={{ justifyContent: "space-between" }}>
@@ -443,6 +444,10 @@ export function ShotsTab() {
         {ep && (
           <span className="h3-row">
             <button className="h3-btn h3-icon" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
+            <button className="h3-btn" title="Add a shot after the selected one (a form: who, size, length, action, dialogue, camera, sound)"
+              onClick={() => openShotForm({ shot: null, after: selShot })}><i className="pi pi-plus" /> Shot</button>
+            <button className="h3-btn h3-icon" title="Edit the selected shot as a form" disabled={!selShot}
+              onClick={() => selShot && openShotForm({ shot: selShot, after: null })}><i className="pi pi-pencil" /></button>
             <button className="h3-btn h3-icon" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
             <button className="h3-btn h3-icon" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
             <TrackButton />

@@ -292,6 +292,38 @@ def print_report(r: dict, root: str) -> None:
     print()
 
 
+def shot_pacing(shot, default_pace: str, snap, fps: float = 24.0) -> dict | None:
+    """One dialogue shot measured against the rate it forces on the delivery,
+    in the window its target renders (`snap`: its frame grid): {"held",
+    "syllables", "rate", "fits", "verdict" (ok | tight | CRAMMED), "pace"}, or
+    None for a shot without dialogue. The `--pace` report and the shot form's
+    meter."""
+    dialogue = [{"who": d.speaker, "line": d.line} for d in shot.dialogue]
+    if not dialogue:
+        return None
+    pace = shot.pace or default_pace
+    t = shot.timing or {}
+    if "audio_in" in t:
+        dur = t["audio_out"] - t["audio_in"]
+    elif t.get("auto") or t.get("model"):
+        # `dur: model`: the build's estimate is the dialogue's length
+        dur = speech_seconds(dialogue, pace)
+    else:
+        dur = t.get("seconds", 0.0)
+    held = snap(max(1, round(dur * fps))) / fps
+    syl, _ = pacing(dialogue)
+    rate = forced_rate(dialogue, held)
+    fits = snap(max(1, round(speech_seconds(dialogue, pace) * fps))) / fps
+    if rate > RATE_CEILING:
+        verdict = "CRAMMED"
+    elif rate > SPEECH_RATE[pace] + 0.15:
+        verdict = "tight"
+    else:
+        verdict = "ok"
+    return {"held": held, "syllables": syl, "rate": rate, "fits": fits, "verdict": verdict,
+            "pace": pace, "pace_rate": SPEECH_RATE[pace], "ceiling": RATE_CEILING}
+
+
 def print_pacing(story: ir.Episode, series_cfg: dict, fps: float = 24.0,
                  template: TG.Template | None = None,
                  templates: dict[str, TG.Template] | None = None) -> int:
@@ -303,34 +335,23 @@ def print_pacing(story: ir.Episode, series_cfg: dict, fps: float = 24.0,
     rows, crammed, tight, gain = [], 0, 0, 0.0
     for seq in story.sequences:
         for shot in seq.shots:
-            dialogue = [{"who": d.speaker, "line": d.line} for d in shot.dialogue]
-            if not dialogue:
-                continue
             snap = (templates[shot.id].snap if templates and shot.id in templates
                     else default_snap)
-            pace = shot.pace or default
-            t = shot.timing or {}
-            if "audio_in" in t:
-                dur = t["audio_out"] - t["audio_in"]
-            elif t.get("auto") or t.get("model"):
-                # `dur: model`: the build's estimate is the dialogue's length
-                dur = speech_seconds(dialogue, pace)
-            else:
-                dur = t.get("seconds", 0.0)
-            held = snap(max(1, round(dur * fps))) / fps
-            syl, _ = pacing(dialogue)
-            rate = forced_rate(dialogue, held)
-            fits = snap(max(1, round(speech_seconds(dialogue, pace) * fps))) / fps
-            if rate > RATE_CEILING:
-                verdict, mark = "CRAMMED", "!!"
+            p = shot_pacing(shot, default, snap, fps)
+            if p is None:
+                continue
+            held, syl, rate, fits, verdict = (p["held"], p["syllables"], p["rate"], p["fits"],
+                                              p["verdict"])
+            if verdict == "CRAMMED":
+                mark = "!!"
                 crammed += 1
                 gain += fits - held
-            elif rate > SPEECH_RATE[pace] + 0.15:
-                verdict, mark = "tight", " !"
+            elif verdict == "tight":
+                mark = " !"
                 tight += 1
                 gain += max(0.0, fits - held)
             else:
-                verdict, mark = "ok", "  "
+                mark = "  "
             rows.append((mark, shot.id, held, syl, rate, fits, verdict))
 
     if not rows:

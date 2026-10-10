@@ -162,6 +162,7 @@ Everything you do to a shot lives here:
 | **Play from here** | Play the cut starting at this shot |
 | **Inspect shot** | The Inspector: target, overrides, refs used, refs missing |
 | **Show in script** | Jump the Script window to that shot's lines |
+| **Edit shot…** / **Add a shot after** | The shot form (below) |
 | **Show missing refs (n)** | Which pictures this shot is waiting on |
 | **Discard take…** | Move a candidate to `_trash/` — nothing is deleted, but the bin stays readable |
 | **Show details** / **Copy path** | The take's sidecar, and its file path |
@@ -171,6 +172,30 @@ Everything you do to a shot lives here:
 | **Lock in the cut** / **Unlock** | Freeze a clip so it can't be moved, trimmed or re-picked |
 | **Audio from…** | This clip's picture with another clip's (or a file's) sound |
 | **Move left / right in the cut** | Reorder (`Alt+←` / `Alt+→` in the timeline) |
+
+### Editing a shot
+
+**+ Shot** in the Shots toolbar adds a shot after the selected one; the pencil (or
+**Edit shot…** in the context menu) opens the selected one. The form is the shot's lines
+in the script as fields:
+
+- **Shot**: its id, in the script's own numbering (between sh010 and sh020 a new one is
+  sh015), and for a new shot the sequence it goes in, or a new sequence with its location.
+- **Who's in it** and **With**: picked from the cast in the series config, in order; **+
+  Character** / **+ Prop** opens a new cast card.
+- **Size**, **Length** (H3's grid, or auto to fit the dialogue), **Angle**.
+- **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
+  it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
+  **Extras**, **On-screen text**.
+- **More**: music, a different video model, continuity, first and last frames, the audio
+  policy, pace, profile, steps, LoRA, model file.
+
+Beside the fields is what will render on the current pass, compiled as you type: the
+model, size and frames, the dialogue's pace against the shot's length (with how long it
+needs when it's tight), the build's warnings for this shot, and the prompt the model is
+told. **Save** writes only this shot's lines into the script (keeping its comments and
+any line the form doesn't know), with a history copy, and rebuilds. **Save and render**
+then queues a take on the current pass.
 
 ### Editing a prompt
 

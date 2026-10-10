@@ -20,7 +20,7 @@ import type {
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
-  PromoteHashes, PromotePlan, PromoteResult, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult,
+  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 
@@ -196,6 +196,8 @@ export interface Api {
   /** PUT /seriesmith/source: 409 (ApiError.data = {error, hash, text}) when the file
    * changed since `base_hash`; 400 for a series config that isn't JSON. */
   putSource(req: SourceSaveRequest): Promise<SourceSaveResult>;
+  /** The shot form's preview: the script with a shot as edited, compiled in memory. */
+  previewShot(ep: string, pass: Pass, text: string, shot: string): Promise<ShotPreview>;
   /** GET /seriesmith/promote: what the authored files can take from the overrides. */
   promotePlan(ep: string, shot?: string | null): Promise<PromotePlan>;
   /** POST /seriesmith/promote: 409 when either file changed since the plan; 400 for
@@ -597,6 +599,7 @@ export function createHttpApi(t: Transport): Api {
     sourceHash: (ep, file) => get(`/seriesmith/source?${qs({ ep, file, hash_only: "1" })}`),
     checkSource: (ep, file, text) => call("POST", "/seriesmith/source/check", { ep, file, text }),
     putSource: (req) => call("PUT", "/seriesmith/source", req),
+    previewShot: (ep, pass, text, shot) => call("POST", "/seriesmith/shot/preview", { ep, pass, text, shot }),
     promotePlan: (ep, shot) => get(`/seriesmith/promote?${qs({ ep, shot: shot || undefined })}`),
     promote: (ep, items, hashes, shot) => call("POST", "/seriesmith/promote", shot ? { ep, items, hashes, shot } : { ep, items, hashes }),
     comfyQueue: async () => {

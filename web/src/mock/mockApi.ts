@@ -1833,6 +1833,17 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       return check(file, text);
     },
+    async previewShot(ep, pass, text, shot) {
+      await wait(120);
+      need(ep);
+      const lines = text.split(/\r?\n/);
+      const at = lines.findIndex((l) => l.trim().startsWith(`## ${shot}`));
+      if (at < 0) return { ok: false, error: `${shot} isn't in the script`, line: null };
+      const action = lines.slice(at + 1).find((l) => l.trim() && !/^[a-z_]+:/.test(l.trim()) && !l.startsWith("#")) ?? "";
+      return { ok: true, shot, target: "minimax_h3_ref2va", target_label: "MiniMax H3 Ref2VA", prompt: `The target video is the mock series. ${action}`,
+        frames: 73, fps: 24, seconds: 3.04, width: pass === "proxy" ? 864 : 1344, height: pass === "proxy" ? 480 : 768,
+        audio_policy: "generate", subjects: [], background: null, pacing: null, warnings: [] };
+    },
     async putSource(req) {
       await wait(300);
       need(req.ep);

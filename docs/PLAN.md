@@ -330,11 +330,18 @@ check, history copy and rebuild.
       picture path from the show's own layout (`../refs/...` or `refs/...`);
       Remove takes it out of series.json. Checked live: a new character added to
       an imported Porchlights episode wrote that one entry and nothing else.
-- [ ] The shot form: **+ Shot** and **Edit shot** in the Shots tab — sequence, id,
-      who / with (from the cast, or add one), size, duration, action, extras,
-      dialogue, camera, sound; target and keyframes under More; the pacing meter
-      and the prompt the model will be told; Save, and Save and render proxy. It
-      edits the script itself, not overrides.json.
+- [x] The shot form: **+ Shot** and the pencil in the Shots tab, **Edit shot…** and
+      **Add a shot after** in the context menu — sequence (or a new one, with its
+      location), id in the script's own numbering, who / with (from the cast, or
+      add one on its card), size, length on H3's grid, angle, action, dialogue rows
+      (speaker, V.O./O.S., how it's said), camera with a builder from H3's words,
+      sound, extras, on-screen text; music, model, continuity, keyframes, audio,
+      pace and render settings under More. Beside it, compiled as you type
+      (`POST /seriesmith/shot/preview`, nothing written): the target, size,
+      frames, the pacing meter and the prompt the model is told. Save rewrites only
+      that shot's lines in the script (not overrides.json); Save and render queues a
+      take on the current pass. Checked live: a new shot after sh010 of an imported
+      Porchlights episode went in as sh015, seven lines and nothing else.
 - [ ] New series / New episode as a short wizard: the series form, then the
       first sequence and shot.
 

@@ -372,6 +372,60 @@ def check_text(ep: str, file: str, text: str) -> dict:
     return result(shots)
 
 
+def preview_shot(ep: str, text: str, shot: str, pass_: str = "proxy") -> dict:
+    """POST /seriesmith/shot/preview: `text` (the episode's script, with a shot
+    edited in the shot form) parsed and compiled in memory for `pass_` --
+    nothing is written -- and what `shot` would render: its target, the prompt
+    the model is told, its length on the target's grid, its size and audio,
+    and its dialogue's pacing. {"ok": false, "error", "line"} when the script
+    or the build refuses it (the message is the one `check` gives)."""
+    from seriesmith import build as B
+    from seriesmith import targets as TG
+    from seriesmith.core.series_config import series_info
+    from seriesmith.core.story import ScriptError, parse_story
+
+    cfg = _load_cfg(ep)
+    if cfg is None:
+        return {"ok": False, "error": "the series config doesn't load: fix it first", "line": None}
+    text = normalize(text)
+    TG.add_thread_root(ep)
+    try:
+        subjects, chars, variants = _ids(cfg)
+        story = parse_story(text, subjects, chars, series_info(cfg), variants)
+    except ScriptError as e:
+        return {"ok": False, "error": e.msg, "line": e.line_no}
+    ir_shot = next((s for sq in story.sequences for s in sq.shots if s.id == shot), None)
+    if ir_shot is None:
+        return {"ok": False, "error": f"{shot} isn't in the script", "line": None}
+    try:
+        groups = TG.episode_targets(story, cfg)
+        built = B.compile_groups(story, cfg, pass_, groups)
+    except (ValueError, KeyError, TG.TargetError) as e:
+        msg = e.args[0] if isinstance(e, KeyError) and e.args else str(e)
+        return {"ok": False, "error": str(msg), "line": None}
+    for t, doc, rep in built:
+        entry = next((x for x in doc.get("shots", []) if x.get("id") == shot), None)
+        if entry is None:
+            continue
+        d = doc.get("defaults") or {}
+        fps = float(entry.get("fps") or d.get("fps") or t.template.fps or 24)
+        prompt = entry.get("prompt", "")
+        if isinstance(prompt, list):
+            prompt = "\n\n".join(str(p) for p in prompt)
+        pace = B.shot_pacing(ir_shot, (cfg.get("speech") or {}).get("pace", "normal"),
+                             t.template.snap, fps)
+        return {"ok": True, "shot": shot, "target": t.id, "target_label": t.label,
+                "prompt": prompt, "negative": entry.get("negative"),
+                "frames": entry.get("length"), "fps": fps,
+                "seconds": round(float(entry["length"]) / fps, 2) if entry.get("length") else None,
+                "width": entry.get("width", d.get("width")), "height": entry.get("height", d.get("height")),
+                "audio_policy": entry.get("audio_policy"),
+                "subjects": entry.get("subjects") or [], "background": entry.get("background"),
+                "pacing": pace,
+                "warnings": [w for w in rep.get("warnings", []) if re.search(rf"\b{re.escape(shot)}\b", w)]}
+    return {"ok": False, "error": f"{shot} compiled for no target", "line": None}
+
+
 # ---------------------------------------------------------------------------
 # saving
 # ---------------------------------------------------------------------------

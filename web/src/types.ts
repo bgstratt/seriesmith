@@ -1915,6 +1915,32 @@ export interface SourceSaveResult {
   build: BuildResult | null;
 }
 
+/** POST /seriesmith/shot/preview: a shot as the form has it, compiled in memory. */
+export interface ShotPreview {
+  ok: boolean;
+  /** when !ok: why (the message `check` gives), and the script line if known */
+  error?: string;
+  line?: number | null;
+  shot?: string;
+  target?: string;
+  target_label?: string;
+  /** what the model is told */
+  prompt?: string;
+  negative?: string | null;
+  frames?: number | null;
+  fps?: number;
+  seconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  audio_policy?: string | null;
+  subjects?: string[];
+  background?: string | null;
+  /** the dialogue's pace against the shot's length (null: no dialogue) */
+  pacing?: { held: number; syllables: number; rate: number; fits: number; verdict: "ok" | "tight" | "CRAMMED";
+             pace: string; pace_rate: number; ceiling: number } | null;
+  warnings?: string[];
+}
+
 /** The body of a 409 from PUT /seriesmith/source or POST /seriesmith/promote. */
 export interface SourceConflictBody {
   error: string;

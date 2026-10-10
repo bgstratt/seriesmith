@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
   openIssue,
-  keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, showInScript, showMissingRefs,
+  keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost,
 } from "../actions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
@@ -210,6 +210,12 @@ export function ContextMenu() {
       </button>
       <button disabled={!!shot?.orphan} title={shot?.orphan ? `${menu.shot} is no longer in the script` : `Open the script at ${menu.shot}'s lines`} onClick={run(() => showInScript(menu.shot))}>
         <i className="pi pi-file-edit" /> Show in script
+      </button>
+      <button disabled={!!shot?.orphan} title="Edit the shot as a form: who, size, length, action, dialogue, camera, sound" onClick={run(() => openShotForm({ shot: menu.shot, after: null }))}>
+        <i className="pi pi-pencil" /> Edit shot…
+      </button>
+      <button title={`Add a shot after ${menu.shot}`} onClick={run(() => openShotForm({ shot: null, after: menu.shot }))}>
+        <i className="pi pi-plus" /> Add a shot after
       </button>
     </>
   );

@@ -2305,6 +2305,11 @@ export function openSubjectCard(card: { kind: import("./lib/seriesForm").CardKin
   set({ subjectCard: card, menu: null });
 }
 
+/** The shot form: edit `shot`, or add one after `after` (null: at the end). */
+export function openShotForm(form: { shot: string | null; after: string | null } | null) {
+  set({ shotForm: form, menu: null });
+}
+
 /** The Series settings form: the series config as fields. */
 export function openSeriesForm(open = true) {
   set({ seriesFormOpen: open, menu: null });
