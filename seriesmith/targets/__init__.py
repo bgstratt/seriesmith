@@ -91,6 +91,15 @@ DEFAULT_AUDIO_TARGET = "ltx2_voice"
 DEFAULT_TARGETS = {"video": DEFAULT_VIDEO_TARGET, "image": DEFAULT_IMAGE_TARGET,
                    "audio": DEFAULT_AUDIO_TARGET}
 PASSES = ("final", "proxy")
+# Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
+# Cloud, a Comfy API deployment of the target's workflow, or a hosted model
+# through Comfy Router.
+BACKENDS = ("local", "cloud", "deployment", "router")
+# A target that renders a ComfyUI workflow runs where that workflow can: your
+# own ComfyUI, or a deployment built from it. Comfy Cloud only runs its own
+# node set, so a target says `cloud` itself once its workflow is known to run
+# there.
+GRAPH_BACKENDS = ("local", "deployment")
 
 
 class TargetError(ValueError):
@@ -404,6 +413,11 @@ class Target:
                                         {k: v for k, v in base.items() if not k.startswith("_")}
                                         if isinstance(base, dict) else None)
         self._module = None
+        bad = [b for b in self.backends if b not in BACKENDS]
+        if bad:
+            raise TargetError(f"{self.kind} target {self.id}: capabilities.backends "
+                              f"{', '.join(map(repr, bad))} is not a backend "
+                              f"({', '.join(BACKENDS)})")
 
     def __repr__(self) -> str:
         return f"<Target {self.kind}/{self.id}>"
@@ -522,6 +536,34 @@ class Target:
         `dur: model` means something) or "script" (the build's length)."""
         return (self.spec.get("capabilities") or {}).get("duration") or "script"
 
+    @property
+    def backends(self) -> list[str]:
+        """Where this target's jobs can run (BACKENDS), in order of preference:
+        target.json `capabilities.backends`, else GRAPH_BACKENDS."""
+        raw = (self.spec.get("capabilities") or {}).get("backends")
+        if raw is None:
+            return list(GRAPH_BACKENDS)
+        return [raw] if isinstance(raw, str) else list(raw)
+
+    @property
+    def reproducible(self) -> bool:
+        """Whether the same seed and settings render the same take again
+        (`capabilities.seed`: "fixed", the default, or "provider" for a hosted
+        model that may change behind its name). A take from a target that
+        isn't is marked so."""
+        return (self.spec.get("capabilities") or {}).get("seed", "fixed") == "fixed"
+
+    @property
+    def latents(self) -> bool:
+        """Whether a take can keep its latent (for latent continuity and the
+        latent upscale): a target that chains latents, or one that says
+        `capabilities.latents`. A hosted model never can: it returns finished
+        video only."""
+        caps = self.spec.get("capabilities") or {}
+        if "latents" in caps:
+            return bool(caps["latents"])
+        return "latent" in continuous_modes(self)
+
     # -- model families (target.json "models") -------------------------------
 
     @property
@@ -612,14 +654,17 @@ class Target:
 
     def capabilities(self) -> dict:
         """What a picker or the core may need to know without asking which
-        model this is (GET /h3pipe/targets). An image target: {"mode": "t2i"
-        | "edit", "max_refs", "negative_prompt"}. An audio target:
-        {"mode": "t2a" | "voice_clone", "reference_audio", "max_seconds",
-        "negative_prompt"}."""
+        model this is (GET /targets). Every target: {"backends",
+        "reproducible"}. An image target adds {"mode": "t2i" | "edit",
+        "max_refs", "negative_prompt"}. An audio target adds {"mode": "t2a" |
+        "voice_clone", "reference_audio", "max_seconds", "negative_prompt"}. A
+        video target adds what a shot can ask of it: audio policies, keyframes,
+        how many subjects and voices it takes, `continuous:` modes, latents."""
         r = self.recipe
+        common = {"backends": self.backends, "reproducible": self.reproducible}
         if self.kind == "image":
             caps = self.spec.get("capabilities") or {}
-            return {"mode": caps.get("mode") or "t2i",
+            return {**common, "mode": caps.get("mode") or "t2i",
                     "max_refs": int(caps.get("max_refs") or 0),
                     "negative_prompt": bool(self.binding.specs("negative"))}
         if self.kind == "audio":
@@ -627,12 +672,29 @@ class Target:
             default, hi, lo = self.seconds_range()
             # the whole range, so a picker can offer what a generate accepts
             # (a request outside it is 400)
-            return {"mode": caps.get("mode") or "t2a",
+            return {**common, "mode": caps.get("mode") or "t2a",
                     "reference_audio": bool(caps.get("reference_audio")),
                     "max_seconds": float(caps.get("max_seconds") or hi),
                     "min_seconds": lo, "default_seconds": default,
                     "negative_prompt": bool(self.binding.specs("negative"))}
-        return {"policies": self.policies, "duration": self.duration,
+        caps = self.spec.get("capabilities") or {}
+        # how many subjects (characters, props) one shot can carry as
+        # references: one slot each, or None when they are packed into one
+        # picture (a reference sheet) with no fixed limit; 0: it takes none
+        if caps.get("max_subjects") is not None:
+            max_subjects = int(caps["max_subjects"])
+        elif r.get("subject_slots"):
+            max_subjects = len(r["subject_slots"])
+        elif r.get("reference_sheet") or r.get("reference_image"):
+            max_subjects = None
+        else:
+            max_subjects = 0
+        return {**common,
+                "policies": self.policies, "duration": self.duration,
+                "max_subjects": max_subjects,
+                "max_voices": int(caps.get("max_voices") or len(r.get("voice_slots") or ())),
+                "continuous": sorted(continuous_modes(self)),
+                "latents": self.latents,
                 # the first keyframe is required (Wan 14B I2V: the picture it animates)
                 "requires_first": "first" in (r.get("keyframe_required") or {}),
                 # "none": the model makes no sound (Wan 2.2): every take is silent
