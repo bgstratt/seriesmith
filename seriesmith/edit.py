@@ -1436,6 +1436,8 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
     index = {d["shots"][i]["id"]: (d, i) for d, i in J.episode_shots(root, pass_, docs)}
     out = {"queued": [], "skipped": [], "errors": []}
     listing = J.model_lister(comfy, model_list)
+    queued_ids: dict[str, str] = {}          # runner: shot -> its queue job, for `after`
+    cut_order = None
     for sid in (shot_ids if shot_ids is not None else list(index)):
         if sid not in index:
             out["errors"].append({"shot": sid, "error": f"{sid} is not in "
@@ -1477,8 +1479,11 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
                                    "model_mismatch": [c for c in job.model_checks if c["block"]]})
             continue
         if runner is not None:
-            # seriesmith's queue: the take staged and reserved now, rendered on
-            # its backend (runner.Runner), the queue's job id as its prompt id
+            # seriesmith's queue: the take reserved now, staged and rendered on
+            # its backend when its job starts (runner.Runner), the queue's job
+            # id as its prompt id. A shot continuing another (a live
+            # continuity first frame, or `continuous: latent`) waits for the
+            # job of the shot before it in the cut, when that is in this batch.
             try:
                 t = J.job_target(job)
                 graph = None if t.spec.get("router") else (
@@ -1486,7 +1491,17 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
                 name, _src, note = J.backend_choice(ov, sid, t, backend, root)
                 if note:
                     job.notes.append(note)
-                take, qid = runner.enqueue_render(job, graph, name, probe=comfy)
+                live = job.continuity
+                before = (live or {}).get("after") if live else None
+                if before is None and (job.recompiled or job.shot).get("hold"):
+                    if cut_order is None:
+                        cut_order = [e.shot for e in cut_entries(root, pass_)]
+                    k = cut_order.index(sid) if sid in cut_order else 0
+                    before = cut_order[k - 1] if k > 0 else None
+                take, qid = runner.enqueue_render(job, graph, name, probe=comfy,
+                                                  continuity=live,
+                                                  after=queued_ids.get(before))
+                queued_ids[sid] = qid
             except Exception as e:
                 out["errors"].append({"shot": sid, "error": str(e)[:800]})
                 continue

@@ -232,9 +232,14 @@ With the UI there to try each one:
 - [ ] The 360 tour (h3tour) and kreagen's command line still queue on the
       local ComfyUI directly.
 - [ ] A Router image target (with the live Router run).
-- [ ] Continuity across backends: `first: continuity` cut before staging;
-      `continuous: latent` with the previous take's latent (or mp4) uploaded
-      to a portable chain node.
+- [x] Continuity across backends: seriesmith's queue stages a take when its
+      job starts, so `first: continuity` cuts the first frame from the take
+      the cut uses then, and `continuous: latent` uploads that take's latent
+      (else its mp4, for the VAE) to SeriesmithChainLatent (comfy_nodes/
+      chain.py, h3pipe's H3ChainLatent reading uploads). A chain queued at once
+      runs in order: each job waits for the one it continues (queue `after`),
+      on any lane. Live 2026-10-10: ep02 scratch, sq07 made a latent chain,
+      sh140 then sh150 (proxy) on local: sh150 held sh140's last 39 frames.
 - [ ] Upscale, post and master portable (their nodes into seriesmith's pack).
 - [ ] Deployments, and the live Router run (both need a Comfy API key; not
       before there is a UI to drive them from).

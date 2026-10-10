@@ -34,18 +34,47 @@ class Runner:
         return self.backends.get(name)
 
     def enqueue_render(self, job: J.Job, base: dict | None, backend_name: str,
-                       probe=None) -> tuple[T.Take, str]:
-        """Stage and reserve the take, then queue its render. ValueError when
-        the backend isn't set up here (nothing is reserved then)."""
+                       probe=None, continuity: dict | None = None,
+                       after: str | None = None) -> tuple[T.Take, str]:
+        """Reserve the take and queue its render; its inputs are staged when
+        the job starts (stage_portable), so a continuity shot cuts its first
+        frame from the take the cut uses then (`continuity`: h3pipe's live
+        continuity entry), and a `continuous: latent` one holds that take
+        (refs.chain_source) -- including one rendered just before it in the
+        same batch. `after`: the queue job it waits for (the shot it
+        continues). ValueError when the backend isn't set up here (nothing is
+        reserved then)."""
+        import os
+
         from seriesmith import render as RD
 
         backend = self.backends.get(backend_name)
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
-        take = RD.start_job_portable(job, probe if backend.kind == "local" else None)
+        local_probe = probe if backend.kind == "local" else None
+        # the continuity node of h3pipe's way (H3ContinuityFrame) isn't used:
+        # the first frame is cut when the job starts, below
+        job.continuity = None
+        take = J.start_job(job)
         ep = job.root
         title = f"{_ep_name(ep)} {job.id} t{take.take:02d}"
         gkw = dict(review_copy=self.review_copy, portable=True)
+        chained = bool((job.recompiled or job.shot).get("hold"))
+
+        def stage(report) -> None:
+            from seriesmith import refs as R
+            if continuity is not None:
+                rel = os.path.relpath(take.paths.sidecar, ep)
+                res = R.continuity_at_start(ep, job.id, job.pass_, rel)
+                if res.get("note"):
+                    report(line=res["note"])
+            if chained:
+                job.chain_from = R.chain_source(ep, job.id, job.pass_)
+                f = job.chain_from.get("from") or {}
+                report(line=f"holds {f.get('shot')} {f.get('pass')} t{int(f.get('take') or 0):02d} "
+                            f"({'its latent' if job.chain_from.get('latent') else 'its frames'})")
+            J.stage_portable(job, local_probe)
+            J.place_staged(job, take)
 
         def work(qjob: QJob, report) -> str:
             def progress(p):
@@ -55,6 +84,7 @@ class Runner:
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
             try:
+                stage(report)
                 status = RD.run_take(job, take, backend, base, gkw, on_progress=progress,
                                      on_run=got_run, prompt_id=qjob.id)
             except Exception as e:                       # noqa: BLE001  the take fails
@@ -79,13 +109,16 @@ class Runner:
             """A retry: the same shot and settings, as a new take."""
             j2 = copy.copy(job)
             j2.take, j2.forced, j2.staged, j2.input_files = job.take + 1, False, [], {}
-            t2, _ = self.enqueue_render(j2, base, backend_name, probe)
+            j2.chain_from = None
+            self.enqueue_render(j2, base, backend_name, probe, continuity)
             return None                                  # enqueue_render submitted it
 
         qjob = QJob(kind="render", lane=backend.name, title=title, work=work,
                     info={"ep": ep, "pass": job.pass_, "shot": job.id, "take": take.take,
-                          "target": job.target, "backend": backend.name},
-                    on_cancel=cancelled, retry=again)
+                          "target": job.target, "backend": backend.name,
+                          **({"continues": "first frame"} if continuity is not None else {}),
+                          **({"continues": "latent"} if chained else {})},
+                    on_cancel=cancelled, retry=again, after=after)
         T.update_sidecar(take.paths.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         take.sidecar = T.read_sidecar(take.paths.sidecar)

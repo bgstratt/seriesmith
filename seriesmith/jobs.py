@@ -1165,6 +1165,10 @@ class Job:
     # have had in ComfyUI's input folder -> the local file, which make_portable
     # turns into an upload
     input_files: dict = field(default_factory=dict)
+    # a portable `continuous: latent` render: the take it continues, found when
+    # its job starts (refs.chain_source: {"from", "latent", "video"}); its files
+    # go up to SeriesmithChainLatent (make_portable)
+    chain_from: dict | None = None
     # how the take's length is decided: "script" (the shotlist's), "estimate"
     # (`dur: model` rendered at the build's estimate) or "predicted" (the
     # model's duration head, `duration_head` the file ModelPatchLoader loads)
@@ -1890,25 +1894,33 @@ def start_job(job: Job) -> T.Take:
     take = T.reserve_take(job.root, job.pass_, job.id, sidecar_for(job),
                           take=job.take if job.forced else None, folder=job.folder)
     job.take = take.take
-    if job.staged:
-        # a file the target composed for this take (stage_inputs): into the
-        # take as <stem><suffix>, listed in the sidecar's refs with its sha1
-        made = []
-        for f in job.staged:
-            dst = os.path.join(take.paths.dir, take.paths.stem + f["suffix"])
-            os.replace(f["tmp"], dst)
-            # a portable render uploads it from where it now is
-            for name, p in list(job.input_files.items()):
-                if p == f["tmp"]:
-                    job.input_files[name] = dst
-            made.append({"slot": f["slot"], "kind": f.get("kind", "image"),
-                         "path": os.path.relpath(dst, job.root).replace(os.sep, "/"),
-                         "role": f.get("role"), "sha1": T.file_sha1(dst)})
-        job.staged = []
-        take.sidecar = T.update_sidecar(take.paths.sidecar,
-                                        refs=list((take.sidecar or {}).get("refs") or []) + made)
+    place_staged(job, take)
     T.write_json(take.paths.shotlist, frozen_shotlist(job))
     return take
+
+
+def place_staged(job: Job, take: T.Take) -> None:
+    """The files a target composed for this take (stage_inputs: the ingredients
+    reference sheet) into the take as <stem><suffix>, listed in the sidecar's
+    refs with their sha1s. start_job does it; seriesmith's queue, which stages
+    a take when its job starts, does it then."""
+    if not job.staged:
+        return
+    made = []
+    for f in job.staged:
+        dst = os.path.join(take.paths.dir, take.paths.stem + f["suffix"])
+        os.replace(f["tmp"], dst)
+        # a portable render uploads it from where it now is
+        for name, p in list(job.input_files.items()):
+            if p == f["tmp"]:
+                job.input_files[name] = dst
+        made.append({"slot": f["slot"], "kind": f.get("kind", "image"),
+                     "path": os.path.relpath(dst, job.root).replace(os.sep, "/"),
+                     "role": f.get("role"), "sha1": T.file_sha1(dst)})
+    job.staged = []
+    sc = T.read_sidecar(take.paths.sidecar) or {}
+    take.sidecar = T.update_sidecar(take.paths.sidecar,
+                                    refs=list(sc.get("refs") or []) + made)
 
 
 def mark_queued(take: T.Take, prompt_id: str) -> None:
@@ -2441,6 +2453,8 @@ def make_portable(g: dict, job: Job, take: T.Take, loader: str | None, saver: st
     if job.inputs and not job.input_files:
         raise NotPortable(f"{job.id}'s inputs were staged in ComfyUI, not for a portable "
                           f"render (stage_portable)")
+    if job.chain_from is not None:
+        chain_portable(g, job.chain_from)
     for v in g.values():
         ins = v.get("inputs") or {}
         for k, val in list(ins.items()):
@@ -2451,6 +2465,26 @@ def make_portable(g: dict, job: Job, take: T.Take, loader: str | None, saver: st
         si.pop(k, None)
     si["run"] = run_name(job, take)
     si["take"] = take.take
+
+
+def chain_portable(g: dict, src: dict) -> None:
+    """h3pipe's chain nodes (chain_latent) made seriesmith's: SeriesmithChainLatent
+    is given the previous take as files to upload -- its kept latent, and its
+    mp4 for the VAE fallback -- instead of finding it in the episode folder;
+    H3ChainTrim becomes SeriesmithChainTrim."""
+    from seriesmith.backends import File
+    for v in g.values():
+        if v["class_type"] == "H3ChainLatent":
+            ins = v["inputs"]
+            new = {k: ins[k] for k in ("latent", "overlap", "hold_audio", "fps",
+                                       "video_vae", "audio_vae") if k in ins}
+            new["source"] = json.dumps(src.get("from") or {})
+            new["previous"] = File(src["latent"]) if src.get("latent") else ""
+            new["previous_video"] = File(src["video"]) if src.get("video") else ""
+            v["class_type"], v["inputs"] = "SeriesmithChainLatent", new
+            v.setdefault("_meta", {})["title"] = "Chain latent (seriesmith)"
+        elif v["class_type"] == "H3ChainTrim":
+            v["class_type"] = "SeriesmithChainTrim"
 
 
 def continuity_frame(g: dict, job: Job, take: T.Take, inputs: dict) -> None:

@@ -58,9 +58,12 @@ class Job:
     retry: Callable | None = field(default=None, repr=False)   # () -> new Job or None
     # a queued job cancelled before it ran: what to undo (a render: its take)
     on_cancel: Callable | None = field(default=None, repr=False)
+    # the job it waits for (a continuity shot: the one it continues), on any lane
+    after: str | None = None
 
     def to_json(self) -> dict:
         return {"id": self.id, "kind": self.kind, "lane": self.lane, "title": self.title,
+                "after": self.after,
                 "info": self.info, "status": self.status, "progress": self.progress,
                 "step": self.step, "steps": self.steps, "created": self.created,
                 "started": self.started, "finished": self.finished, "error": self.error,
@@ -135,8 +138,12 @@ class Queue:
         start = []
         with self._lock:
             for lane in self.lanes.values():
-                while not lane.paused and lane.waiting and len(lane.running) < lane.parallel:
-                    job = lane.waiting.popleft()
+                while not lane.paused and len(lane.running) < lane.parallel:
+                    # the first waiting job whose `after` is done (or gone)
+                    job = next((j for j in lane.waiting if not self._waits(j)), None)
+                    if job is None:
+                        break
+                    lane.waiting.remove(job)
                     lane.running.add(job.id)
                     job.status, job.started = "running", now()
                     start.append(job)
@@ -145,6 +152,11 @@ class Queue:
             self._emit("execution_start", {"prompt_id": job.id})
             threading.Thread(target=self._run, args=(job,), daemon=True,
                              name=f"seriesmith-{job.lane}").start()
+
+    def _waits(self, job: Job) -> bool:
+        """Still waiting for the job it comes after."""
+        before = self.jobs.get(job.after) if job.after else None
+        return before is not None and before.status not in DONE
 
     def _run(self, job: Job) -> None:
         def report(progress: float | None = None, step: int | None = None,
