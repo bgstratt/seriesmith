@@ -408,6 +408,8 @@ export interface AppState {
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
   issuesOpen: boolean;
+  /** the Series settings form (components/SeriesForm.tsx) */
+  seriesFormOpen: boolean;
 }
 
 export const ZOOM_MIN = 8;
@@ -500,6 +502,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     issues: {},
     issueDraft: null,
     issuesOpen: false,
+    seriesFormOpen: false,
   };
 }
 

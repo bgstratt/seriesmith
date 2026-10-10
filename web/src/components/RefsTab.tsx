@@ -5,7 +5,7 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
-  openImageCompare, openRefFile, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
+  openImageCompare, openRefFile, openSeriesForm, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
@@ -1057,6 +1057,8 @@ export function RefsTab() {
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
         <PassToggle />
+        <button className="h3-btn" title="The series' settings: title, size, look, sound, models, finishing" disabled={!ep}
+          onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>
         <button className="h3-btn h3-icon" title="Refresh" disabled={!ep} onClick={() => void loadRefs()}><i className="pi pi-refresh" /></button>
       </div>
       {!ep && <div className="h3-empty-state">Pick an episode above.</div>}

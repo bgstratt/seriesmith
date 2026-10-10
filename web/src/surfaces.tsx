@@ -22,6 +22,7 @@ import { UpscaleDialog } from "./components/UpscaleDialog";
 import { PostDialog } from "./components/PostDialog";
 import { MasterDialog } from "./components/MasterDialog";
 import { ShotsTab } from "./components/ShotsTab";
+import { SeriesFormWindow } from "./components/SeriesForm";
 import { SourceWindows } from "./components/SourceWindow";
 import { Timeline } from "./components/Timeline";
 import { TrackWindow } from "./components/Track";
@@ -151,6 +152,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Viewer", Viewer],
   ["What's missing", MissingWindow],
   ["Script / series config", SourceWindows],
+  ["Series settings", SeriesFormWindow],
   ["Dialogue track", TrackWindow],
   ["Voice clip", VoiceClipWindow],
   ["360 viewer", PanoWindow],

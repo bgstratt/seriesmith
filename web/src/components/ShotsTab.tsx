@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, loadEpisodes, loadIssues, openBrowse, openInspector, openIssues, openMenu, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, loadEpisodes, loadIssues, openBrowse, openInspector, openIssues, openMenu, openSeriesForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -443,7 +443,8 @@ export function ShotsTab() {
         {ep && (
           <span className="h3-row">
             <button className="h3-btn h3-icon" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
-            <button className="h3-btn h3-icon" title="Edit the series config (series.json)" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
+            <button className="h3-btn h3-icon" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
+            <button className="h3-btn h3-icon" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
             <TrackButton />
             <button className="h3-btn h3-icon" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
             <button className="h3-btn h3-icon" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>

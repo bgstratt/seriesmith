@@ -48,7 +48,7 @@ under a show at once.
     "width": 1344,
     "height": 768
   },
-  "proxy": { "width": 448, "height": 256 },
+  "proxy": { "width": 864, "height": 480 },
   "style": {
     "look": "a 2D hand-drawn cartoon animation with flat 2D illustration, clean black line art, flat solid colors, and cel-shaded artwork"
   },
@@ -169,7 +169,7 @@ which ones your ComfyUI can render.
 {
   "series": { "id": "gold_path", "title": "The Gold Path",
               "fps": 24, "width": 1344, "height": 768, "steps": 8 },
-  "proxy":  { "width": 448, "height": 256, "steps": 4, "audio_mode": "generate" },
+  "proxy":  { "width": 864, "height": 480, "steps": 4, "audio_mode": "generate" },
   "style":  { "look": "a 2D hand-drawn cartoon animation with clean black line art, flat solid colors and cel shading" },
   "speech": { "pace": "normal" },
   "subjects": {
@@ -245,8 +245,8 @@ which ones your ComfyUI can render.
 
 | | final | proxy | shape | a 3 s take | upscaled (picks only) | delivers |
 |---|---|---|---|---|---|---|
-| **Render at size** (the default) | 1344×768 | 448×256 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
-| **Render small, upscale to 1080p** | 960×544 | 448×256 | ≈7:4 | ~20 s | re-sample 2x → 1920×1088, ~25–35 s | 1920×1080 (8 rows cropped) |
+| **Render at size** (the default) | 1344×768 | 864×480 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
+| **Render small, upscale to 1080p** | 960×544 | 864×480 | ≈7:4 | ~20 s | re-sample 2x → 1920×1088, ~25–35 s | 1920×1080 (8 rows cropped) |
 | **Render 16:9, upscale to 1080p or 4K** | 1024×576 | 512×288 | 16:9 | ~23–24 s (est.) | re-sample 2x → 2048×1152 (scaled down to 1080p; for 4K, then an upscale model) | 1920×1080 or 3840×2160, exactly |
 | **Render at size, master 1440p** | 1344×768 | 960×544 (8 steps) | 7:4 | ~53 s | re-sample 2x → 2688×1536, ~75 s | 2560×1440 (scaled down, 23 rows cropped) |
 
@@ -254,7 +254,13 @@ which ones your ComfyUI can render.
 its 13% more pixels than 960×544, since attention grows a little faster than the pixel
 count.)
 
-**The shape matters as much as the size.** 1344×768 and 448×256 are 7:4 (1.75), not 16:9
+**A proxy smaller than 480p is too small to judge a shot by**: faces, hands and small props
+blur into each other. 864×480 is the default for a new series; 896×512 is the same 7:4 shape
+as 1344×768 exactly, if a proxy take will stand in for a final one in a cut (a proxy of
+another shape is scaled to fit there). 448×256 renders quicker, for a rough check of timing
+only.
+
+**The shape matters as much as the size.** 1344×768 is 7:4 (1.75), not 16:9
 (1.78): H3 sizes are multiples of 32, and 1344×768 is the model's native size. A 7:4 take
 delivered at a 16:9 size is either cropped (1344×768 to 4K loses 18 rows top and bottom,
 1.6%) or padded (30 px of black each side); the upscale's **Output size** does either

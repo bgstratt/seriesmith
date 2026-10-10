@@ -306,6 +306,32 @@ With the UI there to try each one:
       Kept: the h3pipe-latent/1 header of latents on disk, H3_Ref2VA_Shotlist_v1.json
       and everything that really is MiniMax H3.
 
+## Step 10 — forms instead of files
+
+The two authored files stay the source of truth (the text windows stay one click
+away); forms read them, change only what they show, and save through the same
+check, history copy and rebuild.
+
+- [x] Series settings (Refs tab **Series**, Shots tab cog): title and id, fps,
+      final and proxy sizes on the video model's grid, look, speech pace, dialogue
+      mode and track, the video / refs / keyframe / voice models with what each is
+      for and whether it's installed, the master and post recipes' main settings,
+      the intro and outro; steps, LoRAs, model files, negative and backend under
+      More. A new series' proxy is 864×480 (480p is the minimum that reads;
+      896×512 offered for 1344×768's exact shape, and the form says when the shapes
+      differ). Checked live on an imported Porchlights S2 episode: a proxy change
+      saved as just those two lines, rebuilt, with a history copy.
+- [ ] Cast and places: a card per character, prop, vehicle, group and location
+      (name, design, voice, description, ...) with its takes, generate, import and
+      pick, and **+ Character / + Location / ...**.
+- [ ] The shot form: **+ Shot** and **Edit shot** in the Shots tab — sequence, id,
+      who / with (from the cast, or add one), size, duration, action, extras,
+      dialogue, camera, sound; target and keyframes under More; the pacing meter
+      and the prompt the model will be told; Save, and Save and render proxy. It
+      edits the script itself, not overrides.json.
+- [ ] New series / New episode as a short wizard: the series form, then the
+      first sequence and shot.
+
 ## Later
 
 - Publishing: the ComfyUI Manager listing for the node pack and the ComfyUI

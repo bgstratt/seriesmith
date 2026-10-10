@@ -2300,6 +2300,11 @@ export async function saveIssue(): Promise<boolean> {
   }
 }
 
+/** The Series settings form: the series config as fields. */
+export function openSeriesForm(open = true) {
+  set({ seriesFormOpen: open, menu: null });
+}
+
 export function openIssues(open = true) {
   set({ issuesOpen: open });
   if (open) void loadIssues();
