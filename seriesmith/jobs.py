@@ -1,0 +1,2652 @@
+#!/usr/bin/env python3
+"""
+h3jobs.py — turn "render this shot" into a queued ComfyUI job with a take record.
+
+Shared by h3render (the CLI) and, later, the ComfyUI routes behind the editor.
+The flow for one shot:
+
+    doc  = load_shotlist(root, pass_)                  # the built shotlist
+    job  = plan_job(root, pass_, doc, index, request, overrides)
+    take = start_job(job)          # reserve the take, write its frozen shotlist + sidecar
+    graph = graph_for(base, job, take)                 # patch the workflow
+    pid  = comfy.queue(graph);  mark_queued(take, pid)
+    ... wait ...;  finish_job(take)                    # only if the saver didn't
+
+What a job renders is decided here, in this order (later wins):
+
+    built shotlist entry  ->  overrides.json  ->  the request (CLI flags / redo dialog)
+
+Seeds: a shot's first take uses the built seed (`stable_seed`, from the ids).
+A redo gets a NEW seed unless asked for the same one. A seed pinned in
+overrides.json, or typed in the request, beats both. The seed actually used is
+recorded in the sidecar with where it came from (`seed_source`).
+
+Which workflow, loader, saver and widgets a job uses is the shot's target's
+`binding` (targets/<kind>/<id>/target.json). A built shotlist belongs to one
+video target (`shotlist_target`): shotlist.json is the series target's, and an
+episode that mixes targets has shotlist.<target>.json beside it
+(`load_shotlists`, `find_shot`, `episode_shots` find a shot in whichever holds
+it). A shot can render on another target than its build's: overrides.json's
+`target` or the request's (`retarget` compiles its IR from shots.json for that
+target at queue time). The frozen shotlist and the sidecar record the target.
+
+A target with no loader node (ltx2) gets every value patched into the
+workflow's widgets (`graph_for`: prompt, size, length, fps, seeds, ...), its
+saver put in place of the workflow's own (`prepare_saver`), its own graph code
+run (`patch_graph`: keyframes) and the graph pruned to what the saver needs.
+Images it conditions on are uploaded to ComfyUI's input folder first
+(`stage_inputs`). Canvas saves are converted here, subgraphs included
+(`ui_to_api`); `check_graph` validates a graph against /object_info.
+
+LoRAs are a list of {"name", "strength"}. The first goes into the workflow's
+LoRA loader (the binding's `loras` class, LoraLoaderModelOnly for H3); the rest
+are chained after it by adding nodes to the API graph, so no workflow needs a
+fixed number of LoRA slots. An empty list keeps the loader wired at strength 0,
+which renders on the base model. The shotlist's `loras` (a profile's list) or
+single `lora` (the turbo LoRA; "none" means no LoRA) is the default list.
+
+Rendering anyway (a shot whose reference files are missing, allowed by the
+request): a target that can (`compile_without`, H3 does) recompiles the shot
+from shotlist/shots.json and the series config as if those refs didn't exist,
+so the prompt never names them; the frozen shotlist carries that entry. Any
+other target, or a build that is out of date, falls back to the loader's grey
+stand-ins with the built prompt. The sidecar's `missing_mode` says which.
+
+Model files (`check_models`, before the take is reserved): each file a job
+loads for a param its target declares a family for (target.json `models`) is
+checked by name, then by its safetensors header (targets/modelid.py). A file
+of another family stops the job (action "mismatch") unless the request says
+`allow_model_mismatch`; a fingerprint-only match or an unknown file renders
+with a note in the sidecar.
+
+Stdlib only.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import os
+import random
+import re
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
+
+from seriesmith import takes as T
+from seriesmith import targets as TG
+
+# The default video target's binding, under the names h3render and the routes
+# have always imported. Job code reads the job's own target instead.
+_DEFAULT = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video").binding
+LOADER = _DEFAULT.loader_class
+# H3ShotListLoader's `info` output (its RETURN_NAMES, 0-based)
+LOADER_INFO_OUTPUT = 15
+SAVER = _DEFAULT.saver_class
+LORA = _DEFAULT.param("loras")["class_type"]
+UNET = _DEFAULT.param("model")["class_type"]
+WORKFLOW_NAME = _DEFAULT.workflow_name
+SKIP_UI = {"MarkdownNote", "Note", "H3ShotInfo", "Reroute"}
+PRIMITIVES = {"PrimitiveInt", "PrimitiveFloat", "PrimitiveString",
+              "PrimitiveBoolean", "PrimitiveNode", "PrimitiveStringMultiline"}
+CONTROL_WORDS = {"fixed", "increment", "decrement", "randomize"}
+LORA_OFF = {"none", "off", "-", ""}
+
+# New seeds stay below 2**53 so a browser can hold them as a plain number.
+# (Built seeds from stable_seed use 63 bits; the editor must treat those as
+# strings.)
+NEW_SEED_BITS = 53
+
+
+# ---------------------------------------------------------------------------
+# workflow loading
+# ---------------------------------------------------------------------------
+
+def find_workflow(explicit: str | None, name: str = WORKFLOW_NAME) -> str:
+    if explicit:
+        return explicit
+    here = os.path.dirname(os.path.abspath(__file__))
+    # $H3_WORKFLOW wins, then the target's copy, then beside this file, then
+    # $COMFYUI_PATH's workflows folder
+    cands = [os.environ.get("H3_WORKFLOW", ""), TG.repo_workflow(name) or "",
+             os.path.join(here, "workflows", name),
+             os.path.join(here, name),
+             os.path.join(here, "..", name)]
+    comfy = os.environ.get("COMFYUI_PATH", "")
+    if comfy:
+        cands.append(os.path.join(comfy, "user", "default", "workflows", name))
+    for cand in cands:
+        if cand and os.path.isfile(cand):
+            return os.path.normpath(cand)
+    raise FileNotFoundError(f"{name} not found — pass --workflow, or set "
+                            f"H3_WORKFLOW to its path")
+
+
+class WorkflowError(ValueError):
+    """A workflow the converter can't turn into an API graph faithfully. The
+    fallback is an API export (Workflow > Export (API)) as the workflow file."""
+
+
+SUBGRAPH_IN, SUBGRAPH_OUT = -10, -20      # a subgraph's own input / output node ids
+_MISSING = object()
+
+# Frontend-only primitives: they hold a value for a widget and never reach the
+# server. The rest of PRIMITIVES (PrimitiveInt, ...) are real server nodes.
+FRONTEND_PRIMITIVES = {"PrimitiveNode"}
+
+
+def _link_tuple(l) -> tuple:
+    """(id, origin, origin_slot, target, target_slot, type) from a top-level
+    link (a list) or a subgraph link (a dict)."""
+    if isinstance(l, dict):
+        return (l["id"], l["origin_id"], l["origin_slot"], l["target_id"], l["target_slot"],
+                l.get("type"))
+    l = list(l)
+    return tuple(l[:6]) if len(l) >= 6 else tuple(l) + (None,) * (6 - len(l))
+
+
+def flatten_subgraphs(ui: dict) -> dict:
+    """A canvas save with every subgraph instance replaced by the nodes inside
+    it, so the rest of the converter sees one flat graph.
+
+    A subgraph is a node whose `type` is the id of an entry in
+    `definitions.subgraphs`. Its inner nodes get ids "<instance>:<inner>" (as
+    ComfyUI names them), inner links "<instance>:<link>". Each subgraph input
+    is wired to whatever feeds the instance's input of the same name. An input
+    nothing feeds takes the value the instance shows for it: a promoted widget
+    saved in the instance's own `widgets_values`, else (`properties.proxyWidgets`,
+    where the instance shows the inner widget itself) the inner node's widget
+    value. Each subgraph output becomes the inner node that feeds it. Nested
+    subgraphs expand the same way; a muted instance drops out with everything
+    it fed. A bypassed instance is refused (WorkflowError)."""
+    defs = {sg["id"]: sg for sg in ((ui.get("definitions") or {}).get("subgraphs") or [])}
+    if not defs or not any(n.get("type") in defs for n in ui["nodes"]):
+        return ui
+    nodes = [dict(n) for n in ui["nodes"]]
+    links = {}
+    for l in ui["links"]:
+        t = _link_tuple(l)
+        links[t[0]] = list(t)
+    guard = 0
+    while True:
+        inst = next((n for n in nodes if n.get("type") in defs), None)
+        if inst is None:
+            break
+        guard += 1
+        if guard > 1000:
+            raise WorkflowError("subgraphs nest too deeply (or contain themselves)")
+        nodes.remove(inst)
+        nodes += _expand_subgraph(inst, defs[inst["type"]], links)
+    out = {k: v for k, v in ui.items() if k not in ("nodes", "links", "definitions")}
+    out["nodes"] = nodes
+    out["links"] = list(links.values())
+    return out
+
+
+def _expand_subgraph(inst: dict, sg: dict, links: dict) -> list[dict]:
+    """The inner nodes of one subgraph instance, rewired; `links` is updated in place."""
+    x = inst["id"]
+    name = sg.get("name") or sg["id"]
+    mode = inst.get("mode", 0)
+    if mode == 4:
+        raise WorkflowError(f"subgraph node {x} ({name}) is bypassed; the converter can't "
+                            f"tell what passes through it. Unbypass it, or export the "
+                            f"workflow as API")
+    if mode == 2:                      # muted: nothing inside runs, nothing comes out
+        for k in [k for k, l in links.items() if l[1] == x]:
+            del links[k]
+        return []
+    inner_links = {}
+    for l in sg.get("links") or []:
+        t = _link_tuple(l)
+        inner_links[t[0]] = t
+    sg_inputs = sg.get("inputs") or []
+    by_name = {i.get("name"): i for i in inst.get("inputs") or []}
+    # promoted widget values the instance saved, in the order of its widget inputs
+    wv = inst.get("widgets_values")
+    shown = {}
+    if isinstance(wv, list) and wv:
+        widget_inputs = [i for i in inst.get("inputs") or [] if "widget" in i]
+        if len(widget_inputs) != len(wv):
+            raise WorkflowError(
+                f"subgraph node {x} ({name}) saves {len(wv)} widget values for "
+                f"{len(widget_inputs)} promoted widgets; re-save it, or export as API")
+        shown = {i["name"]: v for i, v in zip(widget_inputs, wv)}
+
+    inner_by_id = {n["id"]: n for n in sg.get("nodes") or []}
+
+    def inner_widget(slot: int):
+        """The value an unfed subgraph input shows when the instance keeps no
+        value of its own (proxyWidgets): the widget of the first inner widget
+        input it feeds. The frontend sends that value to every input it feeds,
+        sockets included."""
+        for lid, o, os_, t, ts, typ in inner_links.values():
+            if o != SUBGRAPH_IN or os_ != slot or t not in inner_by_id:
+                continue
+            node = inner_by_id[t]
+            ins = node.get("inputs") or []
+            if ts is not None and ts < len(ins) and "widget" in ins[ts]:
+                wv = widget_values(node)
+                if ins[ts]["name"] in wv:
+                    return wv[ins[ts]["name"]]
+        return _MISSING
+
+    def outer_of(slot: int):
+        """(outer link id or None, shown value or _MISSING) for subgraph input `slot`."""
+        if slot is None or slot >= len(sg_inputs):
+            raise WorkflowError(f"subgraph {name}: a link uses input {slot}, which it "
+                                f"doesn't have")
+        nm = sg_inputs[slot].get("name")
+        ii = by_name.get(nm) or {}
+        if ii.get("link") is not None:
+            return ii["link"], _MISSING
+        if nm in shown:
+            return None, shown[nm]
+        return None, inner_widget(slot)
+
+    out_src = {}                       # subgraph output slot -> (inner origin, slot)
+    for lid, o, os_, t, ts, typ in inner_links.values():
+        if t == SUBGRAPH_OUT:
+            out_src[ts] = (o, os_)
+        elif o != SUBGRAPH_IN:
+            links[f"{x}:{lid}"] = [f"{x}:{lid}", f"{x}:{o}", os_, f"{x}:{t}", ts, typ]
+
+    inner = []
+    for n in sg.get("nodes") or []:
+        nn = copy.deepcopy(n)
+        nn["id"] = f"{x}:{n['id']}"
+        for inp in nn.get("inputs") or []:
+            lid = inp.get("link")
+            if lid is None:
+                continue
+            l = inner_links.get(lid)
+            if l is None:
+                inp["link"] = None
+            elif l[1] == SUBGRAPH_IN:
+                outer, value = outer_of(l[2])
+                inp["link"] = outer
+                if outer is None and value is not _MISSING:
+                    inp["_value"] = value
+            else:
+                inp["link"] = f"{x}:{lid}"
+        inner.append(nn)
+
+    # what the instance's outputs fed now comes from inside it
+    for k, l in list(links.items()):
+        if l[1] != x:
+            continue
+        src = out_src.get(l[2])
+        if src is None:
+            del links[k]
+            continue
+        o, os_ = src
+        if o == SUBGRAPH_IN:           # an input passed straight through
+            outer, _ = outer_of(os_)
+            if outer is None or outer not in links:
+                del links[k]
+                continue
+            l[1], l[2] = links[outer][1], links[outer][2]
+        else:
+            l[1], l[2] = f"{x}:{o}", os_
+    return inner
+
+
+def widget_values(node: dict) -> dict:
+    """{input name: saved widget value} of a canvas node, read positionally
+    from `widgets_values` (skipping the hidden control_after_generate value
+    after seed-style INTs) and overridden by a subgraph's `_value`."""
+    raw = node.get("widgets_values")
+    if isinstance(raw, dict):
+        return dict(raw)
+    vals, out, vi = list(raw or []), {}, 0
+    for inp in node.get("inputs") or []:
+        if "widget" in inp and vi < len(vals):
+            val = vals[vi]
+            vi += 1
+            if (vi < len(vals) and isinstance(val, (int, float)) and not isinstance(val, bool)
+                    and isinstance(vals[vi], str) and vals[vi] in CONTROL_WORDS):
+                vi += 1
+            out[inp["name"]] = val
+        if "_value" in inp:
+            out[inp["name"]] = inp["_value"]
+    return out
+
+
+def _types_match(a, b) -> bool:
+    if not a or not b:
+        return False
+    if a == "*" or b == "*":
+        return True
+    return bool(set(str(a).split(",")) & set(str(b).split(",")))
+
+
+def ui_to_api(ui: dict) -> dict:
+    """Convert a ComfyUI canvas save into the /prompt API graph.
+
+    Handles: subgraphs (flattened first, see flatten_subgraphs); linked inputs;
+    widget values, including the hidden control_after_generate value after
+    seed-style INTs; primitives -- the frontend PrimitiveNode, and the server's
+    PrimitiveInt / PrimitiveFloat / PrimitiveBoolean / PrimitiveString[Multiline]:
+    feeding a widget, their value is written into it; feeding a socket (a math
+    node's input, a switch's on_false) the node is kept; Reroute and bypassed
+    nodes are passed through (a bypassed node's output takes its first input of
+    the same type); muted and note/readout nodes are dropped, with every input
+    they fed. A node it can't convert faithfully raises WorkflowError, whose
+    message says why. Nodes keep ComfyUI's ids ("398:384" inside a subgraph).
+    """
+    ui = flatten_subgraphs(ui)
+    nodes = {n["id"]: n for n in ui["nodes"]}
+    links = {}
+    for l in ui["links"]:
+        t = _link_tuple(l)
+        links[t[0]] = (t[1], t[2], t[5])            # id -> (from_node, from_slot, type)
+
+    def out_type(node, slot):
+        outs = node.get("outputs") or []
+        return outs[slot].get("type") if slot is not None and slot < len(outs) else None
+
+    def resolve(link_id, seen=()):
+        """What a link carries: ("link", node, slot) | ("value", v) | None."""
+        if link_id is None or link_id not in links or link_id in seen:
+            return None
+        src_id, slot, typ = links[link_id]
+        src = nodes.get(src_id)
+        if src is None:
+            return None
+        seen = seen + (link_id,)
+        mode = src.get("mode", 0)
+        ctype = src["type"]
+        if mode == 2:
+            return None
+        if ctype == "Reroute" or mode == 4:
+            want = out_type(src, slot) or typ
+            ins = [i for i in src.get("inputs") or [] if "widget" not in i]
+            cand = ins if ctype == "Reroute" else [
+                i for i in ins if _types_match(i.get("type"), want)]
+            if not cand:
+                if ctype == "Reroute":
+                    return None
+                raise WorkflowError(
+                    f"node {src_id} ({ctype}) is bypassed and has no {want} input to pass "
+                    f"through; unbypass or remove it, or export the workflow as API")
+            return resolve(cand[0].get("link"), seen)
+        if ctype in SKIP_UI:
+            return None
+        if ctype in FRONTEND_PRIMITIVES:
+            vals = src.get("widgets_values") or []
+            return ("value", vals[0] if vals else None)
+        return ("link", src_id, slot)
+
+    def is_prim(nid) -> bool:
+        return nodes[nid]["type"] in PRIMITIVES and nodes[nid]["type"] not in FRONTEND_PRIMITIVES
+
+    def primitive_value(node, seen=()):
+        """A server primitive's value: what feeds its `value` input, else its widget."""
+        for inp in node.get("inputs") or []:
+            if inp.get("name") != "value":
+                continue
+            if inp.get("link") is not None and inp["link"] not in seen:
+                r = resolve(inp["link"])
+                if r is not None:
+                    if r[0] == "link" and is_prim(r[1]):
+                        return primitive_value(nodes[r[1]], seen + (inp["link"],))
+                    return r
+            if "_value" in inp:
+                return ("value", inp["_value"])
+        vals = node.get("widgets_values") or []
+        return ("value", vals[0] if isinstance(vals, list) and vals else None)
+
+    def emitted(n) -> bool:
+        return (n.get("mode", 0) not in (2, 4) and n["type"] not in SKIP_UI
+                and n["type"] not in FRONTEND_PRIMITIVES and n["type"] != "Reroute")
+
+    # A server primitive is kept only when something reads it through a socket.
+    keep = set()
+    for nid, n in nodes.items():
+        if not emitted(n) or n["type"] in PRIMITIVES:
+            continue
+        for inp in n.get("inputs") or []:
+            if "widget" in inp:
+                continue
+            r = resolve(inp.get("link"))
+            if r and r[0] == "link" and is_prim(r[1]):
+                keep.add(r[1])
+
+    def value_in(r):
+        """An API input value for a resolved source."""
+        if r[0] == "value":
+            return r[1]
+        if is_prim(r[1]) and r[1] not in keep:
+            pv = primitive_value(nodes[r[1]])
+            return pv[1] if pv[0] == "value" else [str(pv[1]), pv[2]]
+        return [str(r[1]), r[2]]
+
+    api = {}
+    for nid, n in nodes.items():
+        ctype = n["type"]
+        if not emitted(n) or (ctype in PRIMITIVES and nid not in keep):
+            continue
+        inputs = {}
+        wv = widget_values(n)
+        if isinstance(n.get("widgets_values"), dict):   # some nodes save a dict
+            inputs.update(n["widgets_values"])
+        for inp in n.get("inputs", []):
+            name = inp["name"]
+            is_widget = "widget" in inp
+            val = wv.get(name)
+            link = inp.get("link")
+            if link is not None and link in links:
+                r = resolve(link)
+                if r is not None:
+                    inputs[name] = value_in(r)
+                elif is_widget and "_value" in inp:
+                    inputs[name] = val
+            elif is_widget or "_value" in inp:
+                inputs[name] = val
+        if ctype in PRIMITIVES:                       # a kept server primitive
+            inputs = {"value": value_in(primitive_value(n))}
+        api[str(nid)] = {"class_type": ctype, "inputs": inputs,
+                         "_meta": {"title": n.get("title", ctype)}}
+    return api
+
+
+def check_graph(api: dict, object_info: dict | None = None) -> list[str]:
+    """Problems with an API graph (empty: well-formed). Every link must name a
+    node in the graph. With ComfyUI's /object_info (or a trimmed copy, {class:
+    {"input": {"required": {...}}, "output": [...]}}), every class must be
+    known, every linked slot must exist, and every required input must be set
+    (a dynamic input like ComfyMathExpression's `values` is set by `values.a`)."""
+    out = []
+    for nid, node in api.items():
+        ctype = node.get("class_type")
+        info = (object_info or {}).get(ctype)
+        if object_info is not None and info is None:
+            out.append(f"{nid}: unknown node class {ctype}")
+        have = node.get("inputs") or {}
+        for name, v in have.items():
+            if (isinstance(v, list) and len(v) == 2 and isinstance(v[0], str)
+                    and isinstance(v[1], int) and not isinstance(v[1], bool)):
+                src = api.get(v[0])
+                if src is None:
+                    out.append(f"{nid} ({ctype}).{name}: links to missing node {v[0]}")
+                    continue
+                sinfo = (object_info or {}).get(src.get("class_type"))
+                if sinfo is not None and v[1] >= len(sinfo.get("output") or []):
+                    out.append(f"{nid} ({ctype}).{name}: {src['class_type']} has no "
+                               f"output {v[1]}")
+        if info is not None:
+            for req in (info.get("input") or {}).get("required") or {}:
+                if req not in have and not any(k.startswith(req + ".") for k in have):
+                    out.append(f"{nid} ({ctype}): required input {req!r} is not set")
+    return out
+
+
+def load_graph(path: str) -> dict:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return graph_from(data, path)
+
+
+def graph_from(data: dict, where: str = "workflow") -> dict:
+    """A UI save or an API export, as an API graph."""
+    if "nodes" in data and "links" in data:
+        return ui_to_api(data)
+    if all(isinstance(v, dict) and "class_type" in v for v in data.values()):
+        return data
+    raise ValueError(f"{where} is neither a ComfyUI workflow save nor an API export")
+
+
+def workflow_candidates(explicit: str | None, name: str = WORKFLOW_NAME,
+                        comfy_url: str | None = None, env: str = "H3_WORKFLOW",
+                        prefer_repo: bool = False) -> list[tuple[str, str, object]]:
+    """Every place the workflow called `name` may come from, in the order
+    resolve_workflow takes them: (source, where, load), where `load()` is the
+    API graph or None when that place has nothing. `source` is one of
+    "explicit", "env", "comfy" (the running ComfyUI's saved workflows),
+    "saved" ($COMFYUI_PATH's workflows folder) or "repo"."""
+    out: list[tuple[str, str, object]] = []
+    if explicit:
+        return [("explicit", explicit, lambda p=explicit: load_graph(p))]
+    envp = os.environ.get(env, "")
+    if envp:
+        out.append(("env", envp,
+                    lambda p=envp: load_graph(p) if os.path.isfile(p) else None))
+    if comfy_url:
+        where = f"{comfy_url.rstrip('/')} (user workflows/{name})"
+
+        def from_comfy(url=comfy_url, where=where, name=name):
+            try:
+                data = Comfy(url).userdata(f"workflows/{name}")
+            except Exception:
+                return None
+            return graph_from(data, where) if data is not None else None
+
+        out.append(("comfy", where, from_comfy))
+    here = os.path.dirname(os.path.abspath(__file__))
+    comfy = os.environ.get("COMFYUI_PATH", "")
+    saved = [os.path.join(comfy, "user", "default", "workflows", name)] if comfy else []
+    repo = [os.path.join(here, "workflows", name), os.path.join(here, name),
+            os.path.join(here, "..", name)]
+    mine = TG.repo_workflow(name)
+    if mine:
+        repo.insert(0, mine)
+    files = ([("repo", p) for p in repo] + [("saved", p) for p in saved]) if prefer_repo \
+        else ([("saved", p) for p in saved] + [("repo", p) for p in repo])
+    for source, cand in files:
+        out.append((source, os.path.normpath(cand),
+                    lambda p=cand: load_graph(os.path.normpath(p))
+                    if os.path.isfile(p) else None))
+    return out
+
+
+def resolve_workflow(explicit: str | None, name: str = WORKFLOW_NAME,
+                     comfy_url: str | None = None, env: str = "H3_WORKFLOW",
+                     required: bool = True,
+                     prefer_repo: bool = False) -> tuple[dict | None, str]:
+    """(API graph, where it came from) for the workflow called `name`.
+
+    In order (workflow_candidates): an explicit path; $`env`; the workflow as
+    saved in the RUNNING ComfyUI at `comfy_url` (its user workflows, fetched
+    over the API, so it always matches that ComfyUI's node versions; skipped
+    when comfy_url is None); $COMFYUI_PATH's workflows folder; the copy in
+    this repo (the target's workflow.json whose binding names `name`, else
+    workflows/ or beside it). `prefer_repo` puts the repo copy ahead of
+    $COMFYUI_PATH, for callers whose saved canvas holds experiments that must
+    not leak in (a style LoRA on the reference-image graph). With
+    `required=False`, finding nothing returns (None, "") instead of raising.
+    """
+    for _source, where, load in workflow_candidates(explicit, name, comfy_url, env,
+                                                    prefer_repo):
+        g = load()
+        if g is not None:
+            return g, where
+    if not required:
+        return None, ""
+    raise FileNotFoundError(f"{name} not found in ComfyUI's saved workflows or beside "
+                            f"this script — pass --workflow, or set {env}")
+
+
+def is_link(v) -> bool:
+    """True when a node input is a link ([node id, output slot]) rather than a
+    widget value."""
+    return (isinstance(v, list) and len(v) == 2 and isinstance(v[0], str)
+            and isinstance(v[1], int) and not isinstance(v[1], bool))
+
+
+def neutral_graph(g: dict, binding) -> dict:
+    """A copy of `g` with every widget a job patches at queue time blanked: the
+    params the binding names (model, LoRAs, prompt, size, sampler, the model
+    files, ...) and the loader's and saver's own inputs (project_root, the
+    frozen shotlist, take, sidecar, fps, ...). What is left is the part of the
+    graph the author chose, which is what graph_fingerprint should compare —
+    otherwise a canvas that once rendered an episode looks "edited" because it
+    still holds that episode's project_root."""
+    g = copy.deepcopy(g or {})
+    for name in getattr(binding, "params", ()) or ():
+        for spec in binding.specs(name):
+            if not (spec.get("class_type") and spec.get("field")):
+                continue
+            for v in g.values():
+                if v.get("class_type") == spec["class_type"] \
+                        and spec["field"] in (v.get("inputs") or {}) \
+                        and not is_link(v["inputs"][spec["field"]]):
+                    v["inputs"][spec["field"]] = ""
+    for cls in (getattr(binding, "loader_class", None), getattr(binding, "saver_class", None)):
+        if not cls:
+            continue
+        for v in g.values():
+            if v.get("class_type") == cls:
+                v["inputs"] = {k: x for k, x in (v.get("inputs") or {}).items() if is_link(x)}
+    return g
+
+
+def graph_fingerprint(g: dict) -> list:
+    """A graph's shape, ignoring node ids and canvas layout: every node's class
+    with its widget values (the inputs that aren't links), sorted. Two graphs
+    with the same fingerprint render the same thing."""
+    out = []
+    for v in (g or {}).values():
+        widgets = sorted((k, json.dumps(x, sort_keys=True, default=str))
+                         for k, x in (v.get("inputs") or {}).items() if not is_link(x))
+        out.append((v.get("class_type") or "", widgets))
+    return sorted(out)
+
+
+def prefers_repo(target: "TG.Target") -> bool:
+    """Whether this target's workflow is taken from the repo before
+    $COMFYUI_PATH's workflows folder (h3refs.resolve_workflow passes
+    prefer_repo for audio targets). A workflow saved in the RUNNING ComfyUI
+    still wins over both, for every target."""
+    return target.kind == "audio"
+
+
+def target_graph_source(target: "TG.Target", comfy_url: str | None = None,
+                        with_graph: bool = False,
+                        saved_names: "set[str] | None" = None) -> dict:
+    """Which graph a render of `target` would use now, and how it compares with
+    the repo's copy:
+
+      {"name": the workflow name the binding looks up,
+       "source": "env" | "comfy" | "saved" | "repo" | "none",
+       "where": the path or the saved-workflow name it came from,
+       "env": the environment variable that would win, and whether it is set,
+       "installed": a copy is saved in the running ComfyUI under `name`,
+       "differs": the graph in force is not the repo's copy (widget values and
+                  node classes compared, layout and node ids ignored),
+       "repo": the repo copy's path, "" when the target ships none,
+       "error": why a candidate couldn't be read (the rest still apply)}
+
+    With `with_graph`, the graph in force is under "graph" (for readiness,
+    which needs its node classes). One request to ComfyUI at most — none when
+    `saved_names` (one listing of its saved workflows, for a caller asking
+    about every target) says it hasn't got this one."""
+    b = target.binding
+    name = b.workflow_name
+    env = b.env or "H3_WORKFLOW"
+    out = {"name": name, "source": "none", "where": "", "env": env,
+           "env_set": bool(os.environ.get(env, "")), "installed": False, "differs": False,
+           "repo": b.workflow if b.workflow and os.path.isfile(b.workflow) else "",
+           "error": ""}
+    repo_graph, in_force, errors, seen_comfy = None, None, [], comfy_url is None
+    if out["repo"]:
+        try:
+            repo_graph = load_graph(out["repo"])
+        except Exception as e:
+            errors.append(f"the repo copy can't be read: {e}")
+    for source, where, load in workflow_candidates(None, name, comfy_url, env,
+                                                   prefers_repo(target)):
+        if in_force is not None and seen_comfy:
+            break                                     # nothing later can change the answer
+        if source == "comfy" and saved_names is not None and name not in saved_names:
+            seen_comfy = True                         # one listing already said it isn't there
+            continue
+        try:
+            g = load()
+        except Exception as e:
+            errors.append(f"{where}: {e}")
+            if source == "comfy":
+                seen_comfy = True
+            continue
+        if source == "comfy":
+            seen_comfy = True
+            out["installed"] = g is not None
+        if g is None:
+            continue
+        if in_force is None:
+            out["source"], out["where"], in_force = source, where, g
+    if in_force is not None and repo_graph is not None:
+        out["differs"] = (graph_fingerprint(neutral_graph(in_force, b))
+                          != graph_fingerprint(neutral_graph(repo_graph, b)))
+    out["error"] = "; ".join(errors)
+    if with_graph:
+        out["graph"] = in_force
+    return out
+
+
+def target_workflow(target: "TG.Target", explicit: str | None = None,
+                    comfy_url: str | None = None, required: bool = True,
+                    prefer_repo: bool = False) -> tuple[dict | None, str]:
+    """resolve_workflow for a target's binding (its saved name and env var)."""
+    b = target.binding
+    return resolve_workflow(explicit, b.workflow_name, comfy_url, env=b.env or "H3_WORKFLOW",
+                            required=required, prefer_repo=prefer_repo)
+
+
+def node_of(graph: dict, ctype: str) -> str:
+    ids = [k for k, v in graph.items() if v["class_type"] == ctype]
+    if len(ids) != 1:
+        raise ValueError(f"workflow must contain exactly one {ctype} node (found {len(ids)})")
+    return ids[0]
+
+
+# ---------------------------------------------------------------------------
+# ComfyUI client
+# ---------------------------------------------------------------------------
+
+class Comfy:
+    def __init__(self, base: str, client_id: str = "h3render"):
+        self.base = base.rstrip("/")
+        self.client_id = client_id
+
+    def _open(self, path: str, data=None, method: str | None = None,
+              timeout: int = 60) -> bytes:
+        """The bytes of one request. An HTTP error is a RuntimeError naming the
+        status, so a caller can tell 404 / 409 from the message."""
+        req = urllib.request.Request(f"{self.base}{path}", data=data, method=method,
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")
+            raise RuntimeError(f"ComfyUI {e.code} on {path}: {body[:1500]}") from None
+
+    def _json(self, path: str, payload=None, timeout=60):
+        data = json.dumps(payload).encode() if payload is not None else None
+        return json.loads(self._open(path, data, timeout=timeout) or b"{}")
+
+    def ping(self):
+        self._json("/system_stats", timeout=10)
+
+    def userdata(self, path: str) -> dict | None:
+        """A JSON file from ComfyUI's user folder (e.g. workflows/x.json), or None."""
+        from urllib.parse import quote
+        try:
+            return self._json(f"/api/userdata/{quote(path, safe='')}", timeout=10)
+        except RuntimeError as e:
+            if "ComfyUI 404" in str(e):
+                return None
+            raise
+
+    def list_userdata(self, folder: str = "workflows") -> list[str]:
+        """The files in one folder of ComfyUI's user folder, as paths relative
+        to it ("H3_Ref2VA_Shotlist_v1.json", "old/x.json"). Empty when the
+        folder isn't there."""
+        from urllib.parse import urlencode
+        q = urlencode({"dir": folder, "recurse": "true"})
+        try:
+            got = self._json(f"/api/userdata?{q}", timeout=15)
+        except RuntimeError as e:
+            if "ComfyUI 404" in str(e):
+                return []
+            raise
+        return sorted(x for x in (got or []) if isinstance(x, str))
+
+    def put_userdata(self, path: str, data, overwrite: bool = True) -> str:
+        """Write a JSON file into ComfyUI's user folder (e.g.
+        workflows/x.json), returning its path relative to that folder. The
+        body is the file itself, as ComfyUI's POST /userdata/<file> takes it;
+        with overwrite=False an existing file is a RuntimeError naming 409."""
+        from urllib.parse import quote, urlencode
+        body = (bytes(data) if isinstance(data, (bytes, bytearray))
+                else json.dumps(data, indent=2).encode())
+        q = urlencode({"overwrite": "true" if overwrite else "false"})
+        got = self._open(f"/api/userdata/{quote(path, safe='')}?{q}", body, "POST", timeout=30)
+        try:
+            return json.loads(got or b'""')
+        except ValueError:
+            return got.decode("utf-8", "replace")
+
+    def delete_userdata(self, path: str) -> bool:
+        """Delete a file from ComfyUI's user folder. False when it wasn't
+        there (ComfyUI answers 404)."""
+        from urllib.parse import quote
+        try:
+            self._open(f"/api/userdata/{quote(path, safe='')}", method="DELETE", timeout=15)
+        except RuntimeError as e:
+            if "ComfyUI 404" in str(e):
+                return False
+            raise
+        return True
+
+    def queue(self, graph: dict) -> str:
+        r = self._json("/prompt", {"prompt": graph, "client_id": self.client_id})
+        if r.get("node_errors"):
+            raise RuntimeError(json.dumps(r["node_errors"])[:1500])
+        return r["prompt_id"]
+
+    def queue_ids(self) -> tuple[set[str], set[str]]:
+        """(running, pending) prompt ids, from one /queue snapshot."""
+        q = self._json("/queue", timeout=10)
+        return tuple({item[1] for item in q.get(key, []) if len(item) > 1}
+                     for key in ("queue_running", "queue_pending"))
+
+    def alive(self) -> set[str]:
+        """Prompt ids ComfyUI still has pending or running."""
+        running, pending = self.queue_ids()
+        return running | pending
+
+    def history(self, pid: str) -> dict | None:
+        """ComfyUI's history entry for one prompt, or None if it has none (yet)."""
+        return self._json(f"/history/{pid}", timeout=10).get(pid)
+
+    def has_node(self, ctype: str) -> bool:
+        """True if the running ComfyUI knows the node class `ctype`."""
+        from urllib.parse import quote
+        return ctype in (self._json(f"/object_info/{quote(ctype, safe='')}", timeout=30) or {})
+
+    def choices(self, ctype: str, field_name: str, strict: bool = False) -> list[str] | None:
+        """The values a combo widget offers in the running ComfyUI (e.g. the
+        files ModelPatchLoader can load), or None when the node isn't known."""
+        from urllib.parse import quote
+        info = self._json(f"/object_info/{quote(ctype, safe='')}", timeout=30) or {}
+        return choices_in(info, ctype, field_name, strict)
+
+    def view(self, img: dict) -> bytes:
+        """The bytes of an output image, as /history lists it ({filename,
+        subfolder, type})."""
+        from urllib.parse import urlencode
+        q = urlencode({"filename": img["filename"], "subfolder": img.get("subfolder", ""),
+                       "type": img.get("type", "output")})
+        with urllib.request.urlopen(f"{self.base}/view?{q}", timeout=120) as r:
+            return r.read()
+
+    def upload_input(self, path: str, name: str) -> str:
+        """Copy a local image into ComfyUI's input folder as `name` (e.g.
+        "h3pipe/<sha1>.png"), overwriting; returns the name LoadImage reads.
+        POST /upload/image, so it works however ComfyUI was installed, and
+        from the routes as well as the CLI."""
+        import uuid
+        sub, _, fname = name.rpartition("/")
+        boundary = f"----h3pipe{uuid.uuid4().hex}"
+        with open(path, "rb") as fh:
+            data = fh.read()
+        parts = []
+        for k, v in (("subfolder", sub), ("type", "input"), ("overwrite", "true")):
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n'
+                         f'{v}\r\n'.encode())
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="image"; '
+                     f'filename="{fname}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+                     .encode() + data + b"\r\n")
+        parts.append(f"--{boundary}--\r\n".encode())
+        req = urllib.request.Request(
+            f"{self.base}/upload/image", data=b"".join(parts),
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                got = json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            raise RuntimeError(f"ComfyUI {e.code} on /upload/image: "
+                               f"{e.read().decode('utf-8', 'replace')[:400]}") from None
+        return "/".join(x for x in (got.get("subfolder") or sub, got.get("name") or fname) if x)
+
+    def model_files(self, folder: str) -> list:
+        """The files ComfyUI lists in one models folder (GET /models/<folder>),
+        [] when it hasn't got that folder. For a caller outside ComfyUI, which
+        can't ask folder_paths."""
+        from urllib.parse import quote
+        try:
+            got = self._json(f"/models/{quote(folder, safe='')}", timeout=30)
+        except RuntimeError:
+            return []
+        return [str(x) for x in (got or [])] if isinstance(got, list) else []
+
+    def object_info(self) -> dict:
+        """/object_info: every node class the running ComfyUI knows."""
+        return self._json("/object_info", timeout=120)
+
+    def delete_queued(self, pids) -> None:
+        """Drop pending prompts from the queue (a running one is not affected)."""
+        self._json("/queue", {"delete": list(pids)}, timeout=10)
+
+    def wait(self, pid: str, timeout: int) -> dict:
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            hist = self._json(f"/history/{pid}")
+            if pid in hist:
+                st = hist[pid].get("status", {})
+                if st.get("status_str") == "error":
+                    msgs = [m for m in st.get("messages", []) if m and m[0] == "execution_error"]
+                    detail = msgs[-1][1].get("exception_message", "") if msgs else json.dumps(st)
+                    raise RuntimeError(detail[:800])
+                if st.get("completed", True):
+                    return hist[pid].get("outputs", {})
+            time.sleep(3)
+        raise TimeoutError(f"no result after {timeout}s")
+
+    def interrupt(self, prompt_id: str | None = None):
+        """Stop the running job (only if it is `prompt_id`, when given)."""
+        try:
+            self._json("/interrupt", {"prompt_id": prompt_id} if prompt_id else {})
+        except Exception:
+            pass
+
+
+def choices_in(object_info: dict, ctype: str, field_name: str,
+               strict: bool = False) -> list[str] | None:
+    """The values a combo widget offers, from /object_info (all of it, or
+    /object_info/<ctype>'s answer); None when the node class isn't there
+    (`strict`: or has no such input, so nothing can be said about it)."""
+    info = (object_info or {}).get(ctype)
+    if info is None:
+        return None
+    inputs = info.get("input") or {}
+    spec = (inputs.get("required") or {}).get(field_name) \
+        or (inputs.get("optional") or {}).get(field_name) or []
+    if not spec and strict:
+        return None
+    if spec and isinstance(spec[0], list):             # [[choices], {...}]
+        return [str(c) for c in spec[0]]
+    if len(spec) > 1 and isinstance(spec[1], dict):    # ["COMBO", {"options": [...]}]
+        return [str(c) for c in spec[1].get("options") or []]
+    return []
+
+
+def execution_error(entry: dict | None) -> str | None:
+    """The exception message of a failed job's /history entry; None if it didn't fail."""
+    st = (entry or {}).get("status") or {}
+    if st.get("status_str") != "error":
+        return None
+    msgs = [m for m in st.get("messages", []) if m and m[0] == "execution_error"]
+    detail = (msgs[-1][1].get("exception_message", "") if msgs else "") or json.dumps(st)
+    return detail.strip()[:800]
+
+
+def execution_done(entry: dict | None) -> bool:
+    """True if a /history entry says the job finished without an error."""
+    st = (entry or {}).get("status") or {}
+    return st.get("status_str") == "success" and st.get("completed", True)
+
+
+# ---------------------------------------------------------------------------
+# planning
+# ---------------------------------------------------------------------------
+
+def shotlist_rel(pass_: str, target: str | None = None) -> str:
+    """The shotlist of a pass: shotlist.json / shotlist_proxy.json for the
+    series target (target None), shotlist.<target>.json /
+    shotlist.<target>_proxy.json for the shots of an episode that render on
+    another target."""
+    sfx = "_proxy" if pass_ == "proxy" else ""
+    if target:
+        return os.path.join("shotlist", f"shotlist.{target}{sfx}.json")
+    return os.path.join("shotlist", f"shotlist{sfx}.json")
+
+
+def shotlist_target(doc: dict) -> "TG.Target":
+    """The video target a built shotlist is for. Today's shotlists carry no
+    `target` (the goldens predate targets), so that means the default one."""
+    return TG.load_target(doc.get("target") or TG.DEFAULT_VIDEO_TARGET, "video")
+
+
+def load_shotlist(root: str, pass_: str, target: str | None = None) -> dict:
+    """A built shotlist: the series target's (shotlist.json), or with `target`
+    that target's own file in an episode that mixes targets."""
+    path = os.path.join(root, shotlist_rel(pass_, target))
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"{path} not found — run h3build first"
+                                + (" with --proxy" if pass_ == "proxy" else ""))
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def extra_shotlist_targets(root: str, pass_: str) -> list[str]:
+    """The targets with their own shotlist.<target>[_proxy].json for this pass."""
+    d = os.path.join(root, "shotlist")
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        if not (n.startswith("shotlist.") and n.endswith(".json")):
+            continue
+        t = n[len("shotlist."):-len(".json")]
+        if not t:                                         # shotlist.json itself
+            continue
+        if pass_ == "proxy":
+            if t.endswith("_proxy") and t[:-len("_proxy")]:
+                out.append(t[:-len("_proxy")])
+        elif not t.endswith("_proxy"):
+            out.append(t)
+    return out
+
+
+def load_shotlists(root: str, pass_: str) -> list[dict]:
+    """Every shotlist of a pass: the series target's first (FileNotFoundError
+    if there is none: the episode isn't built), then each other target's."""
+    docs = [load_shotlist(root, pass_)]
+    for t in extra_shotlist_targets(root, pass_):
+        docs.append(load_shotlist(root, pass_, t))
+    return docs
+
+
+def script_order(root: str) -> list[str]:
+    """Shot ids in script order, from shotlist/shots.json ([] if it isn't there)."""
+    try:
+        with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
+            ep = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    return [s["id"] for sq in ep.get("sequences", []) for s in sq.get("shots", [])]
+
+
+def episode_shots(root: str, pass_: str,
+                  docs: list[dict] | None = None) -> list[tuple[dict, int]]:
+    """(shotlist doc, index) of every built shot of a pass, whichever target's
+    file holds it, in script order (shots.json; a shot it doesn't list goes
+    last, in file order)."""
+    docs = load_shotlists(root, pass_) if docs is None else docs
+    found = [(d, i) for d in docs for i in range(len(d.get("shots", [])))]
+    order = {sid: n for n, sid in enumerate(script_order(root))}
+    return sorted(found, key=lambda di: order.get(di[0]["shots"][di[1]]["id"], len(order)))
+
+
+def find_shot(root: str, pass_: str, shot_id: str,
+              docs: list[dict] | None = None) -> tuple[dict, int]:
+    """(shotlist doc, index) of `shot_id` in whichever file of the pass holds
+    it. KeyError if none does."""
+    for d in (load_shotlists(root, pass_) if docs is None else docs):
+        for i, s in enumerate(d.get("shots", [])):
+            if s["id"] == shot_id:
+                return d, i
+    raise KeyError(f"{shot_id} is not in {shotlist_rel(pass_).replace(os.sep, '/')}")
+
+
+# What a shot IS (story, framing, timing, refs, prompt) versus how it is
+# rendered (model, LoRA, steps, size). Splitting them lets a take say WHY it is
+# stale, and keeps a series-wide steps change from flagging every prompt
+# override.
+PRESET_KEYS = ("model", "lora", "steps")
+PRESET_DEFAULTS = ("model", "lora", "steps", "width", "height")
+# Render settings a shot entry carries only when a profile set them. They join
+# the preset hash only when present, so the hash of every shot without them is
+# what it always was.
+PRESET_EXTRA = ("loras", "profile")
+
+
+def story_hash(shot: dict) -> str:
+    return T.content_hash({k: v for k, v in shot.items()
+                           if k not in PRESET_KEYS and k not in PRESET_EXTRA})
+
+
+# Preset defaults of a two-stage target (Wan 2.2 14B): the second model and
+# the per-stage LoRA list. In the hash only when the shotlist has them.
+PRESET_DEFAULTS_EXTRA = ("model_low", "loras")
+
+
+def preset_hash(doc: dict, shot: dict) -> str:
+    d = doc.get("defaults", {})
+    part = {k: shot.get(k) for k in PRESET_KEYS}
+    part.update({k: shot[k] for k in PRESET_EXTRA if k in shot})
+    dd = {k: d.get(k) for k in PRESET_DEFAULTS}
+    dd.update({k: d[k] for k in PRESET_DEFAULTS_EXTRA if k in d})
+    return T.content_hash({"defaults": dd, "shot": part})
+
+
+def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> list[str]:
+    """Why a take no longer matches what rendering this shot now would use:
+    'script' (the shot changed), 'ref' (a reference file changed), 'preset'
+    (model/LoRA/steps/size defaults changed). Empty: current. A take with no
+    sidecar has no provenance and is reported as ['unknown']."""
+    if not sidecar:
+        return ["unknown"]
+    out = []
+    if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot):
+        out.append("script")
+    for r in sidecar.get("refs") or []:
+        p = r.get("path")
+        if not p or not (r.get("sha1") or r.get("optional")):
+            continue
+        now = T.file_sha1(p if os.path.isabs(p) else os.path.join(root, p))
+        # a file that changed; or an optional one (an LTX keyframe) the take
+        # rendered without that exists now: a render would use it
+        if (r.get("sha1") and now != r["sha1"]) or (r.get("optional") and not r.get("sha1")
+                                                    and now):
+            out.append("ref")
+            break
+    if sidecar.get("preset_hash") and sidecar["preset_hash"] != preset_hash(doc, shot):
+        out.append("preset")
+    return out
+
+
+def parse_lora(spec: str) -> list[dict]:
+    """`name`, `name:0.7`, or none/off/- (no LoRA) -> a LoRA list."""
+    spec = spec.strip()
+    if spec.lower() in LORA_OFF:
+        return []
+    name, _, strength = spec.rpartition(":")
+    if name and _is_float(strength):
+        return [{"name": name, "strength": float(strength)}]
+    return [{"name": spec, "strength": 1.0}]
+
+
+def _is_float(s: str) -> bool:
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+@dataclass
+class RenderRequest:
+    """What the caller asks for, on top of the shotlist and overrides.json."""
+    shot_id: str
+    take: int | None = None            # force this number (overwrites it)
+    redo: bool = False                 # render again even if a usable take exists
+    seed: int | None = None            # typed seed
+    seed_mode: str = "auto"            # auto | new | same
+    model: str | None = None
+    loras: list[dict] | None = None
+    steps: int | None = None
+    prompt: str | list | None = None
+    parent_take: int | None = None
+    note: str = ""
+    allow_missing_refs: bool = False   # render anyway: blank images / no audio ref
+    size: str | None = None            # "WxH": render at this size, this run only
+    # {shot: {"after", "pass"}}: continuity shots whose first frame is cut as the
+    # render starts (h3refs.refresh_continuity's `live`; H3ContinuityFrame)
+    continuity: dict | None = None
+    target: str | None = None          # render on this video target, this run only
+    allow_model_mismatch: bool = False  # render even if a model file is another family
+    negative: str | None = None        # the negative prompt, this run only (negative_for)
+    save_latent: bool | None = None    # keep the take's latent; None: latent_default
+
+
+@dataclass
+class Job:
+    root: str
+    pass_: str
+    index: int
+    shot: dict                         # the entry it renders (built, or retargeted)
+    doc: dict                          # its shotlist (built, or the retarget's)
+    folder: str | None
+    action: str                        # render | redo | retry | overwrite | skip | busy | blocked | error | mismatch | missing_files
+    take: int                          # predicted; reserve_take has the final say
+    seed: int
+    seed_source: str                   # stable | new | same | override | typed
+    model: str                         # "" leaves the workflow's model alone
+    loras: list[dict] | None           # None leaves the workflow's LoRA alone
+    steps: int
+    prompt: str | list
+    overridden: list[str] = field(default_factory=list)
+    override_stale: bool = False
+    shot_hash: str = ""
+    parent_take: int | None = None
+    note: str = ""
+    forced: bool = False               # take number given explicitly
+    missing: list[dict] = field(default_factory=list)   # refs not on disk
+    allow_missing: bool = False
+    target: str = T.DEFAULT_TARGET                      # the video target's id
+    recompiled: dict | None = None     # render anyway: the shot compiled without them
+    missing_mode: str = ""             # render anyway: "recompiled" | "blank"
+    missing_why: str = ""              # why it fell back to "blank"
+    built_target: str = ""             # the target the build compiled it for
+    notes: list[str] = field(default_factory=list)      # said in the sidecar
+    inputs: dict = field(default_factory=dict)          # role -> name ComfyUI loads
+    error: str = ""                    # action "error": why it can't be planned
+    # files a target made for this take at stage_inputs (the ingredients
+    # reference sheet), waiting for start_job to move them into the take:
+    # [{"tmp", "suffix", "slot", "kind", "role"}]
+    staged: list = field(default_factory=list)
+    # how the take's length is decided: "script" (the shotlist's), "estimate"
+    # (`dur: model` rendered at the build's estimate) or "predicted" (the
+    # model's duration head, `duration_head` the file ModelPatchLoader loads)
+    length_source: str = "script"
+    duration_head: str = ""
+    duration_note: str = ""            # plan_duration's note (replaced on a re-plan)
+    # check_models: each model param's check (targets.check_model), and
+    # whether the request lets a mismatch render anyway
+    allow_model_mismatch: bool = False
+    model_checks: list = field(default_factory=list)
+    model_notes: list = field(default_factory=list)     # check_models' notes (replaced on a re-check)
+    mismatch_from: str = ""            # the action a "mismatch" job had before the check
+    # resolve_models: the installed file each model param renders with
+    # ({param: {"want", "using", "how", "tier"}}; {} when not resolved),
+    # the required files that aren't installed (action "missing_files"),
+    # and values that replace the shotlist's in the graph (a substitute text
+    # encoder, the base preset's cfg / sampler)
+    resolved: dict = field(default_factory=dict)
+    missing_files: list = field(default_factory=list)
+    values: dict = field(default_factory=dict)
+    based: bool = False                # an accelerator is missing: the base preset renders
+    steps_set: bool = False            # steps came from the request or overrides.json
+    # (width, height) from the request or overrides.json, when not the shotlist's
+    size: tuple | None = None
+    # {"after", "pass"}: a continuity shot's first frame is cut when it starts
+    continuity: dict | None = None
+    target_source: str = ""            # request | override | script | episode | series | default
+    # where the negative prompt comes from (negative_for): request | override |
+    # negative.txt | series | preset, or "none" for a target without one
+    negative_source: str = "none"
+    # keep the take's latent beside it (<stem>.latent.safetensors) for an upscale
+    # later: the request's choice, else latent_default; always False on a target
+    # whose binding names no latent source (`saver.latent`)
+    save_latent: bool = False
+
+    @property
+    def id(self) -> str:
+        return self.shot["id"]
+
+    @property
+    def frames(self) -> int:
+        return int(self.shot.get("length", 0))
+
+    @property
+    def runs(self) -> bool:
+        return self.action not in ("skip", "busy", "blocked", "error", "mismatch",
+                                   "missing_files")
+
+    def missing_files_note(self) -> str:
+        """Why resolve_models stopped the job ("" if it didn't)."""
+        return "; ".join(TG.missing_message(m) for m in self.missing_files)
+
+    @property
+    def retargeted(self) -> bool:
+        return bool(self.built_target) and self.built_target != self.target
+
+    @property
+    def width(self) -> int:
+        if self.size:
+            return int(self.size[0])
+        return int(self.shot.get("width", self.doc.get("defaults", {}).get("width", 0)))
+
+    @property
+    def height(self) -> int:
+        if self.size:
+            return int(self.size[1])
+        return int(self.shot.get("height", self.doc.get("defaults", {}).get("height", 0)))
+
+    @property
+    def fps(self) -> float:
+        return float(self.shot.get("fps", self.doc.get("defaults", {}).get("fps", 24)))
+
+    def missing_note(self) -> str:
+        return ", ".join(f"{r['slot']} {r['path'] or '(none named)'}" for r in self.missing)
+
+    def mismatch_note(self) -> str:
+        """Why check_models stopped the job ("" if it didn't)."""
+        return "; ".join(c["message"] for c in self.model_checks if c.get("block"))
+
+    @property
+    def no_anyway(self) -> list[dict]:
+        """Missing refs the target can't render without, even when asked to
+        render anyway (a ref slot with `anyway: false`: Wan 14B I2V's first
+        frame). Their `why` says what to do instead."""
+        return [r for r in self.missing if r.get("anyway") is False]
+
+    def blocked_reason(self) -> str:
+        """Why a blocked job isn't queued, as the CLI and routes say it."""
+        hard = self.no_anyway
+        if hard:
+            return "; ".join(dict.fromkeys(r.get("why") or f"needs {r['slot']}" for r in hard))
+        return ("missing refs: " + self.missing_note()
+                + " (pass allow_missing_refs: true to render anyway)")
+
+
+def check_video_target(target_id: str, root: str | None = None) -> str:
+    """`target_id` if it names a video target, else TargetError naming the known
+    ones. `root` is a show whose own targets count (Phase 12)."""
+    TG.load_target(target_id, "video", root=root)
+    return target_id
+
+
+def effective_target(overrides: dict | None, shot_id: str, built: str,
+                     requested: str | None = None, root: str | None = None) -> str:
+    """The video target a shot's next render uses (target_choice)."""
+    return target_choice(overrides, shot_id, built, requested, root)[0]
+
+
+def target_choice(overrides: dict | None, shot_id: str, built: str,
+                  requested: str | None = None, root: str | None = None) -> tuple[str, str]:
+    """(the video target a shot's next render uses, where it comes from).
+
+    Precedence: the request ("request") -> the shot's `target` in
+    overrides.json ("override") -> the script's `target:` line or a profile's
+    target, on the shot or its sequence ("script") -> the episode target in
+    overrides.json ("episode") -> the series config's `series.target`
+    ("series"), else the default ("default"). A shot on neither of the last
+    two renders what its build compiled. Without `root` (the episode folder)
+    the episode target and the sources past "override" aren't known: the
+    build's target, source ""."""
+    if requested:
+        return requested, "request"
+    t = T.shot_target(overrides or {}, shot_id)
+    if t:
+        return t, "override"
+    if root is None:
+        return built, ""
+    series = series_target(root)
+    script = script_targets(root)
+    if script is not None and shot_id in script:
+        st = script[shot_id]
+    else:
+        # no current shots.json to ask: a build target other than the series
+        # config's can only have come from the script
+        st = built if built != (series or TG.DEFAULT_VIDEO_TARGET) else None
+    if st:
+        return st, "script"
+    ep = T.episode_target(overrides or {})
+    if ep:
+        return ep, "episode"
+    return built, ("series" if series else "default")
+
+
+def series_config(root: str) -> dict | None:
+    """The series config beside the episode (or in its parent), parsed
+    (None: none, or unreadable)."""
+    for d in (root, os.path.dirname(os.path.normpath(root))):
+        p = os.path.join(d, "series.json")
+        if os.path.isfile(p):
+            cfg = T.read_json(p)
+            return cfg if isinstance(cfg, dict) else None
+    return None
+
+
+LATENT_MODES = ("final", "always", "never")
+
+
+def latent_default(root: str, pass_: str) -> bool:
+    """Whether a render keeps its take's latent when the request doesn't say:
+    the series config's `upscale.save_latents` ("final", the default: only the
+    final pass is ever upscaled; "always"; "never")."""
+    mode = ((series_config(root) or {}).get("upscale") or {}).get("save_latents", "final")
+    if mode not in LATENT_MODES:
+        mode = "final"
+    return mode == "always" or (mode == "final" and pass_ == "final")
+
+
+def series_target(root: str) -> str | None:
+    """The series config's `series.target` (None: it sets none)."""
+    t = ((series_config(root) or {}).get("series") or {}).get("target")
+    return t if isinstance(t, str) and t else None
+
+
+_SCRIPT_TARGETS: dict = {}
+
+
+def script_targets(root: str) -> dict[str, str | None] | None:
+    """{shot id: the target the script gives it (a `target:` line or a
+    profile's target, on the shot or its sequence), or None} from
+    shotlist/shots.json and the series config's profiles; None when they
+    can't be read. Cached per file version."""
+    sj = os.path.join(root, "shotlist", "shots.json")
+    try:
+        key = (os.path.normcase(os.path.abspath(root)), os.stat(sj).st_mtime_ns)
+    except OSError:
+        return None
+    cfg_path = next((os.path.join(d, "series.json")
+                     for d in (root, os.path.dirname(os.path.normpath(root)))
+                     if os.path.isfile(os.path.join(d, "series.json"))), None)
+    try:
+        key += (os.stat(cfg_path).st_mtime_ns,) if cfg_path else (None,)
+    except OSError:
+        key += (None,)
+    if key in _SCRIPT_TARGETS:
+        return _SCRIPT_TARGETS[key]
+    out = None
+    try:
+        from seriesmith.core import ir
+        with open(sj, encoding="utf-8") as fh:
+            story = ir.Episode.loads(fh.read())
+        cfg = (T.read_json(cfg_path) or {}) if cfg_path else {}
+        profiles = TG.series_profiles(cfg)
+        out = {}
+        for sq in story.sequences:
+            seq = {"id": sq.id, "profile": sq.profile, "target": sq.target}
+            for s in sq.shots:
+                shot = {"id": s.id, "profile": s.profile, "target": s.target}
+                out[s.id] = TG.layered(TG.render_layers(cfg, seq, shot, profiles), "target")
+    except Exception:
+        out = None
+    _SCRIPT_TARGETS.clear()                      # one episode's worth is enough
+    _SCRIPT_TARGETS[key] = out
+    return out
+
+
+def built_values(shot: dict, dflt: dict) -> tuple[str, list[dict] | None, int]:
+    """(model, LoRA list, steps) a shotlist entry renders with before any
+    override: the entry's, else its shotlist's `defaults`. The LoRA list is
+    None when neither names one (the workflow's LoRA is left alone)."""
+    model = shot.get("model") or dflt.get("model", "")
+    if "loras" in shot:                                # a profile's list
+        loras = [dict(lo) for lo in shot["loras"]]
+    else:
+        built_lora = shot.get("lora") or dflt.get("lora", "")
+        loras = parse_lora(built_lora) if built_lora else None
+        if loras is None and isinstance(dflt.get("loras"), list):
+            # a preset that names a LoRA per stage (Wan 2.2 14B's turbo pair)
+            loras = [dict(lo) for lo in dflt["loras"]]
+    return model, loras, int(shot.get("steps", dflt.get("steps", 4)))
+
+
+def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
+             overrides: dict | None = None, folder: str | None = None,
+             rng: random.Random | None = None) -> Job:
+    built = doc["shots"][index]
+    sid = built["id"]
+    built_target = shotlist_target(doc)
+    target_id, target_source = target_choice(overrides, sid, built_target.id, req.target, root)
+    shot, sdoc, notes, error = built, doc, [], ""
+    if target_id != built_target.id:
+        # retarget: this shot's IR compiled for the other target, now
+        try:
+            sdoc, shot = retarget(root, pass_, doc, built, target_id)
+        except Exception as e:
+            error = f"can't render {sid} on {target_id}: {e}"
+    dflt = sdoc.get("defaults", {})
+    target = TG.load_target(target_id, "video", root=root) if not error else built_target
+    ov = T.shot_override(overrides or {}, sid, pass_, target.id)
+    shot_hash = story_hash(shot)
+
+    takes = T.list_takes(root, pass_, sid, folder)
+    # a take made on another target doesn't count as done: retargeting a shot
+    # renders it anew (its number still follows the last take)
+    here = [t for t in takes
+            if ((t.sidecar or {}).get("target") or built_target.id) == target.id]
+    usable = [t for t in here if t.usable]
+    queued = [t for t in takes if t.status == "queued"]
+    last = takes[-1].take if takes else 0
+    if req.take:
+        take, action = req.take, ("overwrite" if any(t.take == req.take for t in takes)
+                                  else "render")
+    elif queued and not req.redo:
+        take, action = queued[-1].take, "busy"
+    elif usable and not req.redo:
+        take, action = usable[-1].take, "skip"
+    else:
+        take = last + 1
+        action = "redo" if usable else ("retry" if here else "render")
+
+    overridden, explicit = [], set()
+
+    def pick(name, built_value, from_req):
+        """request beats override beats built"""
+        if from_req is not None:
+            explicit.add(name)
+            return from_req
+        if name in ov:
+            overridden.append(name)
+            explicit.add(name)
+            return ov[name]
+        return built_value
+
+    if target.id != built_target.id and (
+            "prompt" in ov
+            or "prompt" in T.shot_override(overrides or {}, sid, pass_, built_target.id)):
+        # a prompt written for one model isn't a prompt for another: the
+        # retargeted shot renders its new target's own prompt
+        ov = {k: v for k, v in ov.items() if k != "prompt"}
+        notes.append(f"the prompt override was ignored: {sid} is retargeted from "
+                     f"{built_target.id} to {target.id}")
+
+    # A shot missing a reference fails in the loader. Unless the caller says to
+    # render anyway, don't queue it at all; rendering anyway, let the target
+    # write the shot without those refs when it can.
+    missing = missing_refs(root, sdoc, shot)
+    # a ref the target can't do without (`anyway: false`) blocks even then
+    anyway = req.allow_missing_refs and not any(r.get("anyway") is False for r in missing)
+    recompiled, missing_mode, missing_why = None, "", ""
+    if missing and anyway and action not in ("skip", "busy"):
+        recompiled, missing_why = recompile_without(root, pass_, sdoc, shot, missing)
+        missing_mode = "recompiled" if recompiled is not None else "blank"
+    source = recompiled or shot
+
+    built_model, built_loras, built_steps = built_values(shot, dflt)
+    model = pick("model", built_model, req.model)
+    loras = pick("loras", built_loras, req.loras)
+    steps = int(pick("steps", built_steps, req.steps))
+    if steps != built_steps and not target.binding.specs("steps"):
+        notes.append(f"steps {steps} is recorded but not used: {target.short} has no steps "
+                     f"setting (its sampling schedule is fixed in the workflow)")
+    prompt = pick("prompt", source.get("prompt", ""), req.prompt)
+    size = None
+    want_size = pick("size", None, req.size)
+    if want_size:
+        try:
+            size = run_size(target, want_size, notes)
+        except ValueError as e:
+            error = error or f"size {want_size}: {e}"
+        built_size = (int(source.get("width", dflt.get("width", 0))),
+                      int(source.get("height", dflt.get("height", 0))))
+        if size == built_size:
+            size = None
+    values: dict = {}
+    negative_source = "none"
+    if target.binding.specs("negative"):
+        # request -> shot override -> negative.txt -> series config -> preset
+        preset_neg = source.get("negative", dflt.get("negative"))
+        neg, negative_source = negative_for(root, preset_neg, ov.get("negative"), req.negative)
+        if negative_source == "override":
+            overridden.append("negative")
+        if negative_source != "preset":
+            values["negative"] = neg
+    if ov.get("model_low") and target.binding.specs("model_low"):
+        # the low noise model of a two-stage target, like `model`
+        values["model_low"] = ov["model_low"]
+        overridden.append("model_low")
+    if shot.get("audio_note"):
+        notes.append(shot["audio_note"])
+    length_source = "estimate" if shot.get("length_estimated") else "script"
+    if shot.get("length_estimated") and not shot.get("duration_predict"):
+        notes.append(f"`dur: model` rendered at the estimate, {estimate_seconds(sdoc, shot)} s: "
+                     f"{target.short} can't predict a shot's length")
+
+    # seed: typed > pinned in overrides > (same | new | first take: built)
+    built_seed = int(shot.get("seed", 0))
+    if req.seed is not None:
+        seed, source = int(req.seed), "typed"
+    elif "seed" in ov and req.seed_mode != "new":
+        seed, source = int(ov["seed"]), "override"
+        overridden.append("seed")
+    elif req.seed_mode == "same":
+        seed, source = built_seed, "same"
+    elif req.seed_mode == "new" or (req.seed_mode == "auto" and action == "redo"):
+        seed, source = (rng or random.SystemRandom()).getrandbits(NEW_SEED_BITS), "new"
+    else:
+        seed, source = built_seed, "stable"
+
+    save_latent = (req.save_latent if req.save_latent is not None
+                   else latent_default(root, pass_))
+    if save_latent and not target.binding.saver.get("latent"):
+        if req.save_latent:
+            notes.append(f"no latent is kept: {target.short} doesn't say where its latent comes from")
+        save_latent = False
+
+    base_hash = ov.get("base_hash")
+    if missing and not anyway and action not in ("skip", "busy"):
+        action = "blocked"
+    if error and action not in ("skip", "busy"):
+        action = "error"
+    return Job(root=root, pass_=pass_, index=index, shot=shot, doc=sdoc, folder=folder,
+               action=action, take=take, seed=seed, seed_source=source, model=model,
+               loras=None if loras is None else [dict(l) for l in loras],
+               steps=steps, prompt=prompt, forced=bool(req.take),
+               overridden=sorted(set(overridden)),
+               override_stale=bool(base_hash) and base_hash != shot_hash,
+               shot_hash=shot_hash, parent_take=req.parent_take, note=req.note,
+               missing=missing, allow_missing=req.allow_missing_refs, target=target.id,
+               recompiled=recompiled, missing_mode=missing_mode, missing_why=missing_why,
+               built_target=built_target.id, notes=notes, error=error,
+               length_source=length_source, allow_model_mismatch=req.allow_model_mismatch,
+               steps_set="steps" in explicit, target_source=target_source,
+               values=values, negative_source=negative_source, save_latent=save_latent,
+               size=size, continuity=(req.continuity or {}).get(sid))
+
+
+def parse_size(v) -> tuple[int, int]:
+    """(width, height) from "1344x768" or [1344, 768]; ValueError otherwise."""
+    if isinstance(v, (list, tuple)) and len(v) == 2:
+        w, h = v
+    else:
+        m = re.fullmatch(r"\s*(\d+)\s*[xX×]\s*(\d+)\s*", str(v or ""))
+        if not m:
+            raise ValueError(f"{v!r} is not a size like 1344x768")
+        w, h = m.groups()
+    w, h = int(w), int(h)
+    if not (64 <= w <= 8192 and 64 <= h <= 8192):
+        raise ValueError(f"{w}x{h}: each side 64 to 8192")
+    return w, h
+
+
+def run_size(target, v, notes: list | None = None) -> tuple[int, int]:
+    """A requested render size made legal for `target` (its template's grid and
+    maximum): a target that snaps says so in `notes`; one that doesn't raises
+    ValueError naming the nearest legal size."""
+    w, h = parse_size(v)
+    fw, fh = target.template.fit_size(w, h)
+    if (fw, fh) != (w, h) and notes is not None:
+        notes.append(f"size {w}x{h} snapped to {fw}x{fh} for {target.short}")
+    return fw, fh
+
+
+# ---------------------------------------------------------------------------
+# negatives: request -> shot override -> negative.txt -> series config -> preset
+# ---------------------------------------------------------------------------
+
+NEGATIVE_FILE = "negative.txt"
+NEGATIVE_SOURCES = ("request", "override", "negative.txt", "series", "preset", "none")
+
+
+def episode_negative(root: str) -> str | None:
+    """The episode's negative.txt (stripped), or None without one (or empty)."""
+    try:
+        with open(os.path.join(root, NEGATIVE_FILE), encoding="utf-8-sig") as fh:
+            text = fh.read().strip()
+    except OSError:
+        return None
+    return text or None
+
+
+def negative_for(root: str, preset_value, override=None, requested=None,
+                 series_cfg: dict | None = None) -> tuple[str, str]:
+    """(the negative prompt, where it comes from) for a target that takes one:
+    the request's ("request"), else the shot's override ("override"), else
+    the episode's negative.txt ("negative.txt"), else the series config's
+    `negative` ("series"), else the target preset's ("preset"). A value of
+    None is unset; "" is an explicit empty negative."""
+    if requested is not None:
+        return str(requested), "request"
+    if override is not None:
+        return str(override), "override"
+    ep = episode_negative(root)
+    if ep is not None:
+        return ep, "negative.txt"
+    cfg = series_cfg if series_cfg is not None else series_config(root)
+    sv = (cfg or {}).get("negative")
+    if isinstance(sv, str) and sv.strip():
+        return sv.strip(), "series"
+    return ("" if preset_value is None else str(preset_value)), "preset"
+
+
+def negative_note(cfg, source: str) -> str:
+    """The take note for a negative set above the preset that can't bite: at
+    cfg <= 1 there is no unconditioned branch to push away from ("" when
+    cfg > 1, or the negative is the preset's)."""
+    try:
+        c = float(cfg)
+    except (TypeError, ValueError):
+        return ""
+    if source == "preset" or c > 1.0:
+        return ""
+    return (f"the negative prompt (from the {source}) has no effect at cfg {c:g}: "
+            f"a turbo / distilled model samples without guidance")
+
+
+def estimate_seconds(doc: dict, shot: dict) -> str:
+    """A shot's built length in seconds, as notes print it ("5.04")."""
+    fps = float(shot.get("fps", doc.get("defaults", {}).get("fps", 24)) or 24)
+    return f"{int(shot.get('length', 0)) / fps:.2f}"
+
+
+def episode_story(root: str):
+    """(the story IR from shotlist/shots.json, the series config) of a built
+    episode. The series config is looked up as h3edit does: the episode
+    folder, then its parent."""
+    from seriesmith.core import ir
+    from seriesmith.core.series_config import load_series_config
+    with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
+        story = ir.Episode.loads(fh.read())
+    for d in (root, os.path.dirname(os.path.normpath(root))):
+        p = os.path.join(d, "series.json")
+        if os.path.isfile(p):
+            return story, load_series_config(p)
+    raise FileNotFoundError(f"no series.json in {root} or its parent folder")
+
+
+def retarget(root: str, pass_: str, doc: dict, shot: dict, target_id: str,
+             cache: dict | None = None) -> tuple[dict, dict]:
+    """(shotlist doc, entry) of `shot` compiled for `target_id` from
+    shotlist/shots.json and the series config, as a build that put the shot on
+    that target would write it. The build must be current: the shot's own
+    target, compiling the same IR, has to give exactly the built entry, else
+    ValueError (rebuild the episode). `cache` (a dict) keeps the result per
+    (pass, shot, target) for callers that ask about many shots."""
+    key = (pass_, shot["id"], target_id)
+    if cache is not None and key in cache:
+        hit = cache[key]
+        if isinstance(hit, Exception):
+            raise hit
+        return hit
+    try:
+        new = TG.load_target(target_id, "video", root=root)
+        story, series_cfg = episode_story(root)
+        if not any(s.id == shot["id"] for s in story.shots()):
+            raise ValueError(f"{shot['id']} is not in shots.json (rebuild the episode)")
+        now, _ = shotlist_target(doc).compile_episode(story, series_cfg, pass_,
+                                                      only={shot["id"]})
+        if [shot] != now["shots"]:
+            raise ValueError(f"the build of {shot['id']} is out of date (rebuild the episode)")
+        rdoc, _ = new.compile_episode(story, series_cfg, pass_, only={shot["id"]})
+        out = (rdoc, rdoc["shots"][0])
+    except Exception as e:
+        if cache is not None:
+            cache[key] = e
+        raise
+    if cache is not None:
+        cache[key] = out
+    return out
+
+
+def current_entry(root: str, pass_: str, doc: dict, shot: dict, target_id: str | None,
+                  cache: dict | None = None) -> tuple[dict, dict] | None:
+    """(doc, entry) a render on `target_id` would use now: the built one on
+    its own target, else the retarget (None if it can't be compiled)."""
+    if not target_id or target_id == shotlist_target(doc).id:
+        return doc, shot
+    try:
+        return retarget(root, pass_, doc, shot, target_id, cache)
+    except Exception:
+        return None
+
+
+def recompile_without(root: str, pass_: str, doc: dict, shot: dict,
+                      missing: list[dict]) -> tuple[dict | None, str]:
+    """(the shot recompiled without the `missing` refs, "") when the shot's
+    target can write it that way and the build is current; else (None, why)."""
+    t = shotlist_target(doc)
+    if not t.supports("compile_without"):
+        return None, f"{t.id} can't write a shot without its references"
+    try:
+        story, series_cfg = episode_story(root)
+        return t.compile_without(story, series_cfg, pass_, shot, missing), ""
+    except Exception as e:                                # fall back to grey stand-ins
+        return None, f"{e.__class__.__name__}: {e}"[:400]
+
+
+def plan_episode(root: str, pass_: str, reqs: dict[str, RenderRequest] | None = None,
+                 default: RenderRequest | None = None, folder: str | None = None,
+                 only: set[str] | None = None) -> list[Job]:
+    """A Job per shot (or per shot in `only`), in script order, whichever
+    target's shotlist holds it."""
+    ov = T.load_overrides(root)
+    jobs = []
+    for doc, i in episode_shots(root, pass_):
+        s = doc["shots"][i]
+        if only and s["id"] not in only:
+            continue
+        req = (reqs or {}).get(s["id"]) or copy.copy(default or RenderRequest(s["id"]))
+        req.shot_id = s["id"]
+        jobs.append(plan_job(root, pass_, doc, i, req, ov, folder))
+    return jobs
+# ---------------------------------------------------------------------------
+# starting and finishing
+# ---------------------------------------------------------------------------
+
+def frozen_shotlist(job: Job) -> dict:
+    """A complete one-shot shotlist: what the loader reads for this take."""
+    # rendering anyway, the target's recompile of the shot without the refs
+    shot = copy.deepcopy(job.recompiled or job.shot)
+    shot["seed"] = job.seed
+    shot["steps"] = job.steps
+    shot["prompt"] = copy.deepcopy(job.prompt)
+    if job.size:
+        shot["width"], shot["height"] = job.size
+    if job.model:
+        shot["model"] = job.model
+    if job.loras is not None:
+        shot["loras"] = copy.deepcopy(job.loras)
+        shot.pop("lora", None)
+    # a substitute file, or the base preset's settings (resolve_models)
+    shot.update(copy.deepcopy(job.values))
+    if job.missing and job.allow_missing:
+        # the loader substitutes a blank image for a missing picture and drops
+        # a missing audio reference, instead of failing
+        shot["missing_refs"] = "blank"
+    doc = {k: copy.deepcopy(v) for k, v in job.doc.items() if k != "shots"}
+    doc["target"] = job.target
+    doc["shots"] = [shot]
+    return doc
+
+
+def ref_slots(doc: dict, shot: dict) -> list[dict]:
+    """Every reference the loader will read for `shot`: {slot, kind ("image" |
+    "audio"), path, subject?}. Paths as the shotlist writes them (relative to
+    the episode unless absolute); an empty path means the series config names none.
+    The slots are the target's recipe (H3: Picture 1-3 subjects, Picture 4 the
+    plate, Audio 1-3)."""
+    return shotlist_target(doc).ref_slots(doc, shot)
+
+
+def _abs(root: str, p: str) -> str:
+    return p if os.path.isabs(p) else os.path.join(root, p)
+
+
+def missing_refs(root: str, doc: dict, shot: dict) -> list[dict]:
+    """The references `shot` needs that aren't on disk (see ref_slots). An
+    `optional` one (an LTX keyframe) is never missing: without it the shot
+    renders without that conditioning."""
+    return [r for r in ref_slots(doc, shot) if not r.get("optional")
+            and (not r["path"] or not os.path.isfile(_abs(root, r["path"])))]
+
+
+def ref_files(job: Job) -> list[dict]:
+    """Every reference file the loader will read, with its sha1."""
+    out = ref_slots(job.doc, job.shot)
+    for r in out:
+        p = r["path"]
+        r["sha1"] = T.file_sha1(_abs(job.root, p)) if p else None
+    return out
+
+
+def sidecar_for(job: Job) -> dict:
+    d = job.doc.get("defaults", {})
+    notes = list(job.notes)
+    if job.negative_source not in ("none", "preset"):
+        cfg = job.values.get("cfg", (job.recompiled or job.shot).get("cfg", d.get("cfg")))
+        n = negative_note(cfg, job.negative_source)
+        if n and n not in notes:
+            notes.append(n)
+    return {
+        "target": job.target, "status": "queued", "queued": T.now(),
+        "comfy_prompt_id": None,
+        "seed": job.seed, "seed_source": job.seed_source,
+        "model": job.model, "loras": job.loras, "steps": job.steps,
+        "width": job.width,
+        "height": job.height,
+        "length": job.frames,
+        # the frame rate the take is rendered and saved at (the target's: Wan
+        # 14B renders 16 fps in a 24 fps episode; assemble converts)
+        "fps": job.fps,
+        # predicted: `length` is the build's estimate, the saver's `frames` the truth
+        "length_source": job.length_source,
+        "shot_hash": job.shot_hash,
+        "preset_hash": preset_hash(job.doc, job.shot),
+        "overrides": job.overridden, "override_stale": job.override_stale,
+        "parent_take": job.parent_take, "note": job.note,
+        "refs": ref_files(job),
+        "missing_refs": [r["slot"] for r in job.missing] if job.allow_missing else [],
+        # only when rendering anyway, so every other sidecar is as it was
+        **({"missing_mode": job.missing_mode} if job.missing_mode else {}),
+        **({"missing_note": job.missing_why} if job.missing_why else {}),
+        # only when there is something to say, likewise
+        **({"built_target": job.built_target} if job.retargeted else {}),
+        **({"inputs": dict(job.inputs)} if job.inputs else {}),
+        # its first frame is cut again when it starts (the node fills in `continuity`)
+        **({"continuity_after": dict(job.continuity)} if job.continuity else {}),
+        # continuous: latent: the render held this many frames of the previous
+        # take at its head, trimmed off (the node fills in `continued_from`)
+        **({"hold": int((job.recompiled or job.shot)["hold"])}
+           if (job.recompiled or job.shot).get("hold") else {}),
+        **({"notes": notes} if notes else {}),
+        # where the negative prompt came from (a target that takes one)
+        **({"negative_source": job.negative_source} if job.negative_source != "none" else {}),
+        # which installed file each model param used (resolve_models)
+        **({"resolved": copy.deepcopy(job.resolved)} if job.resolved else {}),
+        **({"base": True} if job.based else {}),
+        # asked for; the saver records the file itself as `latent`
+        **({"save_latent": True} if job.save_latent else {}),
+    }
+
+
+def start_job(job: Job) -> T.Take:
+    """Reserve the take and write its sidecar and frozen shotlist. No ComfyUI yet."""
+    take = T.reserve_take(job.root, job.pass_, job.id, sidecar_for(job),
+                          take=job.take if job.forced else None, folder=job.folder)
+    job.take = take.take
+    if job.staged:
+        # a file the target composed for this take (stage_inputs): into the
+        # take as <stem><suffix>, listed in the sidecar's refs with its sha1
+        made = []
+        for f in job.staged:
+            dst = os.path.join(take.paths.dir, take.paths.stem + f["suffix"])
+            os.replace(f["tmp"], dst)
+            made.append({"slot": f["slot"], "kind": f.get("kind", "image"),
+                         "path": os.path.relpath(dst, job.root).replace(os.sep, "/"),
+                         "role": f.get("role"), "sha1": T.file_sha1(dst)})
+        job.staged = []
+        take.sidecar = T.update_sidecar(take.paths.sidecar,
+                                        refs=list((take.sidecar or {}).get("refs") or []) + made)
+    T.write_json(take.paths.shotlist, frozen_shotlist(job))
+    return take
+
+
+def mark_queued(take: T.Take, prompt_id: str) -> None:
+    take.sidecar = T.update_sidecar(take.paths.sidecar, comfy_prompt_id=prompt_id)
+
+
+def mark_failed(take: T.Take, why: str) -> None:
+    take.sidecar = T.update_sidecar(take.paths.sidecar, status="failed",
+                                    finished=T.now(), save_notes=why)
+
+
+def finish_job(take: T.Take) -> str:
+    """After ComfyUI reports success: make sure the sidecar says so.
+
+    The saver normally does this itself. A workflow or node pack from before
+    sidecars leaves it `queued`, so close it here from what is on disk.
+    """
+    sc = T.read_sidecar(take.paths.sidecar) or {}
+    if sc.get("status") != "queued":
+        take.sidecar = sc
+        return sc.get("status", "?")
+    if os.path.isfile(take.paths.mp4):
+        take.sidecar = T.update_sidecar(
+            take.paths.sidecar, status="ok", finished=T.now(),
+            mp4=os.path.basename(take.paths.mp4),
+            thumb=os.path.basename(take.paths.thumb) if os.path.isfile(take.paths.thumb) else None,
+            strip=os.path.basename(take.paths.strip) if os.path.isfile(take.paths.strip) else None,
+            save_notes="closed by h3jobs: the saver did not update the sidecar")
+        return "ok"
+    mark_failed(take, "ComfyUI finished but the mp4 is missing")
+    return "failed"
+
+
+# ---------------------------------------------------------------------------
+# graph patching
+# ---------------------------------------------------------------------------
+
+DEFAULT_LORA_SPEC = {"class_type": LORA, "name": "lora_name", "strength": "strength_model",
+                     "input": "model", "chain": True}
+
+
+def _consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
+    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
+            if val == [nid, slot]]
+
+
+def _next_id(g: dict) -> int:
+    return max(int(k) for k in g if k.isdigit()) + 1 if any(k.isdigit() for k in g) else 1000
+
+
+def apply_loras(g: dict, loras: list[dict], spec: dict | None = None) -> None:
+    """Put `loras` into the graph: the first in the workflow's LoRA loader, the
+    rest chained after it. No LoRAs: the loader stays wired at strength 0.
+
+    `spec` is the binding's `loras` param: the loader's class_type, its `name`
+    and `strength` widgets, the `input` it chains through (output 0 of one
+    feeds that input of the next) and whether `chain` is allowed (without it
+    more than one LoRA is an error). A workflow with no LoRA loader at all
+    gets one when the spec says where (`insert_after`: {"class_type",
+    "output"}, e.g. the UNETLoader's MODEL): everything that read that output
+    reads the last LoRA instead. Default spec: the default target's."""
+    spec = dict(DEFAULT_LORA_SPEC, **(spec or {}))
+    ctype, name_w, str_w, link = (spec["class_type"], spec["name"], spec["strength"],
+                                  spec["input"])
+    title = spec.get("title")
+    # `title` picks one loader among several (a two-stage graph's per-stage LoRA)
+    ids = [k for k, v in g.items() if v["class_type"] == ctype
+           and (not title or (v.get("_meta") or {}).get("title") == title)]
+    if not ids and loras and spec.get("insert_after"):
+        at = spec["insert_after"]
+        src = select_nodes(g, {k: v for k, v in at.items() if k in ("class_type", "title")})[0]
+        slot = int(at.get("output", 0))
+        consumers = _consumers(g, src, slot)
+        nid = str(_next_id(g))
+        g[nid] = {"class_type": ctype, "inputs": {link: [src, slot], name_w: "", str_w: 1.0},
+                  "_meta": {"title": title or "LoRA 1 (h3jobs)"}}
+        for k, name in consumers:
+            g[k]["inputs"][name] = [nid, 0]
+        ids = [nid]
+    if len(ids) != 1:
+        if loras or ids:
+            raise ValueError(f"LoRAs need exactly one {ctype} node in the workflow "
+                             f"(found {len(ids)})")
+        return
+    first = ids[0]
+    if not loras:
+        g[first]["inputs"][str_w] = 0.0
+        return
+    if len(loras) > 1 and not spec.get("chain"):
+        raise ValueError(f"this workflow takes one LoRA ({ctype}), not {len(loras)}")
+    g[first]["inputs"][name_w] = loras[0]["name"]
+    g[first]["inputs"][str_w] = float(loras[0].get("strength", 1.0))
+    consumers = _consumers(g, first)
+    prev = first
+    next_id = _next_id(g)
+    for i, lo in enumerate(loras[1:], start=2):
+        nid = str(next_id)
+        next_id += 1
+        g[nid] = {"class_type": ctype,
+                  "inputs": {link: [prev, 0], name_w: lo["name"],
+                             str_w: float(lo.get("strength", 1.0))},
+                  "_meta": {"title": f"LoRA {i} (h3jobs)"}}
+        prev = nid
+    for k, name in consumers:
+        g[k]["inputs"][name] = [prev, 0]
+
+
+def remove_loras(g: dict, spec: dict | None = None) -> None:
+    """Take the binding's LoRA loaders (class, and `title` when the spec has
+    one) out of the graph: whatever read a loader's output reads what fed its
+    `input` instead."""
+    spec = dict(DEFAULT_LORA_SPEC, **(spec or {}))
+    title, link = spec.get("title"), spec["input"]
+    ids = [k for k, v in g.items() if v["class_type"] == spec["class_type"]
+           and (not title or (v.get("_meta") or {}).get("title") == title)]
+    for nid in ids:
+        src = g[nid]["inputs"].get(link)
+        for k, name in _consumers(g, nid):
+            g[k]["inputs"][name] = list(src) if isinstance(src, list) else src
+        del g[nid]
+
+
+def lora_stage(lora: dict) -> str | None:
+    """The sampling stage a LoRA belongs to in a two-stage graph: its own
+    `stage`, else from its name (Wan 2.2 LoRAs come in `*high_noise*` /
+    `*low_noise*` pairs), else None (both stages)."""
+    if lora.get("stage"):
+        return str(lora["stage"])
+    name = str(lora.get("name", "")).lower().replace("-", "_")
+    for stage in ("high", "low"):
+        if f"{stage}_noise" in name or f"{stage}noise" in name:
+            return stage
+    return None
+
+
+def loras_for(loras: list[dict], spec: dict) -> list[dict]:
+    """The LoRAs one loader spec takes: all of them, or for a spec with a
+    `stage` (a binding with one LoRA chain per sampling stage) those of that
+    stage and those of none."""
+    stage = spec.get("stage")
+    if not stage:
+        return list(loras)
+    return [lo for lo in loras if lora_stage(lo) in (None, stage)]
+
+
+def job_target(job: Job) -> "TG.Target":
+    # root: the show's own targets count too (targets.load_target, Phase 12)
+    return TG.load_target(job.target, "video", root=job.root)
+
+
+def select_nodes(g: dict, spec: dict) -> list[str]:
+    """The nodes a binding widget spec names (see targets.Binding): its
+    class_type, narrowed by `title` and `feeds` ([class, input]: the node whose
+    output feeds that input of a node of that class). Exactly one, unless
+    `all` (then one or more). ValueError otherwise, naming the spec."""
+    ctype = spec["class_type"]
+    ids = [k for k, v in g.items() if v["class_type"] == ctype]
+    if spec.get("title"):
+        ids = [k for k in ids if (g[k].get("_meta") or {}).get("title") == spec["title"]]
+    if spec.get("feeds"):
+        cls, inp = spec["feeds"]
+        fed = {v["inputs"].get(inp)[0] for v in g.values()
+               if v["class_type"] == cls and isinstance(v["inputs"].get(inp), list)}
+        ids = [k for k in ids if k in fed]
+    what = ctype + (f" titled {spec['title']!r}" if spec.get("title") else "") + (
+        f" feeding {spec['feeds'][0]}.{spec['feeds'][1]}" if spec.get("feeds") else "")
+    if spec.get("all"):
+        if not ids:
+            raise ValueError(f"workflow must contain a {what} node")
+        return ids
+    if len(ids) != 1:
+        raise ValueError(f"workflow must contain exactly one {what} node (found {len(ids)})")
+    return ids
+
+
+def _set_widget(g: dict, spec: dict | None, value) -> None:
+    """Patch a {"class_type", "field"} param; a {"via": "loader"} one (or none)
+    needs nothing, the frozen shotlist carries it."""
+    if spec and spec.get("class_type") and spec.get("field"):
+        if spec.get("scale") is not None and isinstance(value, (int, float)) \
+                and not isinstance(value, bool):
+            value = value * spec["scale"]
+            value = int(round(value)) if isinstance(value, float) and value.is_integer() \
+                else value
+        for nid in select_nodes(g, spec):
+            g[nid]["inputs"][spec["field"]] = value
+
+
+def patch_param(g: dict, binding, name: str, value) -> None:
+    """Every widget the binding's param `name` names gets `value`."""
+    for spec in binding.specs(name):
+        _set_widget(g, spec, value)
+
+
+def _prompt_text(prompt) -> str:
+    return "\n\n".join(prompt) if isinstance(prompt, list) else (prompt or "")
+
+
+# Params graph_for sets from the job itself; any other param a binding names
+# (a text encoder, a VAE, an upscaler) takes the shotlist's `defaults` value.
+JOB_PARAMS = ("model", "loras", "steps", "seed")
+
+
+def job_values(job: Job) -> dict:
+    """The values of a job's other binding params (prompt, negative, size,
+    length, fps, ...), for a target whose workflow takes them as widgets.
+    None means "leave the workflow's value"."""
+    d = job.doc.get("defaults", {})
+    vals = {"prompt": _prompt_text(job.prompt),
+            "negative": job.shot.get("negative", d.get("negative")),
+            "width": job.width or None, "height": job.height or None,
+            "length": job.frames or None, "fps": job.fps,
+            "shot_id": job.id, "audio_policy": job.shot.get("audio_policy") or "generate"}
+    for name in job_target(job).binding.params:
+        if name not in vals and name not in JOB_PARAMS:
+            vals[name] = job.shot.get(name, d.get(name))
+    # resolve_models' substitutes and the base preset's settings win
+    vals.update({k: v for k, v in job.values.items() if k not in JOB_PARAMS})
+    return vals
+
+
+def prepare_saver(g: dict, binding) -> None:
+    """Put the binding's saver in the graph when the workflow ends in another
+    node (`saver.replace`): it takes that node's inputs, the node and the
+    `saver.drop` classes go, and `saver.set` fixes some of its inputs."""
+    sv = binding.saver
+    if not sv.get("replace") or any(v["class_type"] == binding.saver_class for v in g.values()):
+        return
+    rep = sv["replace"]
+    old = node_of(g, rep["class_type"])
+    inputs = {mine: g[old]["inputs"][theirs] for mine, theirs in (rep.get("inputs") or {}).items()
+              if theirs in g[old]["inputs"]}
+    inputs.update(sv.get("set") or {})
+    for k, _ in _consumers(g, old):
+        del g[k]
+    del g[old]
+    for k in [k for k, v in g.items() if v["class_type"] in (sv.get("drop") or [])]:
+        del g[k]
+    g["h3_saver"] = {"class_type": binding.saver_class, "inputs": inputs,
+                     "_meta": {"title": f"{binding.saver_class} (h3pipe)"}}
+
+
+def prune(g: dict, keep: str) -> None:
+    """Drop every node `keep` doesn't depend on."""
+    need, stack = set(), [keep]
+    while stack:
+        nid = stack.pop()
+        if nid in need or nid not in g:
+            continue
+        need.add(nid)
+        for v in g[nid]["inputs"].values():
+            if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str):
+                stack.append(v[0])
+    for k in [k for k in g if k not in need]:
+        del g[k]
+
+
+def upstream_node(g: dict, start: str, ctype: str) -> str | None:
+    """The nearest node of class `ctype` that `start` depends on (breadth first
+    through its links), or None."""
+    seen, queue = {start}, [start]
+    while queue:
+        nid = queue.pop(0)
+        for v in g.get(nid, {}).get("inputs", {}).values():
+            if isinstance(v, list) and len(v) == 2 and isinstance(v[0], str) and v[0] not in seen:
+                if g.get(v[0], {}).get("class_type") == ctype:
+                    return v[0]
+                seen.add(v[0])
+                queue.append(v[0])
+    return None
+
+
+def latent_node(g: dict, saver: str, spec: dict) -> str:
+    """The node a binding's `saver.latent` names: the only one of its class, or
+    with `upstream_of: <saver input>`, the nearest one feeding that input (a
+    two-stage graph's final sampler, e.g. LTX-2's)."""
+    if spec.get("upstream_of"):
+        link = g[saver]["inputs"].get(spec["upstream_of"])
+        nid = None
+        if isinstance(link, list) and link and isinstance(link[0], str):
+            first = link[0]
+            nid = (first if g.get(first, {}).get("class_type") == spec["class_type"]
+                   else upstream_node(g, first, spec["class_type"]))
+        if nid is None:
+            raise ValueError(f"no {spec['class_type']} feeds the saver's {spec['upstream_of']}")
+        return nid
+    return node_of(g, spec["class_type"])
+
+
+def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = None,
+              save_frames: bool | None = None, review_copy: bool = True,
+              strip_meta: bool = False, inputs: dict | None = None) -> dict:
+    """`base` (the target's workflow as an API graph) patched for one take,
+    following the job's target's binding: the loader (if the target has one)
+    reads the take's frozen shotlist, the saver writes into the take, and the
+    widgets the binding names get the job's values (model, LoRAs, steps, seed,
+    and for a loader-less target the prompt, size, length, fps, ...). Then the
+    target's own graph code, if any (keyframes: `inputs`, default
+    job.inputs), and `prune`."""
+    t = job_target(job)
+    b = t.binding
+    g = copy.deepcopy(base)
+    prepare_saver(g, b)
+    saver = node_of(g, b.saver_class)
+    if b.loader_class:
+        loader = node_of(g, b.loader_class)
+        lin = dict({"root": "project_root", "shotlist": "shotlist_file", "index": "index"},
+                   **(b.loader.get("inputs") or {}))
+        li = g[loader]["inputs"]
+        li[lin["root"]] = job.root
+        li[lin["shotlist"]] = os.path.relpath(take.paths.shotlist, job.root)
+        li[lin["index"]] = 0
+        if panel_mode:
+            li["panel_mode"] = panel_mode
+    if job.model:
+        patch_param(g, b, "model", job.model)
+    if job.loras is not None:
+        # one chain per spec: a two-stage binding lists one per stage
+        for spec in b.specs("loras") or [None]:
+            mine = loras_for(job.loras, spec or {})
+            if not mine and job.based:
+                # the base preset: the accelerator LoRA isn't installed, so
+                # its loader must go (at strength 0 it would still load it)
+                remove_loras(g, spec)
+            else:
+                apply_loras(g, mine, spec)
+    patch_param(g, b, "steps", job.steps)
+    patch_param(g, b, "seed", job.seed)
+    for name, value in job_values(job).items():
+        if value is not None and name in b.params and name not in JOB_PARAMS:
+            patch_param(g, b, name, value)
+    sin = dict({"root": "project_root", "subfolder": "subfolder", "take": "take",
+                "sidecar": "sidecar"}, **(b.saver.get("inputs") or {}))
+    si = g[saver]["inputs"]
+    si[sin["root"]] = job.root
+    si[sin["subfolder"]] = os.path.relpath(os.path.dirname(take.paths.dir), job.root)
+    si[sin["take"]] = take.take
+    si[sin["sidecar"]] = os.path.relpath(take.paths.sidecar, job.root)
+    if save_frames is not None:
+        si["save_frames"] = save_frames
+    if (b.loader_class == "H3ShotListLoader" and g[saver]["class_type"] == "H3SaveShot"
+            and "ref_info" not in si):
+        # the loader's info (what each reference was: file, cut, size, slot)
+        # goes into the take's record as `loaded_refs`
+        si["ref_info"] = [loader, LOADER_INFO_OUTPUT]
+    if job.save_latent and b.saver.get("latent"):
+        # the saver keeps the take's latent: link the node the binding names
+        spec = b.saver["latent"]
+        si["latent"] = [latent_node(g, saver, spec), int(spec.get("output", 0))]
+    if not review_copy:
+        for k in [k for k, v in g.items() if v["class_type"] in b.review_nodes]:
+            del g[k]
+    if t.supports("patch_graph"):
+        t.patch_graph(g, job, dict(job.inputs if inputs is None else inputs))
+    if job.continuity:
+        continuity_frame(g, job, take, dict(job.inputs if inputs is None else inputs))
+    if (job.recompiled or job.shot).get("hold"):
+        chain_latent(g, job, take)
+    if job.duration_head:
+        add_duration_predictor(g, t, job)
+    if b.prune:
+        prune(g, saver)
+    if strip_meta:
+        for v in g.values():
+            v.pop("_meta", None)
+    return g
+
+
+def continuity_frame(g: dict, job: Job, take: T.Take, inputs: dict) -> None:
+    """A continuity shot's first frame read when the job starts, not when it was
+    queued: the LoadImage the target wired for the `first` input becomes
+    H3ContinuityFrame (h3refs.continuity_at_start), which cuts it again from
+    the take the cut uses then (a take queued ahead of it in the same run has
+    rendered by then) and falls back to the queued copy (`image`)."""
+    name = inputs.get("first")
+    if not name:
+        return
+    for v in g.values():
+        if v["class_type"] == "LoadImage" and v["inputs"].get("image") == name:
+            v["class_type"] = "H3ContinuityFrame"
+            v["inputs"] = {"image": name, "project_root": job.root, "shot": job.shot["id"],
+                           "pass_": job.continuity.get("pass") or job.pass_,
+                           "sidecar": os.path.relpath(take.paths.sidecar, job.root)}
+            v.setdefault("_meta", {})["title"] = "Continuity first frame"
+
+
+def chain_latent(g: dict, job: Job, take: T.Take) -> None:
+    """A `continuous: latent` shot (its entry's `hold`, docs/CONTINUOUS.md):
+    H3ChainLatent between the target's `continuous.latent.sampler` input and
+    its source, which holds the previous take's last frames at the head of the
+    render (found as it runs: a whole chain queues at once), fed the binding's
+    video_vae / audio_vae to encode that take's frames when it kept no latent;
+    then H3ChainTrim on what the saver is given (every consumer of it), which
+    cuts the held frames and their sound off again. The saver writes what was
+    held (the node's `record`) into the take's record as `continued_from`:
+    nothing writes it while the job runs, when the queuer may still be."""
+    t = job_target(job)
+    spec = (t.spec.get("continuous") or {}).get("latent")
+    if not spec:
+        raise ValueError(f"{t.short} can't render a continuous: latent shot")
+    b = t.binding
+    hold = int((job.recompiled or job.shot)["hold"])
+    s = spec["sampler"]
+    sampler = node_of(g, s["class_type"])
+    vaes = {}
+    for name in ("video_vae", "audio_vae"):
+        specs = b.specs(name)
+        found = select_nodes(g, specs[0]) if specs else []
+        if found:
+            vaes[name] = [found[0], 0]
+    nid = str(_next_id(g))
+    g[nid] = {"class_type": "H3ChainLatent", "inputs": {
+        "latent": g[sampler]["inputs"][s["input"]], "project_root": job.root,
+        "shot": job.shot["id"], "pass_": job.pass_, "overlap": hold,
+        "hold_audio": bool(spec.get("hold_audio", True)),
+        "fps": float(job.fps), **vaes},
+        "_meta": {"title": "Chain latent (continuous: latent)"}}
+    g[sampler]["inputs"][s["input"]] = [nid, 0]
+    saver = node_of(g, b.saver_class)
+    si = g[saver]["inputs"]
+    si["chain"] = [nid, 1]
+    images, audio = si.get("images"), si.get("audio")
+    if not is_link(images):
+        raise ValueError(f"{t.short}'s saver has no images input to trim")
+    tid = str(_next_id(g))
+    g[tid] = {"class_type": "H3ChainTrim", "inputs": {
+        "images": images, "frames": hold, "fps": float(job.fps),
+        **({"audio": audio} if is_link(audio) else {})},
+        "_meta": {"title": "Chain trim (the held frames off)"}}
+    for k, v in g.items():
+        if k == tid:
+            continue
+        for name, val in v["inputs"].items():
+            if val == images:
+                v["inputs"][name] = [tid, 0]
+            elif is_link(audio) and val == audio:
+                v["inputs"][name] = [tid, 1]
+
+
+def add_duration_predictor(g: dict, target: "TG.Target", job: Job) -> None:
+    """`dur: model` with the duration head installed (plan_duration): add
+    ModelPatchLoader (job.duration_head) and LTXVDurationPredictor, fed the
+    model and positive conditioning the workflow already has (the binding's
+    `duration_predictor`: {"model"|"positive": {"class_type", "input"}}, what
+    feeds that input of that node), and link its num_frames into every widget
+    the binding's `length` param names, in place of the estimate."""
+    spec = (target.spec.get("binding") or {}).get("duration_predictor") or {}
+    if not (spec.get("model") and spec.get("positive")):
+        raise ValueError(f"{target.id}'s binding has no duration_predictor (model, positive)")
+
+    def source(s: dict) -> list:
+        ids = sorted(k for k, v in g.items() if v["class_type"] == s["class_type"]
+                     and isinstance(v["inputs"].get(s["input"]), list))
+        if not ids:
+            raise ValueError(f"the {target.id} workflow has no {s['class_type']} with a "
+                             f"linked {s['input']} for the duration predictor")
+        return list(g[ids[0]]["inputs"][s["input"]])
+
+    rng = job.shot.get("duration_predict") or {}
+    lo, hi = TG.PREDICT_RANGE
+    g["h3_duration_head"] = {"class_type": "ModelPatchLoader",
+                             "inputs": {"name": job.duration_head},
+                             "_meta": {"title": "duration head (h3pipe)"}}
+    g["h3_duration"] = {"class_type": "LTXVDurationPredictor",
+                        "inputs": {"model": source(spec["model"]),
+                                   "positive": source(spec["positive"]),
+                                   "duration_head": ["h3_duration_head", 0],
+                                   "frame_rate": float(job.fps),
+                                   "min_seconds": float(rng.get("min_seconds", lo)),
+                                   "max_seconds": float(rng.get("max_seconds", hi))},
+                        "_meta": {"title": "duration predictor (h3pipe)"}}
+    lengths = target.binding.specs("length")
+    if not lengths:
+        raise ValueError(f"{target.id}'s binding names no length widget to drive")
+    for s in lengths:
+        for nid in select_nodes(g, s):
+            g[nid]["inputs"][s["field"]] = ["h3_duration", 0]
+
+
+# ---------------------------------------------------------------------------
+# inputs: images a render loads through ComfyUI's input folder
+# ---------------------------------------------------------------------------
+
+DURATION_LOADER = ("ModelPatchLoader", "name")
+DURATION_NODE = "LTXVDurationPredictor"
+
+
+def duration_head_file(job: Job) -> str:
+    """The duration head a job's target preset names ("" if none)."""
+    if job.values.get("duration_head"):                 # another installed head (resolve_models)
+        return str(job.values["duration_head"])
+    p = job_target(job).presets.get(job.pass_)
+    return str(job.shot.get("duration_head") or (p.extra.get("duration_head") if p else "")
+               or "")
+
+
+def plan_duration(job: Job, comfy=None) -> None:
+    """`dur: model` on a target that predicts (the entry's `duration_predict`):
+    ask ComfyUI whether the preset's duration head is installed (the choices
+    of ModelPatchLoader, /object_info) and the predictor node known. Yes:
+    job.duration_head is set, graph_for adds the predictor, and the take's
+    length_source is "predicted". No (or no ComfyUI to ask): the take renders
+    the build's estimate, with a note saying why. Never fails."""
+    job.duration_head = ""
+    old = job.duration_note
+    if old in job.notes:
+        job.notes.remove(old)
+    job.duration_note = ""
+    if not job.shot.get("duration_predict"):
+        return
+    t = job_target(job)
+    est = estimate_seconds(job.doc, job.shot)
+    head = duration_head_file(job)
+    job.length_source = "estimate"
+    why = ""
+    if not head:
+        why = f"{t.id}'s {job.pass_} preset names no duration_head"
+    elif comfy is None:
+        why = "the duration head wasn't checked (no ComfyUI to ask)"
+    else:
+        try:
+            have = comfy.choices(*DURATION_LOADER)
+            node = have is not None and comfy.has_node(DURATION_NODE)
+        except Exception as e:
+            have, node, why = None, False, f"couldn't ask ComfyUI for the duration head ({e})"
+        if why:
+            pass
+        elif have is None or not node:
+            why = (f"this ComfyUI has no {DURATION_LOADER[0] if have is None else DURATION_NODE} "
+                   f"node (update ComfyUI)")
+        elif head not in have:
+            why = f"{t.short} duration head not installed (models/model_patches: {head})"
+    if why:
+        note = f"{why}; used the estimate {est} s"
+    else:
+        job.duration_head, job.length_source = head, "predicted"
+        rng = job.shot["duration_predict"]
+        note = (f"length predicted by {head} ({rng['min_seconds']:g}-{rng['max_seconds']:g} s); "
+                f"the build's estimate was {est} s")
+    job.notes.append(note)
+    job.duration_note = note
+
+
+# ---------------------------------------------------------------------------
+# model files: is each one the family its target needs? (targets/modelid.py)
+# ---------------------------------------------------------------------------
+
+# a models folder's older names, as ComfyUI still reads them
+MODEL_FOLDER_ALIASES = {"diffusion_models": ("diffusion_models", "unet"),
+                        "text_encoders": ("text_encoders", "clip")}
+DEFAULT = object()                     # "work it out" (model_resolver, the temp cache)
+
+
+def model_resolver():
+    """How a model file's name becomes a path: inside ComfyUI (the routes),
+    folder_paths.get_full_path; else under $COMFYUI_PATH/models (the CLI);
+    else None (names only)."""
+    try:
+        import folder_paths                               # only inside ComfyUI
+        get = folder_paths.get_full_path
+    except Exception:
+        get = None
+    if get is not None:
+        def resolve(folder: str, name: str) -> str | None:
+            try:
+                return get(folder, name)
+            except Exception:
+                return None
+        return resolve
+    comfy = os.environ.get("COMFYUI_PATH", "").strip()
+    if not comfy:
+        return None
+    models = os.path.join(comfy, "models")
+
+    def resolve(folder: str, name: str) -> str | None:
+        for f in MODEL_FOLDER_ALIASES.get(folder, (folder,)):
+            p = os.path.join(models, f, *name.replace("\\", "/").split("/"))
+            if os.path.isfile(p):
+                return p
+        return None
+    return resolve
+
+
+def series_model_families(root: str) -> dict:
+    """The model_families of the series config beside the episode (or in its
+    parent folder), {} without one. ValueError on a malformed block."""
+    for d in (root, os.path.dirname(os.path.normpath(root))):
+        p = os.path.join(d, "series.json")
+        if os.path.isfile(p):
+            try:
+                with open(p, encoding="utf-8") as fh:
+                    cfg = json.load(fh)
+            except (OSError, ValueError):
+                return {}
+            return TG.series_model_families(cfg if isinstance(cfg, dict) else {})
+    return {}
+
+
+def model_values(job: Job) -> dict[str, str]:
+    """{param: file} for every model param the job's target declares a family
+    for: the job's model, the shotlist's (else the preset's) text encoder,
+    VAEs, upscaler, ..., and the duration head when the shot predicts its
+    length. A param with no file set is left out."""
+    t = job_target(job)
+    vals = job_values(job)
+    preset = t.presets.get(job.pass_) or t.presets.get("final")
+    final = t.presets.get("final")
+    out = {}
+    for param, m in t.models.items():
+        if param == "loras":                            # a list: resolve_models reads job.loras
+            continue
+        if param == "model":
+            v = job.model
+        elif param == "duration_head":
+            v = duration_head_file(job) if job.shot.get("duration_predict") else ""
+        else:
+            v = vals.get(param) or job.shot.get(param) or job.doc.get("defaults", {}).get(param)
+            for p in (preset, final):
+                if not v and p is not None:
+                    v = p.extra.get(param)
+            # the file the workflow loads on its own (H3 Ref2VA's text encoder)
+            v = v or m.get("default")
+        if isinstance(v, str) and v:
+            out[param] = v
+    return out
+
+
+def model_lister(comfy=None, model_list=None):
+    """listing(spec) for resolve_models: the files ComfyUI offers for a models
+    spec, or None when that can't be known (then the param is left alone).
+    `model_list(folder, class_type, field)` (the routes: ComfyUI's
+    folder_paths) wins; else the loader's choices from `comfy`'s
+    /object_info/<class> (the CLI), asked once per class."""
+    asked: dict = {}
+
+    def listing(spec: dict):
+        if model_list is not None:
+            return model_list(spec.get("folder"), spec.get("class_type"), spec.get("field"))
+        if comfy is None or not hasattr(comfy, "choices"):
+            return None
+        key = (spec.get("class_type"), spec.get("field"))
+        if not all(key):
+            return None
+        if key not in asked:
+            try:
+                asked[key] = comfy.choices(*key, strict=True)
+            except Exception:
+                asked[key] = None
+        return asked[key]
+    return listing
+
+
+def resolve_models(job: Job, listing=None, resolve=DEFAULT, cache=DEFAULT,
+                   extra: dict | None = None) -> dict:
+    """Pick the installed file each model param of `job` renders with, before
+    its take is reserved (targets.resolve_models): the wanted file if
+    installed, else the best installed file of its family; an accelerator
+    (turbo LoRA) that isn't installed switches the pass to its `base` preset
+    (steps, cfg, sampler, no LoRA: the loader leaves the graph); a missing
+    optional file turns its feature off; a missing required file makes the
+    job "missing_files" (it doesn't run; job.missing_files says what to
+    download). `listing` is model_lister's (None: nothing is resolved, as
+    before). Records job.resolved (the sidecar's `resolved`) and notes.
+    Returns targets.resolve_models' answer ({} when not run)."""
+    if listing is None or not job.runs:
+        return {}
+    if resolve is DEFAULT:
+        resolve = model_resolver()
+    if cache is DEFAULT:
+        cache = TG.modelid.temp_cache()
+    if extra is None:
+        try:
+            extra = series_model_families(job.root)
+        except ValueError:
+            extra = {}
+    t = job_target(job)
+    wanted = dict(model_values(job))
+    if job.loras is not None:
+        wanted["loras"] = [dict(lo) for lo in job.loras]
+    slot = TG.lora_slot(t, job.pass_, None, job.doc.get("defaults") or {})
+    r = TG.resolve_models(t, job.pass_, wanted, listing, resolve, extra, cache, slot)
+    job.resolved = r["resolved"]
+    for param, using in r["files"].items():
+        if param == "model":
+            job.model = using
+        else:
+            job.values[param] = using
+    if r["loras"] is not None:
+        job.loras = r["loras"]
+    if r["base"] is not None:
+        job.based = True
+        base_steps = r["base"].get("steps")
+        if base_steps is not None:
+            if job.steps_set:
+                job.notes.append(f"steps {job.steps} kept (set for this shot), though the base "
+                                 f"preset says {base_steps}")
+            else:
+                job.steps = int(base_steps)
+        job.values.update({k: v for k, v in r["values"].items() if k != "steps"})
+    # the duration head's own note comes from plan_duration
+    job.notes.extend(n for n in r["notes"] if "duration_head" not in n)
+    if r["blocked"]:
+        job.missing_files = r["blocked"]
+        job.action = "missing_files"
+    return r
+
+
+def check_models(job: Job, resolve=DEFAULT, cache=DEFAULT,
+                 extra: dict | None = None) -> list[dict]:
+    """Check each model file a job would load against its target's families
+    (targets.check_model), before its take is reserved.
+
+    A name that matches passes silently. Otherwise the file's header decides
+    (`resolve`, default model_resolver(): ComfyUI's folder_paths in the
+    routes, $COMFYUI_PATH in the CLI, else names only; `cache`, default the
+    temp folder's modelid cache): the right family passes with a note in the
+    sidecar; unknown (or unchecked) passes with a note; ANOTHER family makes
+    the job "mismatch" (it doesn't run), unless the request allowed a model
+    mismatch, when it renders with a note. `extra` is the series config's
+    model_families (default: read beside the episode). Replaces any earlier
+    check's notes. Returns job.model_checks."""
+    for n in job.model_notes:
+        if n in job.notes:
+            job.notes.remove(n)
+    job.model_notes, job.model_checks = [], []
+    if job.action == "mismatch":                          # a re-check starts over
+        job.action = job.mismatch_from or "render"
+    if job.action in ("skip", "busy", "blocked", "error"):
+        return []
+    if resolve is DEFAULT:
+        resolve = model_resolver()
+    if cache is DEFAULT:
+        cache = TG.modelid.temp_cache()
+    t = job_target(job)
+    notes = []
+    if extra is None:
+        try:
+            extra = series_model_families(job.root)
+        except ValueError as e:
+            extra = {}
+            notes.append(f"series.json model_families ignored: {e}")
+    for param, name in model_values(job).items():
+        c = TG.check_model(t, param, name, resolve, extra, cache)
+        if c is None:
+            continue
+        job.model_checks.append(c)
+        if c["block"] and job.allow_model_mismatch:
+            notes.append(f"model mismatch, rendered anyway: {c['message']}")
+        elif c["message"] and not c["block"]:
+            notes.append(c["message"])
+    job.model_notes = notes
+    job.notes.extend(notes)
+    if any(c["block"] for c in job.model_checks) and not job.allow_model_mismatch:
+        job.mismatch_from, job.action = job.action, "mismatch"
+    return job.model_checks
+
+
+INPUT_SUBFOLDER = "h3pipe"
+
+
+def input_name(path: str) -> str:
+    """The name a file gets in ComfyUI's input folder: input/h3pipe/<sha1>.<ext>.
+    By content, so re-picking a keyframe never serves a stale copy and the
+    same picture is uploaded once."""
+    ext = os.path.splitext(path)[1].lower() or ".png"
+    return f"{INPUT_SUBFOLDER}/{T.file_sha1(path)[:20]}{ext}"
+
+
+def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
+    """Copy the images a job conditions on (a target's `role` ref slots that
+    exist on disk: LTX's first / last keyframes) into ComfyUI's input folder
+    and record their names in job.inputs ({role: "h3pipe/<sha1>.png"}).
+    `comfy` uploads them (h3jobs.Comfy.upload_input: POST /upload/image, which
+    works wherever ComfyUI runs); without it (a dry run) only the names are
+    worked out. A target that makes an input of its own (ltx2_ingredients
+    composes the shot's reference sheet) does it here too, in its
+    `stage_inputs`; a file it keeps for the take waits in job.staged until
+    start_job moves it into the take.
+
+    `dur: model` is decided here too (plan_duration): `comfy`, or for a dry
+    run `probe` (asked, never written to), says whether the duration head is
+    installed."""
+    plan_duration(job, comfy or probe)
+    out = {}
+    for r in ref_slots(job.doc, job.shot):
+        role, p = r.get("role"), r.get("path")
+        if not role or not p:
+            continue
+        full = _abs(job.root, p)
+        if not os.path.isfile(full):
+            continue
+        name = input_name(full)
+        if comfy is not None:
+            comfy.upload_input(full, name)
+        out[role] = name
+    t = job_target(job)
+    if t.supports("stage_inputs"):
+        out.update(t.stage_inputs(job, comfy) or {})
+    job.inputs = out
+    return out
