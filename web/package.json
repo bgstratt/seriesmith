@@ -1,13 +1,14 @@
 {
-  "name": "h3pipe-editor",
+  "name": "seriesmith-editor",
   "private": true,
   "version": "0.1.0",
-  "description": "The h3pipe shot/take editor, as a ComfyUI frontend extension",
+  "description": "The seriesmith editor: a page of its own (seriesmith serve) and a ComfyUI frontend extension",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:dev": "vite build --mode devpage",
+    "build:standalone": "tsc --noEmit && vite build --mode standalone",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

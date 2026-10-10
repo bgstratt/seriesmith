@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>seriesmith</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css" />
+    <script>
+      try { if (localStorage.getItem("seriesmith.theme") === "light") document.documentElement.classList.add("light"); } catch (e) {}
+    </script>
+    <style>
+      /* the theme variables the editor reads (ComfyUI's names, which it uses inside ComfyUI) */
+      :root {
+        --comfy-menu-bg: #2b2b2e; --comfy-menu-secondary-bg: #222225; --comfy-input-bg: #1c1c1f;
+        --fg-color: #ececec; --descrip-text: #9a9aa0; --border-color: #3c3c42; --p-primary-color: #34d399;
+        --p-primary-contrast-color: #111; --content-hover-bg: #ffffff14; --error-text: #ff5a5a;
+        color-scheme: dark;
+      }
+      :root.light {
+        --comfy-menu-bg: #e9e9ec; --comfy-menu-secondary-bg: #dcdce0; --comfy-input-bg: #fff;
+        --fg-color: #1d1d20; --descrip-text: #55555c; --border-color: #b9b9c0; --p-primary-color: #0f9f6e;
+        --p-primary-contrast-color: #fff; --content-hover-bg: #00000010; --error-text: #c41a1a;
+        color-scheme: light;
+      }
+      html, body { margin: 0; height: 100%; font-family: Inter, system-ui, sans-serif; background: #141416; color: var(--fg-color); }
+      :root.light body { background: #f2f2f4; }
+      #sm {
+        display: grid; height: 100vh;
+        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+        grid-template-rows: 40px minmax(0, 1fr) minmax(160px, 30vh);
+        grid-template-areas: "top top" "side view" "time time";
+      }
+      #sm-top {
+        grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+        background: var(--comfy-menu-bg); border-bottom: 1px solid var(--border-color);
+      }
+      #sm-top b { font-size: 14px; letter-spacing: .02em; }
+      #sm-top .spacer { flex: 1 1 auto; }
+      #sm-top button {
+        background: transparent; color: var(--fg-color); border: 1px solid var(--border-color);
+        border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px;
+      }
+      #sm-conn { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+      #sm-conn[data-state="on"] { background: var(--p-primary-color); }
+      #sm-conn[data-state="off"] { background: var(--error-text); }
+      #sm-side {
+        grid-area: side; display: flex; flex-direction: column; min-height: 0;
+        background: var(--comfy-menu-bg); border-right: 1px solid var(--border-color);
+      }
+      #sm-tabs { display: flex; border-bottom: 1px solid var(--border-color); flex: 0 0 auto; }
+      #sm-tabs button {
+        flex: 1 1 0; background: transparent; color: var(--descrip-text); border: 0; padding: 8px 0;
+        font: inherit; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+      }
+      #sm-tabs button.on { color: var(--fg-color); border-bottom-color: var(--p-primary-color); }
+      #sm-shots, #sm-refs { flex: 1 1 auto; min-height: 0; }
+      #sm-view { grid-area: view; position: relative; min-width: 0; min-height: 0; background: #000; }
+      #sm-view .empty {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        color: #777; font-size: 13px; text-align: center; padding: 20px;
+      }
+      #sm-viewer { position: absolute; inset: 0; z-index: 1; }
+      #sm-viewer:empty { display: none; }
+      #sm-time { grid-area: time; min-height: 0; border-top: 1px solid var(--border-color); background: var(--comfy-menu-secondary-bg); }
+      #sm-timeline { height: 100%; }
+      @media (max-width: 760px) {
+        #sm { grid-template-columns: 1fr; grid-template-rows: 40px 45vh minmax(0, 1fr) 30vh;
+              grid-template-areas: "top" "view" "side" "time"; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sm">
+      <header id="sm-top">
+        <b>seriesmith</b>
+        <span class="spacer"></span>
+        <span id="sm-conn" title="connection to the seriesmith server"></span>
+        <button id="sm-theme" title="Light / dark">Theme</button>
+      </header>
+      <aside id="sm-side">
+        <nav id="sm-tabs">
+          <button data-tab="shots">Shots</button>
+          <button data-tab="refs">Refs</button>
+        </nav>
+        <div id="sm-shots"></div>
+        <div id="sm-refs" hidden></div>
+      </aside>
+      <main id="sm-view">
+        <div class="empty">Open an episode, then double-click a take<br />(or select a shot and press the play icon) to view it here.</div>
+        <div id="sm-viewer"></div>
+      </main>
+      <section id="sm-time"><div id="sm-timeline"></div></section>
+    </div>
+    <script type="module" src="/src/standalone.tsx"></script>
+  </body>
+</html>

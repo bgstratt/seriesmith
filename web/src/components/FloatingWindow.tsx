@@ -2,6 +2,7 @@
 // place (localStorage). The take viewer and the inspector are both one.
 
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
@@ -43,6 +44,30 @@ export function defaultViewerRect(): Rect {
   const w = Math.max(360, Math.min(760, right - GAP));
   const h = Math.max(300, Math.min(560, H - 56 - 60));
   return { x: Math.max(0, right - w), y: 56, w, h };
+}
+
+// Docks: a host may give a window a place in its page instead of floating
+// (the standalone page docks the take viewer in the middle). Keyed by the
+// window's storageKey; a window with no dock floats, as in ComfyUI.
+const docks = new Map<string, HTMLElement>();
+const dockListeners = new Set<() => void>();
+
+export function dockWindow(storageKey: string, el: HTMLElement | null) {
+  if (el) docks.set(storageKey, el);
+  else docks.delete(storageKey);
+  dockListeners.forEach((f) => f());
+}
+
+function useDock(storageKey: string): HTMLElement | null {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const f = () => bump((n) => n + 1);
+    dockListeners.add(f);
+    return () => {
+      dockListeners.delete(f);
+    };
+  }, []);
+  return docks.get(storageKey) ?? null;
 }
 
 // The window last touched sits on top. Kept in a narrow band below the context
@@ -123,6 +148,22 @@ export function FloatingWindow({ storageKey, defaultRect, head, children, winRef
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
+
+  // docked (the standalone page's viewer): in the page's own element, filling it
+  const dock = useDock(storageKey);
+  if (dock) {
+    return createPortal(
+      <div
+        ref={ref}
+        className={`h3-window h3-root h3-docked${className ? " " + className : ""}`}
+        tabIndex={-1}
+      >
+        <div className="h3-window-head">{head}</div>
+        {children}
+      </div>,
+      dock,
+    );
+  }
 
   return (
     <div

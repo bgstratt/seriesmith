@@ -10,6 +10,8 @@ import react from "@vitejs/plugin-react";
 //    app/api come in at runtime from /scripts/*.js, so they stay external.
 //  - `vite` / `vite build --mode devpage`: dev.html, every surface side by side
 //    on the mock API (src/mock/). Never part of the extension bundle.
+//  - `vite build --mode standalone`: standalone.html, the page `seriesmith
+//    serve` serves (src/standalone.tsx), into seriesmith/server/static/.
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -21,14 +23,26 @@ const COMFY_EXTERNALS: Record<string, string> = {
 };
 
 export default defineConfig(({ command, mode }) => {
-  const extension = command === "build" && mode !== "devpage";
+  const standalone = mode === "standalone";
+  const extension = command === "build" && mode !== "devpage" && !standalone;
   return {
     plugins: [react()],
     define: extension ? { "process.env.NODE_ENV": JSON.stringify("production") } : {},
     // the mock reads the kitchen_sink series config from tests/fixtures (outside web/)
     // No `open`: npm run dev must never pop a browser window (open http://localhost:<port>/dev.html yourself).
     server: { fs: { allow: [resolve(HERE, "..")] } },
-    build: extension
+    build: standalone
+      ? {
+          // `vite build --mode standalone`: standalone.html, the page
+          // `seriesmith serve` serves, into the package (committed, so
+          // installing seriesmith needs no Node)
+          outDir: resolve(HERE, "../seriesmith/server/static"),
+          emptyOutDir: true,
+          target: "es2022",
+          chunkSizeWarningLimit: 2000,
+          rollupOptions: { input: resolve(HERE, "standalone.html") },
+        }
+      : extension
       ? {
           outDir: resolve(HERE, "../comfy_nodes/web"),
           emptyOutDir: false, // other files (e.g. .gitkeep) live there too

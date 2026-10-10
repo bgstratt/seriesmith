@@ -5,6 +5,7 @@ seriesmith — one command for every stage.
     seriesmith check series.json ep01.md [--proxy] [--pace]
     seriesmith render <episode> [--only sh010] [--redo] [--backend local]
     seriesmith backends [--try NAME]        where jobs can run, and whether each answers
+    seriesmith serve [--root FOLDER]        the editor in your browser (port 8190)
 
 and h3pipe's commands, through seriesmith.h3cli (`seriesmith <command> --help`):
 
@@ -40,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "render":
         from seriesmith import render
         return render.main(rest)
+    if cmd == "serve":
+        from seriesmith.server import standalone
+        return standalone.main(rest)
     # everything else h3pipe's `h3.py` did (takes, pick, override, cut, refs,
     # supply, issues, promote, assemble, upscale, post, master, publish, new,
     # targets, align, all): its dispatcher, ported as seriesmith.h3cli

@@ -29,7 +29,8 @@ import { useTargets } from "./Targets";
 import { Thumb } from "./Thumb";
 
 // v2: round 2 moved the default place so the viewer and the inspector sit side by side
-const RECT_KEY = "h3pipe.viewer.rect.v2";
+export const VIEWER_RECT_KEY = "h3pipe.viewer.rect.v2";
+const RECT_KEY = VIEWER_RECT_KEY;
 
 /** Keep B on A's clock: play/pause/seek/rate follow A. */
 function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
