@@ -292,3 +292,150 @@ export function parsed(f: Field, text: string): unknown {
 export function same(a: Raw, b: Raw): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
+
+// ---------------------------------------------------------------------------
+// the cast and places: one card per subject or location
+// ---------------------------------------------------------------------------
+
+/** What a card makes. A group is a character with `members`; a voice is a
+ * character who is never on screen (a `voice`, no picture). */
+export type CardKind = "character" | "group" | "prop" | "vehicle" | "location" | "voice";
+
+export const CARD_KINDS: { kind: CardKind; label: string; add: string }[] = [
+  { kind: "character", label: "Character", add: "+ Character" },
+  { kind: "group", label: "Group", add: "+ Group" },
+  { kind: "prop", label: "Prop", add: "+ Prop" },
+  { kind: "vehicle", label: "Vehicle", add: "+ Vehicle" },
+  { kind: "location", label: "Location", add: "+ Location" },
+  { kind: "voice", label: "Voice only", add: "+ Voice" },
+];
+
+export function blockOf(kind: CardKind): "subjects" | "locations" {
+  return kind === "location" ? "locations" : "subjects";
+}
+
+/** The card kind an existing entry is. */
+export function cardKindOf(raw: Raw, block: "subjects" | "locations", id: string): CardKind {
+  if (block === "locations") return "location";
+  const e = (getPath(raw, ["subjects", id]) ?? {}) as Raw;
+  const k = typeof e.kind === "string" ? e.kind : "character";
+  if (k === "prop" || k === "vehicle") return k;
+  if (typeof e.members === "number") return "group";
+  if (!e.sheet && !e.of && e.voice) return "voice";
+  return "character";
+}
+
+/** "../refs/" or "refs/": how this show's config names its pictures (the
+ * prefix most of its sheets and plates use; "../refs/" for a new show, so
+ * its episodes share one refs folder). */
+export function refsPrefix(raw: Raw): string {
+  const paths: string[] = [];
+  for (const b of ["subjects", "locations"]) {
+    for (const e of Object.values((getPath(raw, [b]) ?? {}) as Record<string, Raw>)) {
+      for (const k of ["sheet", "plate"]) if (typeof e?.[k] === "string") paths.push(e[k] as string);
+    }
+  }
+  const up = paths.filter((p) => p.startsWith("../refs/")).length;
+  const here = paths.filter((p) => p.startsWith("refs/")).length;
+  return here > up ? "refs/" : "../refs/";
+}
+
+/** Where a new entry's picture goes, by the show's convention. */
+export function picturePath(kind: CardKind, id: string, prefix: string): string | undefined {
+  switch (kind) {
+    case "character": return `${prefix}${id}/${id}_sheet_4panel.png`;
+    case "group": return `${prefix}${id}/${id}.png`;
+    case "prop": case "vehicle": return `${prefix}props/${id}.png`;
+    case "location": return `${prefix}_bg/${id}.png`;
+    default: return undefined;
+  }
+}
+
+/** Why `id` can't name a new entry ("" when it can). */
+export function idProblem(raw: Raw, id: string): string {
+  if (!id) return "Give it an id.";
+  if (!/^[a-z][a-z0-9_]*$/.test(id)) return "An id is lower case letters, digits and underscores, starting with a letter.";
+  if (getPath(raw, ["subjects", id]) !== undefined) return `There is already a subject called ${id}.`;
+  if (getPath(raw, ["locations", id]) !== undefined) return `There is already a location called ${id}.`;
+  return "";
+}
+
+/** The fields of a card, by kind (paths inside the entry). */
+export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
+  const others = (block: "subjects" | "locations", ok: (e: Raw) => boolean): Choice[] =>
+    Object.entries((getPath(raw, [block]) ?? {}) as Record<string, Raw>)
+      .filter(([k, e]) => k !== id && ok(e ?? {}))
+      .map(([k, e]) => ({ value: k, label: typeof e?.name === "string" ? `${e.name} (${k})` : k }));
+  const name: Field = { path: ["name"], label: "Name", kind: "text",
+    placeholder: kind === "group" ? "the ladies" : kind === "prop" ? "the porch lantern" : kind === "vehicle" ? "the green pickup" : "Ada",
+    help: kind === "character" || kind === "voice"
+      ? "How the prompt names them, and the name their lines are written under (ADA: ...) in capitals."
+      : "How the prompt names it: \"the porch lantern\", \"Riley's backpack\"." };
+  const design: Field = { path: ["design"], label: "Design", kind: "long",
+    placeholder: kind === "group"
+      ? "four young women in Regency ball gowns: one in pale blue with dark curls, one in rose with a feathered headband, ..."
+      : kind === "character" ? "a nine-year-old girl with short curly black hair, a green raincoat, and yellow rain boots, drawn with thick confident outlines"
+        : "a dented brass hurricane lantern with a smoke-stained glass chimney and a wire handle",
+    help: kind === "group"
+      ? "Each member, with differences in age, build, hair and colour: four identical gowns read as one person four times. Said in every shot they're in."
+      : "What a model-sheet artist could draw: age and build, silhouette, hair, clothes with their colours, one or two distinctive things. Said word for word in every shot it's in, and the picture is drawn from it. Never describe it again in the script." };
+  const voice: Field = { path: ["voice"], label: "Voice", kind: "text", placeholder: "bright, quick, a little breathless",
+    help: "How they sound, for generated dialogue and their voice sample: pitch, pace, texture, accent." };
+  const pronoun: Field = { path: ["pronoun"], label: "Pronoun", kind: "select",
+    choices: [{ value: "", label: "-" }, { value: "her", label: "her" }, { value: "his", label: "his" }, { value: "their", label: "their" }, { value: "its", label: "its" }],
+    help: "Used when they narrate over their own shot, to keep their lips closed (\"...with her lips closed\")." };
+  const sheet: Field = { path: ["sheet"], label: "Picture file", kind: "text", more: true,
+    help: kind === "character"
+      ? "Where their four-panel sheet lives (three-quarter, side, back, face). Filled in from the show's layout."
+      : "Where its picture lives. Filled in from the show's layout." };
+  const panels: Field = { path: ["sheet_panels"], label: "Picture layout", kind: "select", more: true,
+    choices: [{ value: "", label: "four-panel sheet (the default)" }, { value: "1", label: "one whole picture (a portrait you supply)" }],
+    help: "A picture of them that isn't a four-panel sheet needs this, or it's cut into quarters." };
+  const sample: Field = { path: ["voice_sample"], label: "Voice sample", kind: "text", more: true, placeholder: "audio/voices/ada_sample.wav",
+    help: "A recording of their voice, for clone mode. Generating and picking a voice in the Refs tab fills this in." };
+  const variant: Field = { path: ["of"], label: "Variant of", kind: "select", more: true,
+    choices: [{ value: "", label: "- (their own person)" },
+      ...others("subjects", (e) => !e.of && (typeof e.kind === "string" ? e.kind : "character") === (kind === "group" ? "character" : kind))],
+    help: "The same character in other clothes (or a prop in another state): it keeps their name, voice and pronoun, and its sheet is drawn from theirs. Needs only its own design." };
+  switch (kind) {
+    case "character": return [name, design, voice, pronoun, variant, sheet, panels, sample];
+    case "group": return [name, design, { path: ["members"], label: "How many people", kind: "number", min: 2, max: 12, step: 1,
+      help: "The people in the picture (2 to 12). They take one slot in a shot however many they are, and the prompt counts them." }, sheet];
+    case "prop": case "vehicle": return [name, design, variant, sheet];
+    case "voice": return [name, voice, pronoun, sample];
+    case "location": return [
+      { path: ["description"], label: "Description", kind: "long",
+        placeholder: "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",
+        help: "One angle of one place, with its light: time of day, direction, and the things the light comes from (the pendant lamp, the TV's glow). The plate is drawn from it; the place seen from another side is another location, an angle of this one." },
+      { path: ["of"], label: "Angle of", kind: "select",
+        choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
+        help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },
+      { path: ["plate"], label: "Picture file", kind: "text", more: true,
+        help: "Where its plate lives. Filled in from the show's layout." },
+    ];
+  }
+}
+
+/** The entry a card saves: `form` (the fields as edited) over what was there,
+ * with `kind` written for a new subject and the picture path filled in. */
+export function entryFor(kind: CardKind, before: Raw | undefined, form: Raw, id: string, prefix: string): Raw {
+  const e: Raw = { ...(before ?? {}) };
+  if (!before && kind !== "location") e.kind = kind === "group" || kind === "voice" ? "character" : kind;
+  for (const [k, v] of Object.entries(form)) {
+    if (isEmpty(v)) delete e[k];
+    else e[k] = k === "sheet_panels" || k === "members" ? Number(v) : v;
+  }
+  const pic = kind === "location" ? "plate" : "sheet";
+  const variant = kind !== "location" && !isEmpty(e.of);
+  // a variant's sheet is derived from its base's; anything else gets one by the show's layout
+  if (kind !== "voice" && !variant && isEmpty(e[pic])) {
+    const p = picturePath(kind, id, prefix);
+    if (p) e[pic] = p;
+  }
+  return e;
+}
+
+/** The ref id the Refs tab knows an entry by. */
+export function refIdOf(kind: CardKind, id: string): string {
+  return kind === "location" ? `location:${id}` : kind === "voice" ? `voice:${id}` : `subject:${id}`;
+}

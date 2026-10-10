@@ -2300,6 +2300,11 @@ export async function saveIssue(): Promise<boolean> {
   }
 }
 
+/** A cast card: an entry of the series config as a form (null closes it). */
+export function openSubjectCard(card: { kind: import("./lib/seriesForm").CardKind; id: string | null } | null) {
+  set({ subjectCard: card, menu: null });
+}
+
 /** The Series settings form: the series config as fields. */
 export function openSeriesForm(open = true) {
   set({ seriesFormOpen: open, menu: null });

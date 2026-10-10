@@ -5,8 +5,9 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
-  openImageCompare, openRefFile, openSeriesForm, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
+  openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
+import type { CardKind } from "../lib/seriesForm";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
   needLabel,
@@ -811,7 +812,21 @@ function TurnButton({ r, view, label }: { r: Ref; view: string; label: string })
   );
 }
 
-function RefDetail({ ep, r }: { ep: string; r: Ref }) {
+/** The kind a group's + adds. */
+const ADD_KIND: Partial<Record<string, CardKind>> = {
+  characters: "character", props: "prop", locations: "location", voices: "voice",
+};
+
+/** The cast card a ref row opens: its series config entry. */
+function cardOf(r: Ref): { kind: CardKind; id: string } | null {
+  const [scope, id] = r.id.split(":");
+  if (scope === "location") return { kind: "location", id };
+  if (scope === "subject") return { kind: r.kind === "prop" || r.kind === "vehicle" ? r.kind : "character", id };
+  if (scope === "voice") return { kind: "voice", id: r.subject ?? id };
+  return null;
+}
+
+export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
   const pass = useApp((s) => s.pass);
   const st = useStatus();
   const blocked = blockedShots(r, st, pass);
@@ -951,6 +966,12 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
               </span>
             )}
             <span className="h3-muted h3-small h3-ell">{r.id}</span>
+            {cardOf(r) && (
+              <button className="h3-btn h3-icon h3-ref-edit" title={`Edit ${r.name} (name, design, voice, ...)`}
+                onClick={(e) => { e.stopPropagation(); openSubjectCard(cardOf(r)); }}>
+                <i className="pi pi-pencil" />
+              </button>
+            )}
           </div>
           {kf ? (
             <div className="h3-row h3-small h3-muted h3-wrap">
@@ -1136,6 +1157,15 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>
+                    {ADD_KIND[g.id] && (
+                      <>
+                        <span className="h3-grow" />
+                        <button className="h3-btn h3-icon" title={`Add a ${ADD_KIND[g.id]} to the series config`}
+                          onClick={(e) => { e.stopPropagation(); openSubjectCard({ kind: ADD_KIND[g.id]!, id: null }); }}>
+                          <i className="pi pi-plus" />
+                        </button>
+                      </>
+                    )}
                   </div>
                   {!isCollapsed && g.id !== "keyframes" && g.refs.map((r) => <RefRow key={r.id} ep={ep} r={r} />)}
                   {!isCollapsed && g.id === "keyframes" && keyframeGroups(g.refs, st).map((kg) => (

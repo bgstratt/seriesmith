@@ -321,9 +321,15 @@ check, history copy and rebuild.
       896×512 offered for 1344×768's exact shape, and the form says when the shapes
       differ). Checked live on an imported Porchlights S2 episode: a proxy change
       saved as just those two lines, rebuilt, with a history copy.
-- [ ] Cast and places: a card per character, prop, vehicle, group and location
-      (name, design, voice, description, ...) with its takes, generate, import and
-      pick, and **+ Character / + Location / ...**.
+- [x] Cast and places: a card per character, group, prop, vehicle, voice-only
+      character and location (name, design, voice, pronoun, description; variant /
+      angle, picture file, layout, voice sample under More), with the Refs tab's
+      own takes, generate, import and pick under it. Opened from a ref row's pencil,
+      a group's **+**, or the series form's Cast and places (with a find box: a
+      season's config has hundreds). A new one gets its id from its name and its
+      picture path from the show's own layout (`../refs/...` or `refs/...`);
+      Remove takes it out of series.json. Checked live: a new character added to
+      an imported Porchlights episode wrote that one entry and nothing else.
 - [ ] The shot form: **+ Shot** and **Edit shot** in the Shots tab — sequence, id,
       who / with (from the cast, or add one), size, duration, action, extras,
       dialogue, camera, sound; target and keyframes under More; the pacing meter

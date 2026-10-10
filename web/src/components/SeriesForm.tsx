@@ -3,19 +3,20 @@
 // GET /seriesmith/source, changes only the keys it shows (lib/seriesForm.ts),
 // and saves through PUT /seriesmith/source — the same save, check, history copy
 // and rebuild as the Series config text window, which "Edit as text" opens.
+// The cast and places are listed at the end; each opens its own card
+// (SubjectCard.tsx).
 
-import { useEffect, useMemo, useState } from "react";
-import { afterAuthoredWrite, loadTargets, openSeriesForm, openSource } from "../actions";
-import { api, host } from "../host";
+import { useEffect, useState } from "react";
+import { loadTargets, openSeriesForm, openSource, openSubjectCard } from "../actions";
 import {
-  DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, getPath, parsed, same, serialize, setPath, setSize,
-  shapeNote, shown, sizeOf, slug, type Field, type Raw,
+  CARD_KINDS, DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardKindOf, getPath, parsed, serialize, setPath,
+  setSize, shapeNote, shown, sizeOf, slug, type CardKind, type Field, type Raw,
 } from "../lib/seriesForm";
-import { conflictOf } from "../lib/sourceSession";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
-import type { SourceCheck, SourceDoc, Target, TargetKind } from "../types";
+import type { Target, TargetKind } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { useSeriesConfig } from "./useSeriesConfig";
 
 const RECT_KEY = "seriesmith.seriesform.rect";
 
@@ -34,67 +35,19 @@ export function SeriesFormWindow() {
 }
 
 function SeriesForm({ ep }: { ep: string }) {
-  const [doc, setDoc] = useState<SourceDoc | null>(null);
-  const [base, setBase] = useState<Raw | null>(null);
-  const [draft, setDraft] = useState<Raw | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [check, setCheck] = useState<SourceCheck | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [conflict, setConflict] = useState(false);
+  const sc = useSeriesConfig(ep);
+  const { base, draft, dirty, saving } = sc;
   const [more, setMore] = useState(false);
   const targets = useApp((s) => s.targets);
   const backends = useApp((s) => s.backends);
-
-  async function load() {
-    setError(null);
-    setConflict(false);
-    try {
-      const d = await api().source(ep, "series");
-      let raw: Raw;
-      try {
-        raw = JSON.parse(d.text) as Raw;
-      } catch (e) {
-        setDoc(d);
-        setBase(null);
-        setDraft(null);
-        setError(`series.json isn't valid JSON (${(e as Error).message}): fix it as text first.`);
-        return;
-      }
-      setDoc(d);
-      setBase(raw);
-      setDraft(raw);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
+  // a card saved: show what it wrote (unless this form has edits of its own)
+  const sourceN = useApp((s) => s.sourceN);
   useEffect(() => {
-    void load();
     void loadTargets();
-  }, [ep]);
-
-  const dirty = !!draft && !!base && !same(draft, base);
-
-  async function save() {
-    if (!doc || !draft) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const text = serialize(draft, doc.text);
-      const r = await api().putSource({ ep, file: "series", text, base_hash: doc.hash, rebuild: true });
-      setCheck(r.check);
-      setDoc({ ...doc, text, hash: r.hash });
-      setBase(draft);
-      afterAuthoredWrite(r.build);
-      if (r.check.errors.length) host().toast("warn", "Saved, with problems", r.check.errors[0].message);
-      else host().toast("info", "Series settings saved", "The episode was rebuilt.");
-    } catch (e) {
-      if (conflictOf(e)) setConflict(true);
-      else setError((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, []);
+  useEffect(() => {
+    if (sourceN && !dirty) void sc.reload();
+  }, [sourceN]);
 
   // Ctrl+S saves while the window has focus
   useEffect(() => {
@@ -103,7 +56,7 @@ function SeriesForm({ ep }: { ep: string }) {
         const el = document.getElementById("sm-seriesform");
         if (el && el.contains(document.activeElement)) {
           e.preventDefault();
-          void save();
+          void sc.save();
         }
       }
     };
@@ -111,14 +64,14 @@ function SeriesForm({ ep }: { ep: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const set = (path: readonly string[], value: unknown) => setDraft((d) => (d ? setPath(d, path, value) : d));
+  const set = (path: readonly string[], value: unknown) => sc.setDraft((d) => setPath(d, path, value));
   const list = targets?.targets ?? [];
   const videoId = (draft && (getPath(draft, ["series", "target"]) as string)) || targets?.default?.video || "minimax_h3_ref2va";
   const rule = sizeRule(list.find((t) => t.id === videoId)?.template);
 
   const head = (
     <>
-      <i className="pi pi-sliders-h" />
+      <i className="pi pi-cog" />
       <span className="h3-grow">Series settings{dirty ? " •" : ""}</span>
       <button className="h3-btn h3-icon" title="Edit series.json as text" onClick={() => openSource("series")}><i className="pi pi-code" /></button>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
@@ -131,25 +84,7 @@ function SeriesForm({ ep }: { ep: string }) {
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={360} minH={280}>
       <div id="sm-seriesform" className="h3-col" style={{ padding: 10, overflow: "auto", height: "100%", gap: 10 }}>
-        {doc && (
-          <div className="h3-small h3-muted">
-            Editing <code>{doc.path}</code>{doc.path.startsWith("..") ? " — the show's, shared by its episodes" : ""}
-          </div>
-        )}
-        {doc && base && serialize(base, doc.text) !== doc.text && (
-          <div className="h3-small h3-muted">
-            Saving lays series.json out the standard way (two-space indent, one key a line); what it
-            says doesn't change.
-          </div>
-        )}
-        {error && <div className="h3-err">{error}</div>}
-        {conflict && (
-          <div className="h3-err">
-            series.json changed on disk since it was opened.{" "}
-            <button className="h3-btn" onClick={() => void load()}>Reload (drops your changes)</button>
-          </div>
-        )}
-        {!draft && !error && <div className="h3-muted">Loading…</div>}
+        <FileLine sc={sc} />
         {draft && (
           <>
             {SECTIONS.map((sec) => {
@@ -162,11 +97,11 @@ function SeriesForm({ ep }: { ep: string }) {
                       <>
                         <SizeField label="Size (final)" value={sizeOf(draft, "series")} choices={FINAL_SIZES} rule={rule}
                           help={`The size the final pass renders at, on the video model's grid${rule.multiple > 1 ? ` (multiples of ${rule.multiple})` : ""}. 1344×768 is H3's own; render smaller and upscale for a master (Finishing).`}
-                          onChange={(v) => setDraft((d) => (d ? setSize(d, "series", v) : d))} />
+                          onChange={(v) => sc.setDraft((d) => setSize(d, "series", v))} />
                         <SizeField label="Size (proxy)" value={sizeOf(draft, "proxy")} choices={PROXY_SIZES} rule={rule}
                           placeholder={DEFAULT_PROXY} note={shapeNote(sizeOf(draft, "series"), sizeOf(draft, "proxy"))}
                           help="The animatic: the same shots at the same seeds, rendered small and quick to judge the cut by. 480p is the smallest that still reads; 896×512 is exactly 1344×768's shape."
-                          onChange={(v) => setDraft((d) => (d ? setSize(d, "proxy", v) : d))} />
+                          onChange={(v) => sc.setDraft((d) => setSize(d, "proxy", v))} />
                       </>
                     )}
                     {fields.map((f) => (
@@ -187,31 +122,74 @@ function SeriesForm({ ep }: { ep: string }) {
             <label className="h3-row h3-small h3-muted">
               <input type="checkbox" checked={more} onChange={(e) => setMore(e.target.checked)} /> Show more settings (steps, LoRAs, model files, negative prompt, where jobs run)
             </label>
-            <CastSummary raw={draft} />
-            {check && (check.errors.length > 0 || check.warnings.length > 0) && (
-              <div className="h3-col" style={{ gap: 2 }}>
-                {check.errors.map((m, i) => <span key={`e${i}`} className="h3-err h3-small">✗ {m.message}</span>)}
-                {check.warnings.map((m, i) => <span key={`w${i}`} className="h3-warn h3-small">! {m.message}</span>)}
-              </div>
-            )}
+            <CastList raw={draft} />
+            <CheckMessages sc={sc} />
           </>
         )}
       </div>
-      <div className="h3-row" style={{ padding: "6px 10px", borderTop: "1px solid var(--h3-border)" }}>
-        <span className="h3-small h3-muted h3-grow">{dirty ? "Unsaved changes" : "Saved"}</span>
-        <button className="h3-btn" disabled={!dirty || saving} onClick={() => setDraft(base)}>Revert</button>
-        <button className="h3-btn h3-primary" disabled={!dirty || saving} onClick={() => void save()}
-          title="Save series.json and rebuild the episode (Ctrl+S)">
-          {saving ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-save" />} Save
-        </button>
-      </div>
+      <SaveBar dirty={dirty} saving={saving} onRevert={sc.revert} onSave={() => void sc.save()} />
     </FloatingWindow>
   );
 }
 
-function FieldRow({ f, value, onChange, targets, defaults, backends }: {
-  f: Field; value: string; onChange: (v: string) => void; targets: Target[];
-  defaults?: Partial<Record<TargetKind, string>>; backends: string[];
+/** Which file is being edited, a layout note, errors and a conflict. */
+export function FileLine({ sc }: { sc: ReturnType<typeof useSeriesConfig> }) {
+  const { doc, base, error, conflict, draft } = sc;
+  return (
+    <>
+      {doc && (
+        <div className="h3-small h3-muted">
+          Editing <code>{doc.path}</code>{doc.path.startsWith("..") ? " — the show's, shared by its episodes" : ""}
+        </div>
+      )}
+      {doc && base && serialize(base, doc.text) !== doc.text && (
+        <div className="h3-small h3-muted">
+          Saving lays series.json out the standard way (two-space indent, one key a line); what it
+          says doesn't change.
+        </div>
+      )}
+      {error && <div className="h3-err">{error}</div>}
+      {conflict && (
+        <div className="h3-err">
+          series.json changed on disk since it was opened.{" "}
+          <button className="h3-btn" onClick={() => void sc.reload()}>Reload (drops your changes)</button>
+        </div>
+      )}
+      {!draft && !error && <div className="h3-muted">Loading…</div>}
+    </>
+  );
+}
+
+export function CheckMessages({ sc }: { sc: ReturnType<typeof useSeriesConfig> }) {
+  const check = sc.check;
+  if (!check || (!check.errors.length && !check.warnings.length)) return null;
+  return (
+    <div className="h3-col" style={{ gap: 2 }}>
+      {check.errors.map((m, i) => <span key={`e${i}`} className="h3-err h3-small">✗ {m.message}</span>)}
+      {check.warnings.map((m, i) => <span key={`w${i}`} className="h3-warn h3-small">! {m.message}</span>)}
+    </div>
+  );
+}
+
+export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", extra }: {
+  dirty: boolean; saving: boolean; onRevert: () => void; onSave: () => void; saveLabel?: string; extra?: React.ReactNode;
+}) {
+  return (
+    <div className="h3-row" style={{ padding: "6px 10px", borderTop: "1px solid var(--h3-border)" }}>
+      <span className="h3-small h3-muted h3-grow">{dirty ? "Unsaved changes" : "Saved"}</span>
+      {extra}
+      <button className="h3-btn" disabled={!dirty || saving} onClick={onRevert}>Revert</button>
+      <button className="h3-btn h3-primary" disabled={!dirty || saving} onClick={onSave}
+        title="Save series.json and rebuild the episode (Ctrl+S)">
+        {saving ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-save" />} {saveLabel}
+      </button>
+    </div>
+  );
+}
+
+export function FieldRow({ f, value, onChange, targets, defaults, backends }: {
+  f: Field; value: string; onChange: (v: string) => void; targets?: Target[];
+  defaults?: Partial<Record<TargetKind, string>>; backends?: string[];
 }) {
   const kind = f.kind === "video_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
   let input;
@@ -226,7 +204,7 @@ function FieldRow({ f, value, onChange, targets, defaults, backends }: {
       </select>
     );
   } else if (kind) {
-    const mine = targets.filter((t) => t.kind === kind && !t.draft);
+    const mine = (targets ?? []).filter((t) => t.kind === kind && !t.draft);
     const dflt = defaults?.[kind as TargetKind];
     input = (
       <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>
@@ -238,11 +216,12 @@ function FieldRow({ f, value, onChange, targets, defaults, backends }: {
       </select>
     );
   } else if (f.kind === "backend") {
+    const bs = backends ?? [];
     input = (
       <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">each model's own</option>
-        {backends.map((b) => <option key={b} value={b}>{b}</option>)}
-        {value && !backends.includes(value) && <option value={value}>{value}</option>}
+        {bs.map((b) => <option key={b} value={b}>{b}</option>)}
+        {value && !bs.includes(value) && <option value={value}>{value}</option>}
       </select>
     );
   } else {
@@ -305,20 +284,61 @@ function SizeField({ label, value, choices, rule, help, onChange, placeholder, n
   );
 }
 
-/** The cast and places, counted: their own forms come next (docs/PLAN.md). */
-function CastSummary({ raw }: { raw: Raw }) {
-  const subjects = (getPath(raw, ["subjects"]) ?? {}) as Record<string, { kind?: string }>;
-  const locations = Object.keys((getPath(raw, ["locations"]) ?? {}) as object);
-  const by = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const s of Object.values(subjects)) m[s?.kind ?? "character"] = (m[s?.kind ?? "character"] ?? 0) + 1;
-    return m;
-  }, [subjects]);
-  const parts = [...Object.entries(by).map(([k, n]) => `${n} ${k}${n === 1 ? "" : "s"}`),
-    `${locations.length} location${locations.length === 1 ? "" : "s"}`];
+/** The cast and places, each opening its card, and the buttons that add one. */
+const CAST_SHOWN = 60;
+
+function CastList({ raw }: { raw: Raw }) {
+  const [q, setQ] = useState("");
+  const groups: { label: string; block: "subjects" | "locations"; kinds: CardKind[] }[] = [
+    { label: "Characters", block: "subjects", kinds: ["character", "group", "voice"] },
+    { label: "Props and vehicles", block: "subjects", kinds: ["prop", "vehicle"] },
+    { label: "Locations", block: "locations", kinds: ["location"] },
+  ];
   return (
-    <div className="h3-small h3-muted">
-      Cast and places: {parts.join(", ")} — edit them in the Refs tab.
-    </div>
+    <details open className="sm-form-section">
+      <summary><b>Cast and places</b> <span className="h3-small h3-muted">Everyone and everything the shots can name, each with its picture.</span></summary>
+      <div className="h3-col" style={{ gap: 8, marginTop: 6 }}>
+        <input className="h3-in" placeholder="Find by name or id" value={q} onChange={(e) => setQ(e.target.value)} />
+        {groups.map((g) => {
+          const all = Object.keys((getPath(raw, [g.block]) ?? {}) as object)
+            .filter((id) => g.kinds.includes(cardKindOf(raw, g.block, id)));
+          const needle = q.trim().toLowerCase();
+          const hits = needle
+            ? all.filter((id) => {
+              const n = (getPath(raw, [g.block, id, "name"]) as string | undefined) ?? "";
+              return id.toLowerCase().includes(needle) || n.toLowerCase().includes(needle);
+            })
+            : all;
+          const ids = hits.slice(0, CAST_SHOWN);
+          return (
+            <div key={g.label} className="h3-col" style={{ gap: 4 }}>
+              <div className="h3-row h3-wrap">
+                <span className="h3-small"><b>{g.label}</b> <span className="h3-muted">{needle ? `${hits.length} of ${all.length}` : all.length}</span></span>
+                <span className="h3-grow" />
+                {g.kinds.map((k) => (
+                  <button key={k} className="h3-btn" onClick={() => openSubjectCard({ kind: k, id: null })}>
+                    {CARD_KINDS.find((c) => c.kind === k)!.add}
+                  </button>
+                ))}
+              </div>
+              <div className="h3-row h3-wrap" style={{ gap: 4 }}>
+                {ids.map((id) => {
+                  const e = (getPath(raw, [g.block, id]) ?? {}) as Raw;
+                  return (
+                    <button key={id} className="h3-btn" title={`Edit ${id}`}
+                      onClick={() => openSubjectCard({ kind: cardKindOf(raw, g.block, id), id })}>
+                      {typeof e.name === "string" ? e.name : id}
+                    </button>
+                  );
+                })}
+                {hits.length > ids.length && (
+                  <span className="h3-small h3-muted">and {hits.length - ids.length} more: find them by name</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }

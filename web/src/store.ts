@@ -410,6 +410,8 @@ export interface AppState {
   issuesOpen: boolean;
   /** the Series settings form (components/SeriesForm.tsx) */
   seriesFormOpen: boolean;
+  /** the cast card open (components/SubjectCard.tsx): an entry, or a new one (`id` null) */
+  subjectCard: { kind: import("./lib/seriesForm").CardKind; id: string | null } | null;
 }
 
 export const ZOOM_MIN = 8;
@@ -503,6 +505,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     issueDraft: null,
     issuesOpen: false,
     seriesFormOpen: false,
+    subjectCard: null,
   };
 }
 
