@@ -41,9 +41,9 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-import h3jobs as J
-import h3takes as T
-import targets as TG
+from seriesmith import jobs as J
+from seriesmith import takes as T
+from seriesmith import targets as TG
 
 PASS = "final"                          # the default pass; a proxy take upscales too
 ROUTES = ("latent", "vae")
@@ -731,7 +731,7 @@ def continuity_source(take: T.Take, root: str) -> "tuple[T.Take, str] | None":
     sha = (ref or {}).get("sha1")
     if not first or not sha:
         return None
-    import h3refs as R
+    from seriesmith import refs as R
     try:
         kref = R.keyframe_ref(root, take.shot, "first")
         cands = R.list_takes(kref, None)
@@ -788,7 +788,7 @@ def chain_source(take: T.Take, root: str) -> "T.Take | None":
 def holds_next(take: T.Take, root: str) -> str | None:
     """The shot after this take's in its pass's cut when that shot is
     `continuous: latent` (its built entry's `hold`), else None."""
-    import h3edit as E
+    from seriesmith import edit as E
     try:
         nxt = E.cut_neighbour(root, take.pass_, take.shot, 1)
         if nxt is None:
@@ -1686,7 +1686,7 @@ def cut_takes(root: str, only: set[str] | None = None, take_n: int | None = None
     pick, else the latest usable take; `take_n` forces a number. A placeholder
     (a take from the other pass) is left out. A shot left out of the cut isn't
     listed unless `only` names it or `include_out`."""
-    from h3assemble import choose_take
+    from seriesmith.assemble import choose_take
     entries = T.resolve_cut(T.load_cut(root), pass_, J.script_order(root))
     out = []
     for e in entries:

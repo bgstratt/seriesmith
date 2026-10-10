@@ -19,8 +19,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3refs as R  # noqa: E402
-from h3core.series_config import location_master, series_config_from  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith.core.series_config import location_master, series_config_from  # noqa: E402
 from test_render import png_bytes  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -61,7 +61,7 @@ class GenerateTest(unittest.TestCase):
         with open(os.path.join(self.ep, "series.json"), "w", encoding="utf-8") as fh:
             json.dump(c, fh)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
+        from seriesmith import edit as E
         self.assertTrue(E.build_episode(self.ep)["ok"])
         s = R.load_series(self.ep)
         plate = os.path.join(self._tmp.name, "plate.png")

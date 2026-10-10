@@ -17,12 +17,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3pipe_api as A  # noqa: E402
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 from test_render import stub_refs, ENV, FIXTURE, FakeComfy, WORKFLOW  # noqa: E402
 
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
@@ -872,7 +871,7 @@ class OverrideTest(ApiTest):
                                            "fields": {"size": "huge"}}), 400)
         via_api = T.read_json(os.path.join(self.ep, "overrides.json"))
         os.remove(os.path.join(self.ep, "overrides.json"))
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "override", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "override", self.ep,
                             "sh020", "--proxy", "--size", "1344x768"], capture_output=True, env=ENV)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(T.read_json(os.path.join(self.ep, "overrides.json")), via_api)
@@ -882,7 +881,7 @@ class OverrideTest(ApiTest):
         self.put({"steps": 10, "seed": "5", "loras": ["b.safetensors:0.4"]})
         via_api = T.read_json(os.path.join(self.ep, "overrides.json"))
         os.remove(os.path.join(self.ep, "overrides.json"))
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "override", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "override", self.ep,
                             "sh020", "--proxy", "--steps", "10", "--seed", "5",
                             "--lora", "b.safetensors:0.4"], capture_output=True, env=ENV)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

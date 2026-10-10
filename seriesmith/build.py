@@ -52,10 +52,22 @@ from seriesmith.core.story import (META_KEYS, OS_TOKENS, SIZES, VO_TOKENS,  # no
 from seriesmith.targets.video.minimax_h3_ref2va import compile as _h3  # noqa: E402
 
 # Checks for the series config's stage recipes, by block name ("upscale",
-# "post"): each takes the block's `master` and returns warnings. The upscale
-# and post stages register theirs when they are ported (docs/DESIGN.md, step
-# 6); until then a master recipe is not checked.
-RECIPE_CHECKS: dict[str, Callable[[object], list[str]]] = {}
+# "post"): each takes the block's `master` and returns warnings. Imported only
+# when a series config has such a recipe.
+
+
+def _check_upscale(recipe) -> list[str]:
+    from seriesmith import upscale
+    return upscale.check_recipe(recipe)
+
+
+def _check_post(recipe) -> list[str]:
+    from seriesmith import post
+    return post.check_recipe(recipe)
+
+
+RECIPE_CHECKS: dict[str, Callable[[object], list[str]]] = {
+    "upscale": _check_upscale, "post": _check_post}
 
 DEFAULT_TARGET = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video")
 snap_up = DEFAULT_TARGET.template.snap

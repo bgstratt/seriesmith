@@ -58,13 +58,11 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3source as H  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import source as H  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 
 SHOT_LINE = {"target": "target", "model": "model", "loras": "lora", "steps": "steps"}
 PASS_PROMOTE = ("model", "loras", "steps")
@@ -104,9 +102,9 @@ class State:
     """Both authored files, parsed; the overrides; the refs' series."""
 
     def __init__(self, ep: str):
-        from h3core.series_config import series_config_from
-        from h3core.story import ScriptError
-        import h3refs as R
+        from seriesmith.core.series_config import series_config_from
+        from seriesmith.core.story import ScriptError
+        from seriesmith import refs as R
         self.ep = os.path.abspath(ep)
         self.script = H.read_source(self.ep, "script")
         self.series = H.read_source(self.ep, "series")
@@ -131,8 +129,8 @@ class State:
 
 
 def parse(text: str, cfg: dict):
-    from h3core.series_config import character_ids, series_info, subject_ids, variant_of
-    from h3core.story import parse_story
+    from seriesmith.core.series_config import character_ids, series_info, subject_ids, variant_of
+    from seriesmith.core.story import parse_story
     return parse_story(text, subject_ids(cfg), character_ids(cfg), series_info(cfg),
                        variant_of(cfg))
 
@@ -239,7 +237,7 @@ def edit_script(text: str, spans: dict[str, tuple[int, int]],
     parser keeps), else inserted after the `key:` lines that open the block
     (or its `##` line), so a new line never lands below the dialogue or a
     trailing `sound:`/`music:`. Nothing else changes."""
-    from h3core.story import META_KEYS
+    from seriesmith.core.story import META_KEYS
     lines = text.split("\n")
     for sid in sorted(edits, key=lambda k: spans[k][0], reverse=True):
         first, last = spans[sid]
@@ -435,7 +433,7 @@ def episode_candidates(st: State) -> tuple[list, list]:
 
 
 def ref_candidates(st: State) -> tuple[list, list]:
-    import h3refs as R
+    from seriesmith import refs as R
     items, left = [], []
     try:
         defaults = R.image_defaults(st.s)
@@ -476,7 +474,7 @@ def ref_candidates(st: State) -> tuple[list, list]:
 
 
 def _ref_fields(block: dict) -> list[str]:
-    import h3refs as R
+    from seriesmith import refs as R
     out = [f for f in R.OVERRIDE_FIELDS if block.get(f) is not None]
     for vb in (block.get("views") or {}).values():
         if isinstance(vb, dict):
@@ -490,7 +488,7 @@ def _design_item(st: State, ref, prompts: dict, data: dict,
     override must be the built prompt with only that sentence changed, the
     same change in every view, and a generate with the new sentence and no
     prompt override must give exactly the override's text."""
-    import h3refs as R
+    from seriesmith import refs as R
     if ref.kind == "keyframe":
         return None, "a keyframe's prompt is written from its shot: no series config field"
     if ref.kind == "voice":
@@ -604,8 +602,8 @@ def _verify(st: State, items: list[dict], before: dict) -> tuple[dict[str, str],
     """({shot: why it would render differently}, why the promoted files don't
     build or read back, or None) for `items` promoted together: the promoted
     files compiled in memory, every shot and pass compared with `before`."""
-    from h3core.series_config import series_config_from
-    from h3core.story import ScriptError
+    from seriesmith.core.series_config import series_config_from
+    from seriesmith.core.story import ScriptError
     text, raw, ov = _apply(st, items)
     try:
         cfg = series_config_from(copy.deepcopy(raw))
@@ -715,7 +713,7 @@ def make_plan(ep: str, shot: str | None = None, only: set[str] | None = None,
 
 
 def series_cfg_of(raw: dict) -> dict:
-    from h3core.series_config import series_config_from
+    from seriesmith.core.series_config import series_config_from
     return series_config_from(copy.deepcopy(raw))
 
 
@@ -740,7 +738,7 @@ def apply(ep: str, ids, hashes: dict | None, shot: str | None = None,
     drops exactly the promoted override fields, rebuilds. Returns
     {"promoted", "left", "hashes", "build", "refs" (the refs whose overrides
     changed)}. None for `hashes` skips the check (the CLI's plan is fresh)."""
-    import h3refs as R
+    from seriesmith import refs as R
     st = State(ep)
     if hashes is not None:
         if not isinstance(hashes, dict):

@@ -25,10 +25,8 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-
-import h3refs as R  # noqa: E402
-import h3source as S  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import source as S  # noqa: E402
 
 PNG = bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
                     "890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082")
@@ -374,7 +372,7 @@ class TestSupplyCli(unittest.TestCase):
         self._tmp.cleanup()
 
     def run_supply(self, *args: str):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "supply",
+        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "supply",
                                self.ep, *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_dry_run_prints_the_table_and_writes_nothing(self):
@@ -390,7 +388,7 @@ class TestSupplyCli(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("3 supplied, 1 unmatched, 0 failed", out.stdout)
         build = subprocess.run(
-            [sys.executable, os.path.join(ROOT, "h3build.py"),
+            [sys.executable, "-m", "seriesmith.build",
              os.path.join(self.ep, "series.json"), os.path.join(self.ep, "ep01.md"),
              "-o", self.ep], capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(build.returncode, 0, build.stdout + build.stderr)

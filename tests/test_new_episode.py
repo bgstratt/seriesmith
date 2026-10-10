@@ -24,12 +24,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-sys.path.insert(0, os.path.join(ROOT, "tools"))
 
-import h3edit as E  # noqa: E402
-import h3source as S  # noqa: E402
-import sync_starter_doc as SYNC  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import source as S  # noqa: E402
 
 STARTER = os.path.join(ROOT, "examples", "starter")
 
@@ -47,7 +44,7 @@ class TestStarter(unittest.TestCase):
 
     def test_check_passes_with_no_warnings(self):
         out = subprocess.run(
-            [sys.executable, os.path.join(ROOT, "h3build.py"),
+            [sys.executable, "-m", "seriesmith.build",
              os.path.join(STARTER, "series.json"), os.path.join(STARTER, "ep01.md"), "--check"],
             capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
@@ -72,11 +69,6 @@ class TestStarter(unittest.TestCase):
         paths += [loc["plate"] for loc in cfg["locations"].values()]
         for p in paths:
             self.assertTrue(p.startswith("../refs/"), p)
-
-    def test_the_docs_teach_this_pair(self):
-        """docs/AUTHORING.md's first example is the starter, byte for byte."""
-        self.assertEqual(SYNC.main(["--check"]), 0,
-                         "run python tools/sync_starter_doc.py, then make_prompts.py")
 
 
 class NewEpisodeCase(unittest.TestCase):
@@ -287,7 +279,7 @@ class TestCli(unittest.TestCase):
     """`python h3.py new <folder>/<name>`."""
 
     def run_new(self, *args: str):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "new", *args],
+        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "new", *args],
                               capture_output=True, text=True, cwd=ROOT)
 
     def setUp(self):

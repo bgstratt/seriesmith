@@ -65,9 +65,9 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-import h3jobs as J
-import h3takes as T
-import h3upscale as U
+from seriesmith import jobs as J
+from seriesmith import takes as T
+from seriesmith import upscale as U
 
 STATUSES = ("upscale", "post", "ok", "kept", "queued", "gap")
 # what Master does with posts: none, the fresh ones there are, or every shot by the recipe
@@ -169,7 +169,7 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
     plan.post_mode = mode
     post_shots: dict = {}
     if mode == "recipe":
-        import h3post as P
+        from seriesmith import post as P
         plan.post = P.master_recipe(root)
         if not plan.post:
             raise MasterError("the series config has no post.master recipe "
@@ -301,7 +301,7 @@ def chain_rows(plan: Plan, r: Row, by_take: dict, remake) -> None:
 def plan_row_post(plan: Plan, row: Row, post_shots: dict, conform: bool) -> None:
     """--post: what the row's post is, on top of its upscale's status. An
     `upscale` row gets its post planned behind it (at the master's size)."""
-    import h3post as P
+    from seriesmith import post as P
     t = row.take
     row.post_kw = P.recipe_for(plan.root, row.shot, plan.post, post_shots)
     words = P.describe_recipe(row.post_kw)
@@ -416,7 +416,7 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut") -> tuple
     missing = U.not_ready([r.job for r in ups], info)
     pjobs = [r.post_job for r in ups + posts if r.post_job is not None]
     if pjobs:
-        import h3post as P
+        from seriesmith import post as P
         missing += [m for m in P.not_ready(pjobs, info) if m not in missing]
     if missing:
         raise MasterError("this ComfyUI can't run these: " + "; ".join(missing))
@@ -424,7 +424,7 @@ def queue_master(plan: Plan, comfy, comfy_url: str, order: str = "cut") -> tuple
     queued, errors = [], []
 
     def queue_post(r: Row) -> bool:
-        import h3post as P
+        from seriesmith import post as P
         try:
             P.start(r.post_job)
             P.mark_queued(r.post_job, comfy.queue(P.post_graph(r.post_job)))
@@ -620,7 +620,7 @@ def prores_only(root: str, by: str = "h3.py master") -> dict:
     --prores does at the end of an assembly, without assembling again), and the
     report's `prores` set. MasterError without a master; MasterBusy while one
     is being assembled. {"output", "mov"} (absolute paths)."""
-    import h3assemble
+    from seriesmith import assemble as h3assemble
     mp4 = existing_master(root)
     if mp4 is None:
         raise MasterError("there is no master of this episode at the recipe's size yet: "
@@ -693,7 +693,7 @@ def _tell(progress, step: str):
 
 
 def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> dict:
-    import h3edit
+    from seriesmith import edit as h3edit
     name = master_name(plan.root, plan.size)
     sub = "renders_proxy" if plan.pass_ == "proxy" else "renders"
     args = ["-o", plan.root, "--upscaled", *(["--post"] if plan.post_mode != "off" else []),
@@ -745,7 +745,7 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> d
 def _has_titles(root: str) -> bool:
     """An intro or an outro will be laid around the master. A series config
     h3publish can't read counts as none here; add_titles reports it."""
-    import h3publish
+    from seriesmith import publish as h3publish
     try:
         return any(h3publish.titles(root))
     except Exception:
@@ -760,9 +760,9 @@ def add_titles(plan: Plan, mp4: str, mov: str | None, timeout: int = 3600,
     failed or ""). `picture` is how h3publish laid the cut in: "copied" (only
     the title clips encoded), "re-encoded" (the whole cut, `why` says why) or
     None when it didn't say."""
-    import h3assemble
-    import h3edit
-    import h3publish
+    from seriesmith import assemble as h3assemble
+    from seriesmith import edit as h3edit
+    from seriesmith import publish as h3publish
     try:
         intro, outro = h3publish.titles(plan.root)
     except h3publish.PublishError as e:

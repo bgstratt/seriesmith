@@ -26,16 +26,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import h3_refsheet as RS  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core import ir  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config,  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith.helpers import refsheet as RS  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import ir  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config,  # noqa: E402
                                   series_info, subject_ids, variant_of)
-from h3core.story import parse_story  # noqa: E402
+from seriesmith.core.story import parse_story  # noqa: E402
 from test_render import FIXTURE, FakeComfy, build_episode  # noqa: E402
 
 try:
@@ -222,7 +221,7 @@ class TargetTest(unittest.TestCase):
 
 class PromptTest(unittest.TestCase):
     def setUp(self):
-        from targets.video.ltx2_ingredients.prompt import build_prompt
+        from seriesmith.targets.video.ltx2_ingredients.prompt import build_prompt
         self.build = build_prompt
         self.cfg, _ = kitchen_sink()
         self.sq = ir.Sequence("sq01", "kitchen")
@@ -262,7 +261,7 @@ class PromptTest(unittest.TestCase):
         self.assertIn("The diner kettle is a dented chrome kettle", second)
 
     def test_no_panels_is_ltx2_prose(self):
-        from targets.video.ltx2.prompt import build_prompt as prose
+        from seriesmith.targets.video.ltx2.prompt import build_prompt as prose
         p = self.build(self.shot, self.sq, self.cfg, [])
         self.assertEqual(p, prose(self.shot, self.sq, self.cfg))
         self.assertNotIn("Reference sheet", p)
@@ -361,7 +360,7 @@ class LayoutTest(unittest.TestCase):
             self.assertEqual(centre[1], (255, 0, 0))                    # the body panel
             self.assertEqual(centre[2], (10, 120, 200))                 # the plate
             # the pipeline's way: a subprocess of the running Python
-            from targets.video.ltx2_ingredients import sheet as S
+            from seriesmith.targets.video.ltx2_ingredients import sheet as S
             out2 = os.path.join(tmp, "sheet2.png")
             self.assertEqual(S.compose(spec, out2)["boxes"], rep["boxes"])
             self.assertEqual(T.file_sha1(out), T.file_sha1(out2))
@@ -381,7 +380,7 @@ class RenderTest(unittest.TestCase):
         os.makedirs(cls.src)
         build_episode(cls.src, refs=False)
         shutil.copy(os.path.join(FIXTURE, "series.json"), cls.src)
-        cls.base = J.load_graph(os.path.join(ROOT, "targets", "video", ING, "workflow.json"))
+        cls.base = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", ING, "workflow.json"))
 
     @classmethod
     def tearDownClass(cls):

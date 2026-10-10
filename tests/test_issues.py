@@ -26,9 +26,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import h3edit as E  # noqa: E402
-import h3issues as I  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import issues as I  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 _BUILT = None
@@ -73,7 +73,7 @@ class IssuesCase(unittest.TestCase):
             fh.write(text)
 
     def first_shot(self) -> str:
-        import h3jobs as J
+        from seriesmith import jobs as J
         return J.load_shotlists(self.ep, "proxy")[0]["shots"][0]["id"]
 
     def file(self) -> dict | None:
@@ -206,7 +206,7 @@ class TestAddressed(IssuesCase):
     def test_rebuilding_a_different_shot_leaves_it_alone(self):
         """The hash is the shot's, not the episode's: a rebuild on its own
         addresses nothing."""
-        import h3jobs as J
+        from seriesmith import jobs as J
         shots = [x["id"] for x in J.load_shotlists(self.ep, "proxy")[0]["shots"][:2]]
         item = I.add(self.ep, "proxy", shots[0], "x")
         other = I.add(self.ep, "proxy", shots[1], "y")
@@ -251,7 +251,7 @@ class TestAddressed(IssuesCase):
 
 class TestResolveAndClear(IssuesCase):
     def three(self):
-        import h3jobs as J
+        from seriesmith import jobs as J
         shots = [s["id"] for s in J.load_shotlists(self.ep, "proxy")[0]["shots"][:3]]
         return [I.add(self.ep, "proxy", s, f"note for {s}") for s in shots]
 
@@ -349,7 +349,7 @@ class TestExport(IssuesCase):
 
 class TestCli(IssuesCase):
     def run_cli(self, *args: str):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "issues",
+        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "issues",
                                self.ep, *args], capture_output=True, text=True, cwd=ROOT)
 
     def test_add_list_export_clear(self):
@@ -380,7 +380,7 @@ class TestCli(IssuesCase):
         json.loads(out.stdout)
 
     def test_add_from_a_file(self):
-        import h3jobs as J
+        from seriesmith import jobs as J
         shots = [s["id"] for s in J.load_shotlists(self.ep, "proxy")[0]["shots"][:2]]
         notes = os.path.join(self._tmp.name, "notes.txt")
         with io.open(notes, "w", encoding="utf-8") as fh:

@@ -21,14 +21,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3pipe_api as A  # noqa: E402
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from targets import modelid as M  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.targets import modelid as M  # noqa: E402
 from test_api import ApiTest  # noqa: E402
+from fakes import render_fake  # noqa: E402
 from test_render import ENV, WORKFLOW, FakeComfy, build_episode  # noqa: E402
 
 REAL = os.environ.get("H3PIPE_REAL_MODELS", r"C:\AI\ComfyUI\ComfyUI\models")
@@ -520,7 +520,10 @@ class ModelsRouteTest(ApiTest):
 
 
 class RenderCliModelTest(unittest.TestCase):
-    """h3render finds model files through $COMFYUI_PATH."""
+    """seriesmith render finds model files through $COMFYUI_PATH, and a file of
+    another family blocks the shot until it is rendered anyway. (h3pipe's
+    version also ran h3render's --dry-run --check-nodes, which seriesmith
+    render doesn't have.)"""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -530,36 +533,27 @@ class RenderCliModelTest(unittest.TestCase):
         self.comfy_root = os.path.join(self._tmp.name, "ComfyUI")
         write_st(os.path.join(self.comfy_root, "models", "unet", "wan_low_noise.safetensors"),
                  wan14_tensors())
-        self.comfy = FakeComfy()
-        self.env = dict(ENV, COMFYUI_PATH=self.comfy_root, TMP=self._tmp.name,
-                        TEMP=self._tmp.name)
+        env = mock.patch.dict(os.environ, {"COMFYUI_PATH": self.comfy_root,
+                                           "TMP": self._tmp.name, "TEMP": self._tmp.name})
+        env.start()
+        self.addCleanup(env.stop)
 
     def tearDown(self):
-        self.comfy.close()
         self._tmp.cleanup()
 
     def render(self, *args):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "h3render.py"), self.root,
-                               "--workflow", WORKFLOW, "--comfy", self.comfy.url, "--proxy",
-                               "--only", "sh010", "--model", "wan_low_noise.safetensors", *args],
-                              capture_output=True, env=self.env, cwd=self.root)
+        return render_fake(self.root, "--proxy", "--only", "sh010",
+                           "--model", "wan_low_noise.safetensors", *args)
 
     def test_cli_blocks_then_renders_anyway(self):
-        r = self.render()
-        out = r.stdout.decode("utf-8", "replace")
-        self.assertEqual(r.returncode, 0, out + r.stderr.decode())
-        self.assertIn("1 blocked (model mismatch)", out)
+        rc, out, fb = self.render()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("1 can't run", out)
         self.assertIn("wan_low_noise is Wan 2.2 I2V 14B low-noise", out)
-        self.assertEqual(self.comfy.graphs, [])
-        # the dry run with --check-nodes lists every check
-        self.comfy.nodes |= {"UNETLoader", "LoraLoaderModelOnly"}
-        r = self.render("--allow-model-mismatch", "--dry-run", "--check-nodes")
-        out = r.stdout.decode("utf-8", "replace")
-        self.assertIn("model files, checked by name, then by header", out)
-        self.assertRegex(out, r"! model +wan_low_noise.safetensors: mismatch -> Wan 2.2 I2V 14B "
-                              r"low-noise \(tensors \+ name\) — wants MiniMax H3 Ref2VA")
-        r = self.render("--allow-model-mismatch")
-        self.assertEqual(r.returncode, 0, r.stdout.decode() + r.stderr.decode())
+        self.assertEqual(fb.submitted, [])
+        rc, out, fb = self.render("--allow-model-mismatch")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(len(fb.submitted), 1)
         (t,) = T.list_takes(self.root, "proxy", "sh010")
         self.assertIn("model mismatch, rendered anyway", " ".join(t.sidecar["notes"]))
 

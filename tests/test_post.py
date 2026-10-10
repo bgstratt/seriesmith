@@ -18,12 +18,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3post as P  # noqa: E402
-import h3takes as T  # noqa: E402
-import h3upscale as U  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import post as P  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import upscale as U  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase13 import UpscaleTest  # noqa: E402
 

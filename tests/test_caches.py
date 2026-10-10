@@ -16,8 +16,8 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 
 
 def sha1_of(data: bytes) -> str:

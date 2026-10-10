@@ -18,7 +18,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3refs as R  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 
@@ -30,7 +30,7 @@ class SettingsTest(unittest.TestCase):
         os.makedirs(self.ep)
         shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
+        from seriesmith import edit as E
         self.assertTrue(E.build_episode(self.ep)["ok"])
         self.s = R.load_series(self.ep)
 

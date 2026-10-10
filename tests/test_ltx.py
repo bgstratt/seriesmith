@@ -26,12 +26,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core import ir  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import ir  # noqa: E402
 from test_ltx_ingredients import needs_pil, real_refs  # noqa: E402
 from test_render import ENV, FakeComfy, stub_refs  # noqa: E402
 
@@ -49,7 +48,7 @@ PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08
 def build_mixed(root: str) -> None:
     shutil.copy(os.path.join(MIXED, "series.json"), root)
     for flags in ([], ["--proxy"]):
-        subprocess.run([sys.executable, os.path.join(ROOT, "h3build.py"),
+        subprocess.run([sys.executable, "-m", "seriesmith.build",
                         os.path.join(root, "series.json"), os.path.join(MIXED, "script.md"),
                         "-o", root, *flags], check=True, capture_output=True, env=ENV)
     stub_refs(root)
@@ -182,7 +181,7 @@ class SubgraphTest(unittest.TestCase):
     def test_h3_workflow_unchanged_by_the_converter(self):
         # H3's workflow has no subgraphs; the snapshot test pins its graph,
         # this pins the converter's handling of its PrimitiveInt (a widget feed)
-        g = J.load_graph(os.path.join(ROOT, "targets", "video", H3, "workflow.json"))
+        g = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", H3, "workflow.json"))
         self.assertFalse(of(g, "PrimitiveInt"))
         J.node_of(g, "H3ShotListLoader")                      # exactly one
 
@@ -242,7 +241,7 @@ class LtxTargetTest(unittest.TestCase):
             h3.recipe = spec
 
     def test_prose_prompt(self):
-        from targets.video.ltx2.prompt import build_prompt
+        from seriesmith.targets.video.ltx2.prompt import build_prompt
         cfg = json.load(open(os.path.join(MIXED, "series.json"), encoding="utf-8"))
         sq = ir.Sequence("sq01", "kitchen")
         shot = ir.Shot("sh1", cast=["ada"], props=["kettle"], size="close",
@@ -291,7 +290,7 @@ class MixedEpisodeTest(unittest.TestCase):
         self._t = tempfile.TemporaryDirectory()
         self.root = os.path.join(self._t.name, "mx01")
         shutil.copytree(self.src, self.root)
-        self.base = J.load_graph(os.path.join(ROOT, "targets", "video", LTX, "workflow.json"))
+        self.base = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", LTX, "workflow.json"))
 
     def tearDown(self):
         self._t.cleanup()
@@ -495,7 +494,7 @@ class MixedEpisodeTest(unittest.TestCase):
             def base_for(tid):
                 asked.append(tid)
                 return (self.base if tid == LTX else
-                        J.load_graph(os.path.join(ROOT, "targets", "video", H3, "workflow.json")))
+                        J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", H3, "workflow.json")))
 
             out = E.queue_shots(self.root, "proxy", ["sh010", "sh020"],
                                 J.RenderRequest(""), J.Comfy(comfy.url), base_for)
@@ -515,7 +514,7 @@ class MixedEpisodeTest(unittest.TestCase):
     def test_override_cli_writes_the_shots_own_target(self):
         env = dict(ENV)
         run = lambda *a: subprocess.run(  # noqa: E731
-            [sys.executable, os.path.join(ROOT, "h3.py"), "override", self.root, *a],
+            [sys.executable, "-m", "seriesmith.h3cli", "override", self.root, *a],
             capture_output=True, env=env, text=True, encoding="utf-8")
         r = run("sh020", "--seed", "11", "--steps", "3", "--proxy")
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
@@ -535,7 +534,7 @@ class MixedEpisodeTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
 
     def test_h3align_snaps_to_each_shots_grid(self):
-        import h3align
+        from seriesmith import align as h3align
         with open(os.path.join(MIXED, "script.md"), encoding="utf-8") as fh:
             snap = h3align.shot_grids(os.path.join(MIXED, "series.json"), fh.read())
         self.assertEqual(snap("sh010")(50), 56)                    # H3: 17k+5
@@ -548,7 +547,7 @@ class MixedEpisodeTest(unittest.TestCase):
 
 class RetargetRouteTest(unittest.TestCase):
     def setUp(self):
-        import h3pipe_api as A
+        from seriesmith import api as A
         self.A = A
         self._tmp = tempfile.TemporaryDirectory()
         self.shows = os.path.join(self._tmp.name, "Shows")
@@ -637,7 +636,7 @@ class LtxQualityAndSheetTest(unittest.TestCase):
         self._t = tempfile.TemporaryDirectory()
         self.root = os.path.join(self._t.name, "mx01")
         shutil.copytree(self.src, self.root)
-        self.base = J.load_graph(os.path.join(ROOT, "targets", "video", LTX, "workflow.json"))
+        self.base = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", LTX, "workflow.json"))
         self.mod = TG.load_target(LTX, "video").module
 
     def tearDown(self):

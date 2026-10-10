@@ -24,14 +24,14 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 from test_render import png_bytes  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 TID = "qwen_image_21"
-WORKFLOW = os.path.join(ROOT, "targets", "image", TID, "workflow.json")
+WORKFLOW = os.path.join(ROOT, "seriesmith", "targets", "image", TID, "workflow.json")
 
 
 def api_graph() -> dict:
@@ -154,7 +154,7 @@ class JobTest(unittest.TestCase):
         os.makedirs(self.ep)
         shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
+        from seriesmith import edit as E
         self.assertTrue(E.build_episode(self.ep)["ok"])
         s = R.load_series(self.ep)
         base = R.find_ref(s, "subject:ada")

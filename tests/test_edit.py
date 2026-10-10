@@ -16,10 +16,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-from test_render import ENV, FIXTURE, WORKFLOW, FakeComfy, stub_refs  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from fakes import render_fake  # noqa: E402
+from test_render import ENV, FIXTURE, stub_refs  # noqa: E402
 
 
 class EditFlowTest(unittest.TestCase):
@@ -29,14 +30,12 @@ class EditFlowTest(unittest.TestCase):
         os.makedirs(self.ep)
         shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        self.comfy = FakeComfy()
 
     def tearDown(self):
-        self.comfy.close()
         self._tmp.cleanup()
 
     def h3(self, *args, ok=True) -> str:
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), *args],
+        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", *args],
                            capture_output=True, env=ENV, cwd=self._tmp.name)
         out = r.stdout.decode("utf-8") + r.stderr.decode("utf-8")
         if ok:
@@ -46,8 +45,11 @@ class EditFlowTest(unittest.TestCase):
         return out
 
     def render(self, *args) -> str:
-        return self.h3("render", self.ep, "--proxy", "--workflow", WORKFLOW,
-                       "--comfy", self.comfy.url, *args)
+        """seriesmith render on the fake backend (h3pipe ran h3render against
+        a fake ComfyUI here)."""
+        rc, out, _ = render_fake(self.ep, "--proxy", *args)
+        self.assertEqual(rc, 0, out)
+        return out
 
     def status(self) -> dict:
         return {s["shot"]: s for s in E.episode_status(self.ep, "proxy")["shots"]}

@@ -19,13 +19,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core import story as S  # noqa: E402
-from targets.image import common as IC  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import story as S  # noqa: E402
+from seriesmith.targets.image import common as IC  # noqa: E402
 from test_render import FIXTURE, FakeComfy, png_bytes  # noqa: E402
 
 MIXED = os.path.join(HERE, "fixtures", "mixed")

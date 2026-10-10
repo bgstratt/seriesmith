@@ -19,8 +19,8 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-import h3edit  # noqa: E402
-import h3publish as P  # noqa: E402
+from seriesmith import edit as h3edit  # noqa: E402
+from seriesmith import publish as P  # noqa: E402
 
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 FONT = next((f for f in ("C:/Windows/Fonts/segoescb.ttf", "C:/Windows/Fonts/arial.ttf",

@@ -35,12 +35,10 @@ import os
 import sys
 import uuid
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3source as H  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import source as H  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
 ISSUES_FILE = "_issues.json"
 DEFAULT_PASS = "proxy"          # the pass a review starts from

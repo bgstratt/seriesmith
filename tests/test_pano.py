@@ -18,8 +18,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
 from test_render import png_bytes  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -32,7 +32,7 @@ class PanoTest(unittest.TestCase):
         os.makedirs(self.ep)
         shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
+        from seriesmith import edit as E
         self.assertTrue(E.build_episode(self.ep)["ok"])
         s = R.load_series(self.ep)
         plate = os.path.join(self._tmp.name, "plate.png")
@@ -69,7 +69,7 @@ class PanoTest(unittest.TestCase):
     def test_the_qwen_graph_samples_an_empty_canvas(self):
         (job,) = self.plan()
         job.inputs = {"references": ["h3pipe/plate.png"]}
-        with open(os.path.join(ROOT, "targets", "image", "qwen_image_21", "workflow.json"),
+        with open(os.path.join(ROOT, "seriesmith", "targets", "image", "qwen_image_21", "workflow.json"),
                   encoding="utf-8") as fh:
             g = R.image_graph(J.graph_from(json.load(fh)), job, None)
         sw = next(v for v in g.values() if v["class_type"] == "ComfySwitchNode")
@@ -134,7 +134,7 @@ class KleinPanoTest(PanoTest):
         (job,) = R.plan_generate(self.s, R.GenRequest("location:kitchen", pano={"engine": "klein"}),
                                  rng=random.Random(0))
         job.inputs = {"references": ["h3pipe/canvas.png"]}
-        with open(os.path.join(ROOT, "targets", "image", "klein_erp_360", "workflow.json"),
+        with open(os.path.join(ROOT, "seriesmith", "targets", "image", "klein_erp_360", "workflow.json"),
                   encoding="utf-8") as fh:
             g = R.image_graph(J.graph_from(json.load(fh)), job, None)
         self.assertEqual(next(v for v in g.values() if v["class_type"] == "LoadImage")

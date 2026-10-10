@@ -38,9 +38,9 @@ import sys
 import time
 from dataclasses import dataclass, field
 
-import h3jobs as J
-import h3takes as T
-import h3upscale as U
+from seriesmith import jobs as J
+from seriesmith import takes as T
+from seriesmith import upscale as U
 
 PASS = "final"
 METHODS = ("pixel", "seedvr2", "supir")

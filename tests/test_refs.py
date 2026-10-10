@@ -19,14 +19,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 from test_render import ENV, FIXTURE, FakeComfy, png_bytes, stub_refs  # noqa: E402
 
-REFS_WF = os.path.join(ROOT, "targets", "image", "krea2", "workflow.json")
-H3_WF = os.path.join(ROOT, "targets", "video", "minimax_h3_ref2va", "workflow.json")
+REFS_WF = os.path.join(ROOT, "seriesmith", "targets", "image", "krea2", "workflow.json")
+H3_WF = os.path.join(ROOT, "seriesmith", "targets", "video", "minimax_h3_ref2va", "workflow.json")
 
 try:
     import PIL  # noqa: F401
@@ -540,7 +540,7 @@ class StaleTest(RefsTest):
 
 class KreagenTest(RefsTest):
     def run_kreagen(self, *args, root=None):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "kreagen.py"),
+        return subprocess.run([sys.executable, "-m", "seriesmith.kreagen",
                                "--project-root", root or self.ep, *args],
                               capture_output=True, env=ENV, cwd=root or self.ep)
 
@@ -619,7 +619,6 @@ class SaveNodeTest(unittest.TestCase):
             from PIL import Image
         except ImportError as exc:                       # pragma: no cover
             self.skipTest(f"needs torch and PIL: {exc}")
-        sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
         import h3_shotlist as N
         with tempfile.TemporaryDirectory() as tmp:
             ref = R.Ref("location:x", "series", "location", "x", "refs/x.png", tmp)

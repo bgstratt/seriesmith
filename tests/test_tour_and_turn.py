@@ -23,8 +23,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3refs as R  # noqa: E402
-import h3tour as TOUR  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import tour as TOUR  # noqa: E402
 from test_render import png_bytes  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -62,7 +62,7 @@ class Base(unittest.TestCase):
         with open(os.path.join(self.ep, "series.json"), "w", encoding="utf-8") as fh:
             json.dump(c, fh)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
+        from seriesmith import edit as E
         self.assertTrue(E.build_episode(self.ep)["ok"])
         s = R.load_series(self.ep)
         self.png = os.path.join(self._tmp.name, "p.png")
@@ -174,8 +174,7 @@ class TurningPointTest(unittest.TestCase):
     dips in motion for a few frames, too briefly for a hold."""
 
     def setUp(self):
-        sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-        import h3_stills
+        from seriesmith.helpers import stills as h3_stills
         self.H = h3_stills
 
     def test_a_reversal_is_found(self):

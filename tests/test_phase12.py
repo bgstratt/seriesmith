@@ -23,14 +23,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3jobs as J  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config, series_info,  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config, series_info,  # noqa: E402
                                   subject_ids, variant_of)
-from h3core.story import parse_story  # noqa: E402
-from targets.generic import video_prose as G  # noqa: E402
+from seriesmith.core.story import parse_story  # noqa: E402
+from seriesmith.targets.generic import video_prose as G  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
 KITCHEN = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -162,7 +161,7 @@ class BuiltinCodeTest(unittest.TestCase):
     def test_default_code_is_the_builtin_prose_compile(self):
         t = TG.load_target(MINE, "video", root=self.ep)
         self.assertEqual(t.default_code, "builtin:video_prose")
-        self.assertEqual(t.module.__name__, "targets.generic.video_prose")
+        self.assertEqual(t.module.__name__, "seriesmith.targets.generic.video_prose")
 
     def test_explicit_builtin(self):
         p = os.path.join(self.ep, "targets", MINE, "target.json")
@@ -171,7 +170,7 @@ class BuiltinCodeTest(unittest.TestCase):
         json.dump(spec, io.open(p, "w", encoding="utf-8"))
         TG.forget_targets()
         self.assertEqual(TG.load_target(MINE, "video", root=self.ep).module.__name__,
-                         "targets.generic.video_prose")
+                         "seriesmith.targets.generic.video_prose")
 
     def test_unknown_builtin_is_a_target_error(self):
         p = os.path.join(self.ep, "targets", MINE, "target.json")
@@ -187,7 +186,7 @@ class BuiltinCodeTest(unittest.TestCase):
         t = TG.load_target(STOCK, "video")
         self.assertFalse(t.custom)
         self.assertEqual(t.default_code, "compile.py")
-        self.assertEqual(t.module.__name__, "targets.video.wan22_ti2v.compile")
+        self.assertEqual(t.module.__name__, "seriesmith.targets.video.wan22_ti2v.compile")
 
 
 class CustomEqualsStockTest(unittest.TestCase):
@@ -243,17 +242,17 @@ class ProseStyleTest(unittest.TestCase):
     def test_silent_target_gets_the_acting_writer(self):
         t = TG.load_target(STOCK, "video")
         self.assertFalse(G.makes_sound(t))
-        self.assertEqual(G.style_for(t).build_prompt.__module__, "targets.video.wan.prompt")
+        self.assertEqual(G.style_for(t).build_prompt.__module__, "seriesmith.targets.video.wan.prompt")
 
     def test_sound_target_gets_the_full_writer(self):
         t = TG.load_target("ltx2", "video")
         self.assertTrue(G.makes_sound(t))
-        self.assertEqual(G.style_for(t).build_prompt.__module__, "targets.video.ltx2.prompt")
+        self.assertEqual(G.style_for(t).build_prompt.__module__, "seriesmith.targets.video.ltx2.prompt")
 
     def test_prose_silent_asks_for_the_acting_writer(self):
         t = copy.copy(TG.load_target("ltx2", "video"))
         t.recipe = dict(t.recipe, prompt="prose_silent")
-        self.assertEqual(G.style_for(t).build_prompt.__module__, "targets.video.wan.prompt")
+        self.assertEqual(G.style_for(t).build_prompt.__module__, "seriesmith.targets.video.wan.prompt")
 
     def test_default_policy(self):
         self.assertEqual(G.default_policy(TG.load_target(STOCK, "video")), "silent")
@@ -380,7 +379,7 @@ class InspectTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        import h3inspect as IN
+        from seriesmith import inspector as IN
         cls.IN = IN
         cls.stock = TG.load_target(STOCK, "video")
         cls.r = IN.inspect_graph(ti2v_graph(), OBJECT_INFO_INSPECT, folder_list,
@@ -461,7 +460,7 @@ class SaveCustomTest(unittest.TestCase):
     """validate_spec / save_spec / delete_spec."""
 
     def setUp(self):
-        import h3inspect as IN
+        from seriesmith import inspector as IN
         self.IN = IN
         self._tmp = tempfile.TemporaryDirectory()
         self.ep = a_show(self._tmp.name)
@@ -481,7 +480,7 @@ class SaveCustomTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(path))
         t = TG.load_target("my_wan", "video", root=self.ep)
         self.assertTrue(t.custom)
-        self.assertEqual(t.module.__name__, "targets.generic.video_prose")
+        self.assertEqual(t.module.__name__, "seriesmith.targets.generic.video_prose")
         self.assertEqual([x["id"] for x in self.IN.custom_targets(self.ep)], ["my_wan"])
         self.assertTrue(self.IN.delete_spec(self.ep, "my_wan"))
         self.assertFalse(self.IN.delete_spec(self.ep, "my_wan"))

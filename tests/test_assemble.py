@@ -18,9 +18,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-import h3takes as T  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
-ASSEMBLE = os.path.join(ROOT, "h3assemble.py")
+ASSEMBLE = ["-m", "seriesmith.assemble"]
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
 
@@ -106,7 +106,7 @@ class AssembleTest(unittest.TestCase):
         T.save_cut(self.root, {"episode": "ep01", "final": final, "proxy": proxy or []})
 
     def assemble(self, *args: str, ok: bool = True) -> subprocess.CompletedProcess:
-        r = subprocess.run([sys.executable, ASSEMBLE, "-o", self.root, *args],
+        r = subprocess.run([sys.executable, *ASSEMBLE, "-o", self.root, *args],
                            capture_output=True, text=True, encoding="utf-8", timeout=120)
         if ok:
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -138,7 +138,7 @@ class AssembleTest(unittest.TestCase):
     def test_progress_lines(self):
         # --progress, read as h3master reads it (h3edit.run_tool): every step in
         # order, none of it in the log
-        import h3edit
+        from seriesmith import edit as h3edit
         self.shotlist([("sh010", 22), ("sh020", 39)])
         self.take("sh010", 22)
         self.take("sh020", 39)
@@ -341,7 +341,7 @@ class SelectiveTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         sys.path.insert(0, ROOT)
-        import h3assemble
+        from seriesmith import assemble as h3assemble
         cls.A = h3assemble
         cls._cache = tempfile.TemporaryDirectory()
         cls.clips = {}
@@ -509,7 +509,7 @@ class SelectiveTest(unittest.TestCase):
         out = self.out()
         pic = os.path.join(self.root, "picture.mp4")
         ff("ffmpeg", "-y", "-v", "error", "-i", out, "-map", "0:v:0", "-c", "copy", pic)
-        import h3publish
+        from seriesmith import publish as h3publish
         for path in (out, pic):
             for first in (0, 1, 55, 56, 57, 110):
                 want = frame_md5s(path, first, 4)
@@ -539,7 +539,7 @@ class FrameCountTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.dir = self._tmp.name
         sys.path.insert(0, ROOT)
-        import h3assemble
+        from seriesmith import assemble as h3assemble
         self.A = h3assemble
 
     def tearDown(self):

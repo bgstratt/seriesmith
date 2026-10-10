@@ -69,11 +69,9 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3jobs  # noqa: E402
-import h3peaks  # noqa: E402
-import h3takes  # noqa: E402
+from seriesmith import jobs as h3jobs  # noqa: E402
+from seriesmith import peaks as h3peaks  # noqa: E402
+from seriesmith import takes as h3takes  # noqa: E402
 
 NOT_RENDERED = "not rendered"
 # --progress: one line per step for whoever runs this (h3master, through

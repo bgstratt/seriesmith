@@ -58,11 +58,9 @@ import subprocess
 import sys
 import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3assemble  # noqa: E402
-import h3edit  # noqa: E402
-import h3takes  # noqa: E402
+from seriesmith import assemble as h3assemble  # noqa: E402
+from seriesmith import edit as h3edit  # noqa: E402
+from seriesmith import takes as h3takes  # noqa: E402
 
 SUBTITLE = {
     "font": "C:/Windows/Fonts/segoescb.ttf",

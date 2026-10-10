@@ -63,8 +63,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import h3build  # noqa: E402  (parse_script, parse_story)
-import h3source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
+from seriesmith import build as h3build  # noqa: E402  (parse_script, parse_story)
+from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 
 SR = 16000
 LEAD = 0.25      # seconds of air kept before a line's first word
@@ -98,8 +98,8 @@ def shot_grids(series_cfg_path: str, script_text: str):
     target's template (targets.shot_targets: series.target, profiles and
     `target:` lines), H3's 17k+5 or LTX's 8k+1. A script the targets can't
     resolve falls back to the series target for every shot."""
-    import targets as TG
-    from h3core.series_config import (character_ids, load_series_config, series_info,
+    from seriesmith import targets as TG
+    from seriesmith.core.series_config import (character_ids, load_series_config, series_info,
                                       subject_ids, variant_of)
     cfg = load_series_config(series_cfg_path)
     default = TG.video_target(cfg)
@@ -471,7 +471,7 @@ def main() -> int:
 
     # script (series_cfg here is the raw JSON, which is written back out below,
     # so the variant map is read off it rather than resolved into it)
-    from h3core.series_config import variant_of
+    from seriesmith.core.series_config import variant_of
     subjects = {k for k in series_cfg.get("subjects", {}) if not k.startswith("_")}
     chars = {k for k, v in series_cfg["subjects"].items()
              if not k.startswith("_") and isinstance(v, dict)

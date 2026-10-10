@@ -24,13 +24,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3peaks as PK  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3source as H  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import source as H  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
@@ -498,7 +497,7 @@ class CliTest(Base):
         self.assertGreater(len(H.history(self.ep, "cut.json")), 5)
 
     def test_through_h3(self):
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "cut", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "cut", self.ep,
                             "--proxy", "--move", self.order[2], "--before", self.order[0]],
                            capture_output=True, text=True, timeout=120,
                            env=dict(os.environ, PYTHONIOENCODING="utf-8"))

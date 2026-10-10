@@ -16,11 +16,17 @@ format.
 - `seriesmith/cli.py` — the `seriesmith` command (`build`, `check`, `backends`)
 - `seriesmith/backends/` — where a job runs: local ComfyUI (via comfy-api-proxy), Cloud, deployments (`comfy.py`), Router (`router.py`), a fake for tests
 - `seriesmith/settings.py` — this machine's settings (backend URLs, API key); never the series config
+- `seriesmith/jobs.py`, `takes.py`, `render.py` — planning a take, its files and record, rendering through a backend (portable graphs)
+- the rest of h3pipe, ported as is: `refs`, `edit`, `source`, `promote`, `issues`, `tour`, `track`, `align`, `upscale`, `master`, `post`, `assemble`, `publish`, `inspector`, `kreagen`, `mksheet`; `api.py` (the editor's routes as functions); `h3cli.py` (h3.py's commands, reached as `seriesmith <command>`)
+- `seriesmith/helpers/` — PIL/numpy helpers run as subprocesses (sheets, tour stills, 360 canvas)
+- `comfy_nodes/` — seriesmith's ComfyUI node pack (the portable shot loader and saver); link it into ComfyUI's custom_nodes
 
 ## Rules
 
-- The core and build need nothing outside the standard library. Backends may
-  use `comfy-sdk` and other dependencies.
+- The core and build need nothing outside the standard library. The rest may
+  use the declared dependencies (comfy-sdk, Pillow, numpy).
+- Tests: `.venv\Scripts\python -m pytest` (the whole suite takes ~8 minutes;
+  run the files you touched first).
 - Never hand-edit generated files (`shotlist/`, `refs_todo.*`); change the script,
   the series config or the code and rebuild.
 - Refactors keep the golden outputs byte-identical (`python -m pytest`) unless the

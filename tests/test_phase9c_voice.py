@@ -25,16 +25,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3peaks as PK  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 import test_api  # noqa: E402
-from targets.audio import common as AC  # noqa: E402
+from seriesmith.targets.audio import common as AC  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase85 import Episode  # noqa: E402
 from test_render import wav_bytes  # noqa: E402
@@ -557,7 +556,7 @@ class VoiceApiTest(ApiTest):
 
 class VoiceCliTest(Episode):
     def kreagen(self, *args) -> tuple[int, str]:
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "kreagen.py"),
+        r = subprocess.run([sys.executable, "-m", "seriesmith.kreagen",
                             "--project-root", self.ep, *args],
                            capture_output=True, timeout=300)
         return r.returncode, (r.stdout + r.stderr).decode("utf-8", "replace")
@@ -583,7 +582,7 @@ class VoiceCliTest(Episode):
 
     def test_parse_from_take(self):
         sys.path.insert(0, ROOT)
-        import kreagen
+        from seriesmith import kreagen
         self.assertEqual(kreagen.parse_from_take("sh020:3:1.2-6.4"),
                          ("sh020", 3, 1.2, 6.4))
         self.assertEqual(kreagen.parse_from_take("sh020:t03:0-5")[1], 3)

@@ -57,12 +57,10 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
 # The graph code and wording moved to h3refs; re-exported under the old names.
-from h3refs import (CFG, CLIP, CLIPTYPE, LORA, LORA_C, LORA_M, PREFIX,  # noqa: E402,F401
+from seriesmith.refs import (CFG, CLIP, CLIPTYPE, LORA, LORA_C, LORA_M, PREFIX,  # noqa: E402,F401
                     REFS_WORKFLOW, SAMPLER, SCHED, STEPS, UNET, VAE, VIEW_TMPL, VIEWS,
                     build_graph, parse_size, patch_workflow, seed_for)
 

@@ -11,7 +11,10 @@ import random
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -269,6 +272,375 @@ class GraphTest(unittest.TestCase):
             g = J.graph_for(self.base, j, take)
             self.assertEqual(g["2"]["inputs"], self.base["2"]["inputs"])
 
+
+# ---------------------------------------------------------------------------
+# a fake ComfyUI (h3pipe's), for the tests that talk to ComfyUI directly
+# ---------------------------------------------------------------------------
+
+def png_bytes(w: int, h: int, rgb=(128, 128, 128)) -> bytes:
+    """A flat-colour RGB PNG, stdlib only."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return (struct.pack(">I", len(data)) + kind + data
+                + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF))
+    row = b"\x00" + bytes(rgb) * w
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(row * h, 6)) + chunk(b"IEND", b""))
+
+
+def wav_bytes(seconds: float = 1.0, rate: int = 48000, freq: float = 220.0) -> bytes:
+    """A mono 16-bit PCM wav of a sine tone, stdlib only."""
+    import array
+    import io
+    import math
+    import wave
+
+    n = max(1, int(round(seconds * rate)))
+    a = array.array("h", (int(12000 * math.sin(2 * math.pi * freq * i / rate))
+                          for i in range(n)))
+    if sys.byteorder == "big":
+        a.byteswap()
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(a.tobytes())
+    return buf.getvalue()
+
+
+class FakeComfy:
+    """Just enough of ComfyUI's API. Each /prompt runs 'instantly' and does what
+    the save node does, according to `mode`: 'node' (writes mp4 and closes the
+    sidecar), 'oldnode' (writes the mp4 only), 'error' (execution error),
+    'hold' (accepted, and left pending in the queue) or 'reject' (node_errors).
+    `running`/`pending` are what /queue reports; other POSTs land in `posts`.
+
+    A reference-image graph (h3refs) is played too: H3SaveRefTake writes a
+    flat PNG (its colour from the seed) beside the sidecar and closes it; a
+    graph that kept SaveImage gets its PNG in the job's outputs, served by
+    /view. `nodes` is what /object_info knows (drop "H3SaveRefTake" to play a
+    ComfyUI whose node pack predates it).
+
+    A voice-reference graph (an audio target) is played the same way:
+    H3SaveRefAudio writes a wav of the requested length beside the sidecar
+    and closes it; a graph that kept SaveAudio gets a flac in the job's
+    outputs (as ComfyUI's own SaveAudio writes), served by /view."""
+
+    def __init__(self):
+        self.mode = "node"
+        self.nodes = {"H3SaveRefTake", "H3SaveRefAudio", "H3SaveShot", "H3ShotListLoader",
+                      "SaveImage", "SaveAudio"}
+        self.info: dict[str, dict] = {}           # /object_info/<class> in full, when set
+        self.predicted_frames = 199               # what a duration predictor "chooses"
+        self.files: dict[str, bytes] = {}         # /view filename -> bytes
+        self.userdata: dict[str, dict] = {}       # "workflows/x.json" -> saved workflow
+        self.userdata_raw: dict[str, bytes] = {}  # the same, as written (POST /userdata)
+        self.graphs: list[dict] = []
+        self.history: dict[str, dict] = {}
+        self.running: list[str] = []
+        self.pending: list[str] = []
+        self.posts: list[tuple[str, dict]] = []
+        self.uploads: dict[str, bytes] = {}       # /upload/image: "sub/name" -> bytes
+        fake = self
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _send(self, obj):
+                body = json.dumps(obj).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                if self.path.startswith("/history/"):
+                    pid = self.path.rsplit("/", 1)[1]
+                    self._send({pid: fake.history[pid]} if pid in fake.history else {})
+                elif self.path.startswith("/api/userdata?"):
+                    from urllib.parse import parse_qs, urlparse
+                    q = parse_qs(urlparse(self.path).query)
+                    folder = (q.get("dir") or [""])[0].strip("/")
+                    pre = folder + "/" if folder else ""
+                    self._send(sorted(k[len(pre):] for k in fake.userdata if k.startswith(pre)))
+                elif self.path.startswith("/api/userdata/"):
+                    from urllib.parse import unquote
+                    key = unquote(self.path[len("/api/userdata/"):])
+                    if key in fake.userdata:
+                        self._send(fake.userdata[key])
+                    else:
+                        self.send_response(404)
+                        self.send_header("Content-Length", "0")
+                        self.end_headers()
+                elif self.path == "/object_info":
+                    # everything this ComfyUI knows: `info` when it is set,
+                    # else a bare entry per class in `nodes`
+                    self._send(dict({c: {"input": {}} for c in fake.nodes}, **fake.info))
+                elif self.path.startswith("/object_info/"):
+                    from urllib.parse import unquote
+                    ct = unquote(self.path[len("/object_info/"):])
+                    self._send({ct: fake.info.get(ct, {"input": {}})}
+                               if ct in fake.nodes or ct in fake.info else {})
+                elif self.path.startswith("/view?"):
+                    from urllib.parse import parse_qs, urlparse
+                    name = parse_qs(urlparse(self.path).query)["filename"][0]
+                    body = fake.files.get(name)
+                    self.send_response(200 if body is not None else 404)
+                    self.send_header("Content-Length", str(len(body or b"")))
+                    self.end_headers()
+                    self.wfile.write(body or b"")
+                elif self.path == "/queue":
+                    self._send({"queue_running": [[0, p] for p in fake.running],
+                                "queue_pending": [[1, p] for p in fake.pending]})
+                else:
+                    self._send({})
+
+            def do_DELETE(self):
+                # ComfyUI's DELETE /userdata/<file>: 204, or 404 when it isn't there
+                if self.path.startswith("/api/userdata/"):
+                    from urllib.parse import unquote, urlparse
+                    key = unquote(urlparse(self.path).path[len("/api/userdata/"):])
+                    there = key in fake.userdata
+                    fake.userdata.pop(key, None)
+                    self.send_response(204 if there else 404)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                self.send_response(404)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def do_POST(self):
+                raw = self.rfile.read(int(self.headers["Content-Length"]))
+                if self.path.startswith("/api/userdata/"):
+                    # ComfyUI's POST /userdata/<file>: the raw body is the file,
+                    # ?overwrite=false makes an existing one a 409
+                    from urllib.parse import parse_qs, unquote, urlparse
+                    u = urlparse(self.path)
+                    key = unquote(u.path[len("/api/userdata/"):])
+                    q = parse_qs(u.query)
+                    if q.get("overwrite", ["true"])[0] == "false" and key in fake.userdata:
+                        body = b"File already exists"
+                        self.send_response(409)
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
+                    fake.userdata[key] = json.loads(raw)
+                    fake.userdata_raw[key] = raw
+                    self._send(key)
+                    return
+                if self.path == "/upload/image":
+                    # multipart: keep the fields and the file's bytes
+                    import email.parser
+                    import email.policy
+                    msg = email.parser.BytesParser(policy=email.policy.default).parsebytes(
+                        b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n"
+                        + raw)
+                    form = {p.get_param("name", header="content-disposition"):
+                            (p.get_filename(), p.get_payload(decode=True))
+                            for p in msg.iter_parts()}
+                    name = form["image"][0]
+                    sub = form["subfolder"][1].decode()
+                    fake.uploads[f"{sub}/{name}"] = form["image"][1]
+                    self._send({"name": name, "subfolder": sub, "type": "input"})
+                    return
+                data = json.loads(raw)
+                if self.path == "/prompt" and fake.mode == "reject":
+                    self._send({"error": "invalid prompt",
+                                "node_errors": {"11": {"errors": ["bad input"]}}})
+                elif self.path == "/prompt":
+                    self._send({"prompt_id": fake.run(data["prompt"])})
+                else:
+                    fake.posts.append((self.path, data))
+                    self._send({})
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def run(self, graph: dict) -> str:
+        self.graphs.append(graph)
+        pid = uuid.uuid4().hex
+        if self.mode == "hold":
+            self.pending.append(pid)
+            return pid
+        if self.mode == "error":
+            self.history[pid] = {"status": {"status_str": "error", "completed": False,
+                                            "messages": [["execution_error",
+                                                          {"exception_message": "boom"}]]}}
+            return pid
+        if any(v["class_type"] in ("H3SaveRefAudio", "SaveAudio") for v in graph.values()):
+            return self.run_audio(graph, pid)
+        if any(v["class_type"] == "H3SaveUpscale" for v in graph.values()):
+            return self.run_upscale(graph, pid)
+        if not any(v["class_type"] == J.SAVER for v in graph.values()):
+            return self.run_image(graph, pid)
+        si = next(v["inputs"] for v in graph.values() if v["class_type"] == J.SAVER)
+        root = si["project_root"]
+        loader = next((v["inputs"] for v in graph.values() if v["class_type"] == J.LOADER),
+                      None)
+        if loader is not None:
+            shot = T.read_json(os.path.join(root, loader["shotlist_file"]))["shots"][0]
+        else:
+            # a loader-less target (ltx2): the saver names the shot, the latent its length
+            lat = next(v["inputs"] for v in graph.values()
+                       if v["class_type"] == "EmptyLTXVLatentVideo")
+            shot = {"id": si["shot_id"], "length": lat["length"]}
+            if isinstance(lat["length"], list):
+                # linked to LTXVDurationPredictor (`dur: model`): the model's choice
+                shot["length"] = self.predicted_frames
+        stem = f"{T.safe_id(shot['id'])}_t{si['take']:02d}"
+        d = os.path.join(root, si["subfolder"], T.safe_id(shot["id"]))
+        open(os.path.join(d, stem + ".mp4"), "wb").close()
+        if self.mode == "node":
+            T.update_sidecar(os.path.join(root, si["sidecar"]), status="ok",
+                             finished=T.now(), frames=shot["length"], mp4=stem + ".mp4",
+                             thumb=None, strip=None, save_notes="fake")
+        self.history[pid] = {"status": {"status_str": "success", "completed": True},
+                             "outputs": {}}
+        return pid
+
+    def run_upscale(self, graph: dict, pid: str) -> str:
+        """An upscale (Phase 13): what H3SaveUpscale does, at the size the
+        loader's resolution_override asks for."""
+        si = next(v["inputs"] for v in graph.values() if v["class_type"] == "H3SaveUpscale")
+        root = si["project_root"]
+        px = next((v["inputs"] for v in graph.values()
+                   if v["class_type"] in ("H3PixelUpscale", "ImageScale")), None)
+        loader = next((v["inputs"] for v in graph.values() if v["class_type"] == J.LOADER), None)
+        if px is not None:                       # the pixel method: its node says the size
+            w, h = px["width"], px["height"]
+        elif loader is not None:
+            w, h = (int(x) for x in loader["resolution_override"].split("x"))
+        else:                                    # a post that only blurs: as queued
+            rec = T.read_json(os.path.join(root, si["sidecar"])) or {}
+            w, h = rec.get("width"), rec.get("height")
+        if si.get("width") and si.get("height"):        # a delivery size: the saver makes it
+            w, h = si["width"], si["height"]
+        with open(os.path.join(root, si["out_mp4"]), "wb") as fh:
+            fh.write(b"upscaled")
+        if self.mode == "node":
+            # a post: the upscale it's made from stamped as it saves (stamp_source)
+            stamp = (T.source_stamp(os.path.join(root, si["source_mp4"]))
+                     if si.get("stamp_source") else {})
+            T.update_sidecar(os.path.join(root, si["sidecar"]), status="ok",
+                             finished=T.now(), width=w, height=h,
+                             mp4=os.path.basename(si["out_mp4"]), audio="copied",
+                             save_notes="fake", **stamp)
+        self.history[pid] = {"status": {"status_str": "success", "completed": True},
+                             "outputs": {}}
+        return pid
+
+    def run_image(self, graph: dict, pid: str) -> str:
+        """A reference-image job: what H3SaveRefTake (or SaveImage) does."""
+        lat = next(v["inputs"] for v in graph.values()
+                   if v["class_type"] in ("EmptyLatentImage", "EmptySD3LatentImage",
+                                      "EmptyFlux2LatentImage"))
+        seed = next(v["inputs"].get("seed", v["inputs"].get("noise_seed", 0))
+                    for v in graph.values() if v["class_type"].startswith("KSampler"))
+        png = png_bytes(lat["width"], lat["height"],
+                        (seed % 256, (seed >> 8) % 256, (seed >> 16) % 256))
+        outputs = {}
+        for nid, v in graph.items():
+            if v["class_type"] == "H3SaveRefTake":
+                sc = v["inputs"]["sidecar"]
+                data = T.read_json(sc) or {}
+                name = data.get("image") or os.path.basename(sc)[:-5] + ".png"
+                with open(os.path.join(os.path.dirname(sc), name), "wb") as fh:
+                    fh.write(png)
+                T.update_sidecar(sc, status="ok", finished=T.now(), image=name,
+                                 width=lat["width"], height=lat["height"], save_notes="fake")
+            elif v["class_type"] == "SaveImage":
+                name = f"{v['inputs']['filename_prefix'].replace('/', '_')}_{pid[:8]}.png"
+                self.files[name] = png
+                outputs[nid] = {"images": [{"filename": name, "subfolder": "",
+                                            "type": "output"}]}
+        self.history[pid] = {"status": {"status_str": "success", "completed": True},
+                             "outputs": outputs}
+        return pid
+
+    def run_audio(self, graph: dict, pid: str) -> str:
+        """A voice-reference job: what H3SaveRefAudio (or SaveAudio) does."""
+        lat = next((v["inputs"] for v in graph.values()
+                    if v["class_type"] == "LTXVEmptyLatentAudio"), None)
+        seconds = ((lat["frames_number"] / float(lat["frame_rate"] or 24))
+                   if lat else 1.0)
+        wav = wav_bytes(seconds)
+        outputs = {}
+        for nid, v in graph.items():
+            if v["class_type"] == "H3SaveRefAudio":
+                sc = v["inputs"]["sidecar"]
+                data = T.read_json(sc) or {}
+                name = data.get("image") or os.path.basename(sc)[:-5] + ".wav"
+                with open(os.path.join(os.path.dirname(sc), name), "wb") as fh:
+                    fh.write(wav)
+                T.update_sidecar(sc, status="ok", finished=T.now(), image=name,
+                                 duration=round(seconds, 3), sample_rate=48000,
+                                 channels=1, save_notes="fake")
+            elif v["class_type"] == "SaveAudio":
+                # ComfyUI's own SaveAudio writes flac, not wav
+                name = f"{v['inputs']['filename_prefix'].replace('/', '_')}_{pid[:8]}.flac"
+                self.files[name] = wav
+                outputs[nid] = {"audio": [{"filename": name, "subfolder": "",
+                                           "type": "output"}]}
+        self.history[pid] = {"status": {"status_str": "success", "completed": True},
+                             "outputs": outputs}
+        return pid
+
+    def close(self):
+        self.server.shutdown()
+
+
+class WorkflowLookupTest(unittest.TestCase):
+    def test_order(self):
+        comfy = FakeComfy()
+        try:
+            saved = J.load_graph(WORKFLOW)
+            saved["2"]["inputs"]["lora_name"] = "from_comfy.safetensors"
+            comfy.userdata["workflows/" + J.WORKFLOW_NAME] = saved   # an API graph is fine too
+            g, where = J.resolve_workflow(None, J.WORKFLOW_NAME, comfy.url)
+            self.assertEqual(g["2"]["inputs"]["lora_name"], "from_comfy.safetensors")
+            self.assertIn("user workflows", where)
+            # explicit beats ComfyUI
+            g, where = J.resolve_workflow(WORKFLOW, J.WORKFLOW_NAME, comfy.url)
+            self.assertEqual(where, WORKFLOW)
+            # not saved in ComfyUI, or no ComfyUI at all: the repo copy
+            comfy.userdata.clear()
+            for url in (comfy.url, "http://127.0.0.1:9", None):
+                g, where = J.resolve_workflow(None, J.WORKFLOW_NAME, url)
+                self.assertEqual(os.path.normcase(where), os.path.normcase(WORKFLOW))
+            self.assertEqual(J.resolve_workflow(None, "nope.json", None, required=False),
+                             (None, ""))
+            with self.assertRaises(FileNotFoundError):
+                J.resolve_workflow(None, "nope.json", None)
+        finally:
+            comfy.close()
+
+    def test_prefer_repo_beats_comfyui_path(self):
+        with tempfile.TemporaryDirectory() as comfy_root:
+            d = os.path.join(comfy_root, "user", "default", "workflows")
+            os.makedirs(d)
+            with open(os.path.join(d, J.WORKFLOW_NAME), "w", encoding="utf-8") as fh:
+                fh.write(open(WORKFLOW, encoding="utf-8").read())
+            old = os.environ.get("COMFYUI_PATH")
+            os.environ["COMFYUI_PATH"] = comfy_root
+            try:
+                _, where = J.resolve_workflow(None, J.WORKFLOW_NAME)
+                self.assertTrue(where.startswith(comfy_root), where)
+                _, where = J.resolve_workflow(None, J.WORKFLOW_NAME, prefer_repo=True)
+                self.assertFalse(where.startswith(comfy_root), where)
+            finally:
+                if old is None:
+                    del os.environ["COMFYUI_PATH"]
+                else:
+                    os.environ["COMFYUI_PATH"] = old
 
 if __name__ == "__main__":
     unittest.main()

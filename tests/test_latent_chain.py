@@ -20,13 +20,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from targets.video.minimax_h3_ref2va import compile as C  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.targets.video.minimax_h3_ref2va import compile as C  # noqa: E402
 from test_render import ENV, stub_refs  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "continuous")
@@ -34,7 +32,7 @@ FIXTURE = os.path.join(HERE, "fixtures", "continuous")
 
 def build(root: str) -> None:
     for flags in ([], ["--proxy"]):
-        subprocess.run([sys.executable, os.path.join(ROOT, "h3build.py"),
+        subprocess.run([sys.executable, "-m", "seriesmith.build",
                         os.path.join(FIXTURE, "series.json"),
                         os.path.join(FIXTURE, "script.md"), "-o", root, *flags],
                        check=True, capture_output=True, env=ENV)
@@ -131,7 +129,7 @@ class ChainBuildTest(unittest.TestCase):
         return T.get_take(self.root, "final", sid, take.take)
 
     def test_an_upscale_re_samples_the_whole_render_and_trims_it(self):
-        import h3upscale as U
+        from seriesmith import upscale as U
         up = U.plan_upscale(self.root, self.finished("sh080"))
         self.assertEqual((up.action, up.route), ("upscale", "latent"), up.why)
         base, _ = J.resolve_workflow(None, J.WORKFLOW_NAME, None, prefer_repo=True)
@@ -184,7 +182,7 @@ class _Episode(unittest.TestCase):
         return T.get_take(self.root, "final", sid, t.take)
 
     def stale(self, t: T.Take) -> list[str]:
-        import h3edit as E
+        from seriesmith import edit as E
         doc, i = J.find_shot(self.root, "final", t.shot)
         return E.take_stale(self.root, "final", doc, doc["shots"][i], t.sidecar,
                             "minimax_h3_ref2va", {})
@@ -224,12 +222,12 @@ class ChainUpscaleTest(_Episode):
                 T.get_take(self.root, "final", "sh080", b.take))
 
     def graph(self, up):
-        import h3upscale as U
+        from seriesmith import upscale as U
         base, _ = J.resolve_workflow(None, J.WORKFLOW_NAME, None, prefer_repo=True)
         return U.upscale_graph(base, up)
 
     def test_the_source_keeps_its_latent_and_the_chain_holds_it(self):
-        import h3upscale as U
+        from seriesmith import upscale as U
         a, b = self.chained()
         up_a = U.plan_upscale(self.root, a)
         self.assertEqual(up_a.action, "upscale", up_a.why)
@@ -254,7 +252,7 @@ class ChainUpscaleTest(_Episode):
         self.assertEqual(g["up_save"]["inputs"]["chain_hold"], ["up_chain", 1])
 
     def test_a_plain_shot_keeps_nothing_and_holds_nothing(self):
-        import h3upscale as U
+        from seriesmith import upscale as U
         t = self.take("sh040")
         open(t.paths.latent, "wb").close()
         T.update_sidecar(t.paths.sidecar, latent=os.path.basename(t.paths.latent))
@@ -268,7 +266,7 @@ class ChainUpscaleTest(_Episode):
 
     def test_master_queues_the_source_first(self):
         from types import SimpleNamespace
-        import h3master as M
+        from seriesmith import master as M
 
         def row(shot, src=None):
             take = SimpleNamespace(shot=shot, take=1)

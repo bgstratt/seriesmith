@@ -627,8 +627,11 @@ class Target:
         """{file name: the param that loads it} for every model file this
         target names: each preset's (model, LoRAs, every model param's value),
         its `base`, and the models' defaults. Each should have a `downloads`
-        entry."""
+        entry. A hosted model (target.json `router`) names none: its preset's
+        `model` is the provider's model id, not a file."""
         out: dict[str, str] = {}
+        if self.spec.get("router"):
+            return out
 
         def add(name, param):
             if isinstance(name, str) and name and name.lower() not in ("none", "off"):

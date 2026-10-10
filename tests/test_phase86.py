@@ -21,18 +21,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3_refsheet as RS  # noqa: E402
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
-import kreagen  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith.helpers import refsheet as RS  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import kreagen  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 import test_api  # noqa: E402
 import test_phase85  # noqa: E402
-from targets.image import common as IC  # noqa: E402
+from seriesmith.targets.image import common as IC  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase85 import OBJECT_INFO, Episode, write_png  # noqa: E402
 from test_render import png_bytes  # noqa: E402
@@ -148,7 +147,7 @@ class DiscardTakeTest(ApiTest):
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "t01", "--proxy"]), 0)
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "1", "--proxy"]), 1)
         self.assertIn("moved", out.getvalue())
-        self.assertIn("discard", __import__("h3").EDIT)
+        self.assertIn("discard", __import__("seriesmith.h3cli", fromlist=["EDIT"]).EDIT)
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +447,7 @@ class CompositeTest(Episode):
         self.assertEqual([t.take for t in R.list_takes(ref)], [1])
 
     def test_without_pil_falls_back_to_one_part(self):
-        from targets.video.ltx2_ingredients import sheet as SH
+        from seriesmith.targets.video.ltx2_ingredients import sheet as SH
         c = self.fake()
         with mock.patch.object(SH, "compose", side_effect=SH.SheetError("needs PIL")):
             out = R.queue_generate(self.s, R.GenRequest("shot:sh020:first",

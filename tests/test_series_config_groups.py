@@ -11,7 +11,7 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from h3core.series_config import members, series_config_from  # noqa: E402
+from seriesmith.core.series_config import members, series_config_from  # noqa: E402
 
 
 def cfg(**ladies):
@@ -54,7 +54,7 @@ class LoadTest(unittest.TestCase):
 
 class RefTest(unittest.TestCase):
     def test_the_ref_is_one_wide_picture(self):
-        import h3refs
+        from seriesmith import refs as h3refs
         e = series_config_from(cfg())["subjects"]["ladies"]
         r = h3refs.Ref("subject:ladies", "series", "character", "the ladies", "", ROOT, e,
                        "ladies")
@@ -64,7 +64,7 @@ class RefTest(unittest.TestCase):
         self.assertGreater(w, h)
 
     def test_the_wording_asks_for_n_people_in_a_row(self):
-        from targets.image.krea2.prompt import group_prompt
+        from seriesmith.targets.image.krea2.prompt import group_prompt
         p = group_prompt("four women in gowns", "photoreal", 4)
         self.assertIn("a group of 4 different people", p)
         self.assertIn("nobody overlapping", p)

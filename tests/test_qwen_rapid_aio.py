@@ -14,14 +14,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import h3jobs as J  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 
 TID = "qwen_rapid_aio"
 
 
 def graph() -> dict:
-    with open(os.path.join(ROOT, "targets", "image", TID, "workflow.json"), encoding="utf-8") as fh:
+    with open(os.path.join(ROOT, "seriesmith", "targets", "image", TID, "workflow.json"), encoding="utf-8") as fh:
         return J.graph_from(json.load(fh))
 
 

@@ -1,17 +1,16 @@
 """
-h3pipe_api — the editor's HTTP routes (docs/API.md) as plain functions.
+seriesmith.api — the editor's HTTP routes (h3pipe's docs/API.md) as plain
+functions.
 
 No aiohttp and no ComfyUI in here, so it runs (and is tested) with any Python:
 every handler takes a Context plus the query dict and/or the JSON body and
-returns (status, json-able value). h3pipe_routes.py is the aiohttp adapter that
-ComfyUI loads. The work itself is the pipeline's (h3edit, h3jobs, h3refs, h3takes);
-this layer checks input, keeps episodes inside the configured roots, turns
-seeds into strings and back, and sends the live-update events.
+returns (status, json-able value). A host mounts them: seriesmith's own server,
+or ComfyUI's (docs/DESIGN.md, "The editor, in two hosts"). The work itself is
+the pipeline's (edit, jobs, refs, takes); this layer checks input, keeps
+episodes inside the configured roots, turns seeds into strings and back, and
+sends the live-update events.
 
-The pipeline modules are found in $H3PIPE_HOME, else in the folder above this
-one (comfy_nodes/ lives in the repo; ComfyUI loads it through a junction, so
-the real path is used). If they can't be imported, IMPORT_ERROR says why and
-the routes are not registered.
+Ported from h3pipe's comfy_nodes/h3pipe_api.py.
 """
 from __future__ import annotations
 
@@ -25,43 +24,21 @@ import threading
 # the pipeline
 # ---------------------------------------------------------------------------
 
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import inspector as IN  # noqa: E402
+from seriesmith import issues as IS  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import promote as P  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import upscale as U  # noqa: E402
+from seriesmith import track as K  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 
-def pipeline_home() -> str:
-    env = os.environ.get("H3PIPE_HOME", "").strip()
-    if env:
-        return os.path.abspath(env)
-    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
-
-HOME = pipeline_home()
+HOME = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+# kept for the hosts' sake: always None now that the pipeline is a package
 IMPORT_ERROR: str | None = None
-try:
-    if HOME not in sys.path:
-        # appended, not prepended: nothing in the repo may shadow ComfyUI's modules
-        sys.path.append(HOME)
-    import importlib.util
-    # `targets` is a generic name: make sure it is the repo's package, not
-    # something else on ComfyUI's path (HOME is appended, so it comes last).
-    _spec = importlib.util.find_spec("targets")
-    if _spec is None or not os.path.normcase(os.path.realpath(_spec.origin or "")).startswith(
-            os.path.normcase(os.path.realpath(os.path.join(HOME, "targets")))):
-        raise ImportError(f"another module called 'targets' shadows the pipeline's "
-                          f"({getattr(_spec, 'origin', None)})")
-    import h3edit as E  # noqa: E402
-    import h3inspect as IN  # noqa: E402
-    import h3issues as IS  # noqa: E402
-    import h3jobs as J  # noqa: E402
-    import h3peaks as PK  # noqa: E402
-    import h3promote as P  # noqa: E402
-    import h3refs as R  # noqa: E402
-    import h3takes as T  # noqa: E402
-    import h3upscale as U  # noqa: E402
-    import h3track as K  # noqa: E402
-    import targets as TG  # noqa: E402
-except Exception as exc:                                  # pragma: no cover
-    E = IN = IS = J = K = P = PK = R = T = TG = None
-    IMPORT_ERROR = (f"h3pipe: can't import the pipeline from {HOME} "
-                    f"({exc.__class__.__name__}: {exc}); set H3PIPE_HOME to the repo")
 
 DEFAULT_COMFY = "http://127.0.0.1:8188"
 CONFIG_VERSION = 1
@@ -1003,7 +980,7 @@ def queue_post(ctx: Context, body):
     override; else `enhance` (a tier, a method, an object or "none") and `blur`
     (0-1). `redo` posts again even if fresh. 409 when this ComfyUI can't, or
     there is no recipe."""
-    import h3post as P
+    from seriesmith import post as P
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"), "final")
@@ -1084,7 +1061,7 @@ def queue_post(ctx: Context, body):
 def post_recipe_view(ep: str) -> dict | None:
     """The episode's post recipe for the dialogs (None: the series config has
     none): its fields and words, each shot's override, what's wrong with it."""
-    import h3post as P
+    from seriesmith import post as P
     r = P.master_recipe(ep)
     if not r:
         return None
@@ -1099,7 +1076,7 @@ def get_post_options(ctx: Context, query: dict):
     """What the Post-process dialog offers: the tiers (what each runs), the
     methods, the blur range, whether this ComfyUI can run each step, and the
     episode's post recipe (`ep`)."""
-    import h3post as P
+    from seriesmith import post as P
     try:
         info = ctx.comfy.object_info()
     except Exception:
@@ -1165,7 +1142,7 @@ def post_master(ctx: Context, body):
     other settings (never a Keep); `prores` adds the ProRes .mov; `post` is the
     dialog's Post-process (the series config's post.master on every shot).
     Every answer carries the plan."""
-    import h3master as M
+    from seriesmith import master as M
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"), "final")
@@ -1311,7 +1288,7 @@ def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dic
 def get_master_job(ctx: Context, query: dict):
     """The episode's master job (master_job): running with its step and counts,
     done with what it made, failed with why; null when there is none."""
-    import h3master as M
+    from seriesmith import master as M
     ep = check_ep(ctx, query.get("ep"))
     return 200, {"job": master_job(M, ep)}
 
@@ -2320,7 +2297,7 @@ def post_refs_tour(ctx: Context, body):
     a background thread waits for each, finds its held frames and adds them as
     the location's `tour` takes, sending `h3pipe.ref` as each lands. Returns
     {"queued": [{tour, comfy_prompt_id}]}."""
-    import h3tour
+    from seriesmith import tour as h3tour
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)
@@ -2352,7 +2329,7 @@ def post_refs_tour(ctx: Context, body):
 def post_refs_tour_frame(ctx: Context, body):
     """P5: any moment of a finished tour's video as a hold: `{ep, ref, tour,
     seconds}` (h3tour.grab_frame). Returns the new take."""
-    import h3tour
+    from seriesmith import tour as h3tour
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     s = _series(ep)

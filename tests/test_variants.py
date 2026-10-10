@@ -24,12 +24,12 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 import random  # noqa: E402
-import h3refs as R  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
 from test_render import png_bytes  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config,  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config,  # noqa: E402
                                   series_config_from, series_info, subject_ids,
                                   variant_of)
-from h3core.story import ScriptError, parse_story  # noqa: E402
+from seriesmith.core.story import ScriptError, parse_story  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 
@@ -306,7 +306,7 @@ class DerivedViewsTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def target(self, tid: str):
-        import targets as TG
+        from seriesmith import targets as TG
         return TG.load_target(tid, "image")
 
     def pick_base_view(self, view: str) -> None:
@@ -407,7 +407,7 @@ class DerivedViewsTest(unittest.TestCase):
         shoulders view was also told to fit the whole figure in frame. A model
         satisfies both by drawing the full figure, which is the un-zoomed
         close-up seen on every image target."""
-        import targets.image.krea2.prompt as KP
+        from seriesmith.targets.image.krea2 import prompt as KP
         face = KP.view_prompt("04_face", "d", "l", 1024, 1024)
         self.assertIn("framed close on the head and shoulders", face)
         self.assertNotIn("the whole figure inside the frame", face)
@@ -421,7 +421,7 @@ class DerivedViewsTest(unittest.TestCase):
     def test_the_cold_path_says_it_too(self):
         """The same contradiction sits in a plain character's back view, with
         no variant involved."""
-        import targets.image.krea2.prompt as KP
+        from seriesmith.targets.image.krea2 import prompt as KP
         back = KP.view_prompt("03_back", "a woman with a pretty face", "a flat cartoon",
                               1024, 1024)
         self.assertIn("the face is NOT visible", back)
@@ -453,8 +453,8 @@ class PromoteTest(unittest.TestCase):
         os.makedirs(self.ep)
         shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
-        import h3edit as E
-        import h3takes as T
+        from seriesmith import edit as E
+        from seriesmith import takes as T
         self.assertTrue(E.build_episode(self.ep)["ok"])
         s = R.load_series(self.ep)
         base = R.find_ref(s, "subject:ada")
@@ -473,7 +473,7 @@ class PromoteTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_the_design_comes_back_out_of_the_edit_prompt(self):
-        import h3promote as P
+        from seriesmith import promote as P
         var = R.find_ref(self.s, "subject:ada_wet")
         old = var.entry["design"]
         new = old.replace("soaked through and clinging", "soaked through and torn at the hem")
@@ -529,8 +529,8 @@ class BuiltShotTest(unittest.TestCase):
                           if v["subject"] == "ada_wet"], ["audio/voices/ada_sample.wav"])
 
     def test_the_word_only_targets_carry_the_variants_design(self):
-        from targets.video.ltx2.prompt import build_prompt as ltx
-        from targets.video.wan.prompt import build_prompt as wan
+        from seriesmith.targets.video.ltx2.prompt import build_prompt as ltx
+        from seriesmith.targets.video.wan.prompt import build_prompt as wan
         for build in (ltx, wan):
             text = build(self.shot, self.seq, self.cfg)
             self.assertIn("soaked through and clinging", text)

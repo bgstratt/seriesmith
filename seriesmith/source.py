@@ -32,9 +32,7 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3edit as E  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
 
 FILES = ("script", "series")
 HISTORY = "_history"
@@ -242,7 +240,7 @@ def _shot_line(text: str, span: tuple[int, int], message: str) -> int:
 def script_spans(text: str, ids: tuple[set, set, dict] | None) -> tuple[dict, dict]:
     """({shot id: (line, end_line)}, {sequence id: line}) from the parser;
     ({}, {}) when the text doesn't parse."""
-    from h3core.story import ScriptError, _parse
+    from seriesmith.core.story import ScriptError, _parse
     if ids is None:
         return {}, {}
     try:
@@ -255,7 +253,7 @@ def script_spans(text: str, ids: tuple[set, set, dict] | None) -> tuple[dict, di
 def _ids(cfg: dict | None) -> tuple[set, set, dict] | None:
     """What the parser needs from a series config: the subject ids, the
     character ids and {variant: base} (`_parse`)."""
-    from h3core.series_config import character_ids, subject_ids, variant_of
+    from seriesmith.core.series_config import character_ids, subject_ids, variant_of
     if cfg is None:
         return None
     return subject_ids(cfg), character_ids(cfg), variant_of(cfg)
@@ -263,7 +261,7 @@ def _ids(cfg: dict | None) -> tuple[set, set, dict] | None:
 
 def _load_cfg(ep: str) -> dict | None:
     """The series config on disk, filtered (None if it doesn't load)."""
-    from h3core.series_config import load_series_config
+    from seriesmith.core.series_config import load_series_config
     p = E.episode_series_config(ep)
     try:
         return load_series_config(p) if p else None
@@ -284,10 +282,10 @@ def check_text(ep: str, file: str, text: str) -> dict:
     beside the other file on disk, writing nothing. A script is parsed against
     the series config and compiled; a series config must be JSON and load,
     then the script on disk is checked with it."""
-    from h3core.series_config import series_config_from
-    from h3core.story import ScriptError, parse_story
-    import h3build as B
-    import targets as TG
+    from seriesmith.core.series_config import series_config_from
+    from seriesmith.core.story import ScriptError, parse_story
+    from seriesmith import build as B
+    from seriesmith import targets as TG
 
     if file not in FILES:
         raise SourceError(400, f"file must be 'script' or 'series', not {file!r}")
@@ -335,7 +333,7 @@ def check_text(ep: str, file: str, text: str) -> dict:
     shots = [{"id": k, "line": a, "end_line": b}
              for k, (a, b) in sorted(spans.items(), key=lambda kv: kv[1][0])]
     try:
-        from h3core.series_config import series_info
+        from seriesmith.core.series_config import series_info
         subjects, chars, variants = _ids(cfg)
         story = parse_story(script_text, subjects, chars, series_info(cfg), variants)
     except ScriptError as e:
@@ -505,7 +503,7 @@ def save_source(ep: str, file: str, text: str, base_hash: str | None) -> dict:
 # a new episode
 # ---------------------------------------------------------------------------
 
-STARTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "examples", "starter")
+STARTER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "starter")
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 SEP_RE = re.compile(r"[\\/]+")          # a config's paths may use either separator
 # An episode named like one of these would be walked past by find_episodes (or,

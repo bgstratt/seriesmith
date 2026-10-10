@@ -26,16 +26,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3edit as E  # noqa: E402
-import h3peaks as PK  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase9b import steps_wav  # noqa: E402
 
-ASSEMBLE = os.path.join(ROOT, "h3assemble.py")
+ASSEMBLE = ["-m", "seriesmith.assemble"]
 HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 FPS = 24
 
@@ -415,7 +414,7 @@ class CliTest(Base):
 
     def test_through_h3(self):
         self.sounding_take("sh020")
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "cut", self.ep,
+        r = subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "cut", self.ep,
                             "--proxy", "--audio", "sh010", "take", "sh020:1"],
                            capture_output=True, text=True, timeout=180,
                            env=dict(os.environ, PYTHONIOENCODING="utf-8"))
@@ -537,7 +536,7 @@ class AssembleAudioTest(unittest.TestCase):
                                "proxy" if pass_ == "final" else "final": []})
 
     def assemble(self, *args: str, ok: bool = True) -> subprocess.CompletedProcess:
-        r = subprocess.run([sys.executable, ASSEMBLE, "-o", self.root, *args],
+        r = subprocess.run([sys.executable, *ASSEMBLE, "-o", self.root, *args],
                            capture_output=True, text=True, encoding="utf-8", timeout=600)
         if ok:
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

@@ -72,13 +72,11 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-from h3core import framing  # noqa: E402
-from h3core import series_config as SC  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith.core import framing  # noqa: E402
+from seriesmith.core import series_config as SC  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # wording and the image model: the krea2 image target (targets/image/krea2)
@@ -89,16 +87,16 @@ from h3core import series_config as SC  # noqa: E402
 # graph.py. They are re-exported here under their old names (kreagen and the
 # tests read them from h3refs).
 
-import targets as TG  # noqa: E402
-from targets import voice_prompt  # noqa: E402,F401
-from targets.image.krea2.graph import (  # noqa: E402,F401
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.targets import voice_prompt  # noqa: E402,F401
+from seriesmith.targets.image.krea2.graph import (  # noqa: E402,F401
     CFG, CLIP, CLIPTYPE, LORA, LORA_C, LORA_M, OBJECT_SIZE, PLATE_SIZE, PREFIX,
     REFS_WORKFLOW, SAMPLER, SAVER, SCHED, STEPS, UNET, VAE, VIEW_SIZE, _one, _splice_lora,
     build_graph, patch_workflow, take_graph)
-from targets.image.krea2.prompt import (  # noqa: E402,F401
+from seriesmith.targets.image.krea2.prompt import (  # noqa: E402,F401
     VIEW_DESC, VIEW_TAGS, VIEW_TMPL, VIEWS, angle_prompt, group_prompt, object_prompt,
     plate_prompt, sheet_prompt, view_edit_prompt, view_prompt)
-from h3core.series_config import members  # noqa: E402
+from seriesmith.core.series_config import members  # noqa: E402
 
 IMAGE_TARGET = TG.load_target(TG.DEFAULT_IMAGE_TARGET, "image")
 NEW_SEED_BITS = 53         # as h3jobs: a browser can hold these as numbers
@@ -158,7 +156,7 @@ class Series:
 def load_series(ep: str) -> Series:
     """The episode's series config, filtered as h3build reads it. FileNotFoundError if
     there is none; ValueError if it can't be read."""
-    from h3core.series_config import load_series_config
+    from seriesmith.core.series_config import load_series_config
     ep = os.path.abspath(ep)
     path = episode_series_config(ep)
     if not path:
@@ -349,7 +347,7 @@ def episode_story(ep: str):
     if key in _STORY:
         return _STORY[key]
     try:
-        from h3core import ir
+        from seriesmith.core import ir
         with open(path, encoding="utf-8") as fh:
             story = ir.Episode.loads(fh.read())
     except (OSError, ValueError, KeyError):
@@ -779,7 +777,7 @@ def keyframe_prompt(s: Series, ref: Ref, target=None, refs: list[dict] | None = 
         refs = reference_images(s, sh, sq, target)
     fn = getattr(target.module, "keyframe_prompt", None)
     if fn is None:
-        from targets.image.common import keyframe_prompt as fn
+        from seriesmith.targets.image.common import keyframe_prompt as fn
     return fn(sh, sq, s.series_cfg, which, refs, target.recipe.get("ref_word") or "image")
 
 
@@ -1362,8 +1360,8 @@ def set_voice_sample(s: Series, subject: str, rel: str) -> bool:
     or names no such subject."""
     import json
 
-    import h3promote as P
-    import h3source as H
+    from seriesmith import promote as P
+    from seriesmith import source as H
     try:
         src = H.read_source(s.ep, "series")
     except H.SourceError as e:
@@ -1686,7 +1684,7 @@ def voice_from_take(s: Series, ref: Ref, shot: str, take: int, pass_: str = "pro
     src = T.get_take(s.ep, pass_, shot, take)
     if src is None:
         raise UnknownRef(f"{shot} has no {pass_} take {take}")
-    import h3peaks
+    from seriesmith import peaks as h3peaks
     sound = h3peaks.clip_audio(src.paths.mp4, src.paths.h3_wav)
     if not sound:
         raise NotUsable(f"{shot} {pass_} t{take:02d} has no sound to take a voice from")
@@ -2595,7 +2593,7 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
     its size, on the target's grid and above its minimum (scaled_size). Every
     candidate gets a new seed unless one is typed. The ref's overrides are
     for generating it from its description, so an edit doesn't read them."""
-    from targets.image.common import edit_prompt
+    from seriesmith.targets.image.common import edit_prompt
     e = req.edit
     if not isinstance(e, dict):
         raise RefError('edit must be an object: {"take": n or null, "with": [...]}')
@@ -2739,7 +2737,7 @@ KLEIN_PANO_FOV = 70.0
 KLEIN_PANO_PROMPT = ("Fill the green spaces according to the image. Outpaint as a seamless 360 "
                      "equirectangular panorama (2:1). Keep the horizon level. Match left and "
                      "right edges.")
-ERP_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "comfy_nodes", "h3_erp.py")
+ERP_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "erp.py")
 PANO_ENGINES = ("qwen", "klein")
 
 
@@ -3075,7 +3073,7 @@ def compose_composite(s: Series, job: GenJob) -> None:
     falls back to the first part alone (the first character, else the plate),
     its prompt is rewritten for that one reference (unless overridden) and a
     note says so."""
-    from targets.video.ltx2_ingredients import sheet as SH
+    from seriesmith.targets.video.ltx2_ingredients import sheet as SH
     comp = job.references[0]
     parts = comp.get("parts") or []
     figures = [p for p in parts if p.get("role") != "plate"]
@@ -3131,7 +3129,7 @@ def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
     for r in job.references:
         path = r["path"]
         if r.get("crop"):
-            from targets.video.ltx2_ingredients import sheet as SH
+            from seriesmith.targets.video.ltx2_ingredients import sheet as SH
             d = takes_dir(job.ref)
             os.makedirs(d, exist_ok=True)
             tmp = os.path.join(d, f".tmp_ref_{uuid.uuid4().hex}.png")
@@ -3860,7 +3858,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
             # P5: its 360 panoramas (PANO_VIEW), apart from the plate's candidates
             out["panos"] = [take_json(s.ep, ref, t) for t in list_takes(ref, PANO_VIEW)]
             # ...and its camera tours (h3tour.py): each run, and their held frames
-            import h3tour
+            from seriesmith import tour as h3tour
             out["tours"] = [{k: d.get(k) for k in ("tour", "status", "move", "seconds", "seed",
                                                    "holds", "error", "queued", "finished",
                                                    "video")}

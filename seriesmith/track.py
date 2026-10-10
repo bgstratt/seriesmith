@@ -33,14 +33,12 @@ import tempfile
 import threading
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import h3edit as E  # noqa: E402
-import h3source as H  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import source as H  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ALIGN_SCRIPT = os.path.join(HERE, "h3align.py")
+ALIGN_SCRIPT = os.path.join(HERE, "align.py")
 AUDIO_DIR = "audio"
 AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus")
 DEFAULT_MODEL = "medium.en"
@@ -463,7 +461,7 @@ def align(ep: str, track: str | None = None, model: str | None = None, snap: boo
             args.append("--dry-run")
         if words:
             args += ["--words", words]
-        cmd = [py, "-c", E.RUN_SCRIPT, ALIGN_SCRIPT, *args]
+        cmd = E.tool_cmd(ALIGN_SCRIPT, args, py)
         rc, log = _stream(cmd, ep, timeout, progress)
         if rc != 0 or not os.path.isfile(out):
             raise TrackError(500, why(log, rc), log=log)

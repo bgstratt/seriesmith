@@ -17,7 +17,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-import h3assemble as A  # noqa: E402
+from seriesmith import assemble as A  # noqa: E402
 
 HAVE_FF = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
 W, H = 256, 144

@@ -19,10 +19,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
 from test_ltx import build_mixed  # noqa: E402
 from test_render import ENV  # noqa: E402
 
@@ -346,7 +346,7 @@ class KeyframeTest(unittest.TestCase):
     # -- the CLI -------------------------------------------------------------
 
     def cli(self, *args):
-        return subprocess.run([sys.executable, os.path.join(ROOT, "h3.py"), "keyframe",
+        return subprocess.run([sys.executable, "-m", "seriesmith.h3cli", "keyframe",
                                self.root, *args], capture_output=True, text=True, env=ENV)
 
     def test_cli(self):

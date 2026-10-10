@@ -29,10 +29,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core import ir  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import ir  # noqa: E402
 from test_ltx_ingredients import kitchen_sink  # noqa: E402
 from test_render import FIXTURE, FakeComfy, build_episode  # noqa: E402
 
@@ -187,7 +187,7 @@ class TargetTest(unittest.TestCase):
 
 class PromptTest(unittest.TestCase):
     def setUp(self):
-        from targets.video.minimax_h3_fl2va import prompt as P
+        from seriesmith.targets.video.minimax_h3_fl2va import prompt as P
         self.P = P
         self.cfg, self.story = kitchen_sink()
 
@@ -263,7 +263,7 @@ class RenderTest(unittest.TestCase):
         os.makedirs(cls.src)
         build_episode(cls.src, refs=False)
         shutil.copy(os.path.join(FIXTURE, "series.json"), cls.src)
-        cls.base = J.load_graph(os.path.join(ROOT, "targets", "video", FL, "workflow.json"))
+        cls.base = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", FL, "workflow.json"))
 
     @classmethod
     def tearDownClass(cls):

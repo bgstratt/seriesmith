@@ -28,14 +28,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3align  # noqa: E402
-import h3build  # noqa: E402
-import h3edit as E  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3source as H  # noqa: E402
-import h3takes as T  # noqa: E402
-import h3track as K  # noqa: E402
+from seriesmith import align as h3align  # noqa: E402
+from seriesmith import build as h3build  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import source as H  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import track as K  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
@@ -448,9 +447,11 @@ class AlignArgsTest(ApiTest):
                                             "model": "tiny.en", "snap": False,
                                             "dry_run": True}))
         cmd = seen["cmd"]
-        self.assertEqual(cmd[0], sys.executable)
-        self.assertEqual(cmd[3], K.ALIGN_SCRIPT)
-        self.assertEqual(cmd[4:6], [self.ep, rec])
+        # the Python that has a Whisper (here: maybe not the one running the tests)
+        self.assertEqual(cmd[0], K.align_python())
+        # seriesmith.align, run as a module of the package (edit.tool_cmd)
+        self.assertEqual(cmd[3:5], [E.PACKAGE_PARENT, "seriesmith.align"])
+        self.assertEqual(cmd[5:7], [self.ep, rec])
         self.assertIn("--progress", cmd)
         self.assertIn("--dry-run", cmd)
         self.assertIn("--no-snap", cmd)

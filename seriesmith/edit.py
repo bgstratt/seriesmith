@@ -76,10 +76,10 @@ import re
 import subprocess
 import sys
 
-import h3jobs as J
-import h3peaks
-import h3takes as T
-import h3upscale as U
+from seriesmith import jobs as J
+from seriesmith import peaks as h3peaks
+from seriesmith import takes as T
+from seriesmith import upscale as U
 
 
 # ---------------------------------------------------------------------------
@@ -622,7 +622,7 @@ def refs_used(root: str, job: J.Job) -> list[dict]:
     cfg = J.series_config(root) or {}
     # a variant (`of:`) shares the subject's voice, and so its voice ref: there
     # is no voice:<variant> to point at (h3refs.series_refs)
-    from h3core.series_config import variant_of
+    from seriesmith.core.series_config import variant_of
     variants = variant_of(cfg)
     plates = {}
     home = next((d for d in (root, os.path.dirname(os.path.normpath(root)))
@@ -848,7 +848,7 @@ def write_cut(root: str, pass_: str, entries: list[dict]) -> dict:
     The file as it was goes to <ep>/_history/cut.json.<stamp> first (the
     newest h3source.HISTORY_KEEP are kept); an edit that changes nothing
     writes nothing."""
-    import h3source                        # it imports this module: not at the top
+    from seriesmith import source as h3source                        # it imports this module: not at the top
     cut = T.load_cut(root)
     new = copy.deepcopy(cut)
     new[pass_] = [dict(e) for e in entries]
@@ -870,7 +870,7 @@ def write_cut(root: str, pass_: str, entries: list[dict]) -> dict:
 def pass_fps(root: str, pass_: str) -> float:
     """The frame rate a pass's cut (and its trims) counts in: assemble's (the
     series config's `series.fps`, else that pass's shotlist's, else 24)."""
-    import h3assemble
+    from seriesmith import assemble as h3assemble
     try:
         doc = J.load_shotlist(root, pass_)
     except FileNotFoundError:
@@ -1875,7 +1875,7 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
     it could not work out, and with --save write it into the show's own
     targets."""
     import json as _json
-    import h3inspect as IN
+    from seriesmith import inspector as IN
     ap = argparse.ArgumentParser(prog="h3.py target-from-workflow",
                                  description="Turn a ComfyUI workflow into a target.")
     ap.add_argument("workflow", help="a name among ComfyUI's saved workflows, or a .json path")
@@ -2015,6 +2015,31 @@ RUN_SCRIPT = ("import os, runpy, sys; s = sys.argv[1]; sys.argv = sys.argv[1:]; 
               "sys.path.insert(0, os.path.dirname(os.path.abspath(s))); "
               "runpy.run_path(s, run_name='__main__')")
 
+# The same for one of seriesmith's own modules: the folder holding the
+# package goes on sys.path, then the module runs as `python -m` would run it.
+RUN_MODULE = ("import runpy, sys; sys.path.insert(0, sys.argv[1]); m = sys.argv[2]; "
+              "sys.argv = [m] + sys.argv[3:]; runpy.run_module(m, run_name='__main__', "
+              "alter_sys=True)")
+PACKAGE_PARENT = os.path.dirname(HERE)
+
+# h3pipe's script names, as callers still pass them -> seriesmith's modules
+TOOLS = {"h3build.py": "seriesmith.build", "h3assemble.py": "seriesmith.assemble",
+         "h3publish.py": "seriesmith.publish", "h3align.py": "seriesmith.align",
+         "kreagen.py": "seriesmith.kreagen", "mksheet.py": "seriesmith.mksheet"}
+
+
+def tool_cmd(script: str, args: list[str], python: str | None = None) -> list[str]:
+    """The command that runs a pipeline tool: one of TOOLS (named, or a path
+    to the package's own copy) as its module, else a script file by path."""
+    py = python or sys.executable
+    name = os.path.basename(script)
+    ours = not os.path.isabs(script) or os.path.dirname(os.path.abspath(script)) == HERE
+    if ours and name in TOOLS:
+        return [py, "-c", RUN_MODULE, PACKAGE_PARENT, TOOLS[name], *args]
+    if ours and name.endswith(".py") and os.path.isfile(os.path.join(HERE, name)):
+        return [py, "-c", RUN_MODULE, PACKAGE_PARENT, "seriesmith." + name[:-3], *args]
+    return [py, "-c", RUN_SCRIPT, os.path.join(HERE, script), *args]
+
 
 # A progress line a script prints for whoever runs it: `##<tool> {json}`
 # (h3assemble, h3publish; h3align has its own reader in h3track).
@@ -2035,11 +2060,10 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
     into stdout."""
     env = dict(os.environ, **TOOL_ENV)
     if progress is not None:
-        return _stream_tool([sys.executable, "-c", RUN_SCRIPT, os.path.join(HERE, script), *args],
-                            script, cwd, env, timeout, progress)
+        return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout, progress)
     try:
-        r = subprocess.run([sys.executable, "-c", RUN_SCRIPT, os.path.join(HERE, script), *args],
-                           capture_output=True, cwd=cwd, env=env, timeout=timeout)
+        r = subprocess.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
+                           timeout=timeout)
     except subprocess.TimeoutExpired:
         return 1, "", f"{script} took longer than {timeout}s and was stopped"
     out, err = (b.decode("utf-8", "replace").replace("\r\n", "\n")
@@ -2650,7 +2674,7 @@ def cmd_keyframe(root: str, argv: list[str]) -> int:
     pk.add_argument("--no-pick", action="store_true", help="only add it as a take")
     ap.add_argument("--note", default="")
     args = ap.parse_args(argv)
-    import h3refs as R                                   # h3refs imports this module
+    from seriesmith import refs as R                                   # h3refs imports this module
     pass_ = _pass(args)
     which = "last" if args.last else "first"
     if not args.shot and not args.missing:

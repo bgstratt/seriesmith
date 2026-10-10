@@ -30,12 +30,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core import ir  # noqa: E402
-from h3core.story import ScriptError, parse_script, parse_story  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import ir  # noqa: E402
+from seriesmith.core.story import ScriptError, parse_script, parse_story  # noqa: E402
 from test_render import ENV, FakeComfy, stub_refs  # noqa: E402
 
 WF = os.path.join(HERE, "fixtures", "workflows")
@@ -97,7 +97,7 @@ def build(root: str) -> list[str]:
         fh.write(SCRIPT)
     out = []
     for flags in ([], ["--proxy"]):
-        args = [sys.executable, os.path.join(ROOT, "h3build.py"),
+        args = [sys.executable, "-m", "seriesmith.build",
                 os.path.join(root, "series.json"), os.path.join(root, "dm01.md"), "-o", root]
         r = subprocess.run(args + flags, capture_output=True, env=ENV, text=True,
                            encoding="utf-8")
@@ -234,7 +234,7 @@ class BuildTest(unittest.TestCase):
                       " ".join(job.notes))
 
     def test_pacing_measures_the_estimate(self):
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3build.py"),
+        r = subprocess.run([sys.executable, "-m", "seriesmith.build",
                             os.path.join(self.src, "series.json"),
                             os.path.join(self.src, "dm01.md"), "--pace"],
                            capture_output=True, env=ENV, text=True, encoding="utf-8")
@@ -262,7 +262,7 @@ class QueueTest(unittest.TestCase):
         self._t = tempfile.TemporaryDirectory()
         self.root = os.path.join(self._t.name, "dm01")
         shutil.copytree(self.src, self.root)
-        self.base = J.load_graph(os.path.join(ROOT, "targets", "video", LTX, "workflow.json"))
+        self.base = J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", LTX, "workflow.json"))
         self.comfy = FakeComfy()
 
     def tearDown(self):

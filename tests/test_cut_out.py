@@ -18,10 +18,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from test_phase9b import Base  # noqa: E402  (first: it sets the import paths)
-import h3edit as E  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3takes as T  # noqa: E402
-import h3upscale as U  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import upscale as U  # noqa: E402
 
 
 class CutOutTest(Base):

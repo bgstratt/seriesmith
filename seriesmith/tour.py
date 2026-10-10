@@ -34,13 +34,13 @@ import subprocess
 import sys
 import zlib
 
-import h3jobs as J
-import h3refs as R
-import h3takes as T
+from seriesmith import jobs as J
+from seriesmith import refs as R
+from seriesmith import takes as T
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WORKFLOW = os.path.join(ROOT, "workflows", "h3_tour.json")
-HELPER = os.path.join(ROOT, "comfy_nodes", "h3_stills.py")
+HELPER = os.path.join(ROOT, "helpers", "stills.py")
 TOURS = "_tours"                    # refs/_takes/<key>/_tours/tour_tNN.{json,mp4}, holds/
 SECONDS = (2.0, 10.0)
 DEFAULT_SECONDS = 6.0

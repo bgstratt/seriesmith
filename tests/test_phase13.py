@@ -23,16 +23,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3build  # noqa: E402
-import h3upscale as U  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config, series_info,  # noqa: E402
+from seriesmith import build as h3build  # noqa: E402
+from seriesmith import upscale as U  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config, series_info,  # noqa: E402
                                   subject_ids, variant_of)
-from h3core.story import parse_story  # noqa: E402
+from seriesmith.core.story import parse_story  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
 KITCHEN = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -120,7 +119,7 @@ class LatentRouteTest(ApiTest):
         self.assertTrue(any("no latent is kept" in n for n in sc.get("notes", [])), sc)
 
 
-WORKFLOW = os.path.join(ROOT, "targets", "video", "minimax_h3_ref2va", "workflow.json")
+WORKFLOW = os.path.join(ROOT, "seriesmith", "targets", "video", "minimax_h3_ref2va", "workflow.json")
 
 
 UPSCALER = {"input": {"required": {
@@ -305,7 +304,7 @@ class UpscaleRouteTest(UpscaleTest):
         self.err(A.delete_upscale(self.ctx, {"ep": self.ep, "shot": "sh010", "take": "1"}), 404)
 
     def test_readiness_says_whether_it_can_upscale(self):
-        import h3edit as E
+        from seriesmith import edit as E
         t = TG.load_target("minimax_h3_ref2va", "video")
         info = {c: {"input": {}} for c in U.UPSCALE_NODES}
         info["MinimaxH3LatentUpscaler3D"] = UPSCALER
@@ -324,7 +323,7 @@ class UpscaleRouteTest(UpscaleTest):
 
 class LtxUpscaleTest(UpscaleTest):
     """13d: LTX-2.5's upscale is its own second stage run again on the take."""
-    LTX_WORKFLOW = os.path.join(ROOT, "targets", "video", "ltx2", "workflow.json")
+    LTX_WORKFLOW = os.path.join(ROOT, "seriesmith", "targets", "video", "ltx2", "workflow.json")
 
     def ltx_take(self, latent=True) -> T.Take:
         self.ok(A.post_render(self.ctx, {"ep": self.ep, "pass": "final", "shots": ["sh010"],
@@ -490,10 +489,8 @@ class PixelUpscaleTest(UpscaleRouteTest):
         for bad in ("huge", "1921x1080", "10x10"):
             with self.assertRaises(U.UpscaleError):
                 U.parse_deliver(bad)
-        import h3_upscale as UN                      # the node's copy agrees
-        for case in ((1344, 768, 3840, 2160, "crop"), (960, 544, 1920, 1080, "pad"),
-                     (1024, 576, 3840, 2160, "crop"), (832, 480, 2560, 1440, "pad")):
-            self.assertEqual(U.fit_size(*case), UN.fit_size(*case))
+        # h3pipe also checked its upscale node's own copy of fit_size here; that
+        # node stays in h3pipe until the upscale stage is made portable
         t = self.final_take()
         T.update_sidecar(t.paths.sidecar, width=1344, height=768)
         t = T.get_take(self.ep, "final", "sh010", 1)

@@ -96,13 +96,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES = ("align", "build", "check", "refs", "render", "assemble", "all")
 EDIT = ("takes", "pick", "override", "keyframe", "discard", "cut")   # in-process, see h3edit.py
 # `targets` (readiness) runs in-process too, with the episode optional
-
-
-def script(name: str) -> str:
-    p = os.path.join(HERE, name)
-    if not os.path.isfile(p):
-        sys.exit(f"  !! {name} not found beside h3.py ({HERE})")
-    return p
+# the commands main() handles itself, before the stages
+OTHER = ("new", "issues", "supply", "upscale", "post", "master", "publish", "targets",
+         "target-from-workflow", "promote")
 
 
 def episode_files(ep: str) -> tuple[str, str]:
@@ -131,23 +127,23 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
     proxy = "--proxy" in extra
     if name in ("build", "check"):
         series_cfg, md = episode_files(ep)
-        base = [py, script("h3build.py"), series_cfg, md]
+        base = [py, "-m", "seriesmith.build", series_cfg, md]
         if name == "check":
             return run(base + ["--check"]) or run(base + ["--pace"])
         rest = [a for a in extra if a != "--proxy"]
         return run(base + ["-o", ep] + rest) or run(base + ["-o", ep, "--proxy"] + rest)
     if name == "align":
-        return run([py, script("h3align.py"), ep] + extra)
+        return run([py, "-m", "seriesmith.align", ep] + extra)
     if name == "refs":
-        return run([py, script("kreagen.py"), "--project-root", ep] + extra)
+        return run([py, "-m", "seriesmith.kreagen", "--project-root", ep] + extra)
     if name == "render":
-        return run([py, script("h3render.py"), ep] + extra)
+        return run([py, "-m", "seriesmith.render", ep] + extra)
     if name == "assemble":
         rest = [a for a in extra if a != "--proxy"]
         if proxy:
             rest = ["--shotlist", "shotlist/shotlist_proxy.json",
                     "--subfolder", "renders_proxy"] + rest
-        return run([py, script("h3assemble.py"), "-o", ep] + rest)
+        return run([py, "-m", "seriesmith.assemble", "-o", ep] + rest)
     if name == "all":
         # refs and build take no render flags; keep only --proxy for them
         steps = [("build", []), ("refs", []), ("build", []),
@@ -191,28 +187,28 @@ def main() -> int:
         # the folder is the show's, its last part the new episode's name; the
         # template is the newest episode already there, else examples/starter
         sys.path.insert(0, HERE)
-        import h3source
+        from seriesmith import source as h3source
         return h3source.cmd_new(argv[1:])
     if argv and argv[0] == "issues":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py issues <episode> [--proxy] "
                      "[--add <shot> <note> | --export | --clear | --resolve <id>]")
         sys.path.insert(0, HERE)
-        import h3issues
+        from seriesmith import issues as h3issues
         return h3issues.cmd_issues(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] == "supply":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py supply <episode> <file-or-folder>... "
                      "[--ref id[:view]] [--no-pick] [--dry-run]")
         sys.path.insert(0, HERE)
-        import h3refs
+        from seriesmith import refs as h3refs
         return h3refs.cmd_supply(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] == "upscale":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py upscale <episode> [--only sh020,...] [--take N] "
                      "[--start-step N] [--vae] [--redo] [--check] [--prune-latents]")
         sys.path.insert(0, HERE)
-        import h3upscale
+        from seriesmith import upscale as h3upscale
         return h3upscale.main(argv[1:])
     if argv and argv[0] == "post":
         if len(argv) < 2 or argv[1].startswith("-"):
@@ -220,46 +216,46 @@ def main() -> int:
                      "[--enhance draft|production|cinematic|pixel|seedvr2|supir|none] "
                      "[--strength 0.2] [--blur 0.25] [--recipe] [--redo] [--check]")
         sys.path.insert(0, HERE)
-        import h3post
+        from seriesmith import post as h3post
         return h3post.main(argv[1:])
     if argv and argv[0] == "master":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py master <episode> [<episode> ...] [--check] [--wait] "
                      "[--conform] [--allow-gaps] [--prores]")
         sys.path.insert(0, HERE)
-        import h3master
+        from seriesmith import master as h3master
         return h3master.main(argv[1:])
     if argv and argv[0] == "publish":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py publish <episode> [--proxy] [--input FILE] "
                      "[--out FILE] [--quality review|master] [--check]")
         sys.path.insert(0, HERE)
-        import h3publish
+        from seriesmith import publish as h3publish
         return h3publish.main(argv[1:])
     if argv and argv[0] == "targets":
         # the episode is optional: it adds its series config (pass blocks,
         # model_families) and marks its target
         sys.path.insert(0, HERE)
-        import h3edit
+        from seriesmith import edit as h3edit
         rest = argv[1:]
         ep = os.path.abspath(rest.pop(0)) if rest and not rest[0].startswith("-") else None
         return h3edit.cmd_targets(ep, rest)
     if argv and argv[0] == "target-from-workflow":
         sys.path.insert(0, HERE)
-        import h3edit
+        from seriesmith import edit as h3edit
         return h3edit.cmd_target_from_workflow(argv[1:])
     if argv and argv[0] == "promote":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: python h3.py promote <episode> [<shot>] [--all | --item ID ...] "
                      "[--dry-run]")
         sys.path.insert(0, HERE)
-        import h3promote
+        from seriesmith import promote as h3promote
         return h3promote.cmd_promote(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] in EDIT:
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit(f"  !! usage: python h3.py {argv[0]} <episode> ...")
         sys.path.insert(0, HERE)
-        import h3edit
+        from seriesmith import edit as h3edit
         return h3edit.COMMANDS[argv[0]](os.path.abspath(argv[1]), argv[2:])
     if not argv or argv[0] in ("-h", "--help") or argv[0] not in STAGES:
         print(__doc__)

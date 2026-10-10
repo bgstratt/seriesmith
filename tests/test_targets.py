@@ -16,16 +16,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3build  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3refs as R  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config,  # noqa: E402
+from seriesmith import build as h3build  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config,  # noqa: E402
                                   series_info, subject_ids, variant_of)
-from h3core.story import parse_story  # noqa: E402
+from seriesmith.core.story import parse_story  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_render import FIXTURE, build_episode  # noqa: E402
 
@@ -45,6 +44,7 @@ class LoadingTest(unittest.TestCase):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
         self.assertEqual(ids, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"),
                                ("video", "minimax_h3_fl2va"), ("video", "wan22_i2v"),
+                               ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
                                ("image", "flux2_klein_edit"), ("image", "flux_kontext"),
@@ -52,8 +52,8 @@ class LoadingTest(unittest.TestCase):
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video")],
-                         ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "wan22_i2v",
-                          "wan22_ti2v", "wan22_vace"])
+                         ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "seedance_2_5",
+                          "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
         with self.assertRaises(TG.TargetError) as cm:
             TG.load_target("ltx_2_3", "video")
@@ -181,7 +181,7 @@ class ProfileTest(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             TG.episode_target(story, series_cfg)
         self.assertIn("not a video target (known: ltx2, ltx2_ingredients, minimax_h3_fl2va, "
-                      "minimax_h3_ref2va, wan22_i2v, wan22_ti2v, wan22_vace)",
+                      "minimax_h3_ref2va, seedance_2_5, wan22_i2v, wan22_ti2v, wan22_vace)",
                       str(cm.exception))
         # sh320 names the series target itself, which beats its profile's; sh330
         # takes the profile's
@@ -409,7 +409,7 @@ class TargetsRouteTest(ApiTest):
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
-                                   "klein_erp_360", "ltx2_voice"})
+                                   "klein_erp_360", "ltx2_voice", "seedance_2_5"})
         for tid, label, short in (("wan22_i2v", "Wan 2.2 14B I2V", "Wan I2V"),
                                   ("wan22_ti2v", "Wan 2.2 5B TI2V", "Wan 5B"),
                                   ("wan22_vace", "Wan 2.2 14B VACE (refs)", "Wan+refs")):
@@ -468,6 +468,11 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual([t["id"] for t in images],
                          ["flux2_klein", "flux2_klein_edit", "flux_kontext", "klein_erp_360", "krea2",
                           "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio", "z_image_turbo"])
+        # seriesmith's fields (where a job runs, whether it repeats) are the same
+        # for every workflow target (test_capabilities); h3pipe's are compared here
+        for t in images:
+            self.assertEqual((t["capabilities"].pop("backends"), t["capabilities"].pop("reproducible")),
+                             (["local", "deployment"], True), t["id"])
         caps = {t["id"]: t["capabilities"] for t in images}
         self.assertEqual(caps["krea2"], {"mode": "t2i", "max_refs": 0, "negative_prompt": False})
         self.assertEqual(caps["flux2_klein_edit"],

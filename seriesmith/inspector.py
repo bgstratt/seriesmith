@@ -43,8 +43,8 @@ import json
 import os
 import re
 
-import h3jobs as J
-import targets as TG
+from seriesmith import jobs as J
+from seriesmith import targets as TG
 
 KIND = "video"                       # the only kind this proposes, for now
 CORE_MODULES = ("nodes", "comfy_extras.", "comfy_api_nodes.")

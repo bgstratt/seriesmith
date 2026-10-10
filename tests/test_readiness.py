@@ -36,12 +36,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(ROOT, "comfy_nodes"))
-import h3pipe_api as A  # noqa: E402
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_modelid import krea_tensors, ltx_tensors, wan14_tensors, write_st  # noqa: E402
 from test_render import WORKFLOW  # noqa: E402
@@ -583,7 +582,7 @@ class LoraSpecTest(unittest.TestCase):
     """
 
     def test_every_target_can_take_a_lora(self):
-        import h3jobs as J
+        from seriesmith import jobs as J
         for t in TG.list_targets():
             # audio targets take no LoRA; krea2 splices its own (LoraLoader, model
             # and clip) in targets/image/krea2/graph.py rather than through
@@ -614,6 +613,9 @@ class DownloadsDataTest(unittest.TestCase):
     def test_every_named_file_has_a_download_entry(self):
         for t in TG.list_targets():
             named = t.named_files()
+            if t.spec.get("router"):                  # a hosted model names no files
+                self.assertEqual((named, t.downloads), ({}, {}), t.id)
+                continue
             self.assertTrue(named, t.id)
             self.assertEqual(set(named) - set(t.downloads), set(), t.id)
             for name, d in t.downloads.items():

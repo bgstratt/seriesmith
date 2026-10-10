@@ -35,11 +35,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-import h3edit as E  # noqa: E402
-import h3jobs as J  # noqa: E402
-import h3takes as T  # noqa: E402
-import targets as TG  # noqa: E402
-from targets.video.wan import prompt as WP  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import targets as TG  # noqa: E402
+from seriesmith.targets.video.wan import prompt as WP  # noqa: E402
 from test_ltx_ingredients import kitchen_sink  # noqa: E402
 from test_render import FIXTURE, FakeComfy, build_episode  # noqa: E402
 
@@ -247,7 +247,7 @@ class PromptTest(unittest.TestCase):
                              {k: v["prompt"] for k, v in self.shots.items()})
 
     def test_voiceover_keeps_lips_closed(self):
-        from h3core.ir import Line, Shot
+        from seriesmith.core.ir import Line, Shot
         shot = Shot(id="x", cast=["ada"], dialogue=[
             Line(speaker="ada", line="I knew.", mode="vo"),
             Line(speaker="bo", line="Hey!", mode="os"),
@@ -272,7 +272,7 @@ class RenderTest(unittest.TestCase):
         os.makedirs(cls.src)
         build_episode(cls.src, refs=False)
         shutil.copy(os.path.join(FIXTURE, "series.json"), cls.src)
-        cls.base = {tid: J.load_graph(os.path.join(ROOT, "targets", "video", tid, "workflow.json"))
+        cls.base = {tid: J.load_graph(os.path.join(ROOT, "seriesmith", "targets", "video", tid, "workflow.json"))
                     for tid in WAN}
 
     @classmethod
@@ -644,7 +644,7 @@ class AssembleFpsTest(unittest.TestCase):
         T.update_sidecar(t.paths.sidecar, status="ok", frames=frames)
 
     def assemble(self):
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "h3assemble.py"), "-o", self.root],
+        r = subprocess.run([sys.executable, "-m", "seriesmith.assemble", "-o", self.root],
                            capture_output=True, text=True, encoding="utf-8", timeout=300)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         return r.stdout

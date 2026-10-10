@@ -17,13 +17,11 @@ from unittest import mock
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), "comfy_nodes"))
-
-import h3jobs as J  # noqa: E402
-import h3master as M  # noqa: E402
-import h3pipe_api as A  # noqa: E402
-import h3takes as T  # noqa: E402
-import h3upscale as U  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import master as M  # noqa: E402
+from seriesmith import api as A  # noqa: E402
+from seriesmith import takes as T  # noqa: E402
+from seriesmith import upscale as U  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase13 import UPSCALER  # noqa: E402
 
@@ -148,7 +146,7 @@ class MasterTest(ApiTest):
                 fh.write("#\n")
             return 0, f"  -> renders/{name}.mp4\n", ""
 
-        import h3edit
+        from seriesmith import edit as h3edit
         with mock.patch.object(h3edit, "run_tool", fake_tool):
             res = M.assemble_master(plan, allow_gaps=True)
         self.assertTrue(res["ok"], res)
@@ -253,7 +251,7 @@ class MasterTest(ApiTest):
         with self.assertRaises(M.MasterBusy):
             M.prores_only(self.ep)
         M.release_lock(lock)
-        with mock.patch("h3assemble.prores_from", side_effect=prores):
+        with mock.patch("seriesmith.assemble.prores_from", side_effect=prores):
             res = self.ok(A.post_master(self.ctx, {"ep": self.ep, "action": "prores"}))
         # the master's own .mp4 into a .mov beside it, nothing assembled
         self.assertEqual(made, [(mp4, mp4[:-4] + ".mov")])
@@ -287,7 +285,7 @@ class MasterTest(ApiTest):
             open(os.path.join(titles, f), "wb").close()
 
     def test_progress_and_how_the_picture_went_in(self):
-        import h3edit
+        from seriesmith import edit as h3edit
         plan, name = self.ready_plan()
         self.make_titles()
         heard = []
@@ -312,8 +310,8 @@ class MasterTest(ApiTest):
         self.assertIsNone(M.assembling(self.ep))                 # the lock went with the run
 
     def test_prores_is_made_once_from_the_finished_master(self):
-        import h3assemble
-        import h3edit
+        from seriesmith import assemble as h3assemble
+        from seriesmith import edit as h3edit
         plan, name = self.ready_plan()
         calls, made = [], []
 
@@ -362,7 +360,7 @@ class MasterTest(ApiTest):
         self.assertEqual(made, [])
 
     def test_one_run_at_a_time(self):
-        import h3edit
+        from seriesmith import edit as h3edit
         import subprocess
         plan, name = self.ready_plan()
         self.assertIsNone(M.assembling(self.ep))
@@ -403,7 +401,7 @@ class MasterTest(ApiTest):
         self.assertFalse(os.path.exists(M.lock_path(self.ep)))
 
     def test_route_job(self):
-        import h3edit
+        from seriesmith import edit as h3edit
         plan, name = self.ready_plan()
         self.make_titles()
         A._MASTER_JOBS.clear()
@@ -540,7 +538,7 @@ class MasterTest(ApiTest):
         self.comfy.info["OpticalFlowLoader"] = {"input": {"required": {
             "model_name": [["raft_large_C_T_SKHT_V2-ff5fadd5.pth"], {}]}}}
         # one shot posted by hand (the take menu), no post recipe in the series at all
-        import h3post as P
+        from seriesmith import post as P
         a = T.get_take(self.ep, "final", rendered[0], 1)
         job = P.plan_post(self.ep, a, enhance="draft", blur=0.3)
         P.start(job)
@@ -561,7 +559,7 @@ class MasterTest(ApiTest):
         def fake_tool(script, args, cwd, timeout, progress=None):
             calls.append(args)
             return 1, "", "stop here"
-        with mock.patch("h3edit.run_tool", fake_tool):
+        with mock.patch("seriesmith.edit.run_tool", fake_tool):
             M._assemble(plan, [], False, 60, None)
         self.assertIn("--post", calls[0])
         # a stale post is passed over for the upscale

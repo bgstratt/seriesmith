@@ -172,39 +172,61 @@ Moved:
   local only, through h3pipe's nodes.
 - **Deployments** wait for a Comfy API key, with the Router live run.
 
-## Step 6 — refs, the 360 tour, then continuity
+## Step 6 — the rest of h3pipe, as it is ✅
 
-- [ ] Port `h3refs`, `kreagen`, `mksheet`, `h3tour` onto targets and backends:
-      refs as takes, made through the portable path (the image targets' graphs
-      and a portable ref saver), picks, supply.
-- [ ] Continuity across backends on top of it: `first: continuity` cut before
-      staging; `continuous: latent` with the previous take's latent (or mp4)
-      uploaded to a portable chain node.
-- [ ] A Router image target for refs (with the live Router run).
+Every module after the core needs the others at load time (refs needs edit,
+edit needs upscale, the editor's API needs nearly all), so they came over
+together rather than stage by stage: refs, edit, source, promote, issues,
+tour, track, align, upscale, master, post, assemble, publish, inspector,
+kreagen, mksheet, the editor's API (`seriesmith/api.py`) and h3pipe's command
+dispatcher (`seriesmith/h3cli.py`; `seriesmith <command>` reaches every h3.py
+command). They behave as h3pipe does: where a stage isn't portable yet, it
+talks to your local ComfyUI directly and uses h3pipe's ComfyUI nodes.
 
-## Step 7 — takes, picks, cuts, overrides, notes
+- Scripts that ran each other by file path run as package modules
+  (`edit.tool_cmd`, still inside ComfyUI's embedded Python).
+- The PIL/numpy helpers (reference sheets, tour stills, the 360 canvas) are in
+  `seriesmith/helpers/` and run in seriesmith's own Python (Pillow, numpy are
+  dependencies).
+- The build checks the series config's upscale.master and post.master recipes
+  again.
 
-- [ ] Port `h3takes` (rest), the pick / override / cut parts of `h3edit`,
-      `h3promote`, `h3source`, `h3issues` (notes that stay on a shot).
-- [ ] CLI: `takes`, `pick`, `override`, `issues`.
+Done 2026-10-10: h3pipe's whole test suite, ported: 1226 passed, 12 skipped
+(the ComfyUI route adapter until step 8; h3pipe's own node checks, which need
+torch). Left behind: h3pipe's docs tooling tests (docs come later) and tests
+of h3pipe's ComfyUI nodes, which stay in h3pipe until each stage is portable.
+Tests that ran h3render against a fake ComfyUI render on seriesmith's fake
+backend now (tests/fakes.py).
 
-## Step 8 — the server, the queue and both hosts
+## Step 7 — the server, the queue and both hosts (the UI)
 
-- [ ] The server: h3pipe's route table and API (`comfy_nodes/h3pipe_api.py`,
-      `docs/API.md`), mountable on seriesmith's own server and on ComfyUI's.
-- [ ] The queue: seriesmith's job list, one job at a time on local, several at
-      once elsewhere; cancel, retry, reorder, pause; events to the editor.
+- [ ] The server: the route table (h3pipe's comfy_nodes/h3pipe_routes.py)
+      mounted by `seriesmith serve`, and inside ComfyUI.
 - [ ] The editor (h3pipe's `web/`): a standalone host beside the ComfyUI one;
-      the layout (Shots/Refs sidebar, docked viewer with A|B compare, timeline);
-      the jobs button and Jobs window with its Log.
+      the layout (Shots/Refs sidebar, docked viewer with A|B compare, timeline).
+- [ ] Rendering from the editor through the backends; the queue: seriesmith's
+      job list, one job at a time on local, several at once elsewhere; cancel,
+      retry, reorder, pause; the jobs button and Jobs window with its Log.
 - [ ] Series and season import: a series config and a stack of scripts.
-- [ ] `seriesmith serve`.
 
-## Step 9 — finishing
+## Step 8 — each stage portable, continuity, deployments
 
-- [ ] Upscale, post, master, publish, assemble; the recipe checks the build
-      used to make (`build.RECIPE_CHECKS`).
-- [ ] Align and track (a dialogue recording against the script), peaks.
+With the UI there to try each one:
+- [ ] Refs and the 360 tour through targets and backends: the image targets'
+      graphs portable, a portable ref saver; a Router image target.
+- [ ] Continuity across backends: `first: continuity` cut before staging;
+      `continuous: latent` with the previous take's latent (or mp4) uploaded
+      to a portable chain node.
+- [ ] Upscale, post and master portable (their nodes into seriesmith's pack).
+- [ ] Deployments, and the live Router run (both need a Comfy API key; not
+      before there is a UI to drive them from).
+
+## Step 9 — leaving h3pipe behind
+
+- [ ] Nothing of h3pipe's node pack needed: every node seriesmith's graphs use
+      is in its own pack.
+- [ ] The docs (AUTHORING.md and the rest) moved here, renamed where generic;
+      the old h3 names inside the code (h3cli, the `h3` aliases) tidied away.
 
 ## Later
 
