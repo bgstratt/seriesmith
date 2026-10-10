@@ -517,6 +517,26 @@ export interface NewEpisodeRequest {
   name: string;
   title?: string | null;
   series_id?: string | null;
+  /** the wizard: a new show folder to make inside `parent` */
+  show?: string | null;
+  /** the wizard: the series config's text to write (else the template's) */
+  series?: string | null;
+  /** the wizard: the script's text to write (else the template's) */
+  script?: string | null;
+}
+
+/** GET /seriesmith/episode/new: what a new episode in `parent` starts from. */
+export interface EpisodeTemplate {
+  /** the folder the episode goes in (with the show folder, when one was named) */
+  parent: string;
+  /** the newest episode there, whose series config it copies; null: a new series */
+  from: string | null;
+  /** that episode's series config, as text */
+  series: string | null;
+  /** the name to offer (ep03 after ep02) */
+  name: string;
+  /** the episodes already there */
+  episodes: string[];
 }
 
 /** seriesmith: a series config and a stack of scripts, made into episode folders */
@@ -540,10 +560,11 @@ export interface ImportSeriesResult {
 
 export interface NewEpisodeResult {
   ep: string;
-  /** "episode" = the newest episode beside it was the template, "starter" = the shipped pair */
-  template: "episode" | "starter";
-  /** the folder the template came from */
-  from: string;
+  /** "episode" = the newest episode beside it was the template, "starter" = the
+   *  shipped pair, "form" = the wizard's own series config and script */
+  template: "episode" | "starter" | "form";
+  /** the folder the template came from (null: the wizard's new series) */
+  from: string | null;
   files: string[];
   /** where this config's reference pictures go, null when it names none */
   refs: string | null;

@@ -472,11 +472,24 @@ def post_episode_new(ctx: Context, body):
     a folder name, 409 when the folder is already there."""
     body = body_dict(body)
     parent = check_folder(ctx, body.get("parent"), "parent")
+    for k in ("show", "series", "script"):
+        if body.get(k) is not None and not isinstance(body.get(k), str):
+            raise ApiError(400, f"{k} must be text")
     res = P.H.new_episode(parent, body.get("name"),
                           series_id=body.get("series_id") or None,
-                          title=body.get("title") or None)
+                          title=body.get("title") or None,
+                          show=body.get("show") or None,
+                          series=body.get("series"), script=body.get("script"))
     episode_event(ctx, res["ep"])
     return 200, res
+
+
+@handler
+def get_episode_template(ctx: Context, query: dict):
+    """The new episode wizard's start: what an episode made in `parent` (or in
+    a new show folder `show` inside it) would start from (source.episode_template)."""
+    parent = check_folder(ctx, query.get("parent"), "parent")
+    return 200, P.H.episode_template(parent, query.get("show") or None)
 
 
 @handler
@@ -3127,6 +3140,7 @@ ROUTES = [
     ("GET", "/seriesmith/shot", get_shot, "query"),
     ("POST", "/seriesmith/build", post_build, "body"),
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
+    ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
     ("POST", "/seriesmith/import", post_import, "body"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),

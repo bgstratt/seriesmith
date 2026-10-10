@@ -247,7 +247,7 @@ function readinessNote(t: Target): string {
   return "";
 }
 
-function SizeField({ label, value, choices, rule, help, onChange, placeholder, note }: {
+export function SizeField({ label, value, choices, rule, help, onChange, placeholder, note }: {
   label: string; value: string; choices: string[]; rule: SizeRule; help: string;
   onChange: (v: string) => void; placeholder?: string; note?: string | null;
 }) {

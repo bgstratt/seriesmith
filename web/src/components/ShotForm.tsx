@@ -36,7 +36,7 @@ export function ShotFormWindow() {
   return <ShotFormBody key={`${ep}|${f.shot ?? `+${f.after ?? ""}`}`} ep={ep} shot={f.shot} after={f.after} />;
 }
 
-interface Cast { id: string; name: string; kind: string; onScreen: boolean }
+export interface Cast { id: string; name: string; kind: string; onScreen: boolean }
 
 function castOf(raw: Raw | null): { chars: Cast[]; things: Cast[]; places: { id: string; name: string }[]; profiles: string[] } {
   const subj = (getPath(raw ?? {}, ["subjects"]) ?? {}) as Record<string, Raw>;
@@ -241,9 +241,9 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     )}
                   </div>
                 </Row>
-                <Row label="Angle" help="The location's angle for this shot; empty: the sequence's own.">
+                <Row label="Background" help="The location behind this shot. Empty: the sequence's location.">
                   <select className="h3-in" value={form.keys.plate ?? ""} onChange={(e) => set("plate", e.target.value)}>
-                    <option value="">the sequence's</option>
+                    <option value="">the sequence's location</option>
                     {cast.places.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
                     {form.keys.plate && !cast.places.some((p) => p.id === form.keys.plate) && <option value={form.keys.plate}>{form.keys.plate}</option>}
                   </select>
@@ -339,7 +339,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   );
 }
 
-function Row({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
+export function Row({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
   return (
     <div className="h3-col" style={{ gap: 2, minWidth: 0 }}>
       <span className="h3-small"><b>{label}</b></span>
@@ -357,7 +357,7 @@ function SmallKey({ label, k, form, set, help }: { label: string; k: string; for
   );
 }
 
-function Chips({ value, options, onChange, add, addLabel }: {
+export function Chips({ value, options, onChange, add, addLabel }: {
   value: string[]; options: Cast[]; onChange: (v: string[]) => void; add: () => void; addLabel: string;
 }) {
   const [pick, setPick] = useState("");
@@ -383,7 +383,7 @@ function Chips({ value, options, onChange, add, addLabel }: {
   );
 }
 
-function DialogueRows({ rows, speakers, onChange }: { rows: DialogueLine[]; speakers: Cast[]; onChange: (d: DialogueLine[]) => void }) {
+export function DialogueRows({ rows, speakers, onChange }: { rows: DialogueLine[]; speakers: Cast[]; onChange: (d: DialogueLine[]) => void }) {
   const up = (i: number, p: Partial<DialogueLine>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
   return (
     <div className="h3-col" style={{ gap: 4 }}>
@@ -413,7 +413,7 @@ function DialogueRows({ rows, speakers, onChange }: { rows: DialogueLine[]; spea
   );
 }
 
-function CameraField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function CameraField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [move, setMove] = useState("");
   const [amp, setAmp] = useState("");
   const [speed, setSpeed] = useState("");

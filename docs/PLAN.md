@@ -333,7 +333,7 @@ check, history copy and rebuild.
 - [x] The shot form: **+ Shot** and the pencil in the Shots tab, **Edit shot…** and
       **Add a shot after** in the context menu — sequence (or a new one, with its
       location), id in the script's own numbering, who / with (from the cast, or
-      add one on its card), size, length on H3's grid, angle, action, dialogue rows
+      add one on its card), size, length on H3's grid, background, action, dialogue rows
       (speaker, V.O./O.S., how it's said), camera with a builder from H3's words,
       sound, extras, on-screen text; music, model, continuity, keyframes, audio,
       pace and render settings under More. Beside it, compiled as you type
@@ -342,8 +342,17 @@ check, history copy and rebuild.
       that shot's lines in the script (not overrides.json); Save and render queues a
       take on the current pass. Checked live: a new shot after sh010 of an imported
       Porchlights episode went in as sh015, seven lines and nothing else.
-- [ ] New series / New episode as a short wizard: the series form, then the
-      first sequence and shot.
+- [x] New series / New episode as a short wizard (Project folders): where (a new
+      series' title and show folder; the episode's name and title), the series (a
+      new one: id, video model, sizes, look, dialogue, pace), the cast and places
+      (a next episode carries its neighbour's over; add what's new), the first
+      shot. One POST /seriesmith/episode/new writes both files
+      (`GET /seriesmith/episode/new` says what it starts from); the episode opens
+      built. Checked live: a new series with one character and one location, then
+      its ep02 carrying them over.
+- [ ] Pictures beside the names: picking who's in a shot, the cast list and the
+      wizard show each one's picture on hover (a character's face panel, since a
+      three-quarter view won't read small; a location's plate).
 
 ## Later
 

@@ -239,6 +239,58 @@ class TestRefusals(NewEpisodeCase):
         self.assertFalse(os.path.exists(os.path.join(self.show, "ep01")))
 
 
+class TestWizard(NewEpisodeCase):
+    """The new episode wizard: what it starts from, then the files it made."""
+
+    SERIES = {
+        "series": {"id": "dusk", "title": "Dusk", "fps": 24, "width": 1344, "height": 768},
+        "proxy": {"width": 864, "height": 480},
+        "style": {"look": "a live-action drama on 35mm film"},
+        "subjects": {"nell": {"kind": "character", "name": "Nell", "design": "a woman in a red coat",
+                              "sheet": "../refs/nell/nell_sheet_4panel.png"}},
+        "locations": {"pier": {"description": "a wooden pier at dusk", "plate": "../refs/_bg/pier.png"}},
+        "audio": {"mode": "generate"},
+    }
+    SCRIPT = ("= ep01  The Pier\n\n# sq01  pier\n\n## sh010\nwho: nell\nsize: wide\ndur: 3.04\n"
+              "Nell walks to the end of the pier.\n")
+
+    def test_a_new_series_in_its_own_show_folder(self):
+        t = S.episode_template(self.dir, "Dusk")
+        self.assertEqual((t["from"], t["series"], t["name"], t["episodes"]), (None, None, "ep01", []))
+        r = S.new_episode(self.dir, "ep01", title="The Pier", show="Dusk",
+                          series=json.dumps(self.SERIES), script=self.SCRIPT)
+        self.assertEqual(r["template"], "form")
+        self.assertIsNone(r["from"])
+        self.assertEqual(r["ep"], os.path.join(self.dir, "Dusk", "ep01"))
+        self.assertEqual(self.cfg(r["ep"]), self.SERIES)
+        self.assertEqual(self.script(r["ep"]), self.SCRIPT)
+        self.assertTrue(r["check"]["ok"], r["check"]["errors"])
+        self.assertTrue(os.path.isdir(os.path.join(self.dir, "Dusk", "refs")))
+
+    def test_the_next_episode_starts_from_the_newest(self):
+        S.new_episode(self.show, "ep01", series=json.dumps(self.SERIES), script=self.SCRIPT)
+        t = S.episode_template(self.show)
+        self.assertEqual(t["from"], os.path.join(self.show, "ep01"))
+        self.assertEqual(json.loads(t["series"]), self.SERIES)
+        self.assertEqual((t["name"], t["episodes"]), ("ep02", ["ep01"]))
+        # its config with a new character, and no script: the skeleton
+        cfg = json.loads(t["series"])
+        cfg["subjects"]["ike"] = {"kind": "character", "name": "Ike", "design": "a boy in a cap"}
+        r = S.new_episode(self.show, "ep02", title="Low Tide", series=json.dumps(cfg))
+        self.assertEqual((r["template"], r["from"]), ("form", t["from"]))
+        self.assertIn("ike", self.cfg(r["ep"])["subjects"])
+        self.assertIn("= ep02  Low Tide", self.script(r["ep"]))
+
+    def test_refusals(self):
+        for series in ("{not json", json.dumps({"subjects": {}}), json.dumps({"series": {"id": "x"}})):
+            with self.assertRaises(S.SourceError):
+                S.new_episode(self.show, "ep01", series=series)
+        with self.assertRaises(S.SourceError):
+            S.new_episode(self.dir, "ep01", show="refs", series=json.dumps(self.SERIES),
+                          script=self.SCRIPT)
+        self.assertEqual(os.listdir(self.show), [])
+
+
 class TestDiscoveryFallback(unittest.TestCase):
     """episode_series_config falls back to the parent folder, so find_episodes
     has to as well -- otherwise an episode written that way is invisible in the

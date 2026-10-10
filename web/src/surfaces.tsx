@@ -23,6 +23,7 @@ import { PostDialog } from "./components/PostDialog";
 import { MasterDialog } from "./components/MasterDialog";
 import { ShotsTab } from "./components/ShotsTab";
 import { SeriesFormWindow } from "./components/SeriesForm";
+import { NewEpisodeWizard } from "./components/NewEpisodeWizard";
 import { ShotFormWindow } from "./components/ShotForm";
 import { SubjectCardWindow } from "./components/SubjectCard";
 import { SourceWindows } from "./components/SourceWindow";
@@ -157,6 +158,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Series settings", SeriesFormWindow],
   ["Cast card", SubjectCardWindow],
   ["Shot form", ShotFormWindow],
+  ["New episode", NewEpisodeWizard],
   ["Dialogue track", TrackWindow],
   ["Voice clip", VoiceClipWindow],
   ["360 viewer", PanoWindow],

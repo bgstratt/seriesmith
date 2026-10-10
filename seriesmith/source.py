@@ -736,8 +736,30 @@ def skeleton_script(raw: dict, name: str, title: str) -> str | None:
             f"sound: the room's own quiet\n")
 
 
+def episode_template(parent: str, show: str | None = None) -> dict:
+    """GET /seriesmith/episode/new: what a new episode in `parent` (or in its
+    new show folder `show`) would start from -- the newest episode there, whose
+    series config it would copy ({"from", "series": its text}), or nothing (a
+    new series: both null) -- and the name to offer (ep03 after ep02)."""
+    if show:
+        parent = os.path.join(parent, check_name(show))
+    names = [os.path.basename(d) for d in episodes_under(parent)]
+    sibling = os.path.join(parent, names[-1]) if names else None
+    best = None
+    for n in names:
+        m = re.match(r"^ep(\d+)$", n, re.I)
+        if m and (best is None or int(m.group(1)) >= best[0]):
+            best = (int(m.group(1)), len(m.group(1)))
+    suggest = f"ep{best[0] + 1:0{best[1]}d}" if best else "ep01"
+    return {"parent": os.path.abspath(parent),
+            "from": os.path.abspath(sibling) if sibling else None,
+            "series": _read_text(os.path.join(sibling, "series.json")) if sibling else None,
+            "name": suggest, "episodes": names}
+
+
 def new_episode(parent: str, name: str, series_id: str | None = None,
-                title: str | None = None) -> dict:
+                title: str | None = None, show: str | None = None,
+                series: str | None = None, script: str | None = None) -> dict:
     """Make `<parent>/<name>/` with a series config and a script that build.
 
     The template is the newest episode already under `parent` -- its series
@@ -751,30 +773,59 @@ def new_episode(parent: str, name: str, series_id: str | None = None,
     written when this is the first episode: a next episode belongs to the
     series its neighbour already names.
 
+    The new episode wizard sends what it made instead (`template: "form"`):
+    `series`, the series config's text (a new series', or the neighbour's with
+    the new cast added), and `script`, the first shot's; and `show`, a new show
+    folder to make inside `parent` for a new series.
+
     SourceError 400 for a name that isn't a folder name or a parent that isn't
     a folder, 409 when `<parent>/<name>` already exists. Returns
     {"ep", "template", "from", "files", "refs", "check", "episode"}."""
     name = check_name(name)
     if not parent or not isinstance(parent, str) or not os.path.isdir(parent):
         raise SourceError(400, f"no folder at {parent!r} to make the episode in")
+    if show:
+        parent = os.path.join(os.path.abspath(parent), check_name(show))
     ep = os.path.join(os.path.abspath(parent), name)
     if os.path.exists(ep):
         raise SourceError(409, f"{ep} is already there")
+    given = None
+    if series is not None:
+        try:
+            given = json.loads(series)
+        except ValueError as e:
+            raise SourceError(400, f"the series config isn't valid JSON: {e}") from None
+        if not isinstance(given, dict) or not isinstance(given.get("series"), dict):
+            raise SourceError(400, 'the series config needs a "series" block')
+    if script is not None and not isinstance(script, str):
+        raise SourceError(400, "script must be the script's text")
 
     sibling = (episodes_under(parent) or [None])[-1]
-    raw = _template_config(sibling, series_id, title) if sibling \
-        else _template_config(STARTER, series_id, title, series=True)
-    ep_title = title or raw["series"].get("title") or name
-    script = None
-    if sibling:
-        _rename_track(raw, os.path.basename(os.path.normpath(sibling)), name)
-        script = skeleton_script(raw, name, ep_title)
-    template = "episode" if sibling and script else "starter"
-    if script is None:
-        if sibling:                                  # its config named nobody to write about
-            raw = _template_config(STARTER, series_id, title, series=True)
-            ep_title = title or raw["series"].get("title") or name
-        script = _retitled(_read_text(os.path.join(STARTER, "ep01.md")), name, ep_title)
+    if given is not None:
+        raw = given
+        if sibling:
+            _rename_track(raw, os.path.basename(os.path.normpath(sibling)), name)
+        ep_title = title or raw["series"].get("title") or name
+        if script is None:
+            script = skeleton_script(raw, name, ep_title)
+        if script is None:
+            raise SourceError(400, "the series config names no character and location "
+                                   "to write a first shot about: send a script")
+        template = "form"
+    else:
+        raw = _template_config(sibling, series_id, title) if sibling \
+            else _template_config(STARTER, series_id, title, series=True)
+        ep_title = title or raw["series"].get("title") or name
+        script = None
+        if sibling:
+            _rename_track(raw, os.path.basename(os.path.normpath(sibling)), name)
+            script = skeleton_script(raw, name, ep_title)
+        template = "episode" if sibling and script else "starter"
+        if script is None:
+            if sibling:                                  # its config named nobody to write about
+                raw = _template_config(STARTER, series_id, title, series=True)
+                ep_title = title or raw["series"].get("title") or name
+            script = _retitled(_read_text(os.path.join(STARTER, "ep01.md")), name, ep_title)
 
     os.makedirs(ep)
     try:
@@ -795,7 +846,8 @@ def new_episode(parent: str, name: str, series_id: str | None = None,
             pass
         raise
     return {"ep": ep, "template": template,
-            "from": os.path.abspath(sibling) if template == "episode" else STARTER,
+            "from": (STARTER if template == "starter"
+                     else os.path.abspath(sibling) if sibling else None),
             "files": ["series.json", f"{name}.md"], "refs": refs,
             "check": check_text(ep, "script", script),
             "episode": E.episode_summary(ep)}

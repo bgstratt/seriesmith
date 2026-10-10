@@ -414,6 +414,9 @@ export interface AppState {
   shotForm: { shot: string | null; after: string | null } | null;
   /** the cast card open (components/SubjectCard.tsx): an entry, or a new one (`id` null) */
   subjectCard: { kind: import("./lib/seriesForm").CardKind; id: string | null } | null;
+  /** the new episode wizard (components/NewEpisodeWizard.tsx): the folder it starts in,
+   *  and whether it starts a new series (a show folder of its own) */
+  wizard: { parent: string; newSeries: boolean } | null;
 }
 
 export const ZOOM_MIN = 8;
@@ -509,6 +512,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     seriesFormOpen: false,
     shotForm: null,
     subjectCard: null,
+    wizard: null,
   };
 }
 

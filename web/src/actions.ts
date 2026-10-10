@@ -1709,7 +1709,7 @@ export async function makeEpisode(parent: string, name: string, title: string): 
     const res = await api().newEpisode({ parent, name, title: title.trim() || null });
     const from = res.template === "starter"
       ? "from the starter template"
-      : `from ${res.from.replace(/[\\/]+$/, "").split(/[\\/]/).pop()}`;
+      : `from ${(res.from ?? "").replace(/[\\/]+$/, "").split(/[\\/]/).pop()}`;
     host().toast("success", `Made ${res.episode.name}`, `${res.ep}\n${from}`);
     await loadEpisodes();
     await openEpisodeAt(res.ep, parent);
@@ -2308,6 +2308,12 @@ export function openSubjectCard(card: { kind: import("./lib/seriesForm").CardKin
 /** The shot form: edit `shot`, or add one after `after` (null: at the end). */
 export function openShotForm(form: { shot: string | null; after: string | null } | null) {
   set({ shotForm: form, menu: null });
+}
+
+/** The new episode wizard: an episode in `parent`, or a new series in a show
+ * folder made inside it (null closes it). */
+export function openWizard(w: { parent: string; newSeries: boolean } | null) {
+  set({ wizard: w, menu: null });
 }
 
 /** The Series settings form: the series config as fields. */

@@ -170,8 +170,15 @@ episode's series config and script (`edit.episode_series_config` / `episode_scri
 A script error returns `ok: false` with the message (it names the line) in `error`.
 The status is still 200: a script that doesn't compile is a result, not a server error.
 
+### `GET /seriesmith/episode/new?parent=…[&show=…]`
+The new episode wizard's start: what an episode made in `parent` (or in the show folder
+`show` inside it, which needn't exist yet) would start from. `{"parent"` (with the show
+folder), `"from"` (the newest episode there, or null: a new series), `"series"` (its series
+config's text, or null), `"name"` (the name to offer: `ep03` after `ep02`, else `ep01`),
+`"episodes"` (the names there)`}`. `parent` is checked as below.
+
 ### `POST /seriesmith/episode/new`  (P5, 2026-09-23)
-Body `{"parent", "name", "title"?, "series_id"?}` — the first step the editor could not
+Body `{"parent", "name", "title"?, "series_id"?, "show"?, "series"?, "script"?}` — the first step the editor could not
 take before. `parent` is the folder the **episodes** live in (the show's folder, not an
 episode's) and is checked like every other path: absolute, inside a configured root, or
 403. `name` becomes both the folder and the script's stem (`ep02` → `ep02.md`), which is
@@ -203,6 +210,11 @@ what makes the episode discoverable; a name that isn't a folder name, or is one
   episode.
 - The only thing rewritten in a copied config is `audio.track`, which follows the name
   (`audio/ep01_dialogue.wav` → `audio/ep02_dialogue.wav`): a recording is per episode.
+- **The wizard** sends what it made: `series` (the series config's text — a new series',
+  or the neighbour's with the new cast added; it must be JSON with a `series` block),
+  `script` (the first shot's; without one, the skeleton from that config), and `show` (a
+  show folder made inside `parent`, for a new series). `template` is then `"form"` and
+  `from` the neighbour or null. The recording still follows the name.
 - `check` is `check_text` on what was written, so the editor can show at once that it
   builds. `seriesmith.episode` is emitted for the new folder. Same thing from the CLI:
   `seriesmith new Shows\ep02 [--title "…"] [--series-id …]`.

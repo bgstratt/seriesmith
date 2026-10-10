@@ -63,30 +63,35 @@ Left to right:
 | images | **Open the Refs tab** |
 | refresh | **Refresh** — re-read the episode from disk |
 
-### New episode
+### New series, new episode
 
-In **Project folders** (the folder-open button), browse to the folder your episodes live in
-— the show's folder, not an episode's — and press **New episode…**. It offers the next
-number it can see (`ep03` after `ep02`), takes an optional episode title, and writes two
-files:
+In **Project folders** (the folder-open button), browse to a folder and press **New
+series…** (a show of its own, in a folder made inside this one) or **New episode…** (in
+this folder: the show's folder, not an episode's). Either opens a short wizard:
 
-- **A series config of its own.** If the show already has an episode, that episode's
-  `series.json` is copied, so the cast, the look, the render profiles and the targets carry
-  over and you only add what is new — a prop, a plate, a character. With no episode there
-  yet, you get the starter config: one character, one prop, one location.
-- **A script.** From a neighbour, a one-shot skeleton naming that show's own first
-  character and location — valid, buildable, and meant to be written over. From the
-  starter, three shots, one of them with a line of dialogue.
+1. **Where**: for a new series its title and its show folder (made from the title); the
+   episode's name (the next number there, `ep03` after `ep02`) and its title. When the
+   folder already has episodes, it says so: the new one continues that series.
+2. **Series** (a new series only): its id, the video model, the final and proxy sizes
+   (864×480 by default), the look, how dialogue sounds and the speech pace. Everything
+   else is in Series settings, any time.
+3. **Cast and places**: who and where the episode is about — a character (name, design,
+   voice, pronoun), a location (a short name and its description), a prop or vehicle —
+   each with its picture path filled in from the show's layout. A next episode carries its
+   neighbour's whole cast over, so you add only who and what is new.
+4. **First shot**: where it happens (the first sequence's location), who's in it, size,
+   length, what happens, dialogue, camera and sound. The shot form adds the rest.
 
-Both are honest about pictures: nothing is on disk yet, so the refs are listed as missing,
-which is the next thing to do. The dialog says where they go — `../refs/...` in the
-starter, meaning **one `refs` folder beside the episodes, shared by all of them**, while
-each episode keeps its own config. That is the layout to want: shared references, per
-episode cast lists.
+**Create** writes the two files in one go: a series config of the episode's own (a next
+episode's is its newest neighbour's, with the new cast added) and the script. The episode
+opens and builds, so its shots are there and the pictures it needs are listed as missing,
+which is the next thing to do (the Refs tab). The paths are `../refs/...`: **one `refs`
+folder beside the episodes, shared by all of them**, while each episode keeps its own
+config. That is the layout to want: shared references, per episode cast lists.
 
-Press **Create** and the new episode opens, unbuilt, with Build waiting. If the folder
-isn't inside a project root the dialog says so instead of failing at the server — add it as
-a root first. `seriesmith new Shows\ep02 --title "…"` does the same thing without the UI.
+The buttons are off when the folder isn't inside a project root: add it as a root first.
+`seriesmith new Shows\ep02 --title "…"` makes an episode without the UI, from the newest
+episode there or the starter pair (one character, one prop, one location, three shots).
 
 One thing to know about sharing: a ref's *live file* is shared, its candidates and its pick
 record are not. Picking a new take of a shared sheet in one episode replaces the file every
@@ -183,7 +188,8 @@ in the script as fields:
   sh015), and for a new shot the sequence it goes in, or a new sequence with its location.
 - **Who's in it** and **With**: picked from the cast in the series config, in order; **+
   Character** / **+ Prop** opens a new cast card.
-- **Size**, **Length** (H3's grid, or auto to fit the dialogue), **Angle**.
+- **Size**, **Length** (H3's grid, or auto to fit the dialogue), **Background** (another
+  location than the sequence's).
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
   **Extras**, **On-screen text**.

@@ -879,7 +879,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (bad) throw new MockError(bad, 400);
       const name = req.name.trim();
       const sep = req.parent.includes("\\") ? "\\" : "/";
-      const ep = `${req.parent.replace(/[\\/]+$/, "")}${sep}${name}`;
+      const parent = req.show ? `${req.parent.replace(/[\\/]+$/, "")}${sep}${req.show}` : req.parent;
+      const ep = `${parent.replace(/[\\/]+$/, "")}${sep}${name}`;
       if (ep === EP || made.some((m) => m.ep === ep) || fsExists(ep)) {
         throw new MockError(`${ep} is already there`, 409);
       }
@@ -888,7 +889,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       made.push(m);
       emit("seriesmith.episode", { ep });
       return {
-        ep, template: first ? "starter" : "episode",
+        ep, template: req.series ? "form" : first ? "starter" : "episode",
         from: first ? "examples/starter" : EP,
         files: ["series.json", `${name}.md`],
         refs: `${req.parent.replace(/[\\/]+$/, "")}${sep}refs`,
@@ -1822,6 +1823,15 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const f = files[file];
       const shots = file === "script" ? check("script", f.text).shots : [];
       return { file, path: sourcePath(file), text: f.text, hash: f.hash, mtime: f.mtime, shots };
+    },
+    async episodeTemplate(parent, show) {
+      await wait(80);
+      const sep = parent.includes("\\") ? "\\" : "/";
+      const at = show ? `${parent.replace(/[\\/]+$/, "")}${sep}${show}` : parent;
+      const here = EP.replace(/[\\/][^\\/]+[\\/]?$/, "");
+      const mine = at === here;
+      return { parent: at, from: mine ? EP : null, series: mine ? files.series.text : null,
+        name: mine ? "ep02" : "ep01", episodes: mine ? [EP.split(/[\\/]/).pop() ?? ""] : [] };
     },
     async sourceHash(ep, file) {
       await wait(30);
