@@ -27,7 +27,7 @@ one soft warning listing them. `dur: model` renders the estimate (LTX-2.3 has
 no duration head), with a warning and a note in the take.
 
 The sheet itself is made at queue time (stage_inputs), from the files on disk
-then: sheet.py runs comfy_nodes/h3_refsheet.py (PIL) with the running Python,
+then: sheet.py runs seriesmith/helpers/refsheet.py (PIL) with the running Python,
 the PNG is uploaded to ComfyUI's input folder, and h3jobs.start_job moves it
 into the take as <shot>_tNN_refsheet.png and records its sha1 in the sidecar's
 `refs` (beside the panel files', which are what make a take `ref`-stale when a
@@ -400,7 +400,7 @@ def sheet_panels(job) -> tuple[list[dict], list[dict]]:
 
 
 def sheet_spec(job, panels: list[dict], sheet: dict | None = None) -> dict:
-    """What comfy_nodes/h3_refsheet.py composes: the render size, black, and
+    """What seriesmith/helpers/refsheet.py composes: the render size, black, and
     each panel's file (a character's one view of its 4-panel strip). `sheet`
     is the recipe's `reference_sheet` block, so another target reusing this
     (ltx2) composes with its own numbers."""

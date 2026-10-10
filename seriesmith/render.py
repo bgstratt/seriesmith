@@ -260,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
                 target = J.job_target(j)
                 take = None
                 try:
-                    take = start_job_portable(j)
+                    take = start_job_portable(j, comfy if backend.kind == "local" else None)
                     label = f"{ep}/{j.id} t{take.take:02d}"
                     if hosted(target):
                         model, call = target.module.router_call(target, j)
@@ -270,7 +270,9 @@ def main(argv: list[str] | None = None) -> int:
                         if bound and backend.kind != "local":
                             raise J.NotPortable(f"reads the episode folder "
                                                 f"({', '.join(bound)}): local only for now")
-                except (J.NotPortable, BackendError, ValueError, FileNotFoundError) as e:
+                except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
+                    # RuntimeError: a reference sheet that couldn't be composed
+                    unstage(j)
                     failed += 1
                     failures.append(label)
                     if take is not None:
@@ -342,12 +344,17 @@ def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
                     (c.get("image_url") or {}).get("url"), File))
                 print(f"\n  wrote {out} ({j.id}, {model}; {n} picture(s) to upload)")
                 return 0
-            g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
+            try:
+                J.stage_portable(j)
+                g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
+            finally:
+                unstage(j)
             out = os.path.join(os.getcwd(), "render_graph.json")
             with open(out, "w", encoding="utf-8") as fh:
                 json.dump(as_json(g), fh, indent=2)
-            print(f"\n  wrote {out} ({j.id}, {j.target}; "
-                  f"{len(J.shot_files(j))} file(s) to upload)")
+            ups = len(J.shot_files(j)) if J.job_target(j).binding.loader_class \
+                else len(j.input_files)
+            print(f"\n  wrote {out} ({j.id}, {j.target}; {ups} file(s) to upload)")
             bound = episode_bound(g)
             if bound:
                 print(f"  ! reads the episode folder: {', '.join(bound)}")
@@ -355,13 +362,22 @@ def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
     return 0
 
 
-def start_job_portable(job: J.Job) -> T.Take:
-    """start_job, for a portable render: the take reserved, its record and
-    frozen shotlist written, nothing staged in ComfyUI."""
-    if job.staged or job.inputs:
-        raise J.NotPortable(f"{job.target} stages input files in ComfyUI; it renders "
-                            f"portably once ported (docs/PLAN.md, step 5)")
+def start_job_portable(job: J.Job, probe=None) -> T.Take:
+    """start_job, for a portable render: the job's inputs worked out and made
+    (stage_portable: keyframes, a composed reference sheet), nothing uploaded
+    yet; then the take reserved and its record and frozen shotlist written.
+    `probe` is ComfyUI itself when the job renders there (asked about
+    `dur: model`), else None."""
+    J.stage_portable(job, probe)
     return J.start_job(job)
+
+
+def unstage(job: J.Job) -> None:
+    """Remove what stage_portable made for a job that won't run (a dry run)."""
+    for f in job.staged:
+        if os.path.isfile(f["tmp"]):
+            os.remove(f["tmp"])
+    job.staged = []
 
 
 def progress_line(t0: float):

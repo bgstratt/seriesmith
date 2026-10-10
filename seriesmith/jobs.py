@@ -1161,6 +1161,10 @@ class Job:
     # reference sheet), waiting for start_job to move them into the take:
     # [{"tmp", "suffix", "slot", "kind", "role"}]
     staged: list = field(default_factory=list)
+    # a portable render's inputs (stage_portable): the name each file would
+    # have had in ComfyUI's input folder -> the local file, which make_portable
+    # turns into an upload
+    input_files: dict = field(default_factory=dict)
     # how the take's length is decided: "script" (the shotlist's), "estimate"
     # (`dur: model` rendered at the build's estimate) or "predicted" (the
     # model's duration head, `duration_head` the file ModelPatchLoader loads)
@@ -1893,6 +1897,10 @@ def start_job(job: Job) -> T.Take:
         for f in job.staged:
             dst = os.path.join(take.paths.dir, take.paths.stem + f["suffix"])
             os.replace(f["tmp"], dst)
+            # a portable render uploads it from where it now is
+            for name, p in list(job.input_files.items()):
+                if p == f["tmp"]:
+                    job.input_files[name] = dst
             made.append({"slot": f["slot"], "kind": f.get("kind", "image"),
                          "path": os.path.relpath(dst, job.root).replace(os.sep, "/"),
                          "role": f.get("role"), "sha1": T.file_sha1(dst)})
@@ -2396,33 +2404,44 @@ def run_name(job: Job, take: T.Take) -> str:
 
 
 def make_portable(g: dict, job: Job, take: T.Take, loader: str | None, saver: str) -> None:
-    """The loader gets the take's frozen shotlist as text and its files as
-    uploads (File inputs the backend replaces with their names in ComfyUI's
-    input folder); the saver gets a folder of its own under ComfyUI's output
-    and reports what it writes there. NotPortable for a graph that still
-    reads the episode folder some other way."""
+    """The loader (a target with one) gets the take's frozen shotlist as text
+    and its files as uploads (File inputs the backend replaces with their
+    names in ComfyUI's input folder). A target without one takes its pictures
+    in LoadImage nodes: each input naming a file stage_portable worked out
+    becomes that file, uploaded. The saver gets a folder of its own under
+    ComfyUI's output and reports what it writes there. NotPortable for a
+    graph that still reads the episode folder some other way."""
     from seriesmith.backends import File
     from seriesmith import shotnodes as SN
 
-    if loader is None:
-        raise NotPortable(f"{job.target} has no shot loader; it renders through the "
-                          f"episode folder until it is ported (docs/PLAN.md, step 5)")
-    for nid, ctype in ((loader, PORTABLE_LOADER), (saver, PORTABLE_SAVER)):
+    swaps = ((loader, PORTABLE_LOADER), (saver, PORTABLE_SAVER)) if loader else \
+        ((saver, PORTABLE_SAVER),)
+    for nid, ctype in swaps:
         have = g[nid]["class_type"]
         if have not in (ctype, *[k for k, v in PORTABLE.items() if v == ctype]):
             raise NotPortable(f"{job.target}'s workflow uses {have}, which reads or writes "
                               f"the episode folder (docs/PLAN.md, step 5)")
         g[nid]["class_type"] = ctype
-    li = g[loader]["inputs"]
-    for k in ("project_root", "shotlist_file"):
-        li.pop(k, None)
-    files = shot_files(job)
-    if len(files) > SN.MAX_FILES:
-        raise NotPortable(f"{job.id} needs {len(files)} files; the loader takes {SN.MAX_FILES}")
-    li["shotlist"] = json.dumps(frozen_shotlist(job), ensure_ascii=False)
-    li["files"] = json.dumps(files, ensure_ascii=False)
-    for i, rel in enumerate(files):
-        li[SN.file_input(i)] = File(_abs(job.root, rel))
+    if loader:
+        li = g[loader]["inputs"]
+        for k in ("project_root", "shotlist_file"):
+            li.pop(k, None)
+        files = shot_files(job)
+        if len(files) > SN.MAX_FILES:
+            raise NotPortable(f"{job.id} needs {len(files)} files; the loader takes "
+                              f"{SN.MAX_FILES}")
+        li["shotlist"] = json.dumps(frozen_shotlist(job), ensure_ascii=False)
+        li["files"] = json.dumps(files, ensure_ascii=False)
+        for i, rel in enumerate(files):
+            li[SN.file_input(i)] = File(_abs(job.root, rel))
+    if job.inputs and not job.input_files:
+        raise NotPortable(f"{job.id}'s inputs were staged in ComfyUI, not for a portable "
+                          f"render (stage_portable)")
+    for v in g.values():
+        ins = v.get("inputs") or {}
+        for k, val in list(ins.items()):
+            if isinstance(val, str) and val in job.input_files:
+                ins[k] = File(job.input_files[val])
     si = g[saver]["inputs"]
     for k in ("project_root", "subfolder", "sidecar"):
         si.pop(k, None)
@@ -2844,7 +2863,9 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     `dur: model` is decided here too (plan_duration): `comfy`, or for a dry
     run `probe` (asked, never written to), says whether the duration head is
     installed."""
-    plan_duration(job, comfy or probe)
+    # a collector (stage_portable) only takes files: ComfyUI itself, if
+    # anything, is asked about the duration head
+    plan_duration(job, probe if isinstance(comfy, InputCollector) else (comfy or probe))
     out = {}
     for r in ref_slots(job.doc, job.shot):
         role, p = r.get("role"), r.get("path")
@@ -2861,4 +2882,28 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     if t.supports("stage_inputs"):
         out.update(t.stage_inputs(job, comfy) or {})
     job.inputs = out
+    return out
+
+
+class InputCollector:
+    """Stands in for ComfyUI where stage_inputs would upload: it records what
+    would have gone up, under the name it would have had, so a portable graph
+    (make_portable) can send each file as an input of the job instead."""
+
+    def __init__(self):
+        self.files: dict[str, str] = {}
+
+    def upload_input(self, path: str, name: str) -> str:
+        self.files[name] = path
+        return name
+
+
+def stage_portable(job: Job, probe=None) -> dict:
+    """stage_inputs for a portable render: the same inputs (a target's
+    keyframes, a composed reference sheet) worked out and made, nothing
+    uploaded; job.input_files says which local file each name stands for.
+    `probe` (ComfyUI, asked, never written to) decides `dur: model`."""
+    collector = InputCollector()
+    out = stage_inputs(job, collector, probe)
+    job.input_files = collector.files
     return out

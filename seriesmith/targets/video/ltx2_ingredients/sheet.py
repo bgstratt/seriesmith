@@ -1,5 +1,5 @@
 """
-The reference sheet, composed by comfy_nodes/h3_refsheet.py (PIL) run as a
+The reference sheet, composed by seriesmith/helpers/refsheet.py (PIL) run as a
 subprocess of the running Python: ComfyUI's under the editor's routes, which
 has PIL; the CLI's otherwise, which may not (then the error says so). The
 pipeline itself stays stdlib only, as h3refs.stitch_sheet does with mksheet.
@@ -14,7 +14,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-HELPER = os.path.join(ROOT, "comfy_nodes", "h3_refsheet.py")
+HELPER = os.path.join(ROOT, "helpers", "refsheet.py")          # ROOT: the package
 
 
 class SheetError(RuntimeError):
@@ -22,7 +22,7 @@ class SheetError(RuntimeError):
 
 
 def compose(spec: dict, out: str, timeout: int = 120) -> dict:
-    """Write the sheet `spec` describes to `out` (see h3_refsheet.py).
+    """Write the sheet `spec` describes to `out` (see helpers/refsheet.py).
     Returns the helper's report ({"width", "height", "boxes"})."""
     r = subprocess.run([sys.executable, HELPER, out], input=json.dumps(spec).encode("utf-8"),
                        capture_output=True, timeout=timeout)

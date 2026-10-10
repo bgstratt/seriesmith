@@ -13,7 +13,7 @@ through VACE's reference image. No loader node: every value is a widget.
     patch_graph(target, graph, job, inputs) -> reference, keyframe controls, split
 
 The reference image is made at queue time from the files on disk then, as
-ltx2_ingredients makes its sheet: comfy_nodes/h3_refsheet.py (PIL, a
+ltx2_ingredients makes its sheet: seriesmith/helpers/refsheet.py (PIL, a
 subprocess of the running Python) composes one panel per subject at the
 render size on white, the PNG is uploaded to ComfyUI's input folder, and
 h3jobs.start_job moves it into the take as <shot>_tNN_reference.png with its
@@ -72,7 +72,7 @@ def reference_panels(job) -> tuple[list[dict], list[dict]]:
 
 
 def reference_spec(job, panels: list[dict]) -> dict:
-    """What comfy_nodes/h3_refsheet.py composes: the render size, white, and
+    """What seriesmith/helpers/refsheet.py composes: the render size, white, and
     each panel's file (a character's one view of its 4-panel strip)."""
     n = int(REF.get("sheet_panels", 4))
     out = []
