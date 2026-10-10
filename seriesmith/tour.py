@@ -112,16 +112,16 @@ def check_request(ref: R.Ref, move: str, seconds: float, count: int) -> None:
         raise TourError("count must be 1 to 4")
 
 
-def start_tour(s: R.Series, ref: R.Ref, move: str, comfy, seconds: float = DEFAULT_SECONDS,
-               count: int = 1, seed: int | None = None) -> list[dict]:
-    """Queue `count` tours of location `ref` from its live plate; returns their
-    sidecars (status queued, `comfy_prompt_id`)."""
+def plan_tours(s: R.Series, ref: R.Ref, move: str, image, seconds: float = DEFAULT_SECONDS,
+               count: int = 1, seed: int | None = None) -> list[tuple[dict, dict]]:
+    """`count` tours of location `ref` from its live plate, each reserved (its
+    sidecar written, status queued) with its graph: [(sidecar, graph)].
+    `image` is what the graph's LoadImage reads (a name in ComfyUI's input
+    folder, or a backends.File)."""
     check_request(ref, move, seconds, count)
     with open(WORKFLOW, encoding="utf-8") as fh:
         base = json.load(fh)
     prompt = move.strip().rstrip(".") + "." + TAIL
-    name = J.input_name(ref.file)
-    comfy.upload_input(ref.file, name)
     os.makedirs(tours_dir(ref), exist_ok=True)
     out = []
     for c in range(count):
@@ -132,9 +132,26 @@ def start_tour(s: R.Series, ref: R.Ref, move: str, comfy, seconds: float = DEFAU
                 "frame": R.ep_rel(s.ep, ref.file), "frame_sha1": T.file_sha1(ref.file),
                 "comfy_prompt_id": None, "holds": [], "error": ""}
         T.write_json(_tour_file(ref, n, ".json"), side)
-        g = tour_graph(base, prompt, name, seconds, sd, f"h3pipe/tours/{ref.key}_t{n:02d}")
+        g = tour_graph(base, prompt, image, seconds, sd, f"h3pipe/tours/{ref.key}_t{n:02d}")
+        out.append((side, g))
+    return out
+
+
+def save_side(ref: R.Ref, side: dict) -> None:
+    T.write_json(_tour_file(ref, side["tour"], ".json"), side)
+
+
+def start_tour(s: R.Series, ref: R.Ref, move: str, comfy, seconds: float = DEFAULT_SECONDS,
+               count: int = 1, seed: int | None = None) -> list[dict]:
+    """Queue `count` tours of location `ref` from its live plate on ComfyUI;
+    returns their sidecars (status queued, `comfy_prompt_id`)."""
+    check_request(ref, move, seconds, count)
+    name = J.input_name(ref.file)
+    comfy.upload_input(ref.file, name)
+    out = []
+    for side, g in plan_tours(s, ref, move, name, seconds, count, seed):
         side["comfy_prompt_id"] = comfy.queue(g)
-        T.write_json(_tour_file(ref, n, ".json"), side)
+        save_side(ref, side)
         out.append(side)
     return out
 
@@ -191,16 +208,32 @@ def finish_tour(s: R.Series, ref: R.Ref, side: dict, comfy, timeout: int = 1800,
     """Wait for a queued tour, keep its video, find its holds and add each as a
     take of the location's TOUR_VIEW. Returns the sidecar (status ok or failed).
     `on_hold(take)` is called for each hold added."""
-    n = side["tour"]
-    path = _tour_file(ref, n, ".json")
     try:
         outputs = comfy.wait(side["comfy_prompt_id"], timeout)
         f = _video_of(outputs)
         if f is None:
             raise TourError("ComfyUI finished without saving a video")
-        mp4 = _tour_file(ref, n, os.path.splitext(f["filename"])[1].lower() or ".mp4")
-        with open(mp4, "wb") as fh:
-            fh.write(comfy.view(f))
+
+        def write(path):
+            with open(path, "wb") as fh:
+                fh.write(comfy.view(f))
+        return keep_tour(s, ref, side, write, os.path.splitext(f["filename"])[1], on_hold)
+    except Exception as e:                      # noqa: BLE001 (any failure is the tour's)
+        side.update(status="failed", finished=T.now(), error=str(e)[:800])
+    save_side(ref, side)
+    return side
+
+
+def keep_tour(s: R.Series, ref: R.Ref, side: dict, write, ext: str = ".mp4",
+              on_hold=None) -> dict:
+    """A finished tour's video kept (`write(path)` puts it there), its holds
+    found and each added as a take of the location's TOUR_VIEW. Returns the
+    sidecar (status ok or failed). `on_hold(take)` is called for each hold."""
+    n = side["tour"]
+    path = _tour_file(ref, n, ".json")
+    try:
+        mp4 = _tour_file(ref, n, (ext or ".mp4").lower())
+        write(mp4)
         found = find_holds(mp4, os.path.join(tours_dir(ref), f"tour_t{n:02d}_holds"))
         takes = []
         for h in found["holds"]:

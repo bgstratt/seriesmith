@@ -2399,9 +2399,20 @@ def post_refs_tour(ctx: Context, body):
     ref = _ref(s, body.get("ref"))
     seconds = body.get("seconds", h3tour.DEFAULT_SECONDS)
     count = body.get("count", 1)
+    seed = seed_in(body.get("seed")) if body.get("seed") else None
+    backend = finish_backend(ctx, body)
+    if backend:
+        # seriesmith's queue: each tour a job, its plate uploaded, its holds
+        # found when the video comes back
+        try:
+            ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
+                   h3tour.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
+        except (h3tour.TourError, R.RefError) as e:
+            raise ApiError(400, str(e))
+        episode_event(ctx, ep)
+        return 200, {"queued": [{"tour": n, "comfy_prompt_id": i} for n, i in ids]}
     try:
-        sides = h3tour.start_tour(s, ref, body.get("move") or "", ctx.comfy, seconds, count,
-                                  seed_in(body.get("seed")) if body.get("seed") else None)
+        sides = h3tour.start_tour(s, ref, body.get("move") or "", ctx.comfy, seconds, count, seed)
     except (h3tour.TourError, R.RefError) as e:
         raise ApiError(400, str(e))
 

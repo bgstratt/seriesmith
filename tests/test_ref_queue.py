@@ -109,5 +109,39 @@ class RefQueueTest(unittest.TestCase):
         self.assertTrue(os.path.isfile(f.path))
 
 
+class KreagenBackendTest(unittest.TestCase):
+    """kreagen --backend: each take made on a seriesmith backend, waited for,
+    and picked as the direct route does; no ComfyUI on this machine asked."""
+    setUp = RefQueueTest.setUp
+
+    def kreagen(self, *args):
+        import io
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from seriesmith import kreagen as K
+        out = io.StringIO()
+        argv = ["kreagen", "--project-root", self.ep, "--comfy", "http://127.0.0.1:9",
+                "--workflow", REFS_WF, "--timeout", "30", *args]
+        with mock.patch.object(sys, "argv", argv), redirect_stdout(out),                 mock.patch("seriesmith.backends.available", return_value={LANE: self.fb}):
+            rc = K.main()
+        return rc, out.getvalue()
+
+    def test_a_ref_made_on_a_backend_is_picked(self):
+        self.fb = FakeBackend(LANE, "deployment", outputs=saved_picture)
+        rc, out = self.kreagen("--only", "kettle", "--backend", LANE)
+        self.assertEqual(rc, 0, out)
+        ref = R.find_ref(R.load_series(self.ep), "subject:kettle")
+        (take,) = R.list_takes(ref)
+        self.assertEqual((take.sidecar["status"], take.sidecar["backend"]), ("ok", LANE))
+        self.assertEqual(R.load_picks(self.ep)["refs"]["subject:kettle"]["take"], take.take)
+        self.assertEqual(len(self.fb.submitted), 1)
+
+    def test_a_backend_not_set_up_is_refused(self):
+        self.fb = FakeBackend(LANE, "deployment", outputs=saved_picture)
+        rc, out = self.kreagen("--only", "kettle", "--backend", "cloud")
+        self.assertEqual(rc, 1)
+        self.assertIn("cloud isn't set up on this machine", out)
+
+
 if __name__ == "__main__":
     unittest.main()

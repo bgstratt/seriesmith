@@ -142,6 +142,47 @@ class TourTest(Base):
         self.assertIn("out of memory", side["error"])
 
 
+class TourQueueTest(Base):
+    """A tour on seriesmith's queue (Runner.enqueue_tour), on the fake backend:
+    the plate goes up as the LoadImage, and the video that comes back is kept
+    and its holds found."""
+
+    def test_a_queued_tour_uploads_its_plate_and_keeps_its_holds(self):
+        import time
+        from seriesmith import takes as T
+        from seriesmith.backends import File
+        from seriesmith.backends.fake import FakeBackend
+        from seriesmith.queue import Queue
+        from seriesmith.runner import Runner
+
+        fb = FakeBackend("local", "local", outputs=lambda g: {"92": [("tour_00001.mp4", "video", b"mp4")]})
+        events = []
+        runner = Runner(Queue(), {"local": fb}, emit=lambda e, d: events.append((e, d)))
+        self.addCleanup(setattr, T, "MANAGED", None)
+        ref = R.find_ref(self.s, "location:kitchen")
+        found = {"fps": 24, "holds": [{"hold": 1, "start": 0.0, "end": 0.5, "frame": 3,
+                                       "sharpness": 1.0, "path": self.png}]}
+        with mock.patch.object(TOUR, "find_holds", return_value=found):
+            ((side, g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
+            n, qid = runner.enqueue_tour(self.s, ref, side, g, "local")
+            end = time.time() + 15
+            while runner.queue.jobs[qid].status not in ("succeeded", "failed") and time.time() < end:
+                time.sleep(0.02)
+        job = runner.queue.jobs[qid]
+        self.assertEqual(job.status, "succeeded", (job.error, job.log))
+        image = next(v for v in fb.submitted[0].values() if v["class_type"] == "LoadImage")
+        self.assertIsInstance(image["inputs"]["image"], File)
+        self.assertEqual(image["inputs"]["image"].path, ref.file)
+        (d,) = TOUR.list_tours(ref)
+        self.assertEqual((d["tour"], d["status"], d["comfy_prompt_id"], d["queue"]),
+                         (n, "ok", qid, "seriesmith"))
+        self.assertEqual(len(d["holds"]), 1)
+        with open(R.ref_file(self.s.ep, d["video"]), "rb") as fh:
+            self.assertEqual(fh.read(), b"mp4")
+        self.assertIn(("h3pipe.ref", {"ep": self.s.ep, "ref": ref.id, "view": R.TOUR_VIEW,
+                                      "take": d["holds"][0], "status": "ok"}), events)
+
+
 class TurnTest(Base):
     def test_a_view_is_turned_from_another(self):
         req = R.GenRequest("subject:ada", "03_back",

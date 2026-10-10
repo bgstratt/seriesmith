@@ -261,6 +261,84 @@ class Runner:
         self.queue.submit(qjob)
         return qjob.id
 
+    def enqueue_tour(self, s, ref, side: dict, graph: dict, backend_name: str) -> tuple[int, str]:
+        """A camera tour of a location (tour.plan_tours: its sidecar reserved,
+        its graph) queued: the location's plate goes up as the graph's
+        LoadImage, and the video that comes back is kept and its holds found
+        (tour.keep_tour), each a take of the location's `tour` view. Returns
+        (the tour's number, the queue's job id)."""
+        import os
+        import tempfile
+
+        from seriesmith import refs as R
+        from seriesmith import tour as TR
+        from seriesmith.backends import File
+
+        backend = self.backends.get(backend_name)
+        if backend is None:
+            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        for v in graph.values():
+            if v["class_type"] == "LoadImage":
+                v["inputs"]["image"] = File(ref.file)
+        ep, n = s.ep, side["tour"]
+
+        def hold(take) -> None:
+            self._emit("h3pipe.ref", {"ep": ep, "ref": ref.id, "view": R.TOUR_VIEW,
+                                      "take": take.take, "status": "ok"})
+
+        def work(qjob: QJob, report) -> str:
+            def progress(p):
+                report(p.value, p.step, p.steps)
+            try:
+                run = backend.submit(graph)
+                qjob.cancel_run = run.cancel
+                report(line=f"on {backend.name}: {run.id}")
+                status = run.watch(on_progress=progress)
+                if status != "succeeded":
+                    raise RuntimeError(run.error or f"the job ended {status}")
+                outs = [o for o in run.outputs()
+                        if o.name.lower().endswith((".mp4", ".webm", ".mov"))]
+                if not outs:
+                    raise RuntimeError("the job finished without a video")
+                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
+                os.close(fd)
+                try:
+                    outs[0].save(tmp)
+
+                    def write(path):
+                        os.replace(tmp, path)
+                    side.update(TR.keep_tour(s, ref, side, write,
+                                             os.path.splitext(outs[0].name)[1], hold))
+                finally:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                if side.get("status") != "ok":
+                    raise RuntimeError(side.get("error") or "the tour failed")
+                report(line=f"{len(side.get('holds') or [])} hold(s)")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the tour fails
+                qjob.error = str(e)[:800]
+                if side.get("status") != "failed":
+                    side.update(status="failed", finished=T.now(),
+                                error="canceled" if qjob.cancel_asked else str(e)[:800])
+                    TR.save_side(ref, side)
+                result = "canceled" if qjob.cancel_asked else "failed"
+            self._emit("h3pipe.episode", {"ep": ep})
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            side.update(status="failed", finished=T.now(), error="canceled before it ran")
+            TR.save_side(ref, side)
+            self._emit("h3pipe.episode", {"ep": ep})
+
+        qjob = QJob(kind="tour", lane=backend.name, title=f"{_ep_name(ep)} {ref.id} tour t{n:02d}",
+                    work=work, info={"ep": ep, "ref": ref.id, "tour": n, "backend": backend.name},
+                    on_cancel=cancelled)
+        side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue="seriesmith")
+        TR.save_side(ref, side)
+        self.queue.submit(qjob)
+        return n, qjob.id
+
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take
         from seriesmith import edit as E

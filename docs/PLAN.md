@@ -229,8 +229,13 @@ With the UI there to try each one:
       closes the take (runner.Runner.enqueue_ref). Live 2026-10-10: a new
       four-view sheet of Crane (ep02 scratch) on krea2, through the proxy,
       ~15 s a view.
-- [ ] The 360 tour (h3tour) and kreagen's command line still queue on the
-      local ComfyUI directly.
+- [x] The 360 tour and kreagen's command line. A tour from the page goes on
+      seriesmith's queue (runner.Runner.enqueue_tour): the location's plate is
+      the graph's upload, and the video that comes back is kept and its holds
+      found here. `seriesmith kreagen --backend <name>` makes each take on a
+      backend (Runner.enqueue_ref, waited for) and picks as before. Live
+      2026-10-10: a 6 s tour of diner_counter_morning (ep02 scratch) on
+      local, two holds.
 - [ ] A Router image target (with the live Router run).
 - [x] Continuity across backends: seriesmith's queue stages a take when its
       job starts, so `first: continuity` cuts the first frame from the take

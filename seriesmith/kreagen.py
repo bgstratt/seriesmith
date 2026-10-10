@@ -287,6 +287,10 @@ def main() -> int:
                     f"running ComfyUI, else this repo's copy, else the built-in graph)")
     ap.add_argument("--no-workflow", action="store_true",
                     help="ignore any workflow file and use the built-in graph")
+    ap.add_argument("--backend", default="",
+                    help="make each take on a seriesmith backend (local, cloud, "
+                         "deployment:<target>; seriesmith backends lists them) instead of "
+                         "queueing on --comfy directly")
     ap.add_argument("--list", action="store_true", help="show the job list and exit")
     ap.add_argument("--dry-run", action="store_true", help="print prompts, queue nothing")
     ap.add_argument("--steps", type=int, default=None,
@@ -514,17 +518,24 @@ def main() -> int:
         return 0
 
     comfy = J.Comfy(args.comfy, client_id="kreagen")
+    runner = None
+    if args.backend:
+        runner = backend_runner(args.backend)
+        if runner is None:
+            return 1
     try:
         use_node = comfy.has_node(R.SAVER)
     except Exception as e:
-        print(f"  !! can't reach ComfyUI at {args.comfy}: {e}\n")
-        return 1
-    if not use_node:
+        if runner is None or args.backend == "local":
+            print(f"  !! can't reach ComfyUI at {args.comfy}: {e}\n")
+            return 1
+        use_node, comfy = True, None             # nothing asks this machine's ComfyUI
+    if runner is None and not use_node:
         print(f"  ! this ComfyUI has no {R.SAVER} node (update the h3pipe node pack and\n"
               f"    restart ComfyUI). Saving through SaveImage and fetching each image\n"
               f"    over HTTP instead.\n")
 
-    listing = J.model_lister(comfy)
+    listing = J.model_lister(comfy) if comfy is not None else None
     cache = R.TG.modelid.temp_cache()
     failed = []
     for j in todo_now:
@@ -545,6 +556,12 @@ def main() -> int:
                         graphs[job.target.id], _ = R.resolve_workflow(args.comfy, None,
                                                                       job.target)
                     g0 = graphs[job.target.id]
+                if runner is not None:
+                    take = run_on_backend(runner, args.backend, s, job, g0,
+                                          not args.no_lora_clip, args.timeout)
+                    made.append((job, take))
+                    continue
+                if not job.is_krea2:
                     R.stage_references(s, job, comfy)
                     R.stage_voice_reference(s, job, comfy)
                 take = R.start_gen(s, job)
@@ -579,6 +596,37 @@ def main() -> int:
           + (f", {len(failed)} failed: {', '.join(failed)}" if failed else "")
           + "\n  re-run h3build to confirm the count.\n")
     return 1 if failed else 0
+
+
+def backend_runner(name: str):
+    """A queue of this process's own and a runner on seriesmith's backends,
+    for --backend (None, said why, when that backend isn't set up)."""
+    from seriesmith.backends import available
+    from seriesmith.queue import Queue
+    from seriesmith.runner import Runner
+    backends = available()
+    if name not in backends:
+        print(f"  !! {name} isn't set up on this machine (seriesmith backends: "
+              f"{', '.join(backends)})\n")
+        return None
+    return Runner(Queue(), backends)
+
+
+def run_on_backend(runner, backend: str, s, job, base, lora_clip: bool, timeout: int):
+    """One ref take made on a backend (Runner.enqueue_ref) and waited for.
+    Returns the take; RuntimeError when it didn't come back ok."""
+    import time
+    take, qid = runner.enqueue_ref(s, job, base, backend, lora_clip=lora_clip)
+    end = time.time() + timeout
+    qjob = runner.queue.jobs[qid]
+    while qjob.status not in ("succeeded", "failed", "canceled"):
+        if time.time() > end:
+            runner.queue.cancel(qid)
+            raise RuntimeError(f"t{take.take:02d} took longer than {timeout}s (cancelled)")
+        time.sleep(0.5)
+    if qjob.status != "succeeded":
+        raise RuntimeError(f"t{take.take:02d} {qjob.status}: {qjob.error}"[:400])
+    return R.get_take(job.ref, job.view, take.take)
 
 
 if __name__ == "__main__":
