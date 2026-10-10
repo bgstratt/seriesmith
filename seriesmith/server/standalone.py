@@ -232,8 +232,7 @@ def ensure_proxy(settings) -> str:
     from seriesmith.backends.comfy import health
     if health(settings.local_url, timeout=2.0) is None:
         return f"comfy-api-proxy: {settings.local_url}"
-    if health(settings.comfyui_url.rstrip("/") + "/..", timeout=2.0) and \
-            not _answers(settings.comfyui_url):
+    if not _answers(settings.comfyui_url):
         return f"comfy-api-proxy: not started (no ComfyUI at {settings.comfyui_url})"
     exe = os.path.join(os.path.dirname(sys.executable), "comfy-api-proxy" +
                        (".exe" if os.name == "nt" else ""))
