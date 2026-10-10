@@ -865,6 +865,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     },
     // P5: a new episode from a template. No filesystem here, so the mock keeps
     // the folder in memory and lists it as what it would be: unbuilt, no shots.
+    async importSeries(req) {
+      return { show: req.parent, episodes: [], skipped: [],
+               errors: [{ file: "", error: "the mock doesn't import series" }] };
+    },
     async newEpisode(req) {
       await wait(400);
       if (!roots.length) throw new MockError("No project roots are configured.", 403);

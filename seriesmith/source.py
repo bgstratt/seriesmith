@@ -558,6 +558,94 @@ def refs_folder(ep: str, raw: dict) -> str | None:
     return None
 
 
+HEADER_RE = re.compile(r"^=\s*(\S+)")
+
+
+def episode_id(text: str, filename: str = "") -> str:
+    """The episode a script is: its header's id (`= ep02  Observation` ->
+    "ep02"), else its file name's stem."""
+    for line in (text or "").splitlines():
+        if line.strip():
+            m = HEADER_RE.match(line.strip())
+            if m:
+                return m.group(1)
+            break
+    return os.path.splitext(os.path.basename(filename or ""))[0]
+
+
+def _series_config(text: str, what: str) -> dict:
+    try:
+        raw = json.loads(text)
+    except ValueError as e:
+        raise SourceError(400, f"{what} isn't JSON: {e}") from None
+    if not isinstance(raw, dict) or not isinstance(raw.get("series"), dict):
+        raise SourceError(400, f"{what} needs a `series` block")
+    return raw
+
+
+def import_series(parent: str, series_text: str | None, scripts: list[tuple],
+                  show: str | None = None) -> dict:
+    """A series config and a stack of scripts in, episode folders out: under
+    `parent` (a folder of shows), `<show>/` when a show is named, then for each
+    script `<episode>/` with a series config and `<episode>.md`, the episode's
+    id from its header (episode_id). Each script is (file name, text) or
+    (file name, text, its own series config's text): an episode that adds a
+    character carries its own config, as every episode folder does; without
+    one it gets `series_text`, the shared config. Its refs folder (series-wide
+    `../refs` or the episode's own) is made. An episode whose folder is
+    already there is left alone and said so; one whose name isn't a folder
+    name, or that has no config at all, is an error. Nothing is built.
+
+    Returns {"show", "episodes": [{"ep", "name", "own_config", "check"}],
+    "skipped": [{"name", "why"}], "errors": [{"file", "error"}]}. SourceError
+    400 for a series config that isn't one, or a parent that isn't a folder."""
+    if not parent or not isinstance(parent, str) or not os.path.isdir(parent):
+        raise SourceError(400, f"no folder at {parent!r} to import into")
+    shared = _series_config(series_text, "the series config") if series_text else None
+    home = os.path.abspath(parent)
+    if show:
+        home = os.path.join(home, check_name(show))
+        os.makedirs(home, exist_ok=True)
+    out: dict = {"show": home, "episodes": [], "skipped": [], "errors": []}
+    seen: set[str] = set()
+    for item in scripts:
+        filename, text = item[0], item[1]
+        own = item[2] if len(item) > 2 else None
+        if not episode_id(text):
+            out["errors"].append({"file": filename, "error": "not a script: its first line "
+                                  "isn't an episode header (`= ep01  Title`)"})
+            continue
+        try:
+            name = check_name(episode_id(text))
+            raw = _series_config(own, f"{filename}'s series config") if own else shared
+        except SourceError as e:
+            out["errors"].append({"file": filename, "error": str(e)})
+            continue
+        if raw is None:
+            out["errors"].append({"file": filename, "error": "no series config for it: pick "
+                                  "one for the whole series, or its own beside it"})
+            continue
+        if name.lower() in seen:
+            out["errors"].append({"file": filename,
+                                  "error": f"another script here is {name} too"})
+            continue
+        seen.add(name.lower())
+        ep = os.path.join(home, name)
+        if os.path.exists(ep):
+            out["skipped"].append({"name": name, "why": f"{ep} is already there"})
+            continue
+        os.makedirs(ep)
+        atomic_write(os.path.join(ep, "series.json"), dump_series(raw, "\n").encode("utf-8"))
+        atomic_write(os.path.join(ep, f"{name}.md"), normalize(text).encode("utf-8"))
+        refs = refs_folder(ep, raw)
+        if refs:
+            os.makedirs(refs, exist_ok=True)
+        out["episodes"].append({"ep": ep, "name": name, "own_config": bool(own),
+                                "check": check_text(ep, "script", text)})
+    out["episodes"].sort(key=lambda e: e["name"].lower())
+    return out
+
+
 def _first(block: dict, kind: str | None = None):
     for key, val in (block or {}).items():
         if key.startswith("_") or not isinstance(val, dict):

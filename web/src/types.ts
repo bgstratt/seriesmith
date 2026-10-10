@@ -519,6 +519,25 @@ export interface NewEpisodeRequest {
   series_id?: string | null;
 }
 
+/** seriesmith: a series config and a stack of scripts, made into episode folders */
+export interface ImportSeriesRequest {
+  /** a folder of shows (inside a root) */
+  parent: string;
+  /** the show's folder to make or fill; null: the episodes go straight into parent */
+  show: string | null;
+  /** the series config's text, for every script without its own (null: each has its own) */
+  series: string | null;
+  /** each script, with its own series config when it brings one */
+  scripts: { name: string; text: string; series?: string }[];
+}
+
+export interface ImportSeriesResult {
+  show: string;
+  episodes: { ep: string; name: string; own_config: boolean; check: SourceCheck }[];
+  skipped: { name: string; why: string }[];
+  errors: { file: string; error: string }[];
+}
+
 export interface NewEpisodeResult {
   ep: string;
   /** "episode" = the newest episode beside it was the template, "starter" = the shipped pair */

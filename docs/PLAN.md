@@ -198,7 +198,7 @@ of h3pipe's ComfyUI nodes, which stay in h3pipe until each stage is portable.
 Tests that ran h3render against a fake ComfyUI render on seriesmith's fake
 backend now (tests/fakes.py).
 
-## Step 7 — the server, the queue and both hosts (the UI)
+## Step 7 — the server, the queue and both hosts (the UI) ✅
 
 - [x] The server: the route table (h3pipe's comfy_nodes/h3pipe_routes.py)
       mounted by `seriesmith serve` (the ComfyUI host is written, and stays off
@@ -214,7 +214,10 @@ Done 2026-10-10: Porchlights ep02 sh180 (proxy), Render from the page's API on
 `local`: queued, rendered through comfy-api-proxy, collected, 16 s; the Jobs
 window shows it. Renders other than shots (refs, upscale, post, master) still
 go to the local ComfyUI directly, as in h3pipe, until step 8 moves them.
-- [ ] Series and season import: a series config and a stack of scripts.
+- [x] Series and season import: a series config and a stack of scripts, or a
+      season's folder with each episode's own series config (POST
+      /h3pipe/import; "Import series…" in the episode browser). Porchlights
+      season 2 (10 episodes, each with its own config) imports and checks clean.
 
 ## Step 8 — each stage portable, continuity, deployments
 

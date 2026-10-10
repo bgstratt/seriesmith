@@ -2,7 +2,7 @@
 // episode, and picking a file on the ComfyUI machine to import as a ref.
 
 import { useCallback, useEffect, useState } from "react";
-import { addRoot, attachTrack, closeBrowse, importRef, makeEpisode, openEpisodeAt, refLabel, removeRoot, useClipAudioFile } from "../actions";
+import { addRoot, attachTrack, closeBrowse, importRef, importSeries, makeEpisode, openEpisodeAt, refLabel, removeRoot, useClipAudioFile } from "../actions";
 import { errText } from "../api";
 import { api } from "../host";
 import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, crumbs } from "../lib/browse";
@@ -53,6 +53,11 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const [epName, setEpName] = useState("");
   const [epTitle, setEpTitle] = useState("");
   const busyNew = useApp((s) => !!s.busy.newEpisode);
+  // seriesmith: Import series… — a series config and a stack of scripts
+  const [importingSeries, setImportingSeries] = useState(false);
+  const [showName, setShowName] = useState("");
+  const [seriesFiles, setSeriesFiles] = useState<File[]>([]);
+  const busySeries = useApp((s) => !!s.busy.importSeries);
   const forTrack = b.purpose === "track";
   const busyTrack = useApp((s) => !!s.busy.track);
   // Phase 9d: picking one clip's audio file — the same file list, but the
@@ -173,6 +178,14 @@ function BrowseBody({ b }: { b: BrowseState }) {
                 onClick={startMaking}
               >
                 <i className="pi pi-file-plus" /> New episode…
+              </button>
+              <button
+                className="h3-btn"
+                disabled={!newParent || importingSeries}
+                title={newParent ? `Make episodes in ${newParent} from a series config and scripts` : "Browse to the folder your shows live in"}
+                onClick={() => { setImportingSeries(true); setMaking(false); }}
+              >
+                <i className="pi pi-upload" /> Import series…
               </button>
               <button className="h3-btn" disabled={!rootTarget || busyRoots} title={rootTarget ? `Add ${rootTarget} as a project root` : "Browse into a folder first"} onClick={() => rootTarget && void addRoot(rootTarget)}>
                 <i className="pi pi-plus" /> Add as root
@@ -304,6 +317,47 @@ function BrowseBody({ b }: { b: BrowseState }) {
               : nameProblem
                 ? nameProblem
                 : `The name is the folder and the script (${epName}\\${epName}.md). It starts from the newest episode already there — its cast, look and profiles — or from the starter template when there is none.${deep ? " This folder is deeper than a root reaches, so opening the episode will add it as one." : ""}`}
+          </div>
+        </div>
+      )}
+      {!importing && importingSeries && newParent && (
+        <div className="h3-col" style={{ gap: 4 }}>
+          <div className="h3-h">Import a series into {newParent}</div>
+          <div className="h3-row">
+            <input
+              className="h3-in h3-mono"
+              style={{ width: 180 }}
+              placeholder="show folder (optional)"
+              value={showName}
+              onChange={(e) => setShowName(e.target.value)}
+            />
+            <label className="h3-btn" title="The series config and the scripts, picked together">
+              <i className="pi pi-file" /> Files…
+              <input type="file" multiple accept=".json,.md,.txt" hidden
+                     onChange={(e) => setSeriesFiles(Array.from(e.target.files ?? []))} />
+            </label>
+            <label className="h3-btn" title="A season's folder: each episode folder with its script and its own series.json">
+              <i className="pi pi-folder" /> Folder…
+              <input type="file" multiple hidden {...{ webkitdirectory: "", directory: "" }}
+                     onChange={(e) => setSeriesFiles(Array.from(e.target.files ?? []))} />
+            </label>
+            <span className="h3-grow" />
+            <button
+              className="h3-btn h3-primary"
+              disabled={!seriesFiles.length || busySeries}
+              onClick={() => void importSeries(newParent, showName, seriesFiles).then((r) => r && setImportingSeries(false))}
+            >
+              <i className={busySeries ? "pi pi-spin pi-spinner" : "pi pi-check"} /> Import
+            </button>
+            <button className="h3-btn" onClick={() => setImportingSeries(false)}>Cancel</button>
+          </div>
+          <div className="h3-small h3-muted">
+            Pick the series config (series.json) and the scripts together, or a season's folder in which each
+            episode folder has its script and its own series.json (episodes that add a character carry their own).
+            Each script becomes a folder named by its header (<span className="h3-mono">= ep02  Title</span> → ep02)
+            {showName.trim() ? `, all in ${newParent}\\${showName.trim()}` : ""}; other .md files are left out.
+            An episode already there is left alone. Nothing is built yet: open each and Build.
+            {seriesFiles.length > 0 && ` — ${seriesFiles.length} file${seriesFiles.length === 1 ? "" : "s"} picked.`}
           </div>
         </div>
       )}

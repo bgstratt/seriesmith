@@ -463,6 +463,36 @@ def post_episode_new(ctx: Context, body):
     return 200, res
 
 
+@handler
+def post_import(ctx: Context, body):
+    """seriesmith: a series config and a stack of scripts in, episode folders
+    out (source.import_series). Body: {"parent": a folder of shows inside a
+    root, "show": the show's folder to make or fill (optional: the episodes go
+    straight into `parent`), "series": the series config's text, for every
+    script without its own (optional when each has one), "scripts": [{"name":
+    the file's name, "text", "series": its own series config's text
+    (optional)}]}. Nothing is built."""
+    body = body_dict(body)
+    parent = check_folder(ctx, body.get("parent"), "parent")
+    series = body.get("series") or None
+    if series is not None and not isinstance(series, str):
+        raise ApiError(400, "series must be the series config's text")
+    scripts = body.get("scripts")
+    if (not isinstance(scripts, list) or not scripts
+            or not all(isinstance(s, dict) and isinstance(s.get("text"), str)
+                       and isinstance(s.get("series") or "", str) for s in scripts)):
+        raise ApiError(400, "scripts must be a list of {name, text, series?}")
+    show = body.get("show") or None
+    if show is not None and not isinstance(show, str):
+        raise ApiError(400, "show must be a folder name")
+    res = P.H.import_series(parent, series,
+                            [(str(s.get("name") or ""), s["text"], s.get("series") or None)
+                             for s in scripts], show=show)
+    for e in res["episodes"]:
+        episode_event(ctx, e["ep"])
+    return 200, res
+
+
 def check_folder(ctx: Context, path, what: str = "folder") -> str:
     """An existing folder inside a configured root (the same check as an
     episode's, for a folder that isn't an episode yet)."""
@@ -3051,6 +3081,7 @@ ROUTES = [
     ("GET", "/h3pipe/shot", get_shot, "query"),
     ("POST", "/h3pipe/build", post_build, "body"),
     ("POST", "/h3pipe/episode/new", post_episode_new, "body"),
+    ("POST", "/h3pipe/import", post_import, "body"),
     ("GET", "/h3pipe/issues", get_issues, "query"),
     ("POST", "/h3pipe/issues", post_issues, "body"),
     ("DELETE", "/h3pipe/issues", delete_issues, "query"),

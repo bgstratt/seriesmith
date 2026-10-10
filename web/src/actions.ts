@@ -7,6 +7,7 @@ import { epRelative, reachable, sameDir } from "./lib/browse";
 import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
 import { staleShots } from "./lib/progress";
+import { pairFiles } from "./lib/importSeries";
 import { buildPlaylist, startOf, totalDuration, type PlayItem } from "./lib/playlist";
 import { type RefTargetKind } from "./lib/imageTargets";
 import {
@@ -25,7 +26,7 @@ import {
   type CompareMode, type RefTakeRef, type VoiceClipState,
 } from "./store";
 import type {
-  AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
+  AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest,
@@ -2948,4 +2949,50 @@ export function setBackends(backends: BackendInfo[] | null) {
 
 export function openJobs(open = true) {
   set({ jobsOpen: open });
+}
+
+/**
+ * seriesmith: a series config and a stack of scripts, made into episode
+ * folders under `parent` (in a show folder of their own when `show` is
+ * named), each with the series config and its script, named by the script's
+ * header. The first one made is opened; none is built yet.
+ */
+export async function importSeries(parent: string, show: string, files: File[]): Promise<ImportSeriesResult | null> {
+  // a picked folder's files carry their path inside it (webkitRelativePath)
+  const picked = await Promise.all(files.map(async (f) => ({
+    path: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name,
+    text: await f.text(),
+  })));
+  const pairing = pairFiles(picked);
+  if (pairing.problems.length) {
+    host().toast("error", "Nothing imported", pairing.problems.join("\n"));
+    return null;
+  }
+  setBusy("importSeries", true);
+  try {
+    const res = await api().importSeries({
+      parent, show: show.trim() || null, series: pairing.shared?.text ?? null,
+      scripts: pairing.scripts.map((s) => ({ name: s.script.path, text: s.script.text,
+                                             ...(s.config ? { series: s.config.text } : {}) })),
+    });
+    const bad = res.episodes.filter((e) => !e.check.ok);
+    const lines = [
+      ...res.episodes.map((e) => `${e.name}${e.own_config ? " (its own series config)" : ""}`
+        + `${e.check.ok ? "" : " — has script errors (open it to see)"}`),
+      ...res.skipped.map((s) => `${s.name}: skipped, ${s.why}`),
+      ...res.errors.map((e) => `${e.file}: ${e.error}`),
+      ...(pairing.notScripts.length ? [`${pairing.notScripts.length} .md file(s) without an episode header left out`] : []),
+    ];
+    host().toast(res.episodes.length && !res.errors.length ? (bad.length ? "warn" : "success") : "warn",
+      `Imported ${res.episodes.length} episode${res.episodes.length === 1 ? "" : "s"} into ${res.show}`,
+      lines.join("\n"));
+    await loadEpisodes();
+    if (res.episodes[0]) await openEpisodeAt(res.episodes[0].ep, res.show);
+    return res;
+  } catch (e) {
+    report("The series wasn't imported", e);
+    return null;
+  } finally {
+    setBusy("importSeries", false);
+  }
 }

@@ -12,7 +12,7 @@
 import type {
   AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, EpisodeTargetResult, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
-  NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
+  ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
   RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeRef, TargetKind, TargetList, TrackResult,
@@ -44,6 +44,8 @@ export interface Api {
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /h3pipe/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
+  /** seriesmith: a series config and scripts into episode folders (POST /h3pipe/import) */
+  importSeries(req: ImportSeriesRequest): Promise<ImportSeriesResult>;
   /** URL of a file inside the episode (for <img>/<video>); supports Range. */
   fileUrl(ep: string, path: string): string;
   /** A JSON file inside the episode (e.g. a frozen shotlist), seeds as strings. */
@@ -381,6 +383,7 @@ export function createHttpApi(t: Transport): Api {
     shot: (ep, pass, shot, target) => get(`/h3pipe/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
     build: (ep) => call("POST", "/h3pipe/build", { ep }),
     newEpisode: (req) => call("POST", "/h3pipe/episode/new", req),
+    importSeries: (req) => call("POST", "/h3pipe/import", req),
     fileUrl: (ep, path) => t.url(`/h3pipe/file?${qs({ ep, path })}`),
     readJson: (ep, path) => get(`/h3pipe/file?${qs({ ep, path })}`),
     render: (req) => {
