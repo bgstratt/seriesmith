@@ -73,8 +73,9 @@ the last frame, feed it as the next shot's first frame) and `check` says so. A
 take made on a backend that can't promise a seed is marked non-reproducible.
 
 Hosted models return finished video only: no latents. A Comfy API deployment
-returns whatever its workflow saves, so a latent saved as a file should come back
-as an asset (to be confirmed against the v2 API).
+returns whatever its workflow saves and reports: the proxy and the v2 API hand
+back a saved latent as an output like any picture (PLAN.md, "Facts the plan
+rests on"); whether Comfy Cloud does the same is still to be confirmed.
 
 ### 3. Where a job goes
 
@@ -162,30 +163,19 @@ Python 3.10+. The core needs nothing outside the standard library; backends use
 
 ## Build order
 
-Each step ends with something that runs.
-
-1. **Core and compile.** h3pipe's `h3core/`, `h3build.py` and `targets/` as the
-   `seriesmith` package; `seriesmith build` and `seriesmith check`. The golden
-   tests come along and must match h3pipe's outputs byte for byte, except the
-   renames listed in the commit. Then capabilities on each target.
-2. **Backends.** The job lifecycle; the Comfy backend on the SDK (local through
-   the proxy, Cloud and deployments by URL); the Router backend. One local target
-   (H3 ref2va) and one Router target rendering end to end.
-3. **seriesmith writes the takes.** Outputs come back from the backend; the take,
-   its record and its latents are written by seriesmith. h3pipe's save nodes go.
-4. **Takes, picks, cuts, overrides, notes.** h3pipe's `h3takes`, the pick and
-   override parts of `h3edit`, `h3issues` and `h3promote`.
-5. **The server and both hosts.** The route table mounted by `seriesmith serve`
-   and inside ComfyUI; the standalone layout; the Jobs window; series import.
-6. **Stages.** Refs and the 360 tour, then upscale, post, master and publish,
-   each through a target and a backend.
+Vertical slices, each ending with something that runs: core and compile;
+backends; the first render (H3 on your own GPU); the first hosted render
+(Router); every local target, continuity and deployments; takes, picks, cuts
+and notes; the server, the queue and both hosts; refs and the 360 tour;
+finishing. The work list, with what "done" means for each step, is
+[PLAN.md](PLAN.md).
 
 ## Open questions
 
 - Does Comfy Cloud accept arbitrary custom node packs, or only a curated set?
   (Deployments clearly do.)
 - Which inputs does Router's hosted H3 take: reference images, audio?
-- Does the v2 API return non-media outputs (a latent file) as assets?
+- Does Comfy Cloud return a saved latent as an output, as the proxy does?
 - Comfy's docs disagree on whether Router is generally available.
 - The Comfy Dev Platform Challenge was postponed; check its rules when it is
   re-posted. Our reading: the entry must run its generation through the
