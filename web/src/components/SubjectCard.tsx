@@ -11,6 +11,7 @@ import {
   type CardKind, type Raw,
 } from "../lib/seriesForm";
 import { useApp } from "../store";
+import { MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { RefDetail } from "./RefsTab";
 import { CheckMessages, FieldRow, FileLine, SaveBar } from "./SeriesForm";
@@ -121,9 +122,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
                 onChange={(v) => setField(f.path[0], v)} />
             ))}
             {fields.some((f) => f.more) && (
-              <label className="h3-row h3-small h3-muted">
-                <input type="checkbox" checked={more} onChange={(e) => setMore(e.target.checked)} /> More (variant / angle, file, layout, voice sample)
-              </label>
+              <MoreToggle open={more} onToggle={setMore} label="More: variant / angle, file, layout, voice sample" />
             )}
             {missing && <span className="h3-small h3-warn">{missing}</span>}
             <CheckMessages sc={sc} />

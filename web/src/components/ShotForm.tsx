@@ -6,17 +6,18 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, loadRefs, openBrowse, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
 import {
-  CAMERA_AMPLITUDE, CAMERA_MOVES, CAMERA_SPEED, DURATIONS, SIZES, cameraLine, insertAfter, listOf, newShot,
+  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, DURATIONS, SIZES, cameraLine, insertAfter, listOf, newShot,
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
-import { useApp } from "../store";
+import { store, useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
+import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { Hover, PicturePicker, Thumb, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
@@ -173,6 +174,16 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const set = (k: string, v: string) => setForm((f) => (f ? { ...f, keys: { ...f.keys, [k]: v } } : f));
   const setDialogue = (d: DialogueLine[]) => setForm((f) => (f ? { ...f, dialogue: d } : f));
   const videoTargets = (targets?.targets ?? []).filter((t) => t.kind === "video" && !t.draft);
+  // the model this shot renders on: its own, else what the preview compiled it for
+  const renderTarget = form?.keys.target || (preview?.ok ? preview.target ?? null : null);
+
+  // a picture picked in Browse for a keyframe
+  const keyframePick = useApp((s) => s.keyframePick);
+  useEffect(() => {
+    if (!keyframePick) return;
+    set(keyframePick.key, keyframePick.path);
+    store.set({ keyframePick: null });
+  }, [keyframePick]);
 
   const head = (
     <>
@@ -275,9 +286,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                 <input className="h3-in" value={form.keys.text ?? ""} placeholder="OPEN 24 HOURS" onChange={(e) => set("text", e.target.value)} />
               </Row>
 
-              <label className="h3-row h3-small h3-muted">
-                <input type="checkbox" checked={more} onChange={(e) => setMore(e.target.checked)} /> More: music, the model, keyframes, continuity, audio, render settings
-              </label>
+              <MoreToggle open={more} onToggle={setMore} label="More: music, the model, keyframes, continuity, audio, render settings" />
               {more && (
                 <div className="h3-col" style={{ gap: 8 }}>
                   <Row label="Music" help="Audience-only score; usually left out and decided in the edit.">
@@ -294,8 +303,12 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                       <option value="">no</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="none">none: break a sequence's chain</option>
                     </select>
                   </Row>
-                  <SmallKey label="First frame" k="first" form={form} set={set} help="generate, import, none, or a picture's path (for models that read keyframes)." />
-                  <SmallKey label="Last frame" k="last" form={form} set={set} help="As the first frame, for the end." />
+                  <Row label="First frame" help="The picture the shot opens on, for models that read keyframes (H3 FL2VA, LTX-2, Wan); others ignore it.">
+                    <KeyframeField ep={ep} k="first" value={form.keys.first ?? ""} onChange={(v) => set("first", v)} />
+                  </Row>
+                  <Row label="Last frame" help="The picture it ends on, for the models that take one.">
+                    <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
+                  </Row>
                   <Row label="Audio" help="This shot's sound: generate, dub (lip-sync to the recording), dub_keep_foley, clone. Empty: the series' dialogue setting.">
                     <select className="h3-in" value={form.keys.policy ?? ""} onChange={(e) => set("policy", e.target.value)}>
                       <option value="">the series'</option>
@@ -316,8 +329,12 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     </Row>
                   )}
                   <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />
-                  <SmallKey label="LoRA" k="lora" form={form} set={set} help="name.safetensors[:strength], or none." />
-                  <SmallKey label="Model file" k="model" form={form} set={set} help="Another model file for this shot." />
+                  <Row label="LoRA" help={`One LoRA for this shot, from what ${renderTarget ?? "its model"} loads, and its strength; none for none.`}>
+                    <LoraLine value={form.keys.lora ?? ""} onChange={(v) => set("lora", v)} target={renderTarget} empty="the series' (or the model's own)" />
+                  </Row>
+                  <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
+                    <ModelLine value={form.keys.model ?? ""} onChange={(v) => set("model", v)} target={renderTarget} empty="the series' (or the model's own)" />
+                  </Row>
                 </div>
               )}
             </>
@@ -347,6 +364,35 @@ export function Row({ label, help, children }: { label: string; help: string; ch
       <span className="h3-small"><b>{label}</b></span>
       {children}
       <span className="h3-small h3-muted">{help}</span>
+    </div>
+  );
+}
+
+/** A `first:` / `last:` value: the default, a method, or a picture (browsed for). */
+function KeyframeField({ ep, k, value, onChange }: { ep: string; k: "first" | "last"; value: string; onChange: (v: string) => void }) {
+  const isPath = !!value && !KEYFRAME_METHODS.includes(value.toLowerCase());
+  const browse = () => openBrowse({ purpose: "keyframe", key: k, files: "image" });
+  return (
+    <div className="h3-row h3-wrap" style={{ gap: 4 }}>
+      <select className="h3-in" value={isPath ? "__path" : value} onChange={(e) => {
+        if (e.target.value === "__path") browse();
+        else onChange(e.target.value);
+      }}>
+        <option value="">the default (generate, when the model reads one)</option>
+        <option value="generate">generate: a still from the shot's description</option>
+        <option value="import">import: one you'll bring in on the Refs tab</option>
+        <option value="none">none</option>
+        <option value="__path">{isPath ? "this picture" : "a picture you have…"}</option>
+      </select>
+      {isPath && (
+        <>
+          <Hover ep={ep} item={{ id: value, name: value, pic: { path: value, face: false, version: null } }} big={260}>
+            <Thumb ep={ep} pic={{ path: value, face: false, version: null }} name={k} size={28} />
+          </Hover>
+          <span className="h3-small h3-mono h3-ell" style={{ maxWidth: 220 }} title={value}>{value}</span>
+          <button className="h3-btn" onClick={browse}>Change…</button>
+        </>
+      )}
     </div>
   );
 }

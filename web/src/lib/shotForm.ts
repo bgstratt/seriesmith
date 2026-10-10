@@ -234,3 +234,30 @@ export function cameraLine(move: string, amplitude: string, speed: string): stri
 export function newShot(id: string): ShotForm {
   return { id, keys: { size: "medium", dur: "3.04" }, action: "", dialogue: [], comments: [], other: [] };
 }
+
+// ---------------------------------------------------------------------------
+// a `lora:` line (jobs.parse_lora): `name`, `name:0.7`, or none / off / -
+// ---------------------------------------------------------------------------
+
+const LORA_OFF = new Set(["none", "off", "-"]);
+
+/** A `lora:` value as the picker shows it: none, or a file and its strength. */
+export function parseLoraLine(v: string): { off: boolean; name: string; strength: string } {
+  const s = v.trim();
+  if (LORA_OFF.has(s.toLowerCase())) return { off: true, name: "", strength: "1" };
+  const i = s.lastIndexOf(":");
+  if (i > 0 && s.slice(i + 1).trim() !== "" && Number.isFinite(Number(s.slice(i + 1)))) {
+    return { off: false, name: s.slice(0, i), strength: s.slice(i + 1).trim() };
+  }
+  return { off: false, name: s, strength: "1" };
+}
+
+/** The `lora:` value for a file and its strength (1 is left unsaid). */
+export function loraLine(name: string, strength: string): string {
+  if (!name.trim()) return "";
+  const n = Number(strength);
+  return !strength.trim() || !Number.isFinite(n) || n === 1 ? name.trim() : `${name.trim()}:${strength.trim()}`;
+}
+
+/** What a `first:` / `last:` value is: a method, or a picture's path. */
+export const KEYFRAME_METHODS = ["generate", "import", "none"];

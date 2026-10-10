@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from "react";
-import { loadModels } from "../actions";
+import { loadModelFiles, loadModels } from "../actions";
 import { diffStats, diffWords } from "../lib/diff";
 import type { LoraRow } from "../lib/overrideForm";
+import { loraLine, parseLoraLine } from "../lib/shotForm";
 import { shortName } from "../lib/format";
 import { isModelMismatch, modelGroups, modelWarning } from "../lib/targets";
 import { useApp } from "../store";
 import type { ModelList } from "../types";
+import { useTargetPickers } from "./Targets";
 
 /** Model picker from ComfyUI's diffusion_models (or unet) list. `""` = the placeholder. */
 /** `choices` (a target's own list) replaces ComfyUI's generic one. `grouped`
@@ -120,4 +122,62 @@ export function DiffView({ oldText, newText }: { oldText: string; newText: strin
       </pre>
     </div>
   );
+}
+
+/** The "more settings" disclosure: an arrow, like a section's, not a checkbox. */
+export function MoreToggle({ open, onToggle, label }: { open: boolean; onToggle: (open: boolean) => void; label: string }) {
+  return (
+    <button type="button" className="h3-link sm-more" aria-expanded={open} onClick={() => onToggle(!open)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start", padding: "2px 0" }}>
+      <i className={`pi ${open ? "pi-chevron-down" : "pi-chevron-right"}`} style={{ fontSize: 10 }} />
+      <span className="h3-small">{label}</span>
+    </button>
+  );
+}
+
+/** One LoRA as a `lora:` line writes it (`name`, `name:0.7`, `none`), picked from
+ * what `target` loads. "" is the default (the series' or the target's preset). */
+export function LoraLine({ value, onChange, target, empty = "the default" }: {
+  value: string; onChange: (v: string) => void; target: string | null; empty?: string;
+}) {
+  const pickers = useTargetPickers(target);
+  const loras = useApp((s) => s.loras);
+  // the files of the model's LoRA family (GET /seriesmith/models?param=loras): the
+  // list where ComfyUI's own isn't served (the standalone app)
+  const t = pickers.target;
+  const family = useApp((s) => (t?.models?.loras ? s.modelFiles[`${t.id}|loras`] : undefined));
+  useEffect(() => {
+    void loadModels();
+    if (t?.models?.loras) void loadModelFiles(t.id, "loras");
+  }, [t?.id]);
+  const list = pickers.loras?.length ? pickers.loras : family?.files.length ? family.files.map((f) => f.name) : loras ?? [];
+  const cur = parseLoraLine(value);
+  const pick = value.trim() === "" ? "" : cur.off ? "__none" : cur.name;
+  return (
+    <div className="h3-row h3-wrap" style={{ gap: 4 }}>
+      <select className="h3-in h3-grow" style={{ minWidth: 0 }} value={pick} title={cur.name || undefined}
+        onChange={(e) => onChange(e.target.value === "" ? "" : e.target.value === "__none" ? "none" : loraLine(e.target.value, cur.strength))}>
+        <option value="">{empty}</option>
+        <option value="__none">none (no LoRA)</option>
+        {cur.name && !list.includes(cur.name) && <option value={cur.name}>{shortName(cur.name, 44)} (not installed)</option>}
+        {list.map((l) => <option key={l} value={l} title={l}>{shortName(l, 44)}</option>)}
+      </select>
+      {pick !== "" && pick !== "__none" && (
+        <input className="h3-in" type="number" step={0.05} style={{ width: 70 }} title="Strength" value={cur.strength}
+          onChange={(e) => onChange(loraLine(cur.name, e.target.value))} />
+      )}
+    </div>
+  );
+}
+
+/** A model file for `target`, from what it can load; "" is the default. A target
+ * without a model widget gets a text box. */
+export function ModelLine({ value, onChange, target, empty = "the default" }: {
+  value: string; onChange: (v: string) => void; target: string | null; empty?: string;
+}) {
+  const pickers = useTargetPickers(target);
+  if (pickers.models === null) {
+    return <input className="h3-in" value={value} placeholder={empty} onChange={(e) => onChange(e.target.value)} />;
+  }
+  return <ModelSelect value={value} onChange={onChange} placeholder={empty} choices={pickers.models ?? undefined} grouped={pickers.modelFiles} />;
 }

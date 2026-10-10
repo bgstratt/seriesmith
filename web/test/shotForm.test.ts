@@ -100,3 +100,15 @@ describe("the shot form", () => {
     expect(listOf(" ada, bo ,")).toEqual(["ada", "bo"]);
   });
 });
+
+describe("a shot's lora: line", () => {
+  it("reads and writes the forms jobs.parse_lora takes", async () => {
+    const { loraLine, parseLoraLine } = await import("../src/lib/shotForm");
+    expect(parseLoraLine("none")).toEqual({ off: true, name: "", strength: "1" });
+    expect(parseLoraLine("detail.safetensors:0.6")).toEqual({ off: false, name: "detail.safetensors", strength: "0.6" });
+    expect(parseLoraLine("dir/x.safetensors")).toEqual({ off: false, name: "dir/x.safetensors", strength: "1" });
+    expect(loraLine("x.safetensors", "1")).toBe("x.safetensors");
+    expect(loraLine("x.safetensors", "0.75")).toBe("x.safetensors:0.75");
+    expect(loraLine("", "0.5")).toBe("");
+  });
+});

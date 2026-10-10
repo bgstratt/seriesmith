@@ -7,7 +7,7 @@ import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
   openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
-import type { CardKind } from "../lib/seriesForm";
+import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
   needLabel,
@@ -813,6 +813,41 @@ function TurnButton({ r, view, label }: { r: Ref; view: string; label: string })
 }
 
 /** The kind a group's + adds. */
+/** + Add at the top of the tab: a new character, group, prop, vehicle, location
+ * or voice, on its card (the same as a group's +, without finding the group). */
+function AddRefButton({ disabled }: { disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: globalThis.MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", esc); };
+  }, [open]);
+  return (
+    <span ref={box} style={{ position: "relative" }}>
+      <button className="h3-btn" disabled={disabled} aria-expanded={open}
+        title="Add someone or something to the series config: a character, group, prop, vehicle, location or voice"
+        onClick={() => setOpen(!open)}><i className="pi pi-plus" /> Add</button>
+      {open && (
+        <div className="h3-col sm-add-menu" style={{
+          position: "absolute", top: "100%", left: 0, marginTop: 4, zIndex: 50, minWidth: 170, padding: 4, gap: 2,
+          background: "var(--h3-bg2)", border: "1px solid var(--h3-border)", borderRadius: 4, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+        }}>
+          {CARD_KINDS.map((k) => (
+            <button key={k.kind} className="h3-btn" style={{ justifyContent: "flex-start" }}
+              onClick={() => { setOpen(false); openSubjectCard({ kind: k.kind, id: null }); }}>
+              {k.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 const ADD_KIND: Partial<Record<string, CardKind>> = {
   characters: "character", props: "prop", locations: "location", voices: "voice",
 };
@@ -1078,6 +1113,7 @@ export function RefsTab() {
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
         <PassToggle />
+        <AddRefButton disabled={!ep} />
         <button className="h3-btn" title="The series' settings: title, size, look, sound, models, finishing" disabled={!ep}
           onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>
         <button className="h3-btn h3-icon" title="Refresh" disabled={!ep} onClick={() => void loadRefs()}><i className="pi pi-refresh" /></button>

@@ -2,7 +2,7 @@
 // episode, and picking a file on the ComfyUI machine to import as a ref.
 
 import { useCallback, useEffect, useState } from "react";
-import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile } from "../actions";
+import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile, useKeyframeFile } from "../actions";
 import { errText } from "../api";
 import { api } from "../host";
 import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, crumbs } from "../lib/browse";
@@ -59,10 +59,12 @@ function BrowseBody({ b }: { b: BrowseState }) {
   // Phase 9d: picking one clip's audio file — the same file list, but the
   // path only becomes the draft's (it has to be inside the episode)
   const forClip = b.purpose === "clip-audio";
+  // a picture for the shot form's first / last frame: the path only, relative to the episode
+  const forKey = b.purpose === "keyframe";
   const ep = useApp((s) => s.ep);
   // Phase 9c-A: picking the episode's recording works like an import, but the
   // file goes to POST /seriesmith/track instead of becoming a ref candidate
-  const importing = b.purpose === "import" || forTrack || forClip;
+  const importing = b.purpose === "import" || forTrack || forClip || forKey;
   const roots = config?.roots ?? [];
 
   const go = useCallback(async (path: string | null) => {
@@ -94,6 +96,10 @@ function BrowseBody({ b }: { b: BrowseState }) {
       if (useClipAudioFile(path)) closeBrowse();
       return;
     }
+    if (forKey) {
+      if (useKeyframeFile(path)) closeBrowse();
+      return;
+    }
     if (forTrack) {
       if (await attachTrack(path)) closeBrowse();
       return;
@@ -119,7 +125,9 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const outsideRoots = !!newParent && !insideRoot(newParent, roots);
 
 
-  const title = forClip
+  const title = forKey
+    ? <>A picture for {b.key === "last" ? "the last" : "the first"} frame <span className="h3-muted h3-small">inside the episode or its refs</span></>
+    : forClip
     ? <>A file for {b.shot ?? "this clip"}'s audio <span className="h3-muted h3-small">inside the episode</span></>
     : forTrack
     ? "Choose the episode's dialogue recording"
@@ -137,7 +145,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
           {importing ? (
             <>
               <span className="h3-muted h3-small h3-grow h3-ell">
-                {selFile ? selFile.path : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
+                {selFile ? selFile.path : forKey ? "Pick a picture" : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
               </span>
               <button className="h3-btn" onClick={closeBrowse}>Cancel</button>
               <button
@@ -150,7 +158,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
                     : undefined}
                 onClick={() => selFile && void doImport(selFile.path)}
               >
-                <i className={busyImport || busyTrack ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {forTrack ? "Attach" : forClip ? "Use this file" : "Import"}
+                <i className={busyImport || busyTrack ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {forTrack ? "Attach" : forClip || forKey ? "Use this file" : "Import"}
               </button>
             </>
           ) : (
@@ -270,7 +278,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
         )}
         {importing && (
           <button className="h3-btn" disabled={!typed.trim() || busyImport || busyTrack} onClick={() => void doImport(typed.trim())}>
-            {forTrack ? "Attach typed path" : forClip ? "Use typed path" : "Import typed path"}
+            {forTrack ? "Attach typed path" : forClip || forKey ? "Use typed path" : "Import typed path"}
           </button>
         )}
       </div>

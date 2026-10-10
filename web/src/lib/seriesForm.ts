@@ -112,7 +112,9 @@ export type FieldKind =
   | "number"
   | "select"          // `choices`; "" leaves the key out (the default)
   | "video_target" | "image_target" | "audio_target"
-  | "backend";
+  | "backend"
+  | "lora"            // one LoRA (name[:strength] | none), from what the video model loads
+  | "model";          // a model file the video model can load
 
 export interface Field {
   path: Path;
@@ -158,13 +160,13 @@ export const SECTIONS: Section[] = [
         help: "24 unless a target needs otherwise; a target that renders at another rate (Wan 14B: 16) is converted when the cut is assembled." },
       { path: ["series", "steps"], label: "Steps (final)", kind: "number", min: 1, max: 100, step: 1, more: true,
         help: "Sampler steps for the final pass. Leave empty for the target's own preset (H3: 8 with its turbo LoRA)." },
-      { path: ["series", "lora"], label: "LoRA (final)", kind: "text", more: true, placeholder: "name.safetensors or name.safetensors:0.6",
-        help: "A LoRA file every final-pass shot loads, :strength optional; \"none\" for none. Empty: the target's preset." },
-      { path: ["series", "model"], label: "Model file (final)", kind: "text", more: true,
+      { path: ["series", "lora"], label: "LoRA (final)", kind: "lora", more: true,
+        help: "A LoRA every final-pass shot loads, and its strength; none for none. Empty: the video model's preset." },
+      { path: ["series", "model"], label: "Model file (final)", kind: "model", more: true,
         help: "A model file other than the target's preset, for every final-pass shot." },
       { path: ["proxy", "steps"], label: "Steps (proxy)", kind: "number", min: 1, max: 100, step: 1, more: true,
         help: "Sampler steps for the animatic (H3: 4 with its proxy turbo LoRA)." },
-      { path: ["proxy", "lora"], label: "LoRA (proxy)", kind: "text", more: true,
+      { path: ["proxy", "lora"], label: "LoRA (proxy)", kind: "lora", more: true,
         help: "As LoRA (final), for the animatic." },
     ],
   },

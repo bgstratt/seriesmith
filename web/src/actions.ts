@@ -2883,6 +2883,23 @@ export function useClipAudioFile(chosen: string): boolean {
   return true;
 }
 
+/** A picture picked for the shot form's first or last frame: kept relative to
+ * the episode (a `first:` path is), for the form to take. */
+export function useKeyframeFile(chosen: string): boolean {
+  const s = get();
+  const key = s.browse?.key;
+  if (!s.ep || !key) return false;
+  const absolute = /^([a-zA-Z]:|[\\/])/.test(chosen);
+  const rel = absolute ? epRelative(chosen, s.ep) : chosen.replace(/\\/g, "/");
+  if (!rel) {
+    host().toast("warn", "That picture is outside the episode",
+      `A keyframe is named relative to the episode, so it has to live inside ${s.ep} (or in the show's refs folder beside it). Copy it in first, or import it on the Refs tab.`);
+    return false;
+  }
+  set({ keyframePick: { key, path: rel } });
+  return true;
+}
+
 /**
  * Upload a media file from this computer into the episode and use it as this
  * clip's audio (POST /seriesmith/audio/import; see the contract gap in api.ts).

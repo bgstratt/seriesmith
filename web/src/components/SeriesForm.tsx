@@ -17,6 +17,7 @@ import { useApp } from "../store";
 import type { Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, Thumb } from "./Picture";
+import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
 
@@ -108,7 +109,7 @@ function SeriesForm({ ep }: { ep: string }) {
                     )}
                     {fields.map((f) => (
                       <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
-                        backends={(backends ?? []).map((b) => b.name)}
+                        backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
                         onChange={(v) => {
                           set(f.path, parsed(f, v));
                           // a new series' id follows its title until it's set by hand
@@ -121,9 +122,7 @@ function SeriesForm({ ep }: { ep: string }) {
                 </details>
               );
             })}
-            <label className="h3-row h3-small h3-muted">
-              <input type="checkbox" checked={more} onChange={(e) => setMore(e.target.checked)} /> Show more settings (steps, LoRAs, model files, negative prompt, where jobs run)
-            </label>
+            <MoreToggle open={more} onToggle={setMore} label="More settings: steps, LoRAs, model files, negative prompt, where jobs run" />
             <CastList raw={draft} />
             <CheckMessages sc={sc} />
           </>
@@ -189,9 +188,11 @@ export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", e
   );
 }
 
-export function FieldRow({ f, value, onChange, targets, defaults, backends }: {
+export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget }: {
   f: Field; value: string; onChange: (v: string) => void; targets?: Target[];
   defaults?: Partial<Record<TargetKind, string>>; backends?: string[];
+  /** the video model a LoRA or model file field picks for */
+  videoTarget?: string | null;
 }) {
   const kind = f.kind === "video_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
   let input;
@@ -217,6 +218,10 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends }: {
         {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
       </select>
     );
+  } else if (f.kind === "lora") {
+    input = <LoraLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" />;
+  } else if (f.kind === "model") {
+    input = <ModelLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" />;
   } else if (f.kind === "backend") {
     const bs = backends ?? [];
     input = (

@@ -199,8 +199,10 @@ pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
   **Extras**, **On-screen text**.
-- **More**: music, a different video model, continuity, first and last frames, the audio
-  policy, pace, profile, steps, LoRA, model file.
+- **More** (the arrow): music, a different video model, continuity, first and last frames
+  (the default, generate, import, none, or **a picture you have…**, picked in the folder
+  browser and kept relative to the episode), the audio policy, pace, profile, steps, and
+  the LoRA and model file, each picked from what the shot's model can load.
 
 Beside the fields is what will render on the current pass, compiled as you type: the
 model, size and frames, the dialogue's pace against the shot's length (with how long it
@@ -371,6 +373,8 @@ Used heavily at the start of a series and rarely afterwards, if the references c
 right. Every character view, prop, plate, voice and shot keyframe the series config and
 script call for is listed here.
 
+- **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
+  series config, on its card (as a group's **+** does).
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
