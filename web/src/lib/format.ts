@@ -1,0 +1,249 @@
+import type { ShotStatus, TakeSummary } from "../types";
+import { missingOf, missingRefsTitle } from "./missingRefs";
+
+export type BadgeKind =
+  | "moved"
+  | "locked"
+  | "trimmed"
+  | "stale"
+  | "override"
+  | "override-stale"
+  | "queued"
+  | "rendering"
+  | "placeholder"
+  | "none"
+  | "orphan"
+  | "out"
+  | "failed"
+  | "unusable"
+  | "missing-refs"
+  | "target"
+  | "upscaled";
+
+export interface Badge {
+  kind: BadgeKind;
+  label: string;
+  title: string;
+}
+
+/** Phase 13: a take's upscale as a badge (null: it has none). */
+export function upscaleBadge(t: TakeSummary | undefined): Badge | null {
+  const u = t?.upscale;
+  if (!u) return null;
+  const size = u.width && u.height ? `${u.width}×${u.height}` : "";
+  if (u.status === "queued") return { kind: "queued", label: "upscaling", title: `Upscale of ${tn(t!.take)} queued` };
+  if (u.status === "failed") return { kind: "failed", label: "upscale failed", title: u.save_notes || "The upscale failed" };
+  if (!u.fresh) return { kind: "stale", label: "2x stale", title: `The upscale (${size}) was made from an earlier ${tn(t!.take)}: upscale it again` };
+  const how = u.method === "seedvr2"
+    ? `SeedVR2, ${u.seedvr2_model ?? "?"}${u.on_upscale ? ", on an earlier upscale" : ""}`
+    : u.method === "pixel"
+    ? `pixel, ${u.pixel_model ?? "?"}${u.on_upscale ? ", on an earlier upscale" : ""}`
+    : `${u.route ?? "?"} route, from step ${u.start_step ?? "?"}${u.then_pixel ? `, then ${u.then_pixel.method === "seedvr2" ? "SeedVR2 " : ""}${u.then_pixel.model}` : ""}`;
+  const mark = u.keep ? " keep" : u.recipe_match === "different" ? " ≠" : u.recipe_match === "unknown" ? " ?" : "";
+  const why = u.keep ? "; marked Keep: Master leaves it alone"
+    : u.recipe_match === "different" ? "; not the series recipe's settings: Master keeps it, --conform would redo it"
+    : u.recipe_match === "unknown" ? "; made before upscales recorded their settings: Master keeps it"
+    : u.recipe_match === "same" ? "; the series recipe's settings" : "";
+  return { kind: "upscaled", label: `2x${mark}`, title: `Upscaled to ${size} (${how})${why}; Export 2x uses it` };
+}
+
+/** The take the cut uses for this shot (not for a placeholder: that's another pass). */
+export function cutTake(s: ShotStatus): TakeSummary | undefined {
+  if (s.cut.placeholder || s.cut.take == null) return undefined;
+  return s.takes.find((t) => t.take === s.cut.take);
+}
+
+export function realStale(t: TakeSummary | { stale: string[] } | undefined): string[] {
+  return (t?.stale ?? []).filter((r) => r !== "unknown");
+}
+
+const STALE_WHY: Record<string, string> = {
+  script: "the script changed this shot since the take",
+  ref: "a reference image changed since the take",
+  preset: "model / LoRA / steps / size defaults changed since the take",
+  target: "rendered on another target than the shot's next render uses",
+  chain: "it continues the shot before it (continuous: latent), whose take in the cut changed since",
+};
+
+export function staleTitle(reasons: string[]): string {
+  return reasons.map((r) => STALE_WHY[r] ?? r).join("; ");
+}
+
+/**
+ * The bin/timeline badges for one shot. `rendering` holds take numbers of this
+ * shot whose ComfyUI job is executing right now.
+ */
+export function shotBadges(s: ShotStatus, rendering: ReadonlySet<number> = new Set()): Badge[] {
+  const out: Badge[] = [];
+  if (s.orphan) out.push({ kind: "orphan", label: "orphan", title: "In cut.json but no longer in the script; assemble skips it" });
+  if (s.cut?.out) out.push({ kind: "out", label: "left out", title: "Left out of the cut: still in the script with its takes; assemble, Play all and Master skip it (its menu puts it back)" });
+  // Phase 9b: the cut's own edits
+  if (s.cut?.locked) out.push({ kind: "locked", label: "locked", title: "Locked in the cut: it can't be moved, trimmed or given another take until unlocked" });
+  if (s.cut?.out_of_order && !s.orphan) out.push({ kind: "moved", label: "moved", title: "Out of script order: the cut moved it (the cut menu's Reset order puts it back)" });
+  if ((s.cut?.trim_in ?? 0) > 0 || (s.cut?.trim_out ?? 0) > 0) {
+    out.push({ kind: "trimmed", label: "trimmed", title: `Trimmed in the cut: ${s.cut.trim_in || 0} frames off the head, ${s.cut.trim_out || 0} off the tail` });
+  }
+  const missing = missingOf(s);
+  if (missing.length) {
+    out.push({
+      kind: "missing-refs",
+      label: "missing refs",
+      title: `A render needs ${missing.length} reference${missing.length > 1 ? "s" : ""} that aren't on disk; it's skipped unless you render anyway:
+${missingRefsTitle(missing)}`,
+    });
+  }
+  const queued = s.takes.filter((t) => t.status === "queued");
+  const running = queued.filter((t) => rendering.has(t.take));
+  if (running.length) {
+    out.push({ kind: "rendering", label: "rendering", title: `Rendering ${running.map((t) => tn(t.take)).join(", ")}` });
+  }
+  if (queued.length > running.length) {
+    const q = queued.filter((t) => !rendering.has(t.take));
+    out.push({ kind: "queued", label: q.length > 1 ? `queued ×${q.length}` : "queued", title: `Queued: ${q.map((t) => tn(t.take)).join(", ")}` });
+  }
+  if (s.cut.placeholder) {
+    out.push({
+      kind: "placeholder",
+      label: "placeholder",
+      title: s.cut.take != null
+        ? `The cut uses ${s.cut.pass} ${tn(s.cut.take)} as a stand-in`
+        : `The cut wants a ${s.cut.pass} placeholder, and none is usable`,
+    });
+  } else if (!s.takes.length && !s.orphan) {
+    out.push({ kind: "none", label: "no takes", title: "Nothing rendered yet" });
+  }
+  if (s.cut.picked && !s.cut.usable) {
+    out.push({ kind: "unusable", label: "pick unusable", title: `cut.json picks ${s.cut.take != null ? tn(s.cut.take) : "a take"}, which isn't usable` });
+  }
+  const last = s.takes[s.takes.length - 1];
+  if (last && last.status === "failed" && !queued.length) {
+    out.push({ kind: "failed", label: "failed", title: `${tn(last.take)} failed${last.save_notes ? `: ${last.save_notes}` : ""}` });
+  }
+  const stale = realStale(cutTake(s));
+  if (stale.length) out.push({ kind: "stale", label: `stale: ${stale.join(",")}`, title: staleTitle(stale) });
+  const ub = upscaleBadge(cutTake(s));
+  if (ub) out.push(ub);
+  if (s.override.fields.length) {
+    out.push({ kind: "override", label: "override", title: `Override: ${s.override.fields.join(", ")}` });
+    if (s.override.stale) {
+      out.push({ kind: "override-stale", label: "override stale", title: "The override was written against an older build of this shot" });
+    }
+  }
+  return out;
+}
+
+export function tn(take: number | null | undefined): string {
+  return take == null ? "t--" : `t${String(take).padStart(2, "0")}`;
+}
+
+export interface SequenceGroup {
+  sequence: string;
+  shots: ShotStatus[];
+  seconds: number;
+  /** position of the first shot in the cut, a stable key when a sequence recurs */
+  start: number;
+}
+
+/**
+ * How long a shot lasts in the cut: its cut take's real frame count at that
+ * take's fps (`cut.fps`: a Wan take is 16 fps), else the episode's, when the
+ * server sends one (a `dur: model` take's length is the model's), else the
+ * build's `seconds`. Null when neither is known.
+ */
+export function shotSeconds(s: ShotStatus, fps: number | undefined): number | null {
+  const f = s.cut?.frames;
+  const rate = s.cut?.fps || fps;
+  if (f != null && f > 0) return f / (rate && rate > 0 ? rate : 24);
+  return s.seconds;
+}
+
+/** Consecutive runs of one sequence, in cut order (the cut can reorder shots).
+ * `fps` (the episode's) lets a shot count at its cut take's real length. */
+export function groupBySequence(shots: ShotStatus[], fps?: number): SequenceGroup[] {
+  const out: SequenceGroup[] = [];
+  shots.forEach((s, i) => {
+    const seq = s.sequence ?? (s.orphan ? "orphans" : "—");
+    const secs = (fps ? shotSeconds(s, fps) : s.seconds) ?? 0;
+    const last = out[out.length - 1];
+    if (last && last.sequence === seq) {
+      last.shots.push(s);
+      last.seconds += secs;
+    } else {
+      out.push({ sequence: seq, shots: [s], seconds: secs, start: i });
+    }
+  });
+  return out;
+}
+
+/** An episode-relative path (forward slashes) made absolute, in the episode's style. */
+export function absPath(ep: string, rel: string): string {
+  const win = ep.includes("\\");
+  const sep = win ? "\\" : "/";
+  const base = ep.replace(/[\\/]+$/, "");
+  return base + sep + (win ? rel.replace(/\//g, "\\") : rel);
+}
+
+/** Two episode paths name the same folder (case and slashes don't matter on Windows). */
+export function sameEp(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const n = (s: string) => s.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return n(a) === n(b);
+}
+
+export function fmtSeconds(s: number | null | undefined): string {
+  if (s == null) return "";
+  return `${s.toFixed(s < 10 ? 1 : 0)}s`;
+}
+
+/** The "≈" mark's tooltip (Phase 8.5). */
+export const ESTIMATE_TITLE = "length decided by the model at render time (dur: model); showing the estimate";
+
+/**
+ * The ≈ rule: the shot's length is the build's estimate (`length_estimated`,
+ * `dur: model` before a take exists) and the length shown isn't a real take's
+ * (the cut take's frame count wins once there is one).
+ */
+export function lengthEstimated(s: Pick<ShotStatus, "length_estimated"> & { cut?: { frames?: number | null } | null }): boolean {
+  if (s.length_estimated !== true) return false;
+  const f = s.cut?.frames;
+  return !(f != null && f > 0);
+}
+
+/** "≈3.0s" for an estimate, else "3.0s" (fmtSeconds). */
+export function fmtShotSeconds(s: Pick<ShotStatus, "length_estimated"> & { cut?: { frames?: number | null } | null }, secs: number | null | undefined): string {
+  const t = fmtSeconds(secs);
+  return t && lengthEstimated(s) ? `≈${t}` : t;
+}
+
+export function fmtClock(t: number): string {
+  if (!Number.isFinite(t) || t < 0) t = 0;
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s.toFixed(2).padStart(5, "0")}`;
+}
+
+export function fmtWhen(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * Shorten a model/LoRA file name for a narrow column. A list (the `loras`
+ * param of a take's `resolved` is one) becomes its names, comma separated;
+ * anything else is stringified rather than thrown over — this is a formatter,
+ * and a surprise from a sidecar must not take the window down.
+ */
+export function shortName(name: unknown, max = 36): string {
+  if (name == null || name === "") return "";
+  if (Array.isArray(name)) return name.map((n) => shortName(n, max)).filter(Boolean).join(", ");
+  const s = typeof name === "string" ? name : String(name);
+  const base = s.split(/[\\/]/).pop() ?? s;
+  return base.length > max ? base.slice(0, max - 1) + "…" : base;
+}
+
+/** A prompt as the loader joins it (a list of sections, or one string). */
+export function promptText(p: string | string[] | null | undefined): string {
+  return Array.isArray(p) ? p.join("\n\n") : p ?? "";
+}
