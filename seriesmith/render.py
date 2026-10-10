@@ -262,14 +262,7 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     take = start_job_portable(j, comfy if backend.kind == "local" else None)
                     label = f"{ep}/{j.id} t{take.take:02d}"
-                    if hosted(target):
-                        model, call = target.module.router_call(target, j)
-                    else:
-                        g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
-                        bound = episode_bound(g)
-                        if bound and backend.kind != "local":
-                            raise J.NotPortable(f"reads the episode folder "
-                                                f"({', '.join(bound)}): local only for now")
+                    base = None if hosted(target) else base_for(j.target)[0]
                 except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
                     # RuntimeError: a reference sheet that couldn't be composed
                     unstage(j)
@@ -284,15 +277,13 @@ def main(argv: list[str] | None = None) -> int:
                       flush=True)
                 try:
                     current = (take, None)
-                    run = backend.call(model, call) if hosted(target) else backend.submit(g)
-                    current = (take, run)
-                    J.mark_submitted(take, backend.name, run.id)
-                    status = run.watch(on_progress=progress_line(t0))
+
+                    def got_run(run, take=take):
+                        nonlocal current
+                        current = (take, run)
+                    result = run_take(j, take, backend, base, gkw, on_progress=progress_line(t0),
+                                      on_run=got_run)
                     print("\r" + " " * 60 + "\r", end="", flush=True)
-                    if hosted(target):
-                        result = J.collect_router_take(take, run, status, as_json(call))
-                    else:
-                        result = J.collect_take(take, run, J.node_of(g, J.PORTABLE_SAVER), status)
                     current = None
                     if result != "ok":
                         raise RuntimeError((take.sidecar or {}).get("save_notes")
@@ -303,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
                     left = (total_frames - frames_done) * rate
                     print(f"  -> {take.paths.mp4}  [{fmt(time.time() - t0)}, ~{fmt(left)} left]",
                           flush=True)
-                except (BackendError, RuntimeError, OSError) as e:
+                except (J.NotPortable, BackendError, RuntimeError, OSError, ValueError) as e:
                     current = None
                     if (take.sidecar or {}).get("status") == "queued":
                         J.mark_failed(take, str(e)[:800])
@@ -360,6 +351,39 @@ def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
                 print(f"  ! reads the episode folder: {', '.join(bound)}")
             return 0
     return 0
+
+
+def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
+    """What a started take sends: ("call", (model, arguments)) for a hosted
+    target, else ("graph", the portable graph). NotPortable for a graph that
+    still reads the episode folder, on a backend that doesn't share its disk."""
+    target = J.job_target(job)
+    if hosted(target):
+        return "call", target.module.router_call(target, job)
+    g = J.graph_for(base, job, take, **gkw)
+    bound = episode_bound(g)
+    if bound and backend.kind != "local":
+        raise J.NotPortable(f"reads the episode folder ({', '.join(bound)}): local only for now")
+    return "graph", g
+
+
+def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
+             on_progress=None, on_run=None, prompt_id: str | None = None) -> str:
+    """Render a started take on `backend` and collect it: the portable graph
+    (or a hosted model's call) submitted, followed (on_progress gets each
+    backends.Progress), and its outputs written into the take. `on_run(run)`
+    hears of the backend's run as soon as there is one (to cancel it).
+    `prompt_id` is what the take's record calls its job (seriesmith's queue's
+    id; default the backend's). Returns the take's status: "ok", "failed"."""
+    kind, what = prepare(job, take, backend, base, gkw)
+    run = backend.call(*what) if kind == "call" else backend.submit(what)
+    if on_run is not None:
+        on_run(run)
+    J.mark_submitted(take, backend.name, run.id, prompt_id)
+    status = run.watch(on_progress=on_progress)
+    if kind == "call":
+        return J.collect_router_take(take, run, status, as_json(what[1]))
+    return J.collect_take(take, run, J.node_of(what, J.PORTABLE_SAVER), status)
 
 
 def start_job_portable(job: J.Job, probe=None) -> T.Take:

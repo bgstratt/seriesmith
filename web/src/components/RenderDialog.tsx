@@ -3,7 +3,7 @@
 // also the target for this run.
 
 import { useEffect, useState } from "react";
-import { closeRenderAsk, loadDetail, renderShots } from "../actions";
+import { closeRenderAsk, loadDetail, renderShots, setRenderBackend } from "../actions";
 import { splitByMissingRefs } from "../lib/missingRefs";
 import { readinessOf } from "../lib/readiness";
 import { findTarget, runSize, shotTarget, targetLabel } from "../lib/targets";
@@ -110,6 +110,7 @@ function RenderBody() {
           {runTargets.map((id) => <TargetReadinessNote key={id} id={id} list={list} />)}
         </div>
       )}
+      <BackendRow />
       {readyNow.length > 0 && (
         <div className="h3-small">
           <span className="h3-muted">Will queue: </span>
@@ -121,5 +122,27 @@ function RenderBody() {
         <div className="h3-muted h3-small">Every shot here is missing refs. Make them in the Refs tab, or render anyway.</div>
       )}
     </Dialog>
+  );
+}
+
+/** seriesmith: where the renders go (only on a host that offers backends:
+ * the standalone page). Kept for the session. */
+function BackendRow() {
+  const backends = useApp((s) => s.backends);
+  const chosen = useApp((s) => s.renderBackend);
+  if (!backends || !backends.length) return null;
+  return (
+    <div className="h3-target-row">
+      <span className="h3-h">Render on</span>
+      <select className="h3-in" value={chosen} title="Where these takes render (seriesmith backends)"
+              onChange={(e) => setRenderBackend(e.target.value)}>
+        <option value="">each shot's own backend</option>
+        {backends.map((b) => (
+          <option key={b.name} value={b.name} disabled={!!b.down} title={b.down ?? b.where}>
+            {b.name}{b.down ? " (not answering)" : ""}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }

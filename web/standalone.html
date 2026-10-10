@@ -63,6 +63,22 @@
       #sm-viewer:empty { display: none; }
       #sm-time { grid-area: time; min-height: 0; border-top: 1px solid var(--border-color); background: var(--comfy-menu-secondary-bg); }
       #sm-timeline { height: 100%; }
+      /* the queue: top bar controls, the Jobs window */
+      #sm-queue { display: flex; align-items: center; gap: 10px; }
+      .sm-backend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--descrip-text); }
+      .sm-backend select { background: var(--comfy-input-bg); color: var(--fg-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 3px 6px; font: inherit; }
+      .sm-jobs-btn { display: flex; align-items: center; gap: 8px; }
+      .sm-bar { display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: var(--border-color); overflow: hidden; }
+      .sm-bar.wide { display: block; width: 100%; margin-top: 4px; }
+      .sm-bar > span { display: block; height: 100%; background: var(--p-primary-color); transition: width .3s; }
+      .sm-jobs { overflow: auto; flex: 1 1 auto; min-height: 0; padding: 4px 0; }
+      .sm-lane > header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border-color); background: var(--comfy-menu-secondary-bg); position: sticky; top: 0; }
+      .sm-job { padding: 6px 10px; border-bottom: 1px solid var(--border-color); }
+      .sm-job-row { display: flex; align-items: center; gap: 6px; }
+      .sm-job-title { font-weight: 600; font-size: 12px; }
+      .sm-job.sm-failed .sm-job-title { color: var(--error-text); }
+      .sm-job.sm-succeeded .sm-job-title, .sm-job.sm-canceled .sm-job-title { color: var(--descrip-text); }
+      .sm-log { margin: 6px 0 0; padding: 6px; font-size: 11px; max-height: 160px; overflow: auto; background: var(--comfy-input-bg); border-radius: 4px; white-space: pre-wrap; }
       @media (max-width: 760px) {
         #sm { grid-template-columns: 1fr; grid-template-rows: 40px 45vh minmax(0, 1fr) 30vh;
               grid-template-areas: "top" "view" "side" "time"; }
@@ -74,6 +90,7 @@
       <header id="sm-top">
         <b>seriesmith</b>
         <span class="spacer"></span>
+        <span id="sm-queue"></span>
         <span id="sm-conn" title="connection to the seriesmith server"></span>
         <button id="sm-theme" title="Light / dark">Theme</button>
       </header>

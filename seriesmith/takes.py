@@ -458,6 +458,12 @@ def _parse_time(s) -> _dt.datetime | None:
         return None
 
 
+# The ids of the jobs seriesmith's queue still has (runner.Runner sets it in the
+# server): a queued take with a `backend` is swept against these instead of
+# ComfyUI's queue. None (the command line): such takes are left alone.
+MANAGED = None
+
+
 def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
                  grace_s: float = 120.0) -> list[Take]:
     """Mark queued takes whose ComfyUI job is no longer pending or running as failed.
@@ -476,9 +482,25 @@ def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
     """
     snap = _parse_time(as_of) or _dt.datetime.now().astimezone()
     changed = []
+    managed = None
     for t in takes:
         sc = t.sidecar
         if sc is None or sc.get("status") != "queued":
+            continue
+        if sc.get("backend"):
+            # a backend runs it, not this ComfyUI's queue: seriesmith's queue
+            # says for the takes it owns (`queue`); one rendered from the
+            # command line is that process's to finish
+            if sc.get("queue") != "seriesmith" or MANAGED is None:
+                continue
+            if managed is None:
+                managed = MANAGED()
+            if sc.get("comfy_prompt_id") in managed:
+                continue
+            t.sidecar = update_sidecar(t.paths.sidecar, status="failed", finished=now(),
+                                       save_notes="seriesmith's queue no longer has its job "
+                                                  "(the server restarted?)")
+            changed.append(t)
             continue
         if sc.get("comfy_prompt_id") in alive:
             continue

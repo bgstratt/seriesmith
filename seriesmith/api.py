@@ -82,11 +82,15 @@ class Context:
     """
 
     def __init__(self, user_dir: str, comfy_url: str = DEFAULT_COMFY, emit=None,
-                 comfy=None, env: dict | None = None, model_resolve=_UNSET, model_list=None):
+                 comfy=None, env: dict | None = None, model_resolve=_UNSET, model_list=None,
+                 runner=None):
         self.user_dir = user_dir
         self.comfy_url = (comfy_url or DEFAULT_COMFY).rstrip("/")
         self._emit = emit
         self._comfy = comfy
+        # seriesmith's queue (runner.Runner): renders go through the backends.
+        # None (the ComfyUI host, for now): straight onto this ComfyUI's queue.
+        self.runner = runner
         self.env = os.environ if env is None else env
         if model_resolve is _UNSET:
             model_resolve = J.model_resolver() if J is not None else None
@@ -652,6 +656,15 @@ def post_render(ctx: Context, body):
     save_latent = body.get("save_latent")
     if save_latent is not None and not isinstance(save_latent, bool):
         raise ApiError(400, "save_latent must be true, false or null")
+    # where every shot of this request renders (seriesmith's queue only;
+    # absent: each shot's own, jobs.backend_choice)
+    backend = body.get("backend")
+    if backend is not None and (not isinstance(backend, str) or
+                                J.backend_kind(backend) not in TG.BACKENDS):
+        raise ApiError(400, f"backend must be one of {', '.join(TG.BACKENDS)} "
+                            f"(deployment[:<target>]), not {backend!r}")
+    if backend is not None and ctx.runner is None:
+        raise ApiError(400, "this host renders on its own ComfyUI only")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -705,7 +718,7 @@ def post_render(ctx: Context, body):
         result = E.queue_shots(ep, pass_, todo, template, ctx.comfy, base_for,
                                model_resolve=ctx.model_resolve, model_cache=ctx.model_cache,
                                model_list=ctx.model_choices, review_copy=review_copy(ctx),
-                               save_frames=save_frames)
+                               save_frames=save_frames, runner=ctx.runner, backend=backend)
     result["errors"] += [{"shot": e["shot"], "error": e["error"]} for e in cont["errors"]]
     result["continuity"] = cont["cut"]
     result["continuity_at_start"] = [{"shot": w["shot"], "after": wait_reason(w)}
@@ -749,6 +762,19 @@ def post_cancel(ctx: Context, body):
     pass_ = check_pass(body.get("pass"))
     shot = check_shot(body.get("shot"))
     take = check_take(body.get("take"))
+    owned = T.get_take(ep, pass_, shot, take)
+    sc = (owned.sidecar or {}) if owned else {}
+    if ctx.runner is not None and sc.get("queue") == "seriesmith" and sc.get("status") == "queued":
+        # seriesmith's queue has it: a waiting job leaves it, a running one stops
+        try:
+            ctx.runner.queue.cancel(sc.get("comfy_prompt_id"))
+        except KeyError:
+            J.mark_failed(owned, "canceled (its queue job was gone)")
+        t = T.get_take(ep, pass_, shot, take)
+        take_event(ctx, ep, t)
+        sc = t.sidecar or {}
+        return 200, {"shot": shot, "pass": pass_, "take": take, "status": t.status,
+                     "save_notes": sc.get("save_notes", ""), "finished": sc.get("finished")}
     try:
         t = E.cancel_take(ep, pass_, shot, take, ctx.comfy)
     except E.NotQueued as e:

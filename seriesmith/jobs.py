@@ -1942,9 +1942,13 @@ def finish_job(take: T.Take) -> str:
     return "failed"
 
 
-def mark_submitted(take: T.Take, backend: str, job_id: str) -> None:
-    """The take is in a backend's hands: which one, and its id for the job."""
-    take.sidecar = T.update_sidecar(take.paths.sidecar, backend=backend, comfy_prompt_id=job_id)
+def mark_submitted(take: T.Take, backend: str, job_id: str, prompt_id: str | None = None) -> None:
+    """The take is in a backend's hands: which one and its id for the job
+    (`backend_job`). `comfy_prompt_id`, what the editor follows a take's
+    progress by, is `prompt_id` when seriesmith's queue runs it (the queue's
+    job id), else the backend's."""
+    take.sidecar = T.update_sidecar(take.paths.sidecar, backend=backend, backend_job=job_id,
+                                    comfy_prompt_id=prompt_id or job_id)
 
 
 def collect_take(take: T.Take, run, saver: str, status: str) -> str:

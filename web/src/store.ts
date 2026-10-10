@@ -264,6 +264,15 @@ export interface IssueDraft {
   error?: string | null;
 }
 
+/** seriesmith: one backend a render can go to (GET /seriesmith/backends) */
+export interface BackendInfo {
+  name: string;
+  kind: string;
+  /** why it doesn't answer, or null when it does */
+  down: string | null;
+  where: string;
+}
+
 export interface AppState {
   config: Config | null;
   configError: string | null;
@@ -388,6 +397,13 @@ export interface AppState {
   supply: SupplyState | null;
   /** P10: a pass's issues, keyed by statusKey(ep, pass) */
   issues: Record<string, Issue[]>;
+  /** seriesmith: the backends this host can send renders to (null: this host
+   * renders on its own ComfyUI only, as inside ComfyUI) */
+  backends: BackendInfo[] | null;
+  /** seriesmith: where renders go this session ("" : each shot's own backend) */
+  renderBackend: string;
+  /** seriesmith: the Jobs window is open */
+  jobsOpen: boolean;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -464,6 +480,9 @@ export function initialState(prefs: Prefs = {}): AppState {
     sourceN: 0,
     promote: null,
     cutAudio: "clips",
+    backends: null,
+    renderBackend: "",
+    jobsOpen: false,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},

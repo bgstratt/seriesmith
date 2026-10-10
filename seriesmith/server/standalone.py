@@ -86,7 +86,8 @@ async def comfy_relay(app: web.Application) -> None:
         wait = min(wait * 2, 30.0)
 
 
-def make_app(roots: list[str] | None = None, settings=None) -> web.Application:
+def make_app(roots: list[str] | None = None, settings=None,
+             backends: dict | None = None) -> web.Application:
     settings = settings or load_settings()
     events = Events()
     user_dir = os.path.dirname(settings_path())
@@ -95,11 +96,20 @@ def make_app(roots: list[str] | None = None, settings=None) -> web.Application:
         have = [r for r in env.get("H3PIPE_ROOTS", "").split(os.pathsep) if r]
         env["H3PIPE_ROOTS"] = os.pathsep.join(have + [os.path.abspath(r) for r in roots])
 
+    # seriesmith's queue: renders from the page go through the backends
+    from seriesmith.backends import available
+    from seriesmith.queue import Queue
+    from seriesmith.runner import Runner
+    queue = Queue(events.emit)
+    backends = backends if backends is not None else available(settings)
+    runner = Runner(queue, backends, events.emit)
+
     def make_context():
-        return A.Context(user_dir, settings.comfyui_url, events.emit, env=env)
+        return A.Context(user_dir, settings.comfyui_url, events.emit, env=env, runner=runner)
 
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
+    app["queue"], app["runner"], app["backends"] = queue, runner, backends
     for method, path, view in routes(make_context):
         app.router.add_route(method, path, view)
         # as ComfyUI serves them too, under /api
@@ -128,8 +138,71 @@ def make_app(roots: list[str] | None = None, settings=None) -> web.Application:
                                                  "build:standalone")
         return web.FileResponse(page, headers={"Cache-Control": "no-cache"})
 
+    # -- the Jobs window ---------------------------------------------------
+
+    async def jobs(request: web.Request) -> web.Response:
+        return web.json_response(queue.list())
+
+    async def job_action(request: web.Request) -> web.Response:
+        what = request.match_info["action"]
+        try:
+            body = await request.json()
+        except ValueError:
+            return web.json_response({"error": "the body must be JSON"}, status=400)
+        try:
+            if what == "cancel":
+                queue.cancel(str(body["id"]))
+            elif what == "move":
+                queue.move(str(body["id"]), int(body["index"]))
+            elif what == "pause":
+                queue.pause(str(body["lane"]), bool(body.get("paused", True)))
+            elif what == "retry":
+                await asyncio.get_running_loop().run_in_executor(None, queue.retry, str(body["id"]))
+            else:
+                return web.json_response({"error": f"no action {what!r}"}, status=404)
+        except KeyError as e:
+            return web.json_response({"error": f"no such job or field: {e}"}, status=404)
+        except (ValueError, TypeError) as e:
+            return web.json_response({"error": str(e)}, status=409)
+        return web.json_response(queue.list())
+
+    async def backend_list(request: web.Request) -> web.Response:
+        """Each backend and whether it answers (asked off the event loop)."""
+        loop = asyncio.get_running_loop()
+
+        def look():
+            return [{"name": n, "kind": b.kind, "down": b.ping(),
+                     "where": getattr(b, "base_url", None) or getattr(b, "cloud_url", "")}
+                    for n, b in backends.items()]
+        return web.json_response({"backends": await loop.run_in_executor(None, look),
+                                  "api_key": bool(settings.api_key)})
+
+    async def comfy_queue(request: web.Request) -> web.Response:
+        """ComfyUI's /queue, as the editor reads it (running and pending prompt
+        ids), with seriesmith's queue's jobs in it: ComfyUI's own (work the
+        API still queues there), then ours."""
+        running, pending = [], []
+        try:
+            async with ClientSession() as s, s.get(settings.comfyui_url + "/queue",
+                                                   timeout=3) as r:
+                q = await r.json()
+                running += q.get("queue_running") or []
+                pending += q.get("queue_pending") or []
+        except Exception:                                 # noqa: BLE001  no ComfyUI: ours only
+            pass
+        lst = queue.list()
+        for n, lane in lst["lanes"].items():
+            running += [[0, i] for i in lane["running"]]
+            pending += [[k, i] for k, i in enumerate(lane["waiting"], 1)]
+        return web.json_response({"queue_running": running, "queue_pending": pending})
+
     app.router.add_get("/ws", ws_view)
     app.router.add_get("/seriesmith/info", info)
+    app.router.add_get("/seriesmith/jobs", jobs)
+    app.router.add_post("/seriesmith/jobs/{action}", job_action)
+    app.router.add_get("/seriesmith/backends", backend_list)
+    for p in ("/queue", "/api/queue"):
+        app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)
     if os.path.isdir(os.path.join(STATIC, "assets")):
         app.router.add_static("/assets", os.path.join(STATIC, "assets"))

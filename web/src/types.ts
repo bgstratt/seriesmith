@@ -563,6 +563,8 @@ export interface RenderRequest {
   /** Phase 13: keep the take's latent beside it for an upscale later. Absent: the
    * server's default (the series config's upscale.save_latents; final pass only). */
   save_latent?: boolean;
+  /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
+  backend?: string | null;
 }
 
 export interface RenderSkip {

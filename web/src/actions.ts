@@ -20,7 +20,8 @@ import { folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
-  detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BrowseState, type ClipAudioState,
+  detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
+  type ClipAudioState,
   type CompareMode, type RefTakeRef, type VoiceClipState,
 } from "./store";
 import type {
@@ -905,7 +906,9 @@ export async function queueRender(req: RenderRequest): Promise<RenderResult | un
   const key = `render|${req.pass}|${req.shots.join(",")}`;
   return withBusy(key, async () => {
     try {
-      const r = await api().render(req);
+      // seriesmith: the session's backend, when one was chosen (the render dialog)
+      const backend = req.backend ?? (get().renderBackend || null);
+      const r = await api().render(backend ? { ...req, backend } : req);
       const learned: Record<string, TakeRef> = {};
       for (const q of r.queued) learned[q.prompt_id] = { ep: req.ep, pass: req.pass, shot: q.shot, take: q.take };
       set((s) => ({ prompts: { ...s.prompts, ...learned } }));
@@ -2927,4 +2930,22 @@ export async function voiceFromTake(req: Omit<VoiceFromTakeRequest, "ep">): Prom
       return false;
     }
   });
+}
+
+// ---------------------------------------------------------------------------
+// seriesmith: where renders go, and the Jobs window
+// ---------------------------------------------------------------------------
+
+/** Where this session's renders go ("" : each shot's own backend). */
+export function setRenderBackend(name: string) {
+  set({ renderBackend: name });
+}
+
+/** The backends this host offers (the standalone page reads them; null inside ComfyUI). */
+export function setBackends(backends: BackendInfo[] | null) {
+  set({ backends });
+}
+
+export function openJobs(open = true) {
+  set({ jobsOpen: open });
 }

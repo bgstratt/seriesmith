@@ -5,12 +5,17 @@
 // middle, the timeline along the bottom. The floating windows (inspector,
 // dialogs, Issues, Script) float over it as they do in ComfyUI.
 
-import { pushToast, start } from "./actions";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { openJobs, pushToast, setBackends, start } from "./actions";
 import { createHttpApi, xhrUpload } from "./api";
+import { Boundary } from "./components/ErrorBoundary";
 import { dockWindow } from "./components/FloatingWindow";
+import { BackendChoice, JobsButton, JobsWindow } from "./components/Jobs";
 import { VIEWER_RECT_KEY } from "./components/Viewer";
 import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
-import { mountOverlay, mountSurface } from "./surfaces";
+import type { BackendInfo } from "./store";
+import { injectStyles, mountOverlay, mountSurface } from "./surfaces";
 
 // ---- events: the server's websocket, reconnecting -------------------------
 
@@ -94,6 +99,42 @@ mountSurface("refs", document.getElementById("sm-refs")!);
 mountSurface("timeline", document.getElementById("sm-timeline")!);
 dockWindow(VIEWER_RECT_KEY, document.getElementById("sm-viewer"));
 mountOverlay();
+
+// the top bar's queue controls, and the Jobs window over the page
+injectStyles();
+createRoot(document.getElementById("sm-queue")!).render(
+  <StrictMode>
+    <Boundary name="Queue">
+      <BackendChoice />
+      <JobsButton />
+    </Boundary>
+  </StrictMode>,
+);
+const jobsEl = document.createElement("div");
+jobsEl.className = "h3-root";
+document.body.appendChild(jobsEl);
+createRoot(jobsEl).render(
+  <StrictMode>
+    <Boundary name="Jobs">
+      <JobsWindow />
+    </Boundary>
+  </StrictMode>,
+);
+
+/** The backends renders can go to, and whether each answers (every 30 s). */
+async function loadBackends() {
+  try {
+    const r = await fetch("/seriesmith/backends");
+    if (r.ok) setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
+  } catch {
+    /* the server is away */
+  }
+}
+void loadBackends();
+setInterval(() => void loadBackends(), 30000);
+// ?jobs opens the Jobs window (a link to the queue)
+if (new URLSearchParams(location.search).has("jobs")) openJobs(true);
+
 connect();
 void start();
 

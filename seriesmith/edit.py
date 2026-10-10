@@ -1396,7 +1396,8 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
                 template: J.RenderRequest, comfy, base,
                 folder: str | None = None, model_resolve=J.DEFAULT,
                 model_cache=J.DEFAULT, model_list=None,
-                review_copy: bool = False, save_frames: bool | None = None) -> dict:
+                review_copy: bool = False, save_frames: bool | None = None,
+                runner=None, backend: str | None = None) -> dict:
     """Plan and queue a take for each shot (every shot when `shot_ids` is
     None), as h3render does, without waiting for any of them.
 
@@ -1420,6 +1421,11 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
     frames as a PNG sequence in `<take>/frames/`, for retouching a shot that is
     right but for a frame or two. It costs ~2.5 s a shot and ~16-50 GB an
     episode, so it is asked for per render.
+
+    With `runner` (seriesmith's queue, runner.Runner) each take goes there
+    instead, rendered on the backend jobs.backend_choice gives it (`backend`
+    asks for one); its prompt_id is the queue's job id and `backend` says
+    where. Without it, h3pipe's way: straight onto `comfy`'s queue.
 
     Returns {"queued": [{shot, take, prompt_id, seed, seed_source, target}],
     "skipped": [{shot, take, reason}], "errors": [{shot, error, take?}]}. A
@@ -1469,6 +1475,24 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
             out["skipped"].append({"shot": sid, "reason": "model mismatch: " + job.mismatch_note()
                                    + " (pass allow_model_mismatch: true to render anyway)",
                                    "model_mismatch": [c for c in job.model_checks if c["block"]]})
+            continue
+        if runner is not None:
+            # seriesmith's queue: the take staged and reserved now, rendered on
+            # its backend (runner.Runner), the queue's job id as its prompt id
+            try:
+                t = J.job_target(job)
+                graph = None if t.spec.get("router") else (
+                    base(job.target) if callable(base) else base)
+                name, _src, note = J.backend_choice(ov, sid, t, backend, root)
+                if note:
+                    job.notes.append(note)
+                take, qid = runner.enqueue_render(job, graph, name, probe=comfy)
+            except Exception as e:
+                out["errors"].append({"shot": sid, "error": str(e)[:800]})
+                continue
+            out["queued"].append({"shot": sid, "take": take.take, "prompt_id": qid,
+                                  "seed": job.seed, "seed_source": job.seed_source,
+                                  "target": job.target, "backend": name})
             continue
         try:
             graph = base(job.target) if callable(base) else base

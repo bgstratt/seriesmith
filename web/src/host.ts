@@ -23,7 +23,11 @@ export type HostEvent =
   /** a take's post was queued, finished, failed or deleted */
   | "h3pipe.post"
   /** a master being assembled: each step, then done or failed (a MasterJob) */
-  | "h3pipe.master";
+  | "h3pipe.master"
+  /** seriesmith: a job of its queue changed (standalone page) */
+  | "seriesmith.job"
+  /** seriesmith: the queue's lanes changed (an order, a pause) */
+  | "seriesmith.queue";
 
 export type Severity = "success" | "info" | "warn" | "error";
 /** Docked surfaces (sidebar tabs and the bottom panel). The inspector and the
