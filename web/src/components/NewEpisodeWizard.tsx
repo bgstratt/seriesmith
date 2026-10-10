@@ -13,6 +13,7 @@ import {
   shapeNote, shown, sizeOf, slug, type Field, type Raw,
 } from "../lib/seriesForm";
 import { DURATIONS, SIZES, listOf, newShot, type ShotForm as Shot } from "../lib/shotForm";
+import { pictureOf } from "../lib/pictures";
 import { sizeRule } from "../lib/size";
 import {
   WIZARD_KINDS, castId, castOfConfig, castProblems, firstScript, seriesConfig, showFolder, withCast, type NewCast,
@@ -21,7 +22,8 @@ import { useApp } from "../store";
 import type { EpisodeTemplate } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { FieldRow, SizeField } from "./SeriesForm";
-import { CameraField, Chips, DialogueRows, Row, type Cast } from "./ShotForm";
+import { Hover, Thumb, type Named } from "./Picture";
+import { CameraField, Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
 
 const RECT_KEY = "seriesmith.wizard.rect";
 const STEPS = ["Where", "Series", "Cast and places", "First shot"] as const;
@@ -162,8 +164,11 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const list = targets?.targets ?? [];
   const videoId = (getPath(series, ["series", "target"]) as string) || targets?.default?.video || "minimax_h3_ref2va";
   const rule = sizeRule(list.find((t) => t.id === videoId)?.template);
-  const castList: Cast[] = known.characters.map((c) => ({ ...c, kind: "character", onScreen: true }));
-  const thingList: Cast[] = known.things.map((c) => ({ ...c, kind: "prop", onScreen: true }));
+  // pictures: the neighbour's (its `../refs/...` paths are the show's); a new series has none yet
+  const picEp = tpl?.from ?? null;
+  const castList: Cast[] = known.characters.map((c) => ({ ...c, kind: "character", onScreen: true, pic: pictureOf(full, null, "subjects", c.id) }));
+  const thingList: Cast[] = known.things.map((c) => ({ ...c, kind: "prop", onScreen: true, pic: pictureOf(full, null, "subjects", c.id) }));
+  const placeList: Named[] = known.locations.map((id) => ({ id, name: id.replace(/_/g, " "), pic: pictureOf(full, null, "locations", id) }));
   const setKey = (k: string, v: string) => setShot((s) => ({ ...s, keys: { ...s.keys, [k]: v } }));
   const block = blockers[step];
 
@@ -244,6 +249,17 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
                 ? "Who and where the episode is about. Each gets a picture next (the Refs tab draws it from the design, or takes one you have); more can be added any time."
                 : `Carried over: ${castOfConfig(base).characters.length} characters, ${castOfConfig(base).locations.length} locations, ${castOfConfig(base).things.length} props and vehicles. Add only who and what is new in this episode.`}
             </div>
+            {!isNewSeries && (
+              <div className="h3-row h3-wrap" style={{ gap: 4 }}>
+                {[...castList, ...thingList, ...placeList]
+                  .filter((o) => !cast.some((c) => c.id === o.id))
+                  .map((o) => (
+                    <Hover key={o.id} ep={picEp} item={o}>
+                      <Thumb ep={picEp} pic={o.pic} name={o.name} size={36} />
+                    </Hover>
+                  ))}
+              </div>
+            )}
             {cast.map((c, i) => (
               <CastCard key={i} c={c} raw={full ?? base} problem={problems[i]}
                 onChange={(n) => setCast(cast.map((x, j) => (j === i ? n : x)))}
@@ -261,18 +277,15 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
           <>
             <div className="h3-small h3-muted">The episode's first shot, to start from; the shot form adds the rest.</div>
             <Row label="Where" help="The first sequence's location: every shot in it happens here.">
-              <select className="h3-in" value={location} onChange={(e) => setLocation(e.target.value)}>
-                <option value="">pick a location…</option>
-                {known.locations.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
+              <PlacePick ep={picEp} value={location} places={placeList} empty="pick a location…" onChange={setLocation} />
             </Row>
             <Row label="Who's in it" help="The characters on screen, in order.">
-              <Chips value={listOf(shot.keys.who)} options={castList} onChange={(v) => setKey("who", v.join(", "))}
+              <Chips ep={picEp} value={listOf(shot.keys.who)} options={castList} onChange={(v) => setKey("who", v.join(", "))}
                 add={() => { setStep(2); setCast([...cast, { kind: "character", id: "", fields: {} }]); }} addLabel="+ Character" />
             </Row>
             {thingList.length > 0 && (
               <Row label="With" help="Props and vehicles whose look matters.">
-                <Chips value={listOf(shot.keys.with)} options={thingList} onChange={(v) => setKey("with", v.join(", "))}
+                <Chips ep={picEp} value={listOf(shot.keys.with)} options={thingList} onChange={(v) => setKey("with", v.join(", "))}
                   add={() => { setStep(2); setCast([...cast, { kind: "prop", id: "", fields: {} }]); }} addLabel="+ Prop" />
               </Row>
             )}

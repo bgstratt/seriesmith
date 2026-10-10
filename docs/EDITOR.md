@@ -190,6 +190,12 @@ in the script as fields:
   Character** / **+ Prop** opens a new cast card.
 - **Size**, **Length** (H3's grid, or auto to fit the dialogue), **Background** (another
   location than the sequence's).
+
+Wherever the form (or the wizard, or the series settings' cast list) names someone or
+somewhere, it shows their picture: a character's face, cut from the last panel of their
+sheet (a whole body doesn't read that small), a group's or a prop's whole picture, a
+location's plate; initials until there is one. **add…** and the location buttons open the
+pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
   **Extras**, **On-screen text**.

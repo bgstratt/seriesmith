@@ -350,9 +350,15 @@ check, history copy and rebuild.
       (`GET /seriesmith/episode/new` says what it starts from); the episode opens
       built. Checked live: a new series with one character and one location, then
       its ep02 carrying them over.
-- [ ] Pictures beside the names: picking who's in a shot, the cast list and the
-      wizard show each one's picture on hover (a character's face panel, since a
-      three-quarter view won't read small; a location's plate).
+- [x] Pictures beside the names: the shot form's and the wizard's who / with
+      chips and location buttons, and the series form's cast list, show each
+      one's picture (a character's face: the sheet's last panel, since a
+      three-quarter view won't read small; a group's, a one-picture character's
+      or a prop's whole picture; a location's plate; initials until there is
+      one), larger on hover; add… and the location buttons pick from the
+      pictures. From the Refs list when it's loaded (a variant's derived sheet,
+      the hash to refresh by), else the series config's paths. Checked live on
+      a Porchlights episode's own sheets and plates.
 
 ## Later
 

@@ -6,8 +6,9 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
+import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
 import {
   CAMERA_AMPLITUDE, CAMERA_MOVES, CAMERA_SPEED, DURATIONS, SIZES, cameraLine, insertAfter, listOf, newShot,
@@ -15,8 +16,9 @@ import {
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
 import { useApp } from "../store";
-import type { ShotPreview, SourceDoc } from "../types";
+import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { Hover, PicturePicker, Thumb, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 
 const RECT_KEY = "seriesmith.shotform.rect";
@@ -36,20 +38,21 @@ export function ShotFormWindow() {
   return <ShotFormBody key={`${ep}|${f.shot ?? `+${f.after ?? ""}`}`} ep={ep} shot={f.shot} after={f.after} />;
 }
 
-export interface Cast { id: string; name: string; kind: string; onScreen: boolean }
+export interface Cast extends Named { kind: string; onScreen: boolean }
 
-function castOf(raw: Raw | null): { chars: Cast[]; things: Cast[]; places: { id: string; name: string }[]; profiles: string[] } {
+function castOf(raw: Raw | null, refs: Ref[] | undefined): { chars: Cast[]; things: Cast[]; places: Named[]; profiles: string[] } {
   const subj = (getPath(raw ?? {}, ["subjects"]) ?? {}) as Record<string, Raw>;
   const all = Object.entries(subj).map(([id, e]) => ({
     id, name: typeof e?.name === "string" ? e.name : id,
     kind: typeof e?.kind === "string" ? e.kind : (e?.of && typeof subj[e.of as string]?.kind === "string" ? subj[e.of as string].kind as string : "character"),
     onScreen: !!(e?.sheet || e?.of || e?.design),
+    pic: pictureOf(raw, refs, "subjects", id),
   }));
   const locs = (getPath(raw ?? {}, ["locations"]) ?? {}) as Record<string, Raw>;
   return {
     chars: all.filter((c) => c.kind === "character"),
     things: all.filter((c) => c.kind === "prop" || c.kind === "vehicle"),
-    places: Object.keys(locs).map((id) => ({ id, name: id })),
+    places: Object.keys(locs).map((id) => ({ id, name: id.replace(/_/g, " "), pic: pictureOf(raw, refs, "locations", id) })),
     profiles: Object.keys((getPath(raw ?? {}, ["profiles"]) ?? {}) as object),
   };
 }
@@ -105,7 +108,11 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   }, [ep, shot]);
 
   const seqs = useMemo(() => (doc ? sequencesOf(doc.text) : []), [doc]);
-  const cast = useMemo(() => castOf(sc.base), [sc.base]);
+  const refs = useApp((s) => s.refs[ep]);
+  useEffect(() => {
+    if (!refs) void loadRefs(ep);
+  }, [ep]);
+  const cast = useMemo(() => castOf(sc.base, refs), [sc.base, refs]);
   const block = form ? writeShot(form) : [];
   const dirty = !!form && block.join("\n") !== orig;
 
@@ -201,10 +208,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     <>
                       <input className="h3-in" style={{ width: 80 }} placeholder={`sq${String(seqs.length + 1).padStart(2, "0")}`}
                         value={newSeq.id} onChange={(e) => setNewSeq({ ...newSeq, id: e.target.value.trim() })} />
-                      <select className="h3-in" value={newSeq.location} onChange={(e) => setNewSeq({ ...newSeq, location: e.target.value })}>
-                        <option value="">its location…</option>
-                        {cast.places.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
-                      </select>
+                      <PlacePick ep={ep} value={newSeq.location} places={cast.places} empty="its location…"
+                        onChange={(v) => setNewSeq({ ...newSeq, location: v })} />
                       <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Location</button>
                     </>
                   )}
@@ -212,11 +217,11 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
               </Row>
 
               <Row label="Who's in it" help="The characters on screen, in this order (on H3 they are the shot's pictures 1 to 3). Someone who only speaks off screen isn't here: give their line V.O. or O.S.">
-                <Chips value={listOf(form.keys.who)} options={cast.chars.filter((c) => c.onScreen)}
+                <Chips ep={ep} value={listOf(form.keys.who)} options={cast.chars.filter((c) => c.onScreen)}
                   onChange={(v) => set("who", v.join(", "))} add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Character" />
               </Row>
               <Row label="With" help="Props and vehicles whose exact look matters and recurs (each takes a picture slot). A generic mug is better in the action.">
-                <Chips value={listOf(form.keys.with)} options={cast.things}
+                <Chips ep={ep} value={listOf(form.keys.with)} options={cast.things}
                   onChange={(v) => set("with", v.join(", "))} add={() => openSubjectCard({ kind: "prop", id: null })} addLabel="+ Prop" />
               </Row>
 
@@ -242,11 +247,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                   </div>
                 </Row>
                 <Row label="Background" help="The location behind this shot. Empty: the sequence's location.">
-                  <select className="h3-in" value={form.keys.plate ?? ""} onChange={(e) => set("plate", e.target.value)}>
-                    <option value="">the sequence's location</option>
-                    {cast.places.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
-                    {form.keys.plate && !cast.places.some((p) => p.id === form.keys.plate) && <option value={form.keys.plate}>{form.keys.plate}</option>}
-                  </select>
+                  <PlacePick ep={ep} value={form.keys.plate ?? ""} places={cast.places} empty="the sequence's location"
+                    onChange={(v) => set("plate", v)} />
                 </Row>
               </div>
 
@@ -357,29 +359,50 @@ function SmallKey({ label, k, form, set, help }: { label: string; k: string; for
   );
 }
 
-export function Chips({ value, options, onChange, add, addLabel }: {
-  value: string[]; options: Cast[]; onChange: (v: string[]) => void; add: () => void; addLabel: string;
+export function Chips({ ep, value, options, onChange, add, addLabel }: {
+  ep: string | null; value: string[]; options: Cast[]; onChange: (v: string[]) => void; add: () => void; addLabel: string;
 }) {
-  const [pick, setPick] = useState("");
   const left = options.filter((o) => !value.includes(o.id));
   return (
     <div className="h3-row h3-wrap" style={{ gap: 4 }}>
-      {value.map((id, i) => (
-        <span key={id} className="h3-badge" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-          title={options.find((o) => o.id === id)?.name ?? `${id} isn't in the series config`}>
-          {i + 1}. {options.find((o) => o.id === id)?.name ?? id}
-          <button className="h3-link" title="Earlier" disabled={i === 0} onClick={() => {
-            const v = [...value]; [v[i - 1], v[i]] = [v[i], v[i - 1]]; onChange(v);
-          }}>‹</button>
-          <button className="h3-link" title="Remove" onClick={() => onChange(value.filter((x) => x !== id))}>×</button>
-        </span>
-      ))}
-      <select className="h3-in" value={pick} onChange={(e) => { if (e.target.value) onChange([...value, e.target.value]); setPick(""); }}>
-        <option value="">add…</option>
-        {left.map((o) => <option key={o.id} value={o.id}>{o.name}{o.name !== o.id ? ` (${o.id})` : ""}</option>)}
-      </select>
+      {value.map((id, i) => {
+        const o: Named = options.find((x) => x.id === id) ?? { id, name: id, pic: null };
+        return (
+          <Hover key={id} ep={ep} item={o}>
+            <span className="h3-badge sm-chip" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              title={options.some((x) => x.id === id) ? undefined : `${id} isn't in the series config`}>
+              <Thumb ep={ep} pic={o.pic} name={o.name} size={22} round />
+              {i + 1}. {o.name}
+              <button className="h3-link" title="Earlier" disabled={i === 0} onClick={() => {
+                const v = [...value]; [v[i - 1], v[i]] = [v[i], v[i - 1]]; onChange(v);
+              }}>‹</button>
+              <button className="h3-link" title="Remove" onClick={() => onChange(value.filter((x) => x !== id))}>×</button>
+            </span>
+          </Hover>
+        );
+      })}
+      <PicturePicker ep={ep} options={left} label={<><i className="pi pi-plus" /> add…</>} title="Pick from the cast"
+        onPick={(id) => id && onChange([...value, id])} />
       <button className="h3-btn" onClick={add}>{addLabel}</button>
     </div>
+  );
+}
+
+/** A location, picked by its plate; `empty` names the choice of none. */
+export function PlacePick({ ep, value, places, empty, onChange }: {
+  ep: string | null; value: string; places: Named[]; empty: string; onChange: (v: string) => void;
+}) {
+  const cur: Named | null = value ? places.find((p) => p.id === value) ?? { id: value, name: value, pic: null } : null;
+  return (
+    <span className="h3-row" style={{ gap: 4 }}>
+      {cur && (
+        <Hover ep={ep} item={cur} big={260}>
+          <Thumb ep={ep} pic={cur.pic} name={cur.name} size={28} />
+        </Hover>
+      )}
+      <PicturePicker ep={ep} options={places} none={empty} onPick={onChange} title="Pick a location by its plate"
+        label={<>{cur ? cur.name : empty} <i className="pi pi-chevron-down" style={{ fontSize: 10 }} /></>} />
+    </span>
   );
 }
 

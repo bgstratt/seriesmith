@@ -15,6 +15,8 @@ import {
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
 import type { Target, TargetKind } from "../types";
+import { pictureOf } from "../lib/pictures";
+import { Hover, Thumb } from "./Picture";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
 
@@ -289,6 +291,8 @@ const CAST_SHOWN = 60;
 
 function CastList({ raw }: { raw: Raw }) {
   const [q, setQ] = useState("");
+  const ep = useApp((s) => s.ep);
+  const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const groups: { label: string; block: "subjects" | "locations"; kinds: CardKind[] }[] = [
     { label: "Characters", block: "subjects", kinds: ["character", "group", "voice"] },
     { label: "Props and vehicles", block: "subjects", kinds: ["prop", "vehicle"] },
@@ -324,11 +328,15 @@ function CastList({ raw }: { raw: Raw }) {
               <div className="h3-row h3-wrap" style={{ gap: 4 }}>
                 {ids.map((id) => {
                   const e = (getPath(raw, [g.block, id]) ?? {}) as Raw;
+                  const item = { id, name: typeof e.name === "string" ? e.name : id.replace(/_/g, " "), pic: pictureOf(raw, refs, g.block, id) };
                   return (
-                    <button key={id} className="h3-btn" title={`Edit ${id}`}
-                      onClick={() => openSubjectCard({ kind: cardKindOf(raw, g.block, id), id })}>
-                      {typeof e.name === "string" ? e.name : id}
-                    </button>
+                    <Hover key={id} ep={ep} item={item}>
+                      <button className="h3-btn" title={`Edit ${id}`} style={{ gap: 5 }}
+                        onClick={() => openSubjectCard({ kind: cardKindOf(raw, g.block, id), id })}>
+                        <Thumb ep={ep} pic={item.pic} name={item.name} size={20} round={g.block === "subjects"} />
+                        {item.name}
+                      </button>
+                    </Hover>
                   );
                 })}
                 {hits.length > ids.length && (
