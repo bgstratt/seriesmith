@@ -1334,6 +1334,53 @@ def series_target(root: str) -> str | None:
     return t if isinstance(t, str) and t else None
 
 
+def series_backend(root: str) -> str | None:
+    """The series config's `series.backend` (None: it sets none)."""
+    b = ((series_config(root) or {}).get("series") or {}).get("backend")
+    return b if isinstance(b, str) and b else None
+
+
+def backend_kind(name: str) -> str:
+    """"deployment:wan22_i2v" -> "deployment"; "local" -> "local"."""
+    return name.split(":", 1)[0]
+
+
+def backend_choice(overrides: dict | None, shot_id: str, target: "TG.Target",
+                   requested: str | None = None, root: str | None = None
+                   ) -> tuple[str, str, str]:
+    """(the backend a shot's next render runs on, where that comes from, a
+    note when a default didn't suit its target).
+
+    Precedence, as for targets: the request ("request") -> the shot's
+    `backend` in overrides.json ("override") -> the episode's
+    (overrides.json "episode".backend: "episode") -> the series config's
+    `series.backend` ("series") -> the target's first backend ("target").
+    A bare "deployment" means this target's deployment ("deployment:<id>").
+    Asked for by name (request, override) on a target that can't run there:
+    ValueError. As a default (episode, series): the target's own first
+    backend, with a note -- a series on local still renders its Router shots
+    on Router."""
+    ov = overrides or {}
+    for name, source in ((requested, "request"), (T.shot_backend(ov, shot_id), "override"),
+                         (T.episode_field(ov, "backend"), "episode"),
+                         (series_backend(root) if root else None, "series")):
+        if not name:
+            continue
+        if name == "deployment":
+            name = f"deployment:{target.id}"
+        if backend_kind(name) in target.backends:
+            return name, source, ""
+        if source in ("request", "override"):
+            raise ValueError(f"{target.short} can't render on {name}: it runs on "
+                             f"{', '.join(target.backends)}")
+        own = target.backends[0]
+        own = f"deployment:{target.id}" if own == "deployment" else own
+        return own, "target", (f"{target.short} doesn't run on {name} (the {source}'s "
+                               f"backend), so it renders on {own}")
+    own = target.backends[0]
+    return (f"deployment:{target.id}" if own == "deployment" else own), "target", ""
+
+
 _SCRIPT_TARGETS: dict = {}
 
 
@@ -1821,6 +1868,9 @@ def sidecar_for(job: Job) -> dict:
         **({"hold": int((job.recompiled or job.shot)["hold"])}
            if (job.recompiled or job.shot).get("hold") else {}),
         **({"notes": notes} if notes else {}),
+        # a hosted model decides what a seed means: this take can't be made
+        # again by rendering the same settings (only said when so)
+        **({"reproducible": False} if not job_target(job).reproducible else {}),
         # where the negative prompt came from (a target that takes one)
         **({"negative_source": job.negative_source} if job.negative_source != "none" else {}),
         # which installed file each model param used (resolve_models)
@@ -1924,6 +1974,52 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
     take.sidecar = T.update_sidecar(take.paths.sidecar, **fields)
     return take.sidecar.get("status", "?")
+
+
+def collect_router_take(take: T.Take, run, status: str, arguments: dict | None = None) -> str:
+    """After a hosted model's run has ended with `status`: its video becomes
+    the take's mp4, and seriesmith makes what a save node would have (frame
+    count, frame rate, thumbnail, strip: seriesmith.finish) and closes the
+    take's record. `arguments` (what was sent) is recorded without its
+    inputs, which are the take's refs already. Returns the take's status."""
+    from seriesmith import finish as F
+
+    if status != "succeeded":
+        mark_failed(take, run.error or f"the request ended {status}")
+        return "failed"
+    videos = [o for o in run.outputs() if o.type == "video"]
+    if not videos:
+        mark_failed(take, f"the model returned no video (outputs: "
+                          f"{', '.join(o.name for o in run.outputs()) or 'none'})")
+        return "failed"
+    notes = []
+    try:
+        videos[0].save(take.paths.mp4)
+        info = F.probe(take.paths.mp4)
+    except (OSError, F.FinishError) as e:
+        mark_failed(take, f"the video didn't come back whole: {e}")
+        return "failed"
+    notes.append(f"mp4 from {run.backend} ({'with' if info['audio'] else 'no'} audio, "
+                 f"{info['width']}x{info['height']})")
+    thumb = strip = None
+    try:
+        F.thumb(take.paths.mp4, take.paths.thumb, info["frames"])
+        thumb = os.path.basename(take.paths.thumb)
+        F.strip(take.paths.mp4, take.paths.strip, info["frames"])
+        strip = os.path.basename(take.paths.strip)
+    except F.FinishError as e:
+        notes.append(f"thumbnails failed: {e}")
+    sent = None
+    if arguments is not None:
+        sent = {k: v for k, v in arguments.items() if k != "content"}
+        sent["inputs"] = [c.get("role") or c.get("type") for c in arguments.get("content") or []]
+    take.sidecar = T.update_sidecar(
+        take.paths.sidecar, status="ok", finished=T.now(), frames=info["frames"],
+        fps=info["fps"], mp4=os.path.basename(take.paths.mp4), thumb=thumb, strip=strip,
+        save_notes=f"{take.paths.stem}: " + "; ".join(notes),
+        **({"model_request": {"model": getattr(run, "model", None), "id": run.id, **sent}}
+           if sent is not None else {}))
+    return "ok"
 
 
 # ---------------------------------------------------------------------------

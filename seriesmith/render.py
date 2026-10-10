@@ -1,30 +1,42 @@
 """
-seriesmith render — render an episode's shots, each as a new take, on a backend.
+seriesmith render — render an episode's shots, each as a new take, on its backend.
 
     seriesmith render Shows/ep05                       every shot without a take
     seriesmith render Shows/ep05 --only sh040,sh050 --redo
     seriesmith render Shows/ep05 --proxy
-    seriesmith render Shows/ep05 --only sh040 --list   what would run, and why not
-    seriesmith render Shows/ep05 --only sh040 --dry-run   write the graph, run nothing
+    seriesmith render Shows/ep05 --only sh040 --target seedance_2_5
+    seriesmith render Shows/ep05 --only sh040 --list   what would run, where, and why not
+    seriesmith render Shows/ep05 --only sh040 --dry-run   write what would be sent, run nothing
 
 Planning is h3pipe's (seriesmith.jobs): the shot's target, its seed, model
 files resolved against ComfyUI's loaders, overrides.json, missing refs. What
-changes is how a take is made: the target's workflow is made portable (the
-shot and its reference files go up as inputs; the saver reports its files),
-the backend runs it, and seriesmith writes the take: its files into
-renders/<shot>/ and the saver's record into the take's record.
+changes is how a take is made:
+
+- A workflow target's graph is made portable (the shot and its reference files
+  go up as inputs; the saver reports its files), the backend runs it, and
+  seriesmith writes the take: its files into renders/<shot>/ and the saver's
+  record into the take's record.
+- A hosted target (Comfy Router) is one model call; its video becomes the
+  take's mp4 and seriesmith makes the thumbnails (seriesmith.finish).
+
+Backends
+    Each shot runs where jobs.backend_choice says: --backend, else the shot's
+    `backend` in overrides.json, the episode's, the series config's
+    `series.backend`, else its target's own first (a Router target's is
+    router; a workflow target's is local). A default that doesn't suit a
+    target falls back to the target's own, with a note. local is your own
+    ComfyUI through comfy-api-proxy (docs/SETUP.md); model files are resolved
+    against its loaders. Continuous shots (`continuous: latent`) still read the
+    previous take from the episode folder, so they render on local only
+    (docs/PLAN.md, step 5).
 
 Takes and seeds
     A shot with a finished take (or one still queued) is skipped. --redo
     renders it again as the next take; --take N forces a number. The first
     take uses the shotlist's seed (from the ids); --redo picks a new one unless
-    --same-seed; --seed N uses N; --new-seed forces a fresh one.
-
-Backends
-    --backend local (the default) is your own ComfyUI through comfy-api-proxy
-    (docs/SETUP.md). Model files are resolved against that ComfyUI's loaders.
-    Continuous shots (`continuous: latent`) still read the previous take from
-    the episode folder, so they render on local only (docs/PLAN.md, step 5).
+    --same-seed; --seed N uses N; --new-seed forces a fresh one. A hosted
+    model decides what a seed means, so its takes are marked
+    `reproducible: false`.
 """
 from __future__ import annotations
 
@@ -37,7 +49,7 @@ import time
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import targets as TG
-from seriesmith.backends import BackendError, available
+from seriesmith.backends import BackendError, File, available
 from seriesmith.settings import load_settings
 
 
@@ -54,13 +66,18 @@ def episode_bound(g: dict) -> list[str]:
             if "project_root" in (v.get("inputs") or {})]
 
 
+def hosted(target: TG.Target) -> bool:
+    """A target rendered by a model call, not a workflow (target.json `router`)."""
+    return bool(target.spec.get("router"))
+
+
 def parse_args(argv):
     ap = argparse.ArgumentParser(prog="seriesmith render", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("episodes", nargs="+", help="episode folders (each holds shotlist/)")
-    ap.add_argument("--backend", default="local",
-                    help="where to render: local (default), cloud, deployment:<target> "
-                         "(seriesmith backends lists them)")
+    ap.add_argument("--backend",
+                    help="render every shot here: local, cloud, router, deployment[:<target>] "
+                         "(default: each shot's own; seriesmith backends lists them)")
     ap.add_argument("--proxy", action="store_true", help="render the proxy pass")
     ap.add_argument("--only", help="comma-separated shot ids, e.g. sh040,sh050")
     ap.add_argument("--redo", action="store_true", help="render finished shots again as a new take")
@@ -87,10 +104,16 @@ def parse_args(argv):
     lt.add_argument("--no-latent", dest="save_latent", action="store_false")
     ap.add_argument("--list", action="store_true", help="show the job list and stop")
     ap.add_argument("--dry-run", action="store_true",
-                    help="write the first shot's portable graph to render_graph.json, run nothing")
+                    help="write what the first shot would send (render_graph.json, or "
+                         "render_call.json for a hosted model), run nothing")
     ap.add_argument("--stop-on-error", action="store_true",
                     help="stop at the first failed shot")
     return ap, ap.parse_args(argv)
+
+
+def as_json(value):
+    """A graph or call with its File inputs shown as {"File": path}."""
+    return json.loads(json.dumps(value, default=lambda f: {"File": f.path}))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -120,28 +143,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"seriesmith: {e}", file=sys.stderr)
         return 1
     backends = available(settings)
-    backend = backends.get(args.backend)
-    if backend is None:
-        ap.error(f"no backend called {args.backend!r} ({', '.join(backends)})")
-    # ComfyUI itself: its loaders' model lists and its saved workflows (the
-    # proxy serves neither). Only meaningful when the backend is that ComfyUI.
-    comfy = J.Comfy(settings.comfyui_url) if backend.kind == "local" else None
+    if args.backend and J.backend_kind(args.backend) not in TG.BACKENDS:
+        ap.error(f"{args.backend!r} is not a backend ({', '.join(TG.BACKENDS)})")
 
+    # ComfyUI itself, for what the proxy doesn't serve: its loaders' model
+    # lists and its saved workflows. Asked only when a shot renders there.
+    comfy = J.Comfy(settings.comfyui_url)
     workflows: dict = {}
+    # a target's workflow as saved in that ComfyUI wins over the repo's copy,
+    # but only for a run that renders there (set once the shots are planned)
+    use_comfy = {"url": None}
 
     def base_for(target_id: str):
         if target_id not in workflows:
             t = TG.load_target(target_id, "video", root=roots[0])
-            workflows[target_id] = J.target_workflow(t, None, settings.comfyui_url
-                                                     if comfy else None)
+            workflows[target_id] = J.target_workflow(t, None, use_comfy["url"])
         return workflows[target_id]
 
     model_resolve = J.model_resolver()
     model_cache = TG.modelid.temp_cache()
     listing = None
-    if comfy is not None and not args.dry_run:
-        listing = J.model_lister(comfy)
     plans = []
+    where: dict[int, str] = {}                    # id(job) -> backend name
     total_frames = 0
     for root in roots:
         try:
@@ -149,19 +172,44 @@ def main(argv: list[str] | None = None) -> int:
         except FileNotFoundError as e:
             print(f"  ! {e}")
             continue
+        ov = T.load_overrides(root)
         for j in jobs:
+            t = J.job_target(j)
+            if j.runs:
+                try:
+                    name, _src, note = J.backend_choice(ov, j.id, t, args.backend, root)
+                except ValueError as e:
+                    j.action, j.error = "error", str(e)
+                    continue
+                if note:
+                    j.notes.append(note)
+                if name not in backends:
+                    why = (f"{name} isn't set up on this machine"
+                           + (" (it needs COMFY_API_KEY)" if J.backend_kind(name) != "local"
+                              else "") + "; seriesmith backends lists what is")
+                    if not (args.dry_run or args.list):
+                        j.action, j.error = "error", why
+                        continue
+                    j.notes.append(why)      # still shown: nothing is sent
+                where[id(j)] = name
+            if hosted(t):
+                continue                                  # no model files to resolve
+            if j.runs and where[id(j)] in backends and backends[where[id(j)]].kind == "local" \
+                    and listing is None and not args.dry_run:
+                listing = J.model_lister(comfy)
             J.resolve_models(j, listing, model_resolve, model_cache)
             J.check_models(j, model_resolve, model_cache)
         todo = [j for j in jobs if j.runs]
         plans.append((root, jobs))
         total_frames += sum(j.frames for j in todo)
         not_run = [j for j in jobs if not j.runs and j.action not in ("skip", "busy")]
+        on = sorted({where[id(j)] for j in todo if id(j) in where})
         print(f"\n  {os.path.basename(root)}  ·  {len(todo)} to render, "
               f"{sum(1 for j in jobs if j.action == 'skip')} done"
               + (f", {sum(1 for j in jobs if j.action == 'busy')} already queued"
                  if any(j.action == "busy" for j in jobs) else "")
               + (f", {len(not_run)} can't run" if not_run else "")
-              + f"  ·  {pass_}  ·  on {backend.name}")
+              + f"  ·  {pass_}" + (f"  ·  on {', '.join(on)}" if on else ""))
         for j in not_run[:12]:
             why = (j.error if j.action == "error" else
                    j.blocked_reason() if j.action == "blocked" and j.no_anyway else
@@ -174,35 +222,26 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    ~ {j.id}: {n}")
         if args.list or args.dry_run:
             for j in jobs:
-                extra = f"  seed {j.seed} ({j.seed_source})" if j.runs else ""
+                extra = (f"  on {where.get(id(j), '?')}  seed {j.seed} ({j.seed_source})"
+                         if j.runs else "")
                 print(f"    [{j.action:>9}] {j.id:<8} t{j.take:02d}  {j.frames:>4}f  "
                       f"{j.target:<18} {j.shot.get('audio_policy', '')}{extra}")
     n_todo = sum(1 for _, js in plans for j in js if j.runs)
+    if any(n in backends and backends[n].kind == "local" for n in where.values()):
+        use_comfy["url"] = settings.comfyui_url
     if args.list:
         return 0
     gkw = dict(panel_mode=args.panel_mode, review_copy=False, portable=True)
     if args.dry_run:
-        for root, jobs in plans:
-            for j in (j for j in jobs if j.runs):
-                take = T.Take(j.id, j.take, pass_, T.take_paths(root, pass_, j.id, j.take))
-                g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
-                out = os.path.join(os.getcwd(), "render_graph.json")
-                with open(out, "w", encoding="utf-8") as fh:
-                    json.dump(g, fh, indent=2, default=lambda f: {"File": f.path})
-                print(f"\n  wrote {out} ({j.id}, {j.target}; "
-                      f"{len(J.shot_files(j))} file(s) to upload)")
-                bound = episode_bound(g)
-                if bound:
-                    print(f"  ! reads the episode folder: {', '.join(bound)}")
-                return 0
-        return 0
+        return dry_run(plans, pass_, base_for, gkw)
     if not n_todo:
         print("\n  nothing to do: --redo renders new takes.\n")
         return 0
-    why = backend.ping()
-    if why:
-        print(f"\n  !! {backend.name}: {why}\n     (seriesmith backends; docs/SETUP.md)")
-        return 1
+    for name in sorted(set(where.values())):
+        why = backends[name].ping()
+        if why:
+            print(f"\n  !! {name}: {why}\n     (seriesmith backends; docs/SETUP.md)")
+            return 1
 
     fps = next((j.fps for _, js in plans for j in js if j.runs), 24.0)
     print(f"\n  {n_todo} shot(s), {total_frames / fps:.1f}s of video\n")
@@ -217,34 +256,41 @@ def main(argv: list[str] | None = None) -> int:
             for j in (j for j in jobs if j.runs):
                 t0 = time.time()
                 label = f"{ep}/{j.id}"
+                backend = backends[where[id(j)]]
+                target = J.job_target(j)
                 take = None
                 try:
-                    base = base_for(j.target)[0]
                     take = start_job_portable(j)
                     label = f"{ep}/{j.id} t{take.take:02d}"
-                    g = J.graph_for(base, j, take, **gkw)
-                    bound = episode_bound(g)
-                    if bound and backend.kind != "local":
-                        raise J.NotPortable(f"reads the episode folder ({', '.join(bound)}): "
-                                            f"local only for now")
-                except (J.NotPortable, ValueError, FileNotFoundError) as e:
+                    if hosted(target):
+                        model, call = target.module.router_call(target, j)
+                    else:
+                        g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
+                        bound = episode_bound(g)
+                        if bound and backend.kind != "local":
+                            raise J.NotPortable(f"reads the episode folder "
+                                                f"({', '.join(bound)}): local only for now")
+                except (J.NotPortable, BackendError, ValueError, FileNotFoundError) as e:
                     failed += 1
                     failures.append(label)
                     if take is not None:
                         J.mark_failed(take, str(e)[:800])
                     print(f"  !! {label}: {e}", flush=True)
                     continue
-                print(f"  .. {label}  ({j.frames}f, {j.target}, "
+                print(f"  .. {label}  ({j.frames}f, {j.target} on {backend.name}, "
                       f"{j.shot.get('audio_policy', '')}, seed {j.seed} {j.seed_source})",
                       flush=True)
                 try:
                     current = (take, None)
-                    run = backend.submit(g)
+                    run = backend.call(model, call) if hosted(target) else backend.submit(g)
                     current = (take, run)
                     J.mark_submitted(take, backend.name, run.id)
                     status = run.watch(on_progress=progress_line(t0))
                     print("\r" + " " * 60 + "\r", end="", flush=True)
-                    result = J.collect_take(take, run, J.node_of(g, J.PORTABLE_SAVER), status)
+                    if hosted(target):
+                        result = J.collect_router_take(take, run, status, as_json(call))
+                    else:
+                        result = J.collect_take(take, run, J.node_of(g, J.PORTABLE_SAVER), status)
                     current = None
                     if result != "ok":
                         raise RuntimeError((take.sidecar or {}).get("save_notes")
@@ -277,6 +323,36 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n  done in {fmt(time.time() - t_start)}: {done} rendered"
           + (f", {failed} failed: {', '.join(failures)}" if failed else "") + "\n")
     return 1 if failed else 0
+
+
+def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
+    """Write what the first shot that would run would send; nothing is
+    reserved, written or uploaded."""
+    for root, jobs in plans:
+        for j in (j for j in jobs if j.runs):
+            take = T.Take(j.id, j.take, pass_, T.take_paths(root, pass_, j.id, j.take))
+            target = J.job_target(j)
+            if hosted(target):
+                model, call = target.module.router_call(target, j)
+                out = os.path.join(os.getcwd(), "render_call.json")
+                with open(out, "w", encoding="utf-8") as fh:
+                    json.dump({"model": model, "arguments": as_json(call)}, fh, indent=2,
+                              ensure_ascii=False)
+                n = sum(1 for c in call.get("content") or [] if isinstance(
+                    (c.get("image_url") or {}).get("url"), File))
+                print(f"\n  wrote {out} ({j.id}, {model}; {n} picture(s) to upload)")
+                return 0
+            g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
+            out = os.path.join(os.getcwd(), "render_graph.json")
+            with open(out, "w", encoding="utf-8") as fh:
+                json.dump(as_json(g), fh, indent=2)
+            print(f"\n  wrote {out} ({j.id}, {j.target}; "
+                  f"{len(J.shot_files(j))} file(s) to upload)")
+            bound = episode_bound(g)
+            if bound:
+                print(f"  ! reads the episode folder: {', '.join(bound)}")
+            return 0
+    return 0
 
 
 def start_job_portable(job: J.Job) -> T.Take:

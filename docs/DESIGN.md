@@ -79,13 +79,18 @@ rests on"); whether Comfy Cloud does the same is still to be confirmed.
 
 ### 3. Where a job goes
 
-Defaults cascade, later wins, as render settings already do:
+Defaults cascade, later wins, as the target choice already does:
 
-    target's allowed backends -> series config default -> episode -> sequence
-      -> shot -> the request (the render dialog / CLI)
+    the target's own first backend -> the series config's `series.backend`
+      -> the episode's (overrides.json "episode".backend) -> the shot's
+      (overrides.json, beside its `target`) -> the request (render dialog / CLI)
 
-So the series renders locally, one sequence goes to a deployment while your GPU
-is busy, and one shot goes to Seedance through Router.
+So the series renders locally, an episode goes to a deployment while your GPU
+is busy, and one shot goes to Seedance through Router. Where a shot renders is
+a production choice, not part of the story, so the script has no line for it.
+A default that doesn't suit a shot's target gives way to the target's own (a
+series on local still renders its Router shots on Router), with a note; asking
+for it by name on that shot is an error (`jobs.backend_choice`).
 
 ### 4. Stages
 

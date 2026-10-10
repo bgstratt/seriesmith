@@ -28,6 +28,14 @@ from seriesmith.backends.fake import FakeBackend  # noqa: E402
 from test_render import build_episode  # noqa: E402
 
 NODES = os.path.join(ROOT, "comfy_nodes", "shot.py")
+DEPLOY = "deployment:minimax_h3_ref2va"
+
+
+def render_on(fb, *args) -> int:
+    """seriesmith render with `fb` as the only backend there is."""
+    with mock.patch.object(render, "available", return_value={fb.name: fb}), \
+            mock.patch("builtins.print"):
+        return render.main(list(args))
 
 
 def h3_shot(doc: dict) -> int:
@@ -169,27 +177,21 @@ class CollectTest(Episode):
 
 class RenderCommandTest(Episode):
     def test_render_makes_a_take_on_the_backend(self):
-        fb = FakeBackend("fake", "cloud", outputs=saver_outputs, progress=[0.5, 1.0])
-        with mock.patch.object(render, "available", return_value={"fake": fb}), \
-                mock.patch("builtins.print"):
-            rc = render.main([self.root, "--only", self.shot_id, "--backend", "fake"])
-        self.assertEqual(rc, 0)
+        fb = FakeBackend(DEPLOY, "deployment", outputs=saver_outputs, progress=[0.5, 1.0])
+        self.assertEqual(render_on(fb, self.root, "--only", self.shot_id,
+                                   "--backend", "deployment"), 0)
         (take,) = T.list_takes(self.root, "final", self.shot_id)
-        self.assertEqual((take.sidecar["status"], take.sidecar["backend"]), ("ok", "fake"))
+        self.assertEqual((take.sidecar["status"], take.sidecar["backend"]), ("ok", DEPLOY))
         self.assertEqual(len(fb.submitted), 1)
         # a second run finds the take and does nothing
-        with mock.patch.object(render, "available", return_value={"fake": fb}), \
-                mock.patch("builtins.print"):
-            self.assertEqual(render.main([self.root, "--only", self.shot_id,
-                                          "--backend", "fake"]), 0)
+        self.assertEqual(render_on(fb, self.root, "--only", self.shot_id,
+                                   "--backend", "deployment"), 0)
         self.assertEqual(len(fb.submitted), 1)
 
     def test_a_backend_that_doesnt_answer_runs_nothing(self):
-        fb = FakeBackend("fake", "cloud", down="nobody home")
-        with mock.patch.object(render, "available", return_value={"fake": fb}), \
-                mock.patch("builtins.print"):
-            self.assertEqual(render.main([self.root, "--only", self.shot_id,
-                                          "--backend", "fake"]), 1)
+        fb = FakeBackend(DEPLOY, "deployment", down="nobody home")
+        self.assertEqual(render_on(fb, self.root, "--only", self.shot_id,
+                                   "--backend", "deployment"), 1)
         self.assertEqual(fb.submitted, [])
         self.assertEqual(T.list_takes(self.root, "final", self.shot_id), [])
 

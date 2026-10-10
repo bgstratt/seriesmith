@@ -25,6 +25,8 @@ def target(**caps) -> TG.Target:
 class BackendsTest(unittest.TestCase):
     def test_a_workflow_target_runs_locally_or_on_a_deployment(self):
         for t in TG.list_targets():
+            if t.spec.get("router"):
+                continue                        # a hosted model: RouterTargetTest
             with self.subTest(target=t.id):
                 self.assertEqual(t.capabilities()["backends"], ["local", "deployment"])
 
@@ -36,6 +38,15 @@ class BackendsTest(unittest.TestCase):
         with self.assertRaises(TG.TargetError) as cm:
             target(backends=["local", "runpod"])
         self.assertIn("'runpod' is not a backend", str(cm.exception))
+
+
+class RouterTargetTest(unittest.TestCase):
+    def test_a_hosted_model_runs_on_router_and_promises_no_repeat(self):
+        c = TG.load_target("seedance_2_5", "video").capabilities()
+        self.assertEqual((c["backends"], c["reproducible"]), (["router"], False))
+        self.assertEqual(c["max_subjects"], 4)
+        self.assertEqual(c["continuous"], ["first"])
+        self.assertFalse(c["latents"])
 
 
 class ReproducibleTest(unittest.TestCase):

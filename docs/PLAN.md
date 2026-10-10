@@ -112,19 +112,36 @@ Left for later steps:
   are copied into the take; the API can't delete them. A cleanup command, or
   the proxy's retention, is needed before long episodes.
 
-## Step 4 — the first hosted render: Router
+## Step 4 — the first hosted render: Router (built; live run waits for a key)
 
-- [ ] A Router target kind: no workflow; a model string, an argument map, and a
-      prompt writer (the `builtin:video_prose` writer to start).
-- [ ] One video target (Seedance or hosted H3, whichever takes reference images)
-      and one image target for refs.
-- [ ] Choosing the backend: series config default, episode, sequence, shot,
-      request (DESIGN.md, "Where a job goes"); `check` warns when a shot asks
-      for something its target can't do there.
-- [ ] Takes from a non-reproducible target say so.
+- [x] A Router target kind: no workflow; target.json `router` (the model
+      string, its named sizes and ratios, fixed arguments) and a
+      `router_call(target, job)` in the target's code, with the shared prose
+      compile (`builtin:video_prose`).
+- [x] One video target: `seedance_2_5` (Seedance 2.5: references or
+      first/last frames, 4-30 s, its own sound). The image target for refs
+      moves to step 8, with the refs stage.
+- [x] Choosing the backend: request, shot, episode (overrides.json), series
+      config, target (DESIGN.md, "Where a job goes"); a shot that can't run
+      where it was sent says why at render time. Nothing at build time: the
+      build doesn't know this machine's backends.
+- [x] Takes from a non-reproducible target say so (`reproducible: false`), and
+      record what was sent (`model_request`, without the pictures).
+- [x] A hosted take is finished by seriesmith: the video in, ffprobe for its
+      length, thumbnail and strip by ffmpeg (`seriesmith/finish.py`).
+- [ ] **Live:** one real Router call with a Comfy API key (COMFY_API_KEY), to
+      confirm the request shape, the upload of inputs as Cloud assets, and the
+      result's `content.video_url`. `seriesmith render <ep> --only <shot>
+      --target seedance_2_5 --dry-run` shows the request without a key.
+
+Provider inputs can also be sent inline as base64 data URIs (the Seedance
+docs), which would spare small pictures the Cloud upload; worth trying when the
+live run happens.
 
 **Done when** one Porchlights episode renders with some shots on local H3 and
-some on the hosted model, from the same script.
+some on the hosted model, from the same script. Without a key: tested end to
+end on the fake backend (tests/test_router_render.py), and Porchlights ep02
+sh180's request checked by eye (2026-10-10).
 
 ## Step 5 — every local target, continuity, deployments
 

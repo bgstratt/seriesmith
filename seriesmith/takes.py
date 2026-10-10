@@ -587,7 +587,26 @@ def set_episode_target(data: dict, target: str | None, name: str = "") -> dict:
     return set_episode_field(data, "target", target, name)
 
 
-EPISODE_FIELDS = ("target", "refs_target", "keyframe_target", "voice_target")
+EPISODE_FIELDS = ("target", "refs_target", "keyframe_target", "voice_target", "backend")
+
+
+def shot_backend(data: dict, shot_id: str) -> str | None:
+    """The backend overrides.json sends a shot to (its shot-level `backend`,
+    beside `target`: {"shots": {"sh020": {"backend": "router"}}}), or None."""
+    b = data.get("shots", {}).get(shot_id, {}).get("backend")
+    return b if isinstance(b, str) and b else None
+
+
+def set_shot_backend(data: dict, shot_id: str, backend: str | None) -> dict:
+    """Send a shot to a backend (None: back to the episode's or series')."""
+    shots = data.setdefault("shots", {})
+    if backend:
+        shots.setdefault(shot_id, {})["backend"] = backend
+    elif shot_id in shots:
+        shots[shot_id].pop("backend", None)
+        if not shots[shot_id]:
+            del shots[shot_id]
+    return data
 
 
 def episode_field(data: dict, key: str) -> str | None:

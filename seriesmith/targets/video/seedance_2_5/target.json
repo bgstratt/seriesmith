@@ -1,0 +1,120 @@
+{
+  "id": "seedance_2_5",
+  "kind": "video",
+  "label": "Seedance 2.5 (hosted, Comfy Router)",
+  "short": "Seedance",
+  "code": "compile.py",
+  "_note": "ByteDance's Seedance 2.5 as a hosted model through Comfy Router (byteplus/dreamina-seedance-2-5-260628, docs.comfy.org/development/comfy-router/models/byteplus/dreamina-seedance-2-5-260628). No workflow: a render is one Router call (router_call in compile.py). Its prompt is prose with the spoken lines (the ltx2 writer, builtin video_prose); its references go in as separate reference images (each subject's sheet, then the plate), and a shot's first/last keyframes as first_frame/last_frame. It makes its own sound and can't be handed a recording, so every audio policy renders as generate. Not yet tried against the live service (docs/PLAN.md, step 4).",
+  "capabilities": {
+    "_note": "Hosted: Router only, and the provider decides what a seed means (a take can't be promised to come out the same again). The docs give no limit on reference images; four subjects and the plate is what the compile sends.",
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4
+  },
+  "template": {
+    "_note": "Whole seconds from 4 to 30 (Seedance 2.5's duration), at 24 fps: 96 + 24k frames. 720p by default; its sizes are named (480p, 720p, 1080p), and the picture's shape comes from the nearest of its ratios.",
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 96,
+      "max": 720
+    },
+    "size_multiple": 2,
+    "size_fit": "snap",
+    "max_size": {
+      "long_side": 1920
+    }
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "reference_image": {
+      "sheet_panels": 4,
+      "views": {
+        "body": 0,
+        "face": 3
+      },
+      "face_sizes": [
+        "close",
+        "cu",
+        "mcu",
+        "ecu"
+      ],
+      "plate": true,
+      "_note": "The shot's subjects' sheets and its plate, sent as separate reference images (compile.py router_call), never composed into one picture as VACE's are."
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "byteplus/dreamina-seedance-2-5-260628",
+    "resolutions": {
+      "480": "480p",
+      "720": "720p",
+      "1080": "1080p"
+    },
+    "ratios": [
+      "16:9",
+      "4:3",
+      "1:1",
+      "3:4",
+      "9:16",
+      "21:9",
+      "9:21"
+    ],
+    "seed_max": 4294967295,
+    "arguments": {
+      "watermark": false,
+      "output_format": "mp4"
+    },
+    "result": {
+      "video": "content.video_url"
+    }
+  },
+  "presets": {
+    "_note": "No model files and no steps: the provider's. Final at 720p, proxy at 480p.",
+    "final": {
+      "model": "byteplus/dreamina-seedance-2-5-260628",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "byteplus/dreamina-seedance-2-5-260628",
+      "lora": null,
+      "steps": 0,
+      "width": 854,
+      "height": 480
+    }
+  }
+}
