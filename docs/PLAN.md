@@ -75,28 +75,42 @@ on ComfyUI 0.39 and checks what comes back (`tests/test_backends.py`,
 LiveLocalTest). The Router backend is written but untested against the real
 service until step 4 (it needs a key and credits).
 
-## Step 3 — the first render: H3 on your own GPU
+## Step 3 — the first render: H3 on your own GPU ✅
 
 One target, end to end, the way every target will work.
 
-- [ ] Port from h3pipe: takes and their records (`h3takes`), job planning and
+- [x] Port from h3pipe: takes and their records (`h3takes`), job planning and
       the graph builder (`h3jobs`: plan_job, Job, graph_for and the binding
       code), the readiness checks that ask ComfyUI directly.
-- [ ] A portable graph: the shot's references go in as uploaded assets (core
+- [x] A portable graph: the shot's references go in as uploaded assets (core
       LoadImage / LoadAudio), its compiled shot as a text input, so nothing in
       the graph reads the episode folder.
-- [ ] A small seriesmith node pack (successor to h3pipe's `comfy_nodes/`): the
+- [x] A small seriesmith node pack (successor to h3pipe's `comfy_nodes/`): the
       shot loader that takes those inputs (panel cropping, audio slicing), and a
       save node that writes into ComfyUI's output folder and reports every file
       (the mp4, the latent, a thumbnail).
-- [ ] seriesmith writes the take: downloads the outputs into
+- [x] seriesmith writes the take: downloads the outputs into
       `renders/<shot>/`, writes the take record (settings, seed, backend,
       timings) itself.
-- [ ] `seriesmith render <episode> --only sh010`.
+- [x] `seriesmith render <episode> --only sh010`.
 
 **Done when** a Porchlights shot renders on local H3 through the proxy and its
 take matches what h3pipe makes for the same shot and seed (same prompt, same
 graph apart from the loader and saver, same picture).
+
+Done 2026-10-10: Porchlights ep02 sh180, in a scratch copy of the episode,
+rendered by h3pipe (t01) and by `seriesmith render --redo --same-seed` through
+comfy-api-proxy (t02): the decoded frames are identical and so is H3's sound;
+the take records differ only in take number, times, job id and `backend`.
+
+Left for later steps:
+- The readiness checks (model files, node classes) still ask ComfyUI
+  directly, so they only mean something for the local backend.
+- Continuous shots (`continuous: latent`, H3ChainLatent) and continuity first
+  frames (H3ContinuityFrame) still read the episode folder: local only (step 5).
+- Each run leaves its files in ComfyUI's output/seriesmith/<run>/ after they
+  are copied into the take; the API can't delete them. A cleanup command, or
+  the proxy's retention, is needed before long episodes.
 
 ## Step 4 — the first hosted render: Router
 

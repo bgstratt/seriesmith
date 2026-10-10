@@ -33,6 +33,18 @@ Check it:
     seriesmith backends               # each backend, and whether it answers
     seriesmith backends --try local   # a picture up through ComfyUI and back
 
+## The seriesmith nodes
+
+Shots render through seriesmith's own loader and saver nodes (`comfy_nodes/`).
+Link the folder into ComfyUI's `custom_nodes` and restart ComfyUI:
+
+    mklink /J "<ComfyUI>\custom_nodes\seriesmith" "<seriesmith>\comfy_nodes"     (Windows)
+    ln -s "<seriesmith>/comfy_nodes" "<ComfyUI>/custom_nodes/seriesmith"           (elsewhere)
+
+They sit happily beside h3pipe's node pack. A target's own model nodes (H3's
+`H3SLAAttention` from ComfyUI-PlagueKind-Nodes, for one) are still needed;
+`seriesmith render --dry-run` writes the graph a shot would run.
+
 ## Comfy Cloud, deployments and Router
 
 All three use your Comfy API key (platform.comfy.org). Keep it in the
