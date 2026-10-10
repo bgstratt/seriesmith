@@ -28,8 +28,8 @@
   "binding": {
     "_note": "The Ref2VA workflow with everything shot-shaped taken out: no H3ShotListLoader (the prompt, size, length, seed and steps are widgets an image job fills), no audio VAE, no CreateVideo/SaveVideo/H3SaveShot. VAEDecode feeds ImageFromBatch (frame 0), which feeds the saver. The model chain, the sampler and MiniMaxH3ReferenceToVideo are the video workflow's, node for node, so this graph is the one the pipeline already renders with -- including the dotted autogrow input name `ref_images.ref_image_0`, which is what the production video path sends today.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_minimax_h3_still.json",
-    "env": "H3_STILL_WORKFLOW",
+    "workflow_name": "seriesmith_minimax_h3_still.json",
+    "env": "SERIESMITH_MINIMAX_H3_STILL_WORKFLOW",
     "saver": {
       "class_type": "H3SaveRefTake",
       "replace": {

@@ -45,8 +45,8 @@
   "binding": {
     "_note": "The workflow is ComfyUI's LTX-2.3 IC-LoRA ingredients template (a subgraph, flattened by h3jobs.ui_to_api). Every value is patched into a widget; the sheet reaches the template's LoadImage through POST /upload/image, then RepeatImageBatch (length frames) and ResizeAndPadImage (the render size, black) make the static reference video. H3SaveShot takes the place of CreateVideo/SaveVideo, and prune drops what it doesn't need: the prompt enhancer (TextGenerateLTX2Prompt, its Gemma LoRA and switch), the size/length maths and the previews. The checkpoint name goes to all three of the template's loaders (model, audio VAE, text encoder).",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_ltx2_3_ingredients.json",
-    "env": "H3_LTX2_INGREDIENTS_WORKFLOW",
+    "workflow_name": "seriesmith_ltx2_3_ingredients.json",
+    "env": "SERIESMITH_LTX2_INGREDIENTS_WORKFLOW",
     "saver": {"class_type": "H3SaveShot",
               "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
                          "sidecar": "sidecar"},

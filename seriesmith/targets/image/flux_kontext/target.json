@@ -28,8 +28,8 @@
   "binding": {
     "_note": "An API graph built from the user's saved flux_kontext_image_base.json, trimmed to the branch its SaveImage reads (the canvas holds six more samplers and image stitches): UNETLoader + DualCLIPLoader (clip_l, t5xxl, flux) + the ae VAE; the reference: LoadImage -> FluxKontextImageScale -> VAEEncode -> ReferenceLatent on the prompt, titled 'Reference 1 ...' (cut out with no reference); FluxGuidance; KSampler 20 steps, cfg 1, euler / simple on an EmptySD3LatentImage at the job's size. Guidance 2.5 is ComfyUI's Kontext template's (flux_kontext_dev_basic.json) and the canvas' other branches'; the saved branch had 1.5 for a style transfer. H3SaveRefTake takes the place of SaveImage.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_flux_kontext.json",
-    "env": "H3_FLUX_KONTEXT_WORKFLOW",
+    "workflow_name": "seriesmith_flux_kontext.json",
+    "env": "SERIESMITH_FLUX_KONTEXT_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

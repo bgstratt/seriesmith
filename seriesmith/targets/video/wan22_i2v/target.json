@@ -55,8 +55,8 @@
   "binding": {
     "_note": "An API graph built from ComfyUI's Wan 2.2 14B image-to-video template as the user saved it (video_wan2_2_14B_i2v.json): its subgraph flattened and its 4-step LoRA switches resolved to the LoRA branch, so no switch or primitive is left and every node the binding names has a title. Two stages: the high noise model (+ its lightx2v LoRA, shift 5) samples steps [0, split) with noise, the low noise model (+ its LoRA) finishes [split, end) (`stages`; patch_graph sets split = the preset's `split` fraction of the steps). `model` / `model_low` are the two UNETLoaders; `loras` is one chain per stage: a LoRA goes to the stage its `stage` names, else by its name (*high_noise* / *low_noise*), else to both. H3SaveShot takes the place of CreateVideo/SaveVideo (no audio input: the mp4 is mute) at the job's fps.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_wan22_14b_i2v.json",
-    "env": "H3_WAN22_I2V_WORKFLOW",
+    "workflow_name": "seriesmith_wan22_14b_i2v.json",
+    "env": "SERIESMITH_WAN22_I2V_WORKFLOW",
     "saver": {"class_type": "H3SaveShot",
               "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
                          "sidecar": "sidecar"},

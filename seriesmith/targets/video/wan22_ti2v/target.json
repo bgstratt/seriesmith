@@ -47,8 +47,8 @@
   "binding": {
     "_note": "An API graph with the nodes of the user's saved Wan 2.2 5B workflow (image_to_video_wan22_5B.json: UNETLoader, ModelSamplingSD3, the UMT5 CLIPLoader, the 2.2 VAE, Wan22ImageToVideoLatent, KSampler, VAEDecode), ending in CreateVideo/SaveVideo instead of its WEBM/WEBP previews. patch_graph feeds the first keyframe into Wan22ImageToVideoLatent's start_image, or disconnects it for text to video. The workflow has no LoRA loader: one is inserted after the UNETLoader when a profile names LoRAs. H3SaveShot takes the place of CreateVideo/SaveVideo (no audio input: the mp4 is mute) at the job's fps.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_wan22_5b_ti2v.json",
-    "env": "H3_WAN22_TI2V_WORKFLOW",
+    "workflow_name": "seriesmith_wan22_5b_ti2v.json",
+    "env": "SERIESMITH_WAN22_TI2V_WORKFLOW",
     "saver": {"class_type": "H3SaveShot",
               "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
                          "sidecar": "sidecar"},

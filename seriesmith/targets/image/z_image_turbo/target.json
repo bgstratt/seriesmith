@@ -27,8 +27,8 @@
   "binding": {
     "_note": "An API graph built from the user's saved z-image-turbo-t2i.json (ComfyUI's Z-Image Turbo template: UNETLoader + CLIPLoader lumina2 + ae VAE, ModelSamplingAuraFlow, KSampler res_multistep / simple, 8 steps, cfg 1). The saved canvas' LoRA loader is left out (references follow the series config's look; `loras` splices one in after the UNETLoader when asked). Every node the binding names has a title. H3SaveRefTake takes the place of SaveImage; prune drops anything it doesn't need. Known by the h3pipe_ name among ComfyUI's saved workflows, so the user's own canvas never leaks in.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_z_image_turbo.json",
-    "env": "H3_Z_IMAGE_WORKFLOW",
+    "workflow_name": "seriesmith_z_image_turbo.json",
+    "env": "SERIESMITH_Z_IMAGE_TURBO_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

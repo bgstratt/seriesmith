@@ -129,7 +129,7 @@ class ImageTargetsTest(Episode):
                 self.assertTrue(m["family"] and m["tier"], (tid, param))
             # every file it names has a download record (url or null + source)
             self.assertEqual(set(t.named_files()) - set(t.downloads), set(), tid)
-            self.assertTrue(t.binding.workflow_name.startswith("h3pipe_"), tid)
+            self.assertTrue(t.binding.workflow_name.startswith("seriesmith_"), tid)
         self.assertEqual(TG.load_target("flux2_klein_edit", "image").capabilities()["max_refs"], 4)
         self.assertEqual(TG.load_target("flux_kontext", "image").capabilities()["max_refs"], 1)
 

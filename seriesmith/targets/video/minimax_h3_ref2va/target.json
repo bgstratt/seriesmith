@@ -53,7 +53,7 @@
   "binding": {
     "workflow": "workflow.json",
     "workflow_name": "H3_Ref2VA_Shotlist_v1.json",
-    "env": "H3_WORKFLOW",
+    "env": "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW",
     "loader": {"class_type": "H3ShotListLoader",
                "inputs": {"root": "project_root", "shotlist": "shotlist_file", "index": "index"}},
     "saver": {"class_type": "H3SaveShot",

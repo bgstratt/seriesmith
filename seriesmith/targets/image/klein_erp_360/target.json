@@ -25,8 +25,8 @@
   "binding": {
     "_note": "nomadoor's own workflow (flux-2-klein-9B-360-erp-outpaint.json, on the LoRA's Hugging Face page) as an API graph, with PanoramaStickers replaced by a LoadImage of the canvas h3_erp.py makes and PanoramaCutout/Preview left out: the canvas is VAE-encoded and read both as a ReferenceLatent on the positive and negative and as the sampler's latent; KSampler euler/simple, 20 steps, cfg 5; a real negative prompt. Running the same LoRA through flux2_klein_edit's graph (Flux2Scheduler, the reference scaled to 1 MP, an empty latent, a zeroed negative) gave an over-cooked green field, so this graph is kept as the author ships it. H3SaveRefTake takes the place of SaveImage.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_klein_erp_360.json",
-    "env": "H3_KLEIN_ERP_360_WORKFLOW",
+    "workflow_name": "seriesmith_klein_erp_360.json",
+    "env": "SERIESMITH_KLEIN_ERP_360_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

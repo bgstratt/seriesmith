@@ -85,7 +85,7 @@ class AudioTargetTest(unittest.TestCase):
         # reference_audio is off: the ID-LoRA weights aren't installed (target.json)
         self.assertFalse(d["capabilities"]["reference_audio"])
         self.assertEqual(d["saver"], "H3SaveRefAudio")
-        self.assertTrue(d["workflow"].startswith("h3pipe_"))
+        self.assertTrue(d["workflow"].startswith("seriesmith_"))
         self.assertEqual(set(d["models"]), {"model", "text_encoder", "audio_vae"})
         for param, m in d["models"].items():
             self.assertTrue(m["family"] and m["tier"] and m["folder"], param)

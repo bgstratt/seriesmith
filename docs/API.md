@@ -1,0 +1,3528 @@
+# seriesmith editor API
+
+HTTP routes for the editor in `web/`, served by `seriesmith serve`
+(`seriesmith/server/standalone.py`, default `http://127.0.0.1:8190`) beside the page
+itself. The routes are thin: every one calls a seriesmith function (`edit`, `jobs`,
+`takes`, `refs`, ...) through `seriesmith/api.py`, which already has tests; the same
+handlers can be mounted on a ComfyUI's own server (`seriesmith/server/comfyui.py`). This
+file is the contract between the routes and the UI. Change it first when either side
+needs something new.
+
+Every job — a render, a reference, a voice, an upscale, a post, a tour — goes on
+**seriesmith's queue** (`seriesmith/queue.py`, `runner.py`) and runs on a **backend**
+(`local`, `cloud`, `deployment:<target>`, `router`; [SETUP.md](SETUP.md)). Where a route
+below returns a `prompt_id` (or a record has `comfy_prompt_id`), it is the queue's job id:
+the editor follows a job by it, and `GET /seriesmith/jobs` lists them. A route that takes
+an optional `backend` sends its jobs there instead of each job's own.
+
+Sections dated before 2026-10 and marked **[settled]**, **[added]** or "Phase N" are the
+design record carried over from h3pipe: where they name h3pipe's nodes (`H3SaveRefTake`,
+`H3ContinuityFrame`, a `project_root` input), seriesmith does the same thing through the
+queue — files go up with each job and come back as its outputs.
+
+## Conventions
+
+- Prefix `/seriesmith/`. JSON in and out (`Content-Type: application/json`), UTF-8.
+- **Episodes are named by absolute folder path**, `ep`, in the query string for GET
+  and in the body for writes. Every `ep` must be inside a configured root (see
+  `/seriesmith/config`), or the route answers 403. Relative `path`s are relative to `ep`,
+  use forward slashes, and stay inside it — with two exceptions for a series config that
+  names a file above its episode (2026-09-22, `_in_series_home`): a config living in the
+  episode's **parent** opens that whole folder, and a config living in the **episode** that
+  names `../refs/...` or `../audio/...` opens exactly those two folders of the parent. The
+  second is the shared-refs layout a multi-episode series uses — one `refs/` for the show,
+  a `series.json` per episode so an episode can add props and locations of its own — and
+  without it every sheet and plate in the Refs tab is a broken image. A sibling episode's
+  files, the show folder's own files and anything outside a configured root stay refused.
+- **`pass`** is `"final"` or `"proxy"`. Default `"proxy"`.
+- **Seeds are strings** in every request and response. Built seeds are 63-bit and
+  JavaScript numbers lose precision above 2^53. Never parse them to a JS number.
+- Errors: status 4xx/5xx with `{"error": "message"}`. 400 bad input, 403 path outside
+  roots, 404 unknown episode/shot/take/file, 409 conflict (e.g. picking an unusable
+  take), 500 anything else. The message is written for a person.
+- Blocking work (file scans, hashing, ffmpeg, build) runs off the event loop
+  (`run_in_executor`). No route blocks the server.
+
+## Config
+
+### `GET /seriesmith/config`
+```json
+{"roots": ["C:/Shows"], "comfy": "http://127.0.0.1:8188",
+ "review_copy": false, "version": 1}
+```
+Stored in seriesmith's user folder as `default/seriesmith/config.json`. If that file
+doesn't exist, `roots` comes from `$SERIESMITH_ROOTS` (`os.pathsep`-separated), else `[]`.
+
+`review_copy` (2026-09-21, **false** by default) keeps a workflow's own video branch, so
+ComfyUI writes a second copy of each render into its `output/` folder. Every take is written
+into the episode by the saver either way (`renders[_proxy]/<shot>/`), so the second copy is
+only a convenience for watching in ComfyUI. `render` matches the default
+(`--review-copy` keeps it; `--no-review-copy` is the old spelling of the default).
+
+`minimax_h3_ref2va`'s graph used to end in a `CreateVideo` titled "Review copy" and a
+`SaveVideo` titled "Daily" (`output/video/H3_shot_*`) beside `SeriesmithSaveTake`; **both were
+removed from the shipped workflow on 2026-09-21** (the graph snapshot golden was regenerated
+for it: the graph is two nodes smaller, and the LoRA node jobs inserts is now id 43 rather
+than 45). `binding.review_nodes` still lists those classes, so a *saved* graph that has them
+— an older canvas copy, someone else's — is still stripped at queue time unless
+`review_copy` is on.
+
+### `PUT /seriesmith/config`
+Body `{"roots": [...], "review_copy": true|false}`. The roots must exist; `review_copy` is
+optional and keeps its stored value when the body leaves it out. Returns the new config.
+
+## Episodes
+
+### `GET /seriesmith/episodes`
+`edit.find_episodes(roots)`:
+```json
+[{"ep": "C:\\...\\DeanStories\\ep05", "name": "ep05", "series": "…", "title": "…",
+  "built": {"final": true, "proxy": true}, "shots": 49, "script": "ep05.md"}]
+```
+Every folder up to two levels below a root with a series config and a script. The config
+is the folder's own or — as `episode_series_config` has always allowed, and as of
+2026-09-23 the listing too — the one in its parent, a series folder shared by the
+episodes under it. In that case the script has to be named after the folder
+(`ep05/ep05.md`), so a folder of loose notes beside the episodes isn't taken for one.
+
+### `GET /seriesmith/episode?ep=…&pass=proxy`
+`edit.episode_status(ep, pass)`, with seeds turned into strings. First it sweeps
+queued takes whose job is gone (`takes.sweep_queued`): one of seriesmith's queue's
+(`queue: "seriesmith"`) that the queue no longer has (the server restarted) is marked
+failed; one queued on a ComfyUI directly (by h3pipe) is checked against that ComfyUI's
+queue, with `as_of` taken *before* reading it (see below). Shots come in **cut order**:
+```json
+{"episode": "ep05", "title": "…", "pass": "proxy", "fps": 24.0, "width": 448,
+ "height": 256, "folder": "renders_proxy",
+ "shots": [{
+   "shot": "sh020", "orphan": false, "sequence": "sq01", "length": 107,
+   "seconds": 4.458, "size": "medium", "subjects": ["dean"], "audio_policy": "generate",
+   "cut": {"take": 1, "picked": true, "pass": "proxy", "placeholder": false,
+           "usable": true, "trim_in": 0, "trim_out": 0, "locked": false, "note": "",
+           "in_cut_file": true, "frames": 107, "out": false, "flag": false},
+   "override": {"fields": ["prompt", "seed"], "stale": false},
+   "takes": [{"take": 1, "status": "ok", "has_video": true,
+              "seed": "6430499148929255544", "seed_source": "stable", "frames": 107, "note": "",
+              "overrides": [], "stale": [],
+              "thumb": "renders_proxy/sh020/sh020_t01.jpg",
+              "strip": "renders_proxy/sh020/sh020_t01_strip.jpg",
+              "mp4": "renders_proxy/sh020/sh020_t01.mp4",
+              "queued": "2026-09-18T18:00:16-05:00", "finished": "…",
+              "comfy_prompt_id": "…",
+              "save_notes": "…"}]
+ }]}
+```
+- `status` is `queued` | `ok` | `failed`.
+- `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
+  `continuous: latent` take whose previous shot in the cut now uses another take, or that
+  take was rendered again, or the cut puts another shot before it); `unknown` means a
+  take from before sidecars.
+- `thumb`, `strip` and `mp4` are null when the file is missing.
+- `length` / `seconds` are the build's. A take's `frames` is its real frame count, from
+  the saver (its sidecar's `frames`), or null (not rendered, or a take from before the
+  saver wrote it). `cut.frames` is the cut take's `frames` when that take is usable, else
+  null. They differ for a `dur: model` shot: the build writes an estimate
+  (`length_estimated` on the entry) and the model picks the length when it renders (the
+  sidecar's `length_source` is `predicted`, versus `estimate` or `script`). The
+  timeline and Play all use `cut.frames` / the take's `frames` at `fps` when present.
+- A take's `fps` is the frame rate it was rendered at (its sidecar's `fps`; null for a take
+  from before sidecars recorded it: the episode's). `cut.fps` is the cut take's, else the
+  shot's target's. They differ from the episode's `fps` on Wan 2.2 14B (16 fps): the
+  timeline and Play all time such a take as `frames / fps` of its own, and trims stay in
+  the episode's frames. A shot's `seconds` is its build's `length` at its target's rate.
+- The strip is `STRIP_FRAMES` (8) cells of equal width, left to right, evenly spaced
+  through the clip. Hover scrub picks a cell from the pointer's x position.
+
+### `GET /seriesmith/shot?ep=…&pass=…&shot=sh020`
+`edit.shot_detail(ep, pass, shot)`, seeds as strings. It has:
+- `built`: the shotlist entry.
+- `built_prompt`: text.
+- `override`: this pass's effective override, without `base_hash`.
+- `override_stale`.
+- `effective`: what a render would use now: `prompt`, `seed`, `seed_source`, `model`,
+  `loras`, `steps`.
+- `takes`: each with its full `sidecar` and `files` (relative paths of mp4, thumb,
+  strip, shotlist, h3_wav).
+
+### `GET /seriesmith/shot`: a one-off target, and what the build compiled (P9, 2026-09-23)
+Two additions to the inspector's detail, both from the same planner as `effective`
+(`edit.shot_detail` → `jobs.plan_job`), so every field can be compared directly.
+
+- **`?target=<video target>`** answers for a **one-off run on that target** instead of the
+  shot's own, exactly as a render request's `target` would: the size is that target's, and the
+  length is the shot's on **its** frame grid. That is the part a preset can't tell you — the
+  same shot measured on three targets gave 448×256/124 frames, 448×256/129 and 640×352/125.
+  Nothing is saved, and an unknown target is 400. The redo and render dialogs use it, so the
+  size and length they print for a one-off retarget are the real ones.
+- **`built_values`**: the same shape as `effective` with every override dropped — what the
+  build compiled, on `built_target`. Absent when no override applies to the run being
+  described, since it would only repeat `effective`; that includes a one-off `target`, because
+  an override belongs to a target and none of the shot's is in force on another one. The
+  inspector reads it to say what a value is deviating from ("Built: steps 4").
+
+### `POST /seriesmith/build`
+Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the
+episode's series config and script (`edit.episode_series_config` / `episode_script`).
+```json
+{"ok": true, "passes": {"final": {"ok": true, "report": "…stdout…", "error": ""},
+                        "proxy": {"ok": true, "report": "…", "error": ""}}}
+```
+A script error returns `ok: false` with the message (it names the line) in `error`.
+The status is still 200: a script that doesn't compile is a result, not a server error.
+
+### `POST /seriesmith/episode/new`  (P5, 2026-09-23)
+Body `{"parent", "name", "title"?, "series_id"?}` — the first step the editor could not
+take before. `parent` is the folder the **episodes** live in (the show's folder, not an
+episode's) and is checked like every other path: absolute, inside a configured root, or
+403. `name` becomes both the folder and the script's stem (`ep02` → `ep02.md`), which is
+what makes the episode discoverable; a name that isn't a folder name, or is one
+`find_episodes` walks past (`refs`, `audio`, `shotlist`, `renders`, `renders_proxy`,
+`views`, `targets`) or a Windows device name, is 400. An existing `<parent>/<name>` is
+409 — nothing is ever written over.
+
+```json
+{"ep": "C:\\Shows\\Porchlights\\ep02", "template": "episode",
+ "from": "C:\\Shows\\Porchlights\\ep01", "files": ["series.json", "ep02.md"],
+ "refs": "C:\\Shows\\Porchlights\\refs",
+ "check": {"ok": true, "errors": [], "warnings": [], "shots": [{"id": "sh010", …}]},
+ "episode": {"ep": …, "name": "ep02", "built": {"final": false, "proxy": false}, …}}
+```
+
+- **The template** is the newest episode already under `parent` (`template: "episode"`):
+  its series config is copied, so the cast, look, render profiles and targets carry over,
+  and the script is a one-shot skeleton naming that config's own first character and
+  location — a place to start writing, not a story. With no episode there, the shipped
+  `examples/starter` pair is written instead (`template: "starter"`), which is also
+  docs/AUTHORING.md's opening example (`tools/sync_starter_doc.py` keeps the two equal).
+- **Every episode gets a series config of its own**, even under a show that has one. That
+  is what lets episode four add a character without touching the first three, while
+  `../refs/...` paths keep one shared `refs` folder. `refs` in the answer is where this
+  config's pictures go, resolved and created.
+- `title` titles the new episode (the script's `= <id>  <title>` line). `series_id` and
+  the series' own title are the series', so they are written only when this is its first
+  episode.
+- The only thing rewritten in a copied config is `audio.track`, which follows the name
+  (`audio/ep01_dialogue.wav` → `audio/ep02_dialogue.wav`): a recording is per episode.
+- `check` is `check_text` on what was written, so the editor can show at once that it
+  builds. `seriesmith.episode` is emitted for the new folder. Same thing from the CLI:
+  `seriesmith new Shows\ep02 [--title "…"] [--series-id …]`.
+
+## Issues: a pass's notepad (P10, 2026-09-23)
+
+`<ep>/_issues.json` — what is wrong with a shot **as it was rendered**, filled while watching a
+pass and emptied once fixed. `seriesmith/issues.py` is the module; the file doesn't exist until the first
+note and is removed when the last one goes.
+
+An issue **snapshots** what produced the take: the script's lines for that shot, the prompt the
+pipeline compiled from them, the reference files and the rendered mp4. That is the point — the
+note describes that render, so deriving the text later (right for anything durable) would
+destroy what the note is about. Editing the script never rewrites an issue.
+
+`addressed` is computed on **every read** and never stored: true when the shot's `story_hash`
+has moved (a rebuild) or a newer usable take exists (a re-render). It is per shot, not per
+episode, so a rebuild on its own addresses nothing. Nothing is deleted for the user.
+
+### `GET /seriesmith/issues?ep=&pass=`
+`{"issues": [{id, shot, pass, take, note, when, shot_hash, target, script, prompt, seed, refs,
+take_file, addressed}]}`, in the order noted. No `pass` lists both.
+
+### `POST /seriesmith/issues`
+`{ep, pass, shot, note, take?}` → the issue, snapshotted. `take` defaults to the one the cut
+plays, else the newest usable, and may be null (a note before anything has rendered is worth
+keeping). 404 for a shot that isn't in the pass, 400 for a note that says nothing or is over
+4000 characters. Emits `seriesmith.issues`.
+
+### `DELETE /seriesmith/issues?ep=&id=` / `?ep=&pass=&clear=1[&addressed=1]`
+`id` resolves one (comma-separated for several); `clear=1` empties the pass, and `addressed=1`
+with it takes only the ones whose shot has moved on. Answers `{removed, issues}`. 400 when
+neither is given — there is no "delete everything by accident" shape.
+
+### `GET /seriesmith/issues/export?ep=&pass=&format=md|json`
+One document to hand to an assistant: `{"format": "md", "text"}` by default, or the JSON bundle.
+Markdown is the default because the script excerpt is multi-line — in JSON it is `
+`-escaped
+soup you can't eyeball before pasting — and because it carries its own instruction line. It is
+generated from the file every time, one way: it has **no machine markers, and nothing parses it
+back**. Addressed issues are left out unless `addressed=1`.
+
+### CLI
+`seriesmith issues <episode> [--proxy|--final]` with `--add <shot> <note>`,
+`--add-from <file>` (one `sh0140: what is wrong` per line), `--export [--json] [-o FILE]`,
+`--resolve <id>` and `--clear [--addressed]`.
+
+## Files
+
+### `GET /seriesmith/file?ep=…&path=renders_proxy/sh020/sh020_t01.mp4`
+Streams a file inside `ep`, with HTTP Range support (aiohttp `FileResponse`) so
+`<video>` can seek. The content type comes from the extension. The response carries
+`Cache-Control: no-cache`, because a take re-rendered into the same number
+(`--take N`) keeps its name.
+
+## Rendering
+
+### `POST /seriesmith/render`
+Queues takes on seriesmith's queue and returns without waiting. An optional `backend`
+renders every shot of the request there.
+```json
+{"ep": "…", "pass": "proxy", "shots": ["sh020", "sh030"],
+ "redo": true,
+ "seed_mode": "auto", "seed": null,
+ "model": null, "loras": null, "steps": null, "prompt": null,
+ "parent_take": 2, "note": "calmer kettle", "size": null}
+```
+- These fields map to `jobs.RenderRequest`, with `seed` as a string.
+  - `seed_mode` is one of `auto`, `new` or `same`.
+  - `redo: false` skips shots that already have a usable or queued take, as the CLI does.
+  - `null` means "not set in this request", so the built value and `overrides.json`
+    apply.
+  - `size` (`"1344x768"`, or `[1344, 768]`) renders this run at that size instead of the
+    shotlist's; the take's sidecar records it, and a master re-samples it by its own size
+    (`scale: "auto"`). A size off the target's grid is that shot's error (H3: multiples of
+    32), or is snapped with a note on a target that snaps (LTX).
+- The workflow comes from `jobs.resolve_workflow(None, WORKFLOW_NAME, <this
+  server>)`: the copy saved in ComfyUI, else the repo copy. (Phase 7: the shotlist's
+  target's binding names it, `jobs.target_workflow`; for H3 that is still
+  `H3_Ref2VA_Shotlist_v1.json` among ComfyUI's saved workflows, and the repo copy is
+  now `seriesmith/targets/video/minimax_h3_ref2va/workflow.json`.)
+- For each shot the route calls `plan_job` and `Runner.enqueue_render`, which reserves
+  the take (`start_job`, its record `queued`, `queue: "seriesmith"`, its `backend`) and
+  queues the job. When the job starts its inputs are staged (keyframes, a composed sheet),
+  the portable graph is built (`graph_for(..., portable=True)`) and sent to the backend,
+  and the files it reports are written into the take (`collect_take`).
+- A shot that can't be queued is reported for that shot; the other shots still queue. A
+  job that fails when it runs marks its take failed with why.
+- Continuity (`refs.refresh_continuity`): each `continuous: first` shot's first frame
+  is cut again when its job starts (`refs.continuity_at_start`) and sent with it, from the
+  take the cut uses then; each such job waits for the one it continues (the queue's
+  `after`), so a chain
+  queues in one request, in cut order. Before queueing, a missing or stale keyframe is cut
+  from the current take (`continuity`: `[{shot, from, why}]`); the shots cut at start are in
+  `continuity_at_start` (`[{shot, after}]`). One with nothing to start from, now or coming,
+  is an error and isn't queued.
+- Latent chains (`refs.chains_before_render`): a `continuous: latent` shot (its built
+  entry's `hold`) queues the same way, in cut order behind the shot it continues, and is in
+  `continuity_at_start` while that shot's take is in the request or still rendering. When
+  its job starts, the previous take is found (`refs.chain_source`) and sent with it:
+  SeriesmithChainLatent before the sampler holds its kept latent, else its last frames
+  through the VAEs, and hands what it held to the saver, which records it in the take's sidecar when the job
+  ends (`continued_from`: `{shot, take, pass, via, overlap,
+  video_steps, audio_steps}`), and SeriesmithChainTrim before the saver. The sidecar's `hold` is
+  the frames held; `length` is the take's own.
+- Its upscale (upscale.set_chain) holds the previous take's upscaled latent tail; the
+  upscale record's `recipe.held_from` names that take, and `chain_hold` (`{file, held,
+  why?, video_steps, ...}`) says whether it was held when it ran. An upscale whose next
+  shot in the cut is chained keeps `<stem>.up.latent.safetensors`.
+```json
+{"queued": [{"shot": "sh020", "take": 3, "prompt_id": "…", "seed": "…",
+             "seed_source": "new"}],
+ "skipped": [{"shot": "sh030", "reason": "has a usable take (pass redo: true)"}],
+ "errors": [{"shot": "sh040", "error": "…"}]}
+```
+
+### `POST /seriesmith/cancel`
+Body `{"ep", "pass", "shot", "take"}`. If the take's job is waiting, it leaves the
+queue (`save_notes: "canceled before it ran"`); if it's running, the backend is asked to
+stop it and the route waits for it to end (`save_notes: "canceled"`). Either way the take
+is marked `failed`. Returns the take's new status. (A take queued on a ComfyUI directly,
+by h3pipe, is still cancelled there.)
+
+## Cut and overrides
+
+### `PUT /seriesmith/pick`
+Body `{"ep", "pass", "shot", "take": 3 | null, "from_pass": null | "final" | "proxy"}`.
+Uses `takes.pick`. A take that isn't usable answers 409 unless `"force": true`.
+`take: null` goes back to the latest usable take. Returns `{"cut": <cut.json>}`.
+
+### `PUT /seriesmith/cut`
+Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?,
+"locked"?, "note"?, "audio"?, "out"?, "flag"?}, …]}`. Replaces that pass's list, for reordering and trims.
+Unknown shots are allowed; they become orphans. Returns `{"cut": …}`.
+`"out": true` leaves the shot out of the cut: it stays in the script with its takes, its
+place and its pick, and the status's `cut.out` says so; assemble, Play all, the cut's
+upscales (`shots: null`), Master and the cut's neighbours (keyframes from the previous
+shot) skip it, and the timeline shows it as a stub. A shot named outright (an upscale's
+`shots` / `takes`) is still done. Latent pruning keeps its pick's latent. Reset keeps it
+(as it keeps picks and locks); copying the other pass's order copies it.
+`"flag": true` is a bookmark, "come back to this one" (re-render it, change its prompt): it
+changes nothing played or assembled, a locked entry takes one, and reset and copying keep each
+pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
+
+### `PUT /seriesmith/override`
+Body:
+```json
+{"ep": "…", "pass": "proxy", "shot": "sh020", "both": false,
+ "fields": {"prompt": "…", "seed": "12345", "model": null, "loras": [...],
+            "steps": 10, "size": "1344x768", "note": "…"}}
+```
+- Only the fields present are changed; `null` clears a field.
+- `prompt`, `model`, `loras`, `steps` and `size` are per pass (`both: true` sets both
+  passes); `seed` and `note` are shared. `size` ("WxH") makes every later take of that
+  pass render at that size.
+- Pass fields are stamped with that pass's `base_hash` (`jobs.story_hash` of the
+  shot as that pass builds it now), exactly as `seriesmith override` does.
+- Returns `{"override": {"final": {...}, "proxy": {...}}}`, each the effective
+  override without `base_hash`, plus `stale` per pass.
+
+### `DELETE /seriesmith/override?ep=…&shot=…[&pass=…]`
+Removes the shot's override: one pass's fields if `pass` is given, else everything.
+
+## Assemble
+
+### `POST /seriesmith/assemble`
+Body `{"ep", "pass", "partial": true}`. Runs `assemble` off the loop and returns
+when it's done (can take minutes).
+```json
+{"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…"}
+```
+Phase 13 adds `"upscaled": true` (either pass): each clip plays its take's
+fresh upscale, the cut is the upscales' size and is written as `<ep>_up.mp4`, and clips
+without one are scaled up (the report names them). `"size": "1920x1080"` sets the cut's
+size, letterboxing a clip whose aspect differs. `seriesmith assemble <ep> --upscaled [--size WxH]`
+is the same.
+
+`"publish": true` then runs `publish` on the cut: the series intro and outro
+(`_titles/INTRO.mp4`, `OUTRO.mp4` in the show folder, or the series config's `publish`
+block) around it, the episode's title drawn on, into `<ep>/publish/`. `output` is then the
+published file, `cut` the assembled one and `published` the published one (null when
+publishing failed: `ok` false, the reason in `error`, the cut still written). The same
+as `seriesmith assemble` followed by `seriesmith publish <ep> --input <cut>`.
+```json
+{"ok": true, "output": "publish/ep05_up.mp4", "cut": "renders/ep05_up.mp4",
+ "published": "publish/ep05_up.mp4", "report": "…", "error": ""}
+```
+
+## Upscale (Phase 13)
+
+An upscale is a version of a take (either pass), not a take: `<stem>.up.mp4` and `<stem>.up.json`
+beside it (seriesmith/upscale.py). It re-samples the take at 2x from late in
+its own schedule (the target's `start`, 0.875: step 7 of 8) under the take's frozen
+shotlist, from its kept latent (Phase 13a) or, without one, its frames and `_h3.wav`
+through the VAE. The take's audio is held while it samples and its audio stream is copied
+onto the result unchanged. Only a target with an `upscale` block in its target.json
+can re-sample (every built-in video target has one):
+- mode `resample`: `minimax_h3_ref2va` and `minimax_h3_fl2va` (an external latent upscaler,
+  then their own sampler from late in its schedule; FL2VA's size goes to its I2V node,
+  which stretches the keyframes to it), and `ltx2_ingredients` (LTX-2.3's own 2x latent
+  upsampler, `ltx-2.3-spatial-upscaler-x2-1.1.safetensors`, into the graph's `LTXVAddGuide`,
+  which appends the ingredient sheet again at the new size; a kept latent has its guide
+  frames cut off first; the KSampler run as the KSamplerAdvanced it is, from the step;
+  always 2x);
+- mode `second_stage`: `ltx2` (its render graph's second stage run again on the take: its
+  own upsampler, the tail of its fixed sigmas; always 2x);
+- mode `pixel_refine`: `wan22_i2v`, `wan22_ti2v` and `wan22_vace` (the take's frames through
+  the pixel model, `pixel_model` applies, encoded with the Wan VAE, then the target's last
+  sampler from late in its schedule; VACE's reference picture encoded in front, as its
+  latent has it; always the VAE route: `route: "latent"` is refused).
+
+The `.up.json` records `mode` and the schedule's `steps`. Options' `latent[target]`
+`fixed_scale` is the one scale a fixed upsampler makes (the LTX targets: 2), else null.
+
+### `POST /seriesmith/upscale`
+Body `{"ep", "shots"?: ["sh020"] | null, "takes"?: [{"shot", "take"}], "redo"?: false,
+"scale"?: 2, "start_step"?: null, "vae"?: false}`. `shots` upscales the final cut's take
+of each (the pick, else the latest usable; null: the whole final cut); `takes` names
+that pass's takes directly and wins; `pass` (default `"final"`) says whose. A proxy take
+kept no latent by default, so its re-sample goes through the VAE. A take with a fresh
+upscale is skipped unless `redo`.
+`vae` forces the VAE route; `start_step` is an exact step of the take's schedule.
+`method`: `"latent"` (a re-sample: the default where the take's target has an `upscale`
+block) or `"pixel"` (an upscale model over the frames: any target, the default for the
+rest), null for each take's default. `pixel_model` names the pixel method's model, a file
+in ComfyUI's `models/upscale_models` (null: `RealESRGAN_x2.pth` if installed, else the first
+2x model); `detail` (0, 1 or 2) starts a re-sample that many steps earlier than the default
+(more detail, more change). The pixel method needs no latent, no frozen shotlist and none
+of the take's target's models, and a scale only has to land on even sides. `scale` is more
+than 1 and at most 4: a pixel scale lands on even sides, an H3 re-sample's on the 32 grid,
+an LTX-2 re-sample is 2x only. `then_pixel_model` (with `then_scale`, default 2) adds a
+pixel step after a re-sample in the same job: that upscale model takes the re-sampled frames
+on (re-sample 2x then `RealESRGAN_x2.pth` 2x = 4x); `width`/`height` in the answer are the
+final size, and the `.up.json` records `then_pixel: {model, scale, from: [w, h]}`.
+`then_method: "seedvr2"` makes that step SeedVR2 instead (its model from `seedvr2_model`,
+7b by default; `then_pixel_model` is not needed): re-sample, then SeedVR2, in one job;
+`then_pixel` then has `method: "seedvr2"` and its `model` is the SeedVR2 file.
+`deliver` (`"1080p"`, `"1440p"`, `"4k"` or `"WxH"`, both even, 64 to 8192; null: the size
+the scale makes) makes the upscale exactly that size, and `fit` (`"crop"`, the default, or
+`"pad"`) says how a frame of another shape meets it. The last step that can make any size
+(the pixel method, SeedVR2, the then-pixel step) is sized to cover the delivery (crop) or
+fit inside it (pad), aspect kept, its scale worked out from what it starts from (`scale` /
+`then_scale` are then ignored); a re-sample alone keeps its scale. `SeriesmithSaveUpscale` then
+resizes (only when no step made that size), crops or pads to the delivery with ffmpeg. A
+pixel step that would have to shrink is an error. The answer's `width`/`height` and the
+`.up.json`'s are the delivery; the `.up.json` adds `deliver: {width, height, fit, made:
+[w, h]}` (what the last step made), and so does the episode's upscale summary.
+`from_upscale: true` runs the pixel method on each take's existing fresh upscale instead of
+the take (its `.up.mp4` is the input and is replaced; `scale` applies to the upscale's size;
+the take's audio is still what's copied on). The new record keeps the old one as
+`on_upscale` (nested for a longer chain); freshness stays tied to the take. A take with no
+fresh upscale is an error; with `method: "latent"` it's refused.
+`encoder`: `"auto"` (the default: H.264 on NVENC up to 4096 on a side, x264 past that or
+without NVENC — always H.264, which the editor's browser plays), `"nvenc"` (forced: H.264
+up to 4096, HEVC past it, which NVENC's H.264 can't do and a browser may show black; fails
+without NVENC) or `"x264"` (the CPU; its faster preset past 4K). The `.up.json`'s `encoder` is
+the one used. `precision`: the upscale model's, `"fp16"` (the default: autocast, about
+twice as fast) or `"fp32"`. Options lists both as `encoders` / `precisions`. An upscaled
+cut that mixes an HEVC upscale with H.264 clips is re-encoded by assemble, since concat
+can't copy mixed codecs.
+The finish of anything a pixel model makes (the pixel method, a then-pixel step, the start
+of a Wan re-sample): `frequency_split` (default true: colour and tone from a bicubic enlarge
+of the source, only the high band from the model), `keep_soft` (0–1, default 0: the
+model's detail faded where the source had none, measured once per clip), `grain` (0–0.2,
+default 0: monochrome, per frame, seeded by the take's seed; never before a Wan re-sample).
+Recorded as the `.up.json`'s `finish`. Queues and
+returns at once:
+```json
+{"queued": [{"shot": "sh020", "take": 3, "route": "latent", "method": "latent",
+             "pixel_model": null, "scale": 2.0, "start_step": 7,
+             "width": 1920, "height": 1088, "prompt_id": "…"}],
+ "skipped": [{"shot": "sh030", "take": 1, "reason": "already upscaled"}],
+ "errors": [{"shot": "sh040", "take": 2, "error": "…"}]}
+```
+409 when the running ComfyUI can't upscale (the reason names what's missing: an
+seriesmith node, the latent upscaler pack or its model file, the pack's "Plus" fork, which
+has no temporal chunking, or the pixel method's model); 502 when ComfyUI doesn't answer.
+
+**The master recipe (Phase 13e).** `recipe: true` upscales each take by the series
+config's `upscale.master` instead of the body's choices (only `pass`, `shots` / `takes`
+and `redo` still apply): the take's target's section (its id, else the longest matching
+glob, else `"*"`), the shot's own recipe over it, the recipe's `finish`, and the master's
+`deliver` / `fit` / `encoder`. A take whose target no section covers is that take's error;
+no recipe at all is 409.
+
+```json
+"upscale": {"master": {"deliver": "4k", "fit": "crop", "quality": "master",
+  "finish": {"frequency_split": true, "keep_soft": 0, "grain": 0},
+  "targets": {"minimax_h3_*": {"method": "latent", "then": "RealESRGAN_x2.pth"},
+              "wan22_*": {"method": "seedvr2", "seedvr2_model": "7b"},
+              "*": {"method": "pixel", "pixel_model": "RealESRGAN_x2.pth"}}}}
+```
+
+A section's fields: `method`, `scale`, `detail`, `start_step`, `vae`, `pixel_model`,
+`seedvr2_model`, `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
+`frequency_split`, `keep_soft`, `grain`. `quality` (`review` | `master`) is read by Phase
+13e3. The build warns about anything else (upscale.check_recipe).
+
+### `PUT /seriesmith/upscale/recipe`
+Body `{"ep", "shot", "recipe": {…} | null}`: one shot's own recipe, kept in the episode's
+overrides.json under a top-level `"upscale": {"sh020": {…}}` (not in the shot's override
+block, whose objects are per-target). `recipe` takes the upscale request's fields as the
+dialog sends them (`then_pixel_model` / `then_method` become `then`); null clears it. 400
+on a field or value a recipe doesn't take. Answers `{shot, recipe, text}`.
+
+`quality`: `"review"` (the default) or `"master"`: how the `.up.mp4` is encoded. A master
+is x264 CRF 12 on a slow preset (NVENC p7/hq at CQ 14 when `encoder` is `"nvenc"`), still
+H.264 8-bit so the editor plays it; the `.up.json` records `quality`.
+
+### `POST /seriesmith/master`
+Body `{"ep", "pass"?, "action": "plan" | "queue" | "assemble" | "prores", "conform"?, "allow_gaps"?,
+"prores"?, "order"?, "post"?}` (master). `post` is the dialog's **Post-process**: `false`
+/ `"off"` (the upscales), `"present"` (each shot's fresh post where it has one, its upscale
+otherwise; nothing queued) or `true` / `"recipe"` (see **Post-process** below). `order` (queue only): `"cut"` (the default: the cut's
+order) or `"target"` (grouped by what ComfyUI loads: a re-sample's target model, else the
+upscale or SeedVR2 model; groups where their first shot is, cut order within). Every answer has `plan`: `{pass, size: [w, h], fit, quality,
+counts: {upscale, post, ok, kept, queued, gap}, ready, rows: [{shot, take, target, status, why,
+recipe, upscale: {width, height, status, keep} | null}]}`, a row per shot of the cut in
+order. `status`: `upscale` (none, from an older take, or failed: queued by the recipe),
+`ok` (fresh, the recipe's settings), `kept` (fresh, marked Keep or made with other
+settings; `conform: true` makes the unmarked ones `upscale`), `queued`, `gap` (no usable
+pick, the other pass's take, no recipe section for its target, or a kept upscale at
+another size). `queue` queues the `upscale` rows (409 when this ComfyUI can't) and adds
+`queued` / `errors`; `assemble` (409 while any are to upscale or queued, or with gaps
+unless `allow_gaps`) writes `master/<ep>_master_<WxH>.mp4` (and `.mov` with `prores`) and
+`<ep>_master.json` / `.md`, and adds `output`, `mov`, `report`, `titles`. 409 without a recipe, or
+one without `deliver`. When the episode has an intro or outro (`_titles/INTRO.mp4`,
+`OUTRO.mp4` in the show folder, or the series config's `publish` block), the master is
+made with them, the episode's title drawn on (publish), and the `.mov` from that:
+`titles` is `{"intro", "outro", "picture", "why"}` (the clips used, either null), else null.
+`picture` is how publish laid the cut in between them: `"copied"` (only the title clips
+encoded) or `"re-encoded"` (the whole cut again, `why` says what stopped the copy: a check
+at a join, a cut assemble didn't encode); the report's `Picture:` line says the same. A
+master that assembled but couldn't be titled is a 500 saying so; the untitled master is
+left in place.
+
+`assemble` answers when the master is made, which can take a while (assemble re-encodes
+the clips that need it — trims, dialogue windows, gaps scaled up — and copies the upscales
+beside them when their H.264 headers agree, checking each join; when they don't, every clip
+is re-encoded, half an hour for a 300-shot episode), so it is also a **job**: `job` in the
+answer, `GET /seriesmith/master/job`, and the `seriesmith.master` events. Only one master of an
+episode is assembled at a time: `<episode>/master/.assembling.json` (`{pid, host, by,
+started}`) is held while one runs, whoever started it, the editor or `seriesmith master`, and a
+second `assemble` is a 409 `{"error": "a master of this episode is already being
+assembled by …", "job"}`. A lock whose process has gone (or another machine's, a day old)
+is stale and taken over.
+
+`action: "prores"` makes the ProRes 422 HQ `.mov` of the master already made at the recipe's
+size, beside it, and sets the report's `prores` (`seriesmith master <ep> --prores-only`): nothing
+is planned, upscaled or assembled. `{"output", "mov"}`; 409 without a master yet, or while
+one is being assembled. Every other answer has `existing`: `{"output", "mov"}` (the master
+already made and its `.mov`, `mov` null when there is none) or null.
+
+### `GET /seriesmith/master/job?ep=…`
+`{"job": {...} | null}`: the master this ComfyUI is assembling for the episode, or the last
+one it assembled (kept until ComfyUI restarts):
+```json
+{"ep": "C:\\Shows\\MyShow\\ep01", "pass": "final", "state": "running", "elsewhere": false,
+ "by": "the editor", "started": "2026-10-04T08:13:32-05:00", "finished": null,
+ "step": "assemble", "stage": "clips", "done": 212, "total": 323, "text": "sh2590",
+ "output": null, "mov": null, "report": null, "titles": null, "error": ""}
+```
+`state`: `running`, `done` (`output`, `mov`, `report`, `titles` as `assemble` answers them)
+or `failed` (`error`). `step` is `assemble` (assemble's stages: `probe` reading each clip,
+`clips` writing each, `join`, `prores` when the master has no titles, `verify` counting the
+master's frames) or `titles` (publish's: `titles` with `text` intro / outro, `join`,
+`verify` checking the joins, `reencode` with a frame count, then `prores`: with titles the
+`.mov` is made once, from the titled master); `done` / `total` count what has a count. A run
+this ComfyUI didn't start (`seriesmith master`, read from the lock) is `{"state": "running",
+"elsewhere": true, "by", "started"}` with nothing else; it sends no events, so ask again.
+
+### `PUT /seriesmith/upscale/keep`
+Body `{"ep", "pass"?, "shot", "take", "keep": true | false}`: mark a take's finished upscale
+Keep (409 without one). A fresh kept upscale is skipped by a whole-cut request (`shots`
+and `takes` null) and by Master, whatever the recipe says; naming the shot or take redoes
+it, and the new upscale starts unkept. Every `.up.json` records `recipe` (the settings
+that made it: method, scales, start, models, the then step, precision, finish, size, fit)
+and `recipe_hash`; the episode's upscale summary adds `keep` and `recipe_match` (`same`,
+`different`, `unknown` for one from before, null without a series recipe).
+
+### `GET /seriesmith/upscale/options`
+What the editor's Upscale dialog offers on this ComfyUI:
+```json
+{"pixel": {"status": "ready", "missing": [], "default": "RealESRGAN_x2.pth",
+           "models": ["4x-UltraSharp.pth", "RealESRGAN_x2.pth", "RealESRGAN_x4.pth"]},
+ "latent": {"minimax_h3_ref2va": {"status": "ready", "missing": []},
+            "ltx2": {"status": "ready", "missing": []}, "wan22_i2v": null, "…": null},
+ "details": [0, 1, 2]}
+```
+`method: "seedvr2"` runs SeedVR2 (ComfyUI's own nodes; any take, no prompt): `seedvr2_model`
+is `"7b"` (the default), `"3b"` or a file name; it takes `scale`, `from_upscale` and the
+finish like the pixel method, and options lists it as `seedvr2: {status, missing, models,
+default}`. `latent[target]` is null for a target with no latent upscale; otherwise it also has `mode`
+(`resample` | `second_stage`), `align` and `fixed_scale` (second_stage's only scale), and
+the answer has `max_scale`, `recipe` (with `?ep=`: the episode's master recipe, null
+without one: `deliver`, `fit`, `quality`, `encoder`, `targets` (each video target's matching
+section as `{key, fields, text}`, null when none covers it), `shots` (the shots' own, as
+`{fields, text}`) and `problems`), `delivers` (`[{id, width, height}]`: 1080p, 1440p, 4k) and
+`fits` (`["crop", "pad"]`). Each take in `GET /seriesmith/episode` has its `width` and `height`,
+so the dialog can show what every scale makes before anything is queued.
+
+### `DELETE /seriesmith/upscale?ep=…&shot=sh020&take=3[&pass=proxy]`
+Removes the take's upscale. 404 when it has none; 409 while ComfyUI still has it queued
+or running.
+
+## Post-process (post, 2026-10-06)
+
+A take's **post** is its fresh upscale finished: an enhance step (SeedVR2, a pixel model or
+SUPIR, at the upscale's size) then motion blur. `<stem>.post.mp4` / `.post.json` beside
+it, its audio the upscale's; stale when the upscale changes. docs/POST_PROCESSING.md is
+the design record. The series config's recipe is `"post": {"master": {"enhance":
+"production", "motion_blur": 0.3}}`, a shot's own in overrides.json's top-level
+`"post": {"sh020": {…}}`. `enhance` is a tier (`draft`: pixel at 1x; `production`:
+SeedVR2 7B in fixed chunks; `cinematic`: SUPIR 0.2), a method (`pixel`, `seedvr2`,
+`supir`), an object (`{"tier" | "method", …fields}`) or `"none"`; `motion_blur` 0–1 of
+the frame interval (0.5 is a 180° shutter).
+
+### `POST /seriesmith/post`
+Body `{"ep", "pass"?, "shots"? | "takes"?, "redo"?, "recipe"?, "enhance"?, "blur"?,
+"quality"?}`: queue posts. `shots` (their cut takes; null: the whole cut) or `takes`
+(`[{shot, take}]`). `recipe: true`, or neither `enhance` nor `blur` given: each by the
+series' `post.master` with its shot's own over it (409 without one); else `enhance` and
+`blur` as given. `quality` (`review` | `master`; default: as each upscale was encoded).
+A take needs a fresh upscale (an error per take otherwise); a fresh post with the same
+settings is skipped unless `redo`. 409 when this ComfyUI can't run them (`missing`
+sentences). `{"queued": [{shot, take, what, width, height, prompt_id}], "skipped":
+[{shot, take?, reason}], "errors": [{shot, take, error}]}`.
+
+### `GET /seriesmith/post/options[?ep=…]`
+```json
+{"tiers": [{"id": "production", "enhance": {"method": "seedvr2", "seedvr2_model": "7b",
+            "chunk": "fit", "overlap": 6}, "text": "SeedVR2 7b",
+            "readiness": {"status": "ready", "missing": []}}, "…"],
+ "methods": ["pixel", "seedvr2", "supir"],
+ "blur": {"min": 0, "max": 1, "default": 0.3, "readiness": {"status": "ready", "missing": []}},
+ "strength": {"min": 0.05, "max": 0.5, "default": 0.2},
+ "recipe": {"fields": {"enhance": "production", "motion_blur": 0.3},
+            "text": "SeedVR2 7b, then motion blur 0.3", "shots": {}, "problems": []}}
+```
+`recipe` is null without `?ep=` or without a `post.master`.
+
+### `DELETE /seriesmith/post?ep=…&shot=sh020&take=3[&pass=proxy]`
+Removes the take's post. 404 when it has none; 409 while ComfyUI still has it queued or
+running.
+
+### A take's `post`
+Every take in `GET /seriesmith/episode` has `post`: null (never post-processed), else
+`{"status": "queued" | "ok" | "failed", "fresh", "recipe", "width", "height",
+"comfy_prompt_id", "mp4", "save_notes"}`. `fresh` is false once its upscale isn't the one
+it was made from (the upscale stamped by `SeriesmithSaveUpscale` as the post is saved, so a post
+can be queued behind its upscale), or the upscale itself is stale.
+
+### Master with `post: "present"`
+Nothing is post-processed and no `post.master` is needed: each shot's `recipe` ends `; its
+post` (a fresh one), `; its upscale (its post is stale)`, `; its upscale (a post is on its
+way: master again after)` or `; its upscale`, rows have `post`, the plan has `post: true`
+and `post_mode: "present"`, and `assemble` uses each fresh post (assemble `--post`) and
+each other shot's upscale. For posting only the shots that need it: post them from the take
+menu (`POST /seriesmith/post`), then master with `"present"`.
+
+### Master with `post: true` (`"recipe"`)
+The plan's `post` is true, `post_mode` `"recipe"`, each row's `recipe` ends `; post: …`, rows have `post: {status,
+fresh, recipe} | null`, and `counts` has `post`. A row is `post` when its upscale is good
+but its post is missing, from an older upscale or failed. An `upscale` row's post is
+queued right behind its upscale (with `order: "target"`, after all the upscales), so one
+`queue` takes every shot all the way; `ok`, `kept` (a post made with other settings,
+`conform` redoes it), `queued` and `gap` speak for both. `assemble` uses each shot's fresh
+post (assemble `--post`) and refuses while any are to upscale or post-process. 409 when
+the series config has no `post.master`. A shot whose post recipe is `"none"` is mastered
+from its upscale.
+
+### A take's `upscale`
+Every take in `GET /seriesmith/episode` has `upscale`: null (a proxy take, or never
+upscaled), else `{"status": "queued" | "ok" | "failed", "fresh", "width", "height",
+"route", "start_step", "comfy_prompt_id", "mp4", "save_notes"}`. `fresh` is false once
+the take's mp4 isn't the one it was made from (re-rendered into the same number).
+
+### Readiness
+`GET /seriesmith/targets?ready=1`: a target that can upscale has `upscale: {"status":
+"ready" | "not_ready" | "unknown", "missing": [sentences]}` beside its render
+readiness, which it never changes.
+
+## Live updates
+
+The page listens on the server's websocket (`/ws`, `{"type", "data"}` per message). The
+queue sends `seriesmith.job` (a job's `to_json()`, on every change) and each job's
+progress in ComfyUI's shapes — `execution_start`, `progress` (`{prompt_id, value, max}`),
+`execution_success`, `execution_error`, `execution_interrupted` — with the job's id as the
+`prompt_id`, which is how a take's thumbnail follows its render. The rest:
+
+- **`seriesmith.take`**, sent when a take's job ends and by the routes whenever they
+  change a take's status (queued, cancelled, swept):
+  `{"ep": "<abs path>", "pass": "proxy", "shot": "sh020", "take": 3,
+    "status": "ok", "thumb": "renders_proxy/sh020/sh020_t03.jpg"}`.
+- **`seriesmith.episode`**, `{"ep": "<abs path>"}`, sent after a build, pick, cut or override
+  change, so every open editor view can refetch.
+- **`seriesmith.upscale`** (Phase 13), `{"ep", "shot", "take", "status"}`: "queued" from
+  `POST /seriesmith/upscale`, "ok" or "failed" when its job ends and its `.up.json` is
+  closed, "deleted" from `DELETE /seriesmith/upscale`.
+- **`seriesmith.post`**, `{"ep", "shot", "take", "status"}`: "queued" from `POST /seriesmith/post`
+  and Master's `queue`, "ok" or "failed" when its job ends and its `.post.json` is closed,
+  "deleted" from `DELETE /seriesmith/post`.
+- **`seriesmith.ref`**, `{"ep", "ref", "view", "take", "status"}`: a reference take queued,
+  finished, picked, cleared or discarded.
+- **`seriesmith.queue`**, the lanes (`GET /seriesmith/jobs`' `lanes`) after a move or a
+  pause.
+
+## The queue
+
+These are the standalone server's own (`seriesmith/server/standalone.py`).
+
+### `GET /seriesmith/jobs`
+`{"jobs": [job], "lanes": {name: {"paused", "parallel", "waiting": [id], "running": [id]}}}`:
+every job queued or running, then the last 200 finished, newest first. A job is
+`{"id", "kind" (render | ref | upscale | post | tour), "lane" (its backend), "title",
+"after" (the job it waits for, or null), "info" ({ep, pass, shot, take, target, backend,
+...}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
+"step", "steps", "created", "started", "finished", "error", "log" (the last 20 lines),
+"can_retry"}`.
+
+### `POST /seriesmith/jobs/{action}`
+`cancel` `{"id"}` (a waiting job leaves the queue; a running one is asked to stop),
+`move` `{"id", "index"}` (a waiting job to that place in its lane; 0 is next), `retry`
+`{"id"}` (a finished job again; a render: a new take with the same settings), `pause`
+`{"lane", "paused"}` (a lane stops starting jobs, or resumes). Answers with
+`GET /seriesmith/jobs`' body; 404 for an unknown job, 409 for one that can't (moving a
+running job).
+
+### `GET /seriesmith/backends`
+`{"backends": [{"name", "kind", "down" (why it doesn't answer, or null), "where"}],
+"api_key": true | false}`: the backends this machine is set up for, each asked whether it
+answers, and whether an API key is set (never the key).
+- **`seriesmith.master`**, the whole job as `GET /seriesmith/master/job` has it: once when an
+  `assemble` starts, at every step (each clip written, each title encoded), and once
+  more when it is `done` or `failed`.
+
+## Models
+
+The UI reads ComfyUI's own lists: `GET /models/diffusion_models` (and
+`/models/unet` on older installs) for the model picker, `GET /models/loras` for LoRAs.
+No seriesmith route is needed. (Later: `GET /seriesmith/models` groups a target's model picker by
+model family; see **Model families** at the end.)
+
+## As built (Phase 2): readings of the points above that were ambiguous
+
+- **`POST /seriesmith/cancel`:** 409 if the take isn't `queued`. A finished take is never
+  overwritten.
+- **Sweep in `GET /seriesmith/episode`:** for a queued take whose job has left the queue,
+  `/history` decides:
+  - an execution error marks the take `failed` with ComfyUI's exception message;
+  - success with the sidecar still `queued` (a save node from before sidecars) closes it
+    from disk (`jobs.finish_job`);
+  - no history at all falls back to `sweep_queued`.
+- **`POST /seriesmith/assemble` and `POST /seriesmith/build`:** a failure is 200 with
+  `ok: false` and a top-level `error`. Build with no series config or no script returns
+  `{"ok": false, "error", "passes": {}}`. Build always runs both passes.
+- **`POST /seriesmith/render`:**
+  - `shots: null` renders every shot.
+  - `loras` also accepts `"name:strength"` strings.
+  - `save_frames` (2026-09-22, optional): also write the take's frames as a PNG sequence in
+    `<take>/frames/`, for retouching a shot that is right but for a frame or two. Absent
+    leaves the workflow's own value (off in every shipped graph). The editor asks for it per
+    render (the redo dialog's "Keep the frames"), never as a setting: it costs ~2.5 s a shot
+    (measured; `save_ms.frames`) and 16-50 GB an episode. `render --save-frames` is the
+    same switch. A render is reproducible — two renders at one seed gave byte-identical
+    frames and mp4 (2026-09-22) — so the frames of a take you already have can be fetched by
+    re-rendering it at its own seed.
+  - `save_latent` (Phase 13a, 2026-09-26, optional `true` / `false` / `null`): keep the
+    take's sampled latent beside it as `<stem>.latent.safetensors`, for an upscale later
+    (video and audio streams; about 4 MB per 3 s at 960×544, twice that at 1344×768).
+    Absent or null: the series config's `upscale.save_latents` (`"final"`, the default:
+    final pass only; `"always"`; `"never"`). Only a target whose binding names its latent
+    source (`saver.latent`: `{"class_type", "output"}`, today `minimax_h3_ref2va`) can
+    keep one; asked for on another, the take's `notes` say so and nothing is linked. The
+    queuer records `save_latent: true` on the sidecar, and SeriesmithSaveTake records the file as
+    `latent` (absent if writing it failed, which is never fatal: an upscale can still go
+    through the VAE). The editor's redo dialog has "Keep the latent", sent only when
+    changed; `render --latent / --no-latent` is the same switch.
+  - `skipped` and `errors` entries carry `take` when one was reserved.
+  - The `seriesmith.take` event sent at queue time says `queued`.
+- **`PUT /seriesmith/override`:**
+  - Pass fields on a pass that isn't built answer 409.
+  - A shot in no build answers 404.
+  - An empty `note` or `model` clears the field.
+  - `DELETE` with `pass` keeps the shared `seed` and `note`.
+- **`PUT /seriesmith/cut`:** duplicate shots and unknown entry fields answer 400.
+- **Not handled yet:** ComfyUI multi-user mode (config always lives in `default/`),
+  and a TLS-fronted ComfyUI (self-queueing uses `http://`).
+- **Aliases:** every route also answers under `/api/seriesmith/...`.
+
+## Round 2 additions
+
+### `GET /seriesmith/browse?path=…`
+A folder picker for choosing roots and episodes. It isn't limited to the roots,
+because this is how roots are chosen. It lists folder names only, never file
+contents.
+```json
+{"path": "C:\Shows\MyShow", "parent": "C:\Shows",
+ "episode": false, "truncated": false,
+ "dirs": [{"name": "ep05", "path": "C:\…\ep05", "episode": true, "series_config": true}]}
+```
+- No `path` gives the starting points: the home folder and the drives on Windows.
+  `parent` is then `null`; at a drive root it is `""`.
+- `episode` means the folder has a `series.json` and a script; `series_config` means it has
+  a `series.json`.
+- Status is 404 if the folder doesn't exist, 403 if it can't be read.
+
+### Missing references
+- **`GET /seriesmith/episode`:** every shot carries `"missing_refs": [{"slot": "Picture 4",
+  "kind": "image" | "audio", "path": "refs/_bg/x.png", "subject"?: "dean"}]`. These are
+  the references its render needs that aren't on disk (`jobs.missing_refs`); empty
+  means ready.
+- **`POST /seriesmith/render`** takes `"allow_missing_refs": false` by default.
+  - **When false**, a shot with missing refs isn't queued. It appears in `skipped`
+    with a `reason` naming the missing refs, plus the same `missing_refs` list.
+  - **When true, it renders anyway.** The loader replaces a missing picture with flat
+    mid-grey, and a missing voice sample or recording with no audio reference. For H3
+    that's close to text-to-video. The take's sidecar lists what was missing in
+    `missing_refs` (slots).
+  - The prompt still names the missing pictures. Writing a prompt without them is
+    model-specific, so it belongs to the Phase 7 target adapters. (Done in Phase 7: see
+    **Render anyway, target-aware** below. Grey stand-ins are now the fallback.)
+- The CLI equivalent is `render --allow-missing-refs`. Without it, blocked shots are
+  listed and skipped.
+
+## References (Phase 5)
+
+A **ref** is any conditioning input a render reads that the pipeline generates or
+you supply. Refs are the same thing whatever model consumes them. Each has a `scope`:
+
+| scope | kinds | named in | id |
+|---|---|---|---|
+| `series` | `character`, `prop`, `vehicle` (series config subjects), `location` (series config locations), `voice` (a subject's `voice_sample`) | the series config | `subject:<id>`, `location:<id>`, `voice:<id>` |
+| `shot` | `keyframe`: `first` / `last` frame of one shot, for FL2V and I2V models | the script (a later field) or the editor | `shot:<shot>:first`, `shot:<shot>:last` |
+
+- **Series refs are listed from the series config**, not from `refs_todo`. A character nobody
+  uses yet can still be generated. `refs_todo` becomes a filter: "used by this
+  episode", and which shots it blocks.
+- **Shot keyframes:** Phase 5 builds their storage, takes and pick. Generating them
+  (a still from the shot's prompt, or the previous shot's last frame) and feeding
+  them to an FL2V target come with that target. Their home is
+  `refs/shots/<shot>/<first|last>.png`. (The previous shot's last frame is built: see
+  **Continuity keyframes** at the end.)
+- A **ref take** is one generated or imported candidate. It lives in
+  `refs/_takes/<ref key>/<ref key>[_<view>]_tNN.png`, with a sidecar `…_tNN.json` in
+  the video takes' format (status, seed, prompt, model, LoRAs, steps, queued,
+  finished, and `source`: `generated` or `imported`). The ref key is the id with `:`
+  replaced by `__`.
+- A **character** has views (`01_threequarter`, `02_side`, `03_back`, `04_face`, as
+  in `kreagen.VIEWS`). Each view has its own takes and pick. Picking a view that
+  completes the set stitches the sheet with `mksheet` into the series config's `sheet` path.
+- A **wardrobe variant** (a subject with `of:`) is listed like any
+  other subject: its own sheet, its own views, its own takes. The listing carries `"of":
+  "<the subject it is a variant of>"`, and it has **no `voice:` ref of its own** — it is the
+  same character and shares theirs, so a voice picked for it would split one character's
+  voice in two. It keeps that character's `name`, because that name goes into every prompt;
+  the listing's `of` is what tells them apart on screen. Its views are generated as an edit
+  of the base's same view on any target that reads reference images, and on a text-to-image
+  target from the base's seed and the variant's words.
+- **Picking** a take copies it to the path the series config names, which is the file renders
+  read. The pick is recorded in `refs/_picks.json`, so the UI knows which take is
+  live. Re-picking changes the file's sha1, so video takes that used the old file
+  show `ref`-stale.
+- **Ref overrides** (prompt, seed, model, LoRAs, steps) live in
+  `refs/_overrides.json`, keyed by ref id (and view), in the same shape as shot
+  overrides.
+
+### `GET /seriesmith/refs?ep=…`
+```json
+{"refs": [{
+   "id": "subject:dean", "scope": "series", "kind": "character", "name": "Dean",
+   "path": "refs/dean/dean_sheet_4panel.png", "exists": true, "sha1": "…",
+   "used_by": {"final": ["sh010", "sh020"], "proxy": ["sh010", "sh020"]},
+   "prompt": "…the prompt a generate would use now…",
+   "override": {"fields": [], "stale": false},
+   "views": [{"view": "01_threequarter", "picked": 2,
+              "takes": [{"take": 1, "status": "ok", "seed": "…", "image": "refs/_takes/…_t01.png",
+                         "source": "generated", "note": ""}]}],
+   "takes": [], "picked": null
+ }]}
+```
+- Characters have `views`; every other ref has `takes` and `picked` at top level.
+- `exists` means the file renders read is on disk.
+- A `voice` ref lists `takes` for imported audio only; nothing generates voices yet.
+
+### `POST /seriesmith/refs/generate`
+Queues one candidate per call. It returns without waiting, like `/render`.
+```json
+{"ep": "…", "ref": "subject:dean", "view": "02_side" | null, "count": 1,
+ "seed_mode": "auto" | "new" | "same", "seed": null, "prompt": null, "model": null,
+ "loras": null, "steps": null, "note": ""}
+```
+- A character with `view: null` queues all four views, sharing one seed (as
+  `kreagen` does).
+- `count` greater than 1 queues that many candidates, each with a new seed.
+- The workflow is `krea2_refs_t2i.json`, found through `resolve_workflow`. (Phase 7: the
+  `krea2` image target's binding; the repo copy is `seriesmith/targets/image/krea2/workflow.json`.)
+- Each take is a job (`Runner.enqueue_ref`): the workflow keeps its own `SaveImage`
+  (`SaveAudio` for a voice), the take's reference pictures and voice sample go up with it,
+  and the file the backend hands back closes the take; `seriesmith.ref`
+  `{"ep", "ref", "view", "take", "status"}` says so. A hosted image target
+  (`krea_2_router`) is one Router call.
+- Returns `{"queued": [{"ref", "view", "take", "prompt_id", "seed", "backend"}],
+  "errors": [...]}`. An optional `backend` sends every take there.
+
+**An edit (2026-10-08).** `"edit": {"take": n | null, "with": [{"ref", "view"?, "take"?}],
+"wrap": true}` changes a picture the ref already has instead of drawing one
+(`refs.plan_edit`):
+- The picture is `take` of (`ref`, `view`), or with `take: null` the live picture. That
+  includes a plate dropped into `refs/_bg` by hand, which has no take. A character is
+  edited one view at a time.
+- `prompt` is the instruction, and it is required. It is wrapped by
+  `seriesmith/targets/image/common.edit_prompt`, which names whatever the instruction doesn't change
+  as fixed. `wrap: false` sends it exactly as typed, for a LoRA with its own trigger
+  words (`<mva> left side view, eye-level shot`).
+- `with` adds other refs' pictures as image 2 onward. A character comes as its picked
+  three-quarter view unless `view` says otherwise.
+- The target must be an edit target (`capabilities.mode: "edit"`; 400 otherwise). It is
+  the request's, else the first of the ref's own target, the episode's keyframe target
+  and its refs target that can edit. The pictures must fit its `max_refs`.
+- The picture keeps its size, scaled onto the target's grid and minimum.
+- Each candidate gets a new seed unless `seed` is typed.
+- The ref's overrides are not read: they are for generating it from its description.
+- The take is an ordinary new candidate of the same ref and view, with `source:
+  "edited"`. Its sidecar records `edit` (`take`, `view`, `instruction`, `wrap`, `with`)
+  and `references`, and `/refs` lists `edit` and `target` on it.
+- The CLI is `seriesmith refs <ep> --edit REF[:VIEW][:TAKE] --instruction "…"` (`--with`,
+  `--as-typed`, `--target`, `--lora`, `--count`).
+
+**A 360 (P5, 2026-10-08).** `"pano": {"with": [location ids]}` on a location makes
+360 panoramas instead of a plate (`refs.plan_pano`):
+- **What goes in:** the live plate, then up to two more locations' plates, the most
+  important first.
+- **How it's made:** Qwen-Image 2.1 (`qwen_image_21`) with the
+  `pano360_qwen21_edit_v1.safetensors` LoRA at 1.0. The prompt is the LoRA's trigger
+  sentence plus the location's description, cut to one sentence of at most 35 words. The
+  text is encoded at 1088, and sampling starts from an empty 2048x1024 latent (`size` can ask for another 2:1 size, e.g. 1536x768, which is faster and softer): the
+  `latent: "empty"` value makes the target's switch skip the references' latent.
+- **`engine: "klein"`** (the editor's default) is the other way. `seriesmith/helpers/erp.py`
+  places the plate on a green 2:1 canvas: a pinhole camera looking straight ahead, 70°
+  wide. nomadoor's FLUX.2 Klein 9B 360 ERP outpaint LoRA then paints the 360 round it on
+  `klein_erp_360`, which is the author's own graph: the base Klein 9B, LoRA 0.9, 20 steps,
+  cfg 5, the canvas as reference and latent. The plate stays where it was taken, where
+  Qwen tends to pull the camera back. It takes about a minute. That target's
+  `mode: "pano"` keeps it out of the model pickers.
+- **Where it lands:** takes of the location's `pano` pseudo-view, listed as `panos`, with
+  `source: "pano"`. `PUT /refs/pick` refuses them (400): a 360 is never the plate.
+- **In the editor:** the 360 viewer aims a camera into one and saves the view through
+  `/refs/import` as an unpicked plate candidate of the location or one of its angles.
+  **Save and sharpen** then queues an edit of that candidate with the Sharpen preset, on
+  Rapid AIO when installed. A cut view holds only `width × fov/360` panorama pixels
+  across, so it comes out soft.
+
+**Turning a character's view (P5).** An edit can start from another of the same character's
+views and land on `view`: `edit.from_view`. Add `edit.turn: true` to draw the view by
+turning the camera round the figure:
+- It runs on Qwen-Image 2.1 with the Multiple-Angles LoRA (`refs.TURN_LORA` at 0.9).
+- The prompt is that view's `<mva> …` phrase (`refs.VIEW_TURNS`), sent as typed.
+- The editor's ↻ on a view column turns it from the picked three-quarter view, else from
+  the first picked view.
+- The LoRA renders a whole scene as a diorama, so turning is for characters, not plates.
+
+### `POST /seriesmith/refs/tour` (P5)
+Body `{"ep", "ref", "move", "seconds"?: 2–10 (6), "count"?: 1–4, "seed"?}`. A camera tour of
+a location on MiniMax H3 (`seriesmith/tour.py`, ported from h3sets):
+- **The video:** `seriesmith/workflows/h3_tour.json` (H3 FL2VA image-to-video, the 4-step turbo LoRA)
+  starts from the live plate. The `move` says where the camera goes and where it holds,
+  and `tour.TAIL` (only the camera moves, and it holds still) is added to it.
+- **The answer:** sent as soon as the videos are queued: `{"queued": [{"tour",
+  "comfy_prompt_id"}]}`.
+- **After that:** a background thread waits for each video and keeps it in
+  `refs/_takes/<key>/_tours/`. It finds the video's held moments with
+  `seriesmith/helpers/stills.py`: runs of frames whose motion is below half the median,
+  keeping the sharpest frame of each run, with the opening frame always first. That
+  helper runs under the running Python and needs numpy, PIL and ffmpeg.
+- **The holds:** each becomes a take of the location's `tour` pseudo-view, `source:
+  "tour"`, with `seriesmith.ref` sent as each one lands. `/refs` lists the runs as `tours`
+  (`status`, `move`, `holds`, `error`) and the frames as `tour_holds`. `PUT /refs/pick`
+  refuses a hold where it is (400).
+- **The CLI:** `python -m seriesmith.tour EPISODE location:<id> "<move>"`.
+- **Turning points:** the stills step also keeps the moments a pan reverses or settles
+  without holding still (`turning_points`: a short dip in motion, under 0.35× the most
+  within half a second either side). H3 often turns straight back from "turn and hold",
+  so these are views a tour does reach.
+
+### `POST /seriesmith/refs/tour-frame` (P5)
+Body `{"ep", "ref", "tour", "seconds"}`. Adds any moment of a finished tour's video as a
+hold (`tour.grab_frame`). The frame is cut exactly, by index, with ffmpeg; the take is
+`source: "tour"` with `hold: null`, and it is added to the run's `holds`. The answer is
+the new take. The editor's Tour section has a player for each recent tour, with **Grab
+frame**.
+
+### `POST /seriesmith/refs/copy-take` (P5)
+Body `{"ep", "ref", "view"?, "take", "to"}`. Copies a finished picture take (a tour's hold,
+for example) into another ref as a new, unpicked candidate (`refs.copy_take`). The new
+take's sidecar records `copied_from`. The answer is the new take. A character is copied
+into one of its views, not into the character itself (400).
+
+### `PUT /seriesmith/refs/pick`
+Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the
+sheet when all four views are picked. Returns the ref as `/refs` lists it. 409 if the
+take isn't usable.
+
+### `POST /seriesmith/refs/import`
+Adds an image (or, for `voice`, an audio file) as a new take with `source:
+"imported"`. Body `{"ep", "ref", "view"?, "source_path"}`: a file on the ComfyUI
+machine. A multipart upload (`file`) comes later, with drag and drop. Returns the new
+take.
+
+### `PUT /seriesmith/refs/override` and `DELETE /seriesmith/refs/override`
+Same shape as the shot override routes, keyed by `ref` (and `view`).
+
+**More settings (P4, 2026-10-08).** Besides `prompt`, `seed`, `model`, `loras`, `steps`,
+`note` and `target`, a ref's override takes:
+- `size`: `"WxH"`, 256–4096 a side. Not for a keyframe (its size is its shot's) or a voice.
+  A character view's prompt names it.
+- `cfg`: 0–30.
+- `negative`: text. It only applies on a target with a `negative` param, where it beats
+  negative.txt, the series config and the preset, as source `override`.
+- `params`: `{sampler, scheduler, denoise, shift, guidance}`
+  (`refs.TUNABLE_PARAMS`). Each is sent only where the image target's binding has that
+  param; one it lacks is skipped, with a note on the take.
+
+`null`, `""` or `{}` clears a field. `POST /seriesmith/refs/generate` takes `size`, `cfg` and
+`params` too; the request's value beats the override's. `/refs` lists `cfg`, `params` and
+the negative in `effective`, and `cfg` and `params` on every take. The editor's **Use
+these settings** saves a take's seed, model, LoRAs, steps, cfg, params and size (but not
+its prompt) as the ref's override.
+
+**A view's overrides, and whose they are (P9, 2026-09-23).** A character's fields are inherited
+by all four views (`ref_override` merges the character's under the view's), which left the
+editor unable to say where a value came from or what an edited prompt had replaced. Two
+additions to each entry of a character's `views`:
+
+- **`override.own`**: the fields set on **this view**, a subset of `override.fields` (the
+  merge). The rest belong to the character and are changed on its row, and
+  `DELETE /seriesmith/refs/override` with a `view` drops exactly `own`. Absent on a ref's own
+  override block, and on a character's, because there every field is its own.
+- **`built_prompt`**: the series config's wording for that view, before any override — what a
+  prompt edit is diffed against and what "Series config" puts back. It used to be unavailable
+  precisely when it was needed: the editor substituted `""` for an overridden view, so Diff
+  and revert had nothing to work with.
+
+### References: as built (Phase 5), where the text above left room
+- **Extra fields on a ref:** `key`, `subject`, `can_generate`, `why_not`, and `effective`
+  (prompt, seed, seed_source, model, loras, steps, width, height). `override.values`.
+  `views: []` for refs that aren't characters. Each view has its own `prompt`,
+  `override` and `effective`.
+- **A character's top-level `prompt`** is the 4-panel sheet text (as in `refs_todo`).
+  What each view actually generates with is in that view's entry.
+- **Extra fields on a ref take:** `view`, `usable`, `audio` (voices: `audio` set,
+  `image: null`), `seed_source`, `prompt`, `model`, `loras`, `steps`, `width`,
+  `height`, `queued`, `finished`, `comfy_prompt_id`, `save_notes`, `overrides`.
+- **Refs live next to the series config.** A series config in the parent folder gives paths like
+  `../refs/…`, and `/seriesmith/file` serves those only inside that series config's folder and a
+  configured root.
+- **Keyframes** are listed once they exist (a live file or a take). Any shot in a build
+  can import or pick one; a shot in no build is 404.
+- **`seriesmith.ref` status values:** `queued`, `ok`, `failed`, `picked` (after a pick or an auto-pick).
+- **Auto-pick:** `GET /seriesmith/refs` gives a ref with NO live file its first finished candidate (`refs.auto_pick`), per view for a character, stitching the sheet once all four views have one. A ref whose file exists is never replaced without an explicit pick. This is `kreagen`'s rule for a missing file.
+- **Ref overrides** have one level: the ref, or a view, not per pass. A character's
+  `prompt` override needs a view. The response is `{"override": {...fields, "stale"}}`.
+  `base_hash` is the sha1 of the built prompt.
+- **Generate:**
+  - `count` 1–16. Only the first candidate follows `seed_mode` or a typed or pinned
+    seed; the rest get new seeds.
+  - `auto` keeps the stable seed until the ref has a usable take.
+  - `prompt` with a character and `view: null` is 400; voice and keyframe generates are
+    400.
+  - Pick accepts `force: true`.
+- **Import:** images png/jpg/jpeg/webp, audio wav/mp3/flac/ogg/m4a. The take keeps its
+  extension, and picking copies the bytes to the series config's path.
+
+### Round 2 contract fixes (after merging the Refs tab)
+- **`GET /seriesmith/browse?path=…&files=image|audio`** also lists matching files as
+  `files: [{name, path, size}]`, for import. `files` is absent without the parameter;
+  an unknown type answers 400.
+- **Each ref in `GET /seriesmith/refs`** also carries `override_values` (the same as
+  `override.values`) and `built_prompt` (the series config's prompt before any override). The
+  UI reads these flat names.
+- **Already served, which the UI can use once its TODOs are cleared:** `comfy_prompt_id`
+  on ref takes and episode takes, `effective` on refs and on each character view, and
+  per-view `prompt`/`override`/`effective`. Ref files beside a parent-folder series config
+  come through `/seriesmith/file` as `../refs/…` paths.
+
+## Targets (Phase 7)
+
+Everything model-specific lives in a **target**: `seriesmith/targets/video/<id>/` for a shot model,
+`seriesmith/targets/image/<id>/` for a reference-image model (`targets/__init__.py`). Today there is
+one of each: `minimax_h3_ref2va` (MiniMax H3 Ref2VA) and `krea2`. A built shotlist
+belongs to one video target, the series config's `series.target` (default
+`minimax_h3_ref2va`). Episodes that mix targets arrive with Phase 8. (Phase 8: they have;
+`ltx2` is the second video target. See **Phase 8 as built** at the end.)
+
+### `GET /seriesmith/targets[?kind=video|image]`
+Every target, for pickers. Nothing here is per-episode.
+```json
+{"targets": [{
+   "id": "minimax_h3_ref2va", "kind": "video", "label": "MiniMax H3 Ref2VA",
+   "default": true,
+   "presets": {"final": {"model": "…", "lora": "…", "steps": 8, "width": 1344, "height": 768},
+               "proxy": {"model": null, "lora": "…", "steps": 4, "width": 480, "height": 272}},
+   "widgets": {"model": {"class_type": "UNETLoader", "field": "unet_name"},
+               "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                         "strength": "strength_model", "input": "model", "chain": true},
+               "steps": {"via": "loader"}, "seed": {"via": "loader"}},
+   "workflow": "H3_Ref2VA_Shotlist_v1.json",
+   "loader": "SeriesmithShotLoader", "saver": "SeriesmithSaveTake",
+   "template": {"fps": 24.0, "frames": {"step": 17, "base": 5, "max": 3592},
+                "size_multiple": 32}},
+  {"id": "krea2", "kind": "image", "…": "…"}],
+ "default": {"video": "minimax_h3_ref2va", "image": "krea2"}}
+```
+- `presets` are the target's own defaults. The series config's `series` / `proxy` blocks
+  and profiles override them per episode; `GET /seriesmith/shot`'s `effective` is what a
+  render of that shot would actually use.
+- `widgets` is the binding: which node class and widget takes each render parameter.
+  `{"via": "loader"}` means the target's loader reads it from the frozen shotlist, so
+  the graph isn't patched for it. A picker for a `{"class_type", "field"}` widget can
+  list ComfyUI's own choices from `/object_info/<class_type>`.
+- `presets.proxy.model: null` means the proxy renders the series model (then the final
+  preset's).
+- An unknown `kind` answers 400.
+
+### `target` and `profile` on shots and takes
+- **`GET /seriesmith/episode`** has a top-level `"target"`. Each shot has `"target"` (the
+  video target it renders on) and `"profile"` (the render profile it was built with, or
+  `null`). Each take has `"target"` from its sidecar (`null` for a take from before
+  sidecars).
+- **`GET /seriesmith/shot`** has `"target"` and `"profile"`. `built` carries `profile`, and a
+  profile's LoRA list as `loras`, when the shot has them.
+- **Take sidecars** record `"target"`: the job's real target id, not a constant. The frozen
+  shotlist beside the take records it too, at the top level.
+- `overrides.json` is keyed by target already (`shots.<shot>.<target>`); the routes read
+  and write the shot's own target's block.
+
+### Render profiles
+A profile is a named `{target?, model?, loras?, steps?}` in the series config's
+`profiles` block, picked with `profile:` on a sequence or a shot (docs/AUTHORING.md).
+Build folds it into the shotlist, so the routes see the result: `model`, `steps`, and
+`loras` (a list) or `lora` on the built shot, plus `profile` naming it. Precedence, weakest
+first: target preset → series config pass block → sequence profile → sequence lines →
+shot profile → shot lines → `overrides.json` → the request.
+
+### Render anyway, target-aware
+`POST /seriesmith/render` with `"allow_missing_refs": true` now asks the shot's target to
+write the shot **without** the missing refs, when it can:
+- **H3 can.** A missing subject picture drops out of the `<Picture N>` slots and the
+  subject is described in words (its series config `design`). A missing plate leaves
+  `<Picture 4>` unmentioned and describes the location in words; the loader still feeds
+  flat grey into that input. A missing voice sample or recording makes the shot
+  `generate` (no audio reference; voices come from each `voice` line). The frozen
+  shotlist carries this recompiled shot.
+- **The recompile needs the build to be current.** It reads `shotlist/shots.json` and the
+  series config, and first checks that they still build the exact shot in the shotlist.
+  If they don't, or the target can't recompile, the render falls back to grey stand-ins
+  with the built prompt (the Phase 5 behaviour).
+- **A prompt override still wins:** the text you wrote is rendered as is.
+- The take's sidecar says what happened: `missing_refs` (the slots, as before),
+  `missing_mode` (`"recompiled"` or `"blank"`), and `missing_note` (why it fell back to
+  `blank`). The last two are only present on a take rendered anyway.
+
+## Phase 8 additions: retargeting a shot (contract written before building)
+
+- **`PUT /seriesmith/override`:** `fields.target` sets a shot's video target, e.g.
+  `"ltx2"`, or `null` to go back to the built target. It is **shared by both passes**,
+  like `seed`. The shot's IR (`shotlist/shots.json`) is recompiled for that target at
+  queue time. The target's own prompt, model, LoRA and steps defaults apply. The
+  per-pass `prompt` override is ignored for a retargeted shot, because a prompt written
+  for one model isn't valid for another. The response and the override view show
+  `target`.
+- **`POST /seriesmith/render`** takes an optional `"target"` for one run, beating the
+  override.
+- **`GET /seriesmith/episode`** and **`GET /seriesmith/shot`:** each shot's `target` is the one
+  its next render will use: request, then override, then script, then series config.
+  `built_target` is what the build compiled it for. Shot detail's `effective` also
+  carries `target` and that target's `width`/`height`/`length`.
+- **Takes** record the `target` they rendered with (already true since Phase 7).
+- **`GET /seriesmith/targets`** is what the UI's target picker lists, video targets only.
+  Model and LoRA pickers filter by the chosen target's binding widgets.
+
+## Phase 8 as built
+
+Everything in **Phase 8 additions** above is implemented as written. What the text left
+open, and what was added:
+
+- **`PUT /seriesmith/override`:**
+  - `fields.target` must name a video target (`GET /seriesmith/targets?kind=video`), else 400.
+    Setting the shot's built target, or `null`, clears the retarget.
+  - Pass fields (`prompt`, `model`, `loras`, `steps`) and `seed` / `note` go to the block
+    of the target the shot renders on **after** the request's `target` change, and are
+    stamped against that target's entry (the retargeted one when it is retargeted). So one
+    request can retarget a shot and set its LTX steps.
+  - The response adds `"target"` (what the next render uses) and `"built_target"` beside
+    `"override"`. Each pass's view carries `target` when the shot is retargeted.
+  - A pass field on a retargeted shot whose IR no longer compiles (the build is out of date)
+    answers 409.
+- **`DELETE /seriesmith/override`** without `pass` also clears the retarget. The response adds
+  `target` and `built_target`.
+- **`POST /seriesmith/render`:**
+  - `target` (a video target id or `null`) beats the override for this run; an unknown one is 400.
+  - Each shot renders with its own target's workflow, resolved once per request. A target
+    whose workflow can't be read no longer fails the whole request with 500: each of its
+    shots is reported in `errors`, and shots on other targets still queue.
+  - A shot that can't be retargeted (shots.json / the series config no longer build it:
+    rebuild) is reported in `errors` with the reason.
+  - `queued` entries carry `"target"`.
+  - An LTX shot's keyframes (`refs/shots/<shot>/first.png`, `last.png`, when they exist)
+    are uploaded to ComfyUI's input folder as `seriesmith/<sha1>.png` (through ComfyUI's own
+    `POST /upload/image`, so it works however ComfyUI is installed) before the job is queued.
+  - A retargeted shot's takes on its *old* target don't count as done: `redo: false` still
+    renders it on the new one.
+- **`GET /seriesmith/episode`:**
+  - Shots come from every target's shotlist, in script order (`shots.json`), merged with
+    `cut.json` as before.
+  - Each shot has `target` (the next render's: override, else build) and `built_target`.
+    `override.fields` includes `"target"` when the shot is retargeted. `missing_refs` is the
+    next render's (an `ltx2` shot needs none: its keyframes are optional).
+  - `retarget_error` (a string) is present when the shot is retargeted but its IR can't be
+    compiled for that target: rebuild the episode.
+  - `length`, `seconds`, `subjects`, `audio_policy`, `size` are still the **built** entry's.
+    The next render's length is in shot detail's `effective.length`.
+  - A take's `stale` can also hold **`target`**: the take was rendered on another target than
+    the shot's next render uses. The other reasons are judged against the entry the take's
+    own target would render now.
+  - Top-level `target` is the series target (`shotlist.json`'s).
+- **`GET /seriesmith/shot`** adds `built_target`. `effective` adds `target`, `width`, `height`,
+  `length`, and, when there is something to say, `notes` (e.g. "the prompt override was
+  ignored: …", "audio clone renders as generate on LTX-2: …") and `error` (the shot can't
+  be rendered on its target). `override` carries `target` when retargeted. `built` stays the
+  built entry; for a retargeted shot `effective.prompt` is the new target's prompt.
+- **`GET /seriesmith/targets`** adds, per target:
+  - `short`: a short label ("H3", "LTX-2").
+  - `capabilities`: `{policies, policy_fallback, voice_reference, subject_refs,
+    keyframes, prompt ("sections" | "prose"; `minimax_h3_fl2va`: "fields"), negative_prompt, duration ("predict" | "script"),
+    audio ("generate" | "none": the Wan targets make no sound)}`.
+  - `template` may carry `fps: "series"` (the target renders at the series config's fps),
+    `max_size` (`{long_side, pixels}`) and `size_fit: "snap"`.
+  - `widgets` values are always single specs (for a param patched into several widgets,
+    the first). An `ltx2` widget spec may carry `feeds` ([class, input]: which of several
+    nodes of that class), `all` or `scale`; a picker only needs `class_type` and `field`.
+    `ltx2` has no `steps` widget: its sampling schedule is fixed in the workflow.
+- **Take sidecars** may add `built_target` (retargeted), `inputs` (`{role: name in
+  ComfyUI's input folder}` of the keyframes used) and `notes` (a list of strings: audio
+  fallbacks, an ignored prompt override, a `steps` value the target doesn't use). An `ltx2`
+  take's `refs` lists its keyframes with `role` and `optional: true`, `sha1: null` when the
+  file didn't exist.
+- **Shot lengths (`dur: model`)**: `capabilities.duration` is `"predict"` (only `ltx2`: the
+  model's duration head can choose the length) or `"script"`. Every take sidecar has
+  `length_source`: `script` (the build's length), `estimate` (`dur: model` rendered at the
+  build's estimate: the target can't predict, or the duration head isn't installed; a
+  `notes` entry says which) or `predicted` (the saver's `frames` is the length; `length`
+  is the estimate). A `dur: model` entry has `length_estimated: true`, and on a predicting
+  target `duration_predict: {min_seconds, max_seconds}`.
+- **Files:** an episode that mixes targets has `shotlist/shotlist.<target>.json` and
+  `shotlist.<target>_proxy.json` beside `shotlist.json` / `shotlist_proxy.json`, each with a
+  top-level `"target"`. `shotlist.json` is always the series target's, even when no shot is
+  left on it.
+
+## Continuity keyframes
+
+A shot's first keyframe is usually the previous shot's last frame, so the cut runs on
+without a jump. `ltx2` reads `shot:<shot>:first` / `last` (Phase 8), and so does
+`minimax_h3_fl2va` (see its section below); `minimax_h3_ref2va` doesn't use keyframes (`GET /seriesmith/targets`: `capabilities.keyframes` is `[]`).
+
+### `POST /seriesmith/refs/keyframe`
+Cuts one frame out of a video take with ffmpeg and adds it as a new take of the shot's
+keyframe ref.
+```json
+{"ep": "…", "pass": "proxy", "shot": "sh020", "which": "first",
+ "source_shot": null, "source_take": null, "frame": null, "pick": null, "note": ""}
+```
+- **`which`**: `"first"` (default) or `"last"`: the keyframe written.
+- **`source_shot`**: default the neighbouring shot **in the pass's cut order**
+  (`cut.json` reconciled with the script, orphans skipped): the previous shot for
+  `first`, the next shot for `last`.
+- **`source_take`**: default the take that shot's cut entry uses, as `GET /seriesmith/episode`
+  reports it in `cut.take`: its pick (a placeholder's take comes from the other pass), else
+  its latest usable take. A given `source_take` is a take of `pass`.
+- **`frame`**: a frame number (0-based, in decode order; negative counts from the end,
+  `-1` being the last), `"first"` or `"last"`. Default `"last"` for `which: first`, `"first"`
+  for `which: last`. The frame is exact: ffmpeg's `select` counts decoded frames.
+- **`pick`** (added): `null` (default) picks the new take only when the keyframe has no
+  live file yet (the auto-pick rule); `true` always picks it; `false` never does.
+- **Returns** the ref as `GET /seriesmith/refs` lists it.
+- **Events:** `seriesmith.ref` `{ref, view: null, take, status: "ok"}`, then `status: "picked"`
+  if it was picked, then `seriesmith.episode`.
+- **Errors:** 400 for a shot with no previous (next) shot in the cut, a bad `which` /
+  `frame` / `pick`, or a frame outside the take; 404 for a shot in no build or a
+  `source_take` that doesn't exist; 409 when the source shot has no usable take, or its cut
+  entry names one that isn't usable (queued, failed, no mp4); 500 without ffmpeg / ffprobe
+  on ComfyUI's PATH.
+- **The take's sidecar** has `source: "frame"` and `source_shot`, `source_take`,
+  `source_pass`, `source_frame` (the index used), `source_frames` (the take's frame count),
+  `source_mp4` (relative to the episode) and `source_sha1`. `width`/`height` are the
+  frame's. `GET /seriesmith/refs` shows such a take with
+  `"from": {"shot", "take", "pass", "frame", "frames"}`.
+- **Staleness:** video takes record each keyframe's sha1 (`refs` in the sidecar), so
+  re-extracting and picking a new frame marks the takes that used the old one `ref`-stale.
+  Also new: a take rendered **without** an optional keyframe (sha1 `null`) is `ref`-stale
+  once that keyframe exists, because a render would now use it.
+- The CLI is `seriesmith keyframe <ep> <shot> [--from-prev | --from <shot>[:take]]
+  [--first | --last] [--frame N] [--proxy] [--pick | --no-pick]` (final pass unless
+  `--proxy`, like the other edit commands).
+- **Not yet:** there is no route to unpick or delete a ref take, so the editor has no
+  "Clear" for a keyframe.
+
+## The `ltx2_ingredients` target (as built)
+
+A third video target: LTX-2.3 with the IC-LoRA "ingredients", which keeps characters,
+props and the set looking like their refs. Nothing new in the routes; what the existing
+ones now show:
+
+- **`GET /seriesmith/targets`** lists it: `label` "LTX-2.3 ingredients (character/plate refs)",
+  `short` "LTX+refs". `capabilities` gains `reference_sheet` (true only here), and
+  `subject_refs` is true for it. `template`: `fps: 24`, `frames: {step: 8, base: 121, max:
+  121}` (every shot is 121 frames), `size_multiple: 32`. Presets: final 768×448, proxy
+  512×288, both `ltx-2.3-22b-distilled-fp8.safetensors` + `ltx-2.3-22b-ic-lora-ingredients-0.9`
+  at 1.0, 8 steps, text encoder `gemma_3_12B_it_fp4_mixed`. Its widgets include `steps`
+  (the template's KSampler), and `model` is patched into all three loaders that read the
+  checkpoint.
+- **Shotlist entries** carry `panels`: the reference sheet, in order, each
+  `{"subject", "kind", "path", "view"?: "body" | "face"}` or `{"location", "kind": "plate",
+  "path"}`. `prompt` is `"Reference sheet: …\n\nGenerated video: …"` (a shot with no panels:
+  plain LTX-2 prose).
+- **`missing_refs`** (episode listing, render `skipped`) lists the panels' files that
+  aren't on disk, with slots `"sheet panel N"` and `subject` or `location`. They block the
+  shot like H3's pictures. `allow_missing_refs: true` recompiles the shot without them
+  (`missing_mode: "recompiled"`): they leave the sheet and the `Reference sheet:` half, and
+  a shot left with none renders text-only (the take's `notes` say so).
+- **Queueing** (`POST /seriesmith/render`, `render`): before the take is reserved, the sheet
+  is composed from the live ref files at the render size (no text, one panel per element
+  tiling the sheet with thin black lines between them; `seriesmith/helpers/refsheet.py`, run
+  as a subprocess of the running Python, which needs PIL: ComfyUI's has it) and uploaded
+  as `seriesmith/<sha1>.png`.
+  Composing fails clearly when PIL is missing; the shot is reported in `errors`.
+- **Take files and sidecar:** the sheet is kept as `<shot>_tNN_refsheet.png` beside the
+  mp4. The sidecar's `refs` lists each panel's file with its `sha1` (so re-picking a view
+  makes the take `ref`-stale) and then the sheet itself (`slot: "reference sheet"`,
+  `role: "sheet"`, its path in the take folder and `sha1`); `inputs` is
+  `{"sheet": "seriesmith/<sha1>.png"}`. When a LoRA list from a script line or profile didn't
+  name the IC-LoRA, it is put back first and `notes` says so.
+
+## The `minimax_h3_fl2va` target (as built)
+
+A fourth video target: MiniMax H3 first/last-frame to video + audio, on ComfyUI's H3
+image-to-video template (`MiniMaxH3ImageToVideo`; with no keyframe it is text-to-video).
+Nothing new in the routes; what the existing ones now show:
+
+- **`GET /seriesmith/targets`** lists it: `label` "MiniMax H3 FL2VA (first/last frames)",
+  `short` "H3 FL2V". `capabilities`: `keyframes: ["first", "last"]`, `policies:
+  ["generate", "dub", "dub_keep_foley"]`, `policy_fallback: "generate"` (clone),
+  `subject_refs` / `voice_reference` / `negative_prompt` false, `prompt: "fields"`.
+  `template` is H3's (`fps: 24`, `frames: {step: 17, base: 5, max: 3592}`,
+  `size_multiple: 32`); the build warns past the model's trained 362 frames. Presets: final
+  1344×768, `minimax_h3_fl2va_pruned_int8_convrot` + `minimax_h3_fl2v_turbo_8step_v1.0` at
+  8 steps (`res_multistep`); proxy 448×256, the 4-step lightx2v v0.1 LoRA at 4 steps
+  (`euler`). `widgets` add `sampler` (KSamplerSelect) and have `steps` (BasicScheduler).
+- **Shotlist entries** are like `ltx2`'s: `keyframes` `{first, last}` (the conventional
+  paths), no `panels`, no `negative`; `audio_intent` / `audio_note` on a clone shot. The
+  `prompt` is H3's base-mode format: `integrated_multimodal_description: [Shot 1] …`,
+  `overall_soundscape: …`, `non_diegetic_music: …`, with no `<Picture N>` (subjects in
+  words).
+- **Keyframes** come from continuity (`POST /seriesmith/refs/keyframe`) or an import, and are
+  optional. At queue time the prompt gets H3's alignment line for the frames the render
+  has, first line then a blank line: first only "For the target video, at 0.00 seconds
+  into the target video, <Picture 1> (from [Shot 1]) is fully referenced."; first and last
+  "How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns
+  with the 0.00-second mark …; Picture 2 (from Shot 1) aligns with the S.SS-second mark …";
+  last only the same with `<Picture 1>` at S.SS. The take's frozen shotlist has that
+  prompt; `effective.prompt` in `GET /seriesmith/shot` is the built one.
+- **Dub:** a `dub` / `dub_keep_foley` shot's `refs` add `slot: "dialogue recording"` (the
+  series config's `audio.track`, or the shot's `audio_file`; `kind: "audio"`, required,
+  so a missing file blocks it; rendering anyway recompiles it as `generate`). At queue time
+  its `audio_in`–`audio_out` slice is cut (stdlib `wave`; ffmpeg for other formats; mono
+  made stereo), uploaded as `seriesmith/<sha1>.wav`, anchored at frame 0 by a
+  `MiniMaxH3AddGuide`, and kept as `<shot>_tNN_dub.wav` (`slot: "dialogue slice"`, `role:
+  "audio"`). The sidecar's `inputs` then has `audio` beside `first` / `last`.
+
+## Model families
+
+Each target declares the model family every model setting must be (`target.json`
+`models`: `{"<param>": {"family", "patterns"}}`, for `model`, `text_encoder`, `video_vae`,
+`audio_vae`, `upscaler`, `duration_head` and, on two-stage targets, `model_high` /
+`model_low`). A file passes by name (case-insensitive globs, plus the series config's
+`model_families`), else by its safetensors header (`targets/modelid.py`: tensor names and
+key shapes, `model_version` / other metadata; the weights are never read). Header results
+are cached by (path, size, mtime) in `<ComfyUI user dir>/default/seriesmith/modelid_cache.json`.
+
+### `GET /seriesmith/targets`: `models`
+Each target has `"models": {"<param>": {"family", "label", "patterns", "folder"}}`, e.g.
+`ltx2`'s `"model": {"family": "ltx2.5", "label": "LTX 2.5", "patterns": ["ltx-2.5*",
+"*ltx*2.5*", "*ltx*2_5*"], "folder": "diffusion_models"}`. `{}` for a target that declares
+none.
+
+### `GET /seriesmith/models?target=ltx2&param=model[&ep=…]`
+One model param's files, as ComfyUI lists them (`folder_paths.get_filename_list` of the
+param's folder), each checked against the family:
+```json
+{"target": "ltx2", "param": "model", "family": "ltx2.5", "label": "LTX 2.5",
+ "patterns": ["ltx-2.5*", "*ltx*2.5*", "*ltx*2_5*"], "folder": "diffusion_models",
+ "class_type": "UNETLoader", "field": "unet_name", "fingerprint": true,
+ "files": [
+  {"name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+   "match": "name", "mismatch": false, "family": "ltx2.5", "label": "LTX 2.5",
+   "confidence": "name", "detail": ""},
+  {"name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors", "match": "other",
+   "mismatch": true, "family": "wan2.2-i2v-14b-low", "label": "Wan 2.2 I2V 14B low-noise",
+   "confidence": "name", "base": "wan2.2-i2v-14b",
+   "detail": "wan2.2_i2v_low_noise_14B_fp8_scaled is Wan 2.2 I2V 14B low-noise (tensors + name), but this LTX-2 target's model must be LTX 2.5"},
+  {"name": "z_image_turbo_bf16.safetensors", "match": "other", "mismatch": false,
+   "family": null, "label": "", "confidence": "unknown", "detail": "…"}]}
+```
+- `match` is `name` (named like the family; nothing read), `fingerprint` (the header says
+  it is the family, or a parent family the header can't narrow, e.g. an H3 merge named
+  neither Ref2VA nor FL2VA) or `other`. `files` lists `name`, then `fingerprint`, then
+  `other`, each group in ComfyUI's order.
+- `mismatch: true`: the header says another family. A render with that file is skipped
+  unless the request says `allow_model_mismatch`.
+- `confidence` is how the family was found: `metadata`, `tensors`, `name` (the header's
+  family narrowed to a variant by the name; `base` is the header's family) or `unknown`.
+- `fingerprint: false`: the server couldn't resolve model paths, so only names were checked.
+- Headers are read only for files whose name doesn't match, then cached; the handler runs
+  off the event loop like every route.
+- `param` defaults to `model`. A target that declares no family for the param, or an
+  unknown target, answers 400. `ep` (optional, inside a root) adds that series config's
+  `model_families` patterns.
+
+### `POST /seriesmith/render`: `allow_model_mismatch`
+- Before a take is reserved, every model file the job loads is checked
+  (`jobs.check_models`; paths through ComfyUI's `folder_paths`):
+  - name match: nothing to say;
+  - no name match, the header says the family: renders, with a note in the sidecar's `notes`;
+  - unknown header, or not found: renders, with a note;
+  - **another family**: the shot is skipped, `{"shot", "reason": "model mismatch: …
+    (pass allow_model_mismatch: true to render anyway)", "model_mismatch": [check, …]}` in
+    `skipped`. A check is `{"param", "file", "family", "label", "patterns", "match",
+    "found", "message", "block"}`.
+- `allow_model_mismatch: true` (a bool; anything else is 400) renders it anyway; the
+  sidecar's `notes` say "model mismatch, rendered anyway: …".
+- The CLI does the same (`render --allow-model-mismatch`), finding files under
+  `$COMFYUI_PATH/models` and caching in the temp folder; without `$COMFYUI_PATH` it checks
+  names only, and a name that doesn't match is a note. `--dry-run --check-nodes` lists
+  every check.
+
+### The editor
+The model picker lists the files of the target's family first, then an "Other files
+(unverified)" group. Picking one of those shows the file's `detail`. When it is a
+`mismatch`, the redo dialog offers "Render anyway (model mismatch)", which sends
+`allow_model_mismatch: true`. A render that skips a shot for a mismatch shows a warning
+toast with the reason. A server without `/seriesmith/models` keeps the flat list.
+
+## The Wan 2.2 targets (as built)
+
+Three more video targets, all silent: `wan22_i2v`, `wan22_ti2v`, `wan22_vace`. What the
+existing routes now show:
+
+- **`GET /seriesmith/targets`** lists them: `label` "Wan 2.2 14B I2V" / "Wan 2.2 5B TI2V" /
+  "Wan 2.2 14B VACE (refs)", `short` "Wan I2V" / "Wan 5B" / "Wan+refs". `capabilities`:
+  `audio: "none"`, `policies: ["silent"]`, `policy_fallback: "silent"`, `prompt: "prose"`,
+  `negative_prompt: true`, `keyframes` `["first", "last"]` (I2V, VACE) or `["first"]` (5B),
+  `subject_refs` true only for VACE. `template`: 14B `fps: 16.0`, `frames: {step: 4, base: 5,
+  max: 161}`, `size_multiple: 16`; 5B `fps: 24.0`, `max: 241`, `size_multiple: 32`; all
+  `size_fit: "snap"` under 720p. Presets: I2V final 832×480 / proxy 640×352, 4 steps with
+  the lightx2v LoRA pair; 5B final 1280×704 / proxy 640×352, 20 / 12 steps; VACE final
+  832×480 / proxy 640×352, 20 / 10 steps at cfg 3.5. `widgets` add `model_low` (the 14B's
+  low noise model), `cfg`, `sampler`, `shift` (and VACE's `vace_strength`); `loras` is the
+  high noise stage's spec (a 14B binding has one LoRA chain per stage: `stage` routes a
+  LoRA, else its name's `high_noise` / `low_noise`, else both).
+- **Shotlist entries** are like `ltx2`'s (`keyframes`, `negative`, a prose `prompt` with
+  no sound and the lines as silent acting), with `audio_policy: "silent"` and
+  `audio_intent` / `audio_note` on every shot; VACE entries add `panels` (the subjects, as
+  `ltx2_ingredients`', without the plate). A shotlist's `defaults` carry `model_low`,
+  `loras` (the 14B I2V preset's per-stage list, used when no `lora` names one), `cfg`,
+  `split` (the fraction of the steps the high noise model samples) and the rest.
+- **`missing_refs`** entries may carry `anyway: false` and `why`: the shot can't render
+  without that ref even with `allow_missing_refs: true`. That is `wan22_i2v`'s first frame:
+  `{"slot": "first frame", "kind": "image", "path": "refs/shots/sh050/first.png",
+  "anyway": false, "why": "Wan 14B I2V needs a first frame: generate one or use continuity
+  (or import one), or retarget to wan22_ti2v"}` (Phase 8.5 wording). **`POST /seriesmith/render`** skips such a shot either way,
+  with `why` as its `reason`. The editor shows `why` and offers no render-anyway for it.
+- **VACE's reference image** is composed when the shot is queued, like the ingredients
+  sheet but on white (one panel per subject), uploaded as `seriesmith/<sha1>.png`, and kept as
+  `<shot>_tNN_reference.png` (`slot: "reference image"`, `role: "reference"`); its panels'
+  files are required refs (`slot: "reference panel N"`). Keyframes become VACE control
+  frames.
+- **Take sidecars** now carry `fps` on every take (the queuer writes it; the saver writes
+  it too once ComfyUI has reloaded the node pack). Wan takes are mute mp4s at their
+  target's fps (16 for 14B), with a `notes` entry saying the audio renders silent.
+- **`assemble`** (and the `assemble` route) convert every clip to the episode's fps (the
+  series config's `series.fps`) with ffmpeg's `fps` filter, timing each converted clip by
+  its duration on the cut's running clock, lay silence under mute clips, and scale any clip
+  of another size to the cut's.
+
+## Readiness, requirement tiers, and the episode target (contract written before building, 2026-09-19)
+
+### Requirement tiers (`target.json`)
+Each model param in a target's `models` block gets a `tier`:
+
+| tier | examples | if no matching file is installed |
+|---|---|---|
+| `required` | the diffusion model, text encoder, VAEs | the target is **not ready**: its shots are blocked before a take is reserved, naming the file and where to get it |
+| `accelerator` | turbo / distilled LoRAs | the job falls back to the pass's **`base`** preset (`presets.<pass>.base`: `steps`, `cfg`, `sampler`, `loras: []`, … in the target's own terms). It is slower but works, and the take notes it. |
+| `optional` | LTX duration head, voice ID-LoRA | only that feature is off (e.g. `dur: model` uses the estimate); the take notes it |
+
+An unmarked param is `required`. A target may also declare `nodes` it needs beyond its
+workflow's own classes.
+
+### Resolving files by family
+At queue time each model param resolves to an **installed** file:
+1. the preset's exact file, if installed;
+2. otherwise the best installed file of the same family (`targets/modelid.py`): a name match beats a fingerprint match; within a tie, prefer the same precision as the preset (fp8 / int8 / bf16 / fp16), then the shortest name.
+
+The sidecar records `resolved: {param: {"want", "using", "how": "exact" | "family" | "base" | "off"}}`.
+`want` / `using` are a file name, except for the `loras` param, where both are **lists** of names.
+`render --dry-run --check-nodes` prints the same resolution.
+
+### Downloads (`target.json` `downloads`)
+`{"<file name>": {"folder": "diffusion_models", "url": "…" | null, "source": "…"}}`. A
+URL is only given when it comes from a trustworthy record: a ComfyUI template's embedded
+`properties.models` entry, or ComfyUI-Manager's model list. Otherwise `url` is null and
+`source` says what to search for. Never guess a URL.
+
+### `GET /seriesmith/targets?ready=1`
+Each target gains `readiness` (cached briefly; computed off the event loop from
+`/object_info` and the model folders):
+```json
+{"status": "ready" | "degraded" | "not_ready" | "unknown",
+ "missing": [{"param": "loras", "tier": "accelerator", "want": "…safetensors",
+              "family": "…", "folder": "loras", "url": "…" | null, "source": "…"}],
+ "resolved": {"model": {"want": "…", "using": "…", "how": "exact" | "family"}},
+ "features_off": ["dur: model (duration head)"],
+ "nodes_missing": ["LTXVDurationPredictor"]}
+```
+- `degraded`: only accelerators or optional files are missing.
+- `unknown`: ComfyUI didn't answer.
+
+### `seriesmith targets [<episode>] [--json]`
+The same readiness as a table: status, what's missing, the folder, and the URL when known.
+
+### The episode target
+- **`overrides.json`** gains a top-level `"episode": {"target": "<id>"}`. It is the episode's default for every shot that has no target of its own (script `target:`, a profile's target, or a shot override). Precedence: request → shot override → shot/sequence script line or profile → **episode override** → `series.target` → `minimax_h3_ref2va`. Shots whose resolved target differs from what the build compiled are compiled at queue time, as a retarget is.
+- **`PUT /seriesmith/episode-target`**, body `{ep, target: "<id>" | null}`. `null` clears it. Returns the episode's target info and emits `seriesmith.episode`.
+- **`GET /seriesmith/episode`** gains:
+  - `target`: the episode default now in force;
+  - `target_source`: `"editor"` | `"series"` | `"default"`;
+  - `series_target`;
+  - per shot, `target` (already present) and `target_source`: `"request"` | `"override"` | `"script"` | `"episode"`.
+- **`series.json` is never written by the editor.** The UI offers a copyable `"target": "<id>"` snippet for `series.series` to make the choice permanent.
+
+### As built: where the build departs from the contract above
+
+Everything above is implemented. Each point here is marked **[differs]** (the contract
+said otherwise), **[added]** (the contract said nothing) or **[settled]** (the contract
+left it open).
+
+- **[added] `target.json`**: `models.<param>` may also carry `keep` (regexes whose captured
+  word a substitute must share with the wanted file: a LoRA's step count, a Wan noise
+  stage, LTX's `distilled` / `dev`), `exclude` (globs a substitute must not match: the H3
+  SLA LoRAs), `default` (the file the workflow loads when nothing names one: H3 Ref2VA's
+  text encoder and VAEs, krea2's) and `feature` (what an optional file switches on).
+  `loras` is a models param (family + tier) on H3 Ref2VA / FL2VA, Wan 14B I2V and
+  ingredients. `nodes` is `{class: {"tier", "feature"}}` or a list of required classes.
+- **[settled] Tiers**: the accelerators are the H3 turbo LoRAs, the Wan I2V lightx2v pair
+  and **the ingredients target's `model`** (the distilled LTX 2.3 checkpoint): its `base`
+  names the dev checkpoint, which is then required. The LoRA in a pass's own `lora` slot
+  (the preset's, or the series config's pass block's) counts as that target's
+  accelerator even when it isn't named like the family (it then resolves exactly or falls
+  back to the base). A LoRA from a profile or shot line that isn't installed is required.
+- **[settled] Resolving by family**: a substitute must share the `keep` words and match no
+  `exclude`; headers are read only when no name matches and the family has a header
+  signature (not LoRAs); a header naming only a parent family (an H3 file named neither
+  Ref2VA nor FL2VA) is not picked. A file listed in a subfolder of the models folder
+  (`LTX-2.3\x.safetensors`) is the exact file. A folder ComfyUI can't list leaves its
+  params unresolved, as before.
+- **[added] Sidecar**: `resolved.loras` is `{"want": [names], "using": [names], "how",
+  "tier"}` (lists); `resolved.<param>.tier`; `"base": true` on a take rendered with the
+  base preset (whose `notes` say so). The base's LoRA loaders are removed from the graph
+  (at strength 0 ComfyUI would still load the missing file). A `steps` value set for the
+  shot (request or override) is kept over the base's, with a note. The frozen shotlist
+  carries the base's values (`sampler`, `cfg`, ...) and any substitute file.
+- **[settled] A missing required file** (`POST /seriesmith/render`): the shot is in `skipped`
+  with `reason` ("model files not installed: text_encoder … is not installed
+  (models/text_encoders; download https://…)"), `target`, and `missing_files`: `[{param,
+  tier, want, family, folder, url, source}]`. No take is reserved. The CLI says the same
+  (`render`: "blocked (model files not installed)"); a job's action is `missing_files`.
+- **[added] `GET /seriesmith/targets`** (with or without `ready`): `models.<param>` adds `tier`
+  (and `feature`), `presets.<pass>` adds `base`, and each target adds `downloads` (all
+  static data from `target.json`). `ready` must be `1` / `0` (or `true` / `false`), else
+  400; it combines with `kind`.
+- **[added] `readiness`**: `missing[]` entries add `label` (the family's) and `passes`
+  (which passes miss the file); an optional one always has `feature`, the same words as
+  its `features_off` entry. `resolved` is the final pass's; `by_pass` has each pass's.
+  `how` can also be `base` and `off`. An `unknown` readiness has `error`. An optional
+  **node** missing (LTX's `LTXVDurationPredictor`) puts its feature in `features_off`
+  and the class in `nodes_missing`, with no `missing[]` file entry. The node classes are
+  the workflow's as a job keeps them (saver in place, widgets patched, pruned) plus the
+  loader, the saver and `nodes`. The cache is per ComfyUI address; an unanswered
+  `/object_info` isn't cached.
+- **[added] `seriesmith targets [<episode>] [--json] [--kind video|image] [--comfy URL]`**: exit
+  1 when ComfyUI doesn't answer. Headers are read for substitutes only with
+  `$COMFYUI_PATH` set. With an episode: its series config's pass blocks and
+  `model_families` apply, and its episode target is marked.
+- **[differs] `overrides.json` `episode`**: before, it was the episode's name (a string).
+  Setting a target makes it `{"id": "<the name>", "target": "<id>"}`; clearing it puts the
+  plain name back. A string `episode` means no episode target.
+- **[settled] Pinning a shot to its built target**: `PUT /seriesmith/override` with
+  `fields.target` equal to the built target clears the shot's retarget only while no
+  episode target is set. With one, it is kept as the shot's own target
+  (`target_source: "override"`); `null` clears it. The CLI's `--target built` does the
+  same; `--target none` clears.
+- **[differs] `target_source`** (per shot in `GET /seriesmith/episode`, and in `GET /seriesmith/shot`,
+  which also has it now): besides request / override / script / episode, a shot on the
+  series default is `"series"` (the series config names `series.target`) or `"default"`.
+  "script" is judged from `shotlist/shots.json` and the series config's profiles (a
+  `target:` line or a profile's target on the shot or its sequence); without a current
+  shots.json, a built target other than the series config's counts as the script's.
+- **[differs] `GET /seriesmith/episode` top-level `target`** is the episode default in force
+  (the editor's, else `series.target`, else the default). It was `shotlist.json`'s target;
+  the two are the same unless an episode target is set. `series_target` is `null` when the
+  series config names none.
+- **[settled] `PUT /seriesmith/episode-target`** returns `{target, target_source,
+  series_target}` (the status fields). 400 for a target that isn't a video target, or a
+  body without `target`; 404 for an episode with no build. CLI: `seriesmith override <ep>
+  --episode-target <id>`; `built` (or `none` / `series`) clears it.
+
+## Phase 8.5: refs, image targets, keyframes as needed refs, negatives (contract written before building, 2026-09-19)
+
+### Image targets
+- `seriesmith/targets/image/<id>/`, alongside `krea2`, built from the user's saved workflows:
+  - `z_image_turbo`: fast text-to-image;
+  - `flux2_klein`: text-to-image, **and** `flux2_klein_edit`: image edit with reference images;
+  - `flux_kontext`: edit, one reference;
+  - optionally an Illustrious/SDXL text-to-image target.
+- Each has presets, `models` tiers, downloads and readiness, like the video targets.
+- `capabilities`: `{"mode": "t2i" | "edit", "max_refs": N}`.
+- **Series defaults:** the series config's `refs` block, `{"target": "<image id>", "keyframe_target": "<image id>"}`.
+  - The defaults are `krea2` and, when it is ready, `flux2_klein_edit` (else the refs `target`).
+  - A per-ref override lives in `refs/_overrides.json` as `target`.
+  - A generate request's `target` beats both.
+- **`GET /seriesmith/targets?kind=image&ready=1`** lists them, as for video.
+
+### Keyframes as needed refs
+- **The build decides which shots need keyframes**, from each shot's resolved video target:
+  - `capabilities.keyframes` says a target reads them;
+  - `requires_first` (Wan 14B I2V) makes the first keyframe required.
+- **Optional script lines** on a shot, or a sequence (as its default):
+  - `first:` / `last:` with `continuity | generate | import | none`, or a path;
+  - `none` means "don't use one", even when the target could.
+- **`GET /seriesmith/refs`** lists keyframe refs for every shot that needs one, or whose script asks for one, even before any take exists. Each carries:
+  - `need: "required" | "optional"`;
+  - `method`: the script's (a `continuous: first` shot's first is `continuity`), else `generate`;
+  - `shot`, `which`, and the `target` that will read it.
+  
+  The Refs tab's "this episode" filter includes them; "missing" includes only required ones plus any whose script asks.
+- **`POST /seriesmith/refs/generate` on a keyframe ref** makes a still with the keyframe image target:
+  - **Prompt:** from the shot's IR, with the look, the location description, the subjects' designs, and the action at that moment ("first": how the shot opens; "last": how it ends).
+  - **Edit targets** also receive reference images: the picked character views (face or body by shot size) and the plate, up to `max_refs`.
+  - **Size:** the shot's render size for its target and pass.
+- **`method: continuity`** means "Generate missing" (and the CLI) call `keyframe_from_take` instead, when the previous shot has a usable take; otherwise it falls back to `generate`.
+- **`DELETE /seriesmith/refs/pick?ep=…&ref=…[&view=…]` unpicks a ref:**
+  - its live file is removed (the take stays);
+  - for a keyframe this is **Clear**, and the shot no longer uses a keyframe;
+  - for series refs it's allowed, but the UI warns.
+  
+  It emits `seriesmith.ref` with status `cleared`, then `seriesmith.episode`.
+
+### Negatives
+Any target (video or image) with a `negative` param takes, in order: the request's
+`negative`, then the shot's `negative` override, then the episode's `negative.txt`, then
+the series config's `negative`, then the target preset's.
+- The take records `negative_source`.
+- H3 targets have no negative param and are unaffected.
+- `kreagen --negative-file` still beats everything for its run.
+- The negative still has no effect at cfg ≤ 1 (turbo); the take notes that.
+
+### Inspector: the refs a shot uses
+**`GET /seriesmith/shot`** gains `refs_used`: `[{id, kind, role ("subject" | "plate" | "first" | "last" | "reference_sheet"), path, exists, need, thumb}]` for the shot's current target. A take's detail gains `reference_image`: the refsheet or VACE reference that the take rendered with, if kept.
+
+### Small items
+- **An estimated length** (`dur: model` before a take exists): episode shots carry `length_estimated: true`, and the UI marks them "≈".
+- **Wan's `model_low`** gets a picker, like `model`: `GET /seriesmith/models?param=model_low`, and the override field `model_low`.
+
+### Phase 8.5 as built
+
+Everything above is implemented. Each point is marked **[differs]** (the contract said
+otherwise), **[added]** (the contract said nothing; the UI agent's ten follow-up points are
+here too) or **[settled]** (the contract left it open).
+
+**Image targets**
+- **[settled]** Built: `z_image_turbo` (saved `z-image-turbo-t2i.json`), `flux2_klein`
+  (`image_flux2_text_to_image_9b.json`), `flux2_klein_edit`
+  (`image_flux2_klein_9b_kv_image_edit.json`: its models are installed; the `_9b_base` edit
+  needs `flux-2-klein-base-9b-fp8`, which isn't), `flux_kontext`
+  (`flux_kontext_image_base.json`, trimmed to the branch its SaveImage reads). No
+  Illustrious/SDXL target: the only SDXL workflow (`sdxl_simple_example.json`) is a
+  base+refiner img2img canvas. Repo copies are API graphs with titled nodes, known by
+  `h3pipe_*.json` names so a canvas can't leak in; the saved canvases' LoRA loaders are left
+  out. Each passes `check_graph` against `tests/fixtures/workflows/object_info_image.json`
+  (trimmed from the live `/object_info`).
+- **[added]** `GET /seriesmith/targets` image entries: `capabilities` `{mode, max_refs,
+  negative_prompt}` (krea2, Z-Image, Klein `t2i`/0; Klein edit `edit`/4; Kontext `edit`/1).
+  Video entries add `capabilities.requires_first` (true only for `wan22_i2v`).
+- **[settled]** Klein and Klein edit: the model is an **accelerator** (the installed
+  distilled KV model, 4 steps, cfg 1); `base` is the base 9B at 20 steps, cfg 5 (the saved
+  workflows' own). Z-Image and Kontext: all required. Families from the installed files'
+  headers: `z-image` (Turbo by name), `flux2-klein-9b`, `flux1` (`-dev` / `-schnell` by
+  tensors; `flux1-kontext-dev` by name under dev), `qwen3-4b`, `qwen3-8b`, `qwen3vl-4b`,
+  `clip-l`, `t5-xxl`, `flux1-vae`, `flux2-vae`. Files resolve by family at queue time
+  (`refs.resolve_job_models`, the video code); a missing required file is an `errors[]`
+  entry with `missing_files`.
+- **[added]** Reference images reach an edit graph through a chain titled "Reference 1 ..."
+  that graph code repeats per image (or cuts out with none); each is uploaded as
+  `seriesmith/<sha1>.png`. A character with no picked view gets that panel cut out of its live
+  sheet (`h3_refsheet.py`, PIL).
+- **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":
+  {"target", "target_source", "keyframe_target", "keyframe_target_source"}}`, sources
+  `"editor"` | `"series"` | `"default"`. **`PUT /seriesmith/refs/defaults`** `{ep, target?,
+  keyframe_target?}` (null clears; a key left out is kept) stores `overrides.json`
+  `episode.refs_target` / `episode.keyframe_target` beside the video `episode.target` and
+  returns `{"defaults": ...}`; 400 for a non-image target or a body with neither key.
+  Precedence: request, then the ref's override (`target` in `refs/_overrides.json`, now a
+  `PUT /seriesmith/refs/override` field), then the episode's, then the series config's `refs`,
+  then built-in. "Ready" for the built-in keyframe default means every required file of
+  `flux2_klein_edit` is among ComfyUI's model lists.
+- **[added]** Each ref's `effective.target` is the image target a generate would use (a
+  character's top-level `effective` is `{target}`; each view's has the rest). Ref-take
+  sidecars add `target`, `negative`, `negative_source`, `values`, `resolved`, `notes`, and
+  for a keyframe `references` (`[{role, subject|location, name, kind, view?, crop?, path,
+  sha1}]`), `inputs`, `render_width`, `render_height`, `video_target`.
+- **[added]** `POST /seriesmith/refs/generate` takes `target`, `negative` and `pass` (a
+  keyframe's size: default `final`, the larger; the file serves both passes). `queued[]`
+  entries carry `target`.
+
+**Keyframes as needed refs**
+- **[settled]** Script lines `first:` / `last:` on a shot or a `#` header; IR `first` /
+  `last` on shots and sequences, omitted when unset. `none` removes an optional keyframe
+  from the built entry's `keyframes` (a required one stays: the shot stays blocked).
+- **[settled, changed 2026-10-09]** `method` is `continuity` only for the **first** frame of
+  a `continuous: first` shot (docs/CONTINUOUS.md: the shot says it continues; it no longer
+  follows from having a previous shot); else `generate`. A path in the script is
+  `method: "import"` with `import_path`.
+- **[added]** Keyframe refs carry `shot`, `which`, `need`, `method`, `target` (the video
+  target), `requested` (the script asks for one), `script` (the raw line), `reads` (whether
+  the target reads that end), `import_path`, `cleared`, and with an edit keyframe target
+  `edit_refs: [{id, role, view?, crop?, path}]` (exactly what a generate feeds, after
+  `max_refs`). Needed keyframes list before any take exists; ones that only exist (a take,
+  a live file) list as before, with `need: null`.
+- **[differs] Size:** the shot's render size for its target and pass, **scaled up** (same
+  aspect, multiples of 16) to the image target's `template.min_pixels` (786432 for the new
+  targets; krea2 has none, so exact): a 640x352 proxy frame is generated at 1200x656. Every
+  video target scales a keyframe to its frame. The sidecar records both sizes and a note.
+- **[settled] Prompt** (`seriesmith/targets/image/common.py keyframe_prompt`): an edit target's
+  references named first ("Image 1 is Bolt: draw this character exactly as in image 1 ...",
+  "Image 2 is the background plate: ..."); then "The first/last frame of a <size> of
+  <location description>, one still picture. Drawn as <look>." and each subject's design;
+  then the moment: first = the action's first sentence "at the very start of the action"
+  (the rest in parentheses, "not yet shown"); last = its last sentence "after the action is
+  over, ... completed". Speakers are "about to speak" / "have just spoken"; no dialogue
+  text; "No text, captions, speech bubbles or borders."
+- **[added] Reference choice:** characters (script order), then props and vehicles, then the
+  plate, each only when its file exists; a character gives `04_face` on a single-subject
+  `close`/`cu` shot, else `01_threequarter`: its picked take of that view, else that panel
+  of its live sheet.
+- **[settled] "Generate missing"** in the CLI: `seriesmith keyframe <ep> --missing [--proxy]
+  [--dry-run] [--target T]` fills required keyframes and any the script asks for, not live
+  and not cleared: continuity (`keyframe_from_take`) when the previous shot has a usable take
+  in the pass's cut, else a still; a script path is imported and picked. `seriesmith keyframe <ep>
+  <shot> --generate [--first|--last] [--target T] [--pick|--no-pick] [--dry-run]` makes one
+  still. No new route: the UI calls `/refs/keyframe` and falls back to `/refs/generate` on
+  409 / 400.
+
+**Clear**
+- **[added]** `DELETE /seriesmith/refs/pick` returns the ref as `/seriesmith/refs` lists it;
+  `seriesmith.ref` carries the take that was picked (null if none). 400 for a voice.
+  `_picks.json` records `"cleared": "<time>"` on the ref (on a character's view,
+  `views.<view> = {"cleared"}`, and the stitched sheet is removed); auto-pick (`GET
+  /seriesmith/refs`, and `keyframe_from_take` with `pick: null`) skips a cleared ref until
+  anything is picked. Every ref and view in the listing carries `cleared`.
+- **[added] CLI:** `seriesmith keyframe <ep> <shot> --clear [--first|--last]`; `kreagen --clear
+  REF[:VIEW]` (repeatable) for series refs.
+
+**Negatives**
+- **[differs] `negative_source` values:** `"request"` | `"override"` | `"negative.txt"` |
+  `"series"` | `"preset"` | `"none"` (a target without a negative param: H3, Klein edit).
+  `kreagen --negative-file` records `"request"`. The series config's is a top-level
+  `"negative": "..."`.
+- **[added]** The shot override field `negative` is per pass (like `prompt`; `""` is an
+  explicit empty negative, null clears); `POST /seriesmith/render` takes `negative` for one run.
+  Video sidecars on a negative-taking target record `negative_source`; a non-preset negative
+  lands in the frozen shotlist and, at cfg <= 1, adds a note. Wan's "Negative prompt"
+  `CLIPTextEncode` feeds `WanImageToVideo.negative` (checked).
+- **[added]** `GET /seriesmith/shot` `effective` adds `negative` (null for `none`) and
+  `negative_source`, and `model_low` on a two-stage target.
+
+**Inspector and small items**
+- **[settled] `refs_used`** entries also carry `slot`; `role` can also be `"voice"` (a clone
+  sample) or `"recording"` (a dub track); `id` is null for a recording or a plate the series
+  config doesn't name. `path` and `thumb` are relative to the episode (`../` beside a
+  parent-folder series config), `thumb` null when the file isn't on disk. The
+  `reference_sheet` entry (ltx2_ingredients, wan22_vace) points at the latest take's kept
+  sheet or reference, else null.
+- **[added]** A take's `reference_image` is relative to the episode, null when not kept.
+- **[settled]** `length_estimated: true` appears only on estimated shots.
+- **[added]** `model_low` is a per-pass override field; `GET /seriesmith/models?target=...&param=
+  model_low` works for `wan22_i2v` and `wan22_vace` (`target` is required, as for `model`).
+
+## Phase 8.6: look-back (contract written before building, 2026-09-19)
+
+Loose ends from Phases 1-8, finished before Phase 9. Backend and UI build against this in
+parallel; the backend writes a "Phase 8.6 as built" section with [differs]/[added]/[settled].
+
+### Discarding takes and ref candidates
+Nothing is deleted: a discarded file moves to a `_trash/` folder beside it, keeping its
+relative name, so a mistake can be undone by hand. Discarding is refused (409) for a take
+that is `queued` (cancel it first).
+- **`POST /seriesmith/discard`** `{ep, shot, take, pass}`: moves the take's sidecar and every
+  output it names (video, audio, reference image, thumbnails) from
+  `renders[_proxy]/<shot>/` to `renders[_proxy]/_trash/<shot>/`. If `cut.json` picks that
+  take for that pass, the pick is removed (the cut falls back to the latest usable take).
+  Returns `{"shot", "take", "moved": [paths relative to the episode], "cut_changed": bool}`
+  and emits `seriesmith.episode`.
+- **`POST /seriesmith/refs/discard`** `{ep, ref, view?, take}`: moves the candidate (sidecar and
+  image/audio) from `refs/_takes/...` to `refs/_takes/_trash/...`. If it is the ref's (or
+  view's) pick, the ref is cleared exactly as `DELETE /seriesmith/refs/pick` does. Returns the
+  ref as `GET /seriesmith/refs` lists it and emits `seriesmith.ref`.
+- `GET /seriesmith/episode` and `GET /seriesmith/refs` never list anything under `_trash/`.
+- **CLI:** `seriesmith discard <ep> <shot> <take> [--proxy]`; `kreagen --discard REF[:VIEW]:TAKE`.
+
+### Generate missing, one route
+- **`POST /seriesmith/refs/generate-missing`** `{ep, pass?, kinds?: ["series", "keyframe"],
+  target?, keyframe_target?, dry_run?: false}`: queues one candidate for every series ref
+  that is missing (no live file, not cleared, no queued candidate), and fills every needed
+  keyframe as `seriesmith keyframe --missing` does (continuity when the previous shot has a usable
+  take in the pass's cut, else a still; a script path is imported and picked). Returns
+  `{"queued": [{ref, view, take, prompt_id, seed, target, method}], "picked": [{ref, take,
+  method}], "skipped": [{ref, reason}], "errors": [...]}`. `dry_run` returns the same
+  shape with nothing queued (take/prompt_id null). The UI's "Generate missing" button uses
+  this instead of its two-step fallback.
+
+### Uploading a ref (drag and drop)
+- **`POST /seriesmith/refs/import`** also accepts `multipart/form-data` with fields `ep`, `ref`,
+  `view` (optional), `pick` (optional, `"1"` picks it) and `file` (an image, or audio for a
+  voice). Same result as the JSON form: a new take with `source: "imported"`, plus
+  `original_name`. 400 for a file type the ref can't use; 413 over 64 MB. The JSON form
+  also takes `pick`.
+
+## Supplying references you already have (P8, 2026-09-23)
+
+A picture copied into the folder `series.json` names has always been fully supplied: the
+build counts it, renders read it, and `stale: ref` follows it (a take's sidecar records the
+path and sha1 it used, which is independent of picks). None of this replaces that. What it
+adds is the same thing **through the editor**, for a character, and in bulk.
+
+### The `sheet` pseudo-view
+A character's live file is a 4-panel sheet, and until now the only way the tool could write
+one was to stitch four picked views. `refs.SHEET_VIEW` (`"sheet"`) is a reserved view that
+holds a **ready-made sheet** as an ordinary take:
+
+- `POST /seriesmith/refs/import`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/discard` and
+  `DELETE /seriesmith/refs/pick` accept `view: "sheet"` for a character. The takes are
+  `<key>_sheet_tNN.png` beside the views'.
+- **`POST /seriesmith/refs/generate` refuses it** (400), as does any other path that words or
+  generates a view: nothing draws a sheet, it is four views stitched — or one you supply.
+- Picking a sheet take **copies it to the live file with no stitching**. The pick is recorded
+  in `_picks.json` under `refs.<id>.views.sheet`, beside the four views, which keep their own
+  picks: picking all four later stitches over the supplied sheet, and that is allowed.
+- `GET /seriesmith/refs` reports a character's sheet takes as the ref's **own** `takes` and
+  `picked` (they were always `[]` / `null` before — a character's candidates live in its
+  views), plus `sheet_cleared`.
+- **`live_from`** on a character says which route wrote the file that is live now, judged
+  from the file's own sha1, not from timestamps: `"sheet"`, `"views"`, or `null`. Null covers
+  no file *and* a file this tool didn't write — the Explorer route, which is left exactly as
+  it is and shown as "put there outside the editor".
+- Clearing or discarding a supplied sheet removes the live file **only if that pick still
+  wrote it**; a stitch that replaced it is left alone.
+
+### `POST /seriesmith/refs/match`
+Body `{"ep", "names": [...]}` (at most `MATCH_LIMIT`, 500), answer
+`{"matched": [{"file", "ref", "view", "name", "kind", "audio", "path", "why"}],
+"unmatched": [{"file", "why"}]}`. Names only — no file bodies — so the editor can show the
+table it is about to act on before uploading a byte. It writes nothing.
+
+`refs.match_files` is the one implementation of the rules, called by this route and by the
+CLI, so the two cannot drift. A file matches a slot when its **slug** (basename, no
+extension, lower case, every run of non-alphanumerics an underscore) is one of that slot's
+names:
+
+| Slot | Names that mean it |
+|---|---|
+| a character's sheet | the stem of the path `series.json` names (`ada_sheet_4panel`), the id, `<id>_sheet`, `<id>_sheet_4panel`, `<id>_4panel`, `sheet_<id>` |
+| one of its views | `<id>_<tag>` / `<tag>_<id>` (`ada_02_side`), and the tag's word (`ada_side`) |
+| a prop or vehicle | the path's stem, the id |
+| a location | the path's stem, the id, `<id>_plate`, `bg_<id>`, `plate_<id>` |
+| a voice | the sample's stem, the id, `<id>_voice`, `<id>_sample`, `voice_<id>` |
+| a shot keyframe | `<shot>_first` / `<shot>_last` |
+
+- The extension decides between an image slot and an audio one, so `ada.png` is the sheet and
+  `ada.wav` the voice. A file that is neither is refused for its type, not its name.
+- A trailing revision marker (`_v2`, `_3`, `_final`, `_copy`, `_new`, `_edit`, `_fixed`) is
+  ignored when the rest matches, and `why` says so.
+- **Nothing is guessed.** A name that could be two slots, or two files that want one slot,
+  leave every file involved unmatched with the reason. Matching is exact, never fuzzy: the
+  cost of a wrong guess is a render with the wrong character in it.
+- Measured on a real show (Porchlights ep01, 131 refs): all 110 of its own reference file
+  names match their own slot, with no ambiguity.
+
+### CLI: `seriesmith supply`
+```
+seriesmith supply <episode> <file-or-folder>... [--ref id[:view]] [--no-pick] [--dry-run]
+```
+`refs.supply_files` — a folder is matched by name, `--ref` sends one file to one slot
+(`--ref subject:ada:sheet`), each file becomes an imported take and is picked unless
+`--no-pick`. `--dry-run` prints the same table and writes nothing. It answers
+`{matched, unmatched, supplied, failed}`.
+
+### A live file other episodes read (2026-09-23)
+
+With a series config per episode and `../refs/...` paths, one live file serves the whole
+show: in Porchlights ep01 **all 110** of its refs are read by the other nine episodes. So
+"this is shared" is not news; who wrote the copy that is there now is. Two fields per ref in
+`GET /seriesmith/refs`:
+
+- **`shared_with`**: the other episode folders whose series config resolves a ref to the same
+  absolute file (`[]` for the one-folder layout). Computed from the siblings beside the
+  episode — a sibling with a series config of its own or sharing the one above, and a script.
+- **`live_owner`**: the episode whose pick recorded the sha1 the live file has **now** — this
+  one, a sibling, or `null`. Null means nobody's record matches it: it was put there by hand
+  or replaced outside the editor, so no candidate anywhere can put it back.
+
+What touches a shared file, and what doesn't:
+
+| | The shared file |
+|---|---|
+| **Generate** candidates | untouched. Takes go to the episode's own `refs/_takes/`, and `auto_pick` returns immediately when a live file exists (`seriesmith/refs.py`) |
+| **Pick**, upload/supply with `pick`, the fourth view's stitch | overwritten; the other episodes' takes go `stale: ref` |
+| **Clear**, discard of the live take | deleted; every episode that needs it is blocked until something is picked |
+
+`refs.shared_context(ep)` builds both maps in one pass and is memoised on the files it read
+(each episode's series config and `_picks.json`, by path, mtime and size), so a listing pays
+for it once: measured on that 10-episode show, 0.44 s cold and 4 ms warm against a 2.7 s
+listing. A neighbour's pick or a new sibling shows up on the next call, with nothing to clear.
+
+Two episodes that picked byte-identical files share one sha1, and this episode wins it —
+arbitrary, and moot, since the file they would overwrite is the same file.
+
+**Nothing refuses.** The routes behave exactly as before; reporting is the contract and the
+caller decides. The editor confirms before a pick over a file it doesn't own and before any
+clear of a shared file (`web/src/lib/shared.ts` holds that rule, with tests), and
+`seriesmith/kreagen.py --clear` refuses a shared live file without `--yes`.
+
+### Keyframe polish
+- The keyframe prompt states the framing more strongly (a close-up must fill the frame with
+  the face; the size word is repeated in the "Drawn as" sentence and as a closing line).
+- A single-reference edit target (`max_refs: 1`, Kontext) gets one **composed reference**:
+  the characters' reference panels pasted over the plate (side by side, bottom-aligned,
+  about two thirds of the frame height), made by `h3_refsheet.py` and uploaded like any
+  reference; the sidecar's `references` records `role: "composite"` with its parts.
+
+### Phase 8.6 as built
+
+Everything above is implemented. As for 8.5, each point is **[differs]** (the contract
+said otherwise), **[added]** (the contract said nothing) or **[settled]** (the contract
+left it open). Nothing here changes a field the contract named.
+
+**Discarding**
+- **[settled]** `POST /seriesmith/discard`: `pass` defaults to `proxy`, as on every route; the
+  response also carries `pass`. `moved` lists the files' **new** paths (under `_trash/`),
+  relative to the episode. What moves: the sidecar, every file sharing the take's stem
+  (`.mp4`, `.jpg`, `_strip.jpg`, `.shotlist.json`, `_h3.wav`, a kept `_reference.png` or
+  sheet), and any other file the sidecar names in the shot folder. 404 for no such take,
+  409 for a queued one ("cancel it first").
+- **[settled] The cut:** every `cut.json` entry, in either pass's list, whose take comes
+  from the discarded pass and names that take loses its `take`. A placeholder keeps its
+  `pass`, so it falls back to the other pass's latest usable take. `cut_changed` says
+  whether anything was dropped.
+- **[added] Numbers aren't reused.** The next take of that shot (or ref, or view) skips
+  every number still in the trash, so `t03` is never two different takes. If a name is
+  already in the trash anyway (an explicit `--take N` re-render discarded twice), the
+  whole set goes into `_trash/<shot>/<YYYYmmdd-HHMMSS>/`. Nothing is overwritten.
+- **[added] `POST /seriesmith/refs/discard`** needs `view` for a character (else 400), and is
+  404 for no such take and 409 for a queued one. `seriesmith.ref` carries status
+  **`discarded`**, then `cleared` if it was the pick, then `seriesmith.episode`. A voice's take
+  is only moved: voices aren't cleared, so a picked voice keeps its live file.
+- **[settled] `_trash/` is never listed.** Video takes are listed per shot folder, so
+  `renders/_trash/` is never read. Ref takes live under `refs/_takes/<key>/`, and the
+  sweep of queued ref takes skips `refs/_takes/_trash/`.
+- **[added] CLI:** `seriesmith discard <ep> <shot> <take> [--proxy]` accepts `3` or `t03`.
+  `kreagen --discard REF[:VIEW]:TAKE` is repeatable and accepts `location:kitchen:3`,
+  `subject:ada:02_side:t2` or `shot:sh020:first:1`. `kreagen --clear` and `--discard` no
+  longer need `refs_todo.json`.
+
+**Generate missing**
+- **[settled] Which series refs count as missing:** those this episode uses in `pass`
+  (`used_by`, which is what the Refs tab's plan used), with no live file and not cleared.
+  A ref is skipped if any of its candidates is queued, or has finished and waits to be
+  picked (auto-pick takes it on the next `GET /seriesmith/refs`). This is the UI's
+  `inFlight` rule. A character missing all four views gets one generate with
+  `view: null` (the four share a seed). Otherwise each missing view is queued alone, and
+  a skip for one view carries `view`. A ref that can't be generated (a voice) is in
+  `skipped` with the reason.
+- **[settled] `pass`** defaults to `proxy`, like `/refs/keyframe`. It sets both the cut
+  that continuity reads and the render size a keyframe still is made for, as
+  `seriesmith keyframe --missing` does. `kinds` defaults to both kinds.
+- **[settled] Keyframes:** a keyframe is filled only if it is required or asked for by the
+  script, and it must have no live file and not be cleared (`missing_keyframes`, shared
+  with the CLI). It is skipped if a candidate is queued or waiting.
+  - **Continuity:** the frame is cut, and the result goes into `picked` (it is always
+    picked, since the keyframe had no live file). If the frame can't be cut (no usable
+    take, or a bad source), a still is queued instead. If ffmpeg is missing, the keyframe
+    goes to `errors`.
+  - **Still:** it goes into `queued` with `method: "generate"`, and `target` is the image
+    target.
+  - **Script path:** the file is imported and picked (`method: "import"`).
+
+  The CLI and the route share `refs.keyframe_plan`, `import_keyframe` and
+  `missing_keyframes`. The CLI waits for each still; the route doesn't.
+- **[added]** `queued[]` entries also carry `seed_source`. In a dry run, `seed` is null
+  when a new random seed would be drawn, and continuity and import entries appear in
+  `picked` with `take: null`. `errors[]` are `queue_generate`'s, so they include
+  `missing_files` when a model isn't installed.
+- **[added] Events:** `seriesmith.ref` with status `queued` for each queued candidate, then
+  `ok` and `picked` for each picked one, then `seriesmith.episode`. A dry run emits nothing.
+- **[added] Errors:** 404 when `pass` has no build. 400 for a bad `kinds`, a `target` /
+  `keyframe_target` that isn't an image target, or a `dry_run` that isn't a boolean.
+
+**Upload**
+- **[settled]** The aiohttp adapter streams the `file` part to a temporary file, never
+  holding it in memory, and deletes it after the handler. The handler takes it through
+  the same `import_take` as the JSON form. **413** comes either from a `Content-Length`
+  over 65 MB (answered before anything is read), or from passing 64 MB while streaming.
+  **400** covers an extension the ref can't use (the type is judged by the upload's file
+  name), a `file` field that isn't a file, and a body that is neither JSON nor multipart.
+- **[added]** Ref-take sidecars and take entries carry `original_name` only for uploads;
+  an upload's sidecar has `source_path: null`. The form also takes `note`.
+- **[settled] `pick`:** a form sends `"1"` / `"true"` / `"yes"` / `"on"` or `"0"` /
+  `"false"` / `"no"` / `"off"` / `""`; JSON sends `true`, `false` or null. When picked,
+  the events are `ok` then `picked`, and the returned take is re-read after the pick. A
+  stitch failure is 500, as on `PUT /seriesmith/refs/pick`.
+
+**Keyframe polish**
+- **[settled] The wording** (`seriesmith/targets/image/common.py`): after "The first/last frame of a
+  <size> of <place>, one still picture." comes a framing sentence:
+  - **close-up:** "Framing: a close-up. Ada's face fills the frame, large: from the chin to
+    the top of the head, cut off at the shoulders. No full body, no wide view of the
+    room." With several characters it reads "Ada and Bo's faces fill"; with only props,
+    they fill the frame; with nothing, one detail of the place;
+  - **medium shot:** "... seen from the waist up, filling most of the frame's height" (no
+    sentence without characters);
+  - **wide shot:** "The whole place in view, ... small and full-length in it."
+
+  "Drawn as <look>, framed as a close-up." and a closing "Framing: a close-up." repeat the
+  size. The golden outputs don't contain keyframe prompts, so they are unchanged.
+- **[settled] When a composite is made:** for a target whose `max_refs` is 1, when more
+  than one reference image is on disk.
+  - **Parts:** the figures (characters, then props and vehicles, at most 4), then the
+    plate. Without a plate, the figures go on white. With one image only, that image is
+    sent as it is.
+  - **Layout:** the composite is the keyframe's generation size. The plate covers the
+    frame. The figures sit side by side, centred, standing on the bottom edge, two thirds
+    of the frame tall (scaled down together if they'd be wider than the frame less 3%
+    each side), 2% of the width apart. Each is pasted as a rectangle, background included.
+- **[added]** The composite is kept at `refs/_takes/<key>/_composites/<sha1>.png`.
+  - **Sidecar:** it records `{role: "composite", kind, name, path, sha1, parts: [{role,
+    subject | location, name, kind, view?, crop?, path, sha1}]}`.
+  - **Listing:** a keyframe's `edit_refs` shows `{id: null, role: "composite", path:
+    null, name, parts: [...]}`. There is no file until a generate composes one.
+  - **Prompt:** "The image shows Ada, Bo, and the diner kettle in front of the background
+    (kitchen): draw each of them exactly as in the image (the same face, body, clothes
+    and colours), and use its background's setting, layout, colours and light for the
+    scene. The image is only a reference collage: pose and frame each of them for this
+    shot."
+- **[added] Without PIL:** composing runs `seriesmith/helpers/refsheet.py` as a subprocess of
+  the running Python, as the ingredients sheet does. Under ComfyUI (the routes) that
+  Python has PIL, and so does a CLI whose Python has it.
+  - **Fallback:** when there is no PIL, the job sends one part alone. That is the first
+    figure not cut from a sheet, else the plate, else the first figure.
+  - **The prompt** is rewritten for that one image, unless it was typed or overridden.
+  - **The sidecar's `notes`** say so: "couldn't compose one reference from N (...); sent
+    Ada alone".
+
+## Phase 9a: script and series config windows, promote (contract written before building, 2026-09-19)
+
+The editor can now show and edit the episode's two authored files and move overrides into
+them. This replaces the old rule "the editor never writes series.json": it writes it only
+through these routes, only on an explicit save or promote, and always keeps the previous
+version. Backend and UI build against this in parallel; the backend writes "Phase 9a as
+built" with [differs]/[added]/[settled].
+
+### Reading and checking
+- **`GET /seriesmith/source?ep=…&file=script|series`** → `{"file", "path"` (relative to the
+  episode; `../series.json` for a parent-folder series config), `"text", "hash"` (sha1 of the
+  bytes), `"mtime", "shots": [{"id", "line", "end_line"}]` (script only; from the parser's
+  source spans, empty if it doesn't parse)`}`. `&hash_only=1` returns just `{file, hash,
+  mtime}` (the UI polls this on focus to notice edits made outside ComfyUI).
+- **`POST /seriesmith/source/check`** `{ep, file, text}`: parses and checks **without writing**.
+  A script is checked against the series config on disk; a series config is checked on its
+  own (valid JSON, loads) and then with the script on disk. Returns `{"ok", "errors":
+  [{"file", "line", "col"?, "message"}], "warnings": [{...same}], "shots": [...]}` — the
+  same messages `seriesmith check` prints, with 1-based line numbers into the given text. A JSON
+  syntax error carries its line/col.
+
+### Saving
+- **`PUT /seriesmith/source`** `{ep, file, text, base_hash, rebuild: true}`:
+  - 409 `{"error": "changed on disk", "hash", "text"}` if the file's hash isn't `base_hash`
+    (edited outside meanwhile). The UI offers reload or overwrite (overwrite = resend with
+    the new `base_hash`).
+  - A series config that isn't valid JSON is refused (400 with line/col). A script with
+    errors **is** saved (it's the user's file), and the check result comes back.
+  - Before writing, the old file is copied to `<ep>/_history/<name>.<YYYYmmdd-HHMMSS>`
+    (the newest 30 per file are kept). The write is atomic (temp file + replace), keeping
+    the file's existing line endings and encoding (UTF-8, BOM kept if present).
+  - `rebuild: true` runs the same build as `POST /seriesmith/build` after a successful write.
+  - Returns `{"hash", "check": {...as above}, "build": {...as /build} | null}` and emits
+    `seriesmith.episode`.
+
+### Promote
+Moves overrides that the authored files can express into them, then drops those overrides.
+What can't be expressed stays in `overrides.json`, with the reason.
+- **`GET /seriesmith/promote?ep=…[&shot=…]`** → a plan:
+  `{"items": [{"id", "scope": "shot" | "episode" | "ref", "shot"?, "ref"?, "view"?,
+  "field", "value", "dest": "script" | "series", "line"? , "summary"}], "left": [{"scope",
+  "shot"?, "ref"?, "field", "reason"}], "diffs": {"script": "<unified diff>", "series":
+  "<unified diff>"}, "hashes": {"script", "series"}}`.
+- **`POST /seriesmith/promote`** `{ep, items: [ids] | "all", hashes: {script, series}}`: 409 as
+  for `PUT /seriesmith/source` if either file changed since the plan. Writes the files (with
+  `_history/` copies), removes exactly the promoted override fields, rebuilds, and returns
+  `{"promoted": [ids], "left": [...], "hashes", "build"}`; emits `seriesmith.episode` (and
+  `seriesmith.ref` for promoted ref overrides).
+- **What maps where** (the backend confirms each against the parser and the series config
+  loader, and lists anything else under `left`):
+  - Shot `target` → a `target:` line in that shot's block.
+  - Shot `model` / `loras` / `steps` → `model:` / `lora:` / `steps:` lines, only when the
+    script line would mean the same thing (e.g. the value is the same in both passes, or the
+    script line only affects the pass the override is for); else `left` with the reason.
+  - Shot `prompt` (compiled text), `seed`, `negative`, `note` → `left` (compiled text has no
+    script form; a seed is kept by picking the take; a negative is per target/pass).
+  - Episode `target` → the series config's series-wide target; `refs_target` /
+    `keyframe_target` → its `refs` block.
+  - Ref overrides → the matching subject/location/view fields of the series config where
+    the loader has one (design sentences, per-view prompts, `target`); else `left`.
+- Script edits are line-level: an existing `key:` line in the shot's own block (not the
+  sequence header's) is replaced, else a new line is inserted after the `key:` lines that
+  open the shot's block (or right after `## shot`), never below its dialogue. Nothing else in the file changes. Series config
+  edits rewrite the JSON with 2-space indent, keeping key order and non-ASCII text; if the
+  file wasn't already formatted that way the diff says so.
+
+### Phase 9a as built
+
+Everything above is implemented (`seriesmith/source.py`: read, check, save; `seriesmith/promote.py`: the
+plan and apply, and `seriesmith promote`). Each point is **[differs]**, **[added]** or
+**[settled]**, as for 8.6. No field the contract named changes shape except where marked
+[differs].
+
+**Reading**
+- **[settled]** `text` always has LF line endings and no BOM; `hash` is the sha1 of the
+  bytes on disk (BOM and CRLF included), so it is what `base_hash` must be. `mtime` is
+  seconds since the epoch (a float, `os.stat`). A file that isn't UTF-8 is a 500 naming
+  the byte.
+- **[settled]** `shots` comes from the parser against the series config on disk; it is
+  `[]` when either doesn't parse. `path` is `../series.json` for a parent-folder series
+  config, as the contract said. An unknown `file` is 400; no script (or no way to tell
+  which `.md` it is) or no series config is 404.
+
+**Checking**
+- **[settled]** `errors` / `warnings` entries are `{"file": "script" | "series", "line":
+  <1-based> | null, "message"}`, plus `"col"` for a JSON syntax error only. A parser error
+  gives its own line, and `message` is its text **without** the `line N:` prefix and the
+  echoed `| line` (the line is in `line`). A build error or warning about a shot
+  (`shot sh020: …`, `sh020: …`, `sh040 overrides steps: 10`) points at the line the
+  message is about when it names one in that shot's block (`target:`, `profile:`, `dur:`,
+  `retention:`, `policy:`, `plate:`, `with:`, `model:`, `lora:`, `steps:`), else at the
+  shot's `##` line; `sequence sq04: …` at the `#` line. A series config message points at
+  the key it names (`profile 'x'`, `refs.x`, `series.x`, `proxy.x`, a missing block's
+  name) and is `line: null` when it names none (e.g. "series.json has no `subjects`
+  block").
+- **[settled]** The check is `seriesmith check`'s: parse, pick targets, compile the **final**
+  pass of every target the episode uses (`build.compile_groups`, which the build now
+  uses too), in memory. Warnings are the report's `!` lines, each once. The build stops at
+  its first error, so `errors` has at most one entry. `--pace` isn't repeated: its
+  CRAMMED/tight verdicts are already warnings.
+- **[settled]** Checking a series config: JSON, then the loader; if it loads, the script
+  on disk is checked with it, and those messages carry `"file": "script"` and lines into
+  the script on disk. `shots` is `[]` for `file: series`.
+
+**Saving**
+- **[settled] Line endings:** the file keeps the ending most of its lines use (CRLF or LF;
+  a mixed file comes out uniform) and its BOM if it had one. A BOM at the start of the sent
+  text is dropped (the file's own rule decides).
+- **[settled]** Text that would write the same bytes writes nothing (no history copy, the
+  hash unchanged); `check` still comes back, and `build` too when `rebuild` is true.
+- **[settled] History:** `<ep>/_history/<file name>.<YYYYmmdd-HHMMSS>`, with `-2`, `-3`…
+  when a copy that second exists; the newest 30 per file name are kept. A parent-folder
+  series config's copies also go in the **episode's** `_history/` (the episode finder
+  skips `_` folders).
+- **[settled]** The JSON refusal is 400 `{"error", "line", "col"}` and writes nothing. A
+  series config that is JSON but doesn't load is saved, with the check's errors.
+- **[added]** The 409 body also has `"file"` (which file changed). `rebuild` defaults to
+  true; `base_hash` is required (400 without it).
+- **[settled]** The write is a temp file beside the file, then `os.replace` (retried
+  briefly while Windows reports the file busy).
+
+**Promote: the plan**
+- **[settled] Item ids:** `shot:<shot>:<field>` (`target`, `model`, `loras`, `steps`),
+  `episode:<field>` (`target`, `refs_target`, `keyframe_target`) and
+  `ref:<ref id>:prompt`. `value` is the override's value (`loras` is the list); `summary`
+  shows the line or key as it will be written, e.g. ``sh030: `lora: x.safetensors:0.5` (the
+  override of both passes)``. `line` (script items) is the line **in the promoted script**
+  (every item of the plan applied).
+- **[differs] A character's prompt is one item, not one per view:** the design sentence
+  is every view's, so it promotes only when all four views have a prompt override and all
+  four change the design the same way; the item has no `view`. (Props, vehicles and
+  locations have one prompt and one item.)
+- **[added]** `left` entries may carry `"pass"` (a per-pass field left in one pass: a
+  prompt, a negative, `model_low`) and `"ref"` / `"view"` for ref overrides.
+- **[settled]** `diffs.script` / `diffs.series` are `""` when that file doesn't change.
+  When the series config wasn't already in the promote's format (2-space indent, key order
+  and non-ASCII kept; e.g. the fixture's one-line arrays), `diffs.series` starts with one
+  line, `# series.json wasn't formatted with a 2-space indent: promoting rewrites the whole
+  file that way`, before the `---`/`+++` header.
+- **[settled] `&shot=`** narrows the plan to that shot's overrides: no episode or ref items.
+- **[settled]** A script or series config that doesn't parse, load or build is 400 (fix it
+  first): a plan needs both.
+
+**Promote: what maps where (the final rules)**
+- Shot **`target`** (the retarget) → `target: <id>` in the shot's block.
+- Shot **`model` / `loras` / `steps`**, from the override block of the target the shot
+  renders on now → `model:` / `lora:` / `steps:`. A script line sets **both passes** (the
+  compilers layer it above the pass preset for final and proxy alike), so the item needs
+  the same value in both passes: both overridden alike, or one pass overridden and the
+  other already rendering that value. `loras` → `lora: name` (strength 1), `lora:
+  name:0.6`, or `lora: none` for `[]`; a stack of two or more is `left` (a script line
+  holds one LoRA: use a profile's `loras`).
+- **left, always, for shots:** `prompt` (compiled text), `seed` (keep it by picking the
+  take), `note`, `negative` (per target and pass), `model_low` (no script line); and every
+  field of an override block written for a target the shot doesn't render on now (a script
+  line would give it to the other model).
+- Episode **`target`** → the series config's `series.target`, **unless** its `series` /
+  `proxy` blocks set `model`, `lora` or `steps` for the old series target: as the series
+  target, the new one would inherit them (`Target.preset` applies the pass blocks to the
+  series target only), so it is `left`, naming the keys.
+- Episode **`refs_target` / `keyframe_target`** → `refs.target` / `refs.keyframe_target`.
+- A ref's **`prompt`** → the subject's `design` or the location's `description`, when the
+  override is the built prompt with only that sentence replaced (it occurs once in the
+  built prompt, and the override keeps everything around it); a character needs all four
+  views, agreeing (above). The summary lists the shots that show it: their compiled
+  prompts use the same sentence and change too.
+- **left, always, for refs:** `seed`, `model`, `loras`, `steps`, `note`, `target` (the
+  series config has no per-ref settings; `refs.target` is every ref's), a keyframe's
+  prompt (written from its shot) and a voice's.
+- **The check (every plan):** the promoted files are parsed and compiled in memory, and
+  every shot must render with the same target, model, LoRAs and steps in both passes as it
+  does now (jobs' precedence: the shot compiled for its effective target, then the
+  override for that target), and each promoted line must parse back as written. Each item
+  is checked alone, then all together; one that fails goes to `left` with what would
+  change (`sh010 would render differently (final: steps 9 → 8)`). A ref item is checked by
+  generating its prompt from the changed series config with no override: it must equal the
+  override's text, in every view. `tests/test_phase9a.py` asserts the end-to-end version
+  through `jobs.plan_job` on disk, before and after a promote.
+
+**Promote: apply**
+- **[settled]** `items` must be ids the plan (for the same `shot`, if given) offers; an
+  unknown id is 400 ("ask for the plan again"). The chosen subset is checked again on its
+  own; anything that no longer passes comes back in `left`, unpromoted.
+- **[added]** An optional `shot` in the body narrows the plan as `&shot=` does.
+- **[settled]** 409 is `{"error": "changed on disk", "file", "hash", "text"}` for the first
+  file (script, then series) whose hash isn't the plan's; nothing is written. `hashes` is
+  required (400 without it).
+- **[settled] Order:** the script, then the series config (each only if it changes, each
+  with a `_history/` copy), then `overrides.json` (the promoted fields in both passes of
+  that target's block, the retarget, the episode fields), then `<series
+  home>/refs/_overrides.json` (the promoted prompts and their `base_hash`), then the build.
+  `hashes` in the answer are the files' new hashes; `build` is null when nothing was
+  promoted.
+- **[added]** `seriesmith.ref` for a promoted ref override has `"status": "promoted"`,
+  `view: null`, `take: null`; `seriesmith.episode` follows any promote.
+- **[settled] Known side effects:** a take rendered with a promoted model/LoRA/steps
+  override shows `preset` stale afterwards (a take's `preset_hash` is of the built values,
+  which now include the promoted ones), although a render uses the same values. A promoted
+  design changes the compiled prompts of the shots that show that subject or location
+  (listed in the summary), so their takes go `script` stale. An episode item whose series
+  config is shared by a parent folder says so in its summary: every episode that uses it
+  changes.
+
+**CLI**
+- **[added]** `seriesmith promote <ep> [<shot>]` prints the plan (items, `left` with
+  reasons, both diffs) and writes nothing; `--all` or `--item ID` (repeatable) promotes and
+  rebuilds; `--dry-run` shows the plan even with those.
+
+## Phase 9b: timeline editing (contract written before building, 2026-09-19)
+
+`cut.json` already holds order, trims and locks, `PUT /seriesmith/cut` writes them, and assemble
+and Play all honour them; the editor just never wrote them. 9b adds the editing, the
+waveforms, and play-through polish. Backend and UI build in parallel; the backend writes
+"Phase 9b as built".
+
+### Cut edits (backend)
+- **`PUT /seriesmith/cut`** (as before) also: 400 for a negative or non-integer trim, and for
+  trims that leave less than one frame of a take whose frame count is known; the previous
+  `cut.json` goes to `<ep>/_history/cut.json.<stamp>` (newest 30), as source saves do. Emits
+  `seriesmith.episode`.
+- **`POST /seriesmith/cut/reset`** `{ep, pass, what: "order" | "trims" | "all"}`: script order
+  (picks, locks and notes kept) and/or zero trims. Returns `{"cut"}`.
+- **`POST /seriesmith/cut/copy`** `{ep, from, to, what: "order" | "trims" | "all"}`: copies one
+  pass's order/trims onto the other (trims converted by frame rate when the passes' fps
+  differ; picks never copied). Returns `{"cut"}`.
+- **`GET /seriesmith/episode`**: each shot's `cut` also carries `order` (its index in the pass's
+  cut), `script_index`, and `out_of_order` (true when it's not where script order would put
+  it); top level adds `track`: `{"path", "duration", "rate"}` or null (the series config's
+  recorded dialogue, `audio.track`), and each shot with a dialogue window carries
+  `audio_in` / `audio_out` (seconds on that track) if it doesn't already.
+- **`locked`** entries: `PUT /seriesmith/pick` answers 409 for a locked shot unless `force`;
+  the UI also refuses to move, trim, leave out or put back them.
+- **CLI:** `seriesmith cut <ep> [--proxy] (--show | --order sh010,sh030,... | --move SH (--before|
+  --after) SH | --trim SH IN OUT | --lock SH | --unlock SH | --out SH | --in SH | --flag SH | --unflag SH |
+  --reset order|trims|all |
+  --copy-from final|proxy [order|trims|all])`.
+
+### Waveforms (backend)
+- **`GET /seriesmith/peaks?ep=…&path=…&bins=N[&start=S&end=E]`**: `path` is a media file relative
+  to the episode (a take's mp4 or wav, or the `track`). Returns `{"duration", "bins",
+  "peaks": [0..255, ...]}` — max absolute amplitude per bin, mono, over `start..end` seconds
+  (default the whole file); `peaks: []` and `"silent": true` for a file with no audio
+  stream. Computed once per file at 200 bins/second (stdlib `wave` for PCM wav, else
+  `ffmpeg -ac 1 -ar 8000 -f s16le`), cached in `<ep>/_cache/peaks/<sha1 of path+size+
+  mtime>.json`, then resampled to `bins`. 404 for a missing file, 400 for a path outside
+  the episode (and its parent-folder series config's folder).
+- **Takes** in `GET /seriesmith/episode` carry `audio`: the file whose sound the cut plays for
+  that take (the mp4 if it has an audio stream, else its `_h3.wav`, else null) — the same
+  rule as assemble's `--audio auto`.
+
+### Timeline (UI)
+- **Reorder:** drag a clip between clips (drop marker; Esc cancels); Alt+←/→ moves the
+  selected clip. Clips can move across sequences; an out-of-order clip gets a badge. Menu:
+  "Reset order", "Clear trims", "Copy order/trims from the other pass".
+- **Trims:** drag a clip's left/right edge (frame-snapped; tooltip shows frames and seconds;
+  at least one frame stays); I / O set trim-in / trim-out at the playhead while Play all is
+  on that clip; numeric trims in the Inspector's cut section. The thumbnail strip shows the
+  trimmed part dimmed.
+- **Undo/redo** (Ctrl+Z / Ctrl+Shift+Z) of cut edits for the session; each edit is one
+  `PUT /seriesmith/cut`.
+- **Locked** clips show a lock and refuse moves, trims and re-picks (unlock from the menu).
+- **Flags:** M flags (or unflags) the clip on screen in Play all, which keeps playing, or the
+  selected clip; Shift+M, or the timeline's "N flagged" count, goes to the next one. A clip
+  with open issue notes shows a note icon.
+- **Play-through:** click or drag in the ruler to seek (starts Play all paused there if it
+  isn't open); Space play/pause; J / K / L; the playhead follows. With a `track`, an
+  "Audio: clips | recording" toggle plays the recording under the cut instead (the clip
+  audio muted), as `assemble --audio master` does; it warns when trims or reordering
+  make the recording drift.
+- **Waveforms:** a toggleable lane under the clips: each clip's own audio (`take.audio`),
+  or, for a shot with a dialogue window when the audio toggle is on "recording", its slice
+  of the track (`audio_in`..`audio_out`, trims applied). Peaks are fetched per clip at the
+  zoom's resolution and cached.
+
+### Phase 9b as built
+
+The backend parts above are implemented (`edit`: the cut edits, the status fields and
+`seriesmith cut`; `seriesmith/peaks.py`: sound detection, durations and peaks; the routes stay thin).
+Each point is **[differs]**, **[added]** or **[settled]**, as for 9a. No field the contract
+named changes shape.
+
+**`PUT /seriesmith/cut`**
+- **[settled] The one-frame check** is against the take the entry would use (its `take` from
+  its `pass`, else the latest usable one), counting its `frames` (the sidecar's) in the
+  pass's cut frames; a take at another rate (Wan 14B's 16 fps) counts by duration,
+  `round(frames × cut fps / take fps)`. A take whose length isn't known (nothing rendered, a
+  picked take that isn't usable, a sidecar without `frames`) isn't checked. A shot with a
+  dialogue window counts from the window's frames (the smaller of that and the take's), as
+  assemble cuts to the window before trimming, so it is checked even before it has a take
+  (changed after merging: first built without the window). The 400 names the shot. A float, a string or a boolean trim is 400 too.
+- **[settled] History:** `<ep>/_history/cut.json.<YYYYmmdd-HHMMSS>` (`-2`, `-3`… within a
+  second), the newest 30, through the same helper as source saves. A write that would change
+  nothing writes nothing and makes no copy; there is no copy when there was no `cut.json`.
+  PUT, reset, copy and `seriesmith cut` make copies; **picks and discards don't** (they would push
+  the edits out of the 30).
+- **[settled]** The server doesn't refuse moving or trimming a locked entry in a PUT (the UI
+  does; `seriesmith cut` refuses without `--force`).
+
+**`POST /seriesmith/cut/reset` and `/cut/copy`**
+- **[settled]** Both write the pass's full list (every shot named, as a pick does), answer
+  `{"cut"}` and send `seriesmith.episode`. 400 for a bad `what` or pass, or `from` = `to`; 404
+  when a pass they touch isn't built.
+- **[settled] Reset order** is the script order of the pass's build (every target's
+  shotlists); orphans go after the script's shots, in their current order.
+- **[differs] A locked entry keeps its trims** on "trims" / "all" resets and on a copy of
+  trims: the lock protects them as it protects the pick. Its place in the order still
+  changes.
+- **[settled] Copy order:** the target pass's entries sorted by their place in the source
+  pass's cut; a shot only the target has stays right after the entry it follows now. Picks,
+  placeholder passes, locks and notes stay the target's own.
+- **[settled] Copy trims:** each pass counts in assemble's cut rate (the series config's
+  `series.fps`, else that pass's shotlist's `defaults.fps`, else 24), so they differ only
+  when the series config sets no `fps`; trims are then `round(trim × to fps / from fps)`.
+  Trims that would leave less than one frame of the target's take (when its length is known)
+  are cut down, `trim_out` first, rather than refused.
+
+**`GET /seriesmith/episode`**
+- **[settled]** `cut.order` is the 0-based index in the pass's resolved cut (orphans
+  included); `cut.script_index` the index in the pass's script order (every target's shots),
+  null for an orphan. `cut.out_of_order` is true for the entries outside the longest run
+  that is in script order: moving one shot flags just that shot; swapping two neighbours
+  flags one of them. Orphans are never flagged.
+- **[added] `track.exists`.** `track` is `{"path", "duration", "rate", "exists"}` from the
+  series config's `audio.track` (relative to the episode, as `align` writes it). `path` is
+  relative to the episode with forward slashes (`../audio/x.wav` above it; absolute on another
+  drive, which `/seriesmith/peaks` can't serve). `duration` (seconds) and `rate` (Hz) are null
+  when the file is missing or unreadable (an empty placeholder). `track` is null when the
+  series config names no track.
+- **[settled]** `audio_in` / `audio_out` are the build's window (the shotlist entry's), in
+  seconds on the track; a shot with no window has neither key.
+- **[settled] `take.audio`** is a path relative to the episode, or null. Whether an mp4 has
+  sound is read from its boxes (`moov/trak/mdia/hdlr` of type `soun`), not ffprobe, and cached
+  per (path, size, mtime) for the process; an empty or unreadable mp4 counts as silent.
+  **assemble now uses the same functions** (`peaks.clip_audio` for `--audio auto` and
+  `mp4`, `peaks.has_audio`), so its check moved from ffprobe to that box read too
+  (ffprobe remains the fallback for files that aren't mp4/mov/m4a or wav).
+
+**`PUT /seriesmith/pick`**
+- **[added]** The locked 409's body also has `"locked": true`; its message says to unlock
+  or force. The lock is per pass (a final lock doesn't stop a proxy pick). `force: true`
+  passes both the not-usable and the locked 409s. A discard still clears a locked entry's
+  pick of the take it discards (the take is gone).
+
+**`GET /seriesmith/peaks`**
+- **[added] `start` / `end`** in the answer: the range actually used (clamped to the file).
+  A silent file answers `{"duration", "bins": 0, "peaks": [], "silent": true, "start",
+  "end"}`; `duration` is the container's (null if nothing can tell).
+- **[settled] `bins`** is optional: the default is the cached resolution over the range (200
+  a second). 1 to 100000, else 400. `start` / `end` are optional, ≥ 0, clamped to the file;
+  `end` ≤ `start` is 400. Each output bin is the max of the cached bins it overlaps; with
+  more bins than the range has, a bin repeats the nearest one.
+- **[settled] Scale:** `round(|sample| / 32767 × 255)`. The stdlib path (PCM wav, 8/16/24/
+  32-bit integer) takes the max over the channels; ffmpeg's path is the `-ac 1` mix. A float
+  wav, or any wav `wave` can't open, goes through ffmpeg.
+- **[settled] No audio stream** is judged from the mp4 boxes or the wav header, else ffprobe;
+  with no ffprobe, a file that is neither counts as silent. A file with sound and no ffmpeg on
+  PATH is 500 naming ffmpeg; an ffmpeg failure is 500 with its message.
+- **[settled] Cache:** `<ep>/_cache/peaks/<sha1 of "path|size|mtime_ns">.json`, where `path`
+  is the requested path with forward slashes and no empty or `.` parts. It holds `{"version":
+  1, "path", "duration", "rate": 200, "silent", "peaks": <hex, one byte a bin>}`. Old
+  entries aren't pruned. An episode folder that can't be written still gets its answer.
+- **[settled] Paths:** 400 for a path that is absolute or climbs out, and also for one that
+  leads out through a link (`/seriesmith/file` answers 403 there; the contract said 400 here).
+  `../` is allowed into a parent-folder series config's folder, as for `/seriesmith/file`. 404
+  for a missing file.
+
+**`seriesmith cut`**
+- **[settled]** With no action it shows the cut (`--show`): order, take, trims, frames and
+  flags (`locked`, `picked`, `placeholder(pass)`, `OUT OF ORDER`, `orphan`). After each edit it
+  shows the cut again.
+- **[settled]** `--order SH,SH,…` puts those shots first, in that order; the rest follow in
+  their current order. `--copy-from PASS [WHAT]` (default `all`) copies onto the pass
+  `--proxy` picks (final without it). `--move` and `--trim` refuse a locked shot without
+  `--force`. A refusal exits 1, a usage error 2.
+
+## Phase 9c: audio — a recording from the editor, and generated voice refs (contract written before building, 2026-09-19)
+
+Two halves, built in parallel. **A: recordings.** The timeline's "Audio: clips | recording"
+toggle only works for an episode whose series config sets `audio.track`, and nothing in the
+editor can set one; `seriesmith/align.py` already attaches a recording and writes the `audio:` windows
+from the command line. **B: voice refs.** Voice references are import-only today. ComfyUI can
+generate speech locally with the installed LTX-2 audio models (`LTXVAudioOnlyModel`,
+`LTXVAudioOnlyEmptyVideoLatent`, `LTXVEmptyLatentAudio`, `LTXVReferenceAudio`,
+`LTXVAudioVAEDecode`, both audio VAEs), so a voice ref becomes a generated take like any
+other. Each half writes its own "as built" section.
+
+### A. Attaching and aligning a recording
+- **`GET /seriesmith/align/ready`** → `{"ready", "ffmpeg", "missing": ["faster-whisper", …],
+  "python", "install": "…pip line…", "models": {"default": "medium.en"}}`. `align` needs
+  ffmpeg, numpy and faster-whisper (or openai-whisper); none of the whisper packages is
+  installed on this machine, so the editor must say what to install and where (the Python
+  that runs the pipeline).
+- **`POST /seriesmith/track`** `{ep, source_path}` or multipart (`file`, as `/refs/import`):
+  puts the recording at `<ep>/audio/<name>` (an existing file is used in place when
+  `source_path` is already inside the episode), sets the series config's `audio.track` and
+  `audio.mode: "source_track"` through the Phase 9a save path (history copy, atomic write),
+  rebuilds, and returns `{"track": {…as `GET /seriesmith/episode`'s…}, "hash", "build"}`.
+  `{ep, track: null}` clears it (the mode goes back to what it was, or `generate`).
+- **`POST /seriesmith/align`** `{ep, track?, model?: "medium.en", snap?: true, dry_run?: false}`:
+  runs `align` in a subprocess. 409 `{"missing": [...]}` when a dependency is missing.
+  Progress arrives as `seriesmith.align` `{"ep", "stage": "transcribe" | "match" | "write",
+  "pct", "text"}`. Returns `{"ok", "report", "changes": [{"shot", "audio_in", "audio_out",
+  "note"}], "script_hash", "series_hash", "build"}`. `dry_run` writes nothing.
+  `align`'s `.bak` files are replaced by the Phase 9a `_history/` copies, so the editor and
+  the command line keep one history.
+- **`GET /seriesmith/episode`:** `track` gains `words` (whether a cached transcript sits beside
+  the recording) and `aligned` (how many shots carry a window).
+
+### B. Voice refs, generated
+- **A new target kind, `audio`** (`seriesmith/targets/audio/<id>/`), built exactly like the image
+  targets: `target.json` (label, capabilities, models with tiers, presets, downloads),
+  binding, prompt writer, workflow, `check_graph` against `/object_info`, family-based file
+  resolution, readiness. **`GET /seriesmith/targets?kind=audio[&ready=1]`**; `capabilities` is
+  `{"mode": "t2a" | "voice_clone", "reference_audio": bool, "max_seconds"}`.
+  - First target: **`ltx2_voice`** — LTX-2 audio-only, with `LTXVReferenceAudio` used when
+    the ref has a sample to copy (`identity_guidance_scale` a preset value); the `base`
+    preset is the dev model, the accelerator preset the distilled one.
+- **`POST /seriesmith/refs/generate` on a voice ref** queues a candidate wav, like an image
+  candidate: `{ep, ref: "voice:bolt", count, seed_mode, seed, prompt, target, note,
+  seconds?}`. The default prompt (`seriesmith/targets/audio/common.py voice_prompt`) is the character's
+  series config `voice` line, their design in one sentence, and a line to say: the
+  character's longest line in this episode's script, else a fixed neutral sentence; the
+  sidecar records the sentence. The take is a wav under `refs/_takes/voice:<id>/`, saved by a
+  new `H3SaveRefAudio` node (like `H3SaveRefTake`), and `seriesmith.ref` reports it as usual.
+- **Picking** a voice candidate copies it to the series config's `voice_sample` path for that
+  character; when the character has none, it writes `refs/voices/<id>.wav` **and** sets
+  `voice_sample` in the series config through the 9a save path (history copy), saying so in
+  the response: `{"ref", "path", "series_changed": true}`.
+- **`POST /seriesmith/refs/voice-from-take`** `{ep, ref, shot, take, pass, start, end}`: cuts
+  `start..end` seconds out of that take's audio (`peaks.clip_audio` picks the file) into a
+  new candidate with `source: "from_take"`, recording the shot, take and span. This is the
+  no-model path: a line the model already spoke in a take becomes the voice sample.
+- **Defaults:** `PUT /seriesmith/refs/defaults` and `GET /seriesmith/refs`'s `defaults` gain
+  `voice_target` / `voice_target_source`; the series config's `refs.voice_target` and a
+  per-ref `target` override layer as for images.
+- **CLI:** `kreagen` (and `seriesmith refs`) generate voice refs too, with `--voice-target` and
+  `--from-take SHOT:TAKE:START-END`.
+- **UI:** a voice ref row gets Generate (count, prompt, seconds), a candidate list with a
+  player and the waveform (`GET /seriesmith/peaks`), pick / clear / discard / upload as for
+  images, and "Use a line from a take…" — pick a shot and take, drag the span on its
+  waveform, preview, then save it as a candidate.
+
+### Phase 9c-A as built
+
+Part A above is implemented: `seriesmith/track.py` (the readiness check, the recording, running
+align), `seriesmith/align.py` writing through source, `edit.track_info` and three thin routes.
+Each point is **[differs]**, **[added]** or **[settled]**, as for 9a and 9b. No field the
+contract named changes shape except where marked [differs].
+
+**`GET /seriesmith/align/ready`**
+- **[settled]** `{"ready", "ffmpeg", "missing", "python", "install", "models"}` as the
+  contract wrote them. `ffmpeg` is the path `shutil.which` finds (null when it isn't on
+  PATH); `missing` lists `ffmpeg`, `numpy` and `faster-whisper` by their pip names, in that
+  order; `install` is the pip line for the missing **packages** only, quoting the
+  interpreter (`"…\python_embeded\python.exe" -m pip install faster-whisper`), and `""`
+  when only ffmpeg is missing.
+- **[settled] The interpreter** is `sys.executable`: inside ComfyUI that is its embedded
+  Python, which is also what runs align (`edit.run_tool`'s rule), so the answer is about
+  the Python that would really transcribe. Either Whisper counts: `openai-whisper` alone
+  makes it ready.
+- **[added] `packages`** `{"numpy", "faster-whisper", "openai-whisper"}`: the installed
+  version (`""` when the package is there but has no metadata), null when it isn't
+  installed. **[added] `ffmpeg_hint`** (a line to show when ffmpeg is missing) and
+  **[added] `models.choices`** (the model names align takes) beside `models.default`.
+- **[settled] The probe** runs `importlib.util.find_spec` and `importlib.metadata.version`
+  in a subprocess of that interpreter, so it sees what align will; the answer is cached
+  for 30 seconds per interpreter (`track.PROBE_TTL`), and if the subprocess can't run at
+  all this process's own view is used instead. Nothing is imported, so the check is cheap
+  and can't crash on a broken install.
+
+**`POST /seriesmith/track`**
+- **[settled]** `{ep, source_path}` (a file on this machine) or multipart `file`, as
+  `/refs/import`: over `MAX_UPLOAD` is 413, a `file` in a JSON body is 400. The recording
+  lands at `<ep>/audio/<name>`; a `source_path` already inside the episode is used where it
+  is (`copied: false`), anywhere in the episode, not only `audio/`.
+- **[settled]** The series config's `audio.track` (relative to the episode, forward slashes)
+  and `audio.mode: "source_track"` are written through the Phase 9a save path — a copy in
+  `<ep>/_history/`, an atomic write, the file's line endings and BOM kept — then the episode
+  is rebuilt and `seriesmith.episode` goes out.
+- **[added]** The answer is `{"track", "hash", "build", "path", "copied", "reformatted"}`:
+  `path` is the recording's path relative to the episode, `copied` whether it was copied in,
+  `reformatted` whether the whole series config was rewritten in the promote's format
+  (2-space indent, key order kept) because it wasn't in it. **[added]** An optional `pass`
+  (default `proxy`, as everywhere) picks which pass `track.aligned` counts.
+- **[added] The name** is the upload's (or the source file's) basename, with anything
+  outside `A-Za-z0-9 ._()-` turned into `_`, at most 120 characters, and the extension
+  lowercased: it must be one of `.wav .mp3 .flac .ogg .m4a .aac .opus`, else 400 ("not a
+  recording"). A missing file is 404. Nothing is written when the file is refused.
+- **[added] An existing name** is never clobbered: the same bytes (size and sha1) are reused
+  in place, other bytes go to `<stem>-2`, `-3`… So attaching the same file twice is a no-op,
+  and a second `take 1.wav` from another folder keeps both.
+- **[added] Clearing** (`{ep, track: null}`): `audio.track` goes, and the mode goes back to
+  the one the series config had when the editor attached the recording. That mode is
+  remembered in **overrides.json** (`{"audio": {"mode_before_track": "clone"}}`) — the
+  editor's own state file, so the authored one carries no bookkeeping — and is dropped once
+  it is used. With nothing remembered the mode becomes `generate`; a remembered `""` (the
+  series config had no `mode` at all) removes the key again. The recording itself stays on
+  disk.
+- **[settled]** A series config that isn't valid JSON is 400 and nothing is written (the 9a
+  rule).
+- **[added, worth knowing]** Attaching a recording to a script that has no `audio:` windows
+  yet makes the **final** build fail ("shot sh020: policy dub_keep_foley needs an `audio:
+  in-out` window…"): `source_track` turns every dialogue shot into a dub. That is expected —
+  aligning is the next step — so the route answers 200 with that `build` rather than
+  refusing, and the editor can show it as "align to finish".
+
+**`POST /seriesmith/align`**
+- **[settled]** `{ep, track?, model?, snap?: true, dry_run?: false}` runs `align` in a
+  subprocess (this Python, through `edit.RUN_SCRIPT`, with the episode as the working
+  directory). `track` is a path relative to the episode (`/seriesmith/file`'s rules: 400 for one
+  that climbs out or leads out through a link, 404 for a missing one); without it align
+  takes the series config's `audio.track`. `snap: false` passes `--no-snap`, `model` passes
+  `--model`. A non-boolean `snap` / `dry_run` or a non-string `model` is 400.
+- **[settled] 409** when a dependency is missing, before anything runs: `{"error",
+  "missing", "install", "python", "ffmpeg"}` (`GET /seriesmith/align/ready`'s fields).
+- **[differs] A Whisper is only needed when there is nothing to read.** When the recording
+  already has a transcript beside it (`<recording>.words.json`, newer than the recording),
+  align never transcribes, so the 409 leaves the whisper out of `missing` and the run
+  goes ahead; ffmpeg and numpy are still required. The body carries **[added] `words`**
+  (whether that cache was found), so the editor can say "re-aligning needs no download".
+  Re-aligning after a script edit is the common case, and on this machine — no Whisper
+  installed — it is the only one that can run.
+- **[settled] Progress** is `seriesmith.align` `{"ep", "stage", "pct", "text"}`, from align's
+  own `--progress` lines: `transcribe` (10) when it starts transcribing or reads the cache,
+  `match` (65) with the word and line counts, `write` (90) and `write` (100). A dry run's
+  last event is `write` 100, "dry run — nothing written".
+- **[added] The answer** is `{"ok", "dry_run", "report", "report_path", "changes", "notes",
+  "recording", "duration", "words", "script_hash", "series_hash", "track", "build", "log"}`.
+  `report` is align_report.md's **text** (a dry run has it too, though it writes no file);
+  `report_path` is `align_report.md`, or null on a dry run. `changes` is one entry per shot
+  in script order, `{"shot", "audio_in", "audio_out", "note"}`, with `audio_in` /
+  `audio_out` null for a shot that keeps its `dur:`, and `note` carrying the report's lines
+  about that shot (`keeps its dur:` when there is no other reason). `notes` is the report's
+  whole list, `log` everything align printed (progress lines removed).
+- **[settled]** `script_hash` / `series_hash` are the files' hashes after the write (what
+  `PUT /seriesmith/source` wants as `base_hash`), null on a dry run. A dry run rebuilds nothing
+  (`build: null`) and sends no `seriesmith.episode`; a real run does both.
+- **[added]** align failing is 500 with its own last `!!` line as the message and the full
+  `log` in the body. A run that outlives `track.ALIGN_TIMEOUT` (3600 s) is killed and says
+  so.
+
+**align itself**
+- **[settled] No more `.bak`.** The script and the series config are written through
+  `source` (`Source` / `write_source`): the old bytes go to
+  `<episode>/_history/<name>.<stamp>` (the newest 30), the write is atomic and keeps the
+  file's line endings and BOM — so a CRLF script stays CRLF, where the old write made it LF.
+  The series config is rewritten in the promote's format (2-space indent, key order and
+  non-ASCII kept), which is what it already did apart from the final newline. The console
+  lines name `_history/` instead of `.bak`.
+- **[added] `--progress`** prints one `##align {json}` line per stage and **[added]
+  `--json PATH`** writes the run as the route reads it. Everything else about the CLI is
+  unchanged: the same arguments, report, console output and exit codes, and `seriesmith
+  align <ep> …` still passes its flags straight through.
+- **[settled]** A cached `<recording>.words.json` newer than the recording is still used
+  instead of transcribing — which is what makes all of this testable without Whisper.
+
+**`GET /seriesmith/episode`: `track`**
+- **[settled] `words`** is whether a usable transcript sits beside the recording: the cache
+  exists **and** is newer than the recording, align's own rule, so a recording replaced
+  after its transcript reads false (align would transcribe it again). It is false for a
+  recording that isn't there.
+- **[settled] `aligned`** is how many of the pass's shots carry a dialogue window
+  (`audio_in`), counted from the build, so it stays 0 until the script has `audio:` lines
+  and the episode is rebuilt. `edit.track_info(ep, pass)` gives the same dict to the two
+  routes above without a full episode status.
+
+**Tests**
+- `tests/test_phase9c_track.py` (28): the readiness answers with a faked probe (and the real
+  probe against this interpreter), the track route (by path, upload, in place, the `-2`
+  rule, refusals, clearing and the remembered mode), the align route against a **stub
+  align** that speaks the `--progress` / `--json` protocol (events, dry run, 409, a
+  failure, a hang, the command line), and the real `align` driven by a **hand-made
+  `<recording>.words.json` beside a generated wav** — no Whisper anywhere, since none is
+  installed on this machine. The last group needs ffmpeg and numpy and skips without them.
+### Phase 9c-B as built
+
+Everything in **B. Voice refs, generated** is implemented. Each point is marked
+**[differs]** (the contract said otherwise), **[added]** (the contract said nothing) or
+**[settled]** (the contract left it open). Part A (recordings, `/track`, `/align`) writes
+its own section.
+
+**The `audio` target kind**
+- **[settled]** `seriesmith/targets/audio/<id>/`, built exactly like the image targets: `TG.KINDS`
+  gains `"audio"`, `TG.DEFAULT_AUDIO_TARGET` is `ltx2_voice`, and `GET /seriesmith/targets`'s
+  `default` is now `{"video", "image", "audio"}` (it was `{"video", "image"}`).
+  `GET /seriesmith/targets?kind=audio[&ready=1]` works as for the other kinds; `kind` must be
+  one of the three, else 400. Readiness, requirement tiers, family resolution, `downloads`
+  and `nodes` are the video/image code unchanged (`edit.readiness`).
+- **[settled] `capabilities`** for an audio target: `{"mode": "t2a" | "voice_clone",
+  "reference_audio": bool, "max_seconds": float, "negative_prompt": bool}`
+  (`negative_prompt` **[added]**, as for the image targets).
+- **[added]** `Target.seconds_range()` → `(default, max, min)` seconds and
+  `Target.snap_seconds(s)` → `(seconds, frames, fps)`: an audio target declares a frame
+  grid (`template.frames`) and a length range (`template.default_seconds` /
+  `min_seconds` / `max_seconds`), and a request in seconds is clamped into the range and
+  snapped onto the grid. `Target.voice_prompt()` / `Target.voice_line()` are the audio
+  kind's code hooks, as `ref_prompt` is the image kind's.
+- **[added] `series.json` `refs.voice_target`** joins `target` and `keyframe_target`
+  (`targets.refs_block`, `targets.audio_target`); each key is validated against targets of
+  its own kind, so `refs.target: "ltx2_voice"` is an error and so is
+  `refs.voice_target: "krea2"`. `overrides.json`'s `episode` gains `voice_target`
+  (`takes.EPISODE_FIELDS`). A per-ref `target` override on a voice ref must be an audio
+  target (`PUT /seriesmith/refs/override`), and the same for an image ref.
+
+**The `ltx2_voice` target**
+- **[settled]** LTX-2.5 audio-only, on the same stack as the `ltx2` video target: the
+  distilled 22B transformer through `LTXVAudioOnlyModel`, the LTX-2.5 gemma text encoder,
+  `LTXVAudioOnlyEmptyVideoLatent` + `LTXVEmptyLatentAudio` concatenated
+  (`LTXVConcatAVLatent`), `LTXVDualCFGGuider`, `LTXVScheduler` + `SamplerCustomAdvanced`,
+  then `LTXVSeparateAVLatent` → `LTXVAudioVAEDecode`. `H3SaveRefAudio` takes `SaveAudio`'s
+  place. No saved canvas has an audio-only LTX graph, so the workflow was written for this
+  target (`seriesmith/targets/audio/ltx2_voice/workflow.json`, an API graph with titled nodes, known
+  as `seriesmith_ltx2_voice.json`) and is resolved repo-first.
+- **[settled] The model is the accelerator**, as the contract asks: the preset is the
+  distilled transformer at 8 steps and audio cfg 1; `presets.final.base` is the LTX-2.5
+  **dev** transformer at 30 steps and audio cfg 6 (both have real download records in
+  ComfyUI-Manager's model list). A substitute must keep the wanted file's `distilled` /
+  `dev` word. The text encoder and the audio VAE are required. `LTXVAudioVAELoader` is
+  **not** used: it reads `models/checkpoints`, and the audio VAEs are installed in
+  `models/vae`, which `VAELoader` lists.
+- **[differs] `capabilities.reference_audio` is `false`.** The contract expected
+  `LTXVReferenceAudio` to be used "when the ref has a sample to copy". The node is
+  installed and the graph code wires it in (`seriesmith/targets/audio/ltx2_voice/target.py`
+  `patch_graph`: `LoadAudio` + `LTXVReferenceAudio` between the model/conditioning and the
+  guider, `identity_guidance_scale` from the preset), but **with the installed LTX-2.5
+  transformers it produces silence**. Three live runs on 2026-09-19, identical to a run
+  that gave 6.0 s of speech at peak 211/255, came back at peak 4/255 and 0/255 with no
+  energy above the noise floor: a mono 5 s reference at `identity_guidance_scale` 3.0, the
+  same at 0.0 (which only sets `ref_audio` on the conditioning, no extra pass), and a
+  stereo 5 s reference at 3.0. ComfyUI's node is named "LTXV Reference Audio (ID-LoRA)"
+  and only attaches reference tokens; the model has to carry the audio ID-LoRA weights to
+  use them, and no such file is installed or recorded in ComfyUI-Manager's model list on
+  this machine. So the path ships off, the two node classes are declared `optional` with
+  the feature `"voice cloning (LTXVReferenceAudio)"` (a ComfyUI without them is
+  `degraded`, not blocked), and turning it on is one `capabilities` flag plus a `models`
+  entry for the weights.
+- **[added] Live validation.** The repo's workflow was queued on the running ComfyUI
+  0.36.0 (`POST /prompt`, polled on `/history`) with `SaveAudio` in the saver's place,
+  because the live ComfyUI runs main's node pack. An 8.0 s request produced
+  `h3voice/t8_00001.flac`, 402455 bytes, 8.01 s at 48 kHz, peak 216/255, 39 % of the
+  envelope above the noise floor, median spectral centroid 4.1 kHz and ~6 envelope
+  mean-crossings a second (a speech-shaped envelope). A control run with a "complete
+  silence" prompt at the same settings gave peak 1/255. The graph `refs` itself builds
+  (planned through `plan_generate` / `graph_for` on a scratch copy of the kitchen_sink
+  fixture, its `H3SaveRefAudio` swapped back to `SaveAudio`) passed `check_graph` against
+  the live `/object_info` and produced 6.01 s at peak 186/255.
+
+**Generating**
+- **[settled] `POST /seriesmith/refs/generate` on a voice ref** takes `seconds` as well as
+  `count`, `seed_mode`, `seed`, `prompt`, `target` and `note`; `seconds` on anything but a
+  voice ref is 400, and so is a length outside the target's range or a `target` of the
+  wrong kind. The take is a wav under `refs/_takes/voice__<id>/`, and `seriesmith.ref` reports
+  it as usual.
+- **[settled] The brief** (`seriesmith/targets/audio/common.py voice_prompt`): "A clean voice
+  recording of one speaker, close to the microphone, in a quiet room: one voice only, no
+  music, no background noise, no other voices, no sound effects." then `<Name> is
+  <the first sentence of their design>.`, `Voice: <the series config's voice line>.`,
+  `About N seconds of speech.` (whole seconds, however the grid snapped it) and
+  `<Name> says: "<line>"`. The line is the character's **longest** line in this episode's
+  script (`longest_line`), else `NEUTRAL_LINE`.
+- **[added] The sidecar** of a voice take records `seconds`, `frames`, `fps`, `line` and
+  `line_source` (`"script"` | `"neutral"` | `"request"` | `"override"`), `target`, and
+  `width`/`height` null. `GET /seriesmith/refs` take entries carry `seconds`, `line` and
+  `line_source` beside the existing `audio` path; a ref's `effective` carries `seconds`,
+  `line`, `line_source` and `max_seconds`.
+- **[added] A voice ref for every character.** `GET /seriesmith/refs` used to list
+  `voice:<id>` only for subjects the series config already gave a `voice_sample`; it now
+  lists one for every subject of kind `character` (props and vehicles never speak). A
+  character with no sample has `path: null` and `exists: false` and can still generate.
+- **[added]** A generated voice is closed by `H3SaveRefAudio` (below). When a graph keeps
+  ComfyUI's own `SaveAudio` instead, `finish_from_history` fetches the file and **keeps
+  its extension** (ComfyUI writes flac, not wav), renaming the take.
+
+**Picking**
+- **[settled]** `PUT /seriesmith/refs/pick` on a voice copies the candidate to the series
+  config's `voice_sample` path. When the character has none it writes
+  `refs/voices/<id>.wav` (under the ref's home, keeping the candidate's own extension)
+  **and** sets `subjects.<id>.voice_sample` in the series config through the Phase 9a save
+  path — a `_history/` copy, then an atomic write keeping the file's line endings and BOM,
+  the JSON rewritten as a promote writes it (`promote.dump_series`: 2-space indent, key
+  order kept). The answer adds `series_changed: true` beside the usual ref JSON (whose
+  `path` is the new one).
+- **[added]** `refs.set_voice_sample` is that write, and it is a no-op returning `False`
+  when the line is already what it would set. It is the only thing outside
+  `PUT /seriesmith/source` and the promote that writes `series.json`.
+- **[differs] Clearing a voice** used to be 400 ("imported audio isn't picked"). A voice
+  with a sample named can now be cleared like any ref: its live file goes, `_picks.json`
+  records the clear, and the series config's `voice_sample` line is **left alone** (the
+  editor never unwrites it), so the ref still lists and a later pick puts a file back. A
+  voice the series config names no sample for is still 400 (there is nothing to clear).
+  Discarding a voice candidate that is the pick clears it, as for images.
+- **[settled] Auto-pick still skips voices.** Picking one can write the series config, so
+  it is never automatic; `GET /seriesmith/refs` leaves voice candidates waiting.
+
+**`POST /seriesmith/refs/voice-from-take`** (the no-model path)
+- **[settled]** `{ep, ref, shot, take, pass, start, end, pick?, note?}`. `peaks.clip_audio`
+  picks the file (the mp4 when it carries sound, else the take's `_h3.wav`), ffmpeg cuts
+  `start..end` into a 16-bit PCM wav, and it becomes a candidate with `source:
+  "from_take"`. The sidecar records `source_shot`, `source_take`, `source_pass`,
+  `source_start`, `source_end`, `source_file`, `source_sha1` and `seconds`; the take JSON
+  shows them as `from: {shot, take, pass, start, end}`.
+- **[added]** The span must be between 0.2 s and 30 s and must start inside the take
+  (400); a take with no sound at all is 409; a ref that isn't a voice is 400; ffmpeg
+  missing is 500. The answer is the ref as `GET /seriesmith/refs` lists it plus `picked`,
+  `take` and `source`. `pick` defaults to "only if the voice has no live file", as
+  `/refs/keyframe` does — and that pick can write the series config, as above.
+
+**`H3SaveRefAudio`** (`comfy_nodes/shot.py`)
+- **[settled]** The audio twin of `H3SaveRefTake`: inputs `audio` (AUDIO) and `sidecar`
+  (STRING). It writes a 16-bit PCM wav with the stdlib (`save_audio`, not torchaudio, for
+  the reason `SeriesmithSaveTake` gives) beside the sidecar, named by the sidecar's `image` field
+  and always given a `.wav` extension, then sets `status`, `finished`, `image`,
+  `duration`, `sample_rate`, `channels` and `save_notes` atomically and sends `seriesmith.ref`.
+  Only the first clip of a batch is kept; a failure is recorded, never raised.
+
+**Defaults and the CLI**
+- **[settled]** `GET /seriesmith/refs`'s `defaults` and `PUT /seriesmith/refs/defaults` gain
+  `voice_target` / `voice_target_source` (`"editor"` | `"series"` | `"default"`), stored
+  in `overrides.json` as `episode.voice_target`. `PUT /seriesmith/refs/defaults` with none of
+  the three keys is 400, and a target of the wrong kind is 400.
+- **[settled] `kreagen` (and `seriesmith refs`)**: `--voices` includes the voice refs in a run
+  (**[differs]**: off by default, so an existing image run is unchanged),
+  `--voice-target <id>`, `--voice-seconds N`, and `--from-take SHOT:TAKE:START-END` with
+  `--pass final|proxy` (default proxy). `--from-take` needs the run narrowed to exactly
+  one voice ref with `--only voice:<id>`, and says so otherwise; `--pick` forces the pick.
+  A voice's row in the listing shows its length instead of a picture size, and the banner
+  names the audio target on its own line.
+
+### Phase 9c: fixes after merging
+
+- **[fixed] `align_report.md` is skipped when looking for the episode's script** (`edit.SCRIPT_SKIP`, `seriesmith`). Without it, an episode whose script isn't `<folder>.md` had two `.md` files after an align, and every later build, `GET /seriesmith/source` and promote failed with "can't tell which .md".
+- **[added] Audio `capabilities`** also carry `min_seconds` and `default_seconds`, so a picker can offer the range a generate accepts (outside it is 400).
+- **[fixed] `GET /seriesmith/browse?files=audio`** lists `.aac` and `.opus` too, the same set `POST /seriesmith/track` accepts.
+- **[added] The interpreter alignment runs in** (`track.align_python`): `SERIESMITH_ALIGN_PYTHON`, else this process's, else a `python` on PATH — the first that has numpy and a Whisper. The editor runs in ComfyUI's embedded Python, which usually has neither, while the system Python does; align is a subprocess either way. `GET /seriesmith/align/ready` reports (and its pip line names) that interpreter.
+- **Known, not changed:** `POST /seriesmith/refs/voice-from-take` answers `picked` as a boolean (the refs listing's `picked` is a take number) and `source` as an object `{shot, take, pass, start, end, file}`; the editor refetches `/refs` instead of using it.
+
+## Phase 9d: a shot's audio from elsewhere (contract written before building, 2026-09-19)
+
+A clip in the cut plays its own take's sound, or the recording when the player/assemble is
+in master mode. There is no way to say "this take's picture, that take's sound", which is
+what a fluffed line in an otherwise perfect take needs. 9d adds a per-entry audio source.
+
+### `cut.json`
+A cut entry gains `audio`, absent or null meaning "this take's own sound" (today's
+behaviour):
+```json
+{"shot": "sh020", "take": 3,
+ "audio": {"source": "take", "shot": "sh020", "take": 1, "pass": "final",
+           "offset": 0.0, "start": 0.0, "gain": 1.0}}
+{"shot": "sh030", "audio": {"source": "file", "path": "audio/line_sh030.wav",
+                            "offset": 0.0, "start": 0.0, "gain": 1.0}}
+{"shot": "sh040", "audio": {"source": "none"}}
+```
+- `source`: `"take"` (any shot's take, either pass — its mp4's sound, else its `_h3.wav`,
+  the `peaks.clip_audio` rule), `"file"` (a media file inside the episode, or beside a
+  parent-folder series config), or `"none"` (silence under this clip).
+- `start`: seconds into the source where the audio begins. `offset`: seconds it is shifted
+  against the picture (positive = later; the gap is silence). `gain`: a linear multiplier,
+  1.0 unchanged.
+- The audio is cut or padded with silence to the clip's length on the cut's clock (after
+  the dialogue window and the trims), so a clip's length never changes.
+
+### Backend
+- **`PUT /seriesmith/cut`** takes `audio` per entry: 400 for an unknown key, a `take` that
+  doesn't exist or has no sound, a `path` outside the episode or with no audio stream, a
+  negative `start`, or a `gain` outside 0–4.
+- **`POST /seriesmith/cut/reset`** `what` also takes `"audio"` (and `"all"` clears it);
+  **`/cut/copy`** copies `audio` with `"all"`.
+- **`GET /seriesmith/episode`:** each shot's `cut` carries `audio` (as stored) plus
+  `audio_file` (what will actually play, relative to the episode, null for `none`) and
+  `audio_why` (short text for the badge, e.g. "sh020 t01" or "line_sh030.wav").
+- **`assemble`:** lays the chosen audio under each clip instead of the take's, at
+  `gain`, cut or padded to the clip. `--audio master` still wins, and now warns naming
+  the clips whose own audio source it is overriding. `--audio none` is unchanged.
+  `--audio h3`/`mp4` apply to clips without a source.
+- **`seriesmith cut`:** `--audio SH take SHOT:TAKE[:PASS] [--at SECONDS] [--from SECONDS]
+  [--gain G]`, `--audio SH file PATH [...]`, `--audio SH none`, `--audio SH own` (clear).
+- **`GET /seriesmith/peaks`** already serves any episode file, so the editor can draw the
+  source.
+
+### Editor
+- A clip's context menu gains **"Audio from…"**: a window with the take's own audio at the
+  top, a shot+take picker (takes with sound; the clip's own shot first), a file picker
+  (browse `files=audio`, upload as `/refs/import` does), and "silent".
+  - Both waveforms are drawn, the clip's picture length against the source, with the
+    `start` and `offset` handles draggable and as number fields; a preview plays the clip
+    with the chosen audio.
+- A clip whose audio isn't its own shows a small speaker badge with `audio_why`; the
+  Inspector's Cut section shows and clears it.
+- In recording mode the badge is dimmed and the toggle says per-clip audio is ignored.
+
+### Phase 9d as built
+
+The backend parts above are implemented (`takes`: the `audio` field, its shape and what it
+resolves to; `edit`: the checks, the status fields, reset/copy and `seriesmith cut --audio`;
+`assemble`: the sound under the clip; the routes stay thin). Each point is **[differs]**,
+**[added]** or **[settled]**, as for 9b. No field the contract named changes shape. The
+"which file is a take's sound" rule stays in `peaks.clip_audio`, which assemble, the status
+and the checks all call.
+
+**`cut.json`**
+- **[settled] The stored form is normalised** (`takes.audio_spec`): defaults are dropped, so
+  `start`, `offset` and `gain` only appear when they aren't 0, 0 and 1. A take source always
+  carries its `pass` (the entry's list pass when the writer left it out), so a copy between
+  passes stays pointed where it was. `source: "none"` keeps nothing else: the knobs mean
+  nothing under silence, and a picker may still send them.
+- **[settled] `offset` may be negative** (only `start` is refused below 0): the sound is pulled
+  earlier, which eats into the source exactly as a larger `start` would.
+- **[added] The bounds on the numbers.** `gain` is 0–4 (`GAIN_MAX`), as the contract says.
+  `start` is 0 to `SECONDS_MAX` (86400, a day) and `offset` is −`SECONDS_MAX` to
+  `SECONDS_MAX`; NaN and infinity are 400. **That is a sanity bound, not a clamp to the
+  clip**: the backend does not know or care how long the clip is, and an `offset` or `start`
+  past the clip's end simply leaves silence there — the clip's length never changes either
+  way. The editor's own clamp (|`offset`| ≤ the clip's length) is a nicety on top, and the
+  backend will accept a source the UI would not have offered.
+- **[settled] `shot` is required on a take source** (with `take`); `pass` is optional and
+  defaults to the entry's list pass. A `shot` on a file or `none` source is 400.
+- **[settled] `audio` is a known entry field** (`takes.ENTRY_FIELDS`), not an `extra`, and
+  `resolve_cut` / `cut_entry_to_json` round-trip it. An `audio` in a hand-edited `cut.json`
+  that `audio_spec` won't take is ignored, and dropped by the next write.
+- **[settled] A take source is read from its pass's standard folder** (`renders/`,
+  `renders_proxy/`); `assemble --subfolder` moves the pictures, not the audio sources.
+
+**`PUT /seriesmith/cut`**
+- **[settled] Every check is in `edit.check_audio`**, which `replace_cut` (the route) and
+  `set_cut_entry` (the CLI) both run, so the CLI refuses exactly what the route refuses; it
+  rewrites each entry's `audio` into its stored form as it goes. The 400s: an unknown key, an
+  unknown `source`, a take source without a shot or a take, a `take` that isn't a number ≥ 1,
+  an unknown `pass`, a key that belongs to another source (a `path` on a take source, a `take`
+  on a file source, anything on `none`), a take that doesn't exist, a take with no sound
+  (`clip_audio` finds neither an mp4 with an audio stream nor a `_h3.wav`), a path that isn't
+  relative or climbs out of the episode, a file that isn't there, a file with no audio stream,
+  a negative `start`, a `gain` outside 0–4, and a number that is NaN or infinite. Each names
+  the shot.
+- **[settled] `../` into a parent-folder series config's folder is allowed**, as for
+  `/seriesmith/file` and `/seriesmith/peaks`; anything else that leaves the episode (including through
+  a link) is 400. The path is stored with forward slashes.
+- **[added] A locked entry** refuses an audio change the way it refuses a trim: `Locked` from
+  `set_cut_entry` (`seriesmith cut --audio` without `--force`). As in 9b the server doesn't refuse
+  it in a `PUT` — the UI does.
+- **[settled] History** is the 9b one: a PUT that changes the audio copies the old `cut.json`
+  to `_history/` and emits `seriesmith.episode`.
+
+**`POST /seriesmith/cut/reset` and `/cut/copy`**
+- **[settled] `what` gained `"audio"`** (`E.CUT_WHAT` is now `order, trims, audio, all`), and
+  `"all"` clears or copies it with the rest. A **locked entry keeps its audio**, as it keeps
+  its trims.
+- **[settled] `/cut/copy` carries `audio` only under `"all"`** (and under the added
+  `"audio"`): `what: "order"` and `what: "trims"` leave the target pass's audio sources
+  exactly as they were.
+- **[added] `/cut/copy` takes `what: "audio"` too**, copying only the audio sources; the
+  contract only promised them inside `"all"`.
+- **[settled] A copied source is copied as it stands** — a take source keeps the pass it
+  names, so "sh020's final t01" is still that in the proxy cut. Nothing is re-checked: both
+  passes see the same files.
+
+**`GET /seriesmith/episode`**
+- **[settled]** Each shot's `cut` carries `audio` (the stored object, or null), `audio_file`
+  (relative to the episode, forward slashes) and `audio_why`. With no source all three are
+  null. `audio_why` is `"sh020 t01"`, `"sh020 t01 (proxy)"` when the take is from the other
+  pass, the file's base name, or `"silent"`.
+- **[added] `" (missing)"`** is appended to `audio_why`, and `audio_file` is null, when the
+  source's file has gone (a discarded take, a deleted file). Nothing rewrites the entry: the
+  badge says so, and assemble warns and lays silence.
+- **[settled]** `audio_file` is exactly what `/seriesmith/peaks` takes as its `path`, so the
+  editor can draw the source without resolving anything itself.
+
+**`assemble`**
+- **[settled] The order of precedence**: `--audio none` and `--audio master` ignore every
+  source (master says which clips it is overriding, naming them); otherwise a clip with a
+  source uses it, and `auto` / `mp4` / `h3` apply to the clips without one.
+- **[settled] The clip's length never changes.** The source is written to a wav of exactly the
+  clip's length first (`clip_track`): `atrim` for `start` (plus any negative `offset`),
+  `volume` for `gain`, `adelay` for a positive `offset`, then `apad` bounded by `-t` — never
+  `-shortest`, which drops a video frame. A source shorter than the clip is padded, a longer
+  one cut. The wav is then muxed in (`normalise`) or fed to the re-encode (`conform`, with the
+  new `ready` flag so a `trim_in` doesn't cut the sound a second time — it is already cut to
+  the finished clip). Because both the wav and the picture are counted in the cut's frames, a
+  placeholder from the other pass and a clip converted from another rate (a 16 fps take in a
+  24 fps cut) line up like any other clip; both are tested.
+- **[added] The made-up track matches the clips that are copied.** `normalise` takes a
+  `layout` — the sample rate and channel count of the first clip that keeps its own sound and
+  is stream-copied — and writes the silence, the wav and the encode at it (`-ar`/`-ac`). With
+  nothing copied (a re-encoded cut, or `--audio h3`) there is no layout and ffmpeg's own choice
+  applies to every clip alike, as before. This is what lets a sourced clip sit in a cut the
+  concat demuxer still copies; it also fixes a latent mismatch that predates 9d.
+- **[settled] An audio source does not force a re-encode.** Only the 9b reasons do (dialogue
+  windows, trims, placeholders, rate or size changes).
+- **[added 2026-10-04] Those reasons re-encode only their own clips.** The cut has a standard:
+  how conform writes a clip of it (its size, rate and quality), read from a few frames conformed
+  (`standard_sig`: codec, profile, level, pixel format, size, rate, time base, pixel aspect and
+  the H.264 headers). A clip already encoded that way is copied; every other one is conformed to
+  it — a derived take's 1:1 pixel tag, an NVENC upscale beside x264 ones. conform writes every
+  clip untagged (`setsar=0`), as a render saves its takes, so a scaled clip matches too. When
+  nothing needs re-encoding and the clips all agree, they are copied as they are, standard or
+  not. The re-encoded clips are written in the copies' audio layout, and a copy whose own sound
+  is in another layout is remuxed (`normalise`). Afterwards every re-encoded clip's headers must
+  be the standard's, the picture's length its frames', and the frames either side of each join
+  next to a re-encoded clip must decode to what went in. Any check failing re-encodes every
+  clip, as before; so does `--reencode-all`, and so does a cut where nothing matches. A master's upscales are
+  x264 CRF 12 slow, as conform's `master` is, so ep01 (18 trimmed clips of 323) re-encodes 18
+  (assembly 2 minutes instead of 12).
+- **[added 2026-10-04] Sound never runs past a copied clip's picture.** The concat demuxer starts
+  the next clip where the longer stream ends, so a clip whose sound overruns its picture (ep01's
+  sh1360 upscale: 22 ms) left a hole in the picture's timing and every later frame late. Such a
+  clip is remuxed with its sound cut to the picture (`normalise` bounds its sound with `atrim`),
+  in a copied cut too; the joined picture's length from its header must equal its frames
+  (`timing_gap`). publish joins a picture-only copy of the cut for the same reason, checks the
+  same length, and seeks by the picture's offset from the file's start (`picture_offset`): its
+  join check had double-counted the start time on a cut whose picture starts after its sound,
+  which is why every real master's titles fell back to re-encoding the whole cut.
+- **[added] A source whose file is gone or has no sound is a warning, not a failure**: the clip
+  goes silent and assemble prints `sh010: line.wav is not there or has no sound`. The run also
+  lists which clips take their sound from elsewhere.
+- **[added] `--check` and the `_shots.txt`** name the source (`audio sh020 t01`,
+  `audio line.wav MISSING`, `audio silent`).
+
+**`POST /seriesmith/audio/import`** (added after the contract, for the editor's file picker)
+- **[added]** `{ep, source_path}` (a file on this machine) or multipart (`ep` + `file`), the
+  same plumbing as `/refs/import` and `/track`. It saves the media into `<ep>/audio/` through
+  `track.import_audio` (a thin wrapper on `place_recording`, so the naming rules are the
+  track's: the name sanitised to `[A-Za-z0-9 ._()-]` and the extension lower-cased, `-2`,
+  `-3`… on a clash, identical bytes reused rather than copied again, and a file already in the
+  episode left where it is). It answers `{"path", "copied"}`, where `path` is relative to the
+  episode with forward slashes and goes straight into a cut entry's `audio.path`.
+- **[added]** The same allow-list as `/track` (`track.AUDIO_EXT`: `.wav .mp3 .flac .ogg
+  .m4a .aac .opus`) and the same failures: 400 for another extension, a name that is only an
+  extension, or neither `source_path` nor a multipart `file`; 403 for an episode outside the
+  roots; 404 for a `source_path` that isn't there; 413 over `MAX_UPLOAD` (64 MB).
+- **[added] The file is only a file.** It does **not** become the episode's dialogue
+  recording (the series config isn't touched) and it is **not** a ref candidate; nothing is
+  rebuilt and no event is sent, because nothing in the episode points at it until a
+  `PUT /seriesmith/cut` does.
+
+**`seriesmith cut --audio`**
+- **[settled]** `--audio SH take SHOT:TAKE[:PASS]`, `--audio SH file PATH`, `--audio SH none`
+  and `--audio SH own` (clear), with `--from SECONDS` (`start`), `--at SECONDS` (`offset`) and
+  `--gain G`. The take may be written `3` or `t03`; the pass defaults to the cut's. `own` takes
+  no knobs. A usage error exits 2, a refusal (no such take, no sound, a path outside the
+  episode, a locked entry) exits 1. After the edit it shows the cut, where a clip with a source
+  carries an `audio: <why>` flag.
+
+**Known, not changed**
+- **Discarding a take doesn't clear an audio source that names it** (it clears a *pick* of it,
+  as before). The source then reads as `"… (missing)"` in the status, and assemble warns and
+  lays silence, which is visible; rewriting other shots' entries on a discard is not.
+
+## Phase 11: the graph handoff — the workflow a target renders with (as built, 2026-09-21)
+
+A target's graph is looked up by name (`binding.workflow_name`), and a workflow **saved in
+the running ComfyUI** under that name beats the repo's `workflow.json`
+(`jobs.resolve_workflow`). Nothing in the editor used to say which one was in force, and
+readiness judged the repo's copy while renders used the saved one. Phase 11 makes the
+source visible, lets the editor hand a target's graph to ComfyUI for editing and take it
+back, and points readiness at the graph that actually renders.
+
+### Which graph is in force
+
+`jobs.workflow_candidates(explicit, name, comfy_url, env, prefer_repo)` is now the one
+place that knows the order — an explicit path, `$ENV`, the running ComfyUI's saved
+workflows, `$COMFYUI_PATH/user/default/workflows`, then the repo's copy — and
+`resolve_workflow` walks it, unchanged in behaviour.
+
+`jobs.target_graph_source(target, comfy_url, with_graph=False)` classifies it:
+
+```json
+{"name": "H3_Ref2VA_Shotlist_v1.json",
+ "source": "comfy",
+ "where": "http://127.0.0.1:8188 (user seriesmith/workflows/H3_Ref2VA_Shotlist_v1.json)",
+ "env": "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW", "env_set": false,
+ "installed": true, "differs": false,
+ "repo": "…/targets/video/minimax_h3_ref2va/workflow.json", "error": ""}
+```
+
+- `source`: `env` | `comfy` | `saved` ($COMFYUI_PATH) | `repo` | `none` (nothing of that
+  name: renders fail).
+- `installed`: a copy is saved in the running ComfyUI under `name`, whether or not it wins
+  (`$ENV` beats it).
+- `differs`: the graph in force is not the repo's copy. **What a job patches is ignored**:
+  `jobs.neutral_graph` blanks every widget the binding names (model, LoRAs, prompt, size,
+  sampler, the model files, ...) and the loader's and saver's own inputs
+  (`project_root`, the frozen shotlist, take, sidecar) before
+  `jobs.graph_fingerprint` compares class-and-widget sets. Without that, a canvas that
+  once rendered an episode looks edited because it still holds that episode's
+  `project_root` — which is exactly what the first run on this machine reported.
+  Node ids and canvas layout never count; adding or removing a node, or changing a widget
+  no param covers (`UNETLoader.weight_dtype`, `H3SLAAttention.sparsity_ratio`) does.
+- `error` collects a candidate that couldn't be read; the rest of the answer still applies.
+- At most one request to ComfyUI: the walk stops once the answer can't change. For a caller
+  asking about every target (`edit.target_graphs`, the route, `seriesmith targets`), ComfyUI's
+  saved workflows are **listed once** (`saved_names`), so a machine that has saved none of
+  them costs one request instead of one per target: 15 targets answer in about 0.1 s.
+- `prefer_repo` (audio targets) only moves `$COMFYUI_PATH` after the repo copy. A workflow
+  saved in the running ComfyUI wins for every kind.
+
+### The ComfyUI client
+
+`jobs.Comfy` gained the write side of ComfyUI's user folder, beside `userdata()`:
+
+- `list_userdata(folder="workflows")` → the files in it, relative paths, recursive
+  (`GET /api/userdata?dir=workflows&recurse=true`).
+- `put_userdata(path, data, overwrite=True)` → `POST /api/userdata/<url-encoded path>` with
+  the file as the raw body; returns its path relative to the user folder. With
+  `overwrite=False` an existing file raises a `RuntimeError` naming 409 and writes nothing.
+- `delete_userdata(path)` → `DELETE`; `False` when there was nothing to delete (404).
+
+`_json` now goes through `_open`, which keeps the "ComfyUI `<code>` on `<path>`: `<body>`"
+message, so callers can tell 404 / 409 apart by status.
+
+### `GET /seriesmith/targets`
+
+Every target gains `graph`, the block above **without** the graph itself (the editor never
+needs the nodes). It is computed for all targets at once and cached per ComfyUI address for
+`READY_TTL` (30 s), like readiness, and an install or a revert drops both caches.
+
+### `POST /seriesmith/workflow/install`
+
+```json
+{"target": "minimax_h3_ref2va", "name": null, "overwrite": false}
+```
+Writes the target's repo `workflow.json` into the running ComfyUI's saved workflows, **byte
+for byte** (a canvas save keeps its layout and `extra`), under `binding.workflow_name`.
+From then on that saved copy is what the target's renders use — that is the point: open it
+in ComfyUI, edit, save.
+
+- `name` saves a scratch copy under another name instead; the answer's `renders` is then
+  `false`, because no render looks that name up. It must end in `.json` and hold no `..`
+  segment (400); `""` means "the name the binding looks up", as omitting it does.
+- 409 when a workflow of that name is already saved and `overwrite` isn't true. The editor
+  asks before replacing it, since the file may hold the user's edits.
+- 400 for an unknown target, or one that ships no `workflow.json`; 502 when ComfyUI refuses
+  the write.
+- Answer: `{"ok": true, "target", "installed": "<name>", "renders": true|false, "graph": {…}}`.
+
+### `DELETE /seriesmith/workflow/install?target=<id>[&name=…]`
+
+Deletes that saved copy, so the target renders the repo's graph again.
+`{"ok": true, "target", "deleted": true|false, "name", "graph": {…}}` — `deleted: false`
+when ComfyUI had none. **`$ENV` is never written or deleted**: when it is the source, the
+editor disables both buttons and names the variable instead.
+
+### When a graph is re-read
+
+seriesmith holds no long-lived copy of a workflow. **`POST /seriesmith/render` resolves it per
+request** (`base_for`'s cache is local to the handler), so saving a workflow in ComfyUI is
+picked up by the very next render — no restart, no cache to clear. `render` resolves once
+per run, for the same reason. What it reads is the **saved file**, not the canvas: an edit
+nobody saved is invisible.
+
+The only caches are for display and readiness, both keyed so an edit can't hide in them: the
+`graph` block is kept `READY_TTL` (30 s) per ComfyUI address, and the node check's key
+carries a digest of the graph's own shape (`edit._graph_key`), because a saved workflow
+keeps its name when it is edited — keying on the name alone would answer for the graph as it
+was when ComfyUI started.
+
+### Readiness judges the graph in force
+
+`edit.target_nodes(t, graph=None, where="")` takes the graph a render would use (cached
+per target *and* `where`), and `edit.readiness(..., graph_of=…)` takes a
+`graph_of(target) -> (graph, where)`; `edit.target_graphs(targets, comfy_url)` builds
+them and `edit.graph_lookup` turns them into that callable. The routes and
+`seriesmith targets` pass one, so a saved graph with a node this ComfyUI lacks makes the target
+`not_ready` with that class in `nodes_missing` — previously invisible, because only the
+repo's copy was read. Without `graph_of` the repo copy is still used, as before.
+
+### CLI
+
+`seriesmith targets` prints a `graph` line per target (the workflow name, where it comes from,
+`edited here`, and "a saved copy exists but doesn't win"), and `--json` gains `graphs`.
+Two new flags, both needing a reachable ComfyUI:
+
+- `--install-workflow <target> [--name X] [--force]`
+- `--revert-workflow <target> [--name X]`
+
+### The editor
+
+The What's missing window is where a target's detail already lives, so the **Graph** card
+sits at the top of it: the workflow name, where it comes from, an "edited here" chip when
+`differs`, and one button — **Copy to ComfyUI** (with a confirm before replacing a saved
+file) or **Revert to the repo's copy** when a saved copy is in force. `$ENV` shows the
+variable and no buttons. The all-targets table gains a Graph column (`repo` / `ComfyUI` /
+`$VAR` / `missing`, plus `· edited`).
+
+### Found on the way
+
+On this machine `H3_Ref2VA_Shotlist_v1.json` was already saved in ComfyUI, so every H3
+render from the editor had been using that canvas copy rather than the repo's, and
+`krea2_refs_t2i.json` the same for reference images. Both agree with the repo's copies, but
+nothing said so. That is the case Phase 11 exists to make visible.
+
+## H3 reference cost, and `ref_image_size` per pass (measured 2026-09-22)
+
+What a shot costs on `minimax_h3_ref2va` is its **sequence length**, and the sparse-attention
+node (`H3SLAAttention`) makes that worse than linear: reference and prompt tokens are
+**pinned** — kept dense while video tokens are sparsified — so a token of conditioning costs
+several times a token of video.
+
+Measured on one shot (sh008, 73 frames, 4 references), fitting S = tokens-per-latent-frame ×
+(latent frames + references) + prompt:
+
+| render size | tokens per latent frame (= per reference) | S | pinned blocks |
+|---|---|---|---|
+| 672×384 (`match`) | 338 | 8,370 | — |
+| 864×480 (`match`) | ~522 | ~12,600 | ~50 |
+| 864×480 (`max`) | ~1,825 a reference | 17,808 | 140 |
+| 1344×768 (either) | 1,325 | 31,074 | 140 |
+
+Three things follow, all of them checked against renders rather than reasoned about:
+
+- **A reference costs exactly one latent frame** — four frames of video. Four references on a
+  73-frame shot are ~22% of the sequence.
+- **Under `match`, the file's own size is irrelevant.** A 4096×1024 character strip and a
+  1024×1024 filler both cost 833 tokens at 864×480: the node puts every reference on the
+  render's latent grid. So `panel_mode` is an identity lever, not a speed one.
+- **`max` only costs extra below full resolution.** At 1344×768 the cap binds and `max` and
+  `match` are the same; at 864×480 `max` is 3.5× per reference, because the video shrinks with
+  the pass and the references don't. A reduced-resolution pass on `max` is the worst case.
+
+So `ref_image_size` is a **binding param** (`MiniMaxH3ReferenceToVideo.ref_image_size`) with a
+value in each preset: `max` on `final`, `match` on `proxy`. The compile writes it into the
+shotlist's `defaults`, so it is frozen per take and no longer depends on what a saved canvas
+holds. The goldens moved for it on 2026-09-22 (proxy graphs and both shotlists' `defaults`).
+
+### Where a take's own time goes (`save_ms`, 2026-09-22)
+
+`SeriesmithSaveTake` times each thing it writes and records it in the take's sidecar:
+
+```json
+"save_ms": {"audio": 120, "mp4": 1840, "thumb": 60, "strip": 410, "total": 2430}
+```
+
+Only the steps that ran appear (`frames` just with `save_frames`, `audio` only when the model
+made some, and `dub_keep_foley`'s Demucs pass is inside `audio`); `total` is their sum, in
+whole milliseconds. **What it found straight away** (73 frames at 864x480): the thumbnail and
+the timeline's contact strip are 85 ms together, the wav is 2 ms, and the mp4 was **4.5 s** —
+because the encoder wrote the whole clip out as PNGs to feed ffmpeg. It now pipes raw RGB
+instead (`_encode`), measured at 3.9 s -> 1.1 s for the same file, so a take saves ~2.8 s and a
+240-shot proxy pass about 11 minutes. `save_frames` still feeds ffmpeg the PNG sequence it
+wrote, since those files are wanted anyway. ComfyUI reports only the whole graph's "Prompt executed in", so this is
+what tells an ffmpeg encode from the strip's eight full-frame LANCZOS resizes when a take
+feels slow — the pipeline's saver writes an mp4, a wav, a thumbnail and the timeline's contact
+strip where a stock graph writes one mp4. `time.perf_counter` costs ~100 ns a call, so the
+measuring is free. The same fields reach `takes`' sidecar contract.
+
+**Unused subject sockets are empty** (2026-09-22). The loader used to pad them with the plate
+(`while len(refs) < 3`), so a one-subject shot sent the same picture three times. Tested
+first, because the fix depended on it: `MiniMaxH3ReferenceToVideo` accepts `None` on an
+optional reference socket **and does not renumber the rest** — the plate stays `<Picture 4>`
+whatever comes before it. (The ComfyUI canvas collapses the visible input list when a link is
+removed, which is what made padding look necessary; the API graph keeps the names.) So no
+prompt changed, no golden moved, and no override needed migrating.
+
+Measured on a one-subject shot at 864x480, same seed, same frozen shotlist:
+
+| | S | kept blocks | pinned | take |
+|---|---|---|---|---|
+| padded (4 pictures) | 12,942 | 93/203 | 63 | 17.6 s |
+| empty sockets (2 pictures) | 11,306 | 64/177 | 38 | **14.0 s** |
+
+3.6 s a shot — more than the tokens alone imply, because fewer pinned references also let SLA
+sparsify harder (54% -> 64%). On a 229-shot episode (156 one-subject, 64 two-subject) that is
+379 references it no longer sends, about 11 minutes of a proxy pass.
+
+**Correction (2026-10-05): the node does renumber.** `MiniMaxH3ReferenceToVideo` drops a `None`
+socket, and the text encoder labels only the pictures it is given, counting from 1
+(`comfy/text_encoders/minimax.py`, unchanged since H3 support landed on 2026-08-03): the
+table's "2 pictures" were `<Picture 1>` and `<Picture 2>`. So from 2026-09-22 a shot with fewer
+than three subjects sent its plate as `<Picture n+1>` under a prompt naming `<Picture 4>`
+(ep01-ep03 of Porchlights: 833 of 879 shots), and the plate reached H3 unnamed; the room still
+came out right from the prompt's words. Unused sockets now hold a 32x32 grey placeholder
+(`PLACEHOLDER_SIZE`): H3's smallest canvas, never enlarged, so each costs a 2x2 latent and a
+few vision tokens, and the plate is `<Picture 4>` again. No prompt or golden changed.
+
+## Phase 12: a show's own targets, from any ComfyUI workflow (as built, 2026-09-21)
+
+A target was code plus data in this repo. Now a show can have targets of its own — data
+only, in `<show>/targets/<id>/target.json` — and seriesmith can propose that file by reading a
+workflow. This is the contract.
+
+### 12a: the builtin prose compile, and a second target root
+
+- **`seriesmith/targets/generic/video_prose.py`** is the compile every loader-less prose video target
+  uses: the story IR to shotlist entries, ref slots, keyframes, the graph helpers. It was
+  `seriesmith/targets/video/wan/common.py`, moved and parameterised; `wan/common.py` is now a thin
+  binding that gives it Wan's wording (`Style`) and re-exports the helpers the three Wan
+  targets' `patch_graph` use. Golden output is unchanged.
+  - `Style(build_prompt, silent_dialogue)`: the prose writer and the `--check` line about
+    dialogue a silent model can't voice. `style_for(target)` picks it when a caller doesn't:
+    a target that makes no sound gets the Wan writer (dialogue as silent acting), one that
+    does gets the ltx2 writer (soundscape, spoken lines). `recipe.prompt: "prose_silent"`
+    asks for the silent writer on a target that *could* make sound.
+  - The silent warnings and the shotlist's default `audio_policy` now come from the target
+    (`capabilities.audio`, `recipe.policies`) instead of being Wan's constants.
+- **`"code": "builtin:<name>"`** in target.json imports `targets.generic.<name>` instead of
+  a module beside target.json (`Target.module`). A custom target with no `code` defaults to
+  `builtin:video_prose` (`Target.default_code`), so it ships no Python at all.
+- **A show's own targets** live in `<show>/targets/<id>/target.json`, where `<show>` is the
+  folder holding series.json — the episode folder, else its parent (`TG.show_folder`). The
+  kind is read from the file (there is no kind folder). `TG.load_target(id, kind, root=…)`
+  and `TG.list_targets(kind, root=…)` take a show; `TG.use_roots(...)` (a context manager)
+  and `TG.add_thread_root(root)` put one in force for the current thread, so the deep
+  callers that only have an id — planning, a retarget, readiness — see them unchanged.
+  Targets are cached per folder, so two shows may each have a `my_wan`.
+  - **Where the roots are set:** `build` (its `-o` root), `render` (each episode),
+    `seriesmith targets <ep>`, and `api.check_ep` — which registers the episode's show
+    after validating it. The `handler` decorator clears the thread's roots before and after
+    every handler, so one request can't inherit another show's targets (the routes run
+    handlers on pooled threads).
+  - A custom target that takes a built-in's id is **ignored** (the built-in is what
+    renders); `TG.shadowed_custom(root)` finds such folders, and saving one is refused.
+- **Keyframes without code:** `binding.inputs` is the declarative form of the graph surgery
+  a target would otherwise write in Python:
+  ```json
+  "inputs": {"first": {"class_type": "LoadImage", "field": "image",
+                       "disconnect": {"class_type": "Wan22ImageToVideoLatent",
+                                      "input": "start_image"}}}
+  ```
+  With a staged keyframe the loader gets its name; without one the `disconnect` input is
+  popped, so the graph renders from the prompt alone and `prune` drops the loader. This is
+  exactly what `wan22_ti2v`'s hand-written `patch_graph` does, and the two agree node for
+  node (`tests/test_phase12.py`).
+
+### 12b: proposing a target.json from a workflow
+
+**`seriesmith/inspector.py`** reads a graph and proposes the target.json that would drive it. Nothing
+in it writes.
+
+```
+inspect_graph(data, object_info, model_list, target_id=, label=, workflow_name=, extra=)
+  -> {"proposal", "matched", "ambiguous", "warnings", "models", "nodes", "unbound",
+      "problems"}
+```
+
+| what | how it is found |
+|---|---|
+| saver | the terminal node, matched against the savers the shipped targets replace (`CreateVideo`, `SaveVideo`, `SaveImage`, `SaveAudio`), taken from the targets themselves so it can't drift |
+| prompt / negative | walk each sampler's or guider's `positive` / `negative` conditioning back to the node holding the text |
+| widgets | by name: `seed`/`noise_seed`, `steps`, `cfg`, `sampler_name`, `scheduler`, `shift`, `denoise`, `width`, `height`, `length`, `fps`. Several of one class with equal values become `all: true`; several that disagree are an **ambiguity** for the author. A widget fed by another node still counts — a render cuts that link (LTX's resolution picker) — and says so |
+| the saver's own | `fps`, `shot_id`, `audio_policy` are bound to the saver whenever it has them |
+| models | every combo widget whose choices are a models folder's files. The **folder** is found by asking which folder lists that file, the **param name** from the loader class (then the folder, then the widget name), the **family** by running the file name through the patterns every shipped target declares (`known_families`). Two loaders of one class are told apart by what they feed (`feeds`: a VAE into `VAEDecodeAudio` is the audio VAE) or by their titles (Wan's high / low noise). One file loaded by several nodes becomes one param with a list of widgets (LTX 2.3) |
+| template | `size_multiple` from the width widget's `step`, `frames.step` from the length widget's, `frames.base` from its default, `fps` from the video node, `max_size` from the size the graph is set to |
+| audio | `generate` only when something that outputs AUDIO actually reaches the saver: a `CreateVideo` with nothing in its `audio` input is a mute video |
+| keyframes | one `LoadImage` becomes `binding.inputs.first`, its `disconnect` inferred from what it feeds |
+| presets | `final` is the values the graph holds now; `proxy` the same at half the long side |
+| downloads | the canvas save's own `properties.models` (real URLs, never a guess) |
+| nodes | classes whose `python_module` is not ComfyUI's own, so readiness reports a missing pack |
+
+`frames.max` is the one thing no graph states: it is a guess, always in `warnings`, and the
+probe render is what catches it. Widgets no param covers are listed in `unbound` — they keep
+the graph's value for every shot.
+
+**Measured against the shipped targets** (their own workflows, their own hand-written
+bindings): 17/17 params recovered for `wan22_ti2v`, 18/18 for `wan22_i2v`, 15/15 for
+`minimax_h3_fl2va`, 18/19 for `wan22_vace` (its VACE strength is model-specific), and 12/15
+for `ltx2` (its multi-widget specs and an uninstalled upscaler).
+
+Routes:
+
+- **`GET /seriesmith/workflows`** — the workflows saved in this ComfyUI; `target: true` marks one
+  an seriesmith target already drives.
+- **`POST /seriesmith/targets/inspect`** `{workflow | graph, ep?, id?, label?}` → the answer
+  above plus `can_save`. 404 for a name ComfyUI hasn't got, 400 for a graph with no saver.
+- **`PUT /seriesmith/targets/custom`** `{ep, target}` validates (`IN.validate_spec`) and writes
+  `<show>/targets/<id>/target.json`. Validation resolves every binding param against the
+  graph **as a job prepares it** (the saver takes its node's place first), so a spec that
+  would fail at queue time fails here. 400 lists every problem in `problems`. With
+  `{ep, id, draft}` instead it only flips the draft flag.
+- **`DELETE /seriesmith/targets/custom?ep=…&id=…`** removes one.
+- **`GET /seriesmith/targets`** takes `ep` (a show's own targets are included) and each target
+  gains `custom` and `draft`.
+
+CLI: **`seriesmith target-from-workflow <workflow> [<episode>] [--id X] [--label X] [--save]
+[--json]`** prints the proposal, what it matched, what it guessed, and with `--save` writes
+it.
+
+### 12c: the editor
+
+The What's missing window — where a target's detail already lives — gains **This show's own
+targets**: each one with `draft` / `ready`, its workflow, and buttons for **Probe render**,
+**Enable for shots**, **Back to draft** and **Remove**. **Add a target from a workflow…**
+opens a wizard: pick one of ComfyUI's saved workflows, Read it, then confirm the handful of
+fields no graph states (id, name, the frame grid, the size multiple, fps, sound, prompt
+style), settle any ambiguity from a list of candidate widgets, and Save as a draft.
+
+A **draft** is saved but not offered: `videoTargets()` leaves it out of the shot and episode
+pickers, so a target nobody has rendered with can't quietly become an episode's model. The
+probe render queues the episode's first shot on it at the proxy pass; look at the take, then
+**Enable for shots**.
+
+### 12d: deferred, on purpose
+
+Subject references for custom targets. Sheet composition, panel choice and backgrounds are
+code (`seriesmith/helpers/refsheet.py`, per-target recipes), and a JSON DSL for them would be
+the wrong abstraction — the same call the plan's decision table makes about prompt formats.
+A custom target that needs subject refs gets a repo folder.
+
+## LTX-2.5: the quality profile and ingredients references (as built, 2026-09-19)
+
+Two additions to the `ltx2` target. Both are decided **at queue time**, from the model file
+the job loads and the ref files on disk, so a build is byte-for-byte what it always was:
+`shotlist.ltx2[_proxy].json` gains no key, and the `tests/golden` shotlists, reports and
+`refs_todo` are unchanged. No route changed either; what the existing ones now show is
+below.
+
+### 1. The quality profile: the dev transformer
+
+`ltx2`'s presets are the **distilled** LTX-2.5 transformer, distilled for the workflow's
+fixed 8-step base schedule at `video_cfg` 1 — which is why `steps` has always been recorded
+and not patched. The **dev** (non-distilled) transformer takes real steps and guidance, so
+`target.json` `recipe.sampling` gives each transformer its own schedule and the job picks
+one by the file name (`match`, case-insensitive globs):
+
+| mode | picked by | what patch_graph does |
+|---|---|---|
+| `distilled` (the recipe's `default`) | `*distilled*`, and anything unmatched | nothing: the workflow's own 8 + 3 step ManualSigmas at cfg 1. A `steps` set for the shot earns a take note saying it can't bite. |
+| `dev` | `*dev*` | the base stage's ManualSigmas becomes an **LTXVScheduler** at the job's `steps` (30 unless the shot set another), `max_shift` 2.05 / `base_shift` 0.95 / stretch / terminal 0.1, fed the base stage's own video latent; both guiders get `video_cfg` / `audio_cfg` 4.0 and 1.0; both `KSamplerSelect`s get `euler_ancestral`. The refine keeps the workflow's 3-step 0.85 schedule at cfg 1. |
+
+- **Selecting it** needs nothing new: it is the shot's `model`. A series config profile
+  (`{"target": "ltx2", "model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors"}`)
+  picked with `profile:` on a shot or a sequence, a `model:` line, the series config's
+  `series` block for a whole episode, `PUT /seriesmith/override` `fields.model` for one shot, or
+  `POST /seriesmith/render` `model` for one run. Precedence is the usual one.
+- **Turning it off** is naming the distilled file again (or clearing the override).
+- **The take records it.** `steps` on the sidecar is the real count, and the frozen
+  shotlist carries `cfg`, `audio_cfg`, `sampler`, `refine_cfg` and `refine_sampler`
+  (`job.values`, as the `base` preset's settings are). `notes` gets "the quality profile
+  (LTX-2.5 dev transformer): 30 steps, video_cfg 4.0, audio_cfg 4.0, euler_ancestral".
+- **Readiness**: `models.quality_model` is an **optional** param whose `default` is the dev
+  file and whose `feature` is "the quality profile (LTX-2.5 dev transformer)". It has no
+  widget of its own — `model` is the widget — so it exists only so `wanted_files` /
+  `GET /seriesmith/targets?ready=1` / `seriesmith targets` can say whether the extra is installed.
+  Without it the target is `degraded`, never `not_ready`, and the distilled default renders.
+  `LTXVScheduler` is an optional node with the same feature.
+
+### 2. Reference sheets with the 2.5 ingredients IC-LoRA
+
+When a shot's subjects and plate have picked refs on disk **and**
+`ltx-2.5-22b-ic-lora-ingredients-0.9.safetensors` is installed, `ltx2` now composes the
+same reference sheet `ltx2_ingredients` composes (its `sheet_spec` / `h3_refsheet.py`, from
+`ltx2`'s own `recipe.reference_sheet`) and conditions the clip on it. Otherwise the shot
+renders exactly as `ltx2` always did.
+
+- **The panels come from the shotlist entry**, not from a new build key: the entry's
+  `subjects` (characters first, then props and vehicles) against the shotlist's `subjects`
+  map (`kind`, `sheet`), then `background` as the plate. A character contributes the face
+  panel of its 4-panel sheet on a one-character `close` / `cu` shot and the three-quarter
+  body panel otherwise, as on H3 and `ltx2_ingredients`.
+- **`GET /seriesmith/targets`**: `capabilities.reference_sheet` and `capabilities.subject_refs`
+  are now true for `ltx2`. `capabilities.prompt` stays `"prose"` — the *built* prompt is
+  prose; the two-part one is written at queue time (as `minimax_h3_fl2va` writes its
+  alignment line then).
+- **Ref slots** (`GET /seriesmith/shot`, the sidecar's `refs`): the keyframes as before, then
+  `sheet panel N` for each panel, with `subject` where there is one. **All of them are
+  `optional`**, so they never appear in `missing_refs` and never block a shot — a missing
+  file only leaves that element off the sheet. They carry no `role`, so `stage_inputs`
+  doesn't upload them one by one; their `sha1` in the sidecar is what makes a take
+  `ref`-stale when a view is re-picked.
+- **At queue time** (`jobs.stage_inputs` → the target's `stage_inputs`): the sheet is
+  composed at the render size, uploaded as `seriesmith/<sha1>.png`, kept in the take as
+  `<shot>_tNN_refsheet.png` (`slot: "reference sheet"`, `role: "sheet"`), and `inputs` is
+  `{"sheet": "seriesmith/<sha1>.png"}`. The take's frozen shotlist gains `panels` (what was
+  actually on the sheet) and its `prompt` becomes the IC-LoRA's two labelled parts,
+  written by `ltx2_ingredients`' prompt writer: `Reference sheet: …\n\nGenerated video: …`,
+  with a subject that is on the sheet named but no longer described. A **prompt override is
+  never rewritten**. If the build is out of date the built prose prompt renders with the
+  sheet and a note says so.
+- **Nothing here can stop a render.** Unlike `ltx2_ingredients`, where composing is fatal,
+  a ref that isn't a readable image, or a Python without PIL, leaves the shot rendering
+  from the prompt alone with a note.
+- **The graph**, wired as ComfyUI's LTX-2.5 ingredients template wires it: `LoadImage` →
+  `ResizeAndPadImage` (**the stage's own size** — the base stage samples at half the output,
+  so the guide must match) → `RepeatImageBatch` (the clip's frame count) →
+  `LTXAddVideoICLoRAGuide` at `frame_idx` 0, whose `latent_downscale_factor` is the second
+  output of `LTXICLoRALoaderModelOnly` (the IC-LoRA at strength 1.0, the model card's
+  default). Only the guided stage's guider reads the patched model, and one `LTXVCropGuides`
+  per stage takes the guide frames back off (shared with the last-keyframe patch, so a shot
+  with both gets one crop per stage, not two).
+- **Length**: the reference video is exactly the clip's length. The model card asks for
+  ≥ 121 frames, but `LTXAddVideoICLoRAGuide` refuses a guide longer than the latent
+  ("Conditioning frames exceed the length of the latent sequence"), so a shorter shot
+  renders with a note that identity may weaken. A 121-frame (5.04 s) shot is the bucket.
+- **Turning it off** is `lora: none` on the shot, the sequence, a profile (`"loras":
+  ["none"]`) or the series config's pass block — an empty LoRA list means no sheet. That is
+  the opposite of `ltx2_ingredients`, where the IC-LoRA is put *back* into a list that
+  doesn't name it, because that target is pointless without it.
+- **Readiness**: `models.reference_lora` is an **optional** param (family
+  `ltx2.5-ic-lora-ingredients`, folder `loras`, loader `LTXICLoRALoaderModelOnly`) whose
+  `default` is the IC-LoRA and whose `feature` is "reference sheets (LTX-2.5 ingredients
+  IC-LoRA)"; `LTXICLoRALoaderModelOnly`, `LTXAddVideoICLoRAGuide`, `RepeatImageBatch` and
+  `ResizeAndPadImage` are optional nodes with the same feature. Missing → `degraded`, and
+  the shot renders without a sheet. When `resolve_models` hasn't run (a dry run, or ComfyUI
+  not asked) the target's own file is assumed, as every other unresolved param is.
+- **`ltx2_ingredients` is untouched.** It still renders LTX-2.3 with the 2.3 IC-LoRA, its
+  panels are still required, and its sheet still blocks a shot that is missing one. The two
+  functions `ltx2` reuses from it, `panel_view` and `sheet_spec`, took an optional
+  `sheet` argument so each target reads its own `reference_sheet` recipe.
+
+### Where the numbers came from (live, 2026-09-19)
+
+About twenty 97-frame (4.04 s) 768×512 runs of one scratch shot on this machine's ComfyUI,
+one job at a time, seed 12345 throughout. Two settings are **not** in any published template
+and were decided here:
+
+1. **`scheduler.latent`.** `LTXVScheduler` assumes 4096 tokens when nothing feeds its
+   optional `latent`, and shifts as if the latent were far bigger than a 384×256×97 base
+   latent (1248 tokens) really is. Unwired, every dev run came out soft and painterly with
+   mangled hands at cfg 3 and 4. Wired to the base stage's video latent **before any guide
+   widens it** (a reference sheet doubles the sequence), it is right.
+2. **`euler_ancestral`.** ComfyUI's LTX-2 dev templates use plain `euler`, but they run the
+   dev checkpoint with the distilled LoRA on it. On the bare 2.5 dev transformer `euler`
+   stayed soft at every cfg tried; `euler_ancestral` — which the distilled 2.5 workflow
+   itself uses — came out crisp. cfg 3, 4 and 5 were all good; 4 is the shipped middle.
+   20 steps was flatter than 30 for 6 s less, so 30 stands.
+
+With a reference sheet the dev transformer wants other settings again
+(`recipe.sampling.modes.dev.with_sheet`): the IC-LoRA reads the sheet as frames *in context*
+with the clip, and an ancestral sampler re-injects noise over those frames too — on the dev
+model at real guidance that speckled the figure and made it come and go over three runs.
+Plain `euler` holds it, and guidance comes down to 3.0 (ComfyUI's ingredients graph advises
+cfg near 1; the dev model needs more than 1 to resolve at all, and at cfg 1 it was a blur).
+**Distilled + sheet is still the cleaner picture of the two**, and the take says which it
+used.
+
+Measured, same prompt, same seed, 97 frames at 768×512, 24 fps, audio present in all four:
+
+| what | model | steps / cfg / sampler | time | mp4 |
+|---|---|---|---|---|
+| today's default, no sheet | distilled | 8 / 1 / euler_ancestral | 39 s | 1.06 MB |
+| the quality profile, no sheet | dev | 30 / 4 / euler_ancestral | 39 s | 1.30 MB |
+| the new default, with a sheet | distilled | 8 / 1 / euler_ancestral | 30 s | 0.59 MB |
+| the quality profile with a sheet | dev | 30 / 3 / euler | 39 s | 0.99 MB |
+
+The sheet's effect is unmistakable: without it the shot invented its own kitchen and its own
+version of the character; with it, the plate's kitchen (tiles, ceiling panels, floor) and
+the sheet's character (bob, glasses, apron, trousers, shoes) are both reproduced.
+
+**Verdict on the quality profile (the user, looking at the clips, 2026-09-20): distilled
+won every pairing, with a sheet and without.** So the profile stays opt-in and unused by
+default, and "dev is crisper without a sheet" (this section's earlier claim, an agent's own
+reading of the frames) is withdrawn. Keep it only as a lever to re-test if LTX ships new
+dev guidance, and change the default only on fresh side-by-sides. The sheet itself is a
+separate matter and is on by default: nobody disputed it.

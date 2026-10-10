@@ -99,6 +99,18 @@ class ChainQueueTest(unittest.TestCase):
             self.assertEqual(chain["inputs"]["overlap"], 39)
         self.assertTrue(any("holds sh070" in line for line in jobs["sh080"].log))
 
+    def test_the_command_line_holds_the_take_it_continues(self):
+        """seriesmith render runs its takes through the runner one by one, so a
+        `continuous: latent` shot holds the take rendered just before it."""
+        from fakes import render_fake
+        rc, out, fb = render_fake(self.ep, "--only", "sh070,sh080")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("holds sh070", out)
+        kinds = [{v["class_type"] for v in g.values()} for g in fb.submitted]
+        self.assertNotIn("SeriesmithChainLatent", kinds[0])
+        self.assertIn("SeriesmithChainLatent", kinds[1])
+        self.assertEqual([render.episode_bound(g) for g in fb.submitted], [[], []])
+
 
 if __name__ == "__main__":
     unittest.main()

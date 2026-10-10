@@ -28,8 +28,8 @@
   "binding": {
     "_note": "An API graph built from the user's saved image_flux2_klein_9b_kv_image_edit.json (ComfyUI's FLUX.2 Klein 9B KV image-edit template), chosen over image_flux2_klein_image_edit_9b_base.json because its models are installed (flux-2-klein-9b-kv, qwen_3_8b_fp8mixed, flux2-vae; the base edit needs flux-2-klein-base-9b-fp8). Its two 'Reference Conditioning' subgraphs are flattened into one chain titled 'Reference 1 ...' (LoadImage -> ImageScaleToTotalPixels 1 MP -> VAEEncode -> a ReferenceLatent on the positive and one on the zeroed negative), which graph code repeats per reference image and cuts out with none. The output size is the job's (EmptyFlux2LatentImage and Flux2Scheduler), not the first reference's (the template's GetImageSize). The saved canvas' LoRA loader is left out. FluxKVCache on the model, CFGGuider cfg 1, 4 steps, euler: the template's. H3SaveRefTake takes the place of SaveImage.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_flux2_klein_edit.json",
-    "env": "H3_FLUX2_KLEIN_EDIT_WORKFLOW",
+    "workflow_name": "seriesmith_flux2_klein_edit.json",
+    "env": "SERIESMITH_FLUX2_KLEIN_EDIT_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

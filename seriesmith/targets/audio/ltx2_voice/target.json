@@ -28,8 +28,8 @@
   "binding": {
     "_note": "An API graph built for this target (no saved canvas has an audio-only LTX graph): UNETLoader -> LTXVAudioOnlyModel, the LTX-2.5 gemma text encoder, an empty video latent (LTXVAudioOnlyEmptyVideoLatent) concatenated with LTXVEmptyLatentAudio, LTXVDualCFGGuider, LTXVScheduler + SamplerCustomAdvanced, then LTXVSeparateAVLatent -> LTXVAudioVAEDecode. H3SaveRefAudio takes SaveAudio's place and writes the take's wav. Validated live against ComfyUI 0.36.0 on 2026-09-19.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_ltx2_voice.json",
-    "env": "H3_LTX2_VOICE_WORKFLOW",
+    "workflow_name": "seriesmith_ltx2_voice.json",
+    "env": "SERIESMITH_LTX2_VOICE_WORKFLOW",
     "saver": {"class_type": "H3SaveRefAudio",
               "replace": {"class_type": "SaveAudio", "inputs": {"audio": "audio"}}},
     "prune": true,

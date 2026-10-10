@@ -28,8 +28,8 @@
   "binding": {
     "_note": "An API graph built from ComfyUI's own image_qwen_image_2_1_image_edit.json: the same nodes and wiring as that template's subgraph, flattened, with SaveImageAdvanced/ImageCompare/ResolutionSelector left out and H3SaveRefTake in the saver's place. Flattened by hand because the shipped template saves 16 widget values for 9 promoted widgets, which h3jobs.ui_to_api refuses rather than guess at. There is no LoRA loader in the graph: `insert_after` puts one between the UNETLoader and the prefix cache when a job has LoRAs, so the model is patched before its prefix is computed, and a job with none renders the graph as saved.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_qwen_image_21.json",
-    "env": "H3_QWEN_IMAGE_21_WORKFLOW",
+    "workflow_name": "seriesmith_qwen_image_21.json",
+    "env": "SERIESMITH_QWEN_IMAGE_21_WORKFLOW",
     "saver": {
       "class_type": "H3SaveRefTake",
       "replace": {

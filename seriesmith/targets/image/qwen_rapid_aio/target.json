@@ -29,8 +29,8 @@
   "binding": {
     "_note": "An API graph written by hand from Phr00t's README (Load Checkpoint -> TextEncodeQwenImageEditPlus -> KSampler, er_sde/beta, 4 steps, cfg 1) and ComfyUI's image_qwen_image_edit_2511.json: the checkpoint gives model, CLIP and VAE; the positive and negative encoders both read the reference images (graph code wires image1..image3 and repeats the 'Reference 1' LoadImage); the output size is the job's EmptySD3LatentImage. No ModelSamplingAuraFlow: the merge carries its own tuning and its author's workflow has none. No LoRA loader: `insert_after` puts one after the checkpoint's MODEL when a job has LoRAs. H3SaveRefTake takes the place of SaveImage.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_qwen_rapid_aio.json",
-    "env": "H3_QWEN_RAPID_AIO_WORKFLOW",
+    "workflow_name": "seriesmith_qwen_rapid_aio.json",
+    "env": "SERIESMITH_QWEN_RAPID_AIO_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

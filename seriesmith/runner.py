@@ -37,7 +37,8 @@ class Runner:
                        probe=None, continuity: dict | None = None,
                        after: str | None = None,
                        save_frames: bool | None = None,
-                       review_copy: bool | None = None) -> tuple[T.Take, str]:
+                       review_copy: bool | None = None,
+                       panel_mode: str | None = None) -> tuple[T.Take, str]:
         """Reserve the take and queue its render; its inputs are staged when
         the job starts (stage_portable), so a continuity shot cuts its first
         frame from the take the cut uses then (`continuity`: h3pipe's live
@@ -62,7 +63,8 @@ class Runner:
         title = f"{_ep_name(ep)} {job.id} t{take.take:02d}"
         gkw = dict(review_copy=self.review_copy if review_copy is None else review_copy,
                    portable=True,
-                   **({"save_frames": save_frames} if save_frames is not None else {}))
+                   **({"save_frames": save_frames} if save_frames is not None else {}),
+                   **({"panel_mode": panel_mode} if panel_mode else {}))
         chained = bool((job.recompiled or job.shot).get("hold"))
 
         def stage(report) -> None:
@@ -120,7 +122,8 @@ class Runner:
             j2.take, j2.forced, j2.staged, j2.input_files = job.take + 1, False, [], {}
             j2.chain_from = None
             self.enqueue_render(j2, base, backend_name, probe, continuity,
-                                save_frames=save_frames, review_copy=review_copy)
+                                save_frames=save_frames, review_copy=review_copy,
+                                panel_mode=panel_mode)
             return None                                  # enqueue_render submitted it
 
         qjob = QJob(kind="render", lane=backend.name, title=title, work=work,

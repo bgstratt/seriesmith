@@ -76,7 +76,7 @@ export const MOCK_TARGETS: TargetList = {
         proxy: { model: "ltx-2.3-22b-distilled-fp8.safetensors", lora: "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors", steps: 8, width: 768, height: 448 },
       },
       widgets: { model: { via: "loader" }, steps: { via: "loader" }, seed: { via: "loader" } },
-      workflow: "h3pipe_ltx2_3_ingredients.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
+      workflow: "seriesmith_ltx2_3_ingredients.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
       template: { fps: 24, frames: { step: 8, base: 49, max: 481 }, size_multiple: 32 },
       models: {
         model: { family: "ltx2.3", label: "LTX 2.3", patterns: ["ltx-2.3*"], folder: "checkpoints", tier: "required" },
@@ -92,7 +92,7 @@ export const MOCK_TARGETS: TargetList = {
         proxy: { model: "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors", model_low: "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors", steps: 4, width: 640, height: 352, cfg: 1 },
       },
       widgets: { model: { via: "loader" }, steps: { via: "loader" }, seed: { via: "loader" } },
-      workflow: "h3pipe_wan22_i2v.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
+      workflow: "seriesmith_wan22_i2v.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
       template: { fps: 16, frames: { step: 4, base: 5, max: 161 }, size_multiple: 16 },
       models: {
         model: { family: "wan2.2-i2v-14b-high", label: "Wan 2.2 I2V 14B high-noise", patterns: ["*wan2.2*i2v*high*"], folder: "diffusion_models", tier: "required" },
@@ -108,7 +108,7 @@ export const MOCK_TARGETS: TargetList = {
         proxy: { model: "wan2.2_fun_vace_high_noise_14B_fp8_scaled.safetensors", model_low: "wan2.2_fun_vace_low_noise_14B_fp8_scaled.safetensors", steps: 10, width: 640, height: 352, cfg: 3.5 },
       },
       widgets: { model: { via: "loader" }, steps: { via: "loader" }, seed: { via: "loader" } },
-      workflow: "h3pipe_wan22_vace.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
+      workflow: "seriesmith_wan22_vace.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
       template: { fps: 16, frames: { step: 4, base: 5, max: 161 }, size_multiple: 16 },
       models: {
         model: { family: "wan2.2-vace-14b-high", label: "Wan 2.2 VACE 14B high-noise", folder: "diffusion_models", tier: "required" },
@@ -124,7 +124,7 @@ export const MOCK_TARGETS: TargetList = {
         proxy: { model: null, steps: 4, width: 448, height: 256 },
       },
       widgets: { model: { via: "loader" }, steps: { via: "loader" }, seed: { via: "loader" } },
-      workflow: "h3pipe_h3_fl2va.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
+      workflow: "seriesmith_h3_fl2va.json", loader: "H3ShotListLoader", saver: "H3SaveShot",
       template: { fps: 24, frames: { step: 17, base: 5, max: 3592 }, size_multiple: 32 },
       models: { model: { family: "minimax-h3-fl2va", label: "MiniMax H3 FL2VA", patterns: ["*h3*fl2v*"], folder: "diffusion_models", tier: "required" } },
     },
@@ -185,7 +185,7 @@ export const MOCK_TARGETS: TargetList = {
         proxy: { model: "ltx-2.5-22b-distilled-fp8.safetensors", steps: 8, cfg: 1 },
       },
       widgets: { model: { class_type: "UNETLoader", field: "unet_name" }, steps: { via: "loader" }, seed: { via: "loader" } },
-      workflow: "h3pipe_ltx2_voice.json", loader: "H3ShotListLoader", saver: "H3SaveRefAudio",
+      workflow: "seriesmith_ltx2_voice.json", loader: "H3ShotListLoader", saver: "H3SaveRefAudio",
       template: { fps: 24, frames: { step: 8, base: 1, max: 481 } },
       models: {
         model: { family: "ltx2.5-distilled", label: "LTX-2.5 distilled", patterns: ["ltx-2.5*distilled*"], folder: "diffusion_models", tier: "accelerator" },

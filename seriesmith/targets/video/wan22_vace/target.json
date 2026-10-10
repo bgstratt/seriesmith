@@ -151,8 +151,8 @@
   "binding": {
     "_note": "An API graph built for this target from ComfyUI's Wan nodes (no VACE workflow was saved): the Wan 2.2 Fun VACE high/low noise pair, each with shift 8, sampling steps [0, split) and [split, end) with KSamplerAdvanced (`stages`, as wan22_i2v), conditioned by one WanVaceToVideo (reference_image, and control_video / control_masks for keyframes, added by patch_graph), then TrimVideoLatent drops the reference's leading latent frame (the node's trim_latent output) before VAEDecode. No LoRA loaders: one per stage is inserted after that stage's UNETLoader when a profile names LoRAs (by `stage`, else *high_noise* / *low_noise*, else both). H3SaveShot takes the place of CreateVideo/SaveVideo (no audio input: the mp4 is mute) at the job's fps.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_wan22_14b_vace.json",
-    "env": "H3_WAN22_VACE_WORKFLOW",
+    "workflow_name": "seriesmith_wan22_14b_vace.json",
+    "env": "SERIESMITH_WAN22_VACE_WORKFLOW",
     "saver": {
       "class_type": "H3SaveShot",
       "inputs": {

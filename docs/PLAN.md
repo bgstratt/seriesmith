@@ -288,13 +288,25 @@ With the UI there to try each one:
             (takes._shared, a lock per record). Live 2026-10-10: a render of
             ep02 sh140 from the server and a pixel upscale from
             `seriesmith upscale`.
-- [ ] The docs (AUTHORING.md and the rest) moved here, renamed where generic;
-      the old h3 names inside the code (h3cli, the `h3` aliases) tidied away.
+- [x] The docs moved here and made seriesmith's: AUTHORING, SCRIPT_CONVERSION,
+      EDITOR (the editor as its own page: Jobs, where shots render, the viewer,
+      Import series), API (the server, the queue's routes and events), CONTINUOUS,
+      POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN; INSTALL (seriesmith, the proxy,
+      the node pack; the model list generated as before); a new README, COMMANDS
+      (h3pipe README's command chapters) and H3_TARGET (its Ref2VA reference);
+      CONTRIBUTING. tools/ (make_prompts, make_models_md, sync_starter_doc) and
+      tests/test_docs.py came with them; `python tools/make_prompts.py` writes
+      prompts/ and the script-writing skill, seriesmith-episode-script, which
+      bundles the build (scripts/check.py) so a script can be checked with nothing
+      installed.
+- [x] The h3 names tidied away: routes /seriesmith/..., events seriesmith.*,
+      seriesmith.commands (was h3cli), the h3<module> aliases, the config folder,
+      SERIESMITH_* variables (each target's workflow override is
+      SERIESMITH_<TARGET>_WORKFLOW), saved workflows seriesmith_<target>.json.
+      Kept: the h3pipe-latent/1 header of latents on disk, H3_Ref2VA_Shotlist_v1.json
+      and everything that really is MiniMax H3.
 
 ## Later
 
-- The authoring docs (h3pipe's `docs/AUTHORING.md`) moved here, renamed where
-  generic.
-- The script-writing skill pointed at seriesmith.
 - Publishing: the ComfyUI Manager listing for the node pack and the ComfyUI
   host; PyPI for the app.

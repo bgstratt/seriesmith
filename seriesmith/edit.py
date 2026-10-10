@@ -1750,7 +1750,7 @@ def target_graphs(targets, comfy_url: str | None = None) -> dict[str, dict]:
             out[t.id] = J.target_graph_source(t, comfy_url, with_graph=True, saved_names=saved)
         except Exception as e:                            # pragma: no cover - defensive
             out[t.id] = {"name": t.binding.workflow_name, "source": "none", "where": "",
-                         "env": t.binding.env or "H3_WORKFLOW", "env_set": False,
+                         "env": t.binding.env or "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW", "env_set": False,
                          "installed": False, "differs": False, "repo": "",
                          "error": str(e), "graph": None}
     return out

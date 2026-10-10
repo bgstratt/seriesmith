@@ -107,9 +107,9 @@ def find_workflow(explicit: str | None, name: str = WORKFLOW_NAME) -> str:
     if explicit:
         return explicit
     here = os.path.dirname(os.path.abspath(__file__))
-    # $H3_WORKFLOW wins, then the target's copy, then beside this file, then
+    # $SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW wins, then the target's copy, then beside this file, then
     # $COMFYUI_PATH's workflows folder
-    cands = [os.environ.get("H3_WORKFLOW", ""), TG.repo_workflow(name) or "",
+    cands = [os.environ.get("SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW", ""), TG.repo_workflow(name) or "",
              os.path.join(here, "workflows", name),
              os.path.join(here, name),
              os.path.join(here, "..", name)]
@@ -120,7 +120,7 @@ def find_workflow(explicit: str | None, name: str = WORKFLOW_NAME) -> str:
         if cand and os.path.isfile(cand):
             return os.path.normpath(cand)
     raise FileNotFoundError(f"{name} not found — pass --workflow, or set "
-                            f"H3_WORKFLOW to its path")
+                            f"SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW to its path")
 
 
 class WorkflowError(ValueError):
@@ -498,7 +498,7 @@ def graph_from(data: dict, where: str = "workflow") -> dict:
 
 
 def workflow_candidates(explicit: str | None, name: str = WORKFLOW_NAME,
-                        comfy_url: str | None = None, env: str = "H3_WORKFLOW",
+                        comfy_url: str | None = None, env: str = "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW",
                         prefer_repo: bool = False) -> list[tuple[str, str, object]]:
     """Every place the workflow called `name` may come from, in the order
     resolve_workflow takes them: (source, where, load), where `load()` is the
@@ -541,7 +541,7 @@ def workflow_candidates(explicit: str | None, name: str = WORKFLOW_NAME,
 
 
 def resolve_workflow(explicit: str | None, name: str = WORKFLOW_NAME,
-                     comfy_url: str | None = None, env: str = "H3_WORKFLOW",
+                     comfy_url: str | None = None, env: str = "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW",
                      required: bool = True,
                      prefer_repo: bool = False) -> tuple[dict | None, str]:
     """(API graph, where it came from) for the workflow called `name`.
@@ -643,7 +643,7 @@ def target_graph_source(target: "TG.Target", comfy_url: str | None = None,
     about every target) says it hasn't got this one."""
     b = target.binding
     name = b.workflow_name
-    env = b.env or "H3_WORKFLOW"
+    env = b.env or "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW"
     out = {"name": name, "source": "none", "where": "", "env": env,
            "env_set": bool(os.environ.get(env, "")), "installed": False, "differs": False,
            "repo": b.workflow if b.workflow and os.path.isfile(b.workflow) else "",
@@ -689,7 +689,7 @@ def target_workflow(target: "TG.Target", explicit: str | None = None,
                     prefer_repo: bool = False) -> tuple[dict | None, str]:
     """resolve_workflow for a target's binding (its saved name and env var)."""
     b = target.binding
-    return resolve_workflow(explicit, b.workflow_name, comfy_url, env=b.env or "H3_WORKFLOW",
+    return resolve_workflow(explicit, b.workflow_name, comfy_url, env=b.env or "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW",
                             required=required, prefer_repo=prefer_repo)
 
 

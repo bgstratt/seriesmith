@@ -82,8 +82,8 @@
   "binding": {
     "_note": "The workflow is ComfyUI's LTX-2.5 image-to-video template (a subgraph, flattened by h3jobs.ui_to_api). Every value is patched straight into a widget: there is no loader node, so a text-only shot needs no custom node beyond H3SaveShot, which takes the place of CreateVideo/SaveVideo. The prompt enhancer (TextGenerateLTX2Prompt) is never used: the prompt goes into the positive CLIPTextEncode, and prune drops the enhancer with everything else the saver doesn't need.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_ltx2_5.json",
-    "env": "H3_LTX2_WORKFLOW",
+    "workflow_name": "seriesmith_ltx2_5.json",
+    "env": "SERIESMITH_LTX2_WORKFLOW",
     "saver": {"class_type": "H3SaveShot",
               "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
                          "sidecar": "sidecar"},

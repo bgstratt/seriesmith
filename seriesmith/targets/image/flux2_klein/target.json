@@ -27,8 +27,8 @@
   "binding": {
     "_note": "An API graph built from the user's saved image_flux2_text_to_image_9b.json (ComfyUI's FLUX.2 Klein 9B text-to-image template, its subgraph flattened and its Width / Height primitives inlined): UNETLoader + CLIPLoader flux2 + the small-decoder VAE, CFGGuider, KSamplerSelect euler, Flux2Scheduler, RandomNoise, EmptyFlux2LatentImage, SamplerCustomAdvanced. The saved copy loads the base model (flux-2-klein-base-9b-fp8, not installed here) at 20 steps, cfg 5; the preset renders the installed distilled Klein 9B KV model at the distilled settings (4 steps, cfg 1, as ComfyUI's Klein 9B distilled and KV templates run it), and `base` is the saved workflow's own. Width and height go to both the latent and the scheduler. H3SaveRefTake takes the place of SaveImage.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_flux2_klein_t2i.json",
-    "env": "H3_FLUX2_KLEIN_WORKFLOW",
+    "workflow_name": "seriesmith_flux2_klein_t2i.json",
+    "env": "SERIESMITH_FLUX2_KLEIN_WORKFLOW",
     "saver": {"class_type": "H3SaveRefTake",
               "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
     "prune": true,

@@ -29,8 +29,8 @@
   "binding": {
     "_note": "ComfyUI's MiniMax H3 image-to-video template (video_minimax_h3_i2v.json: a subgraph, flattened by h3jobs.ui_to_api). No loader node: every value is patched into a widget, so it renders without any custom node beyond H3SaveShot, which takes the place of CreateVideo/SaveVideo. The template has no LoRA loader: one is inserted after the UNETLoader for the turbo LoRA. patch_graph wires the keyframes (LoadImage straight into first_frame / last_frame; the template's 1 MP pre-scale is dropped, the node resizes to the canvas itself) and the dialogue anchor (LoadAudio -> MiniMaxH3AddGuide at frame 0); prune drops the rest.",
     "workflow": "workflow.json",
-    "workflow_name": "h3pipe_minimax_h3_fl2va.json",
-    "env": "H3_FL2VA_WORKFLOW",
+    "workflow_name": "seriesmith_minimax_h3_fl2va.json",
+    "env": "SERIESMITH_MINIMAX_H3_FL2VA_WORKFLOW",
     "saver": {"class_type": "H3SaveShot",
               "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
                          "sidecar": "sidecar"},

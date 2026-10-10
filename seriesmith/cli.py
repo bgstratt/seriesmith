@@ -1,8 +1,8 @@
 """
 seriesmith — one command for every stage.
 
-    seriesmith build series.json ep01.md -o <episode folder> [--proxy]
-    seriesmith check series.json ep01.md [--proxy] [--pace]
+    seriesmith build <episode>   (or series.json ep01.md -o <episode folder>) [--proxy]
+    seriesmith check <episode>   (or series.json ep01.md) [--proxy] [--pace]
     seriesmith render <episode> [--only sh010] [--redo] [--backend local]
     seriesmith backends [--try NAME]        where jobs can run, and whether each answers
     seriesmith serve [--root FOLDER]        the editor in your browser (port 8190)
@@ -14,6 +14,7 @@ and h3pipe's commands, through seriesmith.commands (`seriesmith <command> --help
 """
 from __future__ import annotations
 
+import os
 import sys
 
 from seriesmith import __version__
@@ -30,6 +31,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"seriesmith {__version__}")
         return 0
     cmd, rest = argv[0], argv[1:]
+    if cmd in ("build", "check") and rest and os.path.isdir(rest[0]):
+        # an episode folder (or several): the commands' build / check, which
+        # find its series config and script
+        return _commands(cmd, rest)
     if cmd == "build":
         from seriesmith import build
         return build.main(rest, prog="seriesmith build")
@@ -49,14 +54,19 @@ def main(argv: list[str] | None = None) -> int:
     # targets, align, all): its dispatcher, ported as seriesmith.commands
     from seriesmith import commands
     if cmd in commands.STAGES or cmd in commands.EDIT or cmd in commands.OTHER:
-        saved = sys.argv
-        sys.argv = ["seriesmith", cmd, *rest]
-        try:
-            return commands.main()
-        finally:
-            sys.argv = saved
+        return _commands(cmd, rest)
     print(f"seriesmith: unknown command {cmd!r}\n\n{USAGE}", file=sys.stderr)
     return 2
+
+
+def _commands(cmd: str, rest: list[str]) -> int:
+    from seriesmith import commands
+    saved = sys.argv
+    sys.argv = ["seriesmith", cmd, *rest]
+    try:
+        return commands.main()
+    finally:
+        sys.argv = saved
 
 
 def backends_cmd(argv: list[str]) -> int:

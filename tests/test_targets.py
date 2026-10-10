@@ -90,8 +90,8 @@ class LoadingTest(unittest.TestCase):
         self.assertEqual(os.path.normcase(where), os.path.normcase(h3.workflow))
         J.node_of(g, h3.loader_class), J.node_of(g, h3.saver_class)
         self.assertEqual(os.path.normcase(J.find_workflow(None)), os.path.normcase(h3.workflow)
-                         if not os.environ.get("H3_WORKFLOW") else os.path.normcase(
-                             os.environ["H3_WORKFLOW"]))
+                         if not os.environ.get("SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW") else os.path.normcase(
+                             os.environ["SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW"]))
         g, where = R.resolve_workflow(None)
         self.assertIsNotNone(g)
 

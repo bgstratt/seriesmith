@@ -1,42 +1,197 @@
 # seriesmith
 
-A series config and episode scripts in, finished episodes out.
+A series config and episode scripts in, finished episodes out: any shot on any
+model, on your own GPU or on Comfy's cloud.
 
 You describe a show once in `series.json` (the cast, the places, the voices, the
-look) and write episodes as screenplay-flavoured scripts (`epNN.md`). seriesmith
-breaks each episode into shots, writes every shot's prompt for the model that
-renders it, and keeps characters and locations consistent across the whole
-series.
+look) and write each episode as a screenplay-flavoured markdown script (`epNN.md`).
+seriesmith parses the script into a model-free **story** (`shotlist/shots.json`),
+compiles every shot for the **video target** that renders it (a model and how to
+drive it), makes the reference pictures, keyframes and voices the shots need
+through **image** and **audio targets**, renders each shot on a **backend**, and
+cuts the takes together, through upscale, post and master.
 
-Any shot can render on any model it suits: MiniMax H3, LTX-2 or Wan on your own
-GPU through ComfyUI, or hosted models such as Seedance and Kling through Comfy's
-cloud. The plan is in [docs/DESIGN.md](docs/DESIGN.md).
+You drive it from the **editor**, a page in your browser that `seriesmith serve`
+opens (shots, takes, refs, the cut, the Jobs queue), or from one command,
+`seriesmith`. Every shot is its own job, so a bad shot is rendered again alone and
+the rest of the episode is untouched; a shot written `continuous:` reads the take
+before it when its job starts, so a whole chain still queues at once. Every take is
+kept with the exact settings that made it.
 
-seriesmith is the successor to h3pipe and is being ported from it step by step.
-Today it compiles: script and series config to the story and to each target's
-shotlist. Rendering, the editor and the finishing stages come next.
+seriesmith is the successor to h3pipe, which did all this on one local ComfyUI.
 
-## Try it
+New here? **[INSTALL.md](INSTALL.md)** goes from nothing to a rendered proxy
+episode; **[docs/AUTHORING.md](docs/AUTHORING.md)** is the script and series config
+format.
 
-Python 3.10 or newer.
+### The documents
 
-    pip install -e .
-    seriesmith check examples/series_example.json examples/script_example.md
-    seriesmith build examples/series_example.json examples/script_example.md -o out
+| | What it is | Read it when |
+|---|---|---|
+| **[INSTALL.md](INSTALL.md)** | What to install and where: seriesmith, the proxy, the node pack, the workflows, every model file with its folder and link | Setting up, or a model is missing |
+| **[docs/SETUP.md](docs/SETUP.md)** | The backends: your ComfyUI through comfy-api-proxy, Comfy Cloud, deployments, Router; the settings file and the key | Choosing where shots render |
+| **[docs/EDITOR.md](docs/EDITOR.md)** | Driving the editor: the order things happen in, every button, what click, double-click and right-click do in each panel, and the keyboard | Using the editor |
+| **[docs/AUTHORING.md](docs/AUTHORING.md)** | The format, and the whole of it: a first episode to copy, every field of the script and the series config, framing, timing, camera and the reference rules | Writing or fixing an episode. Read once before the first one |
+| **[docs/SCRIPT_CONVERSION.md](docs/SCRIPT_CONVERSION.md)** | A spec-format screenplay scene worked all the way through to shots | You have a screenplay and want it as an episode |
+| **[docs/COMMANDS.md](docs/COMMANDS.md)** | The command line in depth: build, refs, render, assemble, takes and the cut, recorded dialogue, the project layout | Working from a terminal |
+| **[docs/CONTINUOUS.md](docs/CONTINUOUS.md)**, **[docs/POST_PROCESSING.md](docs/POST_PROCESSING.md)**, **[docs/RECORDED_DIALOGUE.md](docs/RECORDED_DIALOGUE.md)**, **[docs/KREAGEN.md](docs/KREAGEN.md)** | Continuous shots; the post pass; lip sync to a recording; the reference-image generator | Using that part |
+| **[docs/H3_TARGET.md](docs/H3_TARGET.md)** | The default video target, MiniMax H3 Ref2VA, in detail: its reference slots, sheets, voices, audio policies, pacing | Tuning shots for H3 |
+| **[docs/API.md](docs/API.md)** | The editor's HTTP API and the on-disk contracts behind it (takes, overrides, the cut, references) | Changing the editor, or driving seriesmith from your own code |
+| **[docs/DESIGN.md](docs/DESIGN.md)**, **[docs/PLAN.md](docs/PLAN.md)** | How seriesmith is built (backends, the queue, the two hosts) and the work list | Changing seriesmith |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | House rules: the golden tests, how the generated docs are regenerated | Sending a change |
 
-`build` writes `out/shotlist/` (the story as `shots.json`, and a shotlist per
-target) and `out/refs_todo.md`, the reference pictures the episode still needs.
-`check` reports the same without writing anything; `--pace` checks whether each
-line of dialogue fits its shot.
+`prompts/SKILL.md` and `prompts/seriesmith-script.instructions.md` are **generated**
+from `docs/AUTHORING.md` by `python tools/make_prompts.py`, so an assistant drafting
+a script reads exactly what you do; the same command builds the installable
+script-writing skill (`build/skill/seriesmith-episode-script/` and its `.zip`). Edit
+the guide, never the copies — a test fails if they drift.
 
-Without installing, `python -m seriesmith` does the same from the repo folder.
+```
+  you write                     generated                                    rendered
+  ─────────                     ─────────                                    ────────
+  series.json ─┐                shotlist/shots.json (story)
+  epNN.md     ─┼─ build ─▶      shotlist/shotlist[.<target>].json ─ render ─▶ renders/<shot>/<shot>_tNN.mp4
+  (recording) ─┘  (align)       refs_todo.json ─── refs / keyframes ─▶ refs/       │
+                                                                     assemble / master ─▶ epNN.mp4
+```
+
+## Targets and backends
+
+A shot renders on MiniMax H3 Ref2VA unless the script (`target:`), a render profile,
+the episode (chosen in the editor) or the series config (`series.target`) names
+another. A shot retargeted in the editor or with `seriesmith override` is compiled
+for its new target when it is queued; no rebuild.
+
+| Video target | Label | Runs on |
+|---|---|---|
+| `minimax_h3_ref2va` (default) | MiniMax H3 Ref2VA | a ComfyUI: local, Comfy Cloud, a deployment |
+| `minimax_h3_fl2va` | MiniMax H3 FL2VA (first/last frames) | a ComfyUI |
+| `ltx2` | LTX-2.5 distilled (text / keyframes to video + audio) | a ComfyUI |
+| `ltx2_ingredients` | LTX-2.3 ingredients (character/plate refs) | a ComfyUI |
+| `wan22_i2v` | Wan 2.2 14B I2V | a ComfyUI |
+| `wan22_ti2v` | Wan 2.2 5B TI2V | a ComfyUI |
+| `wan22_vace` | Wan 2.2 14B VACE (refs) | a ComfyUI |
+| `seedance_2_5` | Seedance 2.5 (hosted) | Comfy Router |
+
+| Image target | Label |
+|---|---|
+| `krea2` (default for refs) | Krea 2 turbo (text to image) |
+| `krea_2_router` | Krea 2, hosted on Comfy Router |
+| `z_image_turbo` | Z-Image Turbo (fast text to image) |
+| `flux2_klein` | FLUX.2 Klein 9B (text to image) |
+| `flux2_klein_edit` (default for keyframes, when installed) | FLUX.2 Klein 9B edit (uses reference images) |
+| `flux_kontext` | FLUX.1 Kontext dev (edit, one reference) |
+| `minimax_h3_still` | MiniMax H3 as an image model: renders 5 frames, keeps the first, up to 9 references |
+| `qwen_image_21` | Qwen-Image 2.1: text to image, or an edit of up to 16 reference images |
+| `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 references |
+| `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
+
+| Audio target | Label |
+|---|---|
+| `ltx2_voice` (default for voices) | LTX-2.5 audio-only: one speaking voice from a character's `voice` line |
+
+Each target lives in `seriesmith/targets/<kind>/<id>/`: `target.json` (presets, the
+model files it needs with their tier and download links, how to drive it, which
+backends can run it), its code (the prompt writer, the compile) and, for a workflow
+target, `workflow.json`.
+
+**Backends** are where a job runs: `local` (your own ComfyUI, through
+comfy-api-proxy), `cloud` (Comfy Cloud), `deployment:<target>` (a deployed
+workflow) and `router` (a hosted model through Comfy Router). The last three need a
+Comfy API key. A job runs on the request's backend, else the shot's, the episode's,
+the series config's (`series.backend`), else its target's first.
+`seriesmith backends` lists what this machine is set up for; [docs/SETUP.md](docs/SETUP.md)
+sets them up.
+
+**What's installed?** With ComfyUI running, `seriesmith targets` prints one line per
+target (`ready`, `degraded`, `not_ready`, `unknown`) and every missing file under it
+with its models folder and download link. A missing required file skips the shot
+with its link; a missing accelerator (a turbo LoRA) renders the slower base preset,
+and the take says so. The editor's target picker and its **What's missing** window
+show the same.
+
+## Install
+
+**[INSTALL.md](INSTALL.md) is the full walkthrough.** The short version:
+
+```
+git clone https://github.com/bgstratt/seriesmith.git
+cd seriesmith
+pip install -e .
+pip install comfy-api-proxy
+mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\comfy_nodes"
+```
+
+(`ln -s` on Linux/macOS.) Restart ComfyUI so it loads seriesmith's nodes, then
+`seriesmith serve` opens the editor at http://127.0.0.1:8190 and starts the proxy
+in front of your ComfyUI. The default MiniMax H3 targets also need the
+[ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes)
+pack (its `H3SLAAttention` node); INSTALL.md lists every pack and which target
+needs it, and every model file with its link (generated from the targets by
+`python tools/make_models_md.py`).
+
+**Requirements**, in short: Python 3.10+; a recent local
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) and an NVIDIA GPU that can
+hold the models you use (developed on a 32 GB card), or a Comfy API key and the
+cloud; `ffmpeg` and `ffprobe` on PATH; optionally `faster-whisper` and `numpy` for
+`align`, `demucs` for the `dub_keep_foley` foley bed.
+
+## The editor
+
+`seriesmith serve` (or `seriesmith serve --root Shows`) serves the editor at
+http://127.0.0.1:8190:
+
+- **Shots** (sidebar): the project folders (roots) and the episode, the pass
+  (final / proxy) and the episode's model; build; every shot with its takes, status
+  and stale marks; render, redo, cancel, pick the take the cut uses, discard a take.
+  **Import series…** brings in a whole season's scripts at once, with one series
+  config or one per episode.
+- **Refs** (sidebar): every character view, prop, plate, voice and shot keyframe the
+  series config and script call for, with candidates to generate, import, compare,
+  edit, turn, discard and pick; a location's angles, its 360 panorama and its H3
+  camera tour.
+- **Timeline** (bottom): the cut as an editable track — reorder, trim frame by frame,
+  lock, undo, **Play all** and **Export**.
+- **Viewer** (docked in the middle): a shot's takes with A/B compare (side by side or
+  wipe), a ref's candidates, a tour to keep any frame from, a 360 in its viewer.
+- **Jobs** (the queue button, top right): every render, ref, upscale, post and tour
+  queued, running and done, per backend — with progress, the log, cancel, reorder,
+  pause a backend, and run again as a new take.
+- **Script**, **Series config**, **Inspector**, **Recording**, **Audio from…**,
+  **Promote**, **Upscale**, **Post-process**, **Master** and **What's missing**
+  open as floating windows.
+
+**[docs/EDITOR.md](docs/EDITOR.md) is the guide to driving all of it.** Everything
+the editor does is a file in the episode folder (`overrides.json`, `cut.json`, take
+records, `_history/`), and the commands do the same.
+
+## Quick start (command line)
+
+```
+seriesmith new      Shows\ep05             # a series config + script that build (from examples/starter/)
+seriesmith check    Shows\ep05             # validate and check dialogue pacing (writes nothing)
+seriesmith build    Shows\ep05             # the story, shotlists, reference work orders
+seriesmith targets  Shows\ep05             # which targets this ComfyUI can render
+seriesmith supply   Shows\ep05 C:\sheets   # pictures you already have, into their ref slots
+seriesmith refs     Shows\ep05             # generate the views, props, plates still missing
+seriesmith render   Shows\ep05 --proxy     # low-res animatic
+seriesmith assemble Shows\ep05 --proxy     # join it into one mp4
+seriesmith render   Shows\ep05             # full-res
+seriesmith master   Shows\ep05             # the series recipe (upscale, post) on every shot, then the master
+seriesmith publish  Shows\ep05             # the review cut between the series intro and outro
+```
+
+Every command has `--help`; `--backend NAME` picks where its jobs run. The command
+line runs its jobs on a queue of its own and waits for them; the editor's server
+runs its own queue. **[docs/COMMANDS.md](docs/COMMANDS.md)** covers every command.
 
 ## Tests
 
     python -m pytest
+    cd web && npx vitest run
 
-The golden tests rebuild every fixture and compare the results byte for byte
-with `tests/golden/`.
+The golden tests rebuild every fixture and compare the results byte for byte with
+`tests/golden/`; no test reaches a real backend.
 
 ## License
 

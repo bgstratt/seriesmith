@@ -26,9 +26,10 @@ Backends
     router; a workflow target's is local). A default that doesn't suit a
     target falls back to the target's own, with a note. local is your own
     ComfyUI through comfy-api-proxy (docs/SETUP.md); model files are resolved
-    against its loaders. Continuous shots (`continuous: latent`) still read the
-    previous take from the episode folder, so they render on local only
-    (docs/PLAN.md, step 5).
+    against its loaders. Each take is a job on this process's own queue
+    (runner.Runner), run one at a time: its inputs are staged as it starts, so
+    a `continuous: latent` shot holds the take rendered just before it, on any
+    backend.
 
 Takes and seeds
     A shot with a finished take (or one still queued) is skipped. --redo
@@ -98,6 +99,8 @@ def parse_args(argv):
     ap.add_argument("--allow-model-mismatch", action="store_true",
                     help="render even when a model file is another family than its target's")
     ap.add_argument("--panel-mode", choices=["auto", "full", "pair", "face", "body"])
+    ap.add_argument("--save-frames", action="store_true", default=None,
+                    help="keep each take's frames as PNGs too (frames/ beside it)")
     lt = ap.add_mutually_exclusive_group()
     lt.add_argument("--latent", dest="save_latent", action="store_true", default=None,
                     help="keep each take's latent (default: final pass only)")
@@ -250,69 +253,69 @@ def main(argv: list[str] | None = None) -> int:
     t_start = time.time()
     frames_done = 0
     current = None
+    # each take is a job on a queue of this process's own (runner.Runner), run
+    # one at a time and waited for: its inputs are staged as it starts, so a
+    # `continuous: latent` shot holds the take rendered just before it
+    from seriesmith import runner as RN
+    from seriesmith.queue import Queue
+    shown = {"t0": time.time()}
+
+    def heard(event, data):
+        if event == "progress":
+            print(f"\r     {data.get('value', 0):4d}%  [{fmt(time.time() - shown['t0'])}]   ",
+                  end="", flush=True)
+    runner = RN.Runner(Queue(heard), backends)
+    current = None
     try:
         for root, jobs in plans:
             ep = os.path.basename(root)
             for j in (j for j in jobs if j.runs):
-                t0 = time.time()
+                t0 = shown["t0"] = time.time()
                 label = f"{ep}/{j.id}"
                 backend = backends[where[id(j)]]
                 target = J.job_target(j)
-                take = None
                 try:
-                    take = start_job_portable(j, comfy if backend.kind == "local" else None)
-                    label = f"{ep}/{j.id} t{take.take:02d}"
                     base = None if hosted(target) else base_for(j.target)[0]
+                    take, qid = runner.enqueue_render(
+                        j, base, backend.name, probe=comfy if backend.kind == "local" else None,
+                        continuity=j.continuity, save_frames=args.save_frames,
+                        review_copy=False, panel_mode=args.panel_mode)
                 except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
-                    # RuntimeError: a reference sheet that couldn't be composed
-                    unstage(j)
                     failed += 1
                     failures.append(label)
-                    if take is not None:
-                        J.mark_failed(take, str(e)[:800])
                     print(f"  !! {label}: {e}", flush=True)
                     continue
+                label = f"{ep}/{j.id} t{take.take:02d}"
                 print(f"  .. {label}  ({j.frames}f, {j.target} on {backend.name}, "
                       f"{j.shot.get('audio_policy', '')}, seed {j.seed} {j.seed_source})",
                       flush=True)
-                try:
-                    current = (take, None)
-
-                    def got_run(run, take=take):
-                        nonlocal current
-                        current = (take, run)
-                    result = run_take(j, take, backend, base, gkw, on_progress=progress_line(t0),
-                                      on_run=got_run)
-                    print("\r" + " " * 60 + "\r", end="", flush=True)
-                    current = None
-                    if result != "ok":
-                        raise RuntimeError((take.sidecar or {}).get("save_notes")
-                                           or f"the take ended {result}")
-                    done += 1
-                    frames_done += j.frames
-                    rate = (time.time() - t_start) / max(frames_done, 1)
-                    left = (total_frames - frames_done) * rate
-                    print(f"  -> {take.paths.mp4}  [{fmt(time.time() - t0)}, ~{fmt(left)} left]",
-                          flush=True)
-                except (J.NotPortable, BackendError, RuntimeError, OSError, ValueError) as e:
-                    current = None
-                    if (take.sidecar or {}).get("status") == "queued":
-                        J.mark_failed(take, str(e)[:800])
+                current = qid
+                RN.wait(runner.queue, [qid])
+                current = None
+                print("\r" + " " * 60 + "\r", end="", flush=True)
+                take = T.get_take(root, pass_, j.id, take.take) or take
+                for line in runner.queue.jobs[qid].log:
+                    if line.startswith("holds "):
+                        print(f"     {line}")
+                if take.status != "ok":
                     failed += 1
                     failures.append(label)
-                    print(f"  !! {label}: {e}", flush=True)
+                    print(f"  !! {label}: {(take.sidecar or {}).get('save_notes') or take.status}",
+                          flush=True)
                     if args.stop_on_error:
                         raise KeyboardInterrupt
+                    continue
+                done += 1
+                frames_done += j.frames
+                rate = (time.time() - t_start) / max(frames_done, 1)
+                left = (total_frames - frames_done) * rate
+                print(f"  -> {take.paths.mp4}  [{fmt(time.time() - t0)}, ~{fmt(left)} left]",
+                      flush=True)
     except KeyboardInterrupt:
         print("\n  stopping")
         if current is not None:
-            take, run = current
-            if run is not None:
-                try:
-                    run.cancel()
-                except Exception:                 # noqa: BLE001  best effort
-                    pass
-            J.mark_failed(take, "interrupted")
+            runner.queue.cancel(current)
+            RN.wait(runner.queue, [current], 30)
     print(f"\n  done in {fmt(time.time() - t_start)}: {done} rendered"
           + (f", {failed} failed: {', '.join(failures)}" if failed else "") + "\n")
     return 1 if failed else 0

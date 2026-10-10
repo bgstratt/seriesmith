@@ -503,7 +503,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       source: saved ? "comfy" : "repo",
       where: saved ? `http://127.0.0.1:8188 (user workflows/${name})`
         : `C:\repos\seriesmith\targets\${t.kind}\${t.id}\workflow.json`,
-      env: "H3_WORKFLOW",
+      env: "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW",
       env_set: false,
       installed: saved,
       differs: saved && t.id === H3,

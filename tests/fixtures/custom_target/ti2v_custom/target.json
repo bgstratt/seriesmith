@@ -74,8 +74,8 @@
     }
   },
   "binding": {
-    "workflow_name": "h3pipe_wan22_5b_ti2v.json",
-    "env": "H3_WAN22_TI2V_WORKFLOW",
+    "workflow_name": "seriesmith_wan22_5b_ti2v.json",
+    "env": "SERIESMITH_WAN22_TI2V_WORKFLOW",
     "saver": {
       "class_type": "H3SaveShot",
       "inputs": {

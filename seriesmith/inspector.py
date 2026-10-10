@@ -850,7 +850,7 @@ def _max_size(graph: dict, params: dict) -> dict:
 def _id_from(workflow_name: str) -> str:
     stem = os.path.splitext(os.path.basename(workflow_name or ""))[0]
     stem = re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").lower()
-    stem = re.sub(r"^h3pipe_", "", stem)
+    stem = re.sub(r"^seriesmith_", "", stem)
     return stem[:48]
 
 

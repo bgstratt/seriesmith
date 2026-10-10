@@ -78,7 +78,7 @@ class GraphSourceTest(unittest.TestCase):
         self.t = TG.load_target(H3)
         self.env = mock.patch.dict(os.environ, {}, clear=False)
         self.env.start()
-        os.environ.pop("H3_WORKFLOW", None)
+        os.environ.pop("SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW", None)
         os.environ.pop("COMFYUI_PATH", None)
 
     def tearDown(self):
@@ -135,18 +135,18 @@ class GraphSourceTest(unittest.TestCase):
 
     def test_env_wins_and_is_reported(self):
         p = os.path.join(self.fake.url.replace("http://", ""), "nope.json")
-        os.environ["H3_WORKFLOW"] = p                     # set but missing: repo still wins
+        os.environ["SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW"] = p                     # set but missing: repo still wins
         g = self.source()
         self.assertEqual(g["source"], "repo")
         self.assertTrue(g["env_set"])
-        self.assertEqual(g["env"], "H3_WORKFLOW")
+        self.assertEqual(g["env"], "SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW")
 
     def test_env_file_wins(self):
         import tempfile
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "mine.json")
             json.dump(repo_graph(H3), io.open(p, "w", encoding="utf-8"))
-            os.environ["H3_WORKFLOW"] = p
+            os.environ["SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW"] = p
             self.fake.userdata[f"workflows/{self.t.binding.workflow_name}"] = repo_graph(H3)
             g = self.source()
             self.assertEqual(g["source"], "env")
