@@ -247,7 +247,7 @@ class ChainUpscaleTest(_Episode):
         c = g["up_chain"]["inputs"]
         self.assertEqual((c["overlap"], c["hold_audio"], c["missing_ok"]), (39, False, True))
         self.assertTrue(c["previous_latent"].endswith("sh070_t01.up.latent.safetensors"))
-        self.assertEqual(g[c["latent"][0]]["class_type"], "H3HoldAudio")
+        self.assertEqual(g[c["latent"][0]]["class_type"], "SeriesmithHoldAudio")
         self.assertNotIn("sidecar", c)              # nothing writes the record mid-job
         self.assertEqual(g["up_save"]["inputs"]["chain_hold"], ["up_chain", 1])
 

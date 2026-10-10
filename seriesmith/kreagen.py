@@ -551,7 +551,13 @@ def main() -> int:
                     raise RuntimeError("model files not installed: " + "; ".join(
                         R.TG.missing_message(m) for m in blocked))
                 g0 = base
-                if not job.is_krea2:
+                hosted = bool(job.target.spec.get("router"))
+                if hosted and runner is None:
+                    raise RuntimeError(f"{job.target.short} is a hosted model: pass "
+                                       f"--backend router")
+                if hosted:
+                    g0 = None                    # one call, no workflow
+                elif not job.is_krea2:
                     if job.target.id not in graphs:
                         graphs[job.target.id], _ = R.resolve_workflow(args.comfy, None,
                                                                       job.target)

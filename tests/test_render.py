@@ -513,7 +513,7 @@ class FakeComfy:
         si = next(v["inputs"] for v in graph.values() if v["class_type"] == "H3SaveUpscale")
         root = si["project_root"]
         px = next((v["inputs"] for v in graph.values()
-                   if v["class_type"] in ("H3PixelUpscale", "ImageScale")), None)
+                   if v["class_type"] in ("SeriesmithPixelUpscale", "ImageScale")), None)
         loader = next((v["inputs"] for v in graph.values() if v["class_type"] == J.LOADER), None)
         if px is not None:                       # the pixel method: its node says the size
             w, h = px["width"], px["height"]

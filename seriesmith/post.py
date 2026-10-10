@@ -19,7 +19,7 @@ Two steps, in order, each optional:
   of frames at a time, its colour and tone the source's). The tiers are names
   for these: draft (pixel), production (SeedVR2 7B, fixed 61-frame chunks
   crossfaded over 6), cinematic (SUPIR 0.2).
-- motion blur: shutter blur along each pixel's optical flow (H3MotionBlur),
+- motion blur: shutter blur along each pixel's optical flow (SeriesmithMotionBlur),
   `--blur` the fraction of the frame interval (0.5: a 180-degree shutter).
 
 Without --enhance / --blur (or with --recipe): the series config's
@@ -312,9 +312,9 @@ def finish_of(job: PostJob) -> dict:
 def supir_nodes(g: dict, job: PostJob, images: list) -> list:
     """SUPIR on SDXL at a low denoise, one small batch of frames at a time (it
     is an image model: RebatchImages makes the batches, every node after it runs
-    once a batch, H3FramesToBatch joins them), the same seed on every batch so
+    once a batch, SeriesmithFramesToBatch joins them), the same seed on every batch so
     every frame starts from the same noise, then its colour and tone the
-    source's (H3FinishUpscale's frequency split: only its detail is kept)."""
+    source's (SeriesmithFinishUpscale's frequency split: only its detail is kept)."""
     e = job.enhance
     g.update({
         "pp_ckpt": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": e["checkpoint"]}},
@@ -336,8 +336,8 @@ def supir_nodes(g: dict, job: PostJob, images: list) -> list:
         "pp_dec": {"class_type": "VAEDecodeTiled", "inputs": {
             "samples": ["pp_ks", 0], "vae": ["pp_ckpt", 2], "tile_size": 1024, "overlap": 64,
             "temporal_size": 64, "temporal_overlap": 8}},
-        "pp_join": {"class_type": "H3FramesToBatch", "inputs": {"images": ["pp_dec", 0]}},
-        "pp_finish": {"class_type": "H3FinishUpscale", "inputs": {
+        "pp_join": {"class_type": "SeriesmithFramesToBatch", "inputs": {"images": ["pp_dec", 0]}},
+        "pp_finish": {"class_type": "SeriesmithFinishUpscale", "inputs": {
             "images": ["pp_join", 0], "source": images, "chunk": 8, **finish_of(job)}},
     })
     return ["pp_finish", 0]
@@ -351,7 +351,7 @@ def post_graph(job: PostJob) -> dict:
     e = job.enhance
     if e and e["method"] == "pixel":
         g["pp_model"] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": e["pixel_model"]}}
-        g["pp_pixels"] = {"class_type": "H3PixelUpscale", "inputs": {
+        g["pp_pixels"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
             "images": images, "upscale_model": ["pp_model", 0], "width": job.width,
             "height": job.height, "chunk": 4, "precision": "fp16", **finish_of(job)}}
         images = ["pp_pixels", 0]
@@ -363,7 +363,7 @@ def post_graph(job: PostJob) -> dict:
         images = supir_nodes(g, job, images)
     if job.blur > 0:
         g["pp_flow"] = {"class_type": "OpticalFlowLoader", "inputs": {"model_name": RAFT_FILE}}
-        g["pp_blur"] = {"class_type": "H3MotionBlur", "inputs": {
+        g["pp_blur"] = {"class_type": "SeriesmithMotionBlur", "inputs": {
             "images": images, "optical_flow": ["pp_flow", 0], "amount": job.blur,
             "samples": 9, "flow_width": 960, "max_motion": 0.08, "chunk": 8,
             "min_motion": 0.75}}
@@ -385,9 +385,9 @@ def post_graph(job: PostJob) -> dict:
 
 BASE_NODES = ("H3LoadTakeVideo", "H3SaveUpscale")
 SUPIR_NODES = ("CheckpointLoaderSimple", "ModelPatchLoader", "RebatchImages", "SUPIRApply",
-               "CLIPTextEncode", "VAEEncode", "KSampler", "VAEDecodeTiled", "H3FramesToBatch",
-               "H3FinishUpscale")
-BLUR_NODES = ("OpticalFlowLoader", "H3MotionBlur")
+               "CLIPTextEncode", "VAEEncode", "KSampler", "VAEDecodeTiled", "SeriesmithFramesToBatch",
+               "SeriesmithFinishUpscale")
+BLUR_NODES = ("OpticalFlowLoader", "SeriesmithMotionBlur")
 
 
 def not_ready(jobs: list[PostJob], object_info: dict | None) -> list[str]:
@@ -398,7 +398,7 @@ def not_ready(jobs: list[PostJob], object_info: dict | None) -> list[str]:
 
     def need(nodes):
         for c in nodes:
-            m = f"node {c} (update ComfyUI / h3pipe's node pack and restart it)"
+            m = f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
             if c not in object_info and m not in out:
                 out.append(m)
 

@@ -1,0 +1,37 @@
+{
+  "id": "krea_2_router",
+  "kind": "image",
+  "label": "Krea 2 (hosted, Comfy Router)",
+  "short": "Krea 2 (Router)",
+  "code": "target.py",
+  "_note": "Krea 2 as a hosted model through Comfy Router (krea/krea-2, docs.comfy.org/development/comfy-router/models/krea/krea-2). The same model family as the local krea2 target, so a series' refs look alike made either way. No workflow: a take is one Router call (router_call in target.py). Text to image: Krea's image references are style references (image_style_references), not a subject to keep, so none are sent. Not yet tried against the live service (docs/PLAN.md, step 8).",
+  "capabilities": {
+    "_note": "Hosted: Router only, and the provider decides what a seed means.",
+    "backends": ["router"],
+    "seed": "provider",
+    "mode": "t2i",
+    "max_refs": 0
+  },
+  "template": {
+    "_note": "krea2's sizes. Krea 2 draws at 1K in a named aspect ratio: the nearest to each size is asked for, and the picture comes back at the provider's size for it.",
+    "view_size": [1024, 1024],
+    "plate_size": [1344, 768],
+    "object_size": [1024, 1024]
+  },
+  "recipe": {
+    "_note": "Series refs are worded as krea2 words them (targets/image/common.py); keyframes by common.keyframe_prompt.",
+    "views": ["01_threequarter", "02_side", "03_back", "04_face"]
+  },
+  "router": {
+    "model": "krea/krea-2",
+    "resolution": "1K",
+    "ratios": ["1:1", "4:3", "3:2", "16:9", "2.35:1", "4:5", "2:3", "9:16"],
+    "creativity": "medium",
+    "seed_max": 4294967295,
+    "result": {"image": "result.urls"}
+  },
+  "presets": {
+    "_note": "No model files and no steps: the provider's.",
+    "final": {"model": "krea/krea-2", "lora": "", "steps": 0, "cfg": 1.0}
+  }
+}

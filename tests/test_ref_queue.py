@@ -143,5 +143,39 @@ class KreagenBackendTest(unittest.TestCase):
         self.assertIn("cloud isn't set up on this machine", out)
 
 
+class RouterRefTest(unittest.TestCase):
+    """A hosted image target (krea_2_router): one Router call per take, its
+    sizes as the provider names them, and the picture it returns (here a JPEG
+    behind a URL with no extension) closing the take."""
+    setUp = RefQueueTest.setUp
+
+    def test_a_plate_on_router(self):
+        jpeg = bytes.fromhex("ffd8ffc00011080300054003") + bytes(20)
+        fb = FakeBackend("router", "router", outputs={"": [("abc123", "file", jpeg)]})
+        runner = Runner(self.queue, {"router": fb}, lambda e, d: self.events.append((e, d)))
+        res = R.queue_generate(self.s, R.GenRequest("location:kitchen", None, target="krea_2_router"),
+                               None, None, runner=runner, backend="router")
+        self.assertEqual(res["errors"], [])
+        (q,) = res["queued"]
+        job = self.queue.jobs[q["prompt_id"]]
+        wait_for(lambda: job.status in ("succeeded", "failed"))
+        self.assertEqual(job.status, "succeeded", job.error)
+        ((model, args),) = fb.calls
+        self.assertEqual(model, "krea/krea-2")
+        self.assertEqual((args["aspect_ratio"], args["resolution"]), ("16:9", "1K"))
+        self.assertTrue(args["prompt"])
+        self.assertEqual(fb.submitted, [])
+        take = R.get_take(R.find_ref(self.s, "location:kitchen"), None, q["take"])
+        self.assertEqual(take.sidecar["status"], "ok")
+        self.assertTrue(take.paths.image.endswith(".jpg"), take.paths.image)
+        self.assertEqual((take.sidecar["width"], take.sidecar["height"]), (1344, 768))
+
+    def test_a_hosted_target_needs_the_queue(self):
+        res = R.queue_generate(self.s, R.GenRequest("location:kitchen", None, target="krea_2_router"),
+                               None, None)
+        (err,) = res["errors"]
+        self.assertIn("hosted model", err["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -81,7 +81,7 @@ class UpscaleJob:
     # how the .up.mp4 is written and the upscale model run (ENCODERS, PRECISIONS)
     encoder: str = "auto"
     precision: str = "fp16"
-    # finishing a pixel model's output (H3PixelUpscale): colour and tone from
+    # finishing a pixel model's output (SeriesmithPixelUpscale): colour and tone from
     # the source, invented detail faded where it was soft, grain
     frequency_split: bool = True
     keep_soft: float = 0.0
@@ -113,7 +113,7 @@ class UpscaleJob:
     keep_latent: bool = False
 
     def finish_inputs(self, grain: bool = True) -> dict:
-        """The finishing inputs of an H3PixelUpscale node (`grain` False: before a
+        """The finishing inputs of an SeriesmithPixelUpscale node (`grain` False: before a
         re-sample, which would take grain for noise). The grain is seeded by
         the take's seed, so a redo repeats it."""
         seed = int((self.take.sidecar or {}).get("seed") or 0) % (1 << 32)
@@ -298,13 +298,13 @@ def upscaler_model(spec: dict) -> str | None:
 
 
 # the nodes an upscale graph adds to the target's (besides its upscaler)
-UPSCALE_NODES = ("H3LoadTakeLatent", "H3LoadTakeVideo", "H3HoldAudio", "H3SaveUpscale",
+UPSCALE_NODES = ("H3LoadTakeLatent", "H3LoadTakeVideo", "SeriesmithHoldAudio", "H3SaveUpscale",
                  "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "SplitSigmas", "VAEEncode",
                  "VAEEncodeAudio")
 AUDIO_ENCODE = {"class_type": "VAEEncodeAudio", "audio": "audio", "vae": "vae"}
 
 METHODS = ("latent", "pixel", "seedvr2")
-PIXEL_NODES = ("H3LoadTakeVideo", "H3PixelUpscale", "UpscaleModelLoader", "H3SaveUpscale")
+PIXEL_NODES = ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "H3SaveUpscale")
 
 # SeedVR2 (ByteDance, Apache 2.0), native in ComfyUI core: a one-step video
 # restoration model, any take, no prompt. Its files, as ComfyUI's own templates
@@ -321,7 +321,7 @@ SEEDVR2_DOWNLOADS = {
 SEEDVR2_SOURCE = "ComfyUI templates utility_seedvr2_3b_int8_upscale_video.json / utility_seedvr2_7b_int8_upscale_image.json (properties.models)"
 SEEDVR2_NODES = ("H3LoadTakeVideo", "ImageScale", "SeedVR2Preprocess", "VAEEncodeTiled",
                  "SeedVR2TemporalChunk", "SeedVR2Conditioning", "KSampler", "SeedVR2TemporalMerge",
-                 "VAEDecodeTiled", "SeedVR2PostProcessing", "H3FinishUpscale", "H3SaveUpscale",
+                 "VAEDecodeTiled", "SeedVR2PostProcessing", "SeriesmithFinishUpscale", "H3SaveUpscale",
                  "UNETLoader", "VAELoader")
 
 
@@ -336,7 +336,7 @@ def seedvr2_readiness(object_info: dict | None, want: str | None = None) -> dict
     VAE, our finish node). {"status", "missing", "models", "default"}."""
     if object_info is None:
         return {"status": "unknown", "missing": [], "models": [], "default": seedvr2_file(None)}
-    missing = [f"node {c} (update ComfyUI / h3pipe's node pack and restart it)"
+    missing = [f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
                for c in SEEDVR2_NODES if c not in object_info]
     unets = J.choices_in(object_info, "UNETLoader", "unet_name") or []
     models = [m for m in unets if "seedvr2" in m.lower()]
@@ -380,7 +380,7 @@ def pixel_readiness(object_info: dict | None, want: str | None = None) -> dict:
     model (`want`, if named). {"status", "missing", "models", "default"}."""
     if object_info is None:
         return {"status": "unknown", "missing": [], "models": [], "default": DEFAULT_PIXEL_MODEL}
-    missing = [f"node {c} (update h3pipe's node pack, or ComfyUI, and restart it)"
+    missing = [f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
                for c in PIXEL_NODES if c not in object_info]
     models = pixel_models(object_info) or []
     if not models:
@@ -412,7 +412,7 @@ def upscale_readiness(target: "TG.Target", object_info: dict | None) -> dict | N
         need.append(spec["upsampler"]["class_type"])
     if spec.get("mode", RESAMPLE) == PIXEL_REFINE:
         # Wan: no latent, no audio; the pixel model's pieces instead
-        need = ["H3LoadTakeVideo", "H3PixelUpscale", "UpscaleModelLoader", "VAEEncode",
+        need = ["H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "VAEEncode",
                 "H3SaveUpscale"]
         if spec.get("reference"):
             need += ["ImageScale", "LatentConcat"]
@@ -424,7 +424,7 @@ def upscale_readiness(target: "TG.Target", object_info: dict | None) -> dict | N
             need.append("LatentCut")
         if spec.get("sampler_tail") == "advanced":
             need.append("KSamplerAdvanced")
-    missing = [f"node {c} (update h3pipe's node pack, or ComfyUI, and restart it)"
+    missing = [f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
                for c in need if c not in object_info]
     if spec.get("mode", RESAMPLE) == RESAMPLE and spec["upscaler"].get("model"):
         m = spec["upscaler"]["model"]
@@ -1105,7 +1105,7 @@ def sampler_tail(g: dict, sampler: str, start: int) -> None:
 
 def upscale_graph(base: dict, up: UpscaleJob) -> dict:
     """The target's render graph (API form) turned into this upscale. Both modes:
-    the take's latent in (take_source), its audio held (H3HoldAudio), its
+    the take's latent in (take_source), its audio held (SeriesmithHoldAudio), its
     schedule started late, and H3SaveUpscale writing <stem>.up.mp4 with the
     take's audio copied on.
 
@@ -1151,7 +1151,7 @@ def upscale_graph(base: dict, up: UpscaleJob) -> dict:
             raise UpscaleError(f"{t.short}'s graph has no {u['class_type']} before its last sampler")
         g[ups]["inputs"][u.get("input", "samples")] = ["up_split_av", 0]
         g[join]["inputs"]["audio_latent"] = ["up_split_av", 1]
-        g["up_hold"] = {"class_type": "H3HoldAudio", "inputs": {"latent": [join, 0]}}
+        g["up_hold"] = {"class_type": "SeriesmithHoldAudio", "inputs": {"latent": [join, 0]}}
         si["latent_image"] = ["up_hold", 0]
         sig = si["sigmas"][0]
         sspec = spec.get("sigmas") or {"class_type": "ManualSigmas", "field": "sigmas"}
@@ -1180,7 +1180,7 @@ def upscale_graph(base: dict, up: UpscaleJob) -> dict:
 def chain_hold(g: dict, up: UpscaleJob, sampler: str) -> None:
     """A `continuous: latent` take's re-sample held, at its head, on the
     previous take's upscaled latent (set_chain): H3ChainLatent in its upscale
-    mode (missing_ok) on the sampler's latent, video only (H3HoldAudio holds
+    mode (missing_ok) on the sampler's latent, video only (SeriesmithHoldAudio holds
     the sound). Whether it held goes to the saver (`chain_hold`, linked in
     upscale_graph), which writes it into the record when the job ends."""
     si = g[sampler]["inputs"]
@@ -1253,11 +1253,11 @@ def resample(g: dict, up: UpscaleJob, sampler: str) -> None:
                                f"through an LTXVConcatAVLatent")
         g[guide]["inputs"][into["input"]] = ["up_scale", 0]
         g[join]["inputs"]["audio_latent"] = ["up_split_av", 1]
-        g["up_hold"] = {"class_type": "H3HoldAudio", "inputs": {"latent": [join, 0]}}
+        g["up_hold"] = {"class_type": "SeriesmithHoldAudio", "inputs": {"latent": [join, 0]}}
     else:
         g["up_join"] = {"class_type": "LTXVConcatAVLatent", "inputs": {
             "video_latent": ["up_scale", 0], "audio_latent": ["up_split_av", 1]}}
-        g["up_hold"] = {"class_type": "H3HoldAudio", "inputs": {"latent": ["up_join", 0]}}
+        g["up_hold"] = {"class_type": "SeriesmithHoldAudio", "inputs": {"latent": ["up_join", 0]}}
     si["latent_image"] = ["up_hold", 0]
     if "sigmas" in si:
         g["up_sigmas"] = {"class_type": "SplitSigmas", "inputs": {"sigmas": si["sigmas"],
@@ -1302,7 +1302,7 @@ def pixel_refine(g: dict, up: UpscaleJob, sampler: str) -> None:
     g["up_video"] = {"class_type": "H3LoadTakeVideo", "inputs": {
         "project_root": root, "video_file": rel(root, take.paths.mp4), "audio_file": ""}}
     g["up_model"] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": up.pixel_model}}
-    g["up_pixels"] = {"class_type": "H3PixelUpscale", "inputs": {
+    g["up_pixels"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
         "images": ["up_video", 0], "upscale_model": ["up_model", 0],
         "width": up.width, "height": up.height, "chunk": 4, "precision": up.precision,
         **up.finish_inputs(grain=False)}}
@@ -1354,7 +1354,7 @@ def finish_graph(g: dict, up: UpscaleJob, images: list) -> dict:
         # the re-sample's frames through an upscale model before they're saved
         g["up_then_model"] = {"class_type": "UpscaleModelLoader",
                               "inputs": {"model_name": up.then_model}}
-        g["up_then"] = {"class_type": "H3PixelUpscale", "inputs": {
+        g["up_then"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
             "images": images, "upscale_model": ["up_then_model", 0],
             "width": up.made_size[0], "height": up.made_size[1], "chunk": 2,
             "precision": up.precision, **up.finish_inputs()}}
@@ -1394,7 +1394,7 @@ def seedvr2_nodes(g: dict, up: UpscaleJob, images: list, model: str, width: int,
 def seedvr2_chain(g: dict, images: list, model: str, width: int, height: int, seed: int,
                   finish: dict, prefix: str = "up_", chunk: int = 0, overlap: int = 2) -> list:
     """SeedVR2 on `images` to width x height (the same size: a restoration),
-    finished against them by H3FinishUpscale with `finish`; the node ids start
+    finished against them by SeriesmithFinishUpscale with `finish`; the node ids start
     with `prefix`. Returns the link to the result. The upscale's and the post
     pass's (h3post). `chunk`: pixel frames per temporal chunk (4n+1), 0 for
     auto, which sizes chunks to the VRAM free at the time, so two runs can split
@@ -1426,7 +1426,7 @@ def seedvr2_chain(g: dict, images: list, model: str, width: int, height: int, se
         p + "post": {"class_type": "SeedVR2PostProcessing", "inputs": {
             "images": [p + "dec", 0], "original_resized_images": [p + "resize", 0],
             "color_correction_method": "lab"}},
-        p + "finish": {"class_type": "H3FinishUpscale", "inputs": {
+        p + "finish": {"class_type": "SeriesmithFinishUpscale", "inputs": {
             "images": [p + "post", 0], "source": images, "chunk": 8, **finish}},
     })
     return [p + "finish", 0]
@@ -1443,7 +1443,7 @@ def pixel_graph(up: UpscaleJob) -> dict:
             # on top of its existing upscale, or from the take
             "video_file": rel(root, take.paths.up_mp4 if up.previous else take.paths.mp4)}},
         "up_model": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": up.pixel_model}},
-        "up_pixels": {"class_type": "H3PixelUpscale", "inputs": {
+        "up_pixels": {"class_type": "SeriesmithPixelUpscale", "inputs": {
             "images": ["up_video", 0], "upscale_model": ["up_model", 0],
             "width": up.width, "height": up.height, "chunk": 4, "precision": up.precision,
             **up.finish_inputs()}},

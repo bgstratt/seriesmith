@@ -140,13 +140,20 @@ class Runner:
         backend = self.backends.get(backend_name)
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        hosted = bool(job.target.spec.get("router"))
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
-        R.stage_references(s, job, collector)
-        R.stage_voice_reference(s, job, collector)
+        if not hosted:
+            R.stage_references(s, job, collector)
+            R.stage_voice_reference(s, job, collector)
         take = R.start_gen(s, job)
-        g = R.graph_for(base, job, take, lora_clip=lora_clip, portable=True)
-        J.files_as_uploads(g, collector.files)
-        savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio")]
+        if hosted:
+            # a hosted model (target.json `router`): one call, whatever it returns
+            call = job.target.module.router_call(job.target, job)
+            g, savers = None, []
+        else:
+            g = R.graph_for(base, job, take, lora_clip=lora_clip, portable=True)
+            J.files_as_uploads(g, collector.files)
+            savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio")]
         want = "audio" if job.is_audio else "image"
         ep = s.ep
         title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"
@@ -155,7 +162,7 @@ class Runner:
             def progress(p):
                 report(p.value, p.step, p.steps)
             try:
-                run = backend.submit(g)
+                run = backend.call(*call) if hosted else backend.submit(g)
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
                 T.update_sidecar(take.paths.sidecar, backend_job=run.id)
@@ -163,6 +170,9 @@ class Runner:
                 if status != "succeeded":
                     raise RuntimeError(run.error or f"the job ended {status}")
                 outs = [o for o in run.outputs() if o.type == want]
+                if hosted and not outs:
+                    # a provider's signed URLs often have no extension to type them by
+                    outs = [o for o in run.outputs() if o.type in (want, "file")]
                 outs = [o for o in outs if o.node in savers] or outs
                 if not outs:
                     raise RuntimeError(f"the job finished but returned no {want}")
@@ -173,7 +183,8 @@ class Runner:
                         data = fh.read()
                 finally:
                     os.remove(tmp)
-                ext = os.path.splitext(outs[0].name)[1].lower() if job.is_audio else None
+                ext = (os.path.splitext(outs[0].name)[1].lower() if job.is_audio
+                       else R.image_ext(data) if hosted else None)
                 result = R.close_take(take, data, f"from {backend.name}: {outs[0].name}", ext=ext)
             except Exception as e:                       # noqa: BLE001  the take fails
                 R.mark_failed(take, "canceled" if qjob.cancel_asked else str(e)[:800])

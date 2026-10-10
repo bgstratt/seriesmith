@@ -50,6 +50,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "flux2_klein_edit"), ("image", "flux_kontext"),
                                ("image", "minimax_h3_still"), ("image", "qwen_image_21"),
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
+                               ("image", "krea_2_router"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video")],
                          ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "seedance_2_5",
@@ -409,7 +410,7 @@ class TargetsRouteTest(ApiTest):
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
-                                   "klein_erp_360", "ltx2_voice", "seedance_2_5"})
+                                   "klein_erp_360", "ltx2_voice", "seedance_2_5", "krea_2_router"})
         for tid, label, short in (("wan22_i2v", "Wan 2.2 14B I2V", "Wan I2V"),
                                   ("wan22_ti2v", "Wan 2.2 5B TI2V", "Wan 5B"),
                                   ("wan22_vace", "Wan 2.2 14B VACE (refs)", "Wan+refs")):
@@ -466,13 +467,15 @@ class TargetsRouteTest(ApiTest):
                          {"video": H3, "image": "krea2", "audio": "ltx2_voice"})
         images = self.ok(A.get_targets(self.ctx, {"kind": "image"}))["targets"]
         self.assertEqual([t["id"] for t in images],
-                         ["flux2_klein", "flux2_klein_edit", "flux_kontext", "klein_erp_360", "krea2",
+                         ["flux2_klein", "flux2_klein_edit", "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
                           "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio", "z_image_turbo"])
         # seriesmith's fields (where a job runs, whether it repeats) are the same
         # for every workflow target (test_capabilities); h3pipe's are compared here
         for t in images:
+            # a hosted one runs on Router only, and the provider decides what a seed means
+            want = (["router"], False) if t["id"] == "krea_2_router" else (["local", "deployment"], True)
             self.assertEqual((t["capabilities"].pop("backends"), t["capabilities"].pop("reproducible")),
-                             (["local", "deployment"], True), t["id"])
+                             want, t["id"])
         caps = {t["id"]: t["capabilities"] for t in images}
         self.assertEqual(caps["krea2"], {"mode": "t2i", "max_refs": 0, "negative_prompt": False})
         self.assertEqual(caps["flux2_klein_edit"],

@@ -309,10 +309,10 @@ class UpscaleRouteTest(UpscaleTest):
         info = {c: {"input": {}} for c in U.UPSCALE_NODES}
         info["MinimaxH3LatentUpscaler3D"] = UPSCALER
         self.assertEqual(U.upscale_readiness(t, info), {"status": "ready", "missing": []})
-        del info["H3HoldAudio"]
+        del info["SeriesmithHoldAudio"]
         r = U.upscale_readiness(t, info)
         self.assertEqual(r["status"], "not_ready")
-        self.assertIn("H3HoldAudio", r["missing"][0])
+        self.assertIn("SeriesmithHoldAudio", r["missing"][0])
         self.assertEqual(U.upscale_readiness(t, None)["status"], "unknown")
         without_resample(self)
         wan = TG.load_target(PLAIN, "video")                  # no re-sample of its own
@@ -446,7 +446,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
                                                 "method": "pixel", "pixel_model": "4x-UltraSharp.pth"}))
         q = res["queued"][0]
         self.assertEqual((q["method"], q["pixel_model"], q["route"]), ("pixel", "4x-UltraSharp.pth", "pixel"))
-        self.assertTrue(any(v["class_type"] == "H3PixelUpscale" for v in self.comfy.graphs[-1].values()))
+        self.assertTrue(any(v["class_type"] == "SeriesmithPixelUpscale" for v in self.comfy.graphs[-1].values()))
         up = self.status_take()["upscale"]
         self.assertEqual((up["method"], up["pixel_model"], up["fresh"]), ("pixel", "4x-UltraSharp.pth", True))
         # a model this ComfyUI doesn't have
@@ -550,8 +550,8 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual(g["up_unet"]["inputs"]["unet_name"], "seedvr2_3b_int8_convrot.safetensors")
         self.assertEqual(g["up_finish"]["inputs"]["source"], [decode, 0])
         self.assertEqual(g["up_save"]["inputs"]["images"], ["up_finish", 0])
-        self.assertFalse(self.by_class(g, "H3PixelUpscale"))
-        self.assertTrue(self.by_class(g, "H3HoldAudio"))                  # still a re-sample first
+        self.assertFalse(self.by_class(g, "SeriesmithPixelUpscale"))
+        self.assertTrue(self.by_class(g, "SeriesmithHoldAudio"))                  # still a re-sample first
         rec = U.queued_record(up)
         self.assertEqual((rec["then_pixel"]["method"], rec["width"], rec["height"]), ("seedvr2", 3840, 2160))
         self.assertIn("then SeedVR2 (seedvr2_3b_int8_convrot.safetensors)", U.describe(up))
@@ -680,13 +680,13 @@ class PixelUpscaleTest(UpscaleRouteTest):
         first = g[wiv["start_image"][0]]["inputs"]["image"]
         self.assertEqual(first, "h3pipe/sh010_t01_first.png")
         self.assertEqual(g["up_venc"]["inputs"]["vae"][0], self.by_class(g, "VAELoader")[0])
-        self.assertFalse(self.by_class(g, "H3HoldAudio"))                    # silent
+        self.assertFalse(self.by_class(g, "SeriesmithHoldAudio"))                    # silent
         self.assertTrue(self.by_class(g, "H3SaveUpscale"))
         rec = U.queued_record(up)
         self.assertEqual((rec["mode"], rec["upscaler"]), ("pixel_refine", "RealESRGAN_x2.pth, then the target's own sampler"))
         self.assertEqual(U.plan_upscale(self.ep, t, route="latent").action, "error")
         # its readiness asks for the pixel pieces, and the model
-        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "H3PixelUpscale", "VAEEncode", "H3SaveUpscale")}
+        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "VAEEncode", "H3SaveUpscale")}
         info["UpscaleModelLoader"] = {"input": {"required": {"model_name": [["RealESRGAN_x2.pth"], {}]}}}
         self.assertEqual(U.not_ready([up], info), [])
         missing = U.not_ready([U.plan_upscale(self.ep, t, pixel_model="RealESRGAN_x4.pth")], info)
@@ -756,7 +756,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual(g[ref["image"][0]]["inputs"]["image"], "h3pipe/sh010_ref.png")
         self.assertEqual((g[vace]["inputs"]["width"], g[vace]["inputs"]["height"]), (1664, 960))
         self.assertTrue(self.by_class(g, "TrimVideoLatent"))
-        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "H3PixelUpscale", "UpscaleModelLoader",
+        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader",
                                            "VAEEncode", "H3SaveUpscale", "ImageScale")}
         r = U.upscale_readiness(up.target, info)
         self.assertEqual(r["status"], "not_ready")

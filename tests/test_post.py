@@ -124,7 +124,7 @@ class PostTest(ApiTest):
         g = P.post_graph(P.plan_post(self.ep, t, enhance="draft"))
         load = g[self.by_class(g, "H3LoadTakeVideo")[0]]["inputs"]
         self.assertTrue(load["video_file"].endswith(".up.mp4"))
-        px = g[self.by_class(g, "H3PixelUpscale")[0]]["inputs"]
+        px = g[self.by_class(g, "SeriesmithPixelUpscale")[0]]["inputs"]
         self.assertEqual((px["width"], px["height"]), (1920, 1088))      # 1x: a sharpen
         self.assertTrue(px["frequency_split"])
         save = g["pp_save"]["inputs"]
@@ -185,8 +185,8 @@ class PostTest(ApiTest):
         missing = P.not_ready(jobs, info)
         self.assertTrue(any(P.SUPIR_MODEL in m for m in missing))
         self.assertTrue(any(P.RAFT_FILE in m and P.RAFT_URL in m for m in missing))
-        del info["H3MotionBlur"]
-        self.assertTrue(any("H3MotionBlur" in m for m in P.not_ready(jobs, info)))
+        del info["SeriesmithMotionBlur"]
+        self.assertTrue(any("SeriesmithMotionBlur" in m for m in P.not_ready(jobs, info)))
 
     # -- the routes -----------------------------------------------------------
 
@@ -263,7 +263,7 @@ except Exception:                                         # noqa: BLE001
 @unittest.skipIf(torch is None, "the post nodes need torch")
 class PostNodesTest(unittest.TestCase):
     def setUp(self):
-        # H3MotionBlur asks comfy.model_management for the device and to load RAFT
+        # SeriesmithMotionBlur asks comfy.model_management for the device and to load RAFT
         mm = types.ModuleType("comfy.model_management")
         mm.get_torch_device = lambda: torch.device("cpu")
         mm.load_model_gpu = lambda m: None
@@ -283,7 +283,7 @@ class PostNodesTest(unittest.TestCase):
 
     def test_frames_to_batch(self):
         a, b = torch.zeros(2, 4, 6, 3), torch.ones(1, 4, 6, 3)
-        out, = self.N.H3FramesToBatch().join([a, b])
+        out, = self.N.SeriesmithFramesToBatch().join([a, b])
         self.assertEqual(tuple(out.shape), (3, 4, 6, 3))
         self.assertEqual(float(out[2].mean()), 1.0)
 
@@ -295,7 +295,7 @@ class PostNodesTest(unittest.TestCase):
 
     def test_blur_zero_passes_through(self):
         x = self.frames()
-        out, = self.N.H3MotionBlur().blur(x, None, amount=0.0)
+        out, = self.N.SeriesmithMotionBlur().blur(x, None, amount=0.0)
         self.assertIs(out, x)
 
     def test_blur_spreads_along_the_motion(self):
@@ -309,7 +309,7 @@ class PostNodesTest(unittest.TestCase):
             model.forward = not model.forward
             return [f]
         model.forward = True
-        out, = self.N.H3MotionBlur().blur(x, types.SimpleNamespace(model=model), amount=1.0,
+        out, = self.N.SeriesmithMotionBlur().blur(x, types.SimpleNamespace(model=model), amount=1.0,
                                           samples=9, flow_width=128, max_motion=0.5)
         row = out[1, 32, :, 0]
         sharp = x[1, 32, :, 0]

@@ -236,7 +236,11 @@ With the UI there to try each one:
       backend (Runner.enqueue_ref, waited for) and picks as before. Live
       2026-10-10: a 6 s tour of diner_counter_morning (ep02 scratch) on
       local, two holds.
-- [ ] A Router image target (with the live Router run).
+- [x] A Router image target: krea_2_router (krea/krea-2, the same family as
+      the local krea2), one call per ref take on seriesmith's queue
+      (Runner.enqueue_ref's hosted path); the picture comes back as whatever
+      the provider sends (.jpg / .webp kept as such). Tested on the fake
+      backend only: the live run waits for an API key, with the rest below.
 - [x] Continuity across backends: seriesmith's queue stages a take when its
       job starts, so `first: continuity` cuts the first frame from the take
       the cut uses then, and `continuous: latent` uploads that take's latent
@@ -267,6 +271,16 @@ With the UI there to try each one:
 
 - [ ] Nothing of h3pipe's node pack needed: every node seriesmith's graphs use
       is in its own pack.
+      - [x] The upscale and post compute nodes (comfy_nodes/finish.py:
+            SeriesmithPixelUpscale, FinishUpscale, HoldAudio, FramesToBatch,
+            MotionBlur), copied unchanged under seriesmith's names; live
+            2026-10-10, sh180's latent upscale and draft + blur post came out
+            frame-identical to h3pipe's nodes.
+      - [ ] What the direct routes (no queue: the command line, the ComfyUI
+            host) still load from h3pipe's pack: H3ShotListLoader / H3SaveShot,
+            H3LoadTake* / H3SaveUpscale, H3SaveRefTake / H3SaveRefAudio,
+            H3ChainLatent, H3ContinuityFrame. Either they go through the
+            portable nodes too, or the direct routes go.
 - [ ] The docs (AUTHORING.md and the rest) moved here, renamed where generic;
       the old h3 names inside the code (h3cli, the `h3` aliases) tidied away.
 

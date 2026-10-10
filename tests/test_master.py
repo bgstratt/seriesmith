@@ -482,7 +482,7 @@ class MasterTest(ApiTest):
         self.set_recipe(RECIPE)
         with self.assertRaisesRegex(M.MasterError, "no post.master"):
             M.plan_master(self.ep, post=True)
-        self.comfy.nodes |= {"OpticalFlowLoader", "H3MotionBlur"}
+        self.comfy.nodes |= {"OpticalFlowLoader", "SeriesmithMotionBlur"}
         self.comfy.info["OpticalFlowLoader"] = {"input": {"required": {
             "model_name": [["raft_large_C_T_SKHT_V2-ff5fadd5.pth"], {}]}}}
         self.set_post({"enhance": "draft", "motion_blur": 0.3})
@@ -534,7 +534,7 @@ class MasterTest(ApiTest):
         rendered = self.render_all()
         self.set_recipe(RECIPE)
         M.queue_master(M.plan_master(self.ep), self.ctx.comfy, self.ctx.comfy_url)
-        self.comfy.nodes |= {"OpticalFlowLoader", "H3MotionBlur"}
+        self.comfy.nodes |= {"OpticalFlowLoader", "SeriesmithMotionBlur"}
         self.comfy.info["OpticalFlowLoader"] = {"input": {"required": {
             "model_name": [["raft_large_C_T_SKHT_V2-ff5fadd5.pth"], {}]}}}
         # one shot posted by hand (the take menu), no post recipe in the series at all

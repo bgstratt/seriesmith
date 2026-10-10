@@ -1070,6 +1070,16 @@ def image_size(path: str) -> tuple[int, int] | None:
     return None
 
 
+def image_ext(data: bytes) -> str:
+    """The extension a picture's bytes call for (a hosted model's result may
+    be a JPEG or WebP behind a URL that doesn't say): .png unless it's one of those."""
+    if data[:2] == b"\xff\xd8":
+        return ".jpg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return ".png"
+
+
 def close_take(take: RefTake, data: bytes | None = None, notes: str = "",
                ext: str | None = None) -> str:
     """Close a take from outside the save node: write `data` as its file (if
@@ -3215,6 +3225,8 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     graphs: dict = {}
 
     def graph_base(t):
+        if t.spec.get("router"):
+            return None                      # a hosted model: one call, no workflow
         if callable(base):
             return base(t.id)
         if t.id == TG.DEFAULT_IMAGE_TARGET:
@@ -3255,6 +3267,11 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
                                   "prompt_id": qid, "seed": job.seed,
                                   "seed_source": job.seed_source, "target": job.target.id,
                                   "backend": name})
+            continue
+        if job.target.spec.get("router"):
+            out["errors"].append({"ref": job.ref.id, "view": job.view, "target": job.target.id,
+                                  "error": f"{job.target.short} is a hosted model: it runs on "
+                                           f"seriesmith's queue (backend router)"})
             continue
         try:
             g0 = graph_base(job.target)
