@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import copy
 
-from targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
+from seriesmith.targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
 
 ENCODER = "TextEncodeQwenImageEditPlus"
 LOAD_NODE = "LoadImage"

@@ -28,9 +28,9 @@ from __future__ import annotations
 import copy
 import re
 
-from h3core import framing as sizes   # this module has its own framing()
-from h3core.series_config import members
-from targets.image.krea2 import prompt as KP
+from seriesmith.core import framing as sizes   # this module has its own framing()
+from seriesmith.core.series_config import members
+from seriesmith.targets.image.krea2 import prompt as KP
 
 FACE_SIZES = ("cu", "mcu", "ecu")          # h3core/framing.py names; any spelling matches
 

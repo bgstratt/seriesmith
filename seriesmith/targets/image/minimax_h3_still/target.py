@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import copy
 
-from targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
+from seriesmith.targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
 
 H3_NODE = "MiniMaxH3ReferenceToVideo"
 REF_INPUT = "ref_images.ref_image_{}"      # the node's autogrow group, as the

@@ -1,5 +1,5 @@
 """
-Shot sizes (h3core/framing.py): the names `size:` takes, their families, and
+Shot sizes (seriesmith/core/framing.py): the names `size:` takes, their families, and
 the framing the H3 Ref2VA prompt opens a shot with.
 
 The three original sizes (close, medium, wide) must word exactly as before, so
@@ -17,11 +17,11 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-from h3core import framing  # noqa: E402
-from h3core.story import ScriptError, parse_script  # noqa: E402
-from targets.video.minimax_h3_ref2va.compile import RECIPE  # noqa: E402
+from seriesmith.core import framing  # noqa: E402
+from seriesmith.core.story import ScriptError, parse_script  # noqa: E402
+from seriesmith.targets.video.minimax_h3_ref2va.compile import RECIPE  # noqa: E402
 from test_h3_prompt import SERIES  # noqa: E402
-from targets.video.minimax_h3_ref2va.prompt import build_prompt  # noqa: E402
+from seriesmith.targets.video.minimax_h3_ref2va.prompt import build_prompt  # noqa: E402
 
 
 def opening(size: str, subjects=("ada",)) -> str:
@@ -113,12 +113,12 @@ class OpeningTest(unittest.TestCase):
 
 
 class JumpCutTest(unittest.TestCase):
-    """h3build's warning for consecutive shots that cut as a jump cut: the same
+    """the build's warning for consecutive shots that cut as a jump cut: the same
     people on the same plate at sizes less than two steps apart."""
 
     def warnings(self, *shots, continuous=False, first2="") -> list[str]:
-        import h3build
-        from h3core.story import parse_story
+        from seriesmith import build
+        from seriesmith.core.story import parse_story
         text = "= ep01  Test\n\n# sq01  kitchen\n" + ("continuous: yes\n" if continuous else "")
         for i, (who, size, plate) in enumerate(shots, 1):
             text += f"\n## sh{i}0\nwho: {who}\nsize: {size}\n" + (f"plate: {plate}\n" if plate else "")
@@ -126,7 +126,7 @@ class JumpCutTest(unittest.TestCase):
                 text += f"first: {first2}\n"
             text += "dur: 3.04\n\nSomething happens.\n"
         story = parse_story(text, {"ada", "bo"}, {"ada", "bo"})
-        return h3build.jump_cuts(story, lambda s: s, lambda s: s.title())
+        return build.jump_cuts(story, lambda s: s, lambda s: s.title())
 
     def test_steps_apart(self):
         self.assertEqual(framing.steps_apart("ms", "mcu"), 1)

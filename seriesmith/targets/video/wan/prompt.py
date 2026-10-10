@@ -19,8 +19,8 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from h3core import framing
-from targets.video.ltx2.prompt import _and, _article, _sentence, _subject_sentence
+from seriesmith.core import framing
+from seriesmith.targets.video.ltx2.prompt import _and, _article, _sentence, _subject_sentence
 
 
 def acting(shot, book: dict) -> list[str]:

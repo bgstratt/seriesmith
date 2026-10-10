@@ -8,7 +8,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from targets.audio.common import NEGATIVE, NEUTRAL_LINE, voice_line, voice_prompt  # noqa: F401,E402
+from seriesmith.targets.audio.common import NEGATIVE, NEUTRAL_LINE, voice_line, voice_prompt  # noqa: F401,E402
 
 REF_LOAD = "LTXVReferenceAudio input"       # the LoadAudio node patch_graph adds
 REF_PATCH = "Reference audio (ID-LoRA)"     # the LTXVReferenceAudio node it adds
@@ -32,7 +32,7 @@ def patch_graph(target, graph: dict, job, inputs: dict) -> None:
     if not gspec.get("class_type"):
         raise ValueError(f"{target.id}: binding.reference_audio.guider must name the "
                          f"guider node the reference audio patches")
-    import h3jobs as J
+    from seriesmith import jobs as J
 
     gid = J.select_nodes(graph, gspec)[0]
     links = gspec.get("inputs") or {"model": "model", "positive": "positive",
@@ -62,7 +62,7 @@ def patch_graph(target, graph: dict, job, inputs: dict) -> None:
 def _audio_vae(target, graph: dict):
     """The link to the audio VAE the graph loads (the binding's `audio_vae`
     widget names its loader)."""
-    import h3jobs as J
+    from seriesmith import jobs as J
 
     specs = target.binding.specs("audio_vae")
     if not specs:

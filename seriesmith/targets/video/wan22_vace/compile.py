@@ -39,9 +39,9 @@ from __future__ import annotations
 import os
 import uuid
 
-import targets as TG
-from targets.video.ltx2_ingredients import sheet as S
-from targets.video.wan import common as C
+from seriesmith import targets as TG
+from seriesmith.targets.video.ltx2_ingredients import sheet as S
+from seriesmith.targets.video.wan import common as C
 
 ID = "wan22_vace"
 TARGET = TG.load_target(ID, "video")
@@ -97,8 +97,8 @@ def stage_inputs(target, job, comfy=None) -> dict:
     until h3jobs.start_job moves it into the take (job.staged). Without
     `comfy` (a dry run) nothing is composed or written: the name is a
     stand-in. No panel on disk: {} and the shot renders without a reference."""
-    import h3jobs as J
-    import h3takes as T
+    from seriesmith import jobs as J
+    from seriesmith import takes as T
     have, gone = reference_panels(job)
     if gone and have:
         job.notes.append("the reference image leaves out " + ", ".join(_label(p) for p in gone)

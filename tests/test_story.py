@@ -1,4 +1,4 @@
-"""Tests for the story IR (h3core): the parser, line spans, JSON round trip, and
+"""Tests for the story IR (seriesmith.core): the parser, line spans, JSON round trip, and
 that shots.json stays free of H3 vocabulary."""
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3build  # noqa: E402
-from h3core import ir  # noqa: E402
-from h3core.series_config import (character_ids, load_series_config,  # noqa: E402
+from seriesmith import build  # noqa: E402
+from seriesmith.core import ir  # noqa: E402
+from seriesmith.core.series_config import (character_ids, load_series_config,  # noqa: E402
                                   series_info, subject_ids, variant_of)
-from h3core.story import ScriptError, parse_script, parse_story  # noqa: E402
+from seriesmith.core.story import ScriptError, parse_script, parse_story  # noqa: E402
 from test_golden import fixtures  # noqa: E402
 
 # Words that only mean something to H3 (or to a compiled prompt). None may
@@ -102,7 +102,7 @@ class FixtureTest(unittest.TestCase):
                         if "retention" in sh:
                             sh["retention"] = (sh["retention"].strip().lower()
                                                if sh["retention"].strip().lower()
-                                               in h3build.RETENTIONS else sh["retention"])
+                                               in build.RETENTIONS else sh["retention"])
                         if "steps" in sh:
                             sh["steps"] = int(sh["steps"])
                     if "steps" in sq:
@@ -112,7 +112,7 @@ class FixtureTest(unittest.TestCase):
                     for s, sh in zip(sq_ir.shots, sq["shots"]):
                         if s.continues(sq_ir) == "latent":
                             sh["_latent"] = s.overlap if s.overlap is not None else sq_ir.overlap
-                self.assertEqual(h3build.legacy_episode(story), want)
+                self.assertEqual(build.legacy_episode(story), want)
 
 
 SCRIPT = """\
@@ -275,15 +275,15 @@ class StoryTest(unittest.TestCase):
             parse_story(SCRIPT + "\n## sh010\nAda again.\n", SUBJECTS, CHARS)
         self.assertIn(f"line {len(self.lines) + 2}:", str(cm.exception))
 
-    def test_reexported_from_h3build(self):
-        import h3core.speech
-        import h3core.story
+    def test_reexported_from_build(self):
+        import seriesmith.core.speech
+        import seriesmith.core.story
         for name in ("parse_script", "split_parenthetical", "ScriptError", "VO_TOKENS",
                      "OS_TOKENS"):
-            self.assertIs(getattr(h3build, name), getattr(h3core.story, name))
+            self.assertIs(getattr(build, name), getattr(seriesmith.core.story, name))
         for name in ("syllables", "pacing", "speech_seconds", "forced_rate", "SPEECH_RATE"):
-            self.assertIs(getattr(h3build, name), getattr(h3core.speech, name))
-        self.assertIs(h3build.stable_seed, ir.stable_seed)
+            self.assertIs(getattr(build, name), getattr(seriesmith.core.speech, name))
+        self.assertIs(build.stable_seed, ir.stable_seed)
         self.assertEqual(ir.stable_seed("ep01", "sq01", "sh010"),
                          ir.stable_seed(*"ep01/sq01/sh010".split("/")))
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 import copy
 import os
 
-import targets as TG
+from seriesmith import targets as TG
 
 TARGET = TG.load_target("krea2", "image")
 _B = TARGET.binding

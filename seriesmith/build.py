@@ -1,17 +1,16 @@
-#!/usr/bin/env python3
 """
-h3build.py — script.md + series.json  ->  shots.json (story IR) + shotlist.json
+seriesmith build — script.md + series.json  ->  shots.json (story IR) + shotlist.json
 
-One command. You write a screenplay-flavoured script and the series config
-(series.json); this produces the shotlist the ComfyUI loader reads, a list of any reference
-assets you still need to make, and a timing report.
+You write a screenplay-flavoured script and the series config (series.json);
+this produces each target's shotlist, a list of any reference assets you still
+need to make, and a timing report.
 
-    python3 h3build.py series.json script.md -o <project_root>
-    python3 h3build.py series.json script.md -o <project_root> --proxy
-    python3 h3build.py series.json script.md --check
+    seriesmith build series.json script.md -o <project_root>
+    seriesmith build series.json script.md -o <project_root> --proxy
+    seriesmith check series.json script.md
 
 It runs in three steps: parse the script into the model-free story IR
-(h3core.story, written to shotlist/shots.json), pick each shot's video target
+(seriesmith.core.story, written to shotlist/shots.json), pick each shot's video target
 (targets.episode_targets: the series config's `series.target`, then every
 `target:` and `profile:` the script names), and compile each target's shots
 with it (`target.compile_episode`). The series target's shots go to
@@ -28,32 +27,35 @@ import argparse
 import json
 import os
 import sys
+from typing import Callable
 
-# Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
-# script's own folder on sys.path, so do it here.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import targets as TG  # noqa: E402
-from h3core import framing, ir  # noqa: E402,F401
-from h3core.series_config import (character_ids, load_series_config,  # noqa: E402
-                                  series_info, subject_ids, variant_of)
-# Model-neutral pieces, re-exported under their old names: h3align and others
-# import them from here.
-from h3core.ir import stable_seed  # noqa: E402,F401
-from h3core.speech import (GAP_SAME, GAP_SPEAKER, HEAD_AIR, RATE_CEILING,  # noqa: E402,F401
-                           SPEECH_RATE, TAIL_AIR, forced_rate, pacing,
-                           speech_seconds, syllables)
-from h3core.story import (META_KEYS, OS_TOKENS, SIZES, VO_TOKENS,  # noqa: E402,F401
-                          ScriptError, parse_script, parse_story,
-                          split_parenthetical)
+from seriesmith import targets as TG
+from seriesmith.core import framing, ir  # noqa: F401
+from seriesmith.core.series_config import (character_ids, load_series_config,
+                                           series_info, subject_ids, variant_of)
+# Model-neutral pieces, re-exported under their old names: the aligner and
+# others import them from here.
+from seriesmith.core.ir import stable_seed  # noqa: F401
+from seriesmith.core.speech import (GAP_SAME, GAP_SPEAKER, HEAD_AIR, RATE_CEILING,  # noqa: F401
+                                    SPEECH_RATE, TAIL_AIR, forced_rate, pacing,
+                                    speech_seconds, syllables)
+from seriesmith.core.story import (META_KEYS, OS_TOKENS, SIZES, VO_TOKENS,  # noqa: F401
+                                   ScriptError, parse_script, parse_story,
+                                   split_parenthetical)
 
 # ---------------------------------------------------------------------------
-# Compatibility: the H3 names h3build used to define, now the default video
-# target's. h3align snaps with snap_up and the tests read RETENTIONS and
-# legacy_episode; new code should go through a Target instead.
+# Compatibility: the H3 names h3pipe's build used to define, now the default
+# video target's. The aligner snaps with snap_up and the tests read RETENTIONS
+# and legacy_episode; new code should go through a Target instead.
 # ---------------------------------------------------------------------------
 
-from targets.video.minimax_h3_ref2va import compile as _h3  # noqa: E402
+from seriesmith.targets.video.minimax_h3_ref2va import compile as _h3  # noqa: E402
+
+# Checks for the series config's stage recipes, by block name ("upscale",
+# "post"): each takes the block's `master` and returns warnings. The upscale
+# and post stages register theirs when they are ported (docs/DESIGN.md, step
+# 6); until then a master recipe is not checked.
+RECIPE_CHECKS: dict[str, Callable[[object], list[str]]] = {}
 
 DEFAULT_TARGET = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video")
 snap_up = DEFAULT_TARGET.template.snap
@@ -166,12 +168,9 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
     if mode is not None and mode not in ("final", "always", "never"):
         out.append(f"series.json upscale.save_latents is {mode!r}: it takes \"final\" (the "
                    f"default), \"always\" or \"never\", so renders use \"final\".")
-    if "master" in ((series_cfg or {}).get("upscale") or {}):
-        import h3upscale                               # the master recipe (Phase 13e)
-        out += h3upscale.check_recipe(series_cfg["upscale"]["master"])
-    if "master" in ((series_cfg or {}).get("post") or {}):
-        import h3post                                  # the post recipe
-        out += h3post.check_recipe(series_cfg["post"]["master"])
+    for block, check in RECIPE_CHECKS.items():
+        if "master" in ((series_cfg or {}).get(block) or {}):
+            out += check(series_cfg[block]["master"])
     return out
 
 
@@ -240,7 +239,7 @@ def render_todo(report: dict, root: str) -> str:
 
     lines = [f"# Asset work order — {report['episode']} {report['title']}", "",
              f"{have}/{len(need)} on disk. Generate each missing asset, save it to the "
-             f"path shown, then re-run h3build.", ""]
+             f"path shown, then re-run seriesmith build.", ""]
     if not missing:
         lines += ["Everything the episode needs is already on disk.", ""]
         return "\n".join(lines)
@@ -339,8 +338,8 @@ def print_pacing(story: ir.Episode, series_cfg: dict, fps: float = 24.0,
     return 0
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    ap = argparse.ArgumentParser(prog=prog, description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("series", help="the series config, e.g. series.json")
     ap.add_argument("script", help="the episode script, e.g. ep01.md")
@@ -349,7 +348,7 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="validate and report, write nothing")
     ap.add_argument("--pace", action="store_true",
                     help="report dialogue pacing per shot and write nothing")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     # a show's own targets (<show>/targets/<id>/target.json) count for this
     # build: `target:` lines and profiles may name them (Phase 12)
     TG.add_thread_root(args.out)

@@ -16,8 +16,8 @@ Stdlib only.
 """
 from __future__ import annotations
 
-import targets as TG
-from targets.video.wan import common as C
+from seriesmith import targets as TG
+from seriesmith.targets.video.wan import common as C
 
 ID = "wan22_ti2v"
 TARGET = TG.load_target(ID, "video")

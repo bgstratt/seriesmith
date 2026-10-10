@@ -26,8 +26,8 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from h3core import framing
-from h3core.series_config import members
+from seriesmith.core import framing
+from seriesmith.core.series_config import members
 
 
 COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}

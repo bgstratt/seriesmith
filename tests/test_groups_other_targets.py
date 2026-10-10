@@ -16,11 +16,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from targets.video.ltx2 import compile as LTX  # noqa: E402
-from targets.video.ltx2.prompt import _subject_sentence  # noqa: E402
-from targets.video.ltx2_ingredients import compile as ING  # noqa: E402
-from targets.video.ltx2_ingredients.prompt import panel_text  # noqa: E402
-from targets.video.wan22_vace import compile as VACE  # noqa: E402
+from seriesmith.targets.video.ltx2 import compile as LTX  # noqa: E402
+from seriesmith.targets.video.ltx2.prompt import _subject_sentence  # noqa: E402
+from seriesmith.targets.video.ltx2_ingredients import compile as ING  # noqa: E402
+from seriesmith.targets.video.ltx2_ingredients.prompt import panel_text  # noqa: E402
+from seriesmith.targets.video.wan22_vace import compile as VACE  # noqa: E402
 
 LADIES = {"kind": "character", "name": "the ladies", "members": 4, "sheet_panels": 1,
           "design": "four women in ball gowns", "sheet": "refs/ladies.png"}

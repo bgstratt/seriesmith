@@ -48,10 +48,10 @@ import os
 import re
 import uuid
 
-import targets as TG
-from h3core import framing, ir
-from h3core.ir import stable_seed
-from h3core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith import targets as TG
+from seriesmith.core import framing, ir
+from seriesmith.core.ir import stable_seed
+from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 
 from .prompt import build_prompt
 
@@ -455,9 +455,9 @@ def _sheet_prompt(job, panels: list[dict]) -> str | None:
     the sheet named but no longer described). None when it can't be written
     here — the build is out of date, or the script and series config aren't
     readable — and then the built prose prompt renders as it is."""
-    import h3jobs as J
+    from seriesmith import jobs as J
 
-    from targets.video.ltx2_ingredients.prompt import build_prompt as sheet_prompt
+    from seriesmith.targets.video.ltx2_ingredients.prompt import build_prompt as sheet_prompt
     try:
         story, series_cfg = J.episode_story(job.root)
     except Exception:
@@ -501,11 +501,11 @@ def _stage_sheet(target, job, comfy=None) -> dict:
     with a note. When there is a sheet the job also gets the IC-LoRA's
     two-part prompt and a `panels` list in the take's frozen shotlist, so the
     take records exactly what was on the sheet."""
-    import h3jobs as J
-    import h3takes as T
+    from seriesmith import jobs as J
+    from seriesmith import takes as T
 
-    from targets.video.ltx2_ingredients import compile as ING
-    from targets.video.ltx2_ingredients import sheet as S
+    from seriesmith.targets.video.ltx2_ingredients import compile as ING
+    from seriesmith.targets.video.ltx2_ingredients import sheet as S
     have, gone = sheet_for(job)
     if not have:
         return {}

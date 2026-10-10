@@ -1,6 +1,6 @@
 # Asset work order — mx01 Mixed Targets
 
-0/3 on disk. Generate each missing asset, save it to the path shown, then re-run h3build.
+0/3 on disk. Generate each missing asset, save it to the path shown, then re-run seriesmith build.
 
 | # | Path | Kind | Size hint | Shots blocked |
 |---|---|---|---|---|

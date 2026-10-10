@@ -20,9 +20,9 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
-import h3build as B  # noqa: E402
-from h3core.series_config import series_config_from  # noqa: E402
-from h3core.story import parse_story  # noqa: E402
+from seriesmith import build as B  # noqa: E402
+from seriesmith.core.series_config import series_config_from  # noqa: E402
+from seriesmith.core.story import parse_story  # noqa: E402
 
 CFG = {
     "series": {"id": "t", "title": "T", "fps": 24},
@@ -59,7 +59,7 @@ def cfg(**changes) -> dict:
 
 
 def story(text: str, c: dict):
-    from h3core.series_config import character_ids, series_info, subject_ids, variant_of
+    from seriesmith.core.series_config import character_ids, series_info, subject_ids, variant_of
     return parse_story(text, subject_ids(c), character_ids(c), series_info(c), variant_of(c))
 
 

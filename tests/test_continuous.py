@@ -14,8 +14,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-import h3build  # noqa: E402
-from h3core.story import ScriptError, parse_story  # noqa: E402
+from seriesmith import build  # noqa: E402
+from seriesmith.core.story import ScriptError, parse_story  # noqa: E402
 
 
 def story(body: str):
@@ -82,7 +82,7 @@ Ada waits more.
         sh, sq = by["sh020"]
         self.assertEqual(sh.continuous, "first")         # its own old line beats the header
         self.assertIsNone(sh.first)
-        warnings = h3build.story_warnings(st, {})
+        warnings = build.story_warnings(st, {})
         self.assertTrue(any("`continuous: yes`" in w and "continuous: latent" in w for w in warnings))
         self.assertTrue(any("`first: continuity` on shot sh020" in w for w in warnings))
 
@@ -110,7 +110,7 @@ Ada waits more.
                 story("# sq01  kitchen\n" + body)
 
     def test_the_ir_round_trips(self):
-        from h3core.ir import Episode
+        from seriesmith.core.ir import Episode
         st = story(SEQ)
         back = Episode.from_json(st.to_json())
         self.assertEqual({sh.id: sh.continues(sq) for sq in back.sequences for sh in sq.shots},

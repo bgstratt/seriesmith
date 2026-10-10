@@ -46,11 +46,11 @@ import os
 import re
 from dataclasses import dataclass
 
-import targets as TG
-from h3core import framing, ir
-from h3core.ir import stable_seed
-from h3core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
-from targets.video.ltx2.compile import _duration, _lines, put_model_duration, shotlist_extra
+from seriesmith import targets as TG
+from seriesmith.core import framing, ir
+from seriesmith.core.ir import stable_seed
+from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith.targets.video.ltx2.compile import _duration, _lines, put_model_duration, shotlist_extra
 
 SILENT = "silent"
 PLATE = "plate"                      # the absent-set name of the plate
@@ -72,9 +72,9 @@ def prose_writer(silent: bool):
     for a model that makes no sound, else the ltx2 one (soundscape and spoken
     lines). Imported on use, so neither target package is needed until then."""
     if silent:
-        from targets.video.wan.prompt import build_prompt as fn
+        from seriesmith.targets.video.wan.prompt import build_prompt as fn
     else:
-        from targets.video.ltx2.prompt import build_prompt as fn
+        from seriesmith.targets.video.ltx2.prompt import build_prompt as fn
     return fn
 
 

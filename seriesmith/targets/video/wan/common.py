@@ -13,12 +13,12 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from targets.generic.video_prose import (                # noqa: F401  (re-exported)
+from seriesmith.targets.generic.video_prose import (                # noqa: F401  (re-exported)
     Ctx, PLATE, SILENT, Style, abs_path, compile_entry, consumers, is_series_target,
     keyframe_path, new_id, of, one, ordered, panel_view, panels, plate_request, ref_slots,
     required_refs, split_stages, subject_request,
 )
-from targets.generic import video_prose as G
+from seriesmith.targets.generic import video_prose as G
 
 from .prompt import build_prompt
 

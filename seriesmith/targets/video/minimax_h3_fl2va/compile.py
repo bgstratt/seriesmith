@@ -37,10 +37,10 @@ import os
 import re
 import uuid
 
-import targets as TG
-from h3core import ir
-from h3core.ir import stable_seed
-from h3core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith import targets as TG
+from seriesmith.core import ir
+from seriesmith.core.ir import stable_seed
+from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 
 from .prompt import build_prompt, with_keyframes
 
@@ -328,8 +328,8 @@ def stage_inputs(target, job, comfy=None) -> dict:
     video prompt), and a dub shot's slice of the recording is cut, uploaded
     to ComfyUI's input folder and kept in the take ({"audio": its name}).
     A dry run (`comfy` None) cuts nothing: the name is a stand-in."""
-    import h3jobs as J
-    import h3takes as T
+    from seriesmith import jobs as J
+    from seriesmith import takes as T
     from . import audio as A
     roles = present_keyframes(job)
     job.prompt = with_keyframes(J._prompt_text(job.prompt), roles, job.frames, job.fps)

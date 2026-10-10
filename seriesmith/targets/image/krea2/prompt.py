@@ -11,7 +11,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from h3core.series_config import members
+from seriesmith.core.series_config import members
 
 # A character sheet is generated as four square views and stitched (a 4096x1024
 # canvas is far outside any image model's training distribution). The views,

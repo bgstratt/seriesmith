@@ -1,5 +1,5 @@
 """
-h3core — the model-free core of the pipeline.
+seriesmith.core — the model-free core.
 
     story.py           script text -> story IR (and the legacy parser dict)
     ir.py              the IR dataclasses (Episode / Sequence / Shot / Line) and their JSON
@@ -7,7 +7,7 @@ h3core — the model-free core of the pipeline.
     speech.py          dialogue pacing: syllables, speech time, forced rate
 
 Nothing here knows about a model: no frame grid, no reference slots, no prompt
-format. Those belong to a target (targets/: today MiniMax H3, in
+format. Those belong to a target (seriesmith/targets/; the default is MiniMax H3, in
 targets/video/minimax_h3_ref2va/).
 Stdlib only.
 """

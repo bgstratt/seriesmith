@@ -51,11 +51,11 @@ from __future__ import annotations
 import os
 import uuid
 
-import targets as TG
-from h3core import framing, ir
-from h3core.ir import stable_seed
-from h3core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
-from targets.video.ltx2.compile import (_consumers, _duration, _lines, _of,
+from seriesmith import targets as TG
+from seriesmith.core import framing, ir
+from seriesmith.core.ir import stable_seed
+from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith.targets.video.ltx2.compile import (_consumers, _duration, _lines, _of,
                                         put_model_duration, shotlist_extra)
 
 from . import sheet as S
@@ -428,8 +428,8 @@ def stage_inputs(target, job, comfy=None) -> dict:
     until h3jobs.start_job moves it into the take (job.staged). Without
     `comfy` (a dry run) nothing is composed or written: the name is a stand-in.
     No panel on disk: {} and the job renders text-only."""
-    import h3jobs as J
-    import h3takes as T
+    from seriesmith import jobs as J
+    from seriesmith import takes as T
     have, gone = sheet_panels(job)
     if gone and have:
         job.notes.append("the reference sheet leaves out " + ", ".join(_label(p) for p in gone)

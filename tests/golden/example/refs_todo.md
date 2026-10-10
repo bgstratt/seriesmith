@@ -1,6 +1,6 @@
 # Asset work order — ep01 The Gold Path
 
-0/6 on disk. Generate each missing asset, save it to the path shown, then re-run h3build.
+0/6 on disk. Generate each missing asset, save it to the path shown, then re-run seriesmith build.
 
 | # | Path | Kind | Size hint | Shots blocked |
 |---|---|---|---|---|

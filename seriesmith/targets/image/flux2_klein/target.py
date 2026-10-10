@@ -7,4 +7,4 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
+from seriesmith.targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401

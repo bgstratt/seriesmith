@@ -1,6 +1,6 @@
 # Asset work order — ks01 Kitchen Sink
 
-0/10 on disk. Generate each missing asset, save it to the path shown, then re-run h3build.
+0/10 on disk. Generate each missing asset, save it to the path shown, then re-run seriesmith build.
 
 | # | Path | Kind | Size hint | Shots blocked |
 |---|---|---|---|---|

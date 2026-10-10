@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import copy
 
-from h3core.series_config import members
-from targets.video.ltx2.prompt import _sentence
-from targets.video.ltx2.prompt import build_prompt as prose
+from seriesmith.core.series_config import members
+from seriesmith.targets.video.ltx2.prompt import _sentence
+from seriesmith.targets.video.ltx2.prompt import build_prompt as prose
 
 VIEW_WORDS = {"body": "shown full-body in a three-quarter view",
               "face": "shown in a face close-up"}

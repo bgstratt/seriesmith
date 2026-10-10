@@ -1,5 +1,5 @@
 """
-Golden tests: rebuild every fixture with h3build and compare against the saved
+Golden tests: rebuild every fixture with `seriesmith build` and compare against the saved
 outputs in tests/golden/.
 
     python -m pytest                      # or: python -m unittest discover tests
@@ -36,7 +36,6 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-BUILD = os.path.join(ROOT, "h3build.py")
 
 ROOTS = [(os.path.join(HERE, "fixtures"), os.path.join(HERE, "golden")),
          (os.path.join(HERE, "local", "fixtures"), os.path.join(HERE, "local", "golden"))]
@@ -71,9 +70,12 @@ def error_cases() -> dict[str, str]:
             for f in sorted(os.listdir(ERRORS)) if f.endswith(".md")}
 
 
-def h3build(*args: str) -> subprocess.CompletedProcess:
-    env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
-    return subprocess.run([sys.executable, BUILD, *args], capture_output=True, env=env)
+def build(*args: str) -> subprocess.CompletedProcess:
+    """`seriesmith build`, run from this checkout (installed or not)."""
+    env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8",
+               PYTHONPATH=os.pathsep.join(filter(None, [ROOT, os.environ.get("PYTHONPATH")])))
+    return subprocess.run([sys.executable, "-m", "seriesmith", "build", *args],
+                          capture_output=True, env=env)
 
 
 def norm(data: bytes) -> bytes:
@@ -85,9 +87,9 @@ def capture(series_cfg: str, script: str) -> dict[str, bytes]:
     out: dict[str, bytes] = {}
     with tempfile.TemporaryDirectory() as tmp:
         for flags in ([], ["--proxy"]):
-            r = h3build(series_cfg, script, "-o", tmp, *flags)
+            r = build(series_cfg, script, "-o", tmp, *flags)
             if r.returncode:
-                raise RuntimeError(f"h3build {' '.join(flags)} failed:\n"
+                raise RuntimeError(f"build {' '.join(flags)} failed:\n"
                                    + r.stderr.decode("utf-8", "replace"))
         for rel in OUTPUTS:
             with open(os.path.join(tmp, rel), "rb") as fh:
@@ -100,13 +102,13 @@ def capture(series_cfg: str, script: str) -> dict[str, bytes]:
     # --check writes nothing and never prints the output folder
     for flags, name in (([], "check.txt"), (["--proxy"], "check_proxy.txt"),
                         (["--pace"], "pace.txt")):
-        r = h3build(series_cfg, script, "--check", *flags)
+        r = build(series_cfg, script, "--check", *flags)
         out[name] = norm(r.stdout) + (norm(r.stderr) if r.returncode else b"")
     return out
 
 
 def capture_error(script: str) -> bytes:
-    r = h3build(ERROR_SERIES_CFG, script, "--check")
+    r = build(ERROR_SERIES_CFG, script, "--check")
     return f"exit {r.returncode}\n".encode() + norm(r.stderr)
 
 

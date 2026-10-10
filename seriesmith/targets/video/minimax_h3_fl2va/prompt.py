@@ -39,8 +39,8 @@ from __future__ import annotations
 
 import re
 
-from h3core import framing
-from h3core.series_config import members
+from seriesmith.core import framing
+from seriesmith.core.series_config import members
 
 
 def _subject_sentence(name: str, design: str, entry: dict) -> str:
