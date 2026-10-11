@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, nextClipIds, placeFor, withClip, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, nextClipIds, placeFor, shotsBlock, withClip, type ClipSpec } from "../src/lib/simple";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
   prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "", placeText: "",
@@ -32,5 +32,20 @@ describe("simple mode's clips", () => {
     expect(clipBlock("cl002", "c002", "pier", spec({ target: "minimax_h3_ref2va" }), "minimax_h3_ref2va"))
       .not.toContain("target: minimax_h3_ref2va");
     expect(withClip("= clips  Clips\n", ["# cl001  x", "", "## c001"])).toBe("= clips  Clips\n\n# cl001  x\n\n## c001\n");
+  });
+
+  it("writes a picture clip as a shot whose first keyframe is made", () => {
+    expect(clipBlock("cl003", "c003", "pond", spec({ still: true, target: "krea2" }), "minimax_h3_ref2va")).toEqual([
+      "# cl003  pond", "", "## c003", "// a picture", "size: wide", "dur: 3.04", "first: generate",
+      "A lighthouse at dusk, waves breaking on the rocks.",
+    ]);
+  });
+
+  it("writes several shots as one sequence, in order", () => {
+    const { ids, lines } = shotsBlock("cl004", "c004", "pier", [spec({ prompt: "Wide on the pier." }),
+      spec({ prompt: "Close on her hands.", size: "cu" })], "minimax_h3_ref2va");
+    expect(ids).toEqual(["c004a", "c004b"]);
+    expect(lines).toEqual(["# cl004  pier", "", "## c004a", "size: wide", "dur: 3.04", "Wide on the pier.",
+      "", "## c004b", "size: cu", "dur: 3.04", "Close on her hands."]);
   });
 });

@@ -509,8 +509,12 @@ def post_clip_queue(ctx: Context, body):
     them all, makes each live and asks for `takes` renders of the shot
     (POST /seriesmith/render). With every picture there, the renders are
     asked for at once. Body {ep, shot, pass (proxy), takes (1-8), backend?}.
-    Returns {"refs": [{ref, view, take, prompt_id}], "waiting_on": [ids],
-    "step": id | null, "renders": [render answers]}."""
+    `still` (with `image_target`) makes a picture instead: `takes` candidates
+    of the shot's first keyframe (its script says `first: generate`) on that
+    image model, made live when they're done; an edit model waits for the
+    people's and the place's pictures it draws from, a text-to-image one
+    doesn't. Returns {"refs": [{ref, view, take, prompt_id}], "waiting_on":
+    [ids], "step": id | null, "renders": [render answers], "stills": [...]}."""
     from seriesmith import clips as CL
     from seriesmith import refs as R
     body = body_dict(body)
@@ -521,6 +525,17 @@ def post_clip_queue(ctx: Context, body):
     if isinstance(takes, bool) or not isinstance(takes, int) or not 1 <= takes <= 8:
         raise ApiError(400, "takes must be 1 to 8")
     backend = _opt_backend(ctx, body)
+    still = bool(body.get("still"))
+    image_target = body.get("image_target") if still else None
+    edit_model = False
+    if still:
+        if not isinstance(image_target, str) or not image_target:
+            raise ApiError(400, "a still needs image_target: the image model that makes it")
+        try:
+            it = TG.load_target(image_target, "image")
+        except Exception as e:                           # noqa: BLE001
+            raise ApiError(400, f"no image model {image_target!r}: {e}")
+        edit_model = (it.spec.get("capabilities") or {}).get("mode") == "edit"
     runner = ctx.runner
     if runner is None:
         raise ApiError(409, "clips need seriesmith's queue (seriesmith serve)")
@@ -529,7 +544,21 @@ def post_clip_queue(ctx: Context, body):
     render_body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True,
                    **({"backend": backend} if backend else {})}
 
+    keyframe = f"shot:{shot}:first"
+
+    def stills() -> list:
+        """The picture's candidates, on the image model; each one finished is
+        made live by the refs listing (auto_pick) when there is none yet."""
+        status, data = post_refs_generate(ctx, {"ep": ep, "ref": keyframe, "count": takes,
+                                                "target": image_target,
+                                                **({"backend": backend} if backend else {})})
+        if status >= 400:
+            raise ApiError(status, f"{keyframe}: {data.get('error')}")
+        return data.get("queued") or []
+
     def renders() -> list:
+        if still:
+            return []
         out = []
         for _ in range(takes):
             status, data = post_render(ctx, render_body) if runner.ask is None \
@@ -537,9 +566,12 @@ def post_clip_queue(ctx: Context, body):
             out.append(data)
         return out
 
-    need = CL.needed_refs(ep, pass_, shot)
+    need = [r for r in CL.needed_refs(ep, pass_, shot) if not r.id.startswith(f"shot:{shot}:")]
+    if still and not edit_model:
+        need = []                                        # words only: nothing to draw from
     if not need:
-        return 200, {"refs": [], "waiting_on": [], "step": None, "renders": renders()}
+        return 200, {"refs": [], "waiting_on": [], "step": None, "renders": renders(),
+                     "stills": stills() if still else []}
     made, waiting = [], []
     for ref in need:
         on_way = CL.queued_takes(ref)
@@ -562,10 +594,14 @@ def post_clip_queue(ctx: Context, body):
             ref = R.find_ref(s, rid)
             for res in R.auto_pick(s, ref):
                 report(line=f"{rid}: {getattr(res, 'note', '') or 'live'}")
-        still = [r.id for r in CL.needed_refs(ep, pass_, shot)]
-        if still:
-            raise RuntimeError(f"its pictures didn't all come out ({', '.join(still)}): "
+        left = [r.id for r in CL.needed_refs(ep, pass_, shot)
+                if not r.id.startswith(f"shot:{shot}:")]
+        if left:
+            raise RuntimeError(f"its pictures didn't all come out ({', '.join(left)}): "
                                "see the Refs tab, then queue it again")
+        if still:
+            report(line=f"{len(stills())} picture(s) asked for")
+            return "succeeded"
         got = renders()
         report(line=f"{takes} take(s) asked for")
         bad = [d for d in got if d.get("errors")]
@@ -575,7 +611,7 @@ def post_clip_queue(ctx: Context, body):
     step = runner.enqueue_step(f"{os.path.basename(os.path.normpath(ep))} {shot}: "
                                f"render once its pictures are made", then, after=waiting,
                                info={"ep": ep, "shot": shot, "pass": pass_})
-    return 200, {"refs": made, "waiting_on": waiting, "step": step, "renders": []}
+    return 200, {"refs": made, "waiting_on": waiting, "step": step, "renders": [], "stills": []}
 
 
 @handler

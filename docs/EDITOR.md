@@ -47,18 +47,24 @@ episode is right.
 setting up a series: the sidebar becomes one **Make** panel and the Refs tab, the
 settings and the text windows wait in Advanced. It is remembered in this browser.
 
-- **Model**: the video model, with a line on what each is good at (H3 by default).
+- **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
+- **Model**: the video model, with a line on what each is good at (H3 by default); for a
+  picture, the image model (Krea 2 by default; an edit model draws the people and the place
+  from their pictures, a text-to-image one from their words).
 - **What happens**: the prompt, as you'd describe the shot to a camera crew.
 - **Who's in it**: pick people by their picture, or **+ Someone**: a name, a description
   and, if you have one, a picture of them (it is taken in and used as it is; without one
   it is made from the description).
 - **Where**: pick a place by its picture, **+ Place**, or just say it in words (empty: the
   prompt is the place). A place said in words gets a picture of its own.
-- **What's said**, **Framing**, **Length**, **Takes**, then **Queue**.
+- **What's said**, **Framing**, **Length**, **Takes**, then **Queue**. A picture asks how
+  many pictures; several shots has a row per shot (what we see, framing, length), in order,
+  sharing the people and the place, each queued with that many takes.
 
 Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
 the same queue, and the takes once they are made; **Your clips** lists them, newest
-first, and plays one when it's clicked. Underneath it is an ordinary project, **Clips**
+first: a clip plays its newest take, several shots play cut together, a picture opens
+its pictures. Underneath it is an ordinary project, **Clips**
 (`Clips/clips/` in your first project folder): each clip is a shot of it, so everything
 in Advanced works on it too, and a clip can later go into a real series. **A series…**
 starts the series wizard.

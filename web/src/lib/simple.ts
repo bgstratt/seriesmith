@@ -41,6 +41,26 @@ export interface ClipSpec {
   /** the clip's model ("" or the series' own: none written) */
   target: string;
   dialogue: DialogueLine[];
+  /** a picture, not a video: its first keyframe is what's made (on an image model) */
+  still?: boolean;
+}
+
+/** What each image model is good at, in a line (a picture clip's picker). */
+export const IMAGE_NOTES: Record<string, string> = {
+  krea2: "Natural-looking pictures from words, quickly. The default.",
+  z_image_turbo: "Very fast pictures from words.",
+  flux2_klein: "Detailed pictures from words.",
+  krea_2_router: "Krea 2, hosted through Comfy Router (a paid run each picture).",
+  flux2_klein_edit: "Draws your people and places into the scene from their pictures.",
+  flux_kontext: "Works from one reference picture.",
+  qwen_image_21: "From words, or with your people's and places' pictures.",
+  qwen_rapid_aio: "Quick, from up to three of your pictures.",
+  minimax_h3_still: "A frame as H3 would render it, from your pictures.",
+};
+
+/** The image models a picture clip can use (not the 360 outpaint). */
+export function pictureModel(mode: string | undefined): boolean {
+  return mode !== "pano";
 }
 
 /** The place a clip without one gets: an id of its own, described in words;
@@ -53,11 +73,27 @@ export function placeFor(shot: string, spec: ClipSpec, prefix: string, picture =
 
 /** The clip's lines: its sequence header, then its shot. */
 export function clipBlock(seq: string, shot: string, location: string, spec: ClipSpec, seriesTarget: string): string[] {
+  return [`# ${seq}  ${location}`, "", ...shotLines(shot, spec, seriesTarget)];
+}
+
+/** One shot of a clip: a picture's says `first: generate` (its keyframe is the
+ * picture) and is marked so; a video's names its model when it isn't the series'. */
+export function shotLines(shot: string, spec: ClipSpec, seriesTarget: string): string[] {
   const keys: Record<string, string> = { size: spec.size, dur: spec.dur };
   if (spec.who.length) keys.who = spec.who.join(", ");
-  if (spec.target && spec.target !== seriesTarget) keys.target = spec.target;
-  const lines = writeShot({ id: shot, keys, action: spec.prompt.trim(), dialogue: spec.dialogue, comments: [], other: [] });
-  return [`# ${seq}  ${location}`, "", ...lines];
+  if (spec.still) keys.first = "generate";
+  else if (spec.target && spec.target !== seriesTarget) keys.target = spec.target;
+  return writeShot({ id: shot, keys, action: spec.prompt.trim(), dialogue: spec.still ? [] : spec.dialogue,
+                     comments: spec.still ? ["// a picture"] : [], other: [] });
+}
+
+/** Several shots as one clip: one sequence, its shots `c007a`, `c007b`, ...
+ * in order, cut together. */
+export function shotsBlock(seq: string, shot: string, location: string, specs: ClipSpec[], seriesTarget: string): { ids: string[]; lines: string[] } {
+  const ids = specs.map((_, i) => `${shot}${String.fromCharCode(97 + i)}`);
+  const lines = [`# ${seq}  ${location}`];
+  specs.forEach((s, i) => lines.push("", ...shotLines(ids[i], s, seriesTarget)));
+  return { ids, lines };
 }
 
 /** The script with a clip added at its end. */

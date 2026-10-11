@@ -1599,7 +1599,7 @@ export function closeInspector() {
 // Play all
 // ---------------------------------------------------------------------------
 
-let plCache: { a?: EpisodeStatus; b?: EpisodeStatus; up?: boolean; items: PlayItem[] } = { items: [] };
+let plCache: { a?: EpisodeStatus; b?: EpisodeStatus; up?: boolean; only?: string[] | null; items: PlayItem[] } = { items: [] };
 
 /** The current pass's cut as a playlist (memoised on the status objects). */
 const NO_ITEMS: PlayItem[] = [];
@@ -1614,8 +1614,10 @@ export function currentPlaylist(s: AppState = get()): PlayItem[] {
   if (!s.ep) return NO_ITEMS;
   const st = s.status[statusKey(s.ep, s.pass)];
   const other = s.status[statusKey(s.ep, s.pass === "proxy" ? "final" : "proxy")];
-  if (plCache.a !== st || plCache.b !== other || plCache.up !== s.upscaled) {
-    plCache = { a: st, b: other, up: s.upscaled, items: buildPlaylist(st, other, s.upscaled) };
+  if (plCache.a !== st || plCache.b !== other || plCache.up !== s.upscaled || plCache.only !== s.cutOnly) {
+    const all = buildPlaylist(st, other, s.upscaled);
+    plCache = { a: st, b: other, up: s.upscaled, only: s.cutOnly,
+                items: s.cutOnly ? all.filter((it) => s.cutOnly!.includes(it.shot)) : all };
   }
   return plCache.items;
 }
@@ -1624,8 +1626,10 @@ function nextSeek(t: number) {
   return { t, n: (get().cutPlay.seek?.n ?? 0) + 1 };
 }
 
-/** Play the cut in the viewer, from the start or from `fromShot`. */
-export function playAll(fromShot?: string | null) {
+/** Play the cut in the viewer, from the start or from `fromShot`; `only`
+ * plays just those shots (a clip of several), the whole cut otherwise. */
+export function playAll(fromShot?: string | null, only: string[] | null = null) {
+  if (get().cutOnly !== only) set({ cutOnly: only });
   const s = get();
   if (!s.ep) return;
   const items = currentPlaylist(s);

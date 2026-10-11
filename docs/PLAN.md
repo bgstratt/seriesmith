@@ -404,13 +404,13 @@ multi-shot clip, or a series with episodes.
       LoRAs, model files, seeds, profiles, policies, keyframe methods,
       continuity, finishing recipes, the text windows) and keeps choosing the
       model, writing the prompt, the cast, and queueing.
-- [~] What you're making: a **standalone clip** (one shot, video or image), a
+- [x] What you're making: a **standalone clip** (one shot, video or image), a
       **multi-shot clip** (a few shots in order, played and exported as one),
       or a **series / episode** (the wizard). The first two are a scratch
       project made on first use: an ordinary series config and script
       underneath, written by the forms, so refs, renders, takes, upscales and
       the queue work unchanged, and any of it can later go into a series.
-- [~] Models: H3 for video and Krea 2 for pictures by default, with the full
+- [x] Models: H3 for video and Krea 2 for pictures by default, with the full
       list to pick from (LTX-2, Wan, Z-Image Turbo, FLUX and the rest, local
       or hosted), each with a plain one-line note on what it's good at.
 - [x] Adding a character, a location / background or a prop simplified: a
@@ -423,6 +423,13 @@ multi-shot clip, or a series with episodes.
       then a step waits for them, makes them live and asks for the takes.
       Checked live (the local lane paused): the place's picture and the
       waiting step queued in order.
+- [x] A picture: the clip's first keyframe (`first: generate`, marked
+      `// a picture`) on the image model picked, its candidates made live as
+      they finish; an edit model waits for the people's and the place's
+      pictures it draws from. Several shots: one sequence (`c007a`,
+      `c007b`, ...), each shot queued, played cut together (Play all limited
+      to those shots). Checked live (the lane paused): two Krea 2 pictures;
+      two shots of two takes each.
 
 ## Step 13 — a character (or a place) from a frame
 

@@ -430,6 +430,8 @@ export interface AppState {
   /** simple mode (components/SimplePanel.tsx): most settings out of sight;
    *  this browser's own choice (SIMPLE_KEY) */
   simple: boolean;
+  /** Play all limited to these shots (a clip of several shots), else the whole cut */
+  cutOnly: string[] | null;
 }
 
 export const ZOOM_MIN = 8;
@@ -529,6 +531,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     wizard: null,
     picturePick: null,
     simple: readSimple(),
+    cutOnly: null,
   };
 }
 

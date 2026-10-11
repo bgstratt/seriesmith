@@ -113,5 +113,32 @@ class WordsOnlyTest(ApiTest):
         self.assertEqual(J.missing_refs(ep, doc, shot), [])
 
 
+class StillTest(ApiTest):
+    """A picture clip: candidates of the shot's first keyframe on an image
+    model, made live when the refs are next listed."""
+
+    def test_a_picture_on_a_text_to_image_model(self):
+        ep = self.ok(A.post_clips_ensure(self.ctx, {}))["ep"]
+        p = os.path.join(ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg["locations"]["pond"] = {"description": "a small pond at dawn"}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        with open(os.path.join(ep, "clips.md"), "w", encoding="utf-8") as fh:
+            fh.write("= clips  Clips\n\n# cl001  pond\n\n## c001\n// a picture\nfirst: generate\n"
+                     "size: wide\ndur: 3.04\nA heron at the water's edge.\n")
+        self.assertTrue(self.ok(A.post_build(self.ctx, {"ep": ep}))["ok"])
+        res = self.ok(A.post_clip_queue(self.ctx, {"ep": ep, "shot": "c001", "takes": 2, "still": True,
+                                                   "image_target": "krea2"}))
+        self.assertEqual((res["refs"], res["step"], res["renders"]), ([], None, []))
+        self.assertEqual([q["target"] for q in res["stills"]], ["krea2", "krea2"])
+        settle(self.ctx.runner, 60)
+        self.ok(A.get_refs(self.ctx, {"ep": ep}))            # the listing makes one live
+        ref = R.find_ref(R.load_series(ep), "shot:c001:first")
+        self.assertTrue(os.path.isfile(ref.file))
+        self.assertEqual(T.list_takes(ep, "proxy", "c001"), [])        # no video
+        self.err(A.post_clip_queue(self.ctx, {"ep": ep, "shot": "c001", "still": True}), 400)
+
+
 if __name__ == "__main__":
     unittest.main()
