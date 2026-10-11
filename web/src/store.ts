@@ -448,7 +448,9 @@ export function initialState(prefs: Prefs = {}): AppState {
     episodes: null,
     episodesError: null,
     ep: prefs.ep ?? null,
-    pass: prefs.pass ?? "proxy",
+    // a page that has never chosen starts on final: most work renders final and
+    // re-renders what is wrong (a proxy take is no preview of its final anyway)
+    pass: prefs.pass ?? "final",
     status: {},
     statusError: {},
     statusLoading: {},

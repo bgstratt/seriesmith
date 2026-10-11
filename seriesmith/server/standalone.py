@@ -437,9 +437,30 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     if "local" in app["backends"]:
         print("  " + ensure_proxy(app["settings"]), flush=True)
-    print(f"  seriesmith editor: http://{args.host}:{args.port}/   (Ctrl+C stops it)", flush=True)
+    if args.host in ("0.0.0.0", "::", ""):
+        # every interface: say the addresses that open it (0.0.0.0 doesn't)
+        print(f"  seriesmith editor: http://127.0.0.1:{args.port}/   (Ctrl+C stops it)", flush=True)
+        lan = lan_address()
+        if lan:
+            print(f"  on your network:   http://{lan}:{args.port}/   (no password: trusted "
+                  "networks only)", flush=True)
+    else:
+        print(f"  seriesmith editor: http://{args.host}:{args.port}/   (Ctrl+C stops it)", flush=True)
     web.run_app(app, host=args.host, port=args.port, print=None)
     return 0
+
+
+def lan_address() -> str | None:
+    """This machine's address on its network (the interface its traffic out
+    would use; a UDP socket's connect sends nothing), or None."""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("192.0.2.1", 9))                   # TEST-NET-1: never routed anywhere
+            ip = s.getsockname()[0]
+        return None if ip.startswith("127.") else ip
+    except OSError:
+        return None
 
 
 if __name__ == "__main__":

@@ -173,6 +173,15 @@ live inside one of them. They are kept in seriesmith's user folder
 (`default/seriesmith/config.json`), else read from `SERIESMITH_ROOTS` (`;`-separated, `:`
 on Linux/macOS).
 
+On Windows the repo has two launchers, like ComfyUI's: **`run_seriesmith.bat`** (this PC
+only) and **`run_seriesmith_ext.bat`** (other devices on your network too: it listens on
+every interface, `--host 0.0.0.0`, and prints the address to open on a laptop or phone).
+Double-click one, or make a desktop shortcut to it. The network one has no password:
+anyone on that network can open your project folders, import files from the PC, see the
+API key in Settings and queue paid runs, so use it on home Wi-Fi you trust and never
+port-forward it. Away from home, a private network between your own devices (Tailscale)
+is the safe way in: `seriesmith serve --host <the PC's Tailscale address>`.
+
 ### The upscaler (optional)
 
 Only for upscaling takes (`seriesmith upscale`, the editor's **Upscale**, `master`); a

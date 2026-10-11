@@ -69,7 +69,7 @@ describe("prefs (last episode and pass)", () => {
     expect(s.ep).toBe("E");
     expect(s.pass).toBe("final");
     expect(s.zoom).toBe(ZOOM_MAX);
-    expect(initialState().pass).toBe("proxy");
+    expect(initialState().pass).toBe("final");                // a page that never chose
     expect(clampZoom(Number.NaN)).toBe(ZOOM_DEFAULT);
   });
 
@@ -80,9 +80,9 @@ describe("prefs (last episode and pass)", () => {
     st.set({ shot: "sh020" });
     expect(s.setItem).not.toHaveBeenCalled();
     st.set({ ep: "E1" });
-    st.set({ pass: "final" });
+    st.set({ pass: "proxy" });
     expect(s.setItem).toHaveBeenCalledTimes(2);
-    expect(loadPrefs(s)).toMatchObject({ ep: "E1", pass: "final" });
+    expect(loadPrefs(s)).toMatchObject({ ep: "E1", pass: "proxy" });
   });
 });
 
