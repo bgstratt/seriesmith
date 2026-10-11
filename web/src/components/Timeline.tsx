@@ -204,6 +204,9 @@ const Clip = memo(function Clip({
       onDoubleClick={() => take?.mp4 && openViewer(s.shot, take.take, null, "single", takePass)}
       onContextMenu={(e) => {
         e.preventDefault();
+        // the clip right-clicked is the one selected, and the timeline has the keys
+        (e.currentTarget.closest(".h3-timeline") as HTMLElement | null)?.focus({ preventScroll: true });
+        select(s.shot, take && !s.cut.placeholder ? take.take : null);
         openMenu(e.clientX, e.clientY, s.shot, take?.take ?? null, takePass);
       }}
       {...scrub}

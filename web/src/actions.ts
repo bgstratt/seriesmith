@@ -671,9 +671,30 @@ export function closeViewer() {
   set((s) => ({ viewer: null, cutPlay: { ...s.cutPlay, playing: false } }));
 }
 
+// where focus was when a context menu opened: its keys (space, J/K/L, the
+// arrows) belong there again once an item has run
+let menuFrom: HTMLElement | null = null;
+
 export function openMenu(x: number, y: number, shot: string, take: number | null, pass = get().pass,
   frame: number | "last" | null = null) {
+  const at = typeof document !== "undefined" ? document.activeElement : null;
+  menuFrom = at instanceof HTMLElement && at !== document.body ? at : null;
   set({ menu: { x, y, shot, take, pass, ...(frame != null ? { frame } : {}) } });
+}
+
+/** After a menu item has run: focus back where the menu was opened (else the
+ * timeline), so its keys work, unless the item put focus somewhere itself (a
+ * dialog). Without it focus fell to the page and space did nothing. */
+export function refocusAfterMenu() {
+  const back = menuFrom;
+  menuFrom = null;
+  if (typeof requestAnimationFrame === "undefined") return;
+  requestAnimationFrame(() => {
+    const now = document.activeElement;
+    if (now && now !== document.body) return;
+    const el = back?.isConnected ? back : document.querySelector<HTMLElement>(".h3-timeline");
+    el?.focus({ preventScroll: true });
+  });
 }
 
 export function closeMenu() {

@@ -3,7 +3,7 @@ import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
-  upscaleTake, postTake, removePost, openFrameUse,
+  upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu,
 } from "../actions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -78,6 +78,7 @@ export function ContextMenu() {
   const run = (fn: () => void) => () => {
     closeMenu();
     fn();
+    refocusAfterMenu();
   };
   const missing = shot ? missingOf(shot) : [];
   // the timeline plays the current pass's cut
