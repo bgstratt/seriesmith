@@ -16,9 +16,16 @@ import { Row } from "./ShotForm";
 
 type Make = "character" | "place" | "existing";
 
+// Firm about the background: "on a plain light grey background" left a ghost
+// of the scene behind the figure on Klein (Second Light, 2026-10-11), and
+// Klein kept the frame's crop; Qwen-Image-Edit Rapid with this wording gave a
+// clean grey ground and the whole figure, which is what a reference view is
 const CUT_OUT = (who: string) =>
-  `Cut out ${who.trim()} from this picture: the whole figure, standing, in a three-quarter view, on a plain light grey background. ` +
+  `Cut out ${who.trim()} and show them alone: the whole figure, head to feet, standing, in a three-quarter view. ` +
+  "Replace the entire background with flat, plain, even light grey: nothing else from the picture, no shadows, nothing else at all. " +
   "Keep their face, hair, build, clothes and colours exactly as they are.";
+// what cuts a character out best, when it's installed (a place stays on the series' edit model)
+const CUT_MODEL = "qwen_rapid_aio";
 const EMPTY_PLACE = "Remove every person from this picture. Keep the place exactly as it is: the same layout, light and colours.";
 
 export function FrameUseWindow() {
@@ -56,6 +63,8 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
   const problem = make !== "existing" && raw ? (id ? idProblem(raw, id) : "Give it a name.") : "";
   const ready = make === "existing" ? !!existing : !problem && (make === "place" || asIs || !!who.trim());
   const frameLabel = frame === "last" ? "the last frame" : `frame ${frame}`;
+  // the model asked for: the one picked, else for a character the one that cuts out best
+  const chosen = model || (isChar && edits.some((t) => t.id === CUT_MODEL && t.readiness?.status !== "not_ready") ? CUT_MODEL : "");
 
   const instruction = useMemo(() => {
     if (asIs) return "";
@@ -85,7 +94,7 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
       const res = await api().refsFromFrame({
         ep, pass, shot, take, frame, ref: refId,
         view: isChar ? (make === "existing" ? view : "01_threequarter") : null,
-        instruction, target: model || null,
+        instruction, target: chosen || null,
         views: isChar && (make !== "existing" || views),
         pick: make !== "existing",
       });
@@ -159,7 +168,7 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
           <Row label="Edit model" help={isChar
             ? "Cuts them out onto a plain background, then draws their other views from that."
             : "Takes the people out, leaving the place."}>
-            <select className="h3-in" value={model} onChange={(e) => setModel(e.target.value)}>
+            <select className="h3-in" value={chosen} onChange={(e) => setModel(e.target.value)}>
               <option value="">the series' edit model</option>
               {edits.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>

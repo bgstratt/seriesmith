@@ -2013,7 +2013,8 @@ VIEW_FROM = {
     "04_face": "Show a close-up of this same character's face, looking straight at us, on a "
                "plain light grey background.",
 }
-KEEP_SAME = (" Keep their face, hair, build, clothes and colours exactly the same, in the "
+KEEP_SAME = (" Replace the entire background with flat, plain, even light grey: nothing else "
+             "at all. Keep their face, hair, build, clothes and colours exactly the same, in the "
              "same style.")
 
 

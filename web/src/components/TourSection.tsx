@@ -17,14 +17,20 @@ import { useTargets } from "./Targets";
 
 // H3 tends to turn straight back from "turn and hold": each move says how far,
 // and that the camera stops dead and stays still, and a two-stop move gets
-// the time for both holds
+// the time for both holds. And it follows its own camera words (pushes in,
+// pulls out, pans, trucks, arcs around; with small / large amplitude, at slow
+// / fast speed), not plain verbs: "walks along the dock" barely moved
+// (Second Light, 2026-10-11), "pushes in with large amplitude" went the length
+// of it and on into the meadow
 const MOVES: { label: string; text: string; seconds: number }[] = [
   { label: "Turn left", text: "The camera pans to the left, a quarter turn, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Turn right", text: "The camera pans to the right, a quarter turn, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Look both ways", text: "The camera pans to the left, a quarter turn, then stops completely and stays still for two seconds; then it pans all the way back to the right, a half turn, then stops completely and stays still for two seconds", seconds: 8 },
   { label: "Turn around", text: "The camera pans slowly all the way around to face the opposite direction, then stops completely and stays perfectly still for two seconds", seconds: 8 },
-  { label: "Walk in", text: "The camera moves forward into the space, toward the far side, then stops completely and stays perfectly still for two seconds", seconds: 6 },
-  { label: "Pull back", text: "The camera moves backward, revealing more of the space around, then stops completely and stays perfectly still for two seconds", seconds: 6 },
+  { label: "Walk in", text: "The camera pushes in at slow speed, toward the far side, then stops completely and stays perfectly still for two seconds", seconds: 6 },
+  { label: "Go far", text: "The camera pushes in with large amplitude, deep into the space toward the far side, then stops completely and stays perfectly still for two seconds", seconds: 6 },
+  { label: "Pull back", text: "The camera pulls out at slow speed, revealing more of the space around, then stops completely and stays perfectly still for two seconds", seconds: 6 },
+  { label: "Arc around", text: "The camera arcs around to the left with large amplitude, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Look up", text: "The camera tilts up to the ceiling or sky, then stops completely and stays perfectly still for two seconds", seconds: 6 },
 ];
 const SHARPEN_TARGET = "qwen_rapid_aio";
@@ -64,9 +70,14 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
         className="h3-in"
         rows={2}
         value={move}
-        placeholder="Where the camera goes and where it holds, e.g. “The camera turns slowly to the left past the pillar to the parking lot and holds”"
+        placeholder="Where the camera goes and where it holds, e.g. “The camera pushes in with large amplitude along the dock toward the trees, then stops completely and stays still for two seconds”"
         onChange={(e) => setMove(e.target.value)}
       />
+      <span className="h3-small h3-muted">
+        H3 follows camera words: <i>pushes in</i>, <i>pulls out</i>, <i>pans</i>, <i>trucks left / right</i>, <i>arcs around</i>,
+        <i> tilts up</i>; with <i>small / large amplitude</i>, <i>at slow / fast speed</i>. Plain verbs (“walks”) barely move it.
+        Say where it stops, and that it stays still there: each stop becomes a hold.
+      </span>
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
         <label className="h3-small h3-row" style={{ gap: 3 }} title="How long the video runs: keep the move early and short (frames soften as a clip runs)">
           seconds
