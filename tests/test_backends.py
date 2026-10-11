@@ -191,6 +191,22 @@ class PatienceTest(unittest.TestCase):
         self.assertFalse(B.transient(ValueError("bad")))
         self.assertFalse(B.transient(FileNotFoundError("x")))
 
+    def test_a_router_run_that_finished_with_an_error_is_an_answer(self):
+        """Router's error for a request that completed (InvalidInput, a refusal)
+        has its error_type and no HTTP status: final, not a dropped
+        connection to wait out (it kept a failed Seedance take "running")."""
+        from comfy_sdk.router_exceptions import InvalidInput, ServiceUnavailable
+        self.assertFalse(B.transient(InvalidInput("rejected", error_type="invalid_input")))
+        self.assertTrue(B.transient(ServiceUnavailable("busy", http_status=503)))
+        calls = []
+
+        def collect():
+            calls.append(1)
+            raise InvalidInput("rejected", error_type="invalid_input")
+        with self.assertRaises(InvalidInput):
+            B.patiently(collect, sleep=lambda s: None)
+        self.assertEqual(calls, [1])                      # asked once
+
     def test_patiently_waits_out_a_blip_then_gives_up(self):
         tries, waits = [], []
 

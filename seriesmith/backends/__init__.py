@@ -51,6 +51,12 @@ def transient(exc: BaseException) -> bool:
     response came at all."""
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return True
+    # a Router request that finished with an error (InvalidInput, a content
+    # refusal...) carries its `error_type` and no HTTP status: that is the
+    # provider's answer, final, not a dropped connection -- asking again
+    # only kept a failed run "running" for PATIENCE (Seedance, 2026-10-11)
+    if getattr(exc, "error_type", "") and getattr(exc, "http_status", None) is None:
+        return False
     status = getattr(exc, "http_status", "absent")
     if status != "absent":
         return status is None or status == 429 or (isinstance(status, int) and status >= 500)
