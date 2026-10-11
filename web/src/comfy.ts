@@ -16,10 +16,11 @@
 
 import { app as comfyApp } from "comfyui/app";
 import { api as comfyApi } from "comfyui/api";
-import { pushToast, start } from "./actions";
+import { pushToast, setBackends, start } from "./actions";
 import { createHttpApi, xhrUpload } from "./api";
 import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
 import { mountOverlay, mountSurface, unmountSurface } from "./surfaces";
+import { store, type BackendInfo } from "./store";
 
 interface CustomTab {
   id: string;
@@ -112,6 +113,21 @@ function tab(surface: Surface, title: string): CustomTab {
   };
 }
 
+/** seriesmith's queue on this ComfyUI (GET /seriesmith/backends answers when
+ * the server has one): its controls on top of seriesmith Shots, the Jobs and
+ * Settings windows, "Render on"; the backends asked again every 30 s. */
+async function loadQueue() {
+  try {
+    const r = await api.fetchApi("/seriesmith/backends");
+    if (!r.ok) return;
+    setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
+    store.set({ queueInPanel: true });
+  } catch {
+    return;
+  }
+  setTimeout(() => void loadQueue(), 30000);
+}
+
 export function install() {
   setHost(comfyHost);
   setApi(createHttpApi({
@@ -134,6 +150,7 @@ export function install() {
       em.registerSidebarTab({ ...tab("refs", "seriesmith Refs"), icon: "h3-ico-images", tooltip: "seriesmith: references (characters, props, locations, voices)" });
       mountOverlay();
       await start();
+      void loadQueue();
     },
   });
 }

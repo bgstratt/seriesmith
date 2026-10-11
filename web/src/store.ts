@@ -409,6 +409,9 @@ export interface AppState {
   renderBackend: string;
   /** seriesmith: the Jobs window is open */
   jobsOpen: boolean;
+  /** the queue's controls live in the editor's own panels (inside ComfyUI,
+   * whose page has no top bar of ours): set once the server has a queue */
+  queueInPanel: boolean;
   /** the standalone page's Settings window (components/SettingsWindow.tsx) */
   settingsOpen: boolean;
   /** P10: the note being written (null: no box open) */
@@ -512,6 +515,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     backends: null,
     renderBackend: "",
     jobsOpen: false,
+    queueInPanel: false,
     settingsOpen: false,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,

@@ -657,3 +657,22 @@
 }
 .h3-clipaudio-video { width: 100%; max-height: 190px; background: #000; border-radius: 3px; }
 .h3-seg-row { align-items: center; }
+
+/* seriesmith's queue: Render on, the Jobs button and window (both pages:
+   the standalone's top bar, ComfyUI's seriesmith Shots) */
+.sm-backend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--descrip-text); }
+.sm-backend select { background: var(--comfy-input-bg); color: var(--fg-color); border: 1px solid var(--border-color); border-radius: 6px; padding: 3px 6px; font: inherit; }
+.sm-jobs-btn { display: flex; align-items: center; gap: 8px; }
+.sm-bar { display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: var(--border-color); overflow: hidden; }
+.sm-bar.wide { display: block; width: 100%; margin-top: 4px; }
+.sm-bar > span { display: block; height: 100%; background: var(--p-primary-color); transition: width .3s; }
+.sm-jobs { overflow: auto; flex: 1 1 auto; min-height: 0; padding: 4px 0; }
+.sm-lane > header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border-color); background: var(--comfy-menu-secondary-bg); position: sticky; top: 0; }
+.sm-job { padding: 6px 10px; border-bottom: 1px solid var(--border-color); }
+.sm-job-row { display: flex; align-items: center; gap: 6px; }
+.sm-job-title { font-weight: 600; font-size: 12px; }
+.sm-job.sm-failed .sm-job-title { color: var(--error-text); }
+.sm-job.sm-succeeded .sm-job-title, .sm-job.sm-canceled .sm-job-title { color: var(--descrip-text); }
+.sm-log { margin: 6px 0 0; padding: 6px; font-size: 11px; max-height: 160px; overflow: auto; background: var(--comfy-input-bg); border-radius: 4px; white-space: pre-wrap; }
+.sm-queue-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 8px; border-bottom: 1px solid var(--border-color); }
+.sm-queue-bar .sm-jobs-btn { background: none; border: 1px solid var(--border-color); border-radius: 6px; color: var(--fg-color); padding: 3px 8px; font: inherit; font-size: 12px; cursor: pointer; }

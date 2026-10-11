@@ -36,6 +36,7 @@ import { Viewer } from "./components/Viewer";
 import type { Surface } from "./host";
 import { useApp } from "./store";
 import css from "./styles.css?inline";
+import { PanelQueueWindows } from "./components/Jobs";
 
 const SURFACES: Record<Surface, ComponentType> = {
   shots: ShotsTab,
@@ -189,6 +190,9 @@ export function Overlay() {
           <C />
         </Boundary>
       ))}
+      <Boundary name="Jobs">
+        <PanelQueueWindows />
+      </Boundary>
     </>
   );
 }

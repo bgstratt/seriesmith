@@ -146,9 +146,12 @@ class ComfyHostTest(unittest.TestCase):
     def test_it_registers_every_route(self):
         server, added = self.server()
         self.assertTrue(comfyui.register(server, wait=0))
-        self.assertEqual(len(added), len(A.ROUTES))
+        # the API, and the queue's own routes (Jobs, Render on, Settings, info)
+        self.assertEqual(len(added), len(A.ROUTES) + 6)
+        self.assertIn(("GET", "/seriesmith/jobs"), added)
+        self.assertIn(("PUT", "/seriesmith/settings"), added)
         # the same app as `seriesmith serve`: its queue, its own journal
-        ctx = comfyui.start(server, wait=0)()
+        ctx = comfyui.start(server, wait=0)[0]()
         self.assertIsNotNone(ctx.runner)
         self.assertTrue(ctx.runner.queue.journal.endswith("queue-comfyui.json"))
         self.assertEqual(ctx.comfy_url, "http://127.0.0.1:8188")

@@ -64,8 +64,11 @@ def register(server, wait: float = 120.0) -> bool:
                     "pack?) -- %s; seriesmith's editor stays off in this ComfyUI", clash[0])
         return False
 
-    make_context = start(server, wait=wait)
+    make_context, extra = start(server, wait=wait)
     for method, path, view in routes(make_context):
+        server.routes.route(method, path)(view)
+    # the queue's own (Jobs, Render on, Settings, info), as `seriesmith serve` has them
+    for method, path, view in extra:
         server.routes.route(method, path)(view)
     REGISTERED = True
     return True
@@ -74,8 +77,9 @@ def register(server, wait: float = 120.0) -> bool:
 def start(server, settings=None, wait: float = 120.0):
     """seriesmith's queue on this ComfyUI (standalone.start_queue), and, in
     the background once the server answers: comfy-api-proxy for the local
-    backend, then what the journal had. Returns make_context. Without a
-    queue (it can't start) the editor still works, rendering as h3pipe did."""
+    backend, then what the journal had. Returns (make_context, the queue's
+    own routes: server/queue_views.py). Without a queue (it can't start) the
+    editor still works, rendering as h3pipe did, and there are none."""
     import threading
     import time
 
@@ -92,7 +96,7 @@ def start(server, settings=None, wait: float = 120.0):
     except Exception as e:                                # noqa: BLE001  the editor still loads
         log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
                     "straight to ComfyUI", e)
-        return lambda: A.Context(user_dir(), url, emit)
+        return (lambda: A.Context(user_dir(), url, emit)), []
 
     def when_up():
         end = time.time() + wait
@@ -108,7 +112,8 @@ def start(server, settings=None, wait: float = 120.0):
             log.exception("seriesmith: picking up the last session's jobs failed")
     if wait:
         threading.Thread(target=when_up, daemon=True, name="seriesmith-start").start()
-    return make_context
+    from seriesmith.server.queue_views import queue_routes
+    return make_context, queue_routes(settings, runner, lambda: True)
 
 
 def register_on_prompt_server() -> bool:

@@ -20,6 +20,7 @@ import { EpisodeTarget } from "./Readiness";
 import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
 import { TrackButton, TrackLine } from "./Track";
+import { QueueBar } from "./Jobs";
 
 const BROWSE = "__browse__";
 
@@ -436,6 +437,18 @@ function IssuesButton() {
 }
 
 export function ShotsTab() {
+  // inside ComfyUI the queue's controls sit on top of this panel
+  const queueHere = useApp((s) => s.queueInPanel);
+  if (!queueHere) return <ShotsBody />;
+  return (
+    <div className="h3-col" style={{ height: "100%", minHeight: 0, gap: 0 }}>
+      <QueueBar />
+      <div style={{ flex: "1 1 auto", minHeight: 0 }}><ShotsBody /></div>
+    </div>
+  );
+}
+
+function ShotsBody() {
   const ep = useApp((s) => s.ep);
   const selShot = useApp((s) => s.shot);
   const simple = useApp((s) => s.simple);

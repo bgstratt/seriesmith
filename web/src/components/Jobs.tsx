@@ -7,10 +7,11 @@
 // "seriesmith.queue" events keep this copy current.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { openJobs, setRenderBackend } from "../actions";
+import { openJobs, openSettings, setRenderBackend } from "../actions";
 import { host } from "../host";
 import { store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { SettingsWindow } from "./SettingsWindow";
 
 export interface QJob {
   id: string;
@@ -148,6 +149,36 @@ export function BackendChoice() {
         ))}
       </select>
     </label>
+  );
+}
+
+/** Inside ComfyUI: Render on, the Jobs button and Settings, on top of the
+ * Shots panel (the standalone page has them in its top bar). */
+export function QueueBar() {
+  const on = useApp((s) => s.queueInPanel);
+  if (!on) return null;
+  return (
+    <div className="sm-queue-bar">
+      <BackendChoice />
+      <JobsButton />
+      <button className="sm-jobs-btn" title="This machine's settings: the Comfy API key, ComfyUI, deployments, the paid-run cap"
+        onClick={() => openSettings(!store.get().settingsOpen)}>
+        <i className="pi pi-cog" /> Settings
+      </button>
+    </div>
+  );
+}
+
+/** The Jobs and Settings windows, in ComfyUI's overlay (the standalone page
+ * mounts its own). */
+export function PanelQueueWindows() {
+  const on = useApp((s) => s.queueInPanel);
+  if (!on) return null;
+  return (
+    <>
+      <JobsWindow />
+      <SettingsWindow />
+    </>
   );
 }
 

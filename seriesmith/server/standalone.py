@@ -224,90 +224,12 @@ def make_app(roots: list[str] | None = None, settings=None,
             events.sockets.discard(ws)
         return ws
 
-    async def info(request: web.Request) -> web.Response:
-        from seriesmith import __version__
-        return web.json_response({"version": __version__, "settings": settings.describe(),
-                                  "comfy_connected": request.app["comfy_connected"]})
-
     async def index(request: web.Request) -> web.StreamResponse:
         page = os.path.join(STATIC, "standalone.html")
         if not os.path.isfile(page):
             return web.Response(status=503, text="The editor isn't built: cd web && npm run "
                                                  "build:standalone")
         return web.FileResponse(page, headers={"Cache-Control": "no-cache"})
-
-    # -- the Jobs window ---------------------------------------------------
-
-    async def jobs(request: web.Request) -> web.Response:
-        return web.json_response(queue.list())
-
-    async def job_action(request: web.Request) -> web.Response:
-        what = request.match_info["action"]
-        try:
-            body = await request.json()
-        except ValueError:
-            return web.json_response({"error": "the body must be JSON"}, status=400)
-        try:
-            if what == "cancel":
-                queue.cancel(str(body["id"]))
-            elif what == "move":
-                queue.move(str(body["id"]), int(body["index"]))
-            elif what == "pause":
-                queue.pause(str(body["lane"]), bool(body.get("paused", True)))
-            elif what == "retry":
-                await asyncio.get_running_loop().run_in_executor(None, queue.retry, str(body["id"]))
-            elif what == "paid-reset":
-                queue.paid_count = 0
-            else:
-                return web.json_response({"error": f"no action {what!r}"}, status=404)
-        except KeyError as e:
-            return web.json_response({"error": f"no such job or field: {e}"}, status=404)
-        except (ValueError, TypeError) as e:
-            return web.json_response({"error": str(e)}, status=409)
-        return web.json_response(queue.list())
-
-    async def backend_list(request: web.Request) -> web.Response:
-        """Each backend and whether it answers (asked off the event loop)."""
-        loop = asyncio.get_running_loop()
-
-        def look():
-            return [{"name": n, "kind": b.kind, "down": b.ping(),
-                     "where": getattr(b, "base_url", None) or getattr(b, "cloud_url", "")}
-                    for n, b in backends.items()]
-        return web.json_response({"backends": await loop.run_in_executor(None, look),
-                                  "api_key": bool(settings.api_key)})
-
-    # -- the machine's settings (the Settings window) ----------------------
-
-    async def settings_get(request: web.Request) -> web.Response:
-        from seriesmith.settings import from_env
-        return web.json_response({"settings": settings.describe(), "file": settings_path(),
-                                  "from_env": from_env()})
-
-    async def settings_put(request: web.Request) -> web.Response:
-        """Save the settings file, then use it: the backends are made again
-        from it (a job already running keeps the one it started on)."""
-        from seriesmith.settings import FIELDS, from_env, save_settings
-        try:
-            body = await request.json()
-        except ValueError:
-            return web.json_response({"error": "the body must be JSON"}, status=400)
-        if not isinstance(body, dict):
-            return web.json_response({"error": "the body must be an object"}, status=400)
-        try:
-            save_settings({k: v for k, v in body.items() if k in FIELDS})
-            fresh = load_settings()
-        except ValueError as e:
-            return web.json_response({"error": str(e)}, status=400)
-        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "path",
-                  "paid_limit"):
-            setattr(settings, k, getattr(fresh, k))
-        queue.paid_limit = settings.paid_limit
-        from seriesmith.backends import available
-        backends.clear()
-        backends.update(available(settings))
-        return web.json_response({"settings": settings.describe(), "file": settings_path(),
-                                  "from_env": from_env()})
 
     async def comfy_models(request: web.Request) -> web.Response:
         folder = request.match_info.get("folder")
@@ -342,18 +264,16 @@ def make_app(roots: list[str] | None = None, settings=None,
         return web.json_response({"queue_running": running, "queue_pending": pending})
 
     app.router.add_get("/ws", ws_view)
-    app.router.add_get("/seriesmith/info", info)
-    app.router.add_get("/seriesmith/jobs", jobs)
-    app.router.add_post("/seriesmith/jobs/{action}", job_action)
-    app.router.add_get("/seriesmith/backends", backend_list)
-    app.router.add_get("/seriesmith/settings", settings_get)
+    # the queue's own: Jobs, Render on, Settings, info (shared with ComfyUI's host)
+    from seriesmith.server.queue_views import queue_routes
+    for method, path, view in queue_routes(settings, runner, lambda: app["comfy_connected"]):
+        app.router.add_route(method, path, view)
     # ComfyUI's model lists (GET /models, /models/{folder}: loras, checkpoints,
     # upscale_models, ...), as the page asks for them inside ComfyUI: passed
     # on to this machine's ComfyUI, an empty list when it doesn't answer
     for p in ("/models", "/api/models"):
         app.router.add_get(p, comfy_models)
         app.router.add_get(p + "/{folder}", comfy_models)
-    app.router.add_put("/seriesmith/settings", settings_put)
     for p in ("/queue", "/api/queue"):
         app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)
