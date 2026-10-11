@@ -3932,6 +3932,9 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
                                                    "video")}
                             for d in TR.list_tours(ref)]
             out["tour_holds"] = [take_json(s.ep, ref, t) for t in list_takes(ref, TOUR_VIEW)]
+            # what a tour starts from: its plate, or an angle's place's (null: nothing yet)
+            src = TR.tour_source(s, ref)
+            out["tour_from"] = ep_rel(s.ep, src) if src else None
         out["effective"] = effective(s, ref, None, ov_data, view_size, ready, defaults)
         if out["effective"]:
             out["prompt"] = out["effective"]["prompt"]

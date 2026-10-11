@@ -365,9 +365,10 @@ class Runner:
         backend = self.backends.get(backend_name)
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        start = TR.tour_source(s, ref) or ref.file            # an angle: its place's plate
         for v in graph.values():
             if v["class_type"] == "LoadImage":
-                v["inputs"]["image"] = File(ref.file)
+                v["inputs"]["image"] = File(start)
         room(s.ep, "tour")
         if backend.paid:
             self.queue.charge(backend.name)

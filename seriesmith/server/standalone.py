@@ -269,6 +269,19 @@ def make_app(roots: list[str] | None = None, settings=None,
         return web.json_response({"settings": settings.describe(), "file": settings_path(),
                                   "from_env": from_env()})
 
+    async def comfy_models(request: web.Request) -> web.Response:
+        folder = request.match_info.get("folder")
+        url = settings.comfyui_url + "/models" + (f"/{folder}" if folder else "")
+        try:
+            async with ClientSession() as cs, cs.get(url, timeout=10) as r:
+                if r.status == 200:
+                    return web.json_response(await r.json())
+                return web.json_response({"error": f"ComfyUI answered {r.status} for {url}"},
+                                         status=r.status)
+        except Exception as e:                            # noqa: BLE001  ComfyUI away
+            return web.json_response({"error": f"ComfyUI ({settings.comfyui_url}) doesn't "
+                                               f"answer: {e}"}, status=503)
+
     async def comfy_queue(request: web.Request) -> web.Response:
         """ComfyUI's /queue, as the editor reads it (running and pending prompt
         ids), with seriesmith's queue's jobs in it: ComfyUI's own (work the
@@ -294,6 +307,12 @@ def make_app(roots: list[str] | None = None, settings=None,
     app.router.add_post("/seriesmith/jobs/{action}", job_action)
     app.router.add_get("/seriesmith/backends", backend_list)
     app.router.add_get("/seriesmith/settings", settings_get)
+    # ComfyUI's model lists (GET /models, /models/{folder}: loras, checkpoints,
+    # upscale_models, ...), as the page asks for them inside ComfyUI: passed
+    # on to this machine's ComfyUI, an empty list when it doesn't answer
+    for p in ("/models", "/api/models"):
+        app.router.add_get(p, comfy_models)
+        app.router.add_get(p + "/{folder}", comfy_models)
     app.router.add_put("/seriesmith/settings", settings_put)
     for p in ("/queue", "/api/queue"):
         app.router.add_get(p, comfy_queue)

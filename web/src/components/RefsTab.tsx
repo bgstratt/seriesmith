@@ -472,11 +472,17 @@ function Selection({ r }: { r: Ref }) {
   );
 }
 
+/** Sizes a picture can be generated at (the model snaps them to its grid). */
+const PICTURE_SIZES = ["1344x768", "1536x864", "1920x1088", "2048x1152", "1024x1024", "768x1344"];
+
 function GenerateBar({ r }: { r: Ref }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`] || !!s.busy[`refimport|${r.id}`]);
   const isChar = hasViews(r);
   const [view, setView] = useState<string>(isChar ? "" : "");
   const [count, setCount] = useState(1);
+  // "" is the model's own size for this ref (its effective width x height)
+  const [size, setSize] = useState("");
+  const ownSize = r.effective?.width && r.effective?.height ? `${r.effective.width}x${r.effective.height}` : null;
   const [seedMode, setSeedMode] = useState<SeedMode>("auto");
   // a voice generates through its own bar (count, seconds and the line)
   const gen = canGenerate(r) && !isAudioRef(r);
@@ -503,6 +509,12 @@ function GenerateBar({ r }: { r: Ref }) {
           <select className="h3-in" value={count} onChange={(e) => setCount(Number(e.target.value))} title="How many candidates (each with its own seed)">
             {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}×</option>)}
           </select>
+          {!isAudioRef(r) && (
+            <select className="h3-in" value={size} onChange={(e) => setSize(e.target.value)} title="The picture's size (the model snaps it to its own grid)">
+              <option value="">{ownSize ? `${ownSize.replace("x", "×")} (its own)` : "its own size"}</option>
+              {PICTURE_SIZES.filter((x) => x !== ownSize).map((x) => <option key={x} value={x}>{x.replace("x", "×")}</option>)}
+            </select>
+          )}
           <span className="h3-seg" title="Seed: auto (the ref's pinned or stable seed for a first candidate, new after), new, or same as the last">
             {(["auto", "new", "same"] as SeedMode[]).map((m) => (
               <button key={m} className={seedMode === m ? "h3-on" : ""} onClick={() => setSeedMode(m)}>{m}</button>
@@ -514,7 +526,7 @@ function GenerateBar({ r }: { r: Ref }) {
             title={isChar && !view ? "Queue all four views, sharing one seed per candidate" : "Queue new candidates"}
             onClick={() => void generateRef({
               ref: r.id, view: isChar ? view || null : null, count, seed_mode: seedMode, seed: null,
-              prompt: null, model: null, loras: null, steps: null, note: "",
+              prompt: null, model: null, loras: null, steps: null, note: "", ...(size ? { size } : {}),
             })}
           >
             <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-sparkles"} /> Generate {count > 1 ? `${count} takes` : "a take"}

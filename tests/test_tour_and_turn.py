@@ -186,6 +186,28 @@ class TourQueueTest(Base):
                                       "take": d["holds"][0], "status": "ok"}), events)
 
 
+class AngleTourTest(Base):
+    def test_an_angle_with_no_plate_tours_from_its_place(self):
+        angle = R.find_ref(self.s, "location:kitchen_on_sink")
+        kitchen = R.find_ref(self.s, "location:kitchen")
+        self.assertFalse(os.path.isfile(angle.file))
+        self.assertEqual(TOUR.tour_source(self.s, angle), kitchen.file)
+        ((side, g),) = TOUR.plan_tours(self.s, angle, "The camera pushes in and holds", None)
+        self.assertEqual(side["frame"], R.ep_rel(self.s.ep, kitchen.file))
+        # the place's own plate, once it has one
+        R.pick_take(self.s, angle, None, R.import_take(self.s, angle, None, self.png).take)
+        s2 = R.load_series(self.ep)
+        a2 = R.find_ref(s2, "location:kitchen_on_sink")
+        self.assertEqual(TOUR.tour_source(s2, a2), a2.file)
+        # no plate anywhere: it says why
+        os.remove(kitchen.file)
+        os.remove(a2.file)
+        s3 = R.load_series(self.ep)
+        with self.assertRaises(TOUR.TourError) as cm:
+            TOUR.plan_tours(s3, R.find_ref(s3, "location:kitchen_on_sink"), "pushes in", None)
+        self.assertIn("nor has kitchen", str(cm.exception))
+
+
 class LostTourTest(Base):
     def test_a_tour_the_server_lost_in_a_restart_is_failed(self):
         from seriesmith import takes as T

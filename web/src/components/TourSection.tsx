@@ -44,6 +44,8 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
   const holds = r.tour_holds ?? [];
   const hold = holds.find((t) => t.take === sel);
   const running = tours.filter((t) => t.status === "queued").length;
+  // what a tour starts from: the plate, or (an angle with none yet) its place's
+  const from = r.tour_from ?? (r.exists ? r.path : null);
 
   const run = async () => {
     setBusy(true);
@@ -83,7 +85,12 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
           seconds
           <input className="h3-in h3-mono" style={{ width: 52 }} type="number" min={2} max={10} value={seconds} onChange={(e) => setSeconds(Number(e.target.value) || 6)} />
         </label>
-        <button className="h3-btn" disabled={busy || !move.trim() || !r.exists} title={r.exists ? "Queue the tour on H3 (about a minute); its holds arrive here" : "Pick or import a plate first"} onClick={() => void run()}>
+        <button className="h3-btn" disabled={busy || !move.trim() || !from}
+          title={!from ? (r.of ? `Neither ${r.id.split(":")[1]} nor ${r.of} has a plate yet: pick or import one first` : "Pick or import a plate first")
+            : !move.trim() ? "Say (or pick) the camera move first"
+            : r.exists ? "Queue the tour on H3 (about a minute); its holds arrive here"
+            : `Starts from ${r.of}'s plate (this angle has none yet): its holds arrive here, as this angle's candidates`}
+          onClick={() => void run()}>
           <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-video"} /> Run tour
         </button>
         {running > 0 && <span className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> {running} running</span>}

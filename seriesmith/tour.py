@@ -97,11 +97,33 @@ def tour_graph(base: dict, prompt: str, image: str, seconds: float, seed: int,
     return g
 
 
-def check_request(ref: R.Ref, move: str, seconds: float, count: int) -> None:
+def tour_source(s: R.Series, ref: R.Ref) -> str | None:
+    """The picture a tour of `ref` starts from: its own live plate, else -- an
+    angle (`of:`) with no plate yet -- the place it's an angle of, so a tour
+    is how its angle is found (the holds become its candidates). None when
+    neither has one."""
+    if ref.file and os.path.isfile(ref.file):
+        return ref.file
+    of = (ref.entry or {}).get("of")
+    master = ((s.series_cfg.get("locations") or {}).get(of) or {}) if of else {}
+    if master.get("plate"):
+        p = R.ref_file(s.home, master["plate"])
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def check_request(ref: R.Ref, move: str, seconds: float, count: int,
+                  source: str | None = None) -> None:
+    """`source` is what the tour starts from (tour_source); None: the ref's own plate."""
     if ref.kind != "location":
-        raise TourError(f"{ref.id} is not a location: a tour moves through a place")
-    if not ref.file or not os.path.isfile(ref.file):
-        raise TourError(f"{ref.id} has no live plate to start the tour from")
+        raise TourError(f"{ref.id} is a {ref.kind}, not a location: a tour moves through a place")
+    if source is None and ref.file and os.path.isfile(ref.file):
+        source = ref.file
+    if not source:
+        raise TourError(f"{ref.id} has no live plate to start the tour from"
+                        + (f" (nor has {(ref.entry or {}).get('of')}, the place it's an angle of)"
+                           if (ref.entry or {}).get("of") else ""))
     if not isinstance(move, str) or not move.strip():
         raise TourError("a tour needs a move: where the camera goes and where it holds")
     if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) \
@@ -117,7 +139,8 @@ def plan_tours(s: R.Series, ref: R.Ref, move: str, image, seconds: float = DEFAU
     sidecar written, status queued) with its graph: [(sidecar, graph)].
     `image` is what the graph's LoadImage reads (a name in ComfyUI's input
     folder, or a backends.File)."""
-    check_request(ref, move, seconds, count)
+    source = tour_source(s, ref)
+    check_request(ref, move, seconds, count, source)
     with open(WORKFLOW, encoding="utf-8") as fh:
         base = json.load(fh)
     prompt = move.strip().rstrip(".") + "." + TAIL
@@ -128,7 +151,7 @@ def plan_tours(s: R.Series, ref: R.Ref, move: str, image, seconds: float = DEFAU
         sd = int(seed) if (c == 0 and seed is not None) else zlib.crc32(f"{ref.id}:tour:{n}".encode())
         side = {"tour": n, "ref": ref.id, "status": "queued", "queued": T.now(), "move": move.strip(),
                 "prompt": prompt, "seconds": float(seconds), "seed": sd,
-                "frame": R.ep_rel(s.ep, ref.file), "frame_sha1": T.file_sha1(ref.file),
+                "frame": R.ep_rel(s.ep, source), "frame_sha1": T.file_sha1(source),
                 "comfy_prompt_id": None, "holds": [], "error": ""}
         T.write_json(_tour_file(ref, n, ".json"), side)
         g = tour_graph(base, prompt, image, seconds, sd, f"seriesmith/tours/{ref.key}_t{n:02d}")

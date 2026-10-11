@@ -1280,6 +1280,8 @@ export interface Ref {
   picked: number | null;
   /** P5, a location: its 360 panoramas (never picked into the plate) */
   panos?: RefTake[];
+  /** a location: the picture a tour starts from (its plate, or an angle's place's); null: none */
+  tour_from?: string | null;
   /** P5, a location: its camera tours, and their held frames (never picked where they are) */
   tours?: RefTour[];
   tour_holds?: RefTake[];
