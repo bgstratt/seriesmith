@@ -103,6 +103,27 @@ class TakesTest(unittest.TestCase):
         self.assertNotIn(b.take, [t.take for t in changed])
         self.assertNotIn(c.take, [t.take for t in changed])
 
+    def test_an_upscale_or_post_the_queue_lost_is_failed(self):
+        t = T.reserve_take(self.root, "final", "sh010", {"status": "ok"})
+        touch(t.paths.mp4)
+        queued = {"status": "queued", "queue": "seriesmith", "comfy_prompt_id": "gone"}
+        T.write_json(t.paths.up_sidecar, dict(queued))
+        T.write_json(t.paths.post_sidecar, dict(queued, comfy_prompt_id="alive"))
+        saved = T.MANAGED
+        try:
+            T.MANAGED = None                      # the command line: left alone
+            self.assertEqual(T.upscale_of(t)["status"], "queued")
+            T.MANAGED = lambda: {"alive"}         # the server, after a restart
+            up = T.upscale_of(t)
+            self.assertEqual(up["status"], "failed")
+            self.assertIn("restarted", up["error"])
+            self.assertEqual(T.read_json(t.paths.up_sidecar)["status"], "failed")
+            self.assertEqual(T.post_of(t)["status"], "queued")     # its job is still there
+            T.MANAGED = lambda: set()
+            self.assertEqual(T.post_of(t)["status"], "failed")
+        finally:
+            T.MANAGED = saved
+
     def test_claimed_but_empty_sidecar_reads_as_queued(self):
         touch(T.take_paths(self.root, "final", "sh010", 1).sidecar)
         (t,) = T.list_takes(self.root, "final", "sh010")
