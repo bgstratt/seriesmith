@@ -21,13 +21,15 @@ import { useTargets } from "./Targets";
 // pulls out, pans, trucks, arcs around; with small / large amplitude, at slow
 // / fast speed), not plain verbs: "walks along the dock" barely moved
 // (Second Light, 2026-10-11), "pushes in with large amplitude" went the length
-// of it and on into the meadow
+// of it and on into the meadow (too far for most angles), "moves forward"
+// went gently to the dock's end: Go further, between Walk in and Go far
 const MOVES: { label: string; text: string; seconds: number }[] = [
   { label: "Turn left", text: "The camera pans to the left, a quarter turn, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Turn right", text: "The camera pans to the right, a quarter turn, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Look both ways", text: "The camera pans to the left, a quarter turn, then stops completely and stays still for two seconds; then it pans all the way back to the right, a half turn, then stops completely and stays still for two seconds", seconds: 8 },
   { label: "Turn around", text: "The camera pans slowly all the way around to face the opposite direction, then stops completely and stays perfectly still for two seconds", seconds: 8 },
   { label: "Walk in", text: "The camera pushes in at slow speed, toward the far side, then stops completely and stays perfectly still for two seconds", seconds: 6 },
+  { label: "Go further", text: "The camera moves forward at normal speed, partway across the space, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Go far", text: "The camera pushes in with large amplitude, deep into the space toward the far side, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Pull back", text: "The camera pulls out at slow speed, revealing more of the space around, then stops completely and stays perfectly still for two seconds", seconds: 6 },
   { label: "Arc around", text: "The camera arcs around to the left with large amplitude, then stops completely and stays perfectly still for two seconds", seconds: 6 },

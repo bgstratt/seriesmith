@@ -2001,6 +2001,124 @@ def frame_into(s: Series, ref: Ref, view: str | None, src: T.Take, src_pass: str
     return t, source
 
 
+# A video of your own to take a frame from (docs/PLAN.md step 5): any clip,
+# not just a rendered take, kept in the show's refs/_videos/ so the editor can
+# play and scrub it, its frame taken at a time (seconds) rather than an index.
+VIDEO_EXTS = (".mp4", ".mov", ".webm", ".mkv", ".m4v", ".avi")
+VIDEOS_DIR = "_videos"
+
+
+def videos_dir(s: Series) -> str:
+    return os.path.join(s.home, "refs", VIDEOS_DIR)
+
+
+def _video_name(name: str) -> str:
+    base = os.path.basename(name or "")
+    stem, ext = os.path.splitext(base)
+    if ext.lower() not in VIDEO_EXTS:
+        raise RefError(f"{base or 'that'} isn't a video ({', '.join(VIDEO_EXTS)})")
+    stem = re.sub(r"[^\w.\- ]+", "_", stem).strip(" .") or "video"
+    return stem + ext.lower()
+
+
+def video_duration(path: str, timeout: int = 60) -> float | None:
+    """A video's length in seconds (the container's), or None."""
+    try:
+        rc, out = _run([_ffmpeg("ffprobe"), "-v", "error", "-show_entries", "format=duration",
+                        "-of", "csv=p=0", path], timeout)
+        return round(float(out.strip().splitlines()[0]), 3) if rc == 0 else None
+    except (FfmpegMissing, ValueError, IndexError):
+        return None
+
+
+def video_json(s: Series, path: str) -> dict:
+    st = os.stat(path)
+    return {"path": ep_rel(s.ep, path), "name": os.path.basename(path), "size": st.st_size,
+            "modified": st.st_mtime}
+
+
+def import_video(s: Series, source: str, name: str | None = None) -> dict:
+    """`source` kept in the show's refs/_videos/ to take frames from: one
+    already there is used where it is, the same bytes under the name reused,
+    another under the name gets -2, -3... {path (relative to the episode),
+    name, size, modified, copied, duration}."""
+    if not os.path.isfile(source):
+        raise RefError(f"no file at {source}")
+    base = _video_name(name or source)
+    d = videos_dir(s)
+    if os.path.normcase(os.path.dirname(os.path.abspath(source))) == os.path.normcase(os.path.abspath(d)):
+        return {**video_json(s, source), "copied": False, "duration": video_duration(source)}
+    stem, ext = os.path.splitext(base)
+    dest, k = os.path.join(d, base), 1
+    while os.path.exists(dest):
+        if os.path.getsize(dest) == os.path.getsize(source) \
+                and T.file_sha1(dest) == T.file_sha1(source):
+            return {**video_json(s, dest), "copied": False, "duration": video_duration(dest)}
+        k += 1
+        dest = os.path.join(d, f"{stem}-{k}{ext}")
+    os.makedirs(d, exist_ok=True)
+    shutil.copy2(source, dest)
+    return {**video_json(s, dest), "copied": True, "duration": video_duration(dest)}
+
+
+def list_videos(s: Series) -> list[dict]:
+    """The videos kept to take frames from, newest first."""
+    d = videos_dir(s)
+    found = [os.path.join(d, n) for n in (os.listdir(d) if os.path.isdir(d) else [])
+             if n.lower().endswith(VIDEO_EXTS) and os.path.isfile(os.path.join(d, n))]
+    return [video_json(s, p) for p in sorted(found, key=os.path.getmtime, reverse=True)]
+
+
+def extract_frame_at(video: str, seconds: float, out: str, timeout: int = 300) -> None:
+    """Write the frame shown at `seconds` into `video` to `out` as a PNG (-ss
+    before -i decodes up to it, so it's the frame the player showed)."""
+    rc, msg = _run([_ffmpeg("ffmpeg"), "-y", "-v", "error", "-ss", f"{seconds:.3f}", "-i", video,
+                    "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", out], timeout)
+    if rc != 0 or not os.path.isfile(out) or os.path.getsize(out) == 0:
+        raise RefError(f"ffmpeg couldn't take the frame at {seconds:.2f}s of "
+                       f"{os.path.basename(video)}: {msg.strip()[-400:] or 'no image written'}")
+
+
+def frame_from_video(s: Series, ref: Ref, view: str | None, video: str, seconds,
+                     note: str = "") -> RefTake:
+    """The frame at `seconds` into `video` (any video file) as a new take of
+    `ref` (a character's `view`): source "frame", the sidecar recording the
+    video, the time and its sha1."""
+    if ref.has_views:
+        view = check_view(ref, view)
+        if view is None:
+            raise RefError(f"{ref.id} is a character: a frame goes into one view")
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds < 0:
+        raise RefError(f"time must be seconds into the video (0 or more), not {seconds!r}")
+    if not os.path.isfile(video):
+        raise RefError(f"no video at {video}")
+    seconds = float(seconds)
+    d = takes_dir(ref)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, f".tmp_{uuid.uuid4().hex}.png")
+    name = os.path.basename(video)
+    try:
+        extract_frame_at(video, seconds, tmp)
+        t = reserve_take(ref, view, {
+            "status": "queued", "queued": T.now(), "ep": s.ep, "source": "frame",
+            "source_video": ep_rel(s.ep, video), "source_time": round(seconds, 3),
+            "source_sha1": T.file_sha1(video), "comfy_prompt_id": None, "seed": None,
+            "seed_source": None, "prompt": None, "model": None, "loras": None,
+            "steps": None, "note": note})
+        os.replace(tmp, t.paths.image)
+    finally:
+        if os.path.isfile(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    wh = image_size(t.paths.image) or (None, None)
+    t.sidecar = T.update_sidecar(
+        t.paths.sidecar, status="ok", finished=T.now(), width=wh[0], height=wh[1],
+        save_notes=f"{seconds:.2f}s into {name}")
+    return t
+
+
 # What a character's other views are drawn from its first one with, on an
 # edit model (from the view the frame went into): the same person, turned.
 VIEW_FROM = {
@@ -2010,8 +2128,11 @@ VIEW_FROM = {
                "standing, on a plain light grey background.",
     "03_back": "Show this same character from behind, the whole figure standing, on a plain "
                "light grey background.",
+    # "nothing in their hands": Ada's face view, drawn from a cut-out holding
+    # a fishing pole, had the pole across it (Second Light, 2026-10-11)
     "04_face": "Show a close-up of this same character's face, looking straight at us, on a "
-               "plain light grey background.",
+               "plain light grey background, nothing in their hands and nothing in front of "
+               "their face.",
 }
 KEEP_SAME = (" Replace the entire background with flat, plain, even light grey: nothing else "
              "at all. Keep their face, hair, build, clothes and colours exactly the same, in the "

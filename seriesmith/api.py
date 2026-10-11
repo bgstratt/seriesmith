@@ -536,61 +536,112 @@ def post_clip_queue(ctx: Context, body):
         except Exception as e:                           # noqa: BLE001
             raise ApiError(400, f"no image model {image_target!r}: {e}")
         edit_model = (it.spec.get("capabilities") or {}).get("mode") == "edit"
-    runner = ctx.runner
-    if runner is None:
+    if ctx.runner is None:
         raise ApiError(409, "clips need seriesmith's queue (seriesmith serve)")
     if not any(s["id"] == shot for d, i in J.episode_shots(ep, pass_) for s in [d["shots"][i]]):
         raise ApiError(404, f"{shot} isn't in {pass_}'s shotlist: build first")
-    render_body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True,
-                   **({"backend": backend} if backend else {})}
-
-    keyframe = f"shot:{shot}:first"
-
-    def stills() -> list:
-        """The picture's candidates, on the image model; each one finished is
-        made live by the refs listing (auto_pick) when there is none yet."""
-        status, data = post_refs_generate(ctx, {"ep": ep, "ref": keyframe, "count": takes,
-                                                "target": image_target,
-                                                **({"backend": backend} if backend else {})})
-        if status >= 400:
-            raise ApiError(status, f"{keyframe}: {data.get('error')}")
-        return data.get("queued") or []
-
-    def renders() -> list:
-        if still:
-            return []
-        out = []
-        for _ in range(takes):
-            status, data = post_render(ctx, render_body) if runner.ask is None \
-                else runner.ask("/seriesmith/render", render_body)
-            out.append(data)
-        return out
-
+    p ={"ep": ep, "pass": pass_, "shot": shot, "takes": takes, "backend": backend,
+         "still": still, "image_target": image_target}
     need = [r for r in CL.needed_refs(ep, pass_, shot) if not r.id.startswith(f"shot:{shot}:")]
     if still and not edit_model:
         need = []                                        # words only: nothing to draw from
     if not need:
-        return 200, {"refs": [], "waiting_on": [], "step": None, "renders": renders(),
-                     "stills": stills() if still else []}
+        return 200, {"refs": [], "waiting_on": [], "step": None, "renders": _clip_renders(ctx, p),
+                     "stills": _clip_stills(ctx, p) if still else []}
     made, waiting = [], []
     for ref in need:
         on_way = CL.queued_takes(ref)
         if on_way:
             waiting += on_way
             continue
-        status, data = post_refs_generate(ctx, {"ep": ep, "ref": ref.id, "count": 1,
-                                                **({"backend": backend} if backend else {})})
+        status, data = _generate(ctx, {"ep": ep, "ref": ref.id, "count": 1,
+                                       **({"backend": backend} if backend else {})})
         if status >= 400:
             raise ApiError(status, f"{ref.id}: {data.get('error')}")
         for q in data.get("queued") or []:
             made.append({k: q.get(k) for k in ("ref", "view", "take", "prompt_id")})
             if q.get("prompt_id"):
                 waiting.append(q["prompt_id"])
-    ids = [r.id for r in need]
+    step = _clip_step(ctx, {**p, "refs": [r.id for r in need]})
+    return 200, {"refs": made, "waiting_on": waiting, "step": step, "renders": [], "stills": []}
+
+
+# -- steps: seriesmith's own jobs that ask for others once pictures are made.
+# Each is made from plain parameters (its `spec`), so the queue's journal
+# keeps it and a restart makes it again (rebuild_step, standalone.recover);
+# each waits on its pictures' takes (still queued, on a live job) rather than
+# on job ids, which a restart changes.
+
+def _generate(ctx: Context, body: dict):
+    """POST /seriesmith/refs/generate from inside another request or a step,
+    its jobs kept with this request (runner.ASKED), not the one around it: a
+    job still waiting at a restart is asked for again as itself (a clip's
+    picture, a frame's edit), not as the whole clip or frame again."""
+    from seriesmith.runner import ASKED
+    before = getattr(ASKED, "req", None)
+    ASKED.req = {"path": "/seriesmith/refs/generate", "body": body}
+    try:
+        return post_refs_generate(ctx, body)
+    finally:
+        ASKED.req = before
+
+
+def _refs_waiting(ctx: Context, ep: str, rids: list, views: list | None = None):
+    """wait() for a step: true while any take of the refs `rids` (their
+    `views`; None: every view) is queued on a job that's alive."""
+    from seriesmith import refs as R
+    queue = ctx.runner.queue
+
+    def wait() -> bool:
+        alive = queue.alive()
+        s = R.load_series(ep)
+        for rid in rids:
+            ref = R.find_ref(s, rid)
+            for v in (views if views is not None else
+                      (R.VIEW_TAGS if ref.has_views else [None])):
+                for t in R.list_takes(ref, v):
+                    if t.status == "queued" and (t.sidecar or {}).get("comfy_prompt_id") in alive:
+                        return True
+        return False
+    return wait
+
+
+def _clip_stills(ctx: Context, p: dict) -> list:
+    """A still clip's picture: `takes` candidates of its first keyframe on the
+    image model; each one finished is made live by the refs listing
+    (auto_pick) when there is none yet."""
+    keyframe = f"shot:{p['shot']}:first"
+    status, data = _generate(ctx, {"ep": p["ep"], "ref": keyframe, "count": p["takes"],
+                                   "target": p["image_target"],
+                                   **({"backend": p["backend"]} if p.get("backend") else {})})
+    if status >= 400:
+        raise ApiError(status, f"{keyframe}: {data.get('error')}")
+    return data.get("queued") or []
+
+
+def _clip_renders(ctx: Context, p: dict) -> list:
+    if p.get("still"):
+        return []
+    body = {"ep": p["ep"], "pass": p["pass"], "shots": [p["shot"]], "redo": True,
+            **({"backend": p["backend"]} if p.get("backend") else {})}
+    out = []
+    for _ in range(p["takes"]):
+        status, data = post_render(ctx, body) if ctx.runner.ask is None \
+            else ctx.runner.ask("/seriesmith/render", body)
+        out.append(data)
+    return out
+
+
+def _clip_step(ctx: Context, p: dict) -> str:
+    """A clip's step: once its pictures (`p["refs"]`) are made, each is made
+    live and its renders (or its still) asked for."""
+    from seriesmith import clips as CL
+    from seriesmith import refs as R
+    ep, pass_, shot = p["ep"], p["pass"], p["shot"]
 
     def then(report) -> str:
         s = R.load_series(ep)
-        for rid in ids:
+        for rid in p["refs"]:
             ref = R.find_ref(s, rid)
             for res in R.auto_pick(s, ref):
                 report(line=f"{rid}: {getattr(res, 'note', '') or 'live'}")
@@ -599,19 +650,156 @@ def post_clip_queue(ctx: Context, body):
         if left:
             raise RuntimeError(f"its pictures didn't all come out ({', '.join(left)}): "
                                "see the Refs tab, then queue it again")
-        if still:
-            report(line=f"{len(stills())} picture(s) asked for")
+        if p.get("still"):
+            report(line=f"{len(_clip_stills(ctx, p))} picture(s) asked for")
             return "succeeded"
-        got = renders()
-        report(line=f"{takes} take(s) asked for")
+        got = _clip_renders(ctx, p)
+        report(line=f"{p['takes']} take(s) asked for")
         bad = [d for d in got if d.get("errors")]
         if bad:
             raise RuntimeError(str(bad[0]["errors"][0].get("error"))[:400])
         return "succeeded"
-    step = runner.enqueue_step(f"{os.path.basename(os.path.normpath(ep))} {shot}: "
-                               f"render once its pictures are made", then, after=waiting,
-                               info={"ep": ep, "shot": shot, "pass": pass_})
-    return 200, {"refs": made, "waiting_on": waiting, "step": step, "renders": [], "stills": []}
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot}: render once its pictures are made",
+        then, info={"ep": ep, "shot": shot, "pass": pass_},
+        wait=_refs_waiting(ctx, ep, p["refs"]), spec={"step": "clip", "params": p})
+
+
+def _frame_gen(ctx: Context, p: dict, view, edit: dict, prompt: str) -> list[str]:
+    """An edit of a frame-made ref's `view` queued: its job ids."""
+    target = p.get("target")
+    status, data = _generate(ctx, {"ep": p["ep"], "ref": p["ref"], "view": view, "edit": edit,
+                                   "prompt": prompt, **({"target": target} if target else {})})
+    if status >= 400:
+        raise ApiError(status, data.get("error") or "the edit wasn't queued")
+    return [q["prompt_id"] for q in data.get("queued") or [] if q.get("prompt_id")]
+
+
+def _newest_ok(ep: str, rid: str, view):
+    from seriesmith import refs as R
+    ok = [x for x in R.list_takes(R.find_ref(R.load_series(ep), rid), view) if x.status == "ok"]
+    return ok[-1] if ok else None
+
+
+def _pick_newest(ep: str, rid: str, view, report=None) -> None:
+    from seriesmith import refs as R
+    s2 = R.load_series(ep)
+    r2 = R.find_ref(s2, rid)
+    nt = _newest_ok(ep, rid, view)
+    if nt is not None:
+        try:
+            R.pick_take(s2, r2, view, nt.take)
+        except Exception as e:                           # noqa: BLE001  a stitch waits for the rest
+            if report:
+                report(line=f"{view or rid}: picked t{nt.take:02d} ({e})")
+
+
+def _frame_step(ctx: Context, p: dict) -> str:
+    """A frame-made ref's step (post_refs_from_frame): once the frame's edit
+    is done, it is picked (`pick`) and -- a character with `views` -- the
+    other three views drawn from it, then picked in turn (_views_step)."""
+    from seriesmith import refs as R
+    ep, rid, view = p["ep"], p["ref"], p["view"]
+
+    def then(report) -> str:
+        # the first view as it came out, then the others drawn from it
+        if p.get("pick"):
+            _pick_newest(ep, rid, view, report)
+        ref = R.find_ref(R.load_series(ep), rid)
+        if not (p.get("views") and ref.has_views):
+            return "succeeded"
+        others = [v for v in R.VIEW_TAGS if v != view]
+        ids = []
+        for v in others:
+            nt = _newest_ok(ep, rid, view)
+            ids += _frame_gen(ctx, p, v, {"take": None, "from_view": view} if p.get("pick") else
+                              {"take": nt.take if nt else p["frame_take"], "from_view": view},
+                              R.VIEW_FROM[v] + R.KEEP_SAME)
+        report(line=f"{len(ids)} view(s) asked for, from {view}")
+        if p.get("pick"):
+            _views_step(ctx, {"ep": ep, "ref": rid, "views": others})
+        return "succeeded"
+    return ctx.runner.enqueue_step(
+        f"{rid}: from the frame, then its views" if p.get("views") else f"{rid}: from the frame",
+        then, info={"ep": ep, "ref": rid}, wait=_refs_waiting(ctx, ep, [rid], [view]),
+        spec={"step": "frame", "params": p})
+
+
+def _views_step(ctx: Context, p: dict) -> str:
+    """Once a frame-made character's other views are drawn, each is picked."""
+    ep, rid = p["ep"], p["ref"]
+
+    def done(report) -> str:
+        for v in p["views"]:
+            _pick_newest(ep, rid, v, report)
+        return "succeeded"
+    return ctx.runner.enqueue_step(f"{rid}: pick its views", done, info={"ep": ep, "ref": rid},
+                                   wait=_refs_waiting(ctx, ep, [rid], p["views"]),
+                                   spec={"step": "views", "params": p})
+
+
+STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step}
+
+
+def rebuild_step(ctx: Context, resume: dict) -> str | None:
+    """A step the journal kept (its `resume`: {"kind": "step", "step",
+    "params"}) made again after a restart: its id, or None for one this
+    version doesn't know."""
+    make = STEPS.get(resume.get("step") or "")
+    params = resume.get("params")
+    if make is None or not isinstance(params, dict) or ctx.runner is None:
+        return None
+    return make(ctx, params)
+
+
+def _video_path(s, video) -> str:
+    """A kept video's path (relative to the episode, as POST /refs/video
+    answers) as a file in the show's refs/_videos/."""
+    from seriesmith import refs as R
+    if not isinstance(video, str) or not video.strip():
+        raise ApiError(400, "video must be the video's path, as POST /seriesmith/refs/video gave it")
+    path = os.path.normpath(os.path.join(s.ep, video))
+    d = os.path.normpath(R.videos_dir(s))
+    if os.path.normcase(os.path.dirname(path)) != os.path.normcase(d):
+        raise ApiError(400, f"{video} isn't one of the show's videos (refs/{R.VIDEOS_DIR}/)")
+    if not os.path.isfile(path):
+        raise ApiError(404, f"no video at {video}")
+    return path
+
+
+@handler
+def post_refs_video(ctx: Context, body):
+    """A video of your own to take frames from (docs/PLAN.md step 5): kept in
+    the show's refs/_videos/ (refs.import_video), where the editor plays it.
+    `source_path` (a file on this machine) or `file` (multipart). Returns
+    {path (relative to the episode), name, size, modified, copied, duration}."""
+    from seriesmith import refs as R
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    s = _series(ep)
+    up = body.get("file")
+    src = body.get("source_path")
+    try:
+        if isinstance(up, Upload):
+            if up.size > MAX_UPLOAD:
+                raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB: "
+                                    "pick it from this machine's folders instead")
+            return 200, R.import_video(s, up.path, up.filename or "")
+        if up is not None:
+            raise ApiError(400, "file must be sent as multipart/form-data")
+        if isinstance(src, str) and src.strip():
+            return 200, R.import_video(s, src.strip())
+    except R.RefError as e:
+        raise ApiError(400, str(e))
+    raise ApiError(400, "send source_path (a video on this machine) or a multipart `file`")
+
+
+@handler
+def get_refs_videos(ctx: Context, query: dict):
+    """The videos kept to take frames from, newest first."""
+    from seriesmith import refs as R
+    ep = check_ep(ctx, query.get("ep"))
+    return 200, {"videos": R.list_videos(_series(ep))}
 
 
 @handler
@@ -624,16 +812,20 @@ def post_refs_from_frame(ctx: Context, body):
     other three views are then drawn from that one. With `pick` (a new one)
     each comes out picked, so the sheet stitches; without, they're
     candidates beside what it has. Body {ep, pass, shot, take, frame,
-    ref, view?, instruction?, target? (an edit model), views?, pick?}.
+    ref, view?, instruction?, target? (an edit model), views?, pick?}; or,
+    a video of your own (POST /seriesmith/refs/video) instead of a take,
+    {ep, video (its path, relative to the episode), time (seconds), ref, ...}.
     Returns {"frame": take, "edits": [ids], "step": id | null}."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
-    pass_ = check_pass(body.get("pass"))
-    shot = check_shot(body.get("shot"))
-    take_n = check_take(body.get("take"), "take")
-    frame = body.get("frame", 0)
-    if isinstance(frame, str) and frame.lstrip("-").isdigit():
-        frame = int(frame)
+    video = body.get("video")
+    if video is None:
+        pass_ = check_pass(body.get("pass"))
+        shot = check_shot(body.get("shot"))
+        take_n = check_take(body.get("take"), "take")
+        frame = body.get("frame", 0)
+        if isinstance(frame, str) and frame.lstrip("-").isdigit():
+            frame = int(frame)
     s = _series(ep)
     ref = _ref(s, body.get("ref"))
     if ref.is_audio:
@@ -642,74 +834,33 @@ def post_refs_from_frame(ctx: Context, body):
     instruction = (body.get("instruction") or "").strip()
     target = body.get("target") or None
     views, pick = bool(body.get("views")), bool(body.get("pick"))
-    src = T.get_take(ep, pass_, shot, take_n)
-    if src is None or not src.has_video:
-        raise ApiError(404, f"{shot} {pass_} t{take_n:02d} has no video")
     try:
-        t, _source = R.frame_into(s, ref, view, src, pass_, frame,
-                                  note=f"from {shot} t{take_n:02d}")
+        if video is not None:
+            path = _video_path(s, video)
+            t = R.frame_from_video(s, ref, view, path, body.get("time", 0),
+                                   note=f"from {os.path.basename(path)}")
+        else:
+            src = T.get_take(ep, pass_, shot, take_n)
+            if src is None or not src.has_video:
+                raise ApiError(404, f"{shot} {pass_} t{take_n:02d} has no video")
+            t, _source = R.frame_into(s, ref, view, src, pass_, frame,
+                                      note=f"from {shot} t{take_n:02d}")
     except R.RefError as e:
         raise ApiError(400, str(e))
     except R.FfmpegMissing as e:
         raise ApiError(500, str(e))
     ref_event(ctx, ep, ref.id, view, t.take, "ok")
-    runner = ctx.runner
-
-    def gen(v, edit: dict, prompt: str) -> list[str]:
-        status, data = post_refs_generate(ctx, {"ep": ep, "ref": ref.id, "view": v, "edit": edit,
-                                                "prompt": prompt, **({"target": target} if target else {})})
-        if status >= 400:
-            raise ApiError(status, data.get("error") or "the edit wasn't queued")
-        return [q["prompt_id"] for q in data.get("queued") or [] if q.get("prompt_id")]
-
-    def newest_ok(v):
-        ok = [x for x in R.list_takes(R.find_ref(R.load_series(ep), ref.id), v) if x.status == "ok"]
-        return ok[-1] if ok else None
-
-    def pick_newest(v, report=None) -> None:
-        s2 = R.load_series(ep)
-        r2 = R.find_ref(s2, ref.id)
-        nt = newest_ok(v)
-        if nt is not None:
-            try:
-                R.pick_take(s2, r2, v, nt.take)
-            except Exception as e:                       # noqa: BLE001  a stitch waits for the rest
-                if report:
-                    report(line=f"{v or ref.id}: picked t{nt.take:02d} ({e})")
-
-    edits = gen(view, {"take": t.take}, instruction) if instruction else []
+    p = {"ep": ep, "ref": ref.id, "view": view, "views": views, "pick": pick, "target": target,
+         "frame_take": t.take}
+    edits = _frame_gen(ctx, p, view, {"take": t.take}, instruction) if instruction else []
     if not edits:
         if pick:
-            pick_newest(view)
+            _pick_newest(ep, ref.id, view)
         if not (views and ref.has_views):
             return 200, {"frame": R.take_json(ep, ref, t), "edits": [], "step": None}
-    if runner is None:
+    if ctx.runner is None:
         raise ApiError(409, "this needs seriesmith's queue (seriesmith serve)")
-
-    def then(report) -> str:
-        # the first view as it came out, then the others drawn from it
-        if pick:
-            pick_newest(view, report)
-        if not (views and ref.has_views):
-            return "succeeded"
-        others = [v for v in R.VIEW_TAGS if v != view]
-        ids = []
-        for v in others:
-            ids += gen(v, {"take": None, "from_view": view} if pick else
-                       {"take": (newest_ok(view) or t).take, "from_view": view},
-                       R.VIEW_FROM[v] + R.KEEP_SAME)
-        report(line=f"{len(ids)} view(s) asked for, from {view}")
-        if pick:
-            def done(report2) -> str:
-                for v in others:
-                    pick_newest(v, report2)
-                return "succeeded"
-            runner.enqueue_step(f"{ref.id}: pick its views", done, after=ids,
-                                info={"ep": ep, "ref": ref.id})
-        return "succeeded"
-    step = runner.enqueue_step(f"{ref.id}: from the frame, then its views" if views else
-                               f"{ref.id}: from the frame", then, after=edits or None,
-                               info={"ep": ep, "ref": ref.id})
+    step = _frame_step(ctx, p)
     return 200, {"frame": R.take_json(ep, ref, t), "edits": edits, "step": step}
 
 
@@ -3373,6 +3524,8 @@ ROUTES = [
     ("POST", "/seriesmith/clips/ensure", post_clips_ensure, "body"),
     ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
     ("POST", "/seriesmith/refs/from-frame", post_refs_from_frame, "body"),
+    ("POST", "/seriesmith/refs/video", post_refs_video, "form"),
+    ("GET", "/seriesmith/refs/videos", get_refs_videos, "query"),
     ("POST", "/seriesmith/import", post_import, "body"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),

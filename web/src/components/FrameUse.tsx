@@ -2,16 +2,21 @@
 // take, picked in the viewer, made into a reference -- a new character (cut
 // out onto a plain background by an edit model, its other views drawn from
 // it), a new place (the people removed), or a new picture for one that
-// exists -- through POST /seriesmith/refs/from-frame.
+// exists -- through POST /seriesmith/refs/from-frame. Or a frame of a video
+// of your own (step 5): any clip, kept in the show's refs/_videos/ (POST
+// /seriesmith/refs/video), played and scrubbed here, its frame taken at the
+// time the player shows.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { afterAuthoredWrite, loadRefs, loadTargets, openFrameUse } from "../actions";
+import type { FrameSource, KeptVideo } from "../api";
 import { api, host } from "../host";
 import { tn } from "../lib/format";
 import { VIEWS } from "../lib/refs";
 import { getPath, idProblem, picturePath, refsPrefix, serialize, setPath, slug, type Raw } from "../lib/seriesForm";
 import { useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { usePictureBrowse } from "./Picture";
 import { Row } from "./ShotForm";
 
 type Make = "character" | "place" | "existing";
@@ -32,10 +37,88 @@ export function FrameUseWindow() {
   const f = useApp((s) => s.frameUse);
   const ep = useApp((s) => s.ep);
   if (!f || !ep) return null;
-  return <FrameUse key={`${f.shot}|${f.take}|${f.frame}`} ep={ep} {...f} />;
+  if ("video" in f) return <FrameUse key="video" ep={ep} take={null} video0={f.video} />;
+  return <FrameUse key={`${f.shot}|${f.take}|${f.frame}`} ep={ep} take={f} video0={null} />;
 }
 
-function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; take: number; pass: string; frame: number | "last" }) {
+// a frame's length when stepping through a video (the player can't say its rate)
+const FRAME_STEP = 1 / 24;
+
+/** A kept video to take the frame from: chosen (kept ones, a file on this
+ * machine, one uploaded), played and scrubbed. */
+function VideoSource({ ep, video, setVideo, player, time, setTime }: {
+  ep: string; video: string | null; setVideo: (v: string | null) => void;
+  player: React.RefObject<HTMLVideoElement>; time: number; setTime: (t: number) => void;
+}) {
+  const [kept, setKept] = useState<KeptVideo[]>([]);
+  const [busy, setBusy] = useState(false);
+  const upload = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    api().refsVideos(ep).then((r) => setKept(r.videos)).catch(() => setKept([]));
+  }, [ep]);
+  const keep = async (from: { source_path: string } | { file: File }) => {
+    setBusy(true);
+    try {
+      const v = await api().refsVideo(ep, from);
+      setKept((k) => [v, ...k.filter((x) => x.path !== v.path)]);
+      setVideo(v.path);
+      setTime(0);
+    } catch (e) {
+      host().toast("error", "That video wasn't taken", (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const browse = usePictureBrowse("frameuse:video", "a frame", (p) => void keep({ source_path: p }), true, "video");
+  const stepBy = (d: number) => {
+    const v = player.current;
+    if (!v) return;
+    v.pause();
+    v.currentTime = Math.max(0, Math.min(v.duration || Infinity, v.currentTime + d));
+  };
+  return (
+    <div className="h3-col" style={{ gap: 6 }}>
+      <div className="h3-row h3-wrap" style={{ gap: 4 }}>
+        <select className="h3-in h3-grow" style={{ minWidth: 0 }} value={video ?? ""} onChange={(e) => { setVideo(e.target.value || null); setTime(0); }}
+          title="Videos kept in the show's refs/_videos/">
+          <option value="">{kept.length ? "a video kept before…" : "no videos kept yet"}</option>
+          {kept.map((v) => <option key={v.path} value={v.path}>{v.name}</option>)}
+        </select>
+        <button className="h3-btn" disabled={busy} title="A video on this machine: it's copied into the show's refs/_videos/" onClick={browse}>
+          <i className="pi pi-folder-open" /> Browse…
+        </button>
+        <button className="h3-btn" disabled={busy} title="Upload a video from this computer (up to 64 MB; Browse takes any size)" onClick={() => upload.current?.click()}>
+          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-upload"} /> Upload…
+        </button>
+        <input ref={upload} type="file" accept="video/*,.mkv,.avi" style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void keep({ file: f }); }} />
+      </div>
+      {video ? (
+        <>
+          <video ref={player} key={video} src={api().fileUrl(ep, video)} controls preload="auto"
+            style={{ width: "100%", maxHeight: 300, background: "#000", borderRadius: 4 }}
+            onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)} onSeeked={(e) => setTime(e.currentTarget.currentTime)} />
+          <div className="h3-row" style={{ gap: 4 }}>
+            <button className="h3-btn h3-small" title="Back one frame" onClick={() => stepBy(-FRAME_STEP)}><i className="pi pi-step-backward" /></button>
+            <button className="h3-btn h3-small" title="On one frame" onClick={() => stepBy(FRAME_STEP)}><i className="pi pi-step-forward" /></button>
+            <span className="h3-small h3-mono">{time.toFixed(2)}s</span>
+            <span className="h3-small h3-muted">the frame the player shows is the one used: pause on it</span>
+          </div>
+        </>
+      ) : (
+        <span className="h3-small h3-muted">Any clip: a video of the actor, a location scout, a take from somewhere else. Pick one, then scrub to the frame.</span>
+      )}
+    </div>
+  );
+}
+
+function FrameUse({ ep, take: src, video0 }: {
+  ep: string; take: { shot: string; take: number; pass: string; frame: number | "last" } | null; video0: string | null;
+}) {
+  const [video, setVideo] = useState<string | null>(video0);
+  const [time, setTime] = useState(0);
+  const player = useRef<HTMLVideoElement>(null);
+  const videoName = video ? video.split("/").pop() ?? video : "";
   const targets = useApp((s) => s.targets);
   const refs = useApp((s) => s.refs[ep]);
   const [make, setMake] = useState<Make>("character");
@@ -61,8 +144,11 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
   const isChar = make === "character" || (make === "existing" && target?.kind === "character");
   const id = make === "place" ? slug(name) : slug(name.replace(/^(the|a|an)\s+/i, ""));
   const problem = make !== "existing" && raw ? (id ? idProblem(raw, id) : "Give it a name.") : "";
-  const ready = make === "existing" ? !!existing : !problem && (make === "place" || asIs || !!who.trim());
-  const frameLabel = frame === "last" ? "the last frame" : `frame ${frame}`;
+  const ready = (!!src || !!video) && (make === "existing" ? !!existing : !problem && (make === "place" || asIs || !!who.trim()));
+  // where the frame is from, said in the title and the toast
+  const from = src
+    ? `${src.shot} ${tn(src.take)}, ${src.frame === "last" ? "the last frame" : `frame ${src.frame}`}`
+    : video ? `${videoName} at ${time.toFixed(2)}s` : "a video";
   // the model asked for: the one picked, else for a character the one that cuts out best
   const chosen = model || (isChar && edits.some((t) => t.id === CUT_MODEL && t.readiness?.status !== "not_ready") ? CUT_MODEL : "");
 
@@ -74,6 +160,9 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
 
   async function go() {
     if (!ready) return;
+    // the take's frame, or the time the player shows now
+    const source: FrameSource = src ? { pass: src.pass, shot: src.shot, take: src.take, frame: src.frame }
+      : { video: video!, time: player.current?.currentTime ?? time };
     setBusy(true);
     try {
       let refId = existing;
@@ -85,20 +174,20 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
         const entry: Raw = make === "character"
           ? { kind: "character", name: name.trim(), design: (design.trim() || who.trim()),
               sheet: picturePath("character", id, prefix) }
-          : { description: design.trim() || `the place in ${shot} ${tn(take)}`, plate: picturePath("location", id, prefix) };
+          : { description: design.trim() || `the place in ${src ? `${src.shot} ${tn(src.take)}` : videoName}`, plate: picturePath("location", id, prefix) };
         const next = setPath(cur, [make === "character" ? "subjects" : "locations", id], entry);
         const r = await api().putSource({ ep, file: "series", text: serialize(next, d.text), base_hash: d.hash, rebuild: true });
         afterAuthoredWrite(r.build);
         refId = make === "character" ? `subject:${id}` : `location:${id}`;
       }
       const res = await api().refsFromFrame({
-        ep, pass, shot, take, frame, ref: refId,
+        ep, ...source, ref: refId,
         view: isChar ? (make === "existing" ? view : "01_threequarter") : null,
         instruction, target: chosen || null,
         views: isChar && (make !== "existing" || views),
         pick: make !== "existing",
       });
-      host().toast("success", `From ${shot} ${tn(take)}, ${frameLabel}`, res.edits.length
+      host().toast("success", `From ${from}`, res.edits.length
         ? `${refId}: the frame is in; ${isChar && (make !== "existing" || views) ? "the cut-out, then its other views, are" : "the edit is"} on the queue.`
         : `${refId}: the frame is in${make !== "existing" ? ", picked" : ""}.`);
       void loadRefs(ep);
@@ -113,7 +202,7 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
   const head = (
     <>
       <i className="pi pi-user" />
-      <b className="h3-grow">From {shot} {tn(take)}, {frameLabel}</b>
+      <b className="h3-grow">From {from}</b>
       <button className="h3-btn h3-icon" title="Close" onClick={() => openFrameUse(null)}><i className="pi pi-times" /></button>
     </>
   );
@@ -121,6 +210,7 @@ function FrameUse({ ep, shot, take, pass, frame }: { ep: string; shot: string; t
     <FloatingWindow storageKey="seriesmith.frameuse.rect" head={head} minW={380} minH={300}
       defaultRect={() => ({ x: Math.max(16, Math.round((window.innerWidth - 520) / 2)), y: 80, w: 520, h: Math.min(620, window.innerHeight - 120) })}>
       <div className="h3-col" style={{ padding: 12, gap: 10, overflow: "auto", height: "100%" }}>
+        {!src && <VideoSource ep={ep} video={video} setVideo={setVideo} player={player} time={time} setTime={setTime} />}
         <span className="h3-seg">
           <button className={make === "character" ? "h3-on" : ""} onClick={() => setMake("character")}>A new character</button>
           <button className={make === "place" ? "h3-on" : ""} onClick={() => setMake("place")}>A new place</button>

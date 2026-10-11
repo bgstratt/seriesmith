@@ -87,5 +87,7 @@ export function epRelative(path: string, ep: string): string | null {
 
 export const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp)$/i;
 export const AUDIO_EXT = /\.(wav|mp3|flac|ogg|m4a)$/i;
+/** A video to take a frame from (refs.VIDEO_EXTS). */
+export const VIDEO_EXT = /\.(mp4|mov|webm|mkv|m4v|avi)$/i;
 /** Phase 9d: a clip's audio may also come from a rendered take (an mp4). */
 export const CLIP_AUDIO_EXT = /\.(wav|mp3|flac|ogg|m4a|aac|opus|mp4|mov|mkv|webm)$/i;

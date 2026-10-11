@@ -3022,8 +3022,9 @@ export function setBackends(backends: BackendInfo[] | null) {
   set({ backends });
 }
 
-/** A frame of a take, to be made into a character or a place (null closes it). */
-export function openFrameUse(f: { shot: string; take: number; pass: string; frame: number | "last" } | null) {
+/** A frame of a take, or of a video of your own (`video`), to be made into a
+ * character or a place (null closes it). */
+export function openFrameUse(f: { shot: string; take: number; pass: string; frame: number | "last" } | { video: string | null } | null) {
   set({ frameUse: f, menu: null });
 }
 

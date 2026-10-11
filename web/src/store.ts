@@ -112,7 +112,7 @@ export interface BrowseState {
   ref?: string;
   view?: string | null;
   /** import: images, or audio for a voice (and for a recording) */
-  files?: "image" | "audio";
+  files?: "image" | "audio" | "video";
   /** clip-audio: the clip whose audio the chosen file becomes */
   shot?: string;
   /** picture: which form field asked (components/Picture.tsx PicturePath), and what for */
@@ -433,7 +433,8 @@ export interface AppState {
   /** Play all limited to these shots (a clip of several shots), else the whole cut */
   cutOnly: string[] | null;
   /** a frame of a take being made into a character or a place (FrameUse.tsx) */
-  frameUse: { shot: string; take: number; pass: string; frame: number | "last" } | null;
+  /** or a video of your own (`video`: kept, null: none chosen yet), scrubbed to a frame */
+  frameUse: { shot: string; take: number; pass: string; frame: number | "last" } | { video: string | null } | null;
 }
 
 export const ZOOM_MIN = 8;

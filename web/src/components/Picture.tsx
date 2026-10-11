@@ -143,14 +143,14 @@ export function PicturePicker({ ep, options, onPick, label, title, none }: {
  * the function that opens the folder browser; the picked path, relative to the
  * episode, comes back through `onPick`. */
 export function usePictureBrowse(key: string, what: string, onPick: (path: string) => void,
-                                 absolute = false): () => void {
+                                 absolute = false, files: "image" | "video" = "image"): () => void {
   const pick = useApp((s) => s.picturePick);
   useEffect(() => {
     if (!pick || pick.key !== key) return;
     store.set({ picturePick: null });
     onPick(pick.path);
   }, [pick]);
-  return () => openBrowse({ purpose: "picture", key, what, files: "image", absolute });
+  return () => openBrowse({ purpose: "picture", key, what, files, absolute });
 }
 
 /** A picture's path (a sheet, a plate): typed, or browsed for, with the picture

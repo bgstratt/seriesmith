@@ -90,19 +90,29 @@ async def comfy_relay(app: web.Application) -> None:
         wait = min(wait * 2, 30.0)
 
 
-def recover(runner, ask=None) -> list[str]:
+def recover(runner, ask=None, rebuild=None) -> list[str]:
     """The jobs this server had when it last stopped (the queue's journal):
     each one that had reached its backend is found again and collected
     (Runner.reattach); one still waiting in the queue had cost nothing, so
     its record is cleared and the request that queued it is asked again
     (runner.requeue_plan), through `ask(path, body)`, on a thread of its own
     and in the order they were queued (without `ask` it is failed, saying how
-    to queue it again). Then the journal is the live queue again. Returns
-    what was done."""
+    to queue it again). A step of seriesmith's own still waiting (a clip's
+    renders once its pictures are made, a frame's views) is made again by
+    `rebuild(resume)` once those are asked for, so it waits on the pictures
+    as they are now. Then the journal is the live queue again. Returns what
+    was done."""
     from seriesmith.runner import requeue_plan
-    out, waiting = [], []
+    out, waiting, steps = [], [], []
     for job_id, entry in runner.queue.read_journal().items():
         if not isinstance(entry, dict):
+            continue
+        if (entry.get("resume") or {}).get("kind") == "step":
+            if entry.get("status") == "queued" and rebuild is not None:
+                steps.append(entry)
+            else:                                            # it was part done: not twice
+                out.append(f"{entry.get('title')}: it was running when the server stopped; "
+                           "queue it again if what it asks for isn't there")
             continue
         try:
             new = runner.reattach(job_id, entry, waiting if ask else None)
@@ -116,16 +126,28 @@ def recover(runner, ask=None) -> list[str]:
     if plan:
         out.append(f"{len(waiting)} job(s) that hadn't started: queued again "
                    f"({len(plan)} request(s))")
+    steps.sort(key=lambda e: e.get("created") or 0)
+    if steps:
+        out.append(f"{len(steps)} step(s) made again: "
+                   + ", ".join(str(e.get("title")) for e in steps))
 
-        def again():
-            for r in plan:
-                try:
-                    status, data = ask(r["path"], r["body"])
-                    if status >= 400:
-                        log.warning("seriesmith: queuing %s again: %s", r["path"], data)
-                except Exception:                            # noqa: BLE001  log, go on
-                    log.exception("seriesmith: queuing %s again failed", r["path"])
+    def again():
+        for r in plan:
+            try:
+                status, data = ask(r["path"], r["body"])
+                if status >= 400:
+                    log.warning("seriesmith: queuing %s again: %s", r["path"], data)
+            except Exception:                                # noqa: BLE001  log, go on
+                log.exception("seriesmith: queuing %s again failed", r["path"])
+        for e in steps:                                      # after: they wait on those
+            try:
+                rebuild(e["resume"])
+            except Exception:                                # noqa: BLE001  log, go on
+                log.exception("seriesmith: making %s again failed", e.get("title"))
+    if plan and ask is not None:
         threading.Thread(target=again, daemon=True, name="seriesmith-requeue").start()
+    elif steps:
+        again()
     return out
 
 
@@ -163,7 +185,7 @@ def make_app(roots: list[str] | None = None, settings=None,
             ASKED.req = None
 
     runner.ask = ask
-    for line in recover(runner, ask):
+    for line in recover(runner, ask, lambda resume: A.rebuild_step(make_context(), resume)):
         log.info("seriesmith: %s", line)
 
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))

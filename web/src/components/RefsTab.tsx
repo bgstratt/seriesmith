@@ -5,7 +5,7 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
-  openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
+  openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import {
@@ -854,6 +854,12 @@ function AddRefButton({ disabled }: { disabled: boolean }) {
               {k.label}
             </button>
           ))}
+          <div style={{ borderTop: "1px solid var(--h3-border)", margin: "2px 0" }} />
+          <button className="h3-btn" style={{ justifyContent: "flex-start" }}
+            title="A character or a place from a frame of any video: an actor's clip, a location scout, a take from elsewhere"
+            onClick={() => { setOpen(false); openFrameUse({ video: null }); }}>
+            <i className="pi pi-video" /> From a video…
+          </button>
         </div>
       )}
     </span>

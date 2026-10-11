@@ -20,7 +20,9 @@ Resilience (docs/PLAN.md, step 11):
   saying so (a hung ComfyUI otherwise holds its lane for good);
 - with a `journal` file, every job that isn't done and has a `record` (the
   file its result goes into) is listed there with its `resume` (what
-  recover.py needs to find and collect its run again after a restart);
+  recover.py needs to find and collect its run again after a restart), and
+  so is a step of seriesmith's own with a `resume` naming it (`step`), to be
+  made again from its parameters;
 - paid runs are counted (`charge`), and refused past `paid_limit`.
 """
 from __future__ import annotations
@@ -75,6 +77,9 @@ class Job:
     # the job it waits for (a continuity shot: the one it continues), on any
     # lane; or several (a clip's renders wait for all its pictures)
     after: str | list | None = None
+    # or a test: waits while wait() is true (a step waiting on pictures: their
+    # takes still queued, whichever job they are on, across a restart too)
+    wait: Callable[[], bool] | None = field(default=None, repr=False)
     # stopped and failed past this many seconds of running (None: no limit)
     limit: float | None = None
     # the file its result goes into, and what finding its run again needs
@@ -165,7 +170,8 @@ class Queue:
             live = {j.id: {"kind": j.kind, "lane": j.lane, "title": j.title, "info": j.info,
                            "record": j.record, "resume": j.resume,
                            "status": j.status, "created": j.created}
-                    for j in self.jobs.values() if j.status not in DONE and j.record}
+                    for j in self.jobs.values()
+                    if j.status not in DONE and (j.record or (j.resume or {}).get("step"))}
         try:
             os.makedirs(os.path.dirname(os.path.abspath(self.journal)), exist_ok=True)
             tmp = self.journal + ".tmp"
@@ -256,7 +262,14 @@ class Queue:
     def _waits(self, job: Job) -> bool:
         """Still waiting for the job (or any of the jobs) it comes after."""
         ids = job.after if isinstance(job.after, list) else [job.after] if job.after else []
-        return any((b := self.jobs.get(i)) is not None and b.status not in DONE for i in ids)
+        if any((b := self.jobs.get(i)) is not None and b.status not in DONE for i in ids):
+            return True
+        if job.wait is not None:
+            try:
+                return bool(job.wait())
+            except Exception:                            # noqa: BLE001  can't tell: run it
+                return False
+        return False
 
     def _run(self, job: Job) -> None:
         def report(progress: float | None = None, step: int | None = None,

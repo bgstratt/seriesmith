@@ -63,6 +63,39 @@ class QueueResilienceTest(unittest.TestCase):
         wait_for(lambda: all(j.status in DONE for j in self.q.jobs.values()), 5)
         self.assertEqual(self.q.read_journal(), {})
 
+    def test_a_step_waits_on_its_test_and_is_made_again_after_a_restart(self):
+        from seriesmith.server.standalone import recover
+        held = [True]
+        ran = []
+        runner = Runner(self.q, {}, lambda e, d: None)
+        step = runner.enqueue_step("clip: render once its pictures are made",
+                                   lambda report: ran.append(1) or "succeeded",
+                                   wait=lambda: held[0], spec={"step": "clip", "params": {"x": 1}})
+        time.sleep(0.1)
+        self.assertEqual((self.q.jobs[step].status, ran), ("queued", []))   # its pictures aren't made
+        live = self.q.read_journal()
+        self.assertEqual(live[step]["resume"], {"kind": "step", "step": "clip", "params": {"x": 1}})
+        # the server stops; started again, the step is made again from the journal
+        q2 = Queue(journal=self.journal)
+        made = []
+        out = recover(Runner(q2, {}, lambda e, d: None), None, made.append)
+        self.assertEqual(made, [live[step]["resume"]])
+        self.assertIn("step(s) made again", " ".join(out))
+        # one that was running when it stopped isn't done twice
+        live[step]["status"] = "running"
+        with open(self.journal, "w", encoding="utf-8") as fh:
+            json.dump(live, fh)
+        made.clear()
+        out = recover(Runner(Queue(journal=self.journal), {}, lambda e, d: None), None, made.append)
+        self.assertEqual(made, [])
+        self.assertIn("was running", " ".join(out))
+        # its pictures made, the first one runs
+        held[0] = False
+        self.q.pause("steps", True)
+        self.q.pause("steps", False)                      # a dispatch, as a finished job does
+        wait_for(lambda: self.q.jobs[step].status in DONE, 5)
+        self.assertEqual(ran, [1])
+
     def test_paid_runs_are_counted_and_capped(self):
         self.q.paid_limit = 2
         self.q.charge("router")

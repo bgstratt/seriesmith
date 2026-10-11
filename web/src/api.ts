@@ -33,6 +33,22 @@ export type UploadProgress = (sent: number, total: number) => void;
 /** POST /seriesmith/refs/import (multipart) refuses a file over this (413). */
 export const UPLOAD_LIMIT = 64 * 1024 * 1024;
 
+/** Where a frame comes from: a take's frame, or a time into a kept video. */
+export type FrameSource =
+  | { pass: string; shot: string; take: number; frame: number | "last" }
+  | { video: string; time: number };
+
+/** A video kept to take frames from (POST /seriesmith/refs/video). */
+export interface KeptVideo {
+  /** relative to the episode */
+  path: string;
+  name: string;
+  size: number;
+  modified: number;
+  copied?: boolean;
+  duration?: number | null;
+}
+
 export interface Api {
   getConfig(): Promise<Config>;
   putConfig(roots: string[]): Promise<Config>;
@@ -44,10 +60,16 @@ export interface Api {
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
-  /** A frame of a take as a character's or a place's picture (step 13). */
-  refsFromFrame(req: { ep: string; pass: string; shot: string; take: number; frame: number | "last"; ref: string;
+  /** A frame of a take -- or of a video of your own, at a time -- as a
+   * character's or a place's picture (steps 13 and 5). */
+  refsFromFrame(req: FrameSource & { ep: string; ref: string;
                        view?: string | null; instruction?: string; target?: string | null; views?: boolean; pick?: boolean }):
     Promise<{ frame: unknown; edits: string[]; step: string | null }>;
+  /** A video of your own kept in the show's refs/_videos/ to take frames from:
+   * a path on this machine, or a file uploaded from this computer. */
+  refsVideo(ep: string, from: { source_path: string } | { file: Blob; name?: string }, onProgress?: UploadProgress): Promise<KeptVideo>;
+  /** The videos kept to take frames from, newest first. */
+  refsVideos(ep: string): Promise<{ videos: KeptVideo[] }>;
   /** Simple mode: the Clips project (made the first time). */
   clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
   /** Simple mode: a clip's missing pictures, then its takes. */
@@ -396,6 +418,15 @@ export function createHttpApi(t: Transport): Api {
     build: (ep) => call("POST", "/seriesmith/build", { ep }),
     newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
     refsFromFrame: (req) => call("POST", "/seriesmith/refs/from-frame", req),
+    refsVideo: (ep, from, onProgress) => {
+      if ("source_path" in from) return call("POST", "/seriesmith/refs/video", { ep, source_path: from.source_path });
+      const form = new FormData();
+      form.append("ep", ep);
+      const name = from.name ?? (typeof File !== "undefined" && from.file instanceof File ? from.file.name : "video.mp4");
+      form.append("file", from.file, name);
+      return postForm("/seriesmith/refs/video", form, onProgress);
+    },
+    refsVideos: (ep) => get(`/seriesmith/refs/videos?${qs({ ep })}`),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),

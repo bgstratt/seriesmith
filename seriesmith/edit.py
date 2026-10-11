@@ -150,7 +150,8 @@ def find_episodes(roots: list[str], depth: int = 2) -> list[dict]:
 
 BROWSE_LIMIT = 1000
 BROWSE_EXTS = {"image": (".png", ".jpg", ".jpeg", ".webp"),
-               "audio": (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus")}
+               "audio": (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus"),
+               "video": (".mp4", ".mov", ".webm", ".mkv", ".m4v", ".avi")}
 
 
 def browse(path: str | None, files: str | None = None) -> dict:

@@ -247,6 +247,32 @@ class FromFrameTest(ApiTest):
         self.assertEqual(R.picked_take(R.load_picks(kitchen.home), kitchen.id, None), res["frame"]["take"])
         self.err(self.frame(ref="location:kitchen", take=9), 404)
 
+    def test_a_place_from_a_video_of_your_own(self):
+        from test_keyframes import make_take
+        src = make_take(self.ep, "proxy", "sh010").paths.mp4
+        # kept in the show's refs/_videos/, once for the same bytes
+        v = self.ok(A.post_refs_video(self.ctx, {"ep": self.ep, "source_path": src}))
+        self.assertEqual((v["path"], v["copied"]), ("refs/_videos/" + os.path.basename(src), True))
+        self.assertGreater(v["duration"], 0)
+        again = self.ok(A.post_refs_video(self.ctx, {"ep": self.ep, "source_path": src}))
+        self.assertEqual((again["path"], again["copied"]), (v["path"], False))
+        self.assertEqual([x["path"] for x in self.ok(A.get_refs_videos(self.ctx, {"ep": self.ep}))["videos"]],
+                         [v["path"]])
+        # its frame at a time, as it is
+        res = self.ok(A.post_refs_from_frame(self.ctx, {"ep": self.ep, "video": v["path"], "time": 0.2,
+                                                        "ref": "location:kitchen", "pick": True}))
+        t = R.list_takes(R.find_ref(R.load_series(self.ep), "location:kitchen"), None)[-1]
+        self.assertEqual((res["frame"]["take"], t.sidecar["source"], t.sidecar["source_video"],
+                          t.sidecar["source_time"]), (t.take, "frame", v["path"], 0.2))
+        self.assertTrue(os.path.isfile(t.paths.image))
+        # only the show's videos; only videos
+        self.err(A.post_refs_from_frame(self.ctx, {"ep": self.ep, "video": "../../elsewhere.mp4",
+                                                   "ref": "location:kitchen"}), 400)
+        txt = os.path.join(self.tmp, "notes.txt")
+        with open(txt, "w", encoding="utf-8") as fh:
+            fh.write("not a video")
+        self.err(A.post_refs_video(self.ctx, {"ep": self.ep, "source_path": txt}), 400)
+
 
 @unittest.skipUnless(test_api.HAVE_FF, "needs ffmpeg and ffprobe on PATH")
 class KeyframeApiTest(ApiTest):

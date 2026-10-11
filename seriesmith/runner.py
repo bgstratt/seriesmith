@@ -417,10 +417,13 @@ class Runner:
         return n, qjob.id
 
     def enqueue_step(self, title: str, work, after: list | str | None = None,
-                     info: dict | None = None) -> str:
+                     info: dict | None = None, wait=None, spec: dict | None = None) -> str:
         """A step of seriesmith's own (no backend: it asks for other jobs, as a
         clip asks for its renders once its pictures exist), on the "steps"
-        lane, after `after`. work(report) -> "succeeded" | "failed"."""
+        lane, after `after` and while wait() is true. work(report) ->
+        "succeeded" | "failed". With `spec` ({"step": name, "params": {...}})
+        it is journaled, and made again from that after a restart
+        (api.rebuild_step)."""
         def run(qjob: QJob, report) -> str:
             try:
                 return work(report)
@@ -428,7 +431,8 @@ class Runner:
                 qjob.error = str(e)[:800]
                 return "failed"
         qjob = QJob(kind="step", lane="steps", title=title, work=run, info=info or {},
-                    after=after or None)
+                    after=after or None, wait=wait,
+                    resume=({"kind": "step", **spec} if spec else None))
         self.queue.submit(qjob)
         return qjob.id
 

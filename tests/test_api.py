@@ -1014,4 +1014,4 @@ class BrowseFilesTest(ApiTest):
         res = self.ok(A.get_browse(self.ctx, {"path": self.ep, "files": "audio"}))
         self.assertEqual([f["name"] for f in res["files"]], ["b.wav"])
         self.assertNotIn("files", self.ok(A.get_browse(self.ctx, {"path": self.ep})))
-        self.err(A.get_browse(self.ctx, {"path": self.ep, "files": "video"}), 400)
+        self.err(A.get_browse(self.ctx, {"path": self.ep, "files": "text"}), 400)

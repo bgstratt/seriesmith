@@ -390,8 +390,23 @@ the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
       Checked with the fake backend: a render stopped mid-run is collected
       after the restart without being sent again, and the two waiting behind
       it render again as their own t01.
+      Checked live on the local GPU (2026-10-11): seriesmith stopped while
+      an H3 render ran, ComfyUI left to finish it, seriesmith started again:
+      the take was found again through comfy-api-proxy and collected
+      ("picked up again after a restart"), not sent twice. The proxy keeps its
+      jobs in its --state-dir and answers from ComfyUI's history, so a
+      finished local job stays collectable until ComfyUI itself restarts
+      (after that the proxy calls it expired; not tried live).
 - [x] Disk space is checked before upscales and masters (they write gigabytes
       at 4K): a job that wouldn't fit says so instead of failing mid-write.
+- [x] A step outlives the server too: a clip's "render once its pictures are
+      made" and a frame's "draw its views" are made from plain parameters
+      (api.STEPS), journaled, and made again on start once the requeued
+      jobs are asked for; a step waits on its pictures' takes (queued, on a
+      live job) rather than on job ids, which a restart changes. One that
+      was running when the server stopped isn't run twice: it says so. The
+      pictures a clip or a frame asks for are kept as their own requests
+      (/refs/generate), so a waiting one is asked again as itself.
 
 ## Step 12 — simple mode
 
@@ -467,8 +482,7 @@ an instruction made from who you point out, makes the reference; for a
 character a step then draws the other three views from that one (an edit
 from_view, refs.VIEW_FROM), and for a new one a last step picks each, so the
 sheet stitches. Not the Qwen angles LoRA (`turn`): it isn't always
-installed; any edit model works this way. Uploaded videos (not takes) are
-still to come. Checked live (the lane paused): the new character written,
+installed; any edit model works this way. Checked live (the lane paused): the new character written,
 the frame in as t01, the cut-out queued and the views' step waiting.
 
 Run live on the local GPU (Second Light, 2026-10-11): a place from a frame on
@@ -480,6 +494,15 @@ So a character's cut-out (and its views) default to Qwen Rapid when it's
 installed. Tours: "walks along the dock" barely moved; "pushes in with large
 amplitude" went the dock's length into the meadow: the presets now use H3's
 camera words, and the box says which words it follows.
+
+- [x] **A video of your own**, not just a take: the Refs tab's Add, **From a
+      video…** picks one on this machine (Browse, any size) or uploads it
+      (up to 64 MB); it's kept in the show's refs/_videos/ (POST
+      /seriesmith/refs/video; GET /seriesmith/refs/videos lists them), played
+      and scrubbed in the same window, and the frame the player shows is
+      taken by time (refs.frame_from_video: ffmpeg -ss before -i decodes to
+      it). Everything after is the frame's way above. Checked in the
+      browser: a clip uploaded, scrubbed to 4.5s, made a new place's plate.
 
 ## Later
 

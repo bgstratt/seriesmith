@@ -1013,6 +1013,33 @@ for example) into another ref as a new, unpicked candidate (`refs.copy_take`). T
 take's sidecar records `copied_from`. The answer is the new take. A character is copied
 into one of its views, not into the character itself (400).
 
+### `POST /seriesmith/refs/from-frame` (step 13)
+Body `{"ep", "pass", "shot", "take", "frame", "ref", "view"?, "instruction"?, "target"?,
+"views"?, "pick"?}`, or, for a video of your own, `{"ep", "video", "time", "ref", ...}`
+(`video` as `/refs/video` answers it, `time` in seconds). The frame becomes a candidate
+of `ref` (a character's `view`, default the three-quarter, `source: "frame"`); with an
+`instruction` an edit model makes the reference from it; for a character with `views` a
+step then draws the other three views from that one, and with `pick` each is picked as
+it comes out. Returns `{"frame": take, "edits": [job ids], "step": id | null}`. The
+steps are journaled and made again after a restart (`api.STEPS`). A `video` outside the
+show's `refs/_videos/` is refused (400).
+
+### `POST /seriesmith/refs/video` and `GET /seriesmith/refs/videos?ep=…` (step 5)
+`POST` with `{"ep", "source_path"}` (a file on this machine) or a multipart `file`
+(up to the upload limit) keeps a video in the show's `refs/_videos/` to take frames
+from: the same bytes under the same name are reused, another file under it gets
+`-2`. Answers `{"path" (relative to the episode), "name", "size", "modified",
+"copied", "duration"}`; 400 for a file that isn't a video. `GET` lists the kept ones,
+newest first: `{"videos": [...]}`. `GET /seriesmith/browse` takes `files=video`.
+
+### `POST /seriesmith/clip/queue` (step 12)
+Body `{"ep", "shot", "pass"?, "takes"? (1–8), "backend"?, "still"?, "image_target"?}`.
+The pictures the shot still needs are generated (each its own `/refs/generate`
+request, so a restart asks for it again as itself), then a step waits on their takes,
+makes them live and asks for the renders (or, `still`, the picture). With every
+picture there, the renders are asked for at once. Returns `{"refs", "waiting_on",
+"step", "renders", "stills"}`.
+
 ### `PUT /seriesmith/refs/pick`
 Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the
 sheet when all four views are picked. Returns the ref as `/refs` lists it. 409 if the

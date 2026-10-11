@@ -1073,7 +1073,7 @@ export interface BrowseResult {
   files?: BrowseFile[];
 }
 
-export type BrowseFiles = "image" | "audio";
+export type BrowseFiles = "image" | "audio" | "video";
 
 // ---------------------------------------------------------------------------
 // references (API.md "References (Phase 5)")

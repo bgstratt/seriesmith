@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile, usePictureFile } from "../actions";
 import { errText } from "../api";
 import { api } from "../host";
-import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, crumbs } from "../lib/browse";
+import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, VIDEO_EXT, crumbs } from "../lib/browse";
 import { insideRoot } from "../lib/newEpisode";
 import { TRACK_EXT } from "../lib/track";
 import { viewLabel } from "../lib/refs";
@@ -112,7 +112,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const filesListed = res?.files !== undefined;
   // a recording may also be .aac / .opus, which the server's `files=audio`
   // listing leaves out (see the contract gaps): the typed path takes those
-  const ext = forTrack ? TRACK_EXT : forClip ? CLIP_AUDIO_EXT : b.files === "audio" ? AUDIO_EXT : IMAGE_EXT;
+  const ext = forTrack ? TRACK_EXT : forClip ? CLIP_AUDIO_EXT : b.files === "audio" ? AUDIO_EXT : b.files === "video" ? VIDEO_EXT : IMAGE_EXT;
   const files = (res?.files ?? []).filter((f) => ext.test(f.name));
   const selDir = sel?.kind === "dir" ? sel.d : null;
   const selFile = sel?.kind === "file" ? sel.f : null;
@@ -125,7 +125,9 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const outsideRoots = !!newParent && !insideRoot(newParent, roots);
 
 
-  const title = forKey
+  const title = forKey && b.files === "video"
+    ? <>A video for {b.what ?? "the field"} <span className="h3-muted h3-small">it's copied into the show's refs</span></>
+    : forKey
     ? <>A picture for {b.what ?? "the field"} <span className="h3-muted h3-small">inside the episode or its refs</span></>
     : forClip
     ? <>A file for {b.shot ?? "this clip"}'s audio <span className="h3-muted h3-small">inside the episode</span></>
@@ -145,7 +147,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
           {importing ? (
             <>
               <span className="h3-muted h3-small h3-grow h3-ell">
-                {selFile ? selFile.path : forKey ? "Pick a picture" : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
+                {selFile ? selFile.path : forKey ? (b.files === "video" ? "Pick a video" : "Pick a picture") : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
               </span>
               <button className="h3-btn" onClick={closeBrowse}>Cancel</button>
               <button
@@ -247,7 +249,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
             onDoubleClick={() => void doImport(f.path)}
             title={f.path}
           >
-            <i className={b.files === "audio" ? "pi pi-volume-up" : "pi pi-image"} />
+            <i className={b.files === "audio" ? "pi pi-volume-up" : b.files === "video" ? "pi pi-video" : "pi pi-image"} />
             <span className="h3-grow h3-ell">{f.name}</span>
             {f.size != null && <span className="h3-muted h3-small">{Math.max(1, Math.round(f.size / 1024))} KB</span>}
           </div>

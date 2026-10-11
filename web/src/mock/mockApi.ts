@@ -1828,6 +1828,15 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(80);
       return { frame: null, edits: [], step: null };
     },
+    async refsVideo(_ep, from) {
+      await wait(80);
+      const name = "source_path" in from ? from.source_path.split(/[\\/]/).pop() ?? "video.mp4" : from.name ?? "video.mp4";
+      return { path: `refs/_videos/${name}`, name, size: 0, modified: Date.now() / 1000, copied: true, duration: 5 };
+    },
+    async refsVideos() {
+      await wait(40);
+      return { videos: [] };
+    },
     async clipsEnsure() {
       await wait(60);
       return { ep: EP, made: false };

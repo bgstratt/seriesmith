@@ -78,6 +78,43 @@ class ClipsTest(ApiTest):
         settle(self.ctx.runner, 60)
         self.assertEqual(len(T.list_takes(ep, "proxy", "c001")), 3)
 
+    def test_a_clips_step_is_made_again_after_a_restart(self):
+        ep = self.clips()
+        p = os.path.join(ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg["locations"]["pier"] = {"description": "a long wooden pier at dusk",
+                                    "plate": "../refs/_bg/pier.png"}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        with open(os.path.join(ep, "clips.md"), "w", encoding="utf-8") as fh:
+            fh.write(CLIP)
+        self.assertTrue(self.ok(A.post_build(self.ctx, {"ep": ep}))["ok"])
+        queue = self.ctx.runner.queue
+        # the picture held on its lane, the step waiting on it
+        for name in list(self.ctx.runner.backends):
+            queue.pause(name)
+        status, res = A.post_clip_queue(self.ctx, {"ep": ep, "shot": "c001", "takes": 1})
+        self.assertEqual(status, 200, res)
+        lane = queue.jobs[res["refs"][0]["prompt_id"]].lane
+        step = queue.jobs[res["step"]]
+        self.assertEqual(step.resume["step"], "clip")
+        # journaled, though it has no record of its own
+        queue.journal = os.path.join(self.tmp, "queue.json")
+        self.addCleanup(setattr, queue, "journal", None)
+        queue.write_journal()
+        kept = queue.read_journal()[step.id]
+        self.assertEqual((kept["status"], kept["resume"]["params"]["refs"]),
+                         ("queued", ["location:pier"]))
+        # the server stops: the step is lost, the picture still on its way;
+        # made again from the journal, it waits on the picture, not a job id
+        queue.cancel(step.id)
+        again = A.rebuild_step(self.ctx, kept["resume"])
+        self.assertEqual(queue.jobs[again].status, "queued")
+        queue.pause(lane, False)
+        settle(self.ctx.runner, 60)
+        self.assertEqual(queue.jobs[again].status, "succeeded", queue.jobs[again].log)
+        self.assertEqual([t.status for t in T.list_takes(ep, "proxy", "c001")], ["ok"])
+
     def test_a_shot_that_isnt_built_is_refused(self):
         ep = self.clips()
         self.err(A.post_clip_queue(self.ctx, {"ep": ep, "shot": "c009"}), 404)
