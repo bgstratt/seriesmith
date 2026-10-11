@@ -85,3 +85,20 @@ describe("proxy shape", () => {
     expect(shapeNote("1344x768", "")).toBeNull();
   });
 });
+
+describe("the master recipe's per-model sections", () => {
+  it("are written with a size, when there are none", async () => {
+    const { MASTER_TARGETS, masterLacksTargets, withMasterTargets } = await import("../src/lib/seriesForm");
+    const bare = { upscale: { master: { deliver: "1440p", quality: "master" } } };
+    expect(masterLacksTargets(bare)).toBe(true);
+    const full = withMasterTargets(bare) as { upscale: { master: Record<string, unknown> } };
+    expect(full.upscale.master.targets).toEqual(MASTER_TARGETS);
+    expect(full.upscale.master.finish).toEqual({ frequency_split: true });
+    expect(full.upscale.master.deliver).toBe("1440p");
+    expect(masterLacksTargets(full)).toBe(false);
+    // its own sections are never replaced
+    const own = { upscale: { master: { deliver: "4k", targets: { "*": { method: "pixel" } } } } };
+    expect(withMasterTargets(own)).toBe(own);
+    expect(masterLacksTargets({})).toBe(false);
+  });
+});

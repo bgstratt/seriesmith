@@ -60,6 +60,9 @@
         color: #777; font-size: 13px; text-align: center; padding: 20px;
       }
       #sm-viewer { position: absolute; inset: 0; z-index: 1; }
+      /* the splitters (src/splitters.ts): a line on hover and while dragging */
+      .sm-split { background: transparent; transition: background .15s; }
+      .sm-split:hover, .sm-split.on { background: var(--p-primary-color); opacity: .6; }
       #sm-viewer:empty { display: none; }
       #sm-time { grid-area: time; min-height: 0; border-top: 1px solid var(--border-color); background: var(--comfy-menu-secondary-bg); }
       #sm-timeline { height: 100%; }

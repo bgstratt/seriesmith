@@ -549,6 +549,11 @@ Docked in the middle of the page: the selected shot's takes (step with `‚Üê` `‚Ü
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
 float it, or dock another window beside it.
 
+**Full screen** (the button by Close, or `F`) puts the viewer on the whole screen, its
+controls with it; `F` or `Esc` brings it back. The sidebar's right edge and the timeline's
+top edge drag to resize the panes (double-click one to put it back); the sizes are kept
+in this browser.
+
 ## The timeline
 
 The cut as an editable track, along the bottom of the page.

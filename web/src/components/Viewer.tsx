@@ -117,6 +117,29 @@ function Transport({ a, fps, audio, setAudio, hasB }: {
   );
 }
 
+/** The viewer's window full screen, or back (the browser's own: Esc leaves it too). */
+function toggleFullscreen(el: Element | null | undefined) {
+  if (!el) return;
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  else void el.requestFullscreen?.().catch(() => {});
+}
+
+/** A button for it, for a window's title bar. */
+function FullscreenButton() {
+  const [full, setFull] = useState(!!document.fullscreenElement);
+  useEffect(() => {
+    const on = () => setFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", on);
+    return () => document.removeEventListener("fullscreenchange", on);
+  }, []);
+  return (
+    <button className="h3-btn h3-icon" title={full ? "Leave full screen (F or Esc)" : "Full screen (F)"}
+      onClick={(e) => toggleFullscreen((e.currentTarget as HTMLElement).closest(".h3-window"))}>
+      <i className={`pi ${full ? "pi-window-minimize" : "pi-window-maximize"}`} />
+    </button>
+  );
+}
+
 /** Esc closes, and `onKey` gets keys while focus is inside the window (ComfyUI owns them otherwise).
  * Listened for on the window's own element, so a key it handles (it calls
  * preventDefault) is stopped there, before ComfyUI's window-level shortcuts see it. */
@@ -130,6 +153,12 @@ function useWindowKeys(winRef: React.RefObject<HTMLDivElement>, onKey: (e: Keybo
       if (!winRef.current?.contains(document.activeElement)) return;
       if (e.key === "Escape") {
         closeViewer();
+        return;
+      }
+      if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey && winRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFullscreen(winRef.current);
         return;
       }
       cb.current(e);
@@ -314,6 +343,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
       )}
       <span className="h3-grow" />
       <button className="h3-btn h3-icon" title="Inspect this shot" onClick={() => openInspector(v.shot, takeA?.take ?? null)}><i className="pi pi-sliders-h" /></button>
+      <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>
     </>
   );
@@ -703,6 +733,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
         </button>
       )}
       <button className="h3-btn h3-icon" title="Inspect the shot on screen" disabled={!cur} onClick={() => cur && openInspector(cur.shot, cur.take)}><i className="pi pi-sliders-h" /></button>
+      <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>
     </>
   );
@@ -842,7 +873,8 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
             <b>{ref?.name ?? v.ref}</b>
             <span className="h3-muted h3-small">live · {v.file}</span>
             <span className="h3-grow" />
-            <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}>
+            <FullscreenButton />
+      <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}>
               <i className="pi pi-times" />
             </button>
           </>
@@ -870,6 +902,7 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
         <button className="h3-btn h3-icon" title="Swap A and B" onClick={() => updateViewer({ a: v.b, b: v.a })}>⇄</button>
       )}
       <span className="h3-grow" />
+      <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>
     </>
   );

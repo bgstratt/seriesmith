@@ -16,6 +16,7 @@ import { VIEWER_RECT_KEY } from "./components/Viewer";
 import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
 import type { BackendInfo } from "./store";
 import { injectStyles, mountOverlay, mountSurface } from "./surfaces";
+import { installSplitters } from "./splitters";
 
 // ---- events: the server's websocket, reconnecting -------------------------
 
@@ -98,6 +99,7 @@ mountSurface("shots", document.getElementById("sm-shots")!);
 mountSurface("refs", document.getElementById("sm-refs")!);
 mountSurface("timeline", document.getElementById("sm-timeline")!);
 dockWindow(VIEWER_RECT_KEY, document.getElementById("sm-viewer"));
+installSplitters(document.getElementById("sm")!);
 mountOverlay();
 
 // the top bar's queue controls, and the Jobs window over the page

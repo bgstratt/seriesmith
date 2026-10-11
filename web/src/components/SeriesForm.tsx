@@ -11,6 +11,7 @@ import { loadTargets, openSeriesForm, openSource, openSubjectCard } from "../act
 import {
   CARD_KINDS, DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardKindOf, getPath, parsed, serialize, setPath,
   setSize, shapeNote, shown, sizeOf, slug, type CardKind, type Field, type Raw,
+  masterLacksTargets, withMasterTargets,
 } from "../lib/seriesForm";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
@@ -107,11 +108,20 @@ function SeriesForm({ ep }: { ep: string }) {
                           onChange={(v) => sc.setDraft((d) => setSize(d, "proxy", v))} />
                       </>
                     )}
+                    {sec.id === "finishing" && masterLacksTargets(draft) && (
+                      <div className="h3-note h3-small">
+                        The master recipe has a size but no settings per video model, so every shot would be a gap.{" "}
+                        <button className="h3-btn" onClick={() => sc.setDraft((d) => withMasterTargets(d))}>Add the standard ones</button>
+                        <div className="h3-muted">H3: re-sampled at the size that covers the delivery; LTX-2: re-sampled 2x; Wan: SeedVR2 7B; anything else: RealESRGAN x2. Edit them as text, or from the Upscale dialog.</div>
+                      </div>
+                    )}
                     {fields.map((f) => (
                       <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
                         backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
                         onChange={(v) => {
                           set(f.path, parsed(f, v));
+                          // a master needs a section per video model, or every shot is a gap
+                          if (f.path.join(".") === "upscale.master.deliver" && v) sc.setDraft((d) => withMasterTargets(d));
                           // a new series' id follows its title until it's set by hand
                           if (f.path.join(".") === "series.title" && base && !getPath(base, ["series", "id"])) {
                             set(["series", "id"], slug(v));

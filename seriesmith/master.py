@@ -182,7 +182,9 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
         target = (t.sidecar or {}).get("target") or T.DEFAULT_TARGET
         key, section = U.recipe_section(recipe, target)
         if key is None:
-            plan.rows.append(Row(shot, t, "gap", f"upscale.master has no section for {target}"))
+            plan.rows.append(Row(shot, t, "gap", f"upscale.master has no section for {target}: "
+                                 "add one, or \"*\" (Series settings > Finishing adds the "
+                                 "standard ones)"))
             continue
         text = U.describe_recipe({**(recipe.get("finish") or {}), **section, **(shots.get(shot) or {})})
         rec = T.upscale_of(t)

@@ -254,6 +254,30 @@ export const SECTIONS: Section[] = [
   },
 ];
 
+/** A master recipe's per-model sections (docs/AUTHORING.md, Masters): how each
+ * video model's takes are upscaled. A master with a size and none of these makes
+ * every shot a gap, so setting Deliver at writes these when there are none. */
+export const MASTER_TARGETS = {
+  "minimax_h3_*": { method: "latent", scale: "auto" },
+  "ltx2*": { method: "latent", scale: 2 },
+  "wan22_*": { method: "seedvr2", seedvr2_model: "7b" },
+  "*": { method: "pixel", pixel_model: "RealESRGAN_x2.pth" },
+};
+
+/** Whether the master recipe has a size but no per-model sections. */
+export function masterLacksTargets(raw: Raw): boolean {
+  return !isEmpty(getPath(raw, ["upscale", "master", "deliver"])) && isEmpty(getPath(raw, ["upscale", "master", "targets"]));
+}
+
+/** The config with the standard per-model sections (and the finish they assume)
+ * added to its master recipe, when it has none. */
+export function withMasterTargets(raw: Raw): Raw {
+  if (!masterLacksTargets(raw)) return raw;
+  let r = setPath(raw, ["upscale", "master", "targets"], structuredClone(MASTER_TARGETS));
+  if (isEmpty(getPath(r, ["upscale", "master", "finish"]))) r = setPath(r, ["upscale", "master", "finish"], { frequency_split: true });
+  return r;
+}
+
 /** The keys the form shows (a key outside these is kept as it is). */
 export function shownPaths(): string[] {
   return [...SECTIONS.flatMap((s) => s.fields.map((f) => f.path.join("."))),
