@@ -428,7 +428,7 @@ export async function loadEpisodes() {
     const keep = s.ep && episodes.find((e) => sameEp(e.ep, s.ep));
     const ep = keep ? keep.ep : episodes[0]?.ep ?? null;
     if (ep !== s.ep) selectEpisode(ep);
-    else if (ep && !s.status[statusKey(ep, s.pass)]) void refreshEpisode();
+    else if (ep && !s.status[statusKey(ep, s.pass)]) void openOnTakes(ep);
   } catch (e) {
     set({ episodesError: errText(e) });
   }
@@ -443,9 +443,28 @@ export function selectEpisode(ep: string | null) {
     trackPanel: null, voiceClip: null, alignRun: null,
   }));
   if (ep) {
-    void refreshEpisode();
+    void openOnTakes(ep);
     if (get().refs[ep] || refsWanted) void loadRefs(ep);
   }
+}
+
+/**
+ * An episode opened on the pass that has its takes: when the pass this
+ * browser is on has none and the other has some, it switches, saying so.
+ * (A page remembers its own pass: ComfyUI's and the standalone's are
+ * different pages, so one opened on proxy showed an all-final episode as
+ * shots with no takes.)
+ */
+async function openOnTakes(ep: string) {
+  const pass = get().pass;
+  const st = await refreshEpisode(ep, pass);
+  if (!st || get().ep !== ep || get().pass !== pass) return;
+  if (st.shots.some((x) => x.takes.length)) return;
+  const other: Pass = pass === "proxy" ? "final" : "proxy";
+  const ot = await refreshEpisode(ep, other);
+  if (!ot || get().ep !== ep || get().pass !== pass || !ot.shots.some((x) => x.takes.length)) return;
+  setPass(other);
+  host().toast("info", `Showing ${other}`, `This episode's takes are all ${other}: ${pass} has none yet.`);
 }
 
 export function setPass(pass: Pass) {
