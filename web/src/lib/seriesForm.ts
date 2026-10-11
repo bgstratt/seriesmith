@@ -289,7 +289,8 @@ export function newSeries(title: string): Raw {
   return {
     series: { id: slug(title) || "my_series", title: title || "My Series", fps: 24, width: 1344, height: 768 },
     proxy: { width: 864, height: 480, audio_mode: "generate" },
-    style: { look: "" },
+    // every prompt opens with it, and the build needs one: a plain default to change
+    style: { look: "a cinematic live-action film, natural light" },
     subjects: {},
     locations: {},
     audio: { mode: "generate" },

@@ -203,6 +203,12 @@ which ones your ComfyUI can render.
   close-up. A picture you supply that is **one image** of the character (a portrait, a
   full-length shot on white) needs `"sheet_panels": 1`, or it is cut into quarters and the
   model gets a strip from its left edge. With it the picture is sent whole on H3 Ref2VA.
+- **No picture yet.** A location with a `description` and no `plate`, or a subject with a
+  `design` and no `sheet`, is described **in words** on H3 Ref2VA: it takes no Picture slot
+  and nothing waits for a picture. That's fine for a one-off clip or a first try, but a
+  series stays consistent through its pictures: without one, each shot imagines the place
+  or the person its own way. Add the `plate` / `sheet` (and make the picture) when it
+  should look the same every time.
 - `members` makes a character a **group**: one picture of that many people (2–12), cast
   like any character and costing one slot. See **A group: the same extras every shot**.
 - `of` makes the subject a **wardrobe variant** of another one — the same character in

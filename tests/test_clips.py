@@ -84,5 +84,34 @@ class ClipsTest(ApiTest):
         self.err(A.post_clip_queue(self.ctx, {"ep": ep, "shot": "c009", "takes": 9}), 400)
 
 
+
+class WordsOnlyTest(ApiTest):
+    """A place or a person with no picture (a description only) builds on H3:
+    written in words, no Picture slot, nothing to wait for."""
+
+    def test_a_place_and_a_person_in_words(self):
+        ep = self.ok(A.post_clips_ensure(self.ctx, {}))["ep"]
+        p = os.path.join(ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg["locations"]["pond"] = {"description": "a small pond at dawn, reeds, mist"}
+        cfg["subjects"]["ollie"] = {"kind": "character", "name": "Ollie",
+                                    "design": "an old fisherman in a yellow oilskin"}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        with open(os.path.join(ep, "clips.md"), "w", encoding="utf-8") as fh:
+            fh.write("= clips  Clips\n\n# sq01  pond\n\n## sh010\nwho: ollie\nsize: medium\n"
+                     "dur: 3.04\nOllie casts a line into the still water.\n")
+        self.assertTrue(self.ok(A.post_build(self.ctx, {"ep": ep}))["ok"])
+        from seriesmith import jobs as J
+        doc = J.load_shotlist(ep, "proxy")
+        shot = doc["shots"][0]
+        self.assertEqual((shot["subjects"], shot["background"], shot["text_place"]), ([], "", True))
+        prompt = "\n".join(shot["prompt"]) if isinstance(shot["prompt"], list) else shot["prompt"]
+        self.assertIn("Ollie has no reference image and is drawn from this description", prompt)
+        self.assertIn("a small pond at dawn", prompt)
+        self.assertNotIn("<Picture", prompt)
+        self.assertEqual(J.missing_refs(ep, doc, shot), [])
+
+
 if __name__ == "__main__":
     unittest.main()

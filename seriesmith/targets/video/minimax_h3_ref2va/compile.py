@@ -234,6 +234,11 @@ class Ctx:
                 f"{where}: location '{key}' is not in series.json "
                 f"({', '.join(series_cfg['locations'])})")
         entry = series_cfg["locations"][key]
+        if not entry.get("plate") and entry.get("description"):
+            # a place described in words only (no picture yet): its shots say
+            # it in words and <Picture 4> is grey (the loader's blank). The
+            # place won't look the same from shot to shot; a plate fixes that
+            return entry
         if not entry.get("plate"):
             raise ValueError(
                 f"location '{key}': needs a `plate` path. The background "
@@ -254,6 +259,8 @@ class Ctx:
         for _sh in seq["shots"]:
             _loc = (self.resolve_plate(_sh["plate"], f"shot {_sh['id']}", _sh["id"])
                     if _sh.get("plate") else seq_loc)
+            if not _loc.get("plate"):
+                continue
             if _sh["id"] not in self.blocked.setdefault(_loc["plate"], []):
                 self.blocked[_loc["plate"]].append(_sh["id"])
         return seq_loc
@@ -350,6 +357,14 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         shot["_unreferenced"] = [s for s in subjects if s in ctx.absent]
         subjects = [s for s in subjects if s not in ctx.absent]
         shot["_no_plate"] = "plate" in ctx.absent
+    if not loc.get("plate"):
+        shot["_no_plate"] = True                       # a place described in words
+    # someone (or something) with no picture at all, no `sheet`: written in
+    # words from their design, taking no Picture slot
+    words = [s for s in subjects if not book.get(s, {}).get("sheet")]
+    if words:
+        shot["_unreferenced"] = list(dict.fromkeys(list(shot.get("_unreferenced") or []) + words))
+        subjects = [s for s in subjects if s not in words]
     shot["_subjects"] = subjects
 
     # duration
@@ -506,6 +521,8 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         "sequence": seq["id"],
         "subjects": subjects,
         "background": "" if shot.get("_no_plate") else loc["plate"],
+        # a place in words: no plate to wait for, the loader's grey in its slot
+        **({"text_place": True, "missing_refs": "blank"} if not loc.get("plate") else {}),
         "size": shot["size"],
         "panels": panels,
         "panel_view": panel_view,
@@ -707,7 +724,7 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     out = [subject_request(s, book[s], slot)
            for s, slot in zip(_subjects(shot), SUBJECT_SLOTS)]
     key = shot_ir.plate or (ctx["sequence"].location if ctx.get("sequence") else "")
-    if key in series_cfg["locations"]:
+    if key in series_cfg["locations"] and series_cfg["locations"][key].get("plate"):
         out.append(plate_request(key, series_cfg["locations"][key]))
     if c.policy(shot) == "clone":
         out += [voice_request(v, book[v], slot)
@@ -724,7 +741,8 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     for slot, sid in zip(SUBJECT_SLOTS, shot.get("subjects") or []):
         out.append({"slot": slot, "kind": "image", "subject": sid,
                     "path": book.get(sid, {}).get("sheet", "")})
-    out.append({"slot": PLATE_SLOT, "kind": "image", "path": shot.get("background", "")})
+    if not shot.get("text_place"):
+        out.append({"slot": PLATE_SLOT, "kind": "image", "path": shot.get("background", "")})
     policy = shot.get("audio_policy", "")
     if policy == "clone":
         for slot, r in zip(VOICE_SLOTS, shot.get("voice_refs") or []):

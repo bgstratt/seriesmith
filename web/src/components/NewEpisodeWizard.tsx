@@ -59,6 +59,8 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const [cast, setCast] = useState<NewCast[]>([]);
   const [shot, setShot] = useState<Shot>(() => newShot("sh010"));
   const [location, setLocation] = useState("");
+  // no locations: the first shot's place, in words (no picture of it)
+  const [placeText, setPlaceText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,9 +119,10 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
     0: !tpl ? (tplErr ?? (startNew && !title.trim() ? "Give the series a title." : startNew ? nameError(show) : "…"))
       : startNew && !title.trim() && isNewSeries ? "Give the series a title."
       : nameError(name) ?? (tpl.episodes.includes(name.trim()) ? `${name} is already there.` : null),
-    1: !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id." : null,
-    2: problems.find(Boolean) ?? (known.locations.length ? null : "Add a location: every sequence happens somewhere."),
-    3: !place ? "Pick where it happens." : !shot.action.trim() ? "Say what happens in it." : null,
+    1: !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id."
+      : !String(getPath(series, ["style", "look"]) ?? "").trim() ? "Say the look: every shot's prompt opens with it." : null,
+    2: problems.find(Boolean) ?? null,
+    3: !shot.action.trim() ? "Say what happens in it." : null,
   };
   const at = steps.findIndex((x) => x.i === step);
   const last = at === steps.length - 1;
@@ -135,17 +138,29 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
 
   async function create() {
     if (!tpl || !full) return;
+    // no location: a place of the first shot's own, described in words only
+    const inWords = !place;
+    const where = inWords ? "place" : place;
+    const config = inWords
+      ? setPath(full, ["locations", where], { description: placeText.trim() || shot.action.trim() })
+      : full;
     setBusy(true);
     setError(null);
     try {
       const res = await api().newEpisode({
         parent, name: name.trim(), title: epTitle.trim() || null,
         show: showName || null,
-        series: serialize(full, tpl.series ?? "\n"),
-        script: firstScript(name.trim(), epTitle.trim() || (isNewSeries ? title.trim() : ""), "sq01", place, current(shot)),
+        series: serialize(config, tpl.series ?? "\n"),
+        script: firstScript(name.trim(), epTitle.trim() || (isNewSeries ? title.trim() : ""), "sq01", where, current(shot)),
       });
       host().toast(res.check.ok ? "success" : "warn", `Made ${res.episode.name}`,
         res.check.ok ? `${res.ep}\nNext: the pictures (Refs tab), then Build.` : res.check.errors[0]?.message ?? "");
+      if (inWords || !known.characters.length) {
+        host().toast("warn", "Shots won't stay consistent yet",
+          `${inWords ? "The place is described in words, with no picture" : "There are no characters with pictures"}: `
+          + "each shot imagines it its own way. Add pictures (Refs tab: a location's plate, a character's sheet) "
+          + "and the shots after that keep them.");
+      }
       await loadEpisodes();
       openWizard(null);
       openShotForm(null);
@@ -268,6 +283,13 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
                   ))}
               </div>
             )}
+            {!known.locations.length && (
+              <div className="h3-note h3-small">
+                No location yet. That's allowed: the first shot's place can be described in words on the next step. But
+                H3 keeps a series looking the same from shot to shot by its pictures: without a picture of the place (and
+                of the people), each shot imagines them its own way. Add them here, or later in the Refs tab.
+              </div>
+            )}
             {cast.map((c, i) => (
               <CastCard key={i} c={c} raw={full ?? base} problem={problems[i]}
                 onChange={(n) => setCast(cast.map((x, j) => (j === i ? n : x)))}
@@ -284,8 +306,13 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
         {step === 3 && (
           <>
             <div className="h3-small h3-muted">The episode's first shot, to start from; the shot form adds the rest.</div>
-            <Row label="Where" help="The first sequence's location: every shot in it happens here.">
-              <PlacePick ep={picEp} value={place} places={placeList} empty="pick a location…" onChange={setLocation} />
+            <Row label="Where" help={known.locations.length
+              ? "The first sequence's location: every shot in it happens here."
+              : "Described in words (empty: from what happens). It has no picture, so it may look different from shot to shot."}>
+              {known.locations.length
+                ? <PlacePick ep={picEp} value={place} places={placeList} empty="pick a location…" onChange={setLocation} />
+                : <input className="h3-in" value={placeText} placeholder="a small pond at dawn, reeds, mist on the water"
+                    onChange={(e) => setPlaceText(e.target.value)} />}
             </Row>
             <Row label="Who's in it" help="The characters on screen, in order.">
               <Chips ep={picEp} value={listOf(shot.keys.who)} options={castList} onChange={(v) => setKey("who", v.join(", "))}
