@@ -11,6 +11,7 @@ import {
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
 import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
 import { renderingTakes, statusKey, store, useApp } from "../store";
+import { ModeSwitch, SimplePanel } from "./SimplePanel";
 import type { Pass, ShotStatus, TakeSummary, TargetList } from "../types";
 import { aspectOf, useStatus } from "./hooks";
 import { useIssueCount } from "./Issues";
@@ -437,10 +438,13 @@ function IssuesButton() {
 export function ShotsTab() {
   const ep = useApp((s) => s.ep);
   const selShot = useApp((s) => s.shot);
+  const simple = useApp((s) => s.simple);
+  if (simple) return <SimplePanel />;
   return (
     <div className="h3-surface">
       <div className="h3-bar" style={{ justifyContent: "space-between" }}>
         <span className="h3-title">Shots</span>
+        <ModeSwitch />
         {ep && (
           <span className="h3-row">
             <button className="h3-btn h3-icon" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>

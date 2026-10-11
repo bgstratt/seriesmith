@@ -71,6 +71,9 @@ class Runner:
         self.backends = backends
         self._emit = emit or (lambda e, d: None)
         self.review_copy = review_copy
+        # ask(path, body) -> (status, data): an API request made from a job (the
+        # server sets it; a clip's renders are asked for once its pictures exist)
+        self.ask = None
         # takes this runner owns are checked against its queue, not ComfyUI's
         T.MANAGED = queue.alive
 
@@ -411,6 +414,22 @@ class Runner:
         TR.save_side(ref, side)
         self.queue.submit(qjob)
         return n, qjob.id
+
+    def enqueue_step(self, title: str, work, after: list | str | None = None,
+                     info: dict | None = None) -> str:
+        """A step of seriesmith's own (no backend: it asks for other jobs, as a
+        clip asks for its renders once its pictures exist), on the "steps"
+        lane, after `after`. work(report) -> "succeeded" | "failed"."""
+        def run(qjob: QJob, report) -> str:
+            try:
+                return work(report)
+            except Exception as e:                       # noqa: BLE001  the step fails
+                qjob.error = str(e)[:800]
+                return "failed"
+        qjob = QJob(kind="step", lane="steps", title=title, work=run, info=info or {},
+                    after=after or None)
+        self.queue.submit(qjob)
+        return qjob.id
 
     # -- a run found again: after a restart (recover.py), or by a retry ------
 

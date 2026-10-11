@@ -118,6 +118,8 @@ export interface BrowseState {
   /** picture: which form field asked (components/Picture.tsx PicturePath), and what for */
   key?: string;
   what?: string;
+  /** picture: the path as chosen, anywhere (it will be imported), not relative to the episode */
+  absolute?: boolean;
 }
 
 export interface RenderAsk {
@@ -425,6 +427,9 @@ export interface AppState {
   /** a picture picked in Browse for a form's field (`key`), relative to the
    *  episode: the field takes it and clears it */
   picturePick: { key: string; path: string } | null;
+  /** simple mode (components/SimplePanel.tsx): most settings out of sight;
+   *  this browser's own choice (SIMPLE_KEY) */
+  simple: boolean;
 }
 
 export const ZOOM_MIN = 8;
@@ -523,6 +528,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     subjectCard: null,
     wizard: null,
     picturePick: null,
+    simple: readSimple(),
   };
 }
 
@@ -545,6 +551,16 @@ export function clampZoom(z: number): number {
 // ---------------------------------------------------------------------------
 
 export const PREFS_KEY = "seriesmith.editor.v1";
+export const SIMPLE_KEY = "seriesmith.simple";
+
+/** Whether this browser was last in simple mode (advanced when it can't tell). */
+export function readSimple(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem(SIMPLE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export interface Prefs {
   ep?: string | null;

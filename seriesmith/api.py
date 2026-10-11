@@ -485,6 +485,100 @@ def post_episode_new(ctx: Context, body):
 
 
 @handler
+def post_clips_ensure(ctx: Context, body):
+    """Simple mode's Clips project (clips.ensure_clips): in `root` (default the
+    first project root), made the first time. {"ep", "made"}."""
+    from seriesmith import clips as CL
+    body = body_dict(body)
+    roots = load_roots(ctx)
+    root = body.get("root") or (roots[0] if roots else None)
+    if not root:
+        raise ApiError(409, "no project folder yet: add one (Project folders) first")
+    root = check_folder(ctx, root, "root")
+    res = CL.ensure_clips(root)
+    if res["made"]:
+        episode_event(ctx, res["ep"])
+    return 200, res
+
+
+@handler
+def post_clip_queue(ctx: Context, body):
+    """Queue a clip (a shot of the Clips project, or of any episode): the
+    pictures it still needs are generated first (clips.needed_refs; one
+    already on its way is waited for, not made twice), then a step waits for
+    them all, makes each live and asks for `takes` renders of the shot
+    (POST /seriesmith/render). With every picture there, the renders are
+    asked for at once. Body {ep, shot, pass (proxy), takes (1-8), backend?}.
+    Returns {"refs": [{ref, view, take, prompt_id}], "waiting_on": [ids],
+    "step": id | null, "renders": [render answers]}."""
+    from seriesmith import clips as CL
+    from seriesmith import refs as R
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"), "proxy")
+    shot = check_shot(body.get("shot"))
+    takes = body.get("takes", 1)
+    if isinstance(takes, bool) or not isinstance(takes, int) or not 1 <= takes <= 8:
+        raise ApiError(400, "takes must be 1 to 8")
+    backend = _opt_backend(ctx, body)
+    runner = ctx.runner
+    if runner is None:
+        raise ApiError(409, "clips need seriesmith's queue (seriesmith serve)")
+    if not any(s["id"] == shot for d, i in J.episode_shots(ep, pass_) for s in [d["shots"][i]]):
+        raise ApiError(404, f"{shot} isn't in {pass_}'s shotlist: build first")
+    render_body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True,
+                   **({"backend": backend} if backend else {})}
+
+    def renders() -> list:
+        out = []
+        for _ in range(takes):
+            status, data = post_render(ctx, render_body) if runner.ask is None \
+                else runner.ask("/seriesmith/render", render_body)
+            out.append(data)
+        return out
+
+    need = CL.needed_refs(ep, pass_, shot)
+    if not need:
+        return 200, {"refs": [], "waiting_on": [], "step": None, "renders": renders()}
+    made, waiting = [], []
+    for ref in need:
+        on_way = CL.queued_takes(ref)
+        if on_way:
+            waiting += on_way
+            continue
+        status, data = post_refs_generate(ctx, {"ep": ep, "ref": ref.id, "count": 1,
+                                                **({"backend": backend} if backend else {})})
+        if status >= 400:
+            raise ApiError(status, f"{ref.id}: {data.get('error')}")
+        for q in data.get("queued") or []:
+            made.append({k: q.get(k) for k in ("ref", "view", "take", "prompt_id")})
+            if q.get("prompt_id"):
+                waiting.append(q["prompt_id"])
+    ids = [r.id for r in need]
+
+    def then(report) -> str:
+        s = R.load_series(ep)
+        for rid in ids:
+            ref = R.find_ref(s, rid)
+            for res in R.auto_pick(s, ref):
+                report(line=f"{rid}: {getattr(res, 'note', '') or 'live'}")
+        still = [r.id for r in CL.needed_refs(ep, pass_, shot)]
+        if still:
+            raise RuntimeError(f"its pictures didn't all come out ({', '.join(still)}): "
+                               "see the Refs tab, then queue it again")
+        got = renders()
+        report(line=f"{takes} take(s) asked for")
+        bad = [d for d in got if d.get("errors")]
+        if bad:
+            raise RuntimeError(str(bad[0]["errors"][0].get("error"))[:400])
+        return "succeeded"
+    step = runner.enqueue_step(f"{os.path.basename(os.path.normpath(ep))} {shot}: "
+                               f"render once its pictures are made", then, after=waiting,
+                               info={"ep": ep, "shot": shot, "pass": pass_})
+    return 200, {"refs": made, "waiting_on": waiting, "step": step, "renders": []}
+
+
+@handler
 def get_episode_template(ctx: Context, query: dict):
     """The new episode wizard's start: what an episode made in `parent` (or in
     a new show folder `show` inside it) would start from (source.episode_template)."""
@@ -3141,6 +3235,8 @@ ROUTES = [
     ("POST", "/seriesmith/build", post_build, "body"),
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
+    ("POST", "/seriesmith/clips/ensure", post_clips_ensure, "body"),
+    ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
     ("POST", "/seriesmith/import", post_import, "body"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),

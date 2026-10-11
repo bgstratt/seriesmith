@@ -6,12 +6,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { loadRefs, openSubjectCard } from "../actions";
+import { api, host } from "../host";
 import {
   CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, refIdOf, refsPrefix, setPath, slug,
   type CardKind, type Raw,
 } from "../lib/seriesForm";
 import { useApp } from "../store";
 import { MoreToggle } from "./Fields";
+import { usePictureBrowse } from "./Picture";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { RefDetail } from "./RefsTab";
 import { CheckMessages, FieldRow, FileLine, SaveBar } from "./SeriesForm";
@@ -43,6 +45,11 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   const [idTouched, setIdTouched] = useState(false);
   const [form, setForm] = useState<Raw>({});
   const [more, setMore] = useState(false);
+  // simple mode: the main fields, and a picture you have (imported on save);
+  // nothing under More
+  const simple = useApp((s) => s.simple);
+  const [ownPic, setOwnPic] = useState("");
+  const browsePic = usePictureBrowse(`card:${asked}:${id0 ?? "new"}`, `${asked} picture`, (p) => setOwnPic(p), true);
   const block = blockOf(kind);
   const label = CARD_KINDS.find((c) => c.kind === kind)!.label;
   const before = sc.base && !isNew ? (getPath(sc.base, [block, id]) as Raw | undefined) : undefined;
@@ -71,9 +78,21 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
 
   async function save() {
     if (!sc.base || problem || missing) return;
-    const entry = entryFor(kind, before, form, id, prefix);
+    // a character's own picture is one whole picture, not a four-panel sheet
+    const f = ownPic && kind === "character" ? { ...form, sheet_panels: "1" } : form;
+    const entry = entryFor(kind, before, f, id, prefix);
     const next = setPath(sc.base, [block, id], entry);
     if (await sc.save(next, `${label} ${id}`)) {
+      if (ownPic) {
+        // the picture you have, as its first candidate, made live
+        try {
+          await api().refsImport({ ep, ref: refIdOf(kind, id), view: kind === "character" ? "sheet" : null,
+                                   source_path: ownPic, pick: true });
+          setOwnPic("");
+        } catch (e) {
+          host().toast("error", `${id}: the picture wasn't taken`, (e as Error).message);
+        }
+      }
       void loadRefs(ep);
       if (isNew) openSubjectCard({ kind, id });
     }
@@ -107,25 +126,46 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
         <FileLine sc={sc} />
         {sc.base && (
           <>
-            <div className="h3-col" style={{ gap: 2 }}>
-              <span className="h3-small"><b>Id</b></span>
-              <input className="h3-in" value={id} disabled={!isNew}
-                onChange={(e) => { setIdTouched(true); setId(e.target.value.trim()); }} />
-              <span className={`h3-small ${problem ? "h3-err" : "h3-muted"}`}>
-                {problem || (isNew
-                  ? `What the script calls it (who: ${id || "ada"}${kind === "location" ? `, plate: ${id || "porch"}` : ""}). Made from the name; it can't change once saved.`
-                  : "What the script calls it. It can't change here: shots name it.")}
-              </span>
-            </div>
-            {fields.filter((f) => !f.more).map((f) => (
+            {/* simple mode: a place's id is its name; anyone else's follows their
+                name, shown only when it clashes */}
+            {(!simple || kind === "location" || (!!id && !!problem)) && (
+              <div className="h3-col" style={{ gap: 2 }}>
+                <span className="h3-small"><b>{simple && kind === "location" ? "Name" : "Id"}</b></span>
+                <input className="h3-in" value={id} disabled={!isNew}
+                  placeholder={simple && kind === "location" ? "harbour" : ""}
+                  onChange={(e) => { setIdTouched(true); setId(simple ? slug(e.target.value) : e.target.value.trim()); }} />
+                <span className={`h3-small ${problem && id ? "h3-err" : "h3-muted"}`}>
+                  {(problem && id) ? problem : simple
+                    ? (kind === "location" ? "A word or two to pick it by." : "")
+                    : (isNew
+                      ? `What the script calls it (who: ${id || "ada"}${kind === "location" ? `, plate: ${id || "porch"}` : ""}). Made from the name; it can't change once saved.`
+                      : "What the script calls it. It can't change here: shots name it.")}
+                </span>
+              </div>
+            )}
+            {fields.filter((f) => !f.more && !(simple && f.path[0] === "of")).map((f) => (
               <FieldRow key={f.path.join(".")} f={f} value={form[f.path[0]] == null ? "" : String(form[f.path[0]])}
                 onChange={(v) => setField(f.path[0], v)} />
             ))}
-            {fields.some((f) => f.more) && (
+            {simple && kind !== "voice" && kind !== "group" && (
+              <div className="h3-col" style={{ gap: 2 }}>
+                <span className="h3-small"><b>A picture you have</b> <span className="h3-muted">(optional)</span></span>
+                <div className="h3-row" style={{ gap: 4 }}>
+                  <span className="h3-small h3-mono h3-ell h3-grow" title={ownPic}>{ownPic ? ownPic.split(/[\\/]/).pop() : "none"}</span>
+                  <button className="h3-btn" onClick={browsePic}>Choose…</button>
+                  {ownPic && <button className="h3-link" title="No picture" onClick={() => setOwnPic("")}>×</button>}
+                </div>
+                <span className="h3-small h3-muted">
+                  {kind === "location" ? "A picture of the place; without one it is made from the description." :
+                    "A picture of them (a portrait, a full figure); without one it is made from the description."}
+                </span>
+              </div>
+            )}
+            {!simple && fields.some((f) => f.more) && (
               <MoreToggle open={more} onToggle={setMore}
                 label={`More: ${fields.filter((f) => f.more).map((f) => f.label.toLowerCase()).join(", ")}`} />
             )}
-            {more && (
+            {more && !simple && (
               <div className="h3-col" style={{ gap: 10, paddingLeft: 14, borderLeft: "2px solid var(--h3-border)" }}>
                 {fields.filter((f) => f.more).map((f) => (
                   <FieldRow key={f.path.join(".")} f={f} value={form[f.path[0]] == null ? "" : String(form[f.path[0]])}

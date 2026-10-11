@@ -318,8 +318,8 @@ def _parse(text: str, subject_ids: set[str], character_ids: set[str],
     close_shot()
     if not ep["id"]:
         raise ScriptError(1, "", "script needs an episode header: `= ep01  Title`")
-    if not ep["sequences"]:
-        raise ScriptError(1, "", "script has no sequences")
+    # no sequences yet is an episode just begun (simple mode's Clips before its
+    # first clip): it builds to an empty shotlist
     return ep, seq_lines, spans
 
 

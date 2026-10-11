@@ -96,6 +96,21 @@ try {
 }
 showTab(first === "refs" ? "refs" : "shots");
 
+// simple mode: one panel, "Make"; the Refs tab waits in Advanced
+let wasSimple: boolean | null = null;
+function syncSimple() {
+  const on = store.get().simple;
+  if (on === wasSimple) return;
+  wasSimple = on;
+  const refsTab = document.querySelector<HTMLElement>('[data-tab="refs"]');
+  const shotsTab = document.querySelector<HTMLElement>('[data-tab="shots"]');
+  if (refsTab) refsTab.style.display = on ? "none" : "";
+  if (shotsTab) shotsTab.textContent = on ? "Make" : "Shots";
+  if (on) showTab("shots");
+}
+store.subscribe(syncSimple);
+syncSimple();
+
 mountSurface("shots", document.getElementById("sm-shots")!);
 mountSurface("refs", document.getElementById("sm-refs")!);
 mountSurface("timeline", document.getElementById("sm-timeline")!);

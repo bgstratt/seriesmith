@@ -65,11 +65,14 @@ def series_config_from(series_cfg: dict) -> dict:
     place and returned). ValueError as there."""
     if not isinstance(series_cfg, dict):
         raise ValueError("series.json must be a JSON object")
+    # a series of no people (a landscape clip) has an empty block; no block at
+    # all is a config that isn't one
+    has_subjects = isinstance(series_cfg.get("subjects"), dict)
     series_cfg["subjects"] = {k: v for k, v in series_cfg.get("subjects", {}).items()
                          if not k.startswith("_") and isinstance(v, dict)}
     series_cfg["locations"] = {k: v for k, v in series_cfg.get("locations", {}).items()
                           if not k.startswith("_") and isinstance(v, dict)}
-    if not series_cfg["subjects"]:
+    if not has_subjects:
         raise ValueError("series.json has no `subjects` block")
     series_cfg["subjects"] = _resolve_variants(series_cfg["subjects"])
     _check_required(series_cfg)

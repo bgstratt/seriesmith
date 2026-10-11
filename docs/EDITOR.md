@@ -41,6 +41,28 @@ and cheap. It tells you whether the cut works, the timing lands and the characte
 for a fraction of the time. Switch the pass selector to `final` once the proxy says the
 episode is right.
 
+## Simple mode
+
+**Simple / Advanced** at the top of the sidebar. Simple is for making clips without
+setting up a series: the sidebar becomes one **Make** panel and the Refs tab, the
+settings and the text windows wait in Advanced. It is remembered in this browser.
+
+- **Model**: the video model, with a line on what each is good at (H3 by default).
+- **What happens**: the prompt, as you'd describe the shot to a camera crew.
+- **Who's in it**: pick people by their picture, or **+ Someone**: a name, a description
+  and, if you have one, a picture of them (it is taken in and used as it is; without one
+  it is made from the description).
+- **Where**: pick a place by its picture, **+ Place**, or just say it in words (empty: the
+  prompt is the place). A place said in words gets a picture of its own.
+- **What's said**, **Framing**, **Length**, **Takes**, then **Queue**.
+
+Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
+the same queue, and the takes once they are made; **Your clips** lists them, newest
+first, and plays one when it's clicked. Underneath it is an ordinary project, **Clips**
+(`Clips/clips/` in your first project folder): each clip is a shot of it, so everything
+in Advanced works on it too, and a clip can later go into a real series. **A series…**
+starts the series wizard.
+
 ## Shots
 
 ### The toolbar

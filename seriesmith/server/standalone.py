@@ -162,6 +162,7 @@ def make_app(roots: list[str] | None = None, settings=None,
         finally:
             ASKED.req = None
 
+    runner.ask = ask
     for line in recover(runner, ask):
         log.info("seriesmith: %s", line)
 

@@ -1824,6 +1824,15 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const shots = file === "script" ? check("script", f.text).shots : [];
       return { file, path: sourcePath(file), text: f.text, hash: f.hash, mtime: f.mtime, shots };
     },
+    async clipsEnsure() {
+      await wait(60);
+      return { ep: EP, made: false };
+    },
+    async clipQueue(req) {
+      await wait(120);
+      return { refs: [], waiting_on: [], step: null,
+        renders: [{ queued: [{ shot: req.shot, take: 1, prompt_id: "mock-clip" }] }] };
+    },
     async episodeTemplate(parent, show) {
       await wait(80);
       const sep = parent.includes("\\") ? "\\" : "/";

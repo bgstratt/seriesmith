@@ -23,7 +23,7 @@ import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, 
 import {
   detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
-  type CompareMode, type RefTakeRef, type VoiceClipState,
+  type CompareMode, type RefTakeRef, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
   AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
@@ -2916,6 +2916,10 @@ export function usePictureFile(chosen: string): boolean {
   const s = get();
   const key = s.browse?.key;
   if (!s.ep || !key) return false;
+  if (s.browse?.absolute) {
+    set({ picturePick: { key, path: chosen } });
+    return true;
+  }
   const absolute = /^([a-zA-Z]:|[\\/])/.test(chosen);
   const rel = absolute ? epRelative(chosen, s.ep) : chosen.replace(/\\/g, "/");
   if (!rel) {
@@ -3012,6 +3016,16 @@ export function setRenderBackend(name: string) {
 /** The backends this host offers (the standalone page reads them; null inside ComfyUI). */
 export function setBackends(backends: BackendInfo[] | null) {
   set({ backends });
+}
+
+/** Simple or advanced mode (remembered in this browser). */
+export function setSimple(on: boolean) {
+  set({ simple: on, menu: null });
+  try {
+    localStorage.setItem(SIMPLE_KEY, on ? "1" : "0");
+  } catch {
+    /* not remembered: fine */
+  }
 }
 
 export function openSettings(open = true) {

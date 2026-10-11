@@ -72,8 +72,9 @@ class Job:
     retry: Callable | None = field(default=None, repr=False)   # () -> new Job or None
     # a queued job cancelled before it ran: what to undo (a render: its take)
     on_cancel: Callable | None = field(default=None, repr=False)
-    # the job it waits for (a continuity shot: the one it continues), on any lane
-    after: str | None = None
+    # the job it waits for (a continuity shot: the one it continues), on any
+    # lane; or several (a clip's renders wait for all its pictures)
+    after: str | list | None = None
     # stopped and failed past this many seconds of running (None: no limit)
     limit: float | None = None
     # the file its result goes into, and what finding its run again needs
@@ -253,9 +254,9 @@ class Queue:
             self.write_journal()
 
     def _waits(self, job: Job) -> bool:
-        """Still waiting for the job it comes after."""
-        before = self.jobs.get(job.after) if job.after else None
-        return before is not None and before.status not in DONE
+        """Still waiting for the job (or any of the jobs) it comes after."""
+        ids = job.after if isinstance(job.after, list) else [job.after] if job.after else []
+        return any((b := self.jobs.get(i)) is not None and b.status not in DONE for i in ids)
 
     def _run(self, job: Job) -> None:
         def report(progress: float | None = None, step: int | None = None,

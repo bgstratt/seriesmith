@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { clipBlock, nextClipIds, placeFor, withClip, type ClipSpec } from "../src/lib/simple";
+
+const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
+  prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "", placeText: "",
+  size: "wide", dur: "3.04", target: "", dialogue: [], ...p,
+});
+
+describe("simple mode's clips", () => {
+  it("numbers clips after the ones there", () => {
+    expect(nextClipIds("= clips  Clips\n")).toEqual({ seq: "cl001", shot: "c001", n: 1 });
+    expect(nextClipIds("= clips  Clips\n\n# cl001  pier\n\n## c001\n\n# cl012  x\n## c012\n").shot).toBe("c013");
+  });
+
+  it("gives a clip without a place one of its own, from words or the prompt", () => {
+    expect(placeFor("c004", spec(), "../refs/")).toEqual({
+      id: "c004_place",
+      entry: { description: "A lighthouse at dusk, waves breaking on the rocks.", plate: "../refs/_bg/c004_place.png" },
+    });
+    expect(placeFor("c004", spec({ placeText: "a rocky headland" }), "../refs/").entry.description).toBe("a rocky headland");
+  });
+
+  it("writes a clip as a sequence of one shot, naming its model only when it isn't the series'", () => {
+    const block = clipBlock("cl002", "c002", "pier", spec({ who: ["nell"], target: "ltx2",
+      dialogue: [{ speaker: "NELL", marker: "", note: "", text: "Here it comes." }] }), "minimax_h3_ref2va");
+    expect(block).toEqual([
+      "# cl002  pier", "", "## c002", "who: nell", "size: wide", "dur: 3.04", "target: ltx2",
+      "A lighthouse at dusk, waves breaking on the rocks.", "NELL: Here it comes.",
+    ]);
+    expect(clipBlock("cl002", "c002", "pier", spec({ target: "minimax_h3_ref2va" }), "minimax_h3_ref2va"))
+      .not.toContain("target: minimax_h3_ref2va");
+    expect(withClip("= clips  Clips\n", ["# cl001  x", "", "## c001"])).toBe("= clips  Clips\n\n# cl001  x\n\n## c001\n");
+  });
+});

@@ -11,7 +11,7 @@
 
 import type {
   AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
-  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
+  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
@@ -44,6 +44,10 @@ export interface Api {
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
+  /** Simple mode: the Clips project (made the first time). */
+  clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
+  /** Simple mode: a clip's missing pictures, then its takes. */
+  clipQueue(req: { ep: string; shot: string; pass?: Pass; takes?: number; backend?: string | null }): Promise<ClipQueueResult>;
   /** GET /seriesmith/episode/new — what a new episode in `parent` (or its new show folder) starts from. */
   episodeTemplate(parent: string, show?: string | null): Promise<EpisodeTemplate>;
   /** seriesmith: a series config and scripts into episode folders (POST /seriesmith/import) */
@@ -387,6 +391,8 @@ export function createHttpApi(t: Transport): Api {
     shot: (ep, pass, shot, target) => get(`/seriesmith/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
     build: (ep) => call("POST", "/seriesmith/build", { ep }),
     newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
+    clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
+    clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),
     importSeries: (req) => call("POST", "/seriesmith/import", req),
     fileUrl: (ep, path) => t.url(`/seriesmith/file?${qs({ ep, path })}`),

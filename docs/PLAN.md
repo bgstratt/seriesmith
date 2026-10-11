@@ -400,25 +400,29 @@ projects, queue and takes underneath, with most of the settings out of sight.
 The aim is a very easy way to queue clips: one video or image clip, a
 multi-shot clip, or a series with episodes.
 
-- [ ] The toggle (remembered): Simple hides the render settings (steps,
+- [x] The toggle (remembered): Simple hides the render settings (steps,
       LoRAs, model files, seeds, profiles, policies, keyframe methods,
       continuity, finishing recipes, the text windows) and keeps choosing the
       model, writing the prompt, the cast, and queueing.
-- [ ] What you're making: a **standalone clip** (one shot, video or image), a
+- [~] What you're making: a **standalone clip** (one shot, video or image), a
       **multi-shot clip** (a few shots in order, played and exported as one),
       or a **series / episode** (the wizard). The first two are a scratch
       project made on first use: an ordinary series config and script
       underneath, written by the forms, so refs, renders, takes, upscales and
       the queue work unchanged, and any of it can later go into a series.
-- [ ] Models: H3 for video and Krea 2 for pictures by default, with the full
+- [~] Models: H3 for video and Krea 2 for pictures by default, with the full
       list to pick from (LTX-2, Wan, Z-Image Turbo, FLUX and the rest, local
       or hosted), each with a plain one-line note on what it's good at.
-- [ ] Adding a character, a location / background or a prop simplified: a
+- [x] Adding a character, a location / background or a prop simplified: a
       name and a picture you have, or a name and a description to generate
-      one; nothing else asked.
-- [ ] A shot is a prompt box (what happens, what's said) with who and where
+      one; nothing else asked. (A picture you have is imported and picked; a
+      character's is one whole picture, sheet_panels 1.)
+- [x] A shot is a prompt box (what happens, what's said) with who and where
       picked by picture, a length, and Queue N takes; the takes come in beside
-      it.
+      it. POST /seriesmith/clip/queue makes the clip's missing pictures first,
+      then a step waits for them, makes them live and asks for the takes.
+      Checked live (the local lane paused): the place's picture and the
+      waiting step queued in order.
 
 ## Later
 

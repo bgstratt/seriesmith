@@ -525,6 +525,15 @@ export interface NewEpisodeRequest {
   script?: string | null;
 }
 
+/** POST /seriesmith/clip/queue: the pictures asked for first (and the step
+ * that renders once they're made), or the renders asked for at once. */
+export interface ClipQueueResult {
+  refs: { ref: string; view: string | null; take: number; prompt_id: string }[];
+  waiting_on: string[];
+  step: string | null;
+  renders: { queued?: { shot: string; take: number; prompt_id: string }[]; errors?: { error: string }[] }[];
+}
+
 /** GET /seriesmith/episode/new: what a new episode in `parent` starts from. */
 export interface EpisodeTemplate {
   /** the folder the episode goes in (with the show folder, when one was named) */
