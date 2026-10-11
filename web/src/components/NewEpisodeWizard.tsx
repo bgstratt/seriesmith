@@ -97,10 +97,10 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const problems = base ? castProblems(base, cast) : [];
   const steps = STEPS.map((s, i) => ({ s, i })).filter(({ i }) => i !== 1 || isNewSeries);
 
-  // a first location is the sequence's until one is picked
-  useEffect(() => {
-    if (!location && known.locations.length) setLocation(known.locations[0]);
-  }, [known.locations.join(",")]);
+  // the first sequence's place: the one picked while it still exists, else the
+  // first there is (worked out each time, so a place renamed while its name was
+  // being typed -- "p", "po", "pond" -- is never kept)
+  const place = known.locations.includes(location) ? location : (known.locations[0] ?? "");
 
   const setTitleAll = (t: string) => {
     setTitle(t);
@@ -119,11 +119,19 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
       : nameError(name) ?? (tpl.episodes.includes(name.trim()) ? `${name} is already there.` : null),
     1: !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id." : null,
     2: problems.find(Boolean) ?? (known.locations.length ? null : "Add a location: every sequence happens somewhere."),
-    3: !location ? "Pick where it happens." : !shot.action.trim() ? "Say what happens in it." : null,
+    3: !place ? "Pick where it happens." : !shot.action.trim() ? "Say what happens in it." : null,
   };
   const at = steps.findIndex((x) => x.i === step);
   const last = at === steps.length - 1;
   const go = (d: number) => setStep(steps[Math.max(0, Math.min(steps.length - 1, at + d))].i);
+
+  /** the shot with only the cast that still exists (one renamed after it was
+   * picked would otherwise break the script) */
+  const current = (sh: Shot): Shot => {
+    const keep = (k: string, ids: string[]) => listOf(sh.keys[k]).filter((x) => ids.includes(x)).join(", ");
+    return { ...sh, keys: { ...sh.keys, who: keep("who", known.characters.map((c) => c.id)),
+      with: keep("with", known.things.map((c) => c.id)) } };
+  };
 
   async function create() {
     if (!tpl || !full) return;
@@ -134,7 +142,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
         parent, name: name.trim(), title: epTitle.trim() || null,
         show: showName || null,
         series: serialize(full, tpl.series ?? "\n"),
-        script: firstScript(name.trim(), epTitle.trim() || (isNewSeries ? title.trim() : ""), "sq01", location, shot),
+        script: firstScript(name.trim(), epTitle.trim() || (isNewSeries ? title.trim() : ""), "sq01", place, current(shot)),
       });
       host().toast(res.check.ok ? "success" : "warn", `Made ${res.episode.name}`,
         res.check.ok ? `${res.ep}\nNext: the pictures (Refs tab), then Build.` : res.check.errors[0]?.message ?? "");
@@ -277,7 +285,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
           <>
             <div className="h3-small h3-muted">The episode's first shot, to start from; the shot form adds the rest.</div>
             <Row label="Where" help="The first sequence's location: every shot in it happens here.">
-              <PlacePick ep={picEp} value={location} places={placeList} empty="pick a location…" onChange={setLocation} />
+              <PlacePick ep={picEp} value={place} places={placeList} empty="pick a location…" onChange={setLocation} />
             </Row>
             <Row label="Who's in it" help="The characters on screen, in order.">
               <Chips ep={picEp} value={listOf(shot.keys.who)} options={castList} onChange={(v) => setKey("who", v.join(", "))}
