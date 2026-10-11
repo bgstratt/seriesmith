@@ -154,6 +154,46 @@ class RestartTest(EpisodeCase):
         self.assertNotEqual(take.sidecar["comfy_prompt_id"], q["prompt_id"])
         self.assertIn("(found again)", jobs["jobs"][0]["title"])
 
+    def test_renders_still_waiting_are_queued_again_with_their_numbers(self):
+        """Three shots on your own ComfyUI (one at a time): the first is at the
+        backend when the server stops, the other two still wait in seriesmith's
+        queue. After the restart the first is collected, the two are asked for
+        again, and nothing is left failed."""
+        from fakes import saver_outputs
+        first = Holding("local", "local")
+        shots = ["sh010", "sh020", "sh030"]
+
+        async def start(client, app):
+            r = await client.post("/seriesmith/render", json={
+                "ep": self.ep, "pass": "proxy", "shots": shots, "backend": "local"})
+            queued = (await r.json())["queued"]
+            for _ in range(500):
+                t = T.get_take(self.ep, "proxy", "sh010", queued[0]["take"])
+                if t.sidecar.get("backend_job"):
+                    break
+                await asyncio.sleep(0.02)
+            return queued, t.sidecar["backend_job"]
+        queued, run_id = self.serve(first, start)
+        self.assertEqual(len(queued), 3)
+        self.assertEqual(len(first.submitted), 1)        # the others never left the queue
+
+        again = FakeBackend("local", "local", outputs=saver_outputs)
+        again.attached[run_id] = first.submitted[0]
+
+        async def after(client, app):
+            for _ in range(1000):
+                takes = {s: T.list_takes(self.ep, "proxy", s) for s in shots}
+                if all(ts and all(t.status == "ok" for t in ts) for ts in takes.values()):
+                    break
+                await asyncio.sleep(0.02)
+            return takes
+        takes = self.serve(again, after)
+        for q in queued:
+            got = takes[q["shot"]]
+            self.assertEqual([(t.take, t.status) for t in got], [(q["take"], "ok")], q["shot"])
+        self.assertEqual(again.attaches, [(run_id, None)])
+        self.assertEqual(len(again.submitted), 2)        # sh020, sh030: asked for again
+
     def test_a_render_that_never_reached_its_backend_is_failed_saying_how_to_queue_it(self):
         take = T.reserve_take(self.ep, "proxy", "sh010", {"status": "queued"})
         T.update_sidecar(take.paths.sidecar, backend="local", queue="seriesmith",

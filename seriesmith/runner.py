@@ -15,10 +15,23 @@ from __future__ import annotations
 
 import copy
 
+import json
+import os
+import threading
+
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
 from seriesmith.queue import Queue
+
+# The API request being handled on this thread ({"path", "body"}; views.py
+# sets it): each job it queues keeps it, so a job still waiting in the queue
+# when the server stops can be asked for again (requeue_plan).
+ASKED = threading.local()
+
+
+def asked() -> dict | None:
+    return getattr(ASKED, "req", None)
 
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
@@ -176,7 +189,7 @@ class Runner:
                     on_cancel=cancelled, retry=again, after=after, limit=LIMITS["render"],
                     record=take.paths.sidecar,
                     resume={"kind": "render", "ep": ep, "pass": job.pass_, "shot": job.id,
-                            "take": take.take})
+                            "take": take.take, "asked": asked()})
         T.update_sidecar(take.paths.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         take.sidecar = T.read_sidecar(take.paths.sidecar)
@@ -224,7 +237,7 @@ class Runner:
         title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"
         res = {"kind": "ref", "ep": ep, "ref": job.ref.id, "view": job.view, "take": take.take,
                "want": want, "savers": savers, "hosted": hosted, "is_audio": job.is_audio,
-               "model": call[0] if hosted else None}
+               "model": call[0] if hosted else None, "asked": asked()}
 
         def work(qjob: QJob, report) -> str:
             def progress(p):
@@ -329,7 +342,7 @@ class Runner:
                     record=fin.sidecar,
                     resume={"kind": fin.kind, "ep": ep, "pass": take.pass_, "shot": take.shot,
                             "take": take.take, "sidecar": fin.sidecar, "out_mp4": fin.out_mp4,
-                            "last": fin.last, "latent": fin.latent})
+                            "last": fin.last, "latent": fin.latent, "asked": asked()})
         T.update_sidecar(fin.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         self.queue.submit(qjob)
@@ -393,7 +406,7 @@ class Runner:
                     work=work, info={"ep": ep, "ref": ref.id, "tour": n, "backend": backend.name},
                     on_cancel=cancelled, limit=LIMITS["tour"],
                     record=TR._tour_file(ref, n, ".json"),
-                    resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n})
+                    resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n, "asked": asked()})
         side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue="seriesmith")
         TR.save_side(ref, side)
         self.queue.submit(qjob)
@@ -401,14 +414,17 @@ class Runner:
 
     # -- a run found again: after a restart (recover.py), or by a retry ------
 
-    def reattach(self, job_id: str, entry: dict) -> str | None:
+    def reattach(self, job_id: str, entry: dict, requeue: list | None = None) -> str | None:
         """A journal `entry` (queue.write_journal) of a job this server had
         when it stopped. Its record still `queued` under that job: when the
         job had reached its backend (the record's `backend_job`), the run is
         found again and followed and collected on a new queue job (its id
-        returned); when it hadn't, nothing was spent on it, and the record is
-        failed, saying how to queue it again. Anything else (the record is
-        done, or another job owns it now) is left alone: None."""
+        returned). When it hadn't, nothing was spent on it: given `requeue`
+        (a list) and the request that queued it, its record is cleared (it
+        never ran) and the entry added to `requeue`, to be asked for again
+        (requeue_plan); otherwise the record is failed, saying how to queue it
+        again. Anything else (the record is done, or another job owns it now)
+        is left alone: None."""
         path, res = entry.get("record"), entry.get("resume") or {}
         rec = T.read_json(path) if path else None
         if not isinstance(rec, dict) or rec.get("status") != "queued" \
@@ -416,6 +432,10 @@ class Runner:
             return None
         backend = self.backends.get(rec.get("backend") or "")
         run_id = rec.get("backend_job")
+        if not run_id and requeue is not None and res.get("asked") and res.get("kind") in AGAIN:
+            clear_unrun(path, res["kind"])
+            requeue.append(entry)
+            return None
         if not run_id or backend is None or not res.get("kind"):
             why = ("the server stopped before it reached its backend, so nothing was spent: "
                    + AGAIN.get(res.get("kind") or entry.get("kind"), "queue it again"))
@@ -524,6 +544,62 @@ class Runner:
         self._emit("seriesmith.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
                                    "status": t.status, "thumb": E.rel(ep, t.paths.thumb)})
         self._emit("seriesmith.episode", {"ep": ep})
+
+
+def clear_unrun(path: str, kind: str) -> None:
+    """A record that never ran (it was still waiting in the queue), and what
+    was reserved with it, removed: a take's record, frozen shotlist and staged
+    inputs (renders/<shot>/<stem>.*, <stem>_*), a ref take's the same in its
+    folder, an upscale's or post's record, a tour's record. Asked for again,
+    it gets its number back."""
+    folder, name = os.path.split(path)
+    if kind in ("upscale", "post", "tour"):
+        stems = [name]
+    else:
+        stem = name[:-len(".json")] if name.endswith(".json") else name
+        stems = [stem + ".", stem + "_"]
+    for f in os.listdir(folder) if os.path.isdir(folder) else []:
+        if any(f == s or (s.endswith((".", "_")) and f.startswith(s)) for s in stems):
+            full = os.path.join(folder, f)
+            try:
+                if os.path.isfile(full):
+                    os.remove(full)
+            except OSError:
+                pass
+
+
+def requeue_plan(entries: list[dict]) -> list[dict]:
+    """The requests to ask again for jobs that were waiting when the server
+    stopped: each queuing request once, in the order its jobs were queued,
+    narrowed to what was still waiting (renders: those shots; ref pictures:
+    as many as were waiting of that ref view; upscales and posts: those
+    takes; tours: that many). Master and Generate missing plan only what
+    isn't done or queued, so they are asked again as they were.
+    [{"path", "body"}]."""
+    groups: dict[str, dict] = {}
+    for e in sorted(entries, key=lambda e: e.get("created") or 0):
+        res = e.get("resume") or {}
+        a = res.get("asked") or {}
+        if not a.get("path") or not isinstance(a.get("body"), dict):
+            continue
+        key = a["path"] + "\n" + json.dumps(a["body"], sort_keys=True, default=str)
+        g = groups.setdefault(key, {"path": a["path"], "body": dict(a["body"]), "items": []})
+        g["items"].append(res)
+    out = []
+    for g in groups.values():
+        path, body, items = g["path"], g["body"], g["items"]
+        if path.endswith("/render"):
+            shots = list(dict.fromkeys(r["shot"] for r in items))
+            body["shots"] = shots
+        elif path.endswith("/refs/generate"):
+            body["count"] = len(items)
+        elif path.endswith(("/upscale", "/post")):
+            body["shots"] = None
+            body["takes"] = [{"shot": r["shot"], "take": r["take"]} for r in items]
+        elif path.endswith("/refs/tour"):
+            body["count"] = len(items)
+        out.append({"path": path, "body": body})
+    return out
 
 
 # how a job the server lost before it ran is queued again, by kind

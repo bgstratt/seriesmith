@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import os
 import sys
 
@@ -47,7 +48,10 @@ class Events:
         if self.loop is None:
             return
         msg = json.dumps({"type": event, "data": data}, ensure_ascii=False)
-        self.loop.call_soon_threadsafe(lambda: asyncio.ensure_future(self._send(msg)))
+        try:
+            self.loop.call_soon_threadsafe(lambda: asyncio.ensure_future(self._send(msg)))
+        except RuntimeError:                              # the server is stopping: nobody to tell
+            pass
 
     async def _send(self, msg: str) -> None:
         for ws in list(self.sockets):
@@ -86,23 +90,42 @@ async def comfy_relay(app: web.Application) -> None:
         wait = min(wait * 2, 30.0)
 
 
-def recover(runner) -> list[str]:
+def recover(runner, ask=None) -> list[str]:
     """The jobs this server had when it last stopped (the queue's journal):
     each one that had reached its backend is found again and collected
-    (Runner.reattach); one that hadn't is failed, saying how to queue it
-    again. Then the journal is the live queue again. Returns what was done."""
-    out = []
+    (Runner.reattach); one still waiting in the queue had cost nothing, so
+    its record is cleared and the request that queued it is asked again
+    (runner.requeue_plan), through `ask(path, body)`, on a thread of its own
+    and in the order they were queued (without `ask` it is failed, saying how
+    to queue it again). Then the journal is the live queue again. Returns
+    what was done."""
+    from seriesmith.runner import requeue_plan
+    out, waiting = [], []
     for job_id, entry in runner.queue.read_journal().items():
         if not isinstance(entry, dict):
             continue
         try:
-            new = runner.reattach(job_id, entry)
+            new = runner.reattach(job_id, entry, waiting if ask else None)
         except Exception as e:                               # noqa: BLE001  one bad entry
             out.append(f"{entry.get('title')}: couldn't pick it up again ({e})")
             continue
         if new:
             out.append(f"{entry.get('title')}: picked up again (its run is followed again)")
     runner.queue.write_journal()
+    plan = requeue_plan(waiting)
+    if plan:
+        out.append(f"{len(waiting)} job(s) that hadn't started: queued again "
+                   f"({len(plan)} request(s))")
+
+        def again():
+            for r in plan:
+                try:
+                    status, data = ask(r["path"], r["body"])
+                    if status >= 400:
+                        log.warning("seriesmith: queuing %s again: %s", r["path"], data)
+                except Exception:                            # noqa: BLE001  log, go on
+                    log.exception("seriesmith: queuing %s again failed", r["path"])
+        threading.Thread(target=again, daemon=True, name="seriesmith-requeue").start()
     return out
 
 
@@ -124,12 +147,23 @@ def make_app(roots: list[str] | None = None, settings=None,
     queue.paid_limit = settings.paid_limit
     backends = backends if backends is not None else available(settings)
     runner = Runner(queue, backends, events.emit)
-    recovered = recover(runner)
-    for line in recovered:
-        log.info("seriesmith: %s", line)
 
     def make_context():
         return A.Context(user_dir, settings.comfyui_url, events.emit, env=env, runner=runner)
+
+    def ask(path: str, body: dict):
+        """A queuing request asked again (after a restart), as the page would,
+        the request kept with its jobs as views.py does."""
+        from seriesmith.runner import ASKED
+        fn = next(f for m, p, f, _t in A.ROUTES if m == "POST" and p == path)
+        ASKED.req = {"path": path, "body": body}
+        try:
+            return fn(make_context(), body)
+        finally:
+            ASKED.req = None
+
+    for line in recover(runner, ask):
+        log.info("seriesmith: %s", line)
 
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False

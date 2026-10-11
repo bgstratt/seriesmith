@@ -548,8 +548,9 @@ where things are. What it would lose to a restart, it doesn't:
   settings file). When `seriesmith serve` starts again, a job that had reached its backend
   is found again by its run's id and collected as if nothing happened ("(found again)" in
   Jobs): on your ComfyUI through comfy-api-proxy, on Comfy Cloud, a deployment or Router.
-  A job that was still waiting had cost nothing and is marked failed, saying which button
-  queues it again (**Render missing**, **Generate missing**, **Master**).
+  A job still waiting in seriesmith's queue (your ComfyUI takes one at a time, so after a
+  big **Render missing** most are) had cost nothing: it is queued again by itself, in the
+  order it was queued, keeping its take number, and nothing is left failed.
 - **A dropped connection.** A run's backend out of reach (the network, the proxy
   restarting, a 5xx) is asked again for up to 15 minutes before the run is given up on;
   the job itself goes on where it runs.

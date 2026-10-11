@@ -98,8 +98,20 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
             arg = dict(request.query)
         ctx = make_context()
         loop = asyncio.get_running_loop()
+        # a request that queues work is kept with its jobs (runner.ASKED), so
+        # one still waiting when the server stops can be asked for again
+        req = ({"path": request.path[4:] if request.path.startswith("/api/") else request.path,
+                "body": arg} if takes == "body" and request.method == "POST" else None)
+
+        def call(ctx, arg):
+            from seriesmith.runner import ASKED
+            ASKED.req = req
+            try:
+                return fn(ctx, arg)
+            finally:
+                ASKED.req = None
         try:
-            status, data = await loop.run_in_executor(None, fn, ctx, arg)
+            status, data = await loop.run_in_executor(None, call, ctx, arg)
         except Exception as e:                            # handler() already catches; belt
             log.exception("seriesmith: %s failed", request.path)
             return _json(500, {"error": f"{e.__class__.__name__}: {e}"})
