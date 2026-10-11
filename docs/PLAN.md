@@ -392,20 +392,30 @@ the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
 
 ## Step 12 — simple mode
 
-For trying ideas and making one-off clips without setting up a series: make a
-character or a place, write a shot the way you'd prompt a video service, queue
-takes. No series config or script to see or keep in shape.
+A **Simple / Advanced** toggle on the editor, not a separate app: the same
+projects, queue and takes underneath, with most of the settings out of sight.
+The aim is a very easy way to queue clips: one video or image clip, a
+multi-shot clip, or a series with episodes.
 
-- [ ] A sketch to settle with the user first. The idea: a scratch project
-      (one folder, made on first use) that is an ordinary series config and
-      script underneath, written by the forms, so everything else (refs,
-      renders, takes, upscale, the queue) works unchanged; a page with three
-      things on it: the cast (a picture you have, or name + description to
-      generate one), a shot box (who, where, what happens, what's said,
-      length; Queue N takes), and the takes as they come in. Any shot or
-      character can later go into a real series. Open: whether it's its own
-      page or a mode of the editor; whether shots there have an order at all
-      (a list of clips, not a cut); which model it uses by default.
+- [ ] The toggle (remembered): Simple hides the render settings (steps,
+      LoRAs, model files, seeds, profiles, policies, keyframe methods,
+      continuity, finishing recipes, the text windows) and keeps choosing the
+      model, writing the prompt, the cast, and queueing.
+- [ ] What you're making: a **standalone clip** (one shot, video or image), a
+      **multi-shot clip** (a few shots in order, played and exported as one),
+      or a **series / episode** (the wizard). The first two are a scratch
+      project made on first use: an ordinary series config and script
+      underneath, written by the forms, so refs, renders, takes, upscales and
+      the queue work unchanged, and any of it can later go into a series.
+- [ ] Models: H3 for video and Krea 2 for pictures by default, with the full
+      list to pick from (LTX-2, Wan, Z-Image Turbo, FLUX and the rest, local
+      or hosted), each with a plain one-line note on what it's good at.
+- [ ] Adding a character, a location / background or a prop simplified: a
+      name and a picture you have, or a name and a description to generate
+      one; nothing else asked.
+- [ ] A shot is a prompt box (what happens, what's said) with who and where
+      picked by picture, a length, and Queue N takes; the takes come in beside
+      it.
 
 ## Later
 
