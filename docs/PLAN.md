@@ -159,7 +159,16 @@ against seriesmith's through the proxy, same seed:
   queues it. (So an untouched LTX-2 shot re-renders with the same picture but
   not the same sound.)
 - Wan VACE: identical pictures, and byte-identical composed reference sheets.
-- ltx2_ingredients wasn't tried: its checkpoint isn't installed here.
+- LTX ingredients (2026-10-11, once its LTX-2.3 checkpoint was installed):
+  sh010, identical pictures and identical sound, and byte-identical composed
+  reference sheets (the same sha1).
+- Comparing it found the CLI's `seriesmith render` skipping continuity: the
+  editor's render ran refs.refresh_continuity first, the CLI didn't, so a
+  `continuous: latent` shot with nothing to continue was rendered as a fresh
+  one. It runs it now, as h3pipe's h3render does (render.continuity_before_render).
+  Both had let a shot wait on a take to come from a shot held in the same
+  run (sh180 behind sh170, which had nothing to continue): seriesmith holds it
+  too now, saying why (refs.hold_behind_held); h3pipe still doesn't.
 
 Moved:
 - **Continuity** (`first: continuity`, `continuous: latent`) waits for the

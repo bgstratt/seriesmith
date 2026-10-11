@@ -119,6 +119,37 @@ def as_json(value):
     return json.loads(json.dumps(value, default=lambda f: {"File": f.path}))
 
 
+def continuity_before_render(root: str, pass_: str, only, dry_run: bool = False):
+    """Each `first: continuity` / `continuous: latent` shot of the render made to
+    start from the take the cut uses now (refs.refresh_continuity, as the
+    editor's render does: a missing or stale keyframe is cut again), said on
+    the console. Returns (the shots to render: `only` less any with nothing to
+    start from, None for all; the shots whose first frame is cut again as
+    their render starts, for RenderRequest.continuity)."""
+    from seriesmith import refs as R
+    try:
+        s = R.load_series(root)
+    except Exception:                                     # noqa: BLE001  no series config
+        return only, {}
+    res = R.refresh_continuity(s, pass_, sorted(only) if only else None, dry_run=dry_run)
+    for c in res["cut"]:
+        print(f"  {'would cut' if dry_run else 'cut'} {c['shot']}'s first frame from {c['from']} "
+              f"({c['why']})")
+    for w in res["wait"]:
+        what = (f"{w['after']} t{w['take']:02d}, still rendering" if w.get("take")
+                else f"{w['after']}'s new take in this run")
+        if w.get("chain"):
+            print(f"  .. {w['shot']}: continues {what} (its latent, else its last frames)")
+        else:
+            print(f"  .. {w['shot']}: its first frame is cut from {what} when its render starts")
+    for e in res["errors"]:
+        print(f"  !! {e['shot']}: {e['error']}")
+    held = {e["shot"] for e in res["errors"]}
+    if held:
+        only = {x for x in (only if only is not None else J.script_order(root)) if x not in held}
+    return only, res["live"]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap, args = parse_args(argv)
     pass_ = "proxy" if args.proxy else "final"
@@ -170,8 +201,15 @@ def main(argv: list[str] | None = None) -> int:
     where: dict[int, str] = {}                    # id(job) -> backend name
     total_frames = 0
     for root in roots:
+        # continuity first, as the editor's render does: a shot with nothing
+        # to start from isn't planned (it would render without its first frame)
+        only_r, live = continuity_before_render(root, pass_, only, args.dry_run or args.list)
+        template.continuity = live or None
+        if only_r is not None and not only_r:
+            print(f"\n  {os.path.basename(root)}  ·  nothing to render")
+            continue
         try:
-            jobs = J.plan_episode(root, pass_, default=template, only=only)
+            jobs = J.plan_episode(root, pass_, default=template, only=only_r)
         except FileNotFoundError as e:
             print(f"  ! {e}")
             continue

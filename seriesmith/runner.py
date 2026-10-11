@@ -119,7 +119,9 @@ class Runner:
 
         def stage(report) -> None:
             from seriesmith import refs as R
-            if continuity is not None:
+            # a `continuous: latent` shot holds the take itself (below): no
+            # first frame is cut for it
+            if continuity is not None and not chained:
                 rel = os.path.relpath(take.paths.sidecar, ep)
                 res = R.continuity_at_start(ep, job.id, job.pass_, rel)
                 if res.get("note"):
