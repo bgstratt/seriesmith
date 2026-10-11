@@ -471,6 +471,16 @@ installed; any edit model works this way. Uploaded videos (not takes) are
 still to come. Checked live (the lane paused): the new character written,
 the frame in as t01, the cut-out queued and the views' step waiting.
 
+Run live on the local GPU (Second Light, 2026-10-11): a place from a frame on
+FLUX.2 Klein edit took the girl out of the pond cleanly; a character's cut-out
+on Klein left a ghost of the scene behind her and kept the frame's crop, while
+Qwen-Image-Edit Rapid with a firm background instruction gave the whole figure
+on clean grey, and its side, back and face views drawn from that matched it.
+So a character's cut-out (and its views) default to Qwen Rapid when it's
+installed. Tours: "walks along the dock" barely moved; "pushes in with large
+amplitude" went the dock's length into the meadow: the presets now use H3's
+camera words, and the box says which words it follows.
+
 ## Later
 
 - Publishing: the ComfyUI Manager listing for the node pack and the ComfyUI
