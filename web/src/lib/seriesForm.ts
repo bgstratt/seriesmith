@@ -431,7 +431,7 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
     case "location": return [
       { path: ["description"], label: "Description", kind: "long",
         placeholder: "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",
-        help: "One angle of one place, with its light: time of day, direction, and the things the light comes from (the pendant lamp, the TV's glow). The plate is drawn from it, as a still: say what the camera sees from where it stands, not a move. A walk or a turn through the place is a Tour (under its pictures, once it has one); the place seen from another side is another location, an angle of this one." },
+        help: "One angle of one place, with its light: time of day, direction, and the things the light comes from (the pendant lamp, the TV's glow). The plate is drawn from it, as a still: say what the camera sees from where it stands, not a move. A walk or a turn through the place is a Tour (chosen under Then when you add it, or under its pictures); the place seen from another side is another location, an angle of this one." },
       { path: ["of"], label: "Angle of", kind: "select",
         choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
         help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },

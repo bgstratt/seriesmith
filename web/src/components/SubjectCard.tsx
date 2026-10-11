@@ -2,7 +2,8 @@
 // series config as a form (lib/seriesForm.ts cardFields), with its picture's
 // takes beneath it — the Refs tab's own detail (generate, import, pick) — so
 // you write the design and make the picture in one place. A new one is added
-// to series.json on Save; an existing one changes only its own entry.
+// to series.json on Save, its first picture queued with it (FirstStep: Add and
+// generate, Add and tour…); an existing one changes only its own entry.
 
 import { useEffect, useMemo, useState } from "react";
 import { loadRefs, openSubjectCard } from "../actions";
@@ -13,6 +14,7 @@ import {
 } from "../lib/seriesForm";
 import { useApp } from "../store";
 import { MoreToggle } from "./Fields";
+import { useFirstStep } from "./FirstStep";
 import { usePictureBrowse } from "./Picture";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { RefDetail } from "./RefsTab";
@@ -50,6 +52,11 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   const simple = useApp((s) => s.simple);
   const [ownPic, setOwnPic] = useState("");
   const browsePic = usePictureBrowse(`card:${asked}:${id0 ?? "new"}`, `${asked} picture`, (p) => setOwnPic(p), true);
+  // a new card's first picture, queued with Add (not simple mode: its picture
+  // is the one you have, or made from the words when it's used)
+  const first = useFirstStep({ ep, kind, of: form.of == null ? "" : String(form.of), pic: ownPic, browse: browsePic,
+                               clearPic: () => setOwnPic("") });
+  const firstStep = isNew && !simple;
   const block = blockOf(kind);
   const label = CARD_KINDS.find((c) => c.kind === kind)!.label;
   const before = sc.base && !isNew ? (getPath(sc.base, [block, id]) as Raw | undefined) : undefined;
@@ -77,7 +84,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   };
 
   async function save() {
-    if (!sc.base || problem || missing) return;
+    if (!sc.base || problem || missing || (firstStep && first.missing)) return;
     // a character's own picture is one whole picture, not a four-panel sheet
     const f = ownPic && kind === "character" ? { ...form, sheet_panels: "1" } : form;
     const entry = entryFor(kind, before, f, id, prefix);
@@ -93,6 +100,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
           host().toast("error", `${id}: the picture wasn't taken`, (e as Error).message);
         }
       }
+      if (firstStep) await first.run(ep, id);
       void loadRefs(ep);
       if (isNew) openSubjectCard({ kind, id });
     }
@@ -176,21 +184,18 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
             {missing && <span className="h3-small h3-warn">{missing}</span>}
             <CheckMessages sc={sc} />
             {!isNew && <Pictures ep={ep} kind={kind} id={id} changed={changed} />}
-            {isNew && (
-              <div className="h3-small h3-muted">
-                Save it, and its picture can be generated, imported or picked here.
-              </div>
-            )}
+            {firstStep && first.ui}
+            {firstStep && first.missing && <span className="h3-small h3-warn">{first.missing}</span>}
           </>
         )}
       </div>
-      <SaveBar dirty={changed && !problem && !missing} saving={sc.saving}
-        status={isNew && !changed ? "Not added yet" : changed && (problem || missing) ? "Not saved: fill in what's missing above" : undefined}
+      <SaveBar dirty={changed && !problem && !missing && !(firstStep && first.missing)} saving={sc.saving}
+        status={isNew && !changed ? "Not added yet" : changed && (problem || missing || (firstStep && first.missing)) ? "Not saved: fill in what's missing above" : undefined}
         onRevert={() => {
           const e = isNew ? {} : ((getPath(sc.base ?? {}, [block, id]) ?? {}) as Raw);
           setForm(Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v !== "object")));
         }}
-        onSave={() => void save()} saveLabel={isNew ? "Add" : "Save"}
+        onSave={() => void save()} saveLabel={isNew ? (firstStep ? first.verb : "Add") : "Save"}
         extra={!isNew ? <button className="h3-btn" title={`Remove ${id} from series.json`} onClick={() => void remove()}><i className="pi pi-trash" /></button> : undefined} />
     </FloatingWindow>
   );

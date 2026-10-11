@@ -473,7 +473,7 @@ function Selection({ r }: { r: Ref }) {
 }
 
 /** Sizes a picture can be generated at (the model snaps them to its grid). */
-const PICTURE_SIZES = ["1344x768", "1536x864", "1920x1088", "2048x1152", "1024x1024", "768x1344"];
+export const PICTURE_SIZES = ["1344x768", "1536x864", "1920x1088", "2048x1152", "1024x1024", "768x1344"];
 
 function GenerateBar({ r }: { r: Ref }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`] || !!s.busy[`refimport|${r.id}`]);

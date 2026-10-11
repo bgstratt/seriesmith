@@ -88,7 +88,7 @@
 .h3-seg.h3-seg-act button {
   color: var(--h3-fg); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
 }
-.h3-seg button.h3-on { background: var(--h3-accent); color: var(--h3-accent-fg); }
+.h3-seg button.h3-on, .h3-seg button.h3-on:hover { background: var(--h3-accent); color: var(--h3-accent-fg); }
 
 .h3-root input.h3-in, .h3-root select.h3-in, .h3-root textarea.h3-in {
   font: inherit; color: var(--h3-fg); background: var(--h3-bg2);

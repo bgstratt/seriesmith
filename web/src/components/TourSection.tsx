@@ -35,6 +35,37 @@ const MOVES: { label: string; text: string; seconds: number }[] = [
 ];
 const SHARPEN_TARGET = "qwen_rapid_aio";
 
+/** The camera move of a tour: the presets, what you write, and how long. */
+export function TourMoveFields({ move, setMove, seconds, setSeconds }: {
+  move: string; setMove: (v: string) => void; seconds: number; setSeconds: (n: number) => void;
+}) {
+  return (
+    <>
+      <div className="h3-row h3-wrap" style={{ gap: 3 }}>
+        {MOVES.map((m) => (
+          <button key={m.label} className={`h3-btn h3-small${move === m.text ? " h3-on" : ""}`} title={m.text} onClick={() => { setMove(m.text); setSeconds(m.seconds); }}>{m.label}</button>
+        ))}
+      </div>
+      <textarea
+        className="h3-in"
+        rows={2}
+        value={move}
+        placeholder="Where the camera goes and where it holds, e.g. “The camera pushes in with large amplitude along the dock toward the trees, then stops completely and stays still for two seconds”"
+        onChange={(e) => setMove(e.target.value)}
+      />
+      <span className="h3-small h3-muted">
+        H3 follows camera words: <i>pushes in</i>, <i>pulls out</i>, <i>pans</i>, <i>trucks left / right</i>, <i>arcs around</i>,
+        <i> tilts up</i>; with <i>small / large amplitude</i>, <i>at slow / fast speed</i>. Plain verbs (“walks”) barely move it.
+        Say where it stops, and that it stays still there: each stop becomes a hold.
+      </span>
+      <label className="h3-small h3-row" style={{ gap: 3 }} title="How long the video runs: keep the move early and short (frames soften as a clip runs)">
+        seconds
+        <input className="h3-in h3-mono" style={{ width: 52 }} type="number" min={2} max={10} value={seconds} onChange={(e) => setSeconds(Number(e.target.value) || 6)} />
+      </label>
+    </>
+  );
+}
+
 export function TourSection({ ep, r }: { ep: string; r: Ref }) {
   const [move, setMove] = useState("");
   const [seconds, setSeconds] = useState(6);
@@ -62,29 +93,9 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
 
   return (
     <div className="h3-col" style={{ gap: 4 }}>
-      <div className="h3-row h3-wrap" style={{ gap: 3 }}>
-        <span className="h3-h h3-small" title="A camera move through this place on H3, from its live plate: every place the camera holds becomes a hold, a full-size new angle of the same place">Tour</span>
-        {MOVES.map((m) => (
-          <button key={m.label} className={`h3-btn h3-small${move === m.text ? " h3-on" : ""}`} title={m.text} onClick={() => { setMove(m.text); setSeconds(m.seconds); }}>{m.label}</button>
-        ))}
-      </div>
-      <textarea
-        className="h3-in"
-        rows={2}
-        value={move}
-        placeholder="Where the camera goes and where it holds, e.g. “The camera pushes in with large amplitude along the dock toward the trees, then stops completely and stays still for two seconds”"
-        onChange={(e) => setMove(e.target.value)}
-      />
-      <span className="h3-small h3-muted">
-        H3 follows camera words: <i>pushes in</i>, <i>pulls out</i>, <i>pans</i>, <i>trucks left / right</i>, <i>arcs around</i>,
-        <i> tilts up</i>; with <i>small / large amplitude</i>, <i>at slow / fast speed</i>. Plain verbs (“walks”) barely move it.
-        Say where it stops, and that it stays still there: each stop becomes a hold.
-      </span>
+      <span className="h3-h h3-small" title="A camera move through this place on H3, from its live plate: every place the camera holds becomes a hold, a full-size new angle of the same place">Tour</span>
+      <TourMoveFields move={move} setMove={setMove} seconds={seconds} setSeconds={setSeconds} />
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-        <label className="h3-small h3-row" style={{ gap: 3 }} title="How long the video runs: keep the move early and short (frames soften as a clip runs)">
-          seconds
-          <input className="h3-in h3-mono" style={{ width: 52 }} type="number" min={2} max={10} value={seconds} onChange={(e) => setSeconds(Number(e.target.value) || 6)} />
-        </label>
         <button className="h3-btn" disabled={busy || !move.trim() || !from}
           title={!from ? (r.of ? `Neither ${r.id.split(":")[1]} nor ${r.of} has a plate yet: pick or import one first` : "Pick or import a plate first")
             : !move.trim() ? "Say (or pick) the camera move first"

@@ -207,6 +207,13 @@ class AngleTourTest(Base):
             TOUR.plan_tours(s3, R.find_ref(s3, "location:kitchen_on_sink"), "pushes in", None)
         self.assertIn("nor has kitchen", str(cm.exception))
 
+    def test_an_angle_with_no_plate_makes_its_360_from_its_place(self):
+        kitchen = R.find_ref(self.s, "location:kitchen")
+        req = R.GenRequest("location:kitchen_on_sink", None, pano={"engine": "qwen"})
+        jobs = R.plan_generate(self.s, req)
+        self.assertEqual(jobs[0].references[0]["path"], kitchen.file)
+        self.assertEqual(jobs[0].ref.id, "location:kitchen_on_sink")   # it lands on the angle
+
 
 class LostTourTest(Base):
     def test_a_tour_the_server_lost_in_a_restart_is_failed(self):

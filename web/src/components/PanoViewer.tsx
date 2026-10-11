@@ -30,21 +30,26 @@ function defaultRect(): Rect {
 }
 
 /** The 360 row of a location: Make 360, and its panoramas to open. */
-const PANO_SIZES = ["2048x1024", "1536x768"];
+export const PANO_SIZES = ["2048x1024", "1536x768"];
+export const PANO_ENGINE_TITLE = "Klein: the plate stays where it is and the 360 is painted round it (base Klein 9B + the ERP outpaint LoRA, about a minute). Qwen: the pano360 edit LoRA redraws the place as a 360 from the plate (faster; it tends to pull the camera back).";
 
 export function PanoSection({ ep, r }: { ep: string; r: Ref }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const [psize, setPsize] = useState(PANO_SIZES[0]);
   const [engine, setEngine] = useState<"klein" | "qwen">("klein");
   const panos = r.panos ?? [];
+  // an angle with no plate yet makes its 360 from its place's
+  const from = r.tour_from ?? (r.exists ? r.path : null);
   return (
     <div className="h3-col" style={{ gap: 3 }}>
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
         <span className="h3-h h3-small" title="A 360 of this place, to aim a camera into and save new angles from">360</span>
         <button
           className="h3-btn"
-          disabled={busy || !r.exists}
-          title={r.exists ? "Turn the live plate into a 360 panorama (Qwen 2.1 + the pano360 LoRA). Open it to aim a camera and save a view as a new angle." : "Pick or import a plate first"}
+          disabled={busy || !from}
+          title={!from ? "Pick or import a plate first"
+            : r.exists ? "Turn the live plate into a 360 panorama. Open it to aim a camera and save a view as a new angle."
+            : `Starts from ${r.of}'s plate (this angle has none yet). Open it to aim a camera and save a view as this angle.`}
           onClick={() => void generateRef({
             ref: r.id, view: null, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
             loras: null, steps: null, note: "360", pano: { engine }, size: psize,
@@ -52,7 +57,7 @@ export function PanoSection({ ep, r }: { ep: string; r: Ref }) {
         >
           <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-globe"} /> Make 360
         </button>
-        <select className="h3-in" value={engine} onChange={(e) => setEngine(e.target.value as "klein" | "qwen")} title="Klein: the plate stays where it is and the 360 is painted round it (base Klein 9B + the ERP outpaint LoRA, about a minute). Qwen: the pano360 edit LoRA redraws the place as a 360 from the plate (faster; it tends to pull the camera back).">
+        <select className="h3-in" value={engine} onChange={(e) => setEngine(e.target.value as "klein" | "qwen")} title={PANO_ENGINE_TITLE}>
           <option value="klein">Klein (outpaint)</option>
           <option value="qwen">Qwen (pano360)</option>
         </select>

@@ -2798,6 +2798,23 @@ def erp_canvas(ref: Ref, plate: str, width: int, fov: float = KLEIN_PANO_FOV) ->
     return out
 
 
+def _start_of(s: Series, ref: Ref) -> Ref:
+    """The location whose live plate a 360 of `ref` starts from: its own, else
+    -- an angle (`of:`) with no plate yet -- the place it's an angle of (as a
+    tour does, tour.tour_source); the 360 still lands on `ref`."""
+    if ref.file and os.path.isfile(ref.file):
+        return ref
+    of = (ref.entry or {}).get("of")
+    if of:
+        try:
+            master = find_ref(s, f"location:{of}")
+        except RefError:
+            return ref
+        if master.file and os.path.isfile(master.file):
+            return master
+    return ref
+
+
 def plan_pano(s: Series, ref: Ref, req: GenRequest,
               rng: random.Random | None = None) -> list[GenJob]:
     """The jobs of a 360 panorama of location `ref`: its live plate, then the
@@ -2822,7 +2839,7 @@ def plan_pano(s: Series, ref: Ref, req: GenRequest,
     if not isinstance(req.count, int) or isinstance(req.count, bool) or not 1 <= req.count <= 16:
         raise RefError("count must be a whole number from 1 to 16")
     target = TG.load_target(req.target or PANO_TARGET, "image")
-    refs = [_picture_of(s, ref, None, None, "the 360's first picture")]
+    refs = [_picture_of(s, _start_of(s, ref), None, None, "the 360's first picture")]
     for lid in withs[:2]:                        # the LoRA reads 1-3 pictures
         other = find_ref(s, lid if lid.startswith("location:") else f"location:{lid}")
         refs.append(_picture_of(s, other, None, None, f"the 360's picture {len(refs) + 1}"))
@@ -2861,7 +2878,7 @@ def _plan_klein_pano(s: Series, ref: Ref, req: GenRequest,
     """plan_pano's Klein way: the live plate on a green canvas (erp_canvas),
     outpainted by the ERP LoRA on the base Klein 9B at PANO_SIZE."""
     target = TG.load_target(req.target or KLEIN_PANO_TARGET, "image")
-    src = _picture_of(s, ref, None, None, "the 360's picture")
+    src = _picture_of(s, _start_of(s, ref), None, None, "the 360's picture")
     w, h = parse_override_size(req.size) if req.size else PANO_SIZE
     if w != 2 * h:
         raise RefError(f"a 360 is 2:1, not {w}x{h}")
