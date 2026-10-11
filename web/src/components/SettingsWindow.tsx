@@ -12,7 +12,7 @@ import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 
 interface SettingsView {
-  settings: { local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>; path: string | null };
+  settings: { local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>; path: string | null; paid_limit?: number | null };
   file: string;
   from_env: Record<string, string>;
 }
@@ -47,6 +47,7 @@ function SettingsBody() {
   const [urls, setUrls] = useState({ comfyui_url: "", local_url: "", cloud_url: "" });
   const [key, setKey] = useState("");
   const [deps, setDeps] = useState<{ target: string; url: string }[]>([]);
+  const [limit, setLimit] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -55,6 +56,7 @@ function SettingsBody() {
     setView(v);
     setUrls({ comfyui_url: v.settings.comfyui_url, local_url: v.settings.local_url, cloud_url: v.settings.cloud_url });
     setDeps(Object.entries(v.settings.deployments).map(([target, url]) => ({ target, url })));
+    setLimit(v.settings.paid_limit == null ? "" : String(v.settings.paid_limit));
     setKey("");
   };
   useEffect(() => {
@@ -71,6 +73,7 @@ function SettingsBody() {
       for (const k of ["comfyui_url", "local_url", "cloud_url"] as const) if (!view?.from_env[k]) body[k] = urls[k];
       body.deployments = Object.fromEntries(deps.filter((d) => d.target && d.url.trim()).map((d) => [d.target, d.url.trim()]));
       if (key.trim() && !view?.from_env.api_key) body.api_key = key.trim();
+      body.paid_limit = limit.trim() === "" ? null : Math.max(0, Math.floor(Number(limit)));
       take(await call("PUT", body));
       await refreshBackends();
       setNote(what);
@@ -133,6 +136,15 @@ function SettingsBody() {
             </span>
           </div>
           {url("cloud_url", "Comfy Cloud address", "Leave it unless Comfy tells you otherwise.")}
+          <div className="h3-col" style={{ gap: 2 }}>
+            <span className="h3-small"><b>Paid runs per session</b></span>
+            <input className="h3-in" type="number" min={0} step={1} style={{ width: 120 }} value={limit}
+              placeholder="no limit" onChange={(e) => setLimit(e.target.value)} />
+            <span className="h3-small h3-muted">
+              The most runs on Comfy Cloud, Router or a deployment the server sends before it stops and asks you to raise
+              this (or reset the count in Jobs). Empty: no limit. A batch of paid renders asks before it goes either way.
+            </span>
+          </div>
         </section>
 
         <section className="h3-col" style={{ gap: 6 }}>

@@ -31,7 +31,7 @@ export interface QJob {
 }
 
 interface Lane { paused: boolean; parallel: number; waiting: string[]; running: string[] }
-interface Snapshot { jobs: QJob[]; lanes: Record<string, Lane> }
+interface Snapshot { jobs: QJob[]; lanes: Record<string, Lane>; paid?: { count: number; limit: number | null } }
 
 // ---- a copy of the server's queue -------------------------------------------
 
@@ -168,9 +168,20 @@ function JobsBody() {
     return () => clearInterval(t);
   }, []);
   const lanes = [...new Set([...Object.keys(q.lanes), ...q.jobs.map((j) => j.lane)])].sort();
+  const paid = q.paid;
   const head = (
     <>
       <b className="h3-grow">Jobs</b>
+      {paid && (paid.count > 0 || paid.limit != null) && (
+        <span className={`h3-small ${paid.limit != null && paid.count >= paid.limit ? "h3-warn" : "h3-muted"}`}
+          title="Runs sent to a paid backend (Comfy Cloud, Router, a deployment) since the server started; the limit is in Settings">
+          paid runs {paid.count}{paid.limit != null ? ` of ${paid.limit}` : ""}
+          {paid.count > 0 && (
+            <button className="h3-link" style={{ marginLeft: 6 }} title="Start the count again"
+              onClick={() => void act("paid-reset", {})}>reset</button>
+          )}
+        </span>
+      )}
       <button className="h3-btn" onClick={() => void refresh()} title="Refresh"><i className="pi pi-refresh" /></button>
       <button className="h3-btn" onClick={() => openJobs(false)} title="Close"><i className="pi pi-times" /></button>
     </>

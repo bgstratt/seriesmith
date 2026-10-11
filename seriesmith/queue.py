@@ -14,10 +14,20 @@ Every change goes out as the event "seriesmith.job" (the job's to_json());
 progress also goes out in ComfyUI's shapes ("progress", "execution_start",
 "execution_success", "execution_error"), with the job's id as the prompt id,
 which is how the editor's thumbnails already follow a render.
+
+Resilience (docs/PLAN.md, step 11):
+- a job with a `limit` (seconds) that runs past it is stopped and failed,
+  saying so (a hung ComfyUI otherwise holds its lane for good);
+- with a `journal` file, every job that isn't done and has a `record` (the
+  file its result goes into) is listed there with its `resume` (what
+  recover.py needs to find and collect its run again after a restart);
+- paid runs are counted (`charge`), and refused past `paid_limit`.
 """
 from __future__ import annotations
 
 import itertools
+import json
+import os
 import threading
 import time
 import uuid
@@ -30,6 +40,10 @@ DONE = ("succeeded", "failed", "canceled")
 PARALLEL = 4                     # jobs at once on a backend that isn't your own ComfyUI
 LOG_LINES = 200
 KEEP_DONE = 200                  # finished jobs kept in the list
+
+
+class PaidLimit(ValueError):
+    """A paid run refused: this session has made as many as Settings allows."""
 
 
 def now() -> float:
@@ -60,10 +74,17 @@ class Job:
     on_cancel: Callable | None = field(default=None, repr=False)
     # the job it waits for (a continuity shot: the one it continues), on any lane
     after: str | None = None
+    # stopped and failed past this many seconds of running (None: no limit)
+    limit: float | None = None
+    # the file its result goes into, and what finding its run again needs
+    record: str | None = None
+    resume: dict | None = None
+    # set when the queue stops it (its time limit): what the record should say
+    stop_note: str = ""
 
     def to_json(self) -> dict:
         return {"id": self.id, "kind": self.kind, "lane": self.lane, "title": self.title,
-                "after": self.after,
+                "after": self.after, "limit": self.limit,
                 "info": self.info, "status": self.status, "progress": self.progress,
                 "step": self.step, "steps": self.steps, "created": self.created,
                 "started": self.started, "finished": self.finished, "error": self.error,
@@ -81,11 +102,15 @@ class Lane:
 
 class Queue:
     def __init__(self, emit: Callable[[str, object], None] | None = None,
-                 serial: Callable[[str], bool] | None = None):
+                 serial: Callable[[str], bool] | None = None, journal: str | None = None):
         """`emit(event, data)` sends to the page; `serial(lane)` says whether a
-        lane runs one job at a time (default: the lane called "local")."""
+        lane runs one job at a time (default: the lane called "local");
+        `journal` is the file the live jobs are listed in (none: not kept)."""
         self._emit = emit or (lambda e, d: None)
         self._serial = serial or (lambda lane: lane == "local")
+        self.journal = journal
+        self.paid_count = 0
+        self.paid_limit: int | None = None
         self._lock = threading.RLock()
         self._wake = threading.Condition(self._lock)
         self.lanes: dict[str, Lane] = {}
@@ -99,7 +124,7 @@ class Queue:
         with self._lock:
             jobs = sorted(self.jobs.values(), key=lambda j: (j.status in DONE, -j.created
                                                              if j.status in DONE else j.created))
-            return {"jobs": [j.to_json() for j in jobs],
+            return {"jobs": [j.to_json() for j in jobs], "paid": self.paid(),
                     "lanes": {n: {"paused": l.paused, "parallel": l.parallel,
                                   "waiting": [j.id for j in l.waiting],
                                   "running": sorted(l.running)} for n, l in self.lanes.items()}}
@@ -111,6 +136,73 @@ class Queue:
 
     def _changed(self, job: Job) -> None:
         self._emit("seriesmith.job", job.to_json())
+
+    # -- paid runs ----------------------------------------------------------
+
+    def charge(self, what: str) -> None:
+        """One paid run (`what`: the backend) about to be queued: counted, or
+        PaidLimit when this session has had `paid_limit` already. Asked before
+        anything is reserved, so a refusal leaves nothing behind."""
+        with self._lock:
+            if self.paid_limit is not None and self.paid_count >= self.paid_limit:
+                raise PaidLimit(f"not queued on {what}: this session has sent {self.paid_count} "
+                                f"paid run{'s' if self.paid_count != 1 else ''}, the limit in "
+                                "Settings (raise it, or reset the count in Jobs)")
+            self.paid_count += 1
+        self._emit("seriesmith.queue", self.list()["lanes"])
+
+    def paid(self) -> dict:
+        return {"count": self.paid_count, "limit": self.paid_limit}
+
+    # -- the journal --------------------------------------------------------
+
+    def write_journal(self) -> None:
+        """The live jobs that have a record, for recover.py after a restart."""
+        if not self.journal:
+            return
+        with self._lock:
+            live = {j.id: {"kind": j.kind, "lane": j.lane, "title": j.title, "info": j.info,
+                           "record": j.record, "resume": j.resume,
+                           "status": j.status, "created": j.created}
+                    for j in self.jobs.values() if j.status not in DONE and j.record}
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(self.journal)), exist_ok=True)
+            tmp = self.journal + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(live, fh, indent=1, default=str)
+            os.replace(tmp, self.journal)
+        except OSError:
+            pass                                          # best effort: never fail a job for it
+
+    def read_journal(self) -> dict:
+        """What the journal listed when the server last stopped ({} if none)."""
+        if not self.journal or not os.path.isfile(self.journal):
+            return {}
+        try:
+            with open(self.journal, encoding="utf-8") as fh:
+                data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    # -- time limits --------------------------------------------------------
+
+    def _overtime(self, job_id: str) -> None:
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if job is None or job.status != "running":
+                return
+            mins = round((job.limit or 0) / 60)
+            job.stop_note = (f"stopped: it ran past its time limit ({mins} min), so it was "
+                             "taken as hung")
+            job.cancel_asked = True
+            job.log.append(job.stop_note)
+            cancel = job.cancel_run
+        if cancel is not None:
+            try:
+                cancel()
+            except Exception as e:                       # noqa: BLE001  best effort
+                job.log.append(f"cancel: {e}")
 
     # -- adding and running -------------------------------------------------
 
@@ -124,6 +216,7 @@ class Queue:
             self.jobs[job.id] = job
             self._lane(job.lane).waiting.append(job)
             self._trim()
+        self.write_journal()
         self._changed(job)
         self._dispatch()
         return job
@@ -150,8 +243,14 @@ class Queue:
         for job in start:
             self._changed(job)
             self._emit("execution_start", {"prompt_id": job.id})
+            if job.limit:
+                t = threading.Timer(job.limit, self._overtime, args=(job.id,))
+                t.daemon = True
+                t.start()
             threading.Thread(target=self._run, args=(job,), daemon=True,
                              name=f"seriesmith-{job.lane}").start()
+        if start:
+            self.write_journal()
 
     def _waits(self, job: Job) -> bool:
         """Still waiting for the job it comes after."""
@@ -182,6 +281,8 @@ class Queue:
                 status = "canceled"
         except Exception as e:                           # noqa: BLE001  the job fails, not us
             status, job.error = "failed", f"{type(e).__name__}: {e}"
+        if job.stop_note and status != "succeeded":
+            status, job.error = "failed", job.stop_note   # its time limit, not the user
         with self._lock:
             job.status = status if status in DONE else "failed"
             job.finished = now()
@@ -189,6 +290,7 @@ class Queue:
                 job.progress = 1.0
             self.lanes[job.lane].running.discard(job.id)
             self._last_progress.pop(job.id, None)
+        self.write_journal()
         if job.status == "failed":
             self._emit("execution_error", {"prompt_id": job.id, "exception_message": job.error})
         elif job.status == "canceled":
@@ -214,6 +316,7 @@ class Queue:
             else:
                 return job
         if cancelled_waiting:
+            self.write_journal()
             if job.on_cancel is not None:
                 job.on_cancel(job)
             self._emit("execution_interrupted", {"prompt_id": job.id})

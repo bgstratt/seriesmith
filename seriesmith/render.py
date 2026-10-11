@@ -374,22 +374,35 @@ def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
 
 
 def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
-             on_progress=None, on_run=None, prompt_id: str | None = None) -> str:
+             on_progress=None, on_run=None, prompt_id: str | None = None,
+             on_resume=None) -> str:
     """Render a started take on `backend` and collect it: the portable graph
     (or a hosted model's call) submitted, followed (on_progress gets each
     backends.Progress), and its outputs written into the take. `on_run(run)`
-    hears of the backend's run as soon as there is one (to cancel it).
-    `prompt_id` is what the take's record calls its job (seriesmith's queue's
-    id; default the backend's). Returns the take's status: "ok", "failed"."""
+    hears of the backend's run as soon as there is one (to cancel it);
+    `on_resume(bits)` gets what collect_run needs to collect it again (after a
+    restart: recover.py). `prompt_id` is what the take's record calls its job
+    (seriesmith's queue's id; default the backend's). Returns the take's
+    status: "ok", "failed"."""
     kind, what = prepare(job, take, backend, base, gkw)
     run = backend.call(*what) if kind == "call" else backend.submit(what)
     if on_run is not None:
         on_run(run)
     J.mark_submitted(take, backend.name, run.id, prompt_id)
+    bits = ({"model": what[0], "arguments": as_json(what[1]), "saver": None} if kind == "call"
+            else {"model": None, "arguments": None, "saver": J.node_of(what, J.PORTABLE_SAVER)})
+    if on_resume is not None:
+        on_resume(bits)
     status = run.watch(on_progress=on_progress)
-    if kind == "call":
-        return J.collect_router_take(take, run, status, as_json(what[1]))
-    return J.collect_take(take, run, J.node_of(what, J.PORTABLE_SAVER), status)
+    return collect_run(take, run, status, bits)
+
+
+def collect_run(take: T.Take, run, status: str, bits: dict) -> str:
+    """A take's run, ended with `status`, collected into the take: a hosted
+    model's video (bits["model"]) or the portable saver's files (bits["saver"])."""
+    if bits.get("model"):
+        return J.collect_router_take(take, run, status, bits.get("arguments"))
+    return J.collect_take(take, run, bits.get("saver"), status)
 
 
 def start_job_portable(job: J.Job, probe=None) -> T.Take:

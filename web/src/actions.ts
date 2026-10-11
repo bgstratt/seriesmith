@@ -962,8 +962,32 @@ export function requestRender(shots: string[], redo = false, title?: string,
                        title: title ?? `Render ${shots.length === 1 ? shots[0] : `${shots.length} shots`}` }, menu: null });
     return;
   }
-  if (shots.length > 8 && !confirm(`Queue ${shots.length} ${s.pass} renders?`)) return;
+  const paid = paidRuns(shots);
+  if (paid.n > 1) {
+    if (!confirm(`${paid.n === shots.length ? `All ${paid.n}` : `${paid.n} of these ${shots.length}`} renders go to a paid `
+      + `backend (${paid.where}): each is billed to your Comfy account.\n\nQueue them?`)) return;
+  } else if (shots.length > 8 && !confirm(`Queue ${shots.length} ${s.pass} renders?`)) return;
   void renderShots(shots, redo, false, null, seedMode);
+}
+
+/** A backend that bills (Comfy Cloud, Router, a deployment); "" is each shot's own. */
+export function isPaidBackend(name: string | null | undefined): boolean {
+  return !!name && name !== "local";
+}
+
+/** How many of `shots` would go to a paid backend: all of them when Render on
+ * names one, else those whose model only runs hosted (a Router model). */
+export function paidRuns(shots: string[]): { n: number; where: string } {
+  const s = get();
+  if (isPaidBackend(s.renderBackend)) return { n: shots.length, where: s.renderBackend };
+  const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+  const def = seriesDefaultTarget(s.targets, st);
+  const hosted = (id: string) => {
+    const t = s.targets?.targets.find((x) => x.id === shotTarget(st?.shots.find((x) => x.shot === id), def));
+    const b = (t?.capabilities as { backends?: string[] } | undefined)?.backends;
+    return !!b && b.length > 0 && !b.includes("local");
+  };
+  return { n: shots.filter(hosted).length, where: "Router" };
 }
 
 /**
@@ -1893,7 +1917,9 @@ export async function generateMissing(ask = true): Promise<void> {
         }
         const n = lines.length;
         const more = n > 30 ? `\n… and ${n - 30} more` : "";
-        if (!confirm(`Generate ${n} missing ref${n > 1 ? "s" : ""} (${pass})?\n\n${lines.slice(0, 30).join("\n")}${more}`
+        const paidNote = isPaidBackend(get().renderBackend)
+          ? `\n\nThey go to ${get().renderBackend}: each is a paid run on your Comfy account.` : "";
+        if (!confirm(`Generate ${n} missing ref${n > 1 ? "s" : ""} (${pass})?${paidNote}\n\n${lines.slice(0, 30).join("\n")}${more}`
           + `${plan.skipped.length ? `\n\n${plan.skipped.length} skipped (already queued, or can't be made here).` : ""}`
           + "\n\nEach becomes live automatically when it finishes (you can pick another candidate later).")) return;
       }

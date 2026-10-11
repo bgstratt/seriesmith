@@ -20,6 +20,37 @@ from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
 from seriesmith.queue import Queue
 
+# How long a job may run before it is taken as hung, stopped and failed:
+# several times the longest such job seen (a 4K SeedVR2 post is the slow one).
+LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
+          "tour": 3600}
+
+# The least free disk a job needs where its files land (GB): a take is a few
+# hundred MB with its latent and frames, a 4K upscale or post a few GB.
+ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0}
+
+
+def room(folder: str, kind: str) -> None:
+    """ValueError when `folder`'s disk has less free than a `kind` job needs:
+    said before anything is reserved, not as a write failing half way."""
+    import os
+    import shutil
+    need = ROOM_GB.get(kind, 1.0)
+    try:
+        free = shutil.disk_usage(folder).free / 1e9
+    except OSError:
+        return                                           # can't tell: let it try
+    if free < need:
+        drive = os.path.splitdrive(os.path.abspath(folder))[0] or folder
+        raise ValueError(f"only {free:.1f} GB free on {drive}: a {kind} needs at least "
+                         f"{need:g} GB there. Free some space and queue it again.")
+
+
+def stopped(qjob: QJob) -> str:
+    """What a stopped job's record says: the queue's reason (a time limit) or
+    "canceled" (the user)."""
+    return qjob.stop_note or "canceled"
+
 
 class Runner:
     def __init__(self, queue: Queue, backends: dict, emit=None, review_copy: bool = False):
@@ -55,6 +86,9 @@ class Runner:
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
         local_probe = probe if backend.kind == "local" else None
+        room(job.root, "render")
+        if backend.paid:
+            self.queue.charge(backend.name)              # before anything is reserved
         # the continuity node of h3pipe's way (H3ContinuityFrame) isn't used:
         # the first frame is cut when the job starts, below
         job.continuity = None
@@ -94,10 +128,14 @@ class Runner:
             def got_run(run):
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+
+            def resume(bits):
+                qjob.resume.update(bits)
+                self.queue.write_journal()
             try:
                 stage(report)
                 status = RD.run_take(job, take, backend, base, gkw, on_progress=progress,
-                                     on_run=got_run, prompt_id=qjob.id)
+                                     on_run=got_run, prompt_id=qjob.id, on_resume=resume)
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -106,7 +144,7 @@ class Runner:
             if status != "ok" and not qjob.error:
                 qjob.error = str(sc.get("save_notes") or f"the take ended {status}")[:800]
             if qjob.cancel_asked and status != "ok":
-                J.mark_failed(take, "canceled")
+                J.mark_failed(take, stopped(qjob))
             report(line=f"take {status}")
             self._take_event(ep, take)
             return "succeeded" if status == "ok" else (
@@ -117,7 +155,11 @@ class Runner:
             self._take_event(ep, take)
 
         def again():
-            """A retry: the same shot and settings, as a new take."""
+            """A retry: the same shot and settings, as a new take -- unless the
+            run it had finished after all (a hosted run whose connection was
+            lost): then that run is collected into the take, not paid again."""
+            if self._collect_finished(qjob, backend):
+                return None
             j2 = copy.copy(job)
             j2.take, j2.forced, j2.staged, j2.input_files = job.take + 1, False, [], {}
             j2.chain_from = None
@@ -131,7 +173,10 @@ class Runner:
                           "target": job.target, "backend": backend.name,
                           **({"continues": "first frame"} if continuity is not None else {}),
                           **({"continues": "latent"} if chained else {})},
-                    on_cancel=cancelled, retry=again, after=after)
+                    on_cancel=cancelled, retry=again, after=after, limit=LIMITS["render"],
+                    record=take.paths.sidecar,
+                    resume={"kind": "render", "ep": ep, "pass": job.pass_, "shot": job.id,
+                            "take": take.take})
         T.update_sidecar(take.paths.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         take.sidecar = T.read_sidecar(take.paths.sidecar)
@@ -146,7 +191,6 @@ class Runner:
         SaveImage / SaveAudio, and the file the backend hands back closes the
         take (refs.close_take). Returns (the ref take, the queue's job id)."""
         import os
-        import tempfile
 
         from seriesmith import refs as R
 
@@ -154,6 +198,9 @@ class Runner:
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
         hosted = bool(job.target.spec.get("router"))
+        room(s.ep, "ref")
+        if backend.paid:
+            self.queue.charge(backend.name)              # before anything is reserved
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
         if not hosted:
             R.stage_references(s, job, collector)
@@ -175,6 +222,9 @@ class Runner:
         want = "audio" if job.is_audio else "image"
         ep = s.ep
         title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"
+        res = {"kind": "ref", "ep": ep, "ref": job.ref.id, "view": job.view, "take": take.take,
+               "want": want, "savers": savers, "hosted": hosted, "is_audio": job.is_audio,
+               "model": call[0] if hosted else None}
 
         def work(qjob: QJob, report) -> str:
             def progress(p):
@@ -185,33 +235,9 @@ class Runner:
                 report(line=f"on {backend.name}: {run.id}")
                 T.update_sidecar(take.paths.sidecar, backend_job=run.id)
                 status = run.watch(on_progress=progress)
-                if status != "succeeded":
-                    raise RuntimeError(run.error or f"the job ended {status}")
-                outs = [o for o in run.outputs() if o.type == want]
-                if hosted and not outs:
-                    # a provider's signed URLs often have no extension to type them by
-                    outs = [o for o in run.outputs() if o.type in (want, "file")]
-                outs = [o for o in outs if o.node in savers] or outs
-                if not outs:
-                    raise RuntimeError(f"the job finished but returned no {want}")
-                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
-                os.close(fd)
-                try:
-                    outs[0].save(tmp)
-                    ext = os.path.splitext(outs[0].name)[1].lower() if job.is_audio else None
-                    if job.is_audio and ext != ".wav":
-                        # ComfyUI's own SaveAudio writes flac; a voice sample is a
-                        # wav (as h3pipe's saver made it), so it is converted here
-                        ext = ".wav" if _to_wav(tmp) else ext
-                    with open(tmp, "rb") as fh:
-                        data = fh.read()
-                finally:
-                    os.remove(tmp)
-                if not job.is_audio and hosted:
-                    ext = R.image_ext(data)
-                result = R.close_take(take, data, f"from {backend.name}: {outs[0].name}", ext=ext)
+                result = collect_ref(take, run, status, res, backend.name)
             except Exception as e:                       # noqa: BLE001  the take fails
-                R.mark_failed(take, "canceled" if qjob.cancel_asked else str(e)[:800])
+                R.mark_failed(take, stopped(qjob) if qjob.cancel_asked else str(e)[:800])
                 qjob.error = str(e)[:800]
                 result = "failed"
             report(line=f"take {result}")
@@ -229,7 +255,8 @@ class Runner:
         qjob = QJob(kind="ref", lane=backend.name, title=title, work=work,
                     info={"ep": ep, "ref": job.ref.id, "view": job.view, "take": take.take,
                           "target": job.target.id, "backend": backend.name},
-                    on_cancel=cancelled)
+                    on_cancel=cancelled, limit=LIMITS["ref"], record=take.paths.sidecar,
+                    resume=res)
         R.mark_queued(take, qjob.id)
         T.update_sidecar(take.paths.sidecar, backend=backend.name, queue="seriesmith")
         self.queue.submit(qjob)
@@ -248,6 +275,9 @@ class Runner:
         backend = self.backends.get(backend_name)
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        room(fin.root, fin.kind)
+        if backend.paid:
+            self.queue.charge(backend.name)
         ep, take = fin.root, fin.take
         event = F.EVENTS[fin.kind]
 
@@ -269,17 +299,19 @@ class Runner:
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
                 T.update_sidecar(fin.sidecar, backend_job=run.id)
+                qjob.resume.update(saver=J.node_of(g, F.SAVER), extra=extra)
+                self.queue.write_journal()
                 status = run.watch(on_progress=progress)
                 result = F.collect(fin, run, J.node_of(g, F.SAVER), status, extra)
                 if result != "ok":
                     qjob.error = str((T.read_sidecar(fin.sidecar) or {}).get("save_notes")
                                      or f"the {fin.kind} ended {status}")[:800]
             except Exception as e:                       # noqa: BLE001  the finish fails
-                F.mark_failed(fin, "canceled" if qjob.cancel_asked else str(e)[:800])
+                F.mark_failed(fin, stopped(qjob) if qjob.cancel_asked else str(e)[:800])
                 qjob.error = str(e)[:800]
                 result = "failed"
             if qjob.cancel_asked and result != "ok":
-                F.mark_failed(fin, "canceled")
+                F.mark_failed(fin, stopped(qjob))
             report(line=f"{fin.kind} {result}")
             tell(result)
             return "succeeded" if result == "ok" else (
@@ -293,7 +325,11 @@ class Runner:
                     title=f"{_ep_name(ep)} {fin.label} {fin.kind}", work=work,
                     info={"ep": ep, "pass": take.pass_, "shot": take.shot, "take": take.take,
                           "backend": backend.name},
-                    on_cancel=cancelled, after=after)
+                    on_cancel=cancelled, after=after, limit=LIMITS.get(fin.kind),
+                    record=fin.sidecar,
+                    resume={"kind": fin.kind, "ep": ep, "pass": take.pass_, "shot": take.shot,
+                            "take": take.take, "sidecar": fin.sidecar, "out_mp4": fin.out_mp4,
+                            "last": fin.last, "latent": fin.latent})
         T.update_sidecar(fin.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         self.queue.submit(qjob)
@@ -305,8 +341,6 @@ class Runner:
         LoadImage, and the video that comes back is kept and its holds found
         (tour.keep_tour), each a take of the location's `tour` view. Returns
         (the tour's number, the queue's job id)."""
-        import os
-        import tempfile
 
         from seriesmith import refs as R
         from seriesmith import tour as TR
@@ -318,6 +352,9 @@ class Runner:
         for v in graph.values():
             if v["class_type"] == "LoadImage":
                 v["inputs"]["image"] = File(ref.file)
+        room(s.ep, "tour")
+        if backend.paid:
+            self.queue.charge(backend.name)
         ep, n = s.ep, side["tour"]
 
         def hold(take) -> None:
@@ -331,34 +368,17 @@ class Runner:
                 run = backend.submit(graph)
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+                side.update(backend_job=run.id)
+                TR.save_side(ref, side)
                 status = run.watch(on_progress=progress)
-                if status != "succeeded":
-                    raise RuntimeError(run.error or f"the job ended {status}")
-                outs = [o for o in run.outputs()
-                        if o.name.lower().endswith((".mp4", ".webm", ".mov"))]
-                if not outs:
-                    raise RuntimeError("the job finished without a video")
-                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
-                os.close(fd)
-                try:
-                    outs[0].save(tmp)
-
-                    def write(path):
-                        os.replace(tmp, path)
-                    side.update(TR.keep_tour(s, ref, side, write,
-                                             os.path.splitext(outs[0].name)[1], hold))
-                finally:
-                    if os.path.exists(tmp):
-                        os.remove(tmp)
-                if side.get("status") != "ok":
-                    raise RuntimeError(side.get("error") or "the tour failed")
+                collect_tour(s, ref, side, run, status, hold)
                 report(line=f"{len(side.get('holds') or [])} hold(s)")
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the tour fails
                 qjob.error = str(e)[:800]
                 if side.get("status") != "failed":
                     side.update(status="failed", finished=T.now(),
-                                error="canceled" if qjob.cancel_asked else str(e)[:800])
+                                error=stopped(qjob) if qjob.cancel_asked else str(e)[:800])
                     TR.save_side(ref, side)
                 result = "canceled" if qjob.cancel_asked else "failed"
             self._emit("seriesmith.episode", {"ep": ep})
@@ -371,11 +391,132 @@ class Runner:
 
         qjob = QJob(kind="tour", lane=backend.name, title=f"{_ep_name(ep)} {ref.id} tour t{n:02d}",
                     work=work, info={"ep": ep, "ref": ref.id, "tour": n, "backend": backend.name},
-                    on_cancel=cancelled)
+                    on_cancel=cancelled, limit=LIMITS["tour"],
+                    record=TR._tour_file(ref, n, ".json"),
+                    resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n})
         side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue="seriesmith")
         TR.save_side(ref, side)
         self.queue.submit(qjob)
         return n, qjob.id
+
+    # -- a run found again: after a restart (recover.py), or by a retry ------
+
+    def reattach(self, job_id: str, entry: dict) -> str | None:
+        """A journal `entry` (queue.write_journal) of a job this server had
+        when it stopped. Its record still `queued` under that job: when the
+        job had reached its backend (the record's `backend_job`), the run is
+        found again and followed and collected on a new queue job (its id
+        returned); when it hadn't, nothing was spent on it, and the record is
+        failed, saying how to queue it again. Anything else (the record is
+        done, or another job owns it now) is left alone: None."""
+        path, res = entry.get("record"), entry.get("resume") or {}
+        rec = T.read_json(path) if path else None
+        if not isinstance(rec, dict) or rec.get("status") != "queued" \
+                or rec.get("comfy_prompt_id") != job_id:
+            return None
+        backend = self.backends.get(rec.get("backend") or "")
+        run_id = rec.get("backend_job")
+        if not run_id or backend is None or not res.get("kind"):
+            why = ("the server stopped before it reached its backend, so nothing was spent: "
+                   + AGAIN.get(res.get("kind") or entry.get("kind"), "queue it again"))
+            if run_id and backend is None:
+                why = f"its backend ({rec.get('backend')}) isn't set up any more"
+            T.update_sidecar(path, status="failed", finished=T.now(), save_notes=why, error=why)
+            self._emit("seriesmith.episode", {"ep": res.get("ep")})
+            return None
+        return self._attach(entry.get("title") or res.get("kind"), path, res, backend, run_id,
+                            "picked up again after a restart")
+
+    def _attach(self, title: str, path: str, res: dict, backend, run_id: str, why: str) -> str:
+        """A queue job that follows run `run_id` on `backend` and collects it
+        into the record at `path` (kind and where: `res`)."""
+        kind, ep = res["kind"], res.get("ep")
+
+        def work(qjob: QJob, report) -> str:
+            def progress(p):
+                report(p.value, p.step, p.steps)
+            report(line=f"{why}: run {run_id} on {backend.name}")
+            try:
+                run = backend.attach(run_id, res.get("model"))
+                qjob.cancel_run = run.cancel
+                status = run.watch(on_progress=progress)
+                result = self._collect(res, run, status, backend.name)
+            except Exception as e:                       # noqa: BLE001  the record fails
+                note = stopped(qjob) if qjob.cancel_asked else f"found again, then: {e}"[:800]
+                T.update_sidecar(path, status="failed", finished=T.now(), save_notes=note,
+                                 error=note)
+                qjob.error, result = note, "failed"
+            report(line=f"{kind} {result}")
+            self._emit("seriesmith.episode", {"ep": ep})
+            if kind == "render":
+                take = T.get_take(ep, res["pass"], res["shot"], res["take"])
+                if take is not None:
+                    self._take_event(ep, take)
+            return "succeeded" if result == "ok" else (
+                "canceled" if qjob.cancel_asked else "failed")
+
+        qjob = QJob(kind=kind, lane=backend.name, title=f"{title} (found again)", work=work,
+                    info={k: res.get(k) for k in ("ep", "pass", "shot", "take", "ref", "view", "tour")
+                          if res.get(k) is not None} | {"backend": backend.name},
+                    limit=LIMITS.get(kind), record=path, resume=res)
+        # the record is followed under the new job (the editor's progress, the
+        # sweeps' "is its job alive"), then the job queued
+        T.update_sidecar(path, comfy_prompt_id=qjob.id, status="queued")
+        self.queue.submit(qjob)
+        return qjob.id
+
+    def _collect(self, res: dict, run, status: str, backend_name: str) -> str:
+        """A run collected into its record, by kind: "ok" or "failed"."""
+        from seriesmith import finishing as F
+        from seriesmith import refs as R
+        from seriesmith import render as RD
+        from seriesmith import tour as TR
+        kind, ep = res["kind"], res["ep"]
+        if kind == "render":
+            take = T.get_take(ep, res["pass"], res["shot"], res["take"])
+            if take is None:
+                raise RuntimeError("its take is gone")
+            return RD.collect_run(take, run, status, res)
+        if kind == "ref":
+            s = R.load_series(ep)
+            take = R.get_take(R.find_ref(s, res["ref"]), res.get("view"), res["take"])
+            return collect_ref(take, run, status, res, backend_name)
+        if kind in ("upscale", "post"):
+            take = T.get_take(ep, res["pass"], res["shot"], res["take"])
+            if take is None:
+                raise RuntimeError("its take is gone")
+            fin = F.Finish(kind, ep, take, {}, res["sidecar"], res["out_mp4"],
+                           res.get("last"), res.get("latent"))
+            if not res.get("saver"):
+                raise RuntimeError("it was found again, but which node saves it wasn't recorded")
+            return F.collect(fin, run, res["saver"], status, res.get("extra"))
+        if kind == "tour":
+            s = R.load_series(ep)
+            ref = R.find_ref(s, res["ref"])
+            side = next(d for d in TR.list_tours(ref) if d.get("tour") == res["tour"])
+            collect_tour(s, ref, side, run, status, None)
+            return "ok"
+        raise RuntimeError(f"no way to collect a {kind}")
+
+    def _collect_finished(self, qjob: QJob, backend) -> bool:
+        """A retry of a failed job that reached a paid backend: when its run
+        finished after all (the connection to it was lost, not the run), it is
+        collected again into the same record rather than paid for twice.
+        Whether it was isn't known from here without asking: so asked."""
+        if not backend.paid or not qjob.record:
+            return False
+        rec = T.read_json(qjob.record) or {}
+        run_id = rec.get("backend_job")
+        if not run_id or rec.get("status") == "ok":
+            return False
+        try:
+            if backend.attach(run_id, (qjob.resume or {}).get("model")).refresh() != "succeeded":
+                return False
+        except Exception:                                # noqa: BLE001  can't tell: run it again
+            return False
+        self._attach(qjob.title, qjob.record, qjob.resume or {}, backend, run_id,
+                     "it had finished after all")
+        return True
 
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take
@@ -383,6 +524,77 @@ class Runner:
         self._emit("seriesmith.take", {"ep": ep, "pass": t.pass_, "shot": t.shot, "take": t.take,
                                    "status": t.status, "thumb": E.rel(ep, t.paths.thumb)})
         self._emit("seriesmith.episode", {"ep": ep})
+
+
+# how a job the server lost before it ran is queued again, by kind
+AGAIN = {"render": "Render missing queues it again",
+         "ref": "Generate missing queues it again",
+         "upscale": "Master (or Upscale) runs it again",
+         "post": "Master (or Post-process) runs it again",
+         "tour": "start the tour again"}
+
+
+def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:
+    """A reference take's run, ended with `status`, collected: the picture (or
+    voice) it returned closes the take (refs.close_take). Raises when there's
+    nothing to close it with."""
+    import os
+    import tempfile
+
+    from seriesmith import refs as R
+    if status != "succeeded":
+        raise RuntimeError(run.error or f"the job ended {status}")
+    want, hosted, is_audio = res["want"], res.get("hosted"), res.get("is_audio")
+    outs = [o for o in run.outputs() if o.type == want]
+    if hosted and not outs:
+        # a provider's signed URLs often have no extension to type them by
+        outs = [o for o in run.outputs() if o.type in (want, "file")]
+    outs = [o for o in outs if o.node in (res.get("savers") or [])] or outs
+    if not outs:
+        raise RuntimeError(f"the job finished but returned no {want}")
+    fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
+    os.close(fd)
+    try:
+        outs[0].save(tmp)
+        ext = os.path.splitext(outs[0].name)[1].lower() if is_audio else None
+        if is_audio and ext != ".wav":
+            # ComfyUI's own SaveAudio writes flac; a voice sample is a wav (as
+            # h3pipe's saver made it), so it is converted here
+            ext = ".wav" if _to_wav(tmp) else ext
+        with open(tmp, "rb") as fh:
+            data = fh.read()
+    finally:
+        os.remove(tmp)
+    if not is_audio and hosted:
+        ext = R.image_ext(data)
+    return R.close_take(take, data, f"from {backend_name}: {outs[0].name}", ext=ext)
+
+
+def collect_tour(s, ref, side: dict, run, status: str, hold) -> None:
+    """A tour's run, ended with `status`, collected: its video kept and its
+    holds found (tour.keep_tour, which updates `side`). Raises when it failed."""
+    import os
+    import tempfile
+
+    from seriesmith import tour as TR
+    if status != "succeeded":
+        raise RuntimeError(run.error or f"the job ended {status}")
+    outs = [o for o in run.outputs() if o.name.lower().endswith((".mp4", ".webm", ".mov"))]
+    if not outs:
+        raise RuntimeError("the job finished without a video")
+    fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
+    os.close(fd)
+    try:
+        outs[0].save(tmp)
+
+        def write(path):
+            os.replace(tmp, path)
+        side.update(TR.keep_tour(s, ref, side, write, os.path.splitext(outs[0].name)[1], hold))
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    if side.get("status") != "ok":
+        raise RuntimeError(side.get("error") or "the tour failed")
 
 
 def _to_wav(path: str) -> bool:

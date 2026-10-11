@@ -25,6 +25,7 @@ ComfyUI and Router backends import comfy-sdk when they are built.
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
@@ -35,6 +36,51 @@ TERMINAL = ("succeeded", "failed", "canceled", "expired")
 
 class BackendError(RuntimeError):
     """A backend that isn't configured, can't be reached, or refused a job."""
+
+
+# How long a run's backend may stay out of reach before the run is given up
+# on: a dropped connection, a restarting proxy, a 5xx. The job itself goes on
+# where it runs; this is only how long we keep asking about it.
+PATIENCE = 15 * 60.0
+
+
+def transient(exc: BaseException) -> bool:
+    """Whether `exc` is the network or the service hiccupping (worth asking
+    again) rather than an answer (a 4xx: not found, unauthorized, no credits).
+    comfy-sdk's errors carry the HTTP status they came with, None when no
+    response came at all."""
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+    status = getattr(exc, "http_status", "absent")
+    if status != "absent":
+        return status is None or status == 429 or (isinstance(status, int) and status >= 500)
+    name = type(exc).__name__
+    mod = type(exc).__module__ or ""
+    # httpx's transport errors (ConnectError, ReadTimeout, RemoteProtocolError...)
+    if mod.startswith(("httpx", "httpcore")):
+        return True
+    return isinstance(exc, OSError) and name not in ("FileNotFoundError", "PermissionError")
+
+
+def patiently(fn: Callable[[], Any], window: float | None = None,
+              on_wait: Callable[[str], None] | None = None,
+              sleep: Callable[[float], None] | None = None) -> Any:
+    """fn(), asked again while it fails transiently (backoff to 30 s), for up
+    to `window` seconds (PATIENCE) in all; then, or on any other error, that
+    error is raised. `on_wait(why)` hears of each wait."""
+    window = PATIENCE if window is None else window
+    end = time.monotonic() + window
+    delay = 2.0
+    while True:
+        try:
+            return fn()
+        except Exception as e:                           # noqa: BLE001  sorted below
+            if not transient(e) or time.monotonic() + delay > end:
+                raise
+            if on_wait:
+                on_wait(f"{type(e).__name__}: {e}"[:200])
+            (sleep or time.sleep)(delay)
+            delay = min(delay * 2, 30.0)
 
 
 @dataclass(frozen=True)
@@ -121,6 +167,17 @@ class Backend:
         """Call a hosted model with the provider's own arguments. Inputs given
         as File are uploaded first."""
         raise BackendError(f"{self.name} runs workflows, not hosted models")
+
+    def attach(self, run_id: str, model: str | None = None) -> Run:
+        """The run `run_id` (a hosted call's also needs its `model`), started
+        by this backend in this process or an earlier one: a job that was
+        running when the server stopped is followed and collected again."""
+        raise BackendError(f"{self.name} can't look up a run")
+
+    @property
+    def paid(self) -> bool:
+        """Whether a run here is billed (Comfy Cloud, Router, a deployment)."""
+        return self.kind != "local"
 
 
 def files_in(value: Any) -> Iterable[tuple[Any, Any, File]]:

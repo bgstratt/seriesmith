@@ -37,12 +37,15 @@ class Settings:
     api_key: str | None = None
     deployments: dict[str, str] = field(default_factory=dict)
     path: str | None = None          # the file these came from, if any
+    # paid runs (Cloud, Router, a deployment) one server session may queue; None: no cap
+    paid_limit: int | None = None
 
     def describe(self) -> dict:
         """The settings without the key itself (for listings and logs)."""
         return {"local_url": self.local_url, "comfyui_url": self.comfyui_url,
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
-                "deployments": dict(self.deployments), "path": self.path}
+                "deployments": dict(self.deployments), "path": self.path,
+                "paid_limit": self.paid_limit}
 
 
 def settings_path() -> str:
@@ -79,10 +82,15 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         cloud_url=(env.get("SERIESMITH_CLOUD_URL") or data.get("cloud_url") or CLOUD_URL).rstrip("/"),
         api_key=env.get("COMFY_API_KEY") or data.get("api_key") or None,
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
-        path=path)
+        path=path,
+        paid_limit=_paid_limit(data.get("paid_limit")))
 
 
-FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments")
+def _paid_limit(v) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
+
+
+FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "paid_limit")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
              "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY"}
 
@@ -113,6 +121,14 @@ def save_settings(updates: dict, path: str | None = None) -> str:
         if not isinstance(data, dict):
             raise ValueError(f"{path} must hold a JSON object")
     for k, v in updates.items():
+        if k == "paid_limit":
+            if v in (None, ""):
+                data.pop(k, None)
+            elif isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                raise ValueError("paid_limit: a whole number of runs (0 or more), or empty for none")
+            else:
+                data[k] = v
+            continue
         if k == "deployments":
             if v in (None, {}):
                 data.pop(k, None)

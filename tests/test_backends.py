@@ -172,3 +172,96 @@ class LiveLocalTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PatienceTest(unittest.TestCase):
+    """A run's backend out of reach for a while is waited out, not a failure."""
+
+    def test_what_is_worth_asking_again(self):
+        class Http(Exception):
+            def __init__(self, status):
+                self.http_status = status
+        self.assertTrue(B.transient(ConnectionError("reset")))
+        self.assertTrue(B.transient(TimeoutError()))
+        self.assertTrue(B.transient(Http(None)))         # no response at all
+        self.assertTrue(B.transient(Http(503)))
+        self.assertTrue(B.transient(Http(429)))
+        self.assertFalse(B.transient(Http(404)))
+        self.assertFalse(B.transient(Http(402)))         # no credits: an answer
+        self.assertFalse(B.transient(ValueError("bad")))
+        self.assertFalse(B.transient(FileNotFoundError("x")))
+
+    def test_patiently_waits_out_a_blip_then_gives_up(self):
+        tries, waits = [], []
+
+        def flaky():
+            tries.append(1)
+            if len(tries) < 3:
+                raise ConnectionError("dropped")
+            return "ok"
+        self.assertEqual(B.patiently(flaky, window=600, on_wait=waits.append, sleep=lambda s: None), "ok")
+        self.assertEqual(len(tries), 3)
+        self.assertEqual(len(waits), 2)
+        with self.assertRaises(ConnectionError):          # the window is shorter than a wait
+            B.patiently(lambda: (_ for _ in ()).throw(ConnectionError("down")), window=1,
+                        sleep=lambda s: None)
+        with self.assertRaises(ValueError):               # not transient: at once
+            B.patiently(lambda: (_ for _ in ()).throw(ValueError("no")), sleep=lambda s: None)
+
+
+class RouterPatienceTest(unittest.TestCase):
+    """A Router run whose connection drops mid-way is not failed: the request
+    goes on at the provider, so its status is asked again and its result
+    collected (a generation already billed is never lost to a blip)."""
+
+    def handle(self, drops: int, result=None):
+        from types import SimpleNamespace as NS
+        state = {"drops": drops, "polls": 0}
+
+        class Handle:
+            request_id = "req-1"
+
+            def iter_events(self):
+                yield NS(status="IN_QUEUE", queue_position=2)
+                if state["drops"]:
+                    state["drops"] -= 1
+                    raise ConnectionError("connection reset")
+                yield NS(status="IN_PROGRESS", queue_position=None)
+                yield NS(status="COMPLETED", queue_position=None)
+
+            def status(self):
+                state["polls"] += 1
+                return NS(status="IN_PROGRESS", queue_position=None)
+
+            def get(self):
+                return result or {"video": {"url": "https://cdn.example/v.mp4"}}
+
+            def cancel(self):
+                pass
+        return Handle(), state
+
+    def test_a_dropped_poll_is_followed_by_asking_again(self):
+        from unittest import mock
+
+        from seriesmith.backends.router import RouterRun
+        h, state = self.handle(drops=2)
+        run = RouterRun(h, "byteplus/seedance")
+        with mock.patch.object(B.time, "sleep"):
+            self.assertEqual(run.watch(), "succeeded")
+        self.assertEqual(state["polls"], 2)
+        self.assertEqual([o.name for o in run.outputs()], ["v.mp4"])
+
+    def test_attach_finds_a_request_by_model_and_id(self):
+        from seriesmith.backends.router import RouterBackend
+        rb = RouterBackend("comfyui-test", "https://cloud.example")
+
+        class Models:
+            def handle(self, model, rid):
+                self.asked = (model, rid)
+                return type("H", (), {"request_id": rid})()
+        from types import SimpleNamespace as NS
+        rb._client = NS(models=Models())
+        run = rb.attach("req-9", "byteplus/seedance")
+        self.assertEqual((run.id, run.model), ("req-9", "byteplus/seedance"))
+        with self.assertRaises(B.BackendError):
+            rb.attach("req-9")

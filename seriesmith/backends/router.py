@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable, Iterable
 
-from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in
+from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in, patiently, transient
 from seriesmith.backends.comfy import sdk_client
 
 COMPLETED = "COMPLETED"
@@ -63,9 +63,11 @@ class RouterRun(Run):
         self.result: Any = None
 
     def _settle(self) -> None:
-        """Collect the result of a completed request (or its error)."""
+        """Collect the result of a completed request (or its error). A dropped
+        connection is asked again (backends.patiently): the provider has the
+        result, and giving up here would lose a generation already billed."""
         try:
-            self.result = self._handle.get()
+            self.result = patiently(self._handle.get)
             self.status = "succeeded"
         except Exception as e:                # noqa: BLE001  the router's typed errors
             self.status, self.error = "failed", f"{type(e).__name__}: {e}"
@@ -73,7 +75,7 @@ class RouterRun(Run):
     def refresh(self) -> str:
         if self.status in ("succeeded", "failed", "canceled"):
             return self.status
-        upd = self._handle.status()
+        upd = patiently(self._handle.status)
         if upd.status == COMPLETED:
             self._settle()
         elif upd.status:
@@ -83,12 +85,23 @@ class RouterRun(Run):
     def watch(self, on_progress: Callable[[Progress], None] | None = None,
               on_status: Callable[[str], None] | None = None) -> str:
         if self.status not in ("succeeded", "failed", "canceled"):
-            for upd in self._handle.iter_events():
-                if upd.status == COMPLETED:
+            # the request runs on the provider whatever happens to this
+            # connection: a poll that fails transiently is followed by asking
+            # its status again (patiently), not by failing the run
+            while True:
+                try:
+                    for upd in self._handle.iter_events():
+                        if upd.status == COMPLETED:
+                            break
+                        self.status = "running" if upd.queue_position in (None, 0) else "queued"
+                        if on_status:
+                            on_status(self.status)
                     break
-                self.status = "running" if upd.queue_position in (None, 0) else "queued"
-                if on_status:
-                    on_status(self.status)
+                except Exception as e:            # noqa: BLE001  sorted by transient()
+                    if not transient(e):
+                        raise
+                    if patiently(self._handle.status).status == COMPLETED:
+                        break
             self._settle()
         if on_status:
             on_status(self.status)
@@ -102,7 +115,7 @@ class RouterRun(Run):
         if self.status != "succeeded":
             return []
         return [Output("", os.path.basename(urllib.parse.urlparse(u).path) or "output",
-                       output_type(u), (lambda path, u=u: download(u, path)))
+                       output_type(u), (lambda path, u=u: patiently(lambda: download(u, path))))
                 for u in urls_in(self.result)]
 
 
@@ -137,6 +150,13 @@ class RouterBackend(Backend):
                 urls[f.path] = asset.get_download_url().url
             container[key] = urls[f.path]
         return RouterRun(self.client.models.submit(model, args), model)
+
+    def attach(self, run_id: str, model: str | None = None) -> Run:
+        """A request made through Router, by its model and request id
+        (models.handle: no request of its own until it is asked)."""
+        if not model:
+            raise BackendError("a Router run is found by its model and request id: no model given")
+        return RouterRun(self.client.models.handle(model, run_id), model)
 
 
 __all__ = ["RouterBackend", "RouterRun", "download", "output_type", "urls_in"]

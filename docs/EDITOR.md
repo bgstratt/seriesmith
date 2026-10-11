@@ -534,13 +534,33 @@ queue:
   failed, `canceled`). **Earlier** / **Later** reorder a waiting job; a lane can be
   **paused** (**Pause** / **Resume**), which lets the running job finish and starts nothing
 new.
-- **Again** runs a finished job once more, as a new take with the same settings.
+- **Again** runs a finished job once more, as a new take with the same settings. On a
+  paid backend it first asks whether the old run finished after all (a lost connection,
+  not a failed run): if it did, that run is collected into its take instead of paid for
+  twice.
 - A job that waits for another says so: a `continuous:` shot waits for the shot it
   continues, a post for its upscale.
 
 The queue lives in the server: closing the page leaves it running, and reopening it shows
-where things are. Stopping `seriesmith serve` drops what hasn't run; those takes are marked
-failed the next time the episode is opened.
+where things are. What it would lose to a restart, it doesn't:
+
+- **A restart.** The queue keeps a list of its live jobs (`queue.json` beside the
+  settings file). When `seriesmith serve` starts again, a job that had reached its backend
+  is found again by its run's id and collected as if nothing happened ("(found again)" in
+  Jobs): on your ComfyUI through comfy-api-proxy, on Comfy Cloud, a deployment or Router.
+  A job that was still waiting had cost nothing and is marked failed, saying which button
+  queues it again (**Render missing**, **Generate missing**, **Master**).
+- **A dropped connection.** A run's backend out of reach (the network, the proxy
+  restarting, a 5xx) is asked again for up to 15 minutes before the run is given up on;
+  the job itself goes on where it runs.
+- **A hung job.** Each kind of job has a generous time limit (a render 2 hours, an
+  upscale 4, a post 6, a ref picture 30 minutes, a tour 1 hour); past it, it is stopped and
+  failed, saying so, so a stuck ComfyUI doesn't hold its lane for good.
+- **A full disk.** A job that needs more room than is free where its files go (a render
+  1 GB, an upscale or post 3 GB) is refused before anything is reserved.
+- **Paid runs.** Runs on Comfy Cloud, Router or a deployment are counted (**paid runs**
+  in the Jobs window's title, with **reset**); a batch of them asks first, and **Settings**
+  can cap them per session.
 
 ## Settings
 

@@ -18,7 +18,7 @@ import urllib.request
 from typing import Callable
 
 from seriesmith.backends import (TERMINAL, Backend, BackendError, File, Output, Progress, Run,
-                                 files_in)
+                                 files_in, patiently)
 
 _ENV_LOCK = threading.Lock()
 
@@ -81,7 +81,7 @@ class ComfyRun(Run):
         return self._job.status
 
     def refresh(self) -> str:
-        self._job.refresh()
+        patiently(self._job.refresh)
         self._note_error()
         return self._job.status
 
@@ -109,7 +109,13 @@ class ComfyRun(Run):
                     status(ev.status)
         except Exception:                    # noqa: BLE001  events are best effort
             pass
-        self._job.wait()
+        # polled to the end; a dropped connection (the proxy restarting, the
+        # network) is waited out rather than failing a job that goes on
+        while self._job.status not in TERMINAL:
+            patiently(self._job.refresh)
+            if self._job.status not in TERMINAL:
+                import time
+                time.sleep(2.0)
         self._note_error()
         status(self._job.status)
         return self._job.status
@@ -118,7 +124,7 @@ class ComfyRun(Run):
         self._job.cancel()
 
     def outputs(self) -> list[Output]:
-        return [Output(o.node_id, o.name, o.type, (lambda path, o=o: o.to_file(path)))
+        return [Output(o.node_id, o.name, o.type, (lambda path, o=o: patiently(lambda: o.to_file(path))))
                 for o in self._job.outputs]
 
 
@@ -155,6 +161,10 @@ class ComfyBackend(Backend):
             container[key] = assets[f.path]
         job = self.client.submit(self.client.workflows.from_json(g))
         return ComfyRun(self.name, job)
+
+    def attach(self, run_id: str, model: str | None = None) -> Run:
+        """A job this backend runs, by its id (client.jobs.get)."""
+        return ComfyRun(self.name, patiently(lambda: self.client.jobs.get(run_id)))
 
 
 __all__ = ["ComfyBackend", "ComfyRun", "File", "health", "sdk_client"]

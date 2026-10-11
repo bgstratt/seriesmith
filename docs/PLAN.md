@@ -366,25 +366,28 @@ A restart, a dropped connection or a hung job must never leave work stuck,
 lose a paid result, or spend money twice. (Done before it: a record whose job
 the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
 
-- [ ] A hosted run survives a network blip: Router's polling retries for a
+- [x] A hosted run survives a network blip: Router's polling retries for a
       while before it gives up, and a run that loses its connection reattaches
       by its request id (models.handle) instead of failing a run the provider
       finishes and bills.
-- [ ] Paid runs are guarded: a batch on a paid backend (Router, Cloud, a
+- [x] Paid runs are guarded: a batch on a paid backend (Router, Cloud, a
       deployment) asks first, saying how many calls; the Jobs window counts
       the paid calls this session; an optional cap in Settings stops new ones
       past it.
-- [ ] A hung job is stopped: each kind of job has a generous time limit, after
+- [x] A hung job is stopped: each kind of job has a generous time limit, after
       which it is cancelled and failed (a stuck ComfyUI otherwise holds its
       lane for good).
-- [ ] Retry reattaches before it resubmits: a hosted job that may have
+- [x] Retry reattaches before it resubmits: a hosted job that may have
       finished is looked up first, so a retry doesn't pay twice.
-- [ ] The queue outlives the server: it is kept on disk; on start, jobs that
-      were running are reattached by their backend id (local through the
-      proxy, Cloud, deployments, Router) and their results collected, ones
-      that were waiting are queued again, and only what a backend no longer
-      knows is failed.
-- [ ] Disk space is checked before upscales and masters (they write gigabytes
+- [x] The queue outlives the server: its live jobs are kept in a journal; on
+      start, jobs that had reached their backend are reattached by their run id
+      (local through the proxy, Cloud, deployments, Router: comfy-sdk's
+      jobs.get / models.handle) and collected. Ones still waiting had cost
+      nothing and are failed saying which button queues them again (rebuilding
+      a job from its record for every kind wasn't worth the machinery).
+      Checked with the fake backend: a render whose server stopped mid-run is
+      collected after the restart without being sent again.
+- [x] Disk space is checked before upscales and masters (they write gigabytes
       at 4K): a job that wouldn't fit says so instead of failing mid-write.
 
 ## Step 12 — simple mode

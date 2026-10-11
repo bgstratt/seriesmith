@@ -86,6 +86,26 @@ async def comfy_relay(app: web.Application) -> None:
         wait = min(wait * 2, 30.0)
 
 
+def recover(runner) -> list[str]:
+    """The jobs this server had when it last stopped (the queue's journal):
+    each one that had reached its backend is found again and collected
+    (Runner.reattach); one that hadn't is failed, saying how to queue it
+    again. Then the journal is the live queue again. Returns what was done."""
+    out = []
+    for job_id, entry in runner.queue.read_journal().items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            new = runner.reattach(job_id, entry)
+        except Exception as e:                               # noqa: BLE001  one bad entry
+            out.append(f"{entry.get('title')}: couldn't pick it up again ({e})")
+            continue
+        if new:
+            out.append(f"{entry.get('title')}: picked up again (its run is followed again)")
+    runner.queue.write_journal()
+    return out
+
+
 def make_app(roots: list[str] | None = None, settings=None,
              backends: dict | None = None) -> web.Application:
     settings = settings or load_settings()
@@ -100,9 +120,13 @@ def make_app(roots: list[str] | None = None, settings=None,
     from seriesmith.backends import available
     from seriesmith.queue import Queue
     from seriesmith.runner import Runner
-    queue = Queue(events.emit)
+    queue = Queue(events.emit, journal=os.path.join(user_dir, "queue.json"))
+    queue.paid_limit = settings.paid_limit
     backends = backends if backends is not None else available(settings)
     runner = Runner(queue, backends, events.emit)
+    recovered = recover(runner)
+    for line in recovered:
+        log.info("seriesmith: %s", line)
 
     def make_context():
         return A.Context(user_dir, settings.comfyui_url, events.emit, env=env, runner=runner)
@@ -158,6 +182,8 @@ def make_app(roots: list[str] | None = None, settings=None,
                 queue.pause(str(body["lane"]), bool(body.get("paused", True)))
             elif what == "retry":
                 await asyncio.get_running_loop().run_in_executor(None, queue.retry, str(body["id"]))
+            elif what == "paid-reset":
+                queue.paid_count = 0
             else:
                 return web.json_response({"error": f"no action {what!r}"}, status=404)
         except KeyError as e:
@@ -199,8 +225,10 @@ def make_app(roots: list[str] | None = None, settings=None,
             fresh = load_settings()
         except ValueError as e:
             return web.json_response({"error": str(e)}, status=400)
-        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "path"):
+        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "path",
+                  "paid_limit"):
             setattr(settings, k, getattr(fresh, k))
+        queue.paid_limit = settings.paid_limit
         backends.clear()
         backends.update(available(settings))
         return web.json_response({"settings": settings.describe(), "file": settings_path(),

@@ -21,14 +21,18 @@ _ids = itertools.count(1)
 
 
 class FakeRun(Run):
-    def __init__(self, backend: "FakeBackend", job: dict):
+    def __init__(self, backend: "FakeBackend", job: dict, run_id: str | None = None):
         self.backend = backend.name
-        self.id = f"fake-{next(_ids)}"
+        self.id = run_id or f"fake-{next(_ids)}"
         self._fb = backend
         self._job = job
         self.status = "queued"
 
     def refresh(self) -> str:
+        # a run looked up again (attach) has been going on without us: it is
+        # as far as the backend's script says it ends
+        if getattr(self, "attached", False) and self.status == "queued":
+            return self._fb.final
         return self.status
 
     def watch(self, on_progress: Callable[[Progress], None] | None = None,
@@ -76,6 +80,9 @@ class FakeBackend(Backend):
         self.submitted: list[dict] = []
         self.calls: list[tuple[str, dict]] = []
         self.uploaded: list[str] = []
+        self.attaches: list[tuple[str, str | None]] = []
+        self.attached: dict[str, dict] = {}
+        self.gone: set[str] = set()
 
     def ping(self) -> str | None:
         return self.down
@@ -98,3 +105,14 @@ class FakeBackend(Backend):
         args = self._upload(arguments)
         self.calls.append((model, args))
         return FakeRun(self, args)
+
+    def attach(self, run_id: str, model: str | None = None) -> Run:
+        """The run as `attached[run_id]` scripts it (a dict like submit's
+        job), else plays back like any other; `attaches` records each ask."""
+        self.attaches.append((run_id, model))
+        if run_id in self.gone:
+            from seriesmith.backends import BackendError
+            raise BackendError(f"no run {run_id}")
+        run = FakeRun(self, self.attached.get(run_id, {}), run_id)
+        run.attached = True
+        return run
