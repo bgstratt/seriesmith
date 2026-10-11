@@ -121,7 +121,7 @@ class RouterCallTest(Episode):
         self.assertEqual(args["resolution"], "720p")
         self.assertTrue(4 <= args["duration"] <= 30)
         self.assertEqual(args["duration"] * 24, job.frames)
-        self.assertTrue(0 <= args["seed"] <= 4294967295)
+        self.assertTrue(0 <= args["seed"] <= 2147483647)      # BytePlus refuses past 2^31-1
         self.assertIs(args["watermark"], False)
 
     def test_a_first_keyframe_makes_it_frame_generation(self):
