@@ -3,7 +3,7 @@ import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
-  upscaleTake, postTake, removePost,
+  upscaleTake, postTake, removePost, openFrameUse,
 } from "../actions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -118,6 +118,14 @@ export function ContextMenu() {
         >
           <i className="pi pi-arrow-right" /> Use this frame as the next shot's first frame
           <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
+        </button>
+      )}
+      {take && menu.frame != null && (
+        <button disabled={!usable}
+          title={usable ? `Make a new character or place from ${frameLabel} of ${menu.shot} ${tn(take.take)}, or a new picture for one there is`
+            : "Only a finished take with video has frames"}
+          onClick={run(() => openFrameUse({ shot: menu.shot, take: take.take, pass: menu.pass, frame: menu.frame ?? "last" }))}>
+          <i className="pi pi-user-plus" /> Character or place from this frame…
         </button>
       )}
       <button

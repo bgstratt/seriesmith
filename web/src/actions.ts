@@ -3022,6 +3022,11 @@ export function setBackends(backends: BackendInfo[] | null) {
   set({ backends });
 }
 
+/** A frame of a take, to be made into a character or a place (null closes it). */
+export function openFrameUse(f: { shot: string; take: number; pass: string; frame: number | "last" } | null) {
+  set({ frameUse: f, menu: null });
+}
+
 /** Simple or advanced mode (remembered in this browser). */
 export function setSimple(on: boolean) {
   set({ simple: on, menu: null });

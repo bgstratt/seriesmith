@@ -437,9 +437,10 @@ Once a clip exists (rendered or uploaded), the best reference is often a
 frame of it: scrub to the moment the character reads well and make their
 pictures from that, so a look found by accident becomes the look kept.
 
-- [ ] Scrub any take (or an uploaded video) in the viewer and **Use this
-      frame for…** a character or a place: the frame is kept as a picture.
-- [ ] **New character from a frame**: the frame goes to an edit model (Qwen
+- [x] Scrub any take in the viewer and **Character or place from this
+      frame…** (its right-click): the frame is kept as a candidate (refs.
+      frame_into, which the continuity keyframes use too).
+- [x] **New character from a frame**: the frame goes to an edit model (Qwen
       Image edit, Z-Image Turbo, FLUX.2 Klein edit; the series' keyframe or
       refs model by default) with an instruction made from what you say
       ("the woman in the red coat, on the left"): the one person cut out onto
@@ -448,17 +449,27 @@ pictures from that, so a look found by accident becomes the look kept.
       back, face) are then drawn from it, as a variant's are from its base,
       and stitched into the sheet. Name and design asked as in Simple mode,
       the design suggested from the picture.
-- [ ] **Update a character from a frame**: the same, as a new candidate of
+- [x] **Update a character from a frame**: the same, as a new candidate of
       an existing character (its sheet, or one view), beside today's ways:
       generate from the design (Krea 2 and the other text-to-image models)
       or edit a picture it has (Edit, with other refs' pictures as image 2
       onward).
-- [ ] **A place from a frame**: the frame with the people removed (the edit
+- [x] **A place from a frame**: the frame with the people removed (the edit
       model again: "the empty room"), as a location's plate; or a location
       described in words given its first picture this way.
-- [ ] A clip's character or place written in words can be given its picture
+- [x] A clip's character or place written in words can be given its picture
       this way after the fact: the shots after it keep it (step 12's
-      words-only places and people).
+      words-only places and people). (For one there is: its first picture.)
+
+How (POST /seriesmith/refs/from-frame): the frame becomes a candidate of the
+ref (a character's three-quarter view); an edit of it on an edit model, with
+an instruction made from who you point out, makes the reference; for a
+character a step then draws the other three views from that one (an edit
+from_view, refs.VIEW_FROM), and for a new one a last step picks each, so the
+sheet stitches. Not the Qwen angles LoRA (`turn`): it isn't always
+installed; any edit model works this way. Uploaded videos (not takes) are
+still to come. Checked live (the lane paused): the new character written,
+the frame in as t01, the cut-out queued and the views' step waiting.
 
 ## Later
 

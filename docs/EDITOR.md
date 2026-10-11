@@ -395,6 +395,26 @@ keyframe. What it can't, yet: subject reference sheets (character identity), whi
 repo target's job. `seriesmith target-from-workflow <workflow> [<episode>] --save` is the
 same thing without the UI.
 
+### A character or a place from a frame
+
+Right-click a take's picture in the viewer at the moment you like, and **Character or
+place from this frame…**:
+
+- **A new character**: a name, who they are in the frame ("the woman in the red coat, on
+  the left") and, if you like, what they look like (said in every shot they're in). The
+  frame goes to an edit model (the series' own, or one you pick: FLUX.2 Klein edit, Qwen,
+  ...), which cuts them out onto a plain background as their three-quarter view; their
+  side, back and face views are then drawn from that one, each picked as it comes out,
+  and stitched into their sheet.
+- **A new place**: a name; the edit model takes the people out, leaving the place as its
+  plate.
+- **For one there is**: the frame, cut out (or as it is), as a new candidate of a
+  character's view or a place, beside its pictures (and, for a character, its other views
+  drawn from it too, as candidates); you pick which is live.
+
+**Use the frame as it is** skips the edit. It all goes on the queue; the Refs tab shows the
+candidates as they arrive, and any view can be made again from there.
+
 ## Refs
 
 Used heavily at the start of a series and rarely afterwards, if the references come out

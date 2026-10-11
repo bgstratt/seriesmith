@@ -44,6 +44,10 @@ export interface Api {
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
+  /** A frame of a take as a character's or a place's picture (step 13). */
+  refsFromFrame(req: { ep: string; pass: string; shot: string; take: number; frame: number | "last"; ref: string;
+                       view?: string | null; instruction?: string; target?: string | null; views?: boolean; pick?: boolean }):
+    Promise<{ frame: unknown; edits: string[]; step: string | null }>;
   /** Simple mode: the Clips project (made the first time). */
   clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
   /** Simple mode: a clip's missing pictures, then its takes. */
@@ -391,6 +395,7 @@ export function createHttpApi(t: Transport): Api {
     shot: (ep, pass, shot, target) => get(`/seriesmith/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
     build: (ep) => call("POST", "/seriesmith/build", { ep }),
     newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
+    refsFromFrame: (req) => call("POST", "/seriesmith/refs/from-frame", req),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),

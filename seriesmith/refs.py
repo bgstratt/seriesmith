@@ -1960,6 +1960,63 @@ def keyframe_source(s: Series, shot: str, which: str, pass_: str,
     return t, e.pass_
 
 
+def frame_into(s: Series, ref: Ref, view: str | None, src: T.Take, src_pass: str,
+               frame, note: str = "") -> tuple[RefTake, dict]:
+    """A frame of the video take `src` (`frame`: "first", "last" or an index,
+    negative from the end) as a new take of `ref` (a character's `view`):
+    source "frame", the sidecar recording which shot, take, pass and frame.
+    Returns (the take, {shot, take, pass, frame, frames, mp4, sha1})."""
+    if ref.has_views:
+        view = check_view(ref, view)
+        if view is None:
+            raise RefError(f"{ref.id} is a character: a frame goes into one view")
+    count = video_frames(src.paths.mp4)
+    idx = frame_index(frame, count)
+    d = takes_dir(ref)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, f".tmp_{uuid.uuid4().hex}.png")
+    try:
+        extract_frame(src.paths.mp4, idx, tmp)
+        source = {"shot": src.shot, "take": src.take, "pass": src_pass, "frame": idx,
+                  "frames": count, "mp4": ep_rel(s.ep, src.paths.mp4),
+                  "sha1": T.file_sha1(src.paths.mp4)}
+        t = reserve_take(ref, view, {
+            "status": "queued", "queued": T.now(), "ep": s.ep, "source": "frame",
+            "source_shot": src.shot, "source_take": src.take, "source_pass": src_pass,
+            "source_frame": idx, "source_frames": count, "source_mp4": source["mp4"],
+            "source_sha1": source["sha1"], "comfy_prompt_id": None, "seed": None,
+            "seed_source": None, "prompt": None, "model": None, "loras": None,
+            "steps": None, "note": note})
+        os.replace(tmp, t.paths.image)
+    finally:
+        if os.path.isfile(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    wh = image_size(t.paths.image) or (None, None)
+    t.sidecar = T.update_sidecar(
+        t.paths.sidecar, status="ok", finished=T.now(), width=wh[0], height=wh[1],
+        save_notes=f"frame {idx} of {count} of {src.shot} {src_pass} t{src.take:02d}")
+    return t, source
+
+
+# What a character's other views are drawn from its first one with, on an
+# edit model (from the view the frame went into): the same person, turned.
+VIEW_FROM = {
+    "01_threequarter": "Show this same character in a three-quarter view from the front left, "
+                       "the whole figure standing, on a plain light grey background.",
+    "02_side": "Show this same character from the left side, in profile, the whole figure "
+               "standing, on a plain light grey background.",
+    "03_back": "Show this same character from behind, the whole figure standing, on a plain "
+               "light grey background.",
+    "04_face": "Show a close-up of this same character's face, looking straight at us, on a "
+               "plain light grey background.",
+}
+KEEP_SAME = (" Keep their face, hair, build, clothes and colours exactly the same, in the "
+             "same style.")
+
+
 def keyframe_from_take(s: Series, shot: str, which: str = "first",
                        source_shot: str | None = None, source_take: int | None = None,
                        frame=None, pass_: str = "proxy", pick: bool | None = None,
@@ -1979,34 +2036,7 @@ def keyframe_from_take(s: Series, shot: str, which: str = "first",
     src, src_pass = keyframe_source(s, shot, which, pass_, source_shot, source_take)
     if frame is None:
         frame = "last" if which == "first" else "first"
-    count = video_frames(src.paths.mp4)
-    idx = frame_index(frame, count)
-    d = takes_dir(ref)
-    os.makedirs(d, exist_ok=True)
-    tmp = os.path.join(d, f".tmp_{uuid.uuid4().hex}.png")
-    try:
-        extract_frame(src.paths.mp4, idx, tmp)
-        source = {"shot": src.shot, "take": src.take, "pass": src_pass, "frame": idx,
-                  "frames": count, "mp4": ep_rel(s.ep, src.paths.mp4),
-                  "sha1": T.file_sha1(src.paths.mp4)}
-        t = reserve_take(ref, None, {
-            "status": "queued", "queued": T.now(), "ep": s.ep, "source": "frame",
-            "source_shot": src.shot, "source_take": src.take, "source_pass": src_pass,
-            "source_frame": idx, "source_frames": count, "source_mp4": source["mp4"],
-            "source_sha1": source["sha1"], "comfy_prompt_id": None, "seed": None,
-            "seed_source": None, "prompt": None, "model": None, "loras": None,
-            "steps": None, "note": note})
-        os.replace(tmp, t.paths.image)
-    finally:
-        if os.path.isfile(tmp):
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-    wh = image_size(t.paths.image) or (None, None)
-    t.sidecar = T.update_sidecar(
-        t.paths.sidecar, status="ok", finished=T.now(), width=wh[0], height=wh[1],
-        save_notes=f"frame {idx} of {count} of {src.shot} {src_pass} t{src.take:02d}")
+    t, source = frame_into(s, ref, None, src, src_pass, frame, note)
     picked = False
     if pick or (pick is None and not os.path.isfile(ref.file)
                 and not is_cleared(load_picks(ref.home), ref.id)):

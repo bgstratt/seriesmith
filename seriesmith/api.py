@@ -615,6 +615,105 @@ def post_clip_queue(ctx: Context, body):
 
 
 @handler
+def post_refs_from_frame(ctx: Context, body):
+    """A character or a place from a frame of a take (docs/PLAN.md step 13):
+    the frame becomes a candidate of `ref` (a character's `view`, default the
+    three-quarter), then -- with an `instruction` -- an edit model makes it
+    into the reference ("cut out the woman in the red coat onto a plain
+    background"; "remove the people"); for a character with `views`, its
+    other three views are then drawn from that one. With `pick` (a new one)
+    each comes out picked, so the sheet stitches; without, they're
+    candidates beside what it has. Body {ep, pass, shot, take, frame,
+    ref, view?, instruction?, target? (an edit model), views?, pick?}.
+    Returns {"frame": take, "edits": [ids], "step": id | null}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    take_n = check_take(body.get("take"), "take")
+    frame = body.get("frame", 0)
+    if isinstance(frame, str) and frame.lstrip("-").isdigit():
+        frame = int(frame)
+    s = _series(ep)
+    ref = _ref(s, body.get("ref"))
+    if ref.is_audio:
+        raise ApiError(400, f"{ref.id} is a voice: a frame is a picture")
+    view = body.get("view") or ("01_threequarter" if ref.has_views else None)
+    instruction = (body.get("instruction") or "").strip()
+    target = body.get("target") or None
+    views, pick = bool(body.get("views")), bool(body.get("pick"))
+    src = T.get_take(ep, pass_, shot, take_n)
+    if src is None or not src.has_video:
+        raise ApiError(404, f"{shot} {pass_} t{take_n:02d} has no video")
+    try:
+        t, _source = R.frame_into(s, ref, view, src, pass_, frame,
+                                  note=f"from {shot} t{take_n:02d}")
+    except R.RefError as e:
+        raise ApiError(400, str(e))
+    except R.FfmpegMissing as e:
+        raise ApiError(500, str(e))
+    ref_event(ctx, ep, ref.id, view, t.take, "ok")
+    runner = ctx.runner
+
+    def gen(v, edit: dict, prompt: str) -> list[str]:
+        status, data = post_refs_generate(ctx, {"ep": ep, "ref": ref.id, "view": v, "edit": edit,
+                                                "prompt": prompt, **({"target": target} if target else {})})
+        if status >= 400:
+            raise ApiError(status, data.get("error") or "the edit wasn't queued")
+        return [q["prompt_id"] for q in data.get("queued") or [] if q.get("prompt_id")]
+
+    def newest_ok(v):
+        ok = [x for x in R.list_takes(R.find_ref(R.load_series(ep), ref.id), v) if x.status == "ok"]
+        return ok[-1] if ok else None
+
+    def pick_newest(v, report=None) -> None:
+        s2 = R.load_series(ep)
+        r2 = R.find_ref(s2, ref.id)
+        nt = newest_ok(v)
+        if nt is not None:
+            try:
+                R.pick_take(s2, r2, v, nt.take)
+            except Exception as e:                       # noqa: BLE001  a stitch waits for the rest
+                if report:
+                    report(line=f"{v or ref.id}: picked t{nt.take:02d} ({e})")
+
+    edits = gen(view, {"take": t.take}, instruction) if instruction else []
+    if not edits:
+        if pick:
+            pick_newest(view)
+        if not (views and ref.has_views):
+            return 200, {"frame": R.take_json(ep, ref, t), "edits": [], "step": None}
+    if runner is None:
+        raise ApiError(409, "this needs seriesmith's queue (seriesmith serve)")
+
+    def then(report) -> str:
+        # the first view as it came out, then the others drawn from it
+        if pick:
+            pick_newest(view, report)
+        if not (views and ref.has_views):
+            return "succeeded"
+        others = [v for v in R.VIEW_TAGS if v != view]
+        ids = []
+        for v in others:
+            ids += gen(v, {"take": None, "from_view": view} if pick else
+                       {"take": (newest_ok(view) or t).take, "from_view": view},
+                       R.VIEW_FROM[v] + R.KEEP_SAME)
+        report(line=f"{len(ids)} view(s) asked for, from {view}")
+        if pick:
+            def done(report2) -> str:
+                for v in others:
+                    pick_newest(v, report2)
+                return "succeeded"
+            runner.enqueue_step(f"{ref.id}: pick its views", done, after=ids,
+                                info={"ep": ep, "ref": ref.id})
+        return "succeeded"
+    step = runner.enqueue_step(f"{ref.id}: from the frame, then its views" if views else
+                               f"{ref.id}: from the frame", then, after=edits or None,
+                               info={"ep": ep, "ref": ref.id})
+    return 200, {"frame": R.take_json(ep, ref, t), "edits": edits, "step": step}
+
+
+@handler
 def get_episode_template(ctx: Context, query: dict):
     """The new episode wizard's start: what an episode made in `parent` (or in
     a new show folder `show` inside it) would start from (source.episode_template)."""
@@ -3273,6 +3372,7 @@ ROUTES = [
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
     ("POST", "/seriesmith/clips/ensure", post_clips_ensure, "body"),
     ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
+    ("POST", "/seriesmith/refs/from-frame", post_refs_from_frame, "body"),
     ("POST", "/seriesmith/import", post_import, "body"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),

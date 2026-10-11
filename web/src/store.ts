@@ -432,6 +432,8 @@ export interface AppState {
   simple: boolean;
   /** Play all limited to these shots (a clip of several shots), else the whole cut */
   cutOnly: string[] | null;
+  /** a frame of a take being made into a character or a place (FrameUse.tsx) */
+  frameUse: { shot: string; take: number; pass: string; frame: number | "last" } | null;
 }
 
 export const ZOOM_MIN = 8;
@@ -532,6 +534,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     picturePick: null,
     simple: readSimple(),
     cutOnly: null,
+    frameUse: null,
   };
 }
 

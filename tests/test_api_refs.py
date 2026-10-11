@@ -22,7 +22,7 @@ from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
-from test_render import FIXTURE, play_runner, png_bytes  # noqa: E402
+from test_render import FIXTURE, play_runner, png_bytes, settle  # noqa: E402
 
 try:
     import PIL  # noqa: F401
@@ -201,6 +201,51 @@ class RefsApiTest(ApiTest):
                      ("PUT", "/seriesmith/refs/pick"), ("POST", "/seriesmith/refs/import"),
                      ("PUT", "/seriesmith/refs/override"), ("DELETE", "/seriesmith/refs/override")):
             self.assertIn(want, got)
+
+
+@unittest.skipUnless(test_api.HAVE_FF, "needs ffmpeg and ffprobe on PATH")
+class FromFrameTest(ApiTest):
+    """POST /seriesmith/refs/from-frame: a frame of a take as a character or a
+    place: the frame, an edit of it, and a character's other views drawn from
+    that (docs/PLAN.md step 13)."""
+
+    def frame(self, **body):
+        return A.post_refs_from_frame(self.ctx, dict({"ep": self.ep, "pass": "proxy", "shot": "sh010",
+                                                      "take": 1, "frame": 8}, **body))
+
+    def test_a_character_from_a_frame_with_its_views(self):
+        from test_keyframes import make_take
+        make_take(self.ep, "proxy", "sh010")
+        res = self.ok(self.frame(ref="subject:ada", instruction="cut out the woman on the left",
+                                 target="flux2_klein_edit", views=True, pick=True))
+        self.assertEqual((res["frame"]["view"], res["frame"]["source"]), ("01_threequarter", "frame"))
+        self.assertEqual(len(res["edits"]), 1)
+        settle(self.ctx.runner, 60)
+        ada = R.find_ref(R.load_series(self.ep), "subject:ada")
+        for v in R.VIEW_TAGS:
+            takes = R.list_takes(ada, v)
+            self.assertTrue(any(t.sidecar.get("source") == "edited" for t in takes), (v, [t.sidecar for t in takes]))
+            self.assertIsNotNone(R.picked_take(R.load_picks(ada.home), ada.id, v), v)
+        # the others were drawn from the three-quarter view
+        side = [t for t in R.list_takes(ada, "02_side") if t.sidecar.get("source") == "edited"][-1]
+        self.assertEqual(side.sidecar["edit"]["view"], "01_threequarter")
+        steps = [j for j in self.ctx.runner.queue.jobs.values() if j.kind == "step"]
+        self.assertTrue(steps and all(j.status == "succeeded" for j in steps), [(j.title, j.error) for j in steps])
+
+    def test_a_place_from_a_frame_and_a_frame_as_it_is(self):
+        from test_keyframes import make_take
+        make_take(self.ep, "proxy", "sh010")
+        res = self.ok(self.frame(ref="location:kitchen", instruction="remove the people",
+                                 target="flux2_klein_edit"))
+        self.assertEqual((res["frame"]["view"], len(res["edits"])), (None, 1))
+        settle(self.ctx.runner, 60)
+        kitchen = R.find_ref(R.load_series(self.ep), "location:kitchen")
+        self.assertEqual([t.sidecar.get("source") for t in R.list_takes(kitchen, None)], ["frame", "edited"])
+        # no instruction: the frame itself, picked
+        res = self.ok(self.frame(ref="location:kitchen", frame="last", pick=True))
+        self.assertEqual((res["edits"], res["step"]), ([], None))
+        self.assertEqual(R.picked_take(R.load_picks(kitchen.home), kitchen.id, None), res["frame"]["take"])
+        self.err(self.frame(ref="location:kitchen", take=9), 404)
 
 
 @unittest.skipUnless(test_api.HAVE_FF, "needs ffmpeg and ffprobe on PATH")
