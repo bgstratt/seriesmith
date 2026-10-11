@@ -186,6 +186,22 @@ class TourQueueTest(Base):
                                       "take": d["holds"][0], "status": "ok"}), events)
 
 
+class LostTourTest(Base):
+    def test_a_tour_the_server_lost_in_a_restart_is_failed(self):
+        from seriesmith import takes as T
+        ref = R.find_ref(self.s, "location:kitchen")
+        ((side, g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
+        side.update(comfy_prompt_id="lost", queue="seriesmith", backend="local")
+        TOUR.save_side(ref, side)
+        self.addCleanup(setattr, T, "MANAGED", None)
+        T.MANAGED = lambda: {"lost"}                 # still on the queue: left alone
+        self.assertEqual(TOUR.list_tours(ref)[0]["status"], "queued")
+        T.MANAGED = lambda: set()                   # the server restarted
+        (d,) = TOUR.list_tours(ref)
+        self.assertEqual(d["status"], "failed")
+        self.assertIn("restarted", d["error"])
+
+
 class TurnTest(Base):
     def test_a_view_is_turned_from_another(self):
         req = R.GenRequest("subject:ada", "03_back",

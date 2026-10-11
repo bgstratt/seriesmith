@@ -67,7 +67,7 @@ def list_tours(ref: R.Ref) -> list[dict]:
     for p in sorted(glob.glob(os.path.join(tours_dir(ref), "tour_t*.json"))):
         d = T.read_json(p)
         if isinstance(d, dict):
-            out.append(d)
+            out.append(T.lost_job(p, d))      # a tour the server lost in a restart
     return sorted(out, key=lambda d: d.get("tour", 0))
 
 

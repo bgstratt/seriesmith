@@ -1284,10 +1284,16 @@ def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None) -> list
     error marks it failed with the exception message; a job that finished is
     closed from what is on disk (finish_job, for a saver that didn't); anything
     else goes to sweep_queued. A take whose job is still pending or running is
-    left alone. Raises if ComfyUI can't be reached.
+    left alone. With ComfyUI away only the takes seriesmith's queue ran are
+    swept (whether their job is still there doesn't need ComfyUI).
     """
     as_of = T.now()
-    alive = comfy.alive()
+    try:
+        alive = comfy.alive()
+    except Exception:                     # noqa: BLE001  ComfyUI away: the queue's own only
+        return T.sweep_queued([t for d, i in J.episode_shots(root, pass_)
+                               for t in T.list_takes(root, pass_, d["shots"][i]["id"], folder)
+                               if (t.sidecar or {}).get("backend")], set(), as_of=as_of)
     changed = []
     for d, i in J.episode_shots(root, pass_):
         s = d["shots"][i]

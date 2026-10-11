@@ -258,6 +258,21 @@ class TakesTest(RefsTest):
         self.assertEqual(alive.take, 2)
 
 
+    def test_comfyui_away_still_closes_what_the_queue_lost(self):
+        kitchen = self.ref("location:kitchen")
+        R.reserve_take(kitchen, None, {"status": "queued", "comfy_prompt_id": "lost",
+                                       "backend": "router", "queue": "seriesmith",
+                                       "queued": "2026-01-01T00:00:00+00:00"})
+        R.reserve_take(kitchen, None, {"status": "queued", "comfy_prompt_id": "comfy-own",
+                                       "queued": "2026-01-01T00:00:00+00:00"})
+        self.addCleanup(setattr, T, "MANAGED", None)
+        T.MANAGED = lambda: set()
+        changed = R.sweep(self.s, J.Comfy("http://127.0.0.1:9"))   # nobody there
+        self.assertEqual([t.take for t in changed], [1])
+        t1, t2 = R.list_takes(kitchen)
+        self.assertEqual((t1.status, t2.status), ("failed", "queued"))
+
+
 class GenerateTest(RefsTest):
     def test_character_four_views_share_a_seed(self):
         out = self.gen("subject:ada")

@@ -570,6 +570,18 @@ class SweepTest(ApiTest):
         sh = next(s for s in data["shots"] if s["shot"] == "sh010")
         self.assertEqual(sh["takes"][0]["status"], "queued")
 
+    def test_no_comfy_still_sweeps_what_seriesmiths_queue_lost(self):
+        T.reserve_take(self.ep, "proxy", "sh010",
+                       {"status": "queued", "comfy_prompt_id": "lost", "backend": "cloud",
+                        "queue": "seriesmith", "queued": "2026-01-01T00:00:00+00:00"})
+        self.addCleanup(setattr, T, "MANAGED", None)
+        T.MANAGED = lambda: set()
+        ctx = A.Context(self.user, "http://127.0.0.1:9", env={})
+        data = self.ok(A.get_episode(ctx, {"ep": self.ep, "pass": "proxy"}))
+        sh = next(s for s in data["shots"] if s["shot"] == "sh010")
+        self.assertEqual(sh["takes"][0]["status"], "failed")
+        self.assertIn("restarted", sh["takes"][0]["save_notes"])
+
 
 class RenderTest(ApiTest):
     def test_no_review_copy_in_comfyui_output_unless_asked(self):

@@ -369,11 +369,12 @@ def source_stamp(path: str) -> dict:
             "source_sha1": file_sha1(path)}
 
 
-def _lost_finish(path: str, data: dict) -> dict:
-    """A queued upscale or post record whose job seriesmith's queue no longer
-    has (the server restarted while it waited or ran) is failed, as
-    sweep_queued fails such a take: otherwise it reads "on its way" forever,
-    and a master waits for it. Left alone outside the server (MANAGED None)."""
+def lost_job(path: str, data: dict) -> dict:
+    """A queued record (an upscale, a post, a tour) whose job seriesmith's
+    queue no longer has (the server restarted while it waited or ran) is
+    failed, as sweep_queued fails such a take: otherwise it reads "on its way"
+    forever, and a master waits for it. Left alone outside the server
+    (MANAGED None)."""
     if (data.get("status") != "queued" or data.get("queue") != "seriesmith" or MANAGED is None
             or not data.get("comfy_prompt_id") or data["comfy_prompt_id"] in MANAGED()):
         return data
@@ -389,7 +390,7 @@ def upscale_of(take: Take) -> dict | None:
     data = read_sidecar(take.paths.up_sidecar)
     if data is None:
         return None
-    data = _lost_finish(take.paths.up_sidecar, data)
+    data = lost_job(take.paths.up_sidecar, data)
     fresh = False
     if data.get("status") == "ok" and os.path.isfile(take.paths.up_mp4) and take.has_video:
         st = os.stat(take.paths.mp4)
@@ -407,7 +408,7 @@ def post_of(take: Take, up: dict | None = None) -> dict | None:
     data = read_sidecar(take.paths.post_sidecar)
     if data is None:
         return None
-    data = _lost_finish(take.paths.post_sidecar, data)
+    data = lost_job(take.paths.post_sidecar, data)
     up = upscale_of(take) if up is None else up
     fresh = False
     if (data.get("status") == "ok" and os.path.isfile(take.paths.post_mp4)

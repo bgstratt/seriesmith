@@ -3656,9 +3656,13 @@ def all_takes(s: Series) -> list[RefTake]:
 
 def sweep(s: Series, comfy) -> list[RefTake]:
     """Close queued ref takes whose ComfyUI job is gone (edit.sweep_takes'
-    rules). Raises if ComfyUI can't be reached."""
+    rules). With ComfyUI away only those seriesmith's queue ran are swept."""
     as_of = T.now()
-    alive = comfy.alive()
+    try:
+        alive = comfy.alive()
+    except Exception:                     # noqa: BLE001  ComfyUI away: the queue's own only
+        return T.sweep_queued([t for t in all_takes(s) if (t.sidecar or {}).get("backend")],
+                              set(), as_of=as_of)
     changed, rest = [], []
     for t in all_takes(s):
         sc = t.sidecar or {}
