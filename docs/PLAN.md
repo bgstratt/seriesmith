@@ -382,11 +382,14 @@ the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
 - [x] The queue outlives the server: its live jobs are kept in a journal; on
       start, jobs that had reached their backend are reattached by their run id
       (local through the proxy, Cloud, deployments, Router: comfy-sdk's
-      jobs.get / models.handle) and collected. Ones still waiting had cost
-      nothing and are failed saying which button queues them again (rebuilding
-      a job from its record for every kind wasn't worth the machinery).
-      Checked with the fake backend: a render whose server stopped mid-run is
-      collected after the restart without being sent again.
+      jobs.get / models.handle) and collected. Ones still waiting in
+      seriesmith's queue had cost nothing: their never-run records are cleared
+      and the request that queued them is asked again, narrowed to them
+      (runner.requeue_plan: those shots, ref views, takes; Master and Generate
+      missing as they were), in their order, so they keep their take numbers.
+      Checked with the fake backend: a render stopped mid-run is collected
+      after the restart without being sent again, and the two waiting behind
+      it render again as their own t01.
 - [x] Disk space is checked before upscales and masters (they write gigabytes
       at 4K): a job that wouldn't fit says so instead of failing mid-write.
 
