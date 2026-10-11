@@ -130,8 +130,8 @@ export function install() {
         console.error("[seriesmith] this ComfyUI frontend has no extensionManager.registerSidebarTab; the editor needs frontend >= 1.3");
         return;
       }
-      em.registerSidebarTab({ ...tab("shots", "seriesmith Shots"), icon: "pi pi-clone", tooltip: "seriesmith: episode, shots and takes" });
-      em.registerSidebarTab({ ...tab("refs", "seriesmith Refs"), icon: "pi pi-users", tooltip: "seriesmith: references (characters, props, locations, voices)" });
+      em.registerSidebarTab({ ...tab("shots", "seriesmith Shots"), icon: "pi pi-video", tooltip: "seriesmith: episode, shots and takes" });
+      em.registerSidebarTab({ ...tab("refs", "seriesmith Refs"), icon: "h3-ico-images", tooltip: "seriesmith: references (characters, props, locations, voices)" });
       mountOverlay();
       await start();
     },
