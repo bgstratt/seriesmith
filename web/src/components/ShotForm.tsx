@@ -163,7 +163,11 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
-      openShotForm({ shot: form.id, after: null });
+      // the script as it is now: a new shot opens as itself; an edited one
+      // reads the script again (its new hash, the shot as saved), or the form
+      // would still look unsaved and its next save would be refused as stale
+      if (isNew) openShotForm({ shot: form.id, after: null });
+      else await load();
     } catch (e) {
       setError(conflictOf(e) ? "The script changed on disk since this form opened: reload it (your edits here are lost) or save them in the Script window." : (e as Error).message);
     } finally {
