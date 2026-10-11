@@ -272,6 +272,10 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         <div className="h3-col" style={{ gap: 4 }}>
           <span className="h3-row h3-wrap" style={{ gap: 4 }}>
             <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
+            {where && (
+              <button className="h3-btn" title="Its pictures: make it again, edit it, or take a Tour through it for new angles"
+                onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
+            )}
             <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
           </span>
           {!where && (
