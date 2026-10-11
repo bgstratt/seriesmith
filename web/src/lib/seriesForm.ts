@@ -220,7 +220,7 @@ export const SECTIONS: Section[] = [
       { path: ["upscale", "master", "deliver"], label: "Deliver at", kind: "select",
         choices: [{ value: "", label: "no master recipe yet" }, { value: "1080p", label: "1080p (1920×1080)" },
           { value: "1440p", label: "1440p (2560×1440)" }, { value: "4k", label: "4K (3840×2160)" }],
-        help: "The master's one size. Each shot is upscaled through its own model by the recipe's per-model sections (edit those as text, or from the Upscale dialog)." },
+        help: "The master's one size. How each video model's shots get there is set below, a row per model." },
       { path: ["upscale", "master", "fit"], label: "Fit", kind: "select",
         when: (r) => !isEmpty(getPath(r, ["upscale", "master", "deliver"])),
         choices: [{ value: "", label: "crop (the default)" }, { value: "crop", label: "crop: fill the frame" }, { value: "pad", label: "pad: black bars" }],

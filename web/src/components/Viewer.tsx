@@ -462,8 +462,29 @@ interface Engine {
  * the picture), and the episode's recorded dialogue under the cut instead of
  * the clips' own sound (one <audio>, kept on the cut's clock).
  */
+const LOOP_ALL_KEY = "seriesmith.playall.loop";
+
 function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const items = useApp((s) => currentPlaylist(s));
+  // Loop: the cut starts over from its first shot at the end (remembered)
+  const [loopAll, setLoopAll] = useState(() => {
+    try {
+      return localStorage.getItem(LOOP_ALL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const loopRef = useRef(loopAll);
+  loopRef.current = loopAll;
+  const toggleLoopAll = () => {
+    const next = !loopAll;
+    setLoopAll(next);
+    try {
+      localStorage.setItem(LOOP_ALL_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
   const st = useStatus();
   const cp = useApp((s) => s.cutPlay);
   const audioMode = useApp((s) => s.cutAudio);
@@ -604,6 +625,10 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
           if (done) {
             if (e.idx + 1 < e.items.length) {
               show(e.idx + 1, 0);
+            } else if (loopRef.current && e.items.length) {
+              show(0, 0);
+              const a = au.current;
+              if (a && rec.current) a.currentTime = recordingAt(recStart.current, 0);
             } else {
               els().forEach((x) => x?.pause());
               reportCutPos(totalDuration(e.items), it.shot, true);
@@ -784,6 +809,8 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
           <i className={cp.playing ? "pi pi-pause" : "pi pi-play"} />
         </button>
         <button className="h3-btn h3-icon" title="Next shot (→)" onClick={() => jump(1)}><i className="pi pi-step-forward" /></button>
+        <button className={`h3-btn h3-icon${loopAll ? " h3-on" : ""}`} title={loopAll ? "Loop: the cut starts over at the end (on)" : "Loop: start the cut over at the end"}
+          onClick={toggleLoopAll}><i className="pi pi-replay" /></button>
         <input type="range" min={0} max={total || 1} step={0.01} value={Math.min(cp.pos, total)} onChange={(e) => seekCut(Number(e.target.value))} />
         <span className="h3-mono h3-muted">{fmtClock(cp.pos)} / {fmtClock(total)}</span>
         {anyUpscale && (

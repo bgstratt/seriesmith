@@ -542,12 +542,24 @@ The queue lives in the server: closing the page leaves it running, and reopening
 where things are. Stopping `seriesmith serve` drops what hasn't run; those takes are marked
 failed the next time the episode is opened.
 
+## Settings
+
+**Settings** in the top bar is this machine's own, never the series': the **Comfy API key**
+(from platform.comfy.org; it turns on Comfy Cloud and Comfy Router, and paid use is billed
+to that account), the Cloud address, where your **ComfyUI** and **comfy-api-proxy** are,
+and **deployments** (a model built into a Comfy deployment of its own, which then shows in
+**Render on** as `deployment:<model>`). Saving applies at once. They live in
+`%APPDATA%\seriesmith\settings.json`; a value the environment sets (`COMFY_API_KEY`, ...)
+wins and shows as such.
+
 ## The viewer
 
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
 float it, or dock another window beside it.
+
+**Play all** has its own **Loop** (the cut starts over at the end; remembered).
 
 **Full screen** (the button by Close, or `F`) puts the viewer on the whole screen, its
 controls with it; `F` or `Esc` brings it back. The sidebar's right edge and the timeline's

@@ -81,6 +81,38 @@ class StandaloneTest(unittest.TestCase):
         self.assertEqual(info["settings"]["api_key"], None)
         self.assertFalse(info["comfy_connected"])
 
+    def test_the_settings_window_saves_and_uses_them(self):
+        from unittest import mock
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("COMFY_API_KEY", "SERIESMITH_CLOUD_URL", "SERIESMITH_LOCAL_URL",
+                            "SERIESMITH_COMFYUI_URL")}
+
+        async def body(client, app):
+            got = await (await client.get("/seriesmith/settings")).json()
+            put = await client.put("/seriesmith/settings", json={
+                "api_key": "comfyui-test", "cloud_url": "https://cloud.example.com/",
+                "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
+            saved = await put.json()
+            with_key = sorted(app["backends"])
+            bad = await client.put("/seriesmith/settings", json={"cloud_url": "ftp://x"})
+            off = await (await client.put("/seriesmith/settings", json={"api_key": None})).json()
+            return got, put.status, saved, with_key, bad.status, off, sorted(app["backends"])
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            got, status, saved, with_key, bad, off, after = self.run_app(body)
+        self.assertEqual(got["settings"]["api_key"], None)
+        self.assertEqual(got["from_env"], {})
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["settings"]["api_key"], "set")
+        self.assertEqual(saved["settings"]["cloud_url"], "https://cloud.example.com")
+        self.assertEqual(with_key, ["cloud", "deployment:minimax_h3_ref2va", "local", "router"])
+        self.assertEqual(bad, 400)
+        self.assertEqual(off["settings"]["api_key"], None)
+        self.assertEqual(after, ["deployment:minimax_h3_ref2va", "local"])
+        with open(os.environ["SERIESMITH_SETTINGS"], encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
+                                             "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
+
     def test_the_apis_events_reach_the_page(self):
         async def body(client, app):
             ws = await client.ws_connect("/ws")

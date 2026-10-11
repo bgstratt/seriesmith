@@ -407,6 +407,8 @@ export interface AppState {
   renderBackend: string;
   /** seriesmith: the Jobs window is open */
   jobsOpen: boolean;
+  /** the standalone page's Settings window (components/SettingsWindow.tsx) */
+  settingsOpen: boolean;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -498,6 +500,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     backends: null,
     renderBackend: "",
     jobsOpen: false,
+    settingsOpen: false,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},

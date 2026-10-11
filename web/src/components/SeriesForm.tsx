@@ -6,12 +6,12 @@
 // The cast and places are listed at the end; each opens its own card
 // (SubjectCard.tsx).
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { loadTargets, openSeriesForm, openSource, openSubjectCard } from "../actions";
 import {
   CARD_KINDS, DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardKindOf, getPath, parsed, serialize, setPath,
   setSize, shapeNote, shown, sizeOf, slug, type CardKind, type Field, type Raw,
-  masterLacksTargets, withMasterTargets,
+  withMasterTargets,
 } from "../lib/seriesForm";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
@@ -19,6 +19,7 @@ import type { Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, PicturePath, Thumb } from "./Picture";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
+import { MasterRecipe } from "./MasterRecipe";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
 
@@ -108,15 +109,9 @@ function SeriesForm({ ep }: { ep: string }) {
                           onChange={(v) => sc.setDraft((d) => setSize(d, "proxy", v))} />
                       </>
                     )}
-                    {sec.id === "finishing" && masterLacksTargets(draft) && (
-                      <div className="h3-note h3-small">
-                        The master recipe has a size but no settings per video model, so every shot would be a gap.{" "}
-                        <button className="h3-btn" onClick={() => sc.setDraft((d) => withMasterTargets(d))}>Add the standard ones</button>
-                        <div className="h3-muted">H3: re-sampled at the size that covers the delivery; LTX-2: re-sampled 2x; Wan: SeedVR2 7B; anything else: RealESRGAN x2. Edit them as text, or from the Upscale dialog.</div>
-                      </div>
-                    )}
                     {fields.map((f) => (
-                      <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
+                      <Fragment key={f.path.join(".")}>
+                      <FieldRow f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
                         backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
                         onChange={(v) => {
                           set(f.path, parsed(f, v));
@@ -127,6 +122,11 @@ function SeriesForm({ ep }: { ep: string }) {
                             set(["series", "id"], slug(v));
                           }
                         }} />
+                      {/* the master's per-model rows, under its size, fit and encoding */}
+                      {f.path.join(".") === "upscale.master.quality" && (
+                        <MasterRecipe ep={ep} raw={draft} onChange={(next) => sc.setDraft(() => next)} />
+                      )}
+                      </Fragment>
                     ))}
                   </div>
                 </details>

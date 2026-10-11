@@ -2988,6 +2988,10 @@ export function setBackends(backends: BackendInfo[] | null) {
   set({ backends });
 }
 
+export function openSettings(open = true) {
+  set({ settingsOpen: open });
+}
+
 export function openJobs(open = true) {
   set({ jobsOpen: open });
 }

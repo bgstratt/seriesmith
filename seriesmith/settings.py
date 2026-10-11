@@ -80,3 +80,63 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         api_key=env.get("COMFY_API_KEY") or data.get("api_key") or None,
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
         path=path)
+
+
+FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments")
+ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
+             "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY"}
+
+
+def from_env(env: dict | None = None) -> dict[str, str]:
+    """The settings the environment sets ({field: its variable}): those win over
+    the file, so the editor can't change them."""
+    env = os.environ if env is None else env
+    return {k: v for k, v in ENV_NAMES.items() if env.get(v)}
+
+
+def save_settings(updates: dict, path: str | None = None) -> str:
+    """Write `updates` into the settings file (made if missing; its other keys
+    kept). A field absent from `updates` is left as it is; an empty URL or
+    key, or null, removes it (the default, or no key). `deployments` replaces
+    the whole map. ValueError for anything else; returns the file's path."""
+    path = path or settings_path()
+    bad = sorted(set(updates) - set(FIELDS))
+    if bad:
+        raise ValueError(f"not a setting: {', '.join(bad)}")
+    data: dict = {}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as fh:
+            try:
+                data = json.load(fh)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"{path} is not valid JSON: {e}") from None
+        if not isinstance(data, dict):
+            raise ValueError(f"{path} must hold a JSON object")
+    for k, v in updates.items():
+        if k == "deployments":
+            if v in (None, {}):
+                data.pop(k, None)
+                continue
+            if not isinstance(v, dict):
+                raise ValueError("deployments must map a target id to its URL")
+            for t, u in v.items():
+                if not isinstance(u, str) or not u.startswith(("http://", "https://")):
+                    raise ValueError(f"deployment {t}: its URL must start with http:// or https://")
+            data[k] = {str(t): u.rstrip("/") for t, u in v.items()}
+            continue
+        if v in (None, ""):
+            data.pop(k, None)
+            continue
+        if not isinstance(v, str):
+            raise ValueError(f"{k} must be text")
+        v = v.strip()
+        if k != "api_key" and not v.startswith(("http://", "https://")):
+            raise ValueError(f"{k}: a URL starting with http:// or https://")
+        data[k] = v.rstrip("/") if k != "api_key" else v
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+    return path

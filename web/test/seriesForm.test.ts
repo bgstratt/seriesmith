@@ -102,3 +102,14 @@ describe("the master recipe's per-model sections", () => {
     expect(masterLacksTargets({})).toBe(false);
   });
 });
+
+describe("a master recipe row's pattern", () => {
+  it("covers a target id the way the server's fnmatch does", async () => {
+    const { covers } = await import("../src/components/MasterRecipe");
+    expect(covers("minimax_h3_*", "minimax_h3_ref2va")).toBe(true);
+    expect(covers("ltx2*", "ltx2_ingredients")).toBe(true);
+    expect(covers("wan22_*", "minimax_h3_ref2va")).toBe(false);
+    expect(covers("*", "seedance_2_5")).toBe(true);
+    expect(covers("ltx2", "ltx2_ingredients")).toBe(false);
+  });
+});

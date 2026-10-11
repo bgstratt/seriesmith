@@ -177,6 +177,35 @@ def make_app(roots: list[str] | None = None, settings=None,
         return web.json_response({"backends": await loop.run_in_executor(None, look),
                                   "api_key": bool(settings.api_key)})
 
+    # -- the machine's settings (the Settings window) ----------------------
+
+    async def settings_get(request: web.Request) -> web.Response:
+        from seriesmith.settings import from_env
+        return web.json_response({"settings": settings.describe(), "file": settings_path(),
+                                  "from_env": from_env()})
+
+    async def settings_put(request: web.Request) -> web.Response:
+        """Save the settings file, then use it: the backends are made again
+        from it (a job already running keeps the one it started on)."""
+        from seriesmith.settings import FIELDS, from_env, save_settings
+        try:
+            body = await request.json()
+        except ValueError:
+            return web.json_response({"error": "the body must be JSON"}, status=400)
+        if not isinstance(body, dict):
+            return web.json_response({"error": "the body must be an object"}, status=400)
+        try:
+            save_settings({k: v for k, v in body.items() if k in FIELDS})
+            fresh = load_settings()
+        except ValueError as e:
+            return web.json_response({"error": str(e)}, status=400)
+        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "path"):
+            setattr(settings, k, getattr(fresh, k))
+        backends.clear()
+        backends.update(available(settings))
+        return web.json_response({"settings": settings.describe(), "file": settings_path(),
+                                  "from_env": from_env()})
+
     async def comfy_queue(request: web.Request) -> web.Response:
         """ComfyUI's /queue, as the editor reads it (running and pending prompt
         ids), with seriesmith's queue's jobs in it: ComfyUI's own (work the
@@ -201,6 +230,8 @@ def make_app(roots: list[str] | None = None, settings=None,
     app.router.add_get("/seriesmith/jobs", jobs)
     app.router.add_post("/seriesmith/jobs/{action}", job_action)
     app.router.add_get("/seriesmith/backends", backend_list)
+    app.router.add_get("/seriesmith/settings", settings_get)
+    app.router.add_put("/seriesmith/settings", settings_put)
     for p in ("/queue", "/api/queue"):
         app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)

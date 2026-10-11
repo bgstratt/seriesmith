@@ -7,14 +7,15 @@
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { openJobs, pushToast, setBackends, start } from "./actions";
+import { openJobs, openSettings, pushToast, setBackends, start } from "./actions";
+import { SettingsWindow } from "./components/SettingsWindow";
 import { createHttpApi, xhrUpload } from "./api";
 import { Boundary } from "./components/ErrorBoundary";
 import { dockWindow } from "./components/FloatingWindow";
 import { BackendChoice, JobsButton, JobsWindow } from "./components/Jobs";
 import { VIEWER_RECT_KEY } from "./components/Viewer";
 import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
-import type { BackendInfo } from "./store";
+import { store, type BackendInfo } from "./store";
 import { injectStyles, mountOverlay, mountSurface } from "./surfaces";
 import { installSplitters } from "./splitters";
 
@@ -119,6 +120,7 @@ createRoot(jobsEl).render(
   <StrictMode>
     <Boundary name="Jobs">
       <JobsWindow />
+      <SettingsWindow />
     </Boundary>
   </StrictMode>,
 );
@@ -139,6 +141,8 @@ if (new URLSearchParams(location.search).has("jobs")) openJobs(true);
 
 connect();
 void start();
+
+document.getElementById("sm-settings")?.addEventListener("click", () => openSettings(!store.get().settingsOpen));
 
 document.getElementById("sm-theme")?.addEventListener("click", () => {
   const light = document.documentElement.classList.toggle("light");
