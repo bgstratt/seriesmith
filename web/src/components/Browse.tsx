@@ -2,7 +2,7 @@
 // episode, and picking a file on the ComfyUI machine to import as a ref.
 
 import { useCallback, useEffect, useState } from "react";
-import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile, useKeyframeFile } from "../actions";
+import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile, usePictureFile } from "../actions";
 import { errText } from "../api";
 import { api } from "../host";
 import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, crumbs } from "../lib/browse";
@@ -59,8 +59,8 @@ function BrowseBody({ b }: { b: BrowseState }) {
   // Phase 9d: picking one clip's audio file — the same file list, but the
   // path only becomes the draft's (it has to be inside the episode)
   const forClip = b.purpose === "clip-audio";
-  // a picture for the shot form's first / last frame: the path only, relative to the episode
-  const forKey = b.purpose === "keyframe";
+  // a picture for a form's field (a keyframe, a sheet, a plate): the path only, relative to the episode
+  const forKey = b.purpose === "picture";
   const ep = useApp((s) => s.ep);
   // Phase 9c-A: picking the episode's recording works like an import, but the
   // file goes to POST /seriesmith/track instead of becoming a ref candidate
@@ -97,7 +97,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
       return;
     }
     if (forKey) {
-      if (useKeyframeFile(path)) closeBrowse();
+      if (usePictureFile(path)) closeBrowse();
       return;
     }
     if (forTrack) {
@@ -126,7 +126,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
 
 
   const title = forKey
-    ? <>A picture for {b.key === "last" ? "the last" : "the first"} frame <span className="h3-muted h3-small">inside the episode or its refs</span></>
+    ? <>A picture for {b.what ?? "the field"} <span className="h3-muted h3-small">inside the episode or its refs</span></>
     : forClip
     ? <>A file for {b.shot ?? "this clip"}'s audio <span className="h3-muted h3-small">inside the episode</span></>
     : forTrack

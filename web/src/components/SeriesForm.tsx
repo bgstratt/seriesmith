@@ -16,7 +16,7 @@ import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
 import type { Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
-import { Hover, Thumb } from "./Picture";
+import { Hover, PicturePath, Thumb } from "./Picture";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
@@ -91,7 +91,7 @@ function SeriesForm({ ep }: { ep: string }) {
         {draft && (
           <>
             {SECTIONS.map((sec) => {
-              const fields = sec.fields.filter((f) => (!f.when || f.when(draft)) && (more || !f.more));
+              const fields = sec.fields.filter((f) => (!f.when || f.when(draft)) && !f.more);
               return (
                 <details key={sec.id} open className="sm-form-section">
                   <summary><b>{sec.title}</b> <span className="h3-small h3-muted">{sec.help}</span></summary>
@@ -123,6 +123,24 @@ function SeriesForm({ ep }: { ep: string }) {
               );
             })}
             <MoreToggle open={more} onToggle={setMore} label="More settings: steps, LoRAs, model files, negative prompt, where jobs run" />
+            {more && (
+              <div className="h3-col" style={{ gap: 10, paddingLeft: 14, borderLeft: "2px solid var(--h3-border)" }}>
+                {SECTIONS.map((sec) => {
+                  const fields = sec.fields.filter((f) => (!f.when || f.when(draft)) && f.more);
+                  if (!fields.length) return null;
+                  return (
+                    <div key={sec.id} className="h3-col" style={{ gap: 8 }}>
+                      <span className="h3-small h3-muted"><b>{sec.title}</b></span>
+                      {fields.map((f) => (
+                        <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
+                          backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
+                          onChange={(v) => set(f.path, parsed(f, v))} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <CastList raw={draft} />
             <CheckMessages sc={sc} />
           </>
@@ -172,12 +190,14 @@ export function CheckMessages({ sc }: { sc: ReturnType<typeof useSeriesConfig> }
   );
 }
 
-export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", extra }: {
+export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", extra, status }: {
   dirty: boolean; saving: boolean; onRevert: () => void; onSave: () => void; saveLabel?: string; extra?: React.ReactNode;
+  /** what to say instead of Saved / Unsaved changes (an edit that can't be saved yet) */
+  status?: string;
 }) {
   return (
     <div className="h3-row" style={{ padding: "6px 10px", borderTop: "1px solid var(--h3-border)" }}>
-      <span className="h3-small h3-muted h3-grow">{dirty ? "Unsaved changes" : "Saved"}</span>
+      <span className="h3-small h3-muted h3-grow">{status ?? (dirty ? "Unsaved changes" : "Saved")}</span>
       {extra}
       <button className="h3-btn" disabled={!dirty || saving} onClick={onRevert}>Revert</button>
       <button className="h3-btn h3-primary" disabled={!dirty || saving} onClick={onSave}
@@ -218,6 +238,8 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
         {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
       </select>
     );
+  } else if (f.kind === "picture") {
+    input = <PicturePath value={value} onChange={onChange} pickKey={`field:${f.path.join(".")}`} what={f.label.toLowerCase()} placeholder={f.placeholder} />;
   } else if (f.kind === "lora") {
     input = <LoraLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" />;
   } else if (f.kind === "model") {

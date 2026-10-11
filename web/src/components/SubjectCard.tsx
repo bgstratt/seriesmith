@@ -55,7 +55,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   }, [sc.base]);
 
   const fields = useMemo(() => (sc.base ? cardFields(kind, sc.base, id) : []), [sc.base, kind, id]);
-  const shownFields = fields.filter((f) => more || !f.more);
+
   const prefix = sc.base ? refsPrefix(sc.base) : "../refs/";
   const problem = isNew && sc.base ? idProblem(sc.base, id) : "";
   const changed = !!sc.base && JSON.stringify(entryFor(kind, before, form, id, prefix)) !== JSON.stringify(before ?? {});
@@ -117,12 +117,21 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
                   : "What the script calls it. It can't change here: shots name it.")}
               </span>
             </div>
-            {shownFields.map((f) => (
+            {fields.filter((f) => !f.more).map((f) => (
               <FieldRow key={f.path.join(".")} f={f} value={form[f.path[0]] == null ? "" : String(form[f.path[0]])}
                 onChange={(v) => setField(f.path[0], v)} />
             ))}
             {fields.some((f) => f.more) && (
-              <MoreToggle open={more} onToggle={setMore} label="More: variant / angle, file, layout, voice sample" />
+              <MoreToggle open={more} onToggle={setMore}
+                label={`More: ${fields.filter((f) => f.more).map((f) => f.label.toLowerCase()).join(", ")}`} />
+            )}
+            {more && (
+              <div className="h3-col" style={{ gap: 10, paddingLeft: 14, borderLeft: "2px solid var(--h3-border)" }}>
+                {fields.filter((f) => f.more).map((f) => (
+                  <FieldRow key={f.path.join(".")} f={f} value={form[f.path[0]] == null ? "" : String(form[f.path[0]])}
+                    onChange={(v) => setField(f.path[0], v)} />
+                ))}
+              </div>
             )}
             {missing && <span className="h3-small h3-warn">{missing}</span>}
             <CheckMessages sc={sc} />
@@ -136,6 +145,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
         )}
       </div>
       <SaveBar dirty={changed && !problem && !missing} saving={sc.saving}
+        status={isNew && !changed ? "Not added yet" : changed && (problem || missing) ? "Not saved: fill in what's missing above" : undefined}
         onRevert={() => {
           const e = isNew ? {} : ((getPath(sc.base ?? {}, [block, id]) ?? {}) as Raw);
           setForm(Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v !== "object")));

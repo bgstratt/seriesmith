@@ -2883,9 +2883,10 @@ export function useClipAudioFile(chosen: string): boolean {
   return true;
 }
 
-/** A picture picked for the shot form's first or last frame: kept relative to
- * the episode (a `first:` path is), for the form to take. */
-export function useKeyframeFile(chosen: string): boolean {
+/** A picture picked for a form's field (a keyframe, a sheet, a plate): kept
+ * relative to the episode, as the script and the series config name pictures,
+ * for the field that asked to take. */
+export function usePictureFile(chosen: string): boolean {
   const s = get();
   const key = s.browse?.key;
   if (!s.ep || !key) return false;
@@ -2893,10 +2894,10 @@ export function useKeyframeFile(chosen: string): boolean {
   const rel = absolute ? epRelative(chosen, s.ep) : chosen.replace(/\\/g, "/");
   if (!rel) {
     host().toast("warn", "That picture is outside the episode",
-      `A keyframe is named relative to the episode, so it has to live inside ${s.ep} (or in the show's refs folder beside it). Copy it in first, or import it on the Refs tab.`);
+      `A picture is named relative to the episode, so it has to live inside ${s.ep} (or in the show's refs folder beside it). Copy it in first, or import it on the Refs tab.`);
     return false;
   }
-  set({ keyframePick: { key, path: rel } });
+  set({ picturePick: { key, path: rel } });
   return true;
 }
 

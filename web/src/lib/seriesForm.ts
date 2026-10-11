@@ -114,7 +114,8 @@ export type FieldKind =
   | "video_target" | "image_target" | "audio_target"
   | "backend"
   | "lora"            // one LoRA (name[:strength] | none), from what the video model loads
-  | "model";          // a model file the video model can load
+  | "model"           // a model file the video model can load
+  | "picture";        // a picture's path, typed or browsed for
 
 export interface Field {
   path: Path;
@@ -386,7 +387,7 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
   const pronoun: Field = { path: ["pronoun"], label: "Pronoun", kind: "select",
     choices: [{ value: "", label: "-" }, { value: "her", label: "her" }, { value: "his", label: "his" }, { value: "their", label: "their" }, { value: "its", label: "its" }],
     help: "Used when they narrate over their own shot, to keep their lips closed (\"...with her lips closed\")." };
-  const sheet: Field = { path: ["sheet"], label: "Picture file", kind: "text", more: true,
+  const sheet: Field = { path: ["sheet"], label: "Picture file", kind: "picture", more: true,
     help: kind === "character"
       ? "Where their four-panel sheet lives (three-quarter, side, back, face). Filled in from the show's layout."
       : "Where its picture lives. Filled in from the show's layout." };
@@ -412,7 +413,7 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
       { path: ["of"], label: "Angle of", kind: "select",
         choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
         help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },
-      { path: ["plate"], label: "Picture file", kind: "text", more: true,
+      { path: ["plate"], label: "Picture file", kind: "picture", more: true,
         help: "Where its plate lives. Filled in from the show's layout." },
     ];
   }

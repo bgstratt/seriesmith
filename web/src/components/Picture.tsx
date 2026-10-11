@@ -4,7 +4,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { openBrowse } from "../actions";
 import { api } from "../host";
+import { store, useApp } from "../store";
 import { initials, type Picture } from "../lib/pictures";
 
 const Z = 2100; // above the floating windows
@@ -134,5 +136,40 @@ export function PicturePicker({ ep, options, onPick, label, title, none }: {
         document.body,
       )}
     </>
+  );
+}
+
+/** Browse for a picture for the field `key` (any id the form gives it): returns
+ * the function that opens the folder browser; the picked path, relative to the
+ * episode, comes back through `onPick`. */
+export function usePictureBrowse(key: string, what: string, onPick: (path: string) => void): () => void {
+  const pick = useApp((s) => s.picturePick);
+  useEffect(() => {
+    if (!pick || pick.key !== key) return;
+    store.set({ picturePick: null });
+    onPick(pick.path);
+  }, [pick]);
+  return () => openBrowse({ purpose: "picture", key, what, files: "image" });
+}
+
+/** A picture's path (a sheet, a plate): typed, or browsed for, with the picture
+ * beside it (larger on hover). */
+export function PicturePath({ value, onChange, pickKey, what, placeholder }: {
+  value: string; onChange: (v: string) => void; pickKey: string; what: string; placeholder?: string;
+}) {
+  const ep = useApp((s) => s.ep);
+  const browse = usePictureBrowse(pickKey, what, onChange);
+  const pic = value ? { path: value, face: false, version: null } : null;
+  return (
+    <div className="h3-row" style={{ gap: 4 }}>
+      {pic && (
+        <Hover ep={ep} item={{ id: value, name: value, pic }} big={260}>
+          <Thumb ep={ep} pic={pic} name="?" size={28} />
+        </Hover>
+      )}
+      <input className="h3-in h3-grow h3-mono" style={{ minWidth: 0 }} value={value} placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)} />
+      <button type="button" className="h3-btn" title="Pick a picture in the folder browser" onClick={browse}>Browse…</button>
+    </div>
   );
 }

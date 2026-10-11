@@ -6,7 +6,7 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, loadRefs, openBrowse, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
@@ -15,11 +15,11 @@ import {
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
-import { store, useApp } from "../store";
+import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
-import { Hover, PicturePicker, Thumb, type Named } from "./Picture";
+import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 
 const RECT_KEY = "seriesmith.shotform.rect";
@@ -177,13 +177,6 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   // the model this shot renders on: its own, else what the preview compiled it for
   const renderTarget = form?.keys.target || (preview?.ok ? preview.target ?? null : null);
 
-  // a picture picked in Browse for a keyframe
-  const keyframePick = useApp((s) => s.keyframePick);
-  useEffect(() => {
-    if (!keyframePick) return;
-    set(keyframePick.key, keyframePick.path);
-    store.set({ keyframePick: null });
-  }, [keyframePick]);
 
   const head = (
     <>
@@ -371,7 +364,7 @@ export function Row({ label, help, children }: { label: string; help: string; ch
 /** A `first:` / `last:` value: the default, a method, or a picture (browsed for). */
 function KeyframeField({ ep, k, value, onChange }: { ep: string; k: "first" | "last"; value: string; onChange: (v: string) => void }) {
   const isPath = !!value && !KEYFRAME_METHODS.includes(value.toLowerCase());
-  const browse = () => openBrowse({ purpose: "keyframe", key: k, files: "image" });
+  const browse = usePictureBrowse(`shot:${k}`, k === "first" ? "the first frame" : "the last frame", onChange);
   return (
     <div className="h3-row h3-wrap" style={{ gap: 4 }}>
       <select className="h3-in" value={isPath ? "__path" : value} onChange={(e) => {

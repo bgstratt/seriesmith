@@ -104,7 +104,7 @@ export type CutAudio = "clips" | "recording";
 
 /** Phase 9c-A: "track" picks the episode's dialogue recording.
  * Phase 9d: "clip-audio" picks a media file for one clip's sound. */
-export type BrowsePurpose = "roots" | "import" | "track" | "clip-audio" | "keyframe";
+export type BrowsePurpose = "roots" | "import" | "track" | "clip-audio" | "picture";
 
 export interface BrowseState {
   purpose: BrowsePurpose;
@@ -115,8 +115,9 @@ export interface BrowseState {
   files?: "image" | "audio";
   /** clip-audio: the clip whose audio the chosen file becomes */
   shot?: string;
-  /** keyframe: which of the shot form's frames the picture becomes */
-  key?: "first" | "last";
+  /** picture: which form field asked (components/Picture.tsx PicturePath), and what for */
+  key?: string;
+  what?: string;
 }
 
 export interface RenderAsk {
@@ -419,9 +420,9 @@ export interface AppState {
   /** the new episode wizard (components/NewEpisodeWizard.tsx): the folder it starts in,
    *  and whether it starts a new series (a show folder of its own) */
   wizard: { parent: string; newSeries: boolean } | null;
-  /** a picture picked in Browse for the shot form's first / last frame, relative
-   *  to the episode (the form takes it and clears it) */
-  keyframePick: { key: "first" | "last"; path: string } | null;
+  /** a picture picked in Browse for a form's field (`key`), relative to the
+   *  episode: the field takes it and clears it */
+  picturePick: { key: string; path: string } | null;
 }
 
 export const ZOOM_MIN = 8;
@@ -518,7 +519,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     shotForm: null,
     subjectCard: null,
     wizard: null,
-    keyframePick: null,
+    picturePick: null,
   };
 }
 
