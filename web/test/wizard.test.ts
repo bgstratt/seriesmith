@@ -19,14 +19,14 @@ describe("the new episode wizard", () => {
   it("adds the cast by the card's rules, and says what's wrong", () => {
     const base = seriesConfig("Dusk");
     const cast: NewCast[] = [
-      { kind: "character", id: "nell", fields: { name: "Nell", design: "a woman in a red coat", pronoun: "her" } },
+      { kind: "character", id: "nell", fields: { name: "Nell", design: "a woman in a red coat" } },
       { kind: "location", id: "pier", fields: { description: "a wooden pier at dusk" } },
       { kind: "prop", id: "", fields: {} },
       { kind: "character", id: "nell", fields: { name: "Nell" } },
     ];
     expect(castProblems(base, cast)).toEqual(["", "", "Give it a name.", "nell is here twice."]);
     const full = withCast(base, cast.slice(0, 2), "../refs/");
-    expect(full.subjects).toEqual({ nell: { kind: "character", name: "Nell", design: "a woman in a red coat", pronoun: "her",
+    expect(full.subjects).toEqual({ nell: { kind: "character", name: "Nell", design: "a woman in a red coat",
       sheet: "../refs/nell/nell_sheet_4panel.png" } });
     expect(full.locations).toEqual({ pier: { description: "a wooden pier at dusk", plate: "../refs/_bg/pier.png" } });
     expect(base.subjects).toEqual({});                     // the base is left as it was

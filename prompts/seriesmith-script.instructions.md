@@ -54,7 +54,6 @@ under a show at once.
     "ada": {
       "kind": "character",
       "name": "Ada",
-      "pronoun": "her",
       "design": "a nine-year-old girl with short curly black hair, a green raincoat, and yellow rain boots, drawn with thick confident outlines",
       "sheet": "../refs/ada/ada_sheet_4panel.png",
       "voice": "bright, quick, a little breathless"
@@ -174,7 +173,6 @@ which ones your ComfyUI can render.
     "riley": {
       "kind": "character",
       "name": "Riley",
-      "pronoun": "his",
       "design": "an eight-year-old boy with cornrow braids, an oversized yellow hoodie, baggy grey shorts and worn high-top sneakers, drawn with thick confident outlines",
       "sheet": "refs/riley/riley_sheet_4panel.png",
       "voice": "fast, bright, always slightly too loud",
@@ -210,7 +208,6 @@ which ones your ComfyUI can render.
 - `of` makes the subject a **wardrobe variant** of another one — the same character in
   different clothes, the same prop in a different state. See **A wardrobe change is a new
   subject**.
-- `pronoun` is used in the lips-closed clause on voiceover shots.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
   each character's sampled voice), `source_track` (the default: you supply a recorded mix,
   `audio.track`, and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the model
@@ -925,8 +922,7 @@ model sheet, so a character who changes clothes is a second subject with `of:` �
 
 ```json
 "gina": {
-  "kind": "character", "name": "Gina", "pronoun": "her",
-  "design": "a woman in her forties, dark hair cut short, a grey mechanic's coverall over a black tee, steel-toed boots",
+  "kind": "character", "name": "Gina", "design": "a woman in her forties, dark hair cut short, a grey mechanic's coverall over a black tee, steel-toed boots",
   "sheet": "refs/gina/gina_sheet_4panel.png",
   "voice": "low and dry, never hurried",
   "voice_sample": "audio/voices/gina_sample.wav"
@@ -938,7 +934,7 @@ model sheet, so a character who changes clothes is a second subject with `of:` �
 ```
 
 A variant needs exactly two lines: `of:` and its own `design`. Everything else — `kind`,
-`name`, `pronoun`, `voice`, `voice_sample` — is inherited, so one character still has one
+`name`, `voice`, `voice_sample` — is inherited, so one character still has one
 voice, and a `sheet` path is derived from the original's (`refs/gina/gina_sheet_4panel.png`
 becomes `refs/gina/gina_towel_sheet_4panel.png`). Give it its own `sheet` line to put it
 somewhere else. Generate that sheet like any other reference; starting from the original's

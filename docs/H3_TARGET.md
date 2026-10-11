@@ -61,7 +61,7 @@ mapping is fixed, so prompts are stable regardless of cast size:
 | `<Picture 4>` | background | background | background |
 
 **A change of clothes is a second subject**, not a note in the prompt. Give it `of:` in the
-series config and its own `design`; it inherits the character's name, voice and pronoun, and
+series config and its own `design`; it inherits the character's name and voice, and
 its sheet path is derived from theirs (`refs/gina/gina_sheet_4panel.png` →
 `refs/gina/gina_towel_sheet_4panel.png`). The script names the variant on `who:` and goes on
 calling the character by name in the dialogue. The point is that the retention marker stays
@@ -99,8 +99,8 @@ and got rendered into frame.
 | `RILEY (O.S.): line` | in the space, outside frame | only if also in `who:` | `says from off-screen, outside the frame` |
 
 A `(V.O.)` speaker who *is* in `who:` — a character narrating over their own
-shot — additionally gets H3's required lips-closed clause, using the series config's
-optional `pronoun` field, so H3 doesn't animate their mouth over the narration.
+shot — additionally gets H3's required lips-closed clause ("while their lips remain
+completely closed"), so H3 doesn't animate their mouth over the narration.
 A speaker with no visual reference is identified by their voice description
 followed by `(Sx)`, per H3's spec, rather than an invented `<Subject>`.
 

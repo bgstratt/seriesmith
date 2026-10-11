@@ -4,11 +4,9 @@
   "style": {"look": "a naturalistic live-action drama shot on 35mm film"},
   "audio": {"mode": "generate"},
   "subjects": {
-    "ada": {"kind": "character", "name": "Ada", "pronoun": "her",
-            "design": "a tall woman in her thirties with short black hair and a green raincoat",
+    "ada": {"kind": "character", "name": "Ada", "design": "a tall woman in her thirties with short black hair and a green raincoat",
             "sheet": "refs/ada/ada_sheet_4panel.png", "voice": "dry, low and quick"},
-    "bo": {"kind": "character", "name": "Bo", "pronoun": "his",
-           "design": "a stocky man in his forties with a grey beard and a brown work jacket",
+    "bo": {"kind": "character", "name": "Bo", "design": "a stocky man in his forties with a grey beard and a brown work jacket",
            "sheet": "refs/bo/bo_sheet_4panel.png", "voice": "warm and slow"}
   },
   "locations": {

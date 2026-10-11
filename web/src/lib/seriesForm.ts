@@ -384,9 +384,6 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
       : "What a model-sheet artist could draw: age and build, silhouette, hair, clothes with their colours, one or two distinctive things. Said word for word in every shot it's in, and the picture is drawn from it. Never describe it again in the script." };
   const voice: Field = { path: ["voice"], label: "Voice", kind: "text", placeholder: "bright, quick, a little breathless",
     help: "How they sound, for generated dialogue and their voice sample: pitch, pace, texture, accent." };
-  const pronoun: Field = { path: ["pronoun"], label: "Pronoun", kind: "select",
-    choices: [{ value: "", label: "-" }, { value: "her", label: "her" }, { value: "his", label: "his" }, { value: "their", label: "their" }, { value: "its", label: "its" }],
-    help: "Used when they narrate over their own shot, to keep their lips closed (\"...with her lips closed\")." };
   const sheet: Field = { path: ["sheet"], label: "Picture file", kind: "picture", more: true,
     help: kind === "character"
       ? "Where their four-panel sheet lives (three-quarter, side, back, face). Filled in from the show's layout."
@@ -399,13 +396,13 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
   const variant: Field = { path: ["of"], label: "Variant of", kind: "select", more: true,
     choices: [{ value: "", label: "- (their own person)" },
       ...others("subjects", (e) => !e.of && (typeof e.kind === "string" ? e.kind : "character") === (kind === "group" ? "character" : kind))],
-    help: "The same character in other clothes (or a prop in another state): it keeps their name, voice and pronoun, and its sheet is drawn from theirs. Needs only its own design." };
+    help: "The same character in other clothes (or a prop in another state): it keeps their name and voice, and its sheet is drawn from theirs. Needs only its own design." };
   switch (kind) {
-    case "character": return [name, design, voice, pronoun, variant, sheet, panels, sample];
+    case "character": return [name, design, voice, variant, sheet, panels, sample];
     case "group": return [name, design, { path: ["members"], label: "How many people", kind: "number", min: 2, max: 12, step: 1,
       help: "The people in the picture (2 to 12). They take one slot in a shot however many they are, and the prompt counts them." }, sheet];
     case "prop": case "vehicle": return [name, design, variant, sheet];
-    case "voice": return [name, voice, pronoun, sample];
+    case "voice": return [name, voice, sample];
     case "location": return [
       { path: ["description"], label: "Description", kind: "long",
         placeholder: "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",

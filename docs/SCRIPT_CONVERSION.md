@@ -44,8 +44,7 @@ config entry, and note what survives the translation and what doesn't:
 
 ```json
 "filbert": {
-  "kind": "character", "name": "Filbert", "pronoun": "his",
-  "design": "a nine-year-old boy, wiry and small, in a grey plastic knight's helmet with the visor up, a foil breastplate over blue pyjamas, and mismatched socks, holding a wooden toy sword, drawn with thick confident outlines",
+  "kind": "character", "name": "Filbert", "design": "a nine-year-old boy, wiry and small, in a grey plastic knight's helmet with the visor up, a foil breastplate over blue pyjamas, and mismatched socks, holding a wooden toy sword, drawn with thick confident outlines",
   "sheet": "refs/filbert/filbert_sheet_4panel.png",
   "voice": "high, earnest, fully committed to the bit",
   "voice_sample": "audio/voices/filbert_sample.wav"

@@ -377,8 +377,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
             line = (f"{label}{pre} says in an off-screen voiceover{src.rstrip(',')}: "
                     f"<d>[English] {d['line']}</d>")
             if d["who"] in subj:
-                pron = (book[d["who"]].get("pronoun") or "their").strip()
-                line += f" while {pron} lips remain completely closed."
+                line += " while their lips remain completely closed."
             desc.append(line)
         elif mode == "os":
             desc.append(f"{label}{pre} says from off-screen, outside the frame,{src} "

@@ -74,9 +74,9 @@ describe("cast cards", () => {
 
   it("each kind's fields, and the choices for variant and angle", () => {
     const ids = (k: Parameters<typeof cardFields>[0]) => cardFields(k, show, "new").map((f) => f.path[0]);
-    expect(ids("character")).toEqual(["name", "design", "voice", "pronoun", "of", "sheet", "sheet_panels", "voice_sample"]);
+    expect(ids("character")).toEqual(["name", "design", "voice", "of", "sheet", "sheet_panels", "voice_sample"]);
     expect(ids("group")).toContain("members");
-    expect(ids("voice")).toEqual(["name", "voice", "pronoun", "voice_sample"]);
+    expect(ids("voice")).toEqual(["name", "voice", "voice_sample"]);
     expect(ids("location")).toEqual(["description", "of", "plate"]);
     const variantOf = cardFields("character", show, "new").find((f) => f.path[0] === "of")!.choices!.map((c) => c.value);
     expect(variantOf).toContain("ada");

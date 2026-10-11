@@ -33,7 +33,7 @@ from seriesmith.core.story import ScriptError, parse_story  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
 
-BASE = {"kind": "character", "name": "Gina", "pronoun": "her",
+BASE = {"kind": "character", "name": "Gina",
         "design": "a woman in a red coat",
         "sheet": "refs/gina/gina_sheet_4panel.png",
         "voice": "low and dry", "voice_sample": "audio/voices/gina.wav"}
@@ -65,7 +65,6 @@ class LoaderTest(unittest.TestCase):
         v = cfg["subjects"]["gina_towel"]
         self.assertEqual(v["name"], "Gina")
         self.assertEqual(v["kind"], "character")
-        self.assertEqual(v["pronoun"], "her")
         self.assertEqual(v["voice"], "low and dry")
         self.assertEqual(v["voice_sample"], "audio/voices/gina.wav")
         # its own, never the base's: the wardrobe is the whole point

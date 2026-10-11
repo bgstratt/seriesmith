@@ -9,7 +9,7 @@ import { entryFor, getPath, idProblem, newSeries, slug, type CardKind, type Raw 
 import { writeShot, type ShotForm } from "./shotForm";
 
 /** A cast entry the wizard adds: its kind, the id made from its name, and the
- * card's fields (name, design / description, voice, pronoun). */
+ * card's fields (name, design / description, voice). */
 export interface NewCast {
   kind: Extract<CardKind, "character" | "prop" | "vehicle" | "location">;
   id: string;

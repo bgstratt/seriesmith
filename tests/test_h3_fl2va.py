@@ -210,7 +210,7 @@ class PromptTest(unittest.TestCase):
         self.assertIn("Ada, with a voice that is dry, quick and precise, (S1) says, warmly: "
                       "<d>[English] You know that one whistles.</d>", by["sh020"])
         self.assertIn("Bo (S2) says, whispering: <d>[English] That's the point.</d>", by["sh020"])
-        self.assertIn("says in an off-screen voiceover: <d>[English] Not today.</d> while her "
+        self.assertIn("says in an off-screen voiceover: <d>[English] Not today.</d> while their "
                       "lips remain completely closed.", by["sh030"])
         self.assertIn('Visible on-screen text reads "OPEN 24 HOURS".', by["sh010"])
         self.assertIn("non_diegetic_music: A plucky ukulele sting.", by["sh010"])

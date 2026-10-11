@@ -28,7 +28,6 @@
   "ada": {
    "kind": "character",
    "name": "Ada",
-   "pronoun": "her",
    "design": "a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses",
    "sheet": "refs/ada/ada_sheet_4panel.png",
    "voice": "dry, quick and precise",

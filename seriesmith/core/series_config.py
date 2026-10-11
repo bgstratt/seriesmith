@@ -15,7 +15,7 @@ shot whose cast names `gina_towel` reads the same shape of entry it reads for
 What a variant inherits, and what it must not:
 
     everything the base has     the variant's own keys win, so `voice`,
-                                `voice_sample`, `pronoun` and `kind` come
+                                `voice_sample` and `kind` come
                                 across and one character keeps one voice
     `design`                    REQUIRED on the variant: inheriting it would
                                 describe the old wardrobe while every check

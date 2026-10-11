@@ -76,7 +76,7 @@ this folder: the show's folder, not an episode's). Either opens a short wizard:
    (864×480 by default), the look, how dialogue sounds and the speech pace. Everything
    else is in Series settings, any time.
 3. **Cast and places**: who and where the episode is about — a character (name, design,
-   voice, pronoun), a location (a short name and its description), a prop or vehicle —
+   voice), a location (a short name and its description), a prop or vehicle —
    each with its picture path filled in from the show's layout. A next episode carries its
    neighbour's whole cast over, so you add only who and what is new.
 4. **First shot**: where it happens (the first sequence's location), who's in it, size,

@@ -14,7 +14,6 @@
     "ada": {
       "kind": "character",
       "name": "Ada",
-      "pronoun": "her",
       "design": "a nine-year-old girl with short curly black hair, a green raincoat, and yellow rain boots, drawn with thick confident outlines",
       "sheet": "../refs/ada/ada_sheet_4panel.png",
       "voice": "bright, quick, a little breathless"

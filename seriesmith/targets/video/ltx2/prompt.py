@@ -105,8 +105,7 @@ def build_prompt(shot, seq, series_cfg: dict) -> str:
         if d.mode == "vo":
             verb = "says in an off-screen voiceover"
             if d.speaker in shot.cast:
-                pron = (e.get("pronoun") or "their").strip()
-                verb += f", {pron} lips staying closed"
+                verb += ", their lips staying closed"
         elif d.mode == "os":
             verb = "says from off-screen, outside the frame"
         else:

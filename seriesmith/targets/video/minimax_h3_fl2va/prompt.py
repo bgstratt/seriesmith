@@ -153,8 +153,7 @@ def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
                 f"<d>[English] {d.line}</d>")
         if d.mode == "vo" and d.speaker in on_screen:
             # the spec's clause, only when there is a mouth on screen to keep shut
-            pron = (e.get("pronoun") or "their").strip()
-            line += f" while {pron} lips remain completely closed."
+            line += " while their lips remain completely closed."
         parts.append(line)
     if shot.text:
         parts.append(f'Visible on-screen text reads "{shot.text}".')

@@ -322,7 +322,7 @@ check, history copy and rebuild.
       differ). Checked live on an imported Porchlights S2 episode: a proxy change
       saved as just those two lines, rebuilt, with a history copy.
 - [x] Cast and places: a card per character, group, prop, vehicle, voice-only
-      character and location (name, design, voice, pronoun, description; variant /
+      character and location (name, design, voice, description; variant /
       angle, picture file, layout, voice sample under More), with the Refs tab's
       own takes, generate, import and pick under it. Opened from a ref row's pencil,
       a group's **+**, or the series form's Cast and places (with a find box: a

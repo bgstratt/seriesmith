@@ -257,7 +257,7 @@ class LtxTargetTest(unittest.TestCase):
         self.assertIn("Ada is a tall woman", p)
         self.assertIn('Ada, in a voice that is dry, quick and precise, says, warmly: "Tea?"', p)
         self.assertIn("says in an off-screen voiceover: \"She always asks.\"", p)
-        self.assertIn("Ada says in an off-screen voiceover, her lips staying closed: \"Always.\"", p)
+        self.assertIn("Ada says in an off-screen voiceover, their lips staying closed: \"Always.\"", p)
         self.assertIn("The sound is a kettle whistle.", p)
         self.assertIn("A soft piano plays underneath.", p)
         self.assertNotIn("<", p)
