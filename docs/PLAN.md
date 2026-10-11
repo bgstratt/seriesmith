@@ -360,6 +360,50 @@ check, history copy and rebuild.
       the hash to refresh by), else the series config's paths. Checked live on
       a Porchlights episode's own sheets and plates.
 
+## Step 11 — resilience
+
+A restart, a dropped connection or a hung job must never leave work stuck,
+lose a paid result, or spend money twice. (Done before it: a record whose job
+the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
+
+- [ ] A hosted run survives a network blip: Router's polling retries for a
+      while before it gives up, and a run that loses its connection reattaches
+      by its request id (models.handle) instead of failing a run the provider
+      finishes and bills.
+- [ ] Paid runs are guarded: a batch on a paid backend (Router, Cloud, a
+      deployment) asks first, saying how many calls; the Jobs window counts
+      the paid calls this session; an optional cap in Settings stops new ones
+      past it.
+- [ ] A hung job is stopped: each kind of job has a generous time limit, after
+      which it is cancelled and failed (a stuck ComfyUI otherwise holds its
+      lane for good).
+- [ ] Retry reattaches before it resubmits: a hosted job that may have
+      finished is looked up first, so a retry doesn't pay twice.
+- [ ] The queue outlives the server: it is kept on disk; on start, jobs that
+      were running are reattached by their backend id (local through the
+      proxy, Cloud, deployments, Router) and their results collected, ones
+      that were waiting are queued again, and only what a backend no longer
+      knows is failed.
+- [ ] Disk space is checked before upscales and masters (they write gigabytes
+      at 4K): a job that wouldn't fit says so instead of failing mid-write.
+
+## Step 12 — simple mode
+
+For trying ideas and making one-off clips without setting up a series: make a
+character or a place, write a shot the way you'd prompt a video service, queue
+takes. No series config or script to see or keep in shape.
+
+- [ ] A sketch to settle with the user first. The idea: a scratch project
+      (one folder, made on first use) that is an ordinary series config and
+      script underneath, written by the forms, so everything else (refs,
+      renders, takes, upscale, the queue) works unchanged; a page with three
+      things on it: the cast (a picture you have, or name + description to
+      generate one), a shot box (who, where, what happens, what's said,
+      length; Queue N takes), and the takes as they come in. Any shot or
+      character can later go into a real series. Open: whether it's its own
+      page or a mode of the editor; whether shots there have an order at all
+      (a list of clips, not a cut); which model it uses by default.
+
 ## Later
 
 - Publishing: the ComfyUI Manager listing for the node pack and the ComfyUI
