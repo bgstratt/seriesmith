@@ -13,10 +13,12 @@ describe("simple mode's clips", () => {
   });
 
   it("gives a clip without a place one of its own, from words or the prompt", () => {
+    // words only by default: it renders at once
     expect(placeFor("c004", spec(), "../refs/")).toEqual({
-      id: "c004_place",
-      entry: { description: "A lighthouse at dusk, waves breaking on the rocks.", plate: "../refs/_bg/c004_place.png" },
+      id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking on the rocks." },
     });
+    // with a picture made first
+    expect(placeFor("c004", spec(), "../refs/", true).entry.plate).toBe("../refs/_bg/c004_place.png");
     expect(placeFor("c004", spec({ placeText: "a rocky headland" }), "../refs/").entry.description).toBe("a rocky headland");
   });
 

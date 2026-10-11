@@ -1,8 +1,9 @@
 // Simple mode (docs/PLAN.md, step 12): a clip is one sequence of one shot in
 // the Clips project (seriesmith/clips.py) -- `# cl007  <place>` / `## c007` --
 // written from a few fields. A clip with no place picked gets a place of its
-// own, described in words (or by the prompt), whose plate is made before it
-// renders (POST /seriesmith/clip/queue).
+// own, described in words (or by the prompt): words only (it renders at once,
+// imagined its own way), or with a plate made before it renders, so the place
+// looks the same in every clip that uses it (POST /seriesmith/clip/queue).
 
 import { picturePath, type Raw } from "./seriesForm";
 import { writeShot, type DialogueLine } from "./shotForm";
@@ -42,12 +43,12 @@ export interface ClipSpec {
   dialogue: DialogueLine[];
 }
 
-/** The place a clip without one gets: an id of its own, described in words,
- * its plate where the show keeps plates. */
-export function placeFor(shot: string, spec: ClipSpec, prefix: string): { id: string; entry: Raw } {
+/** The place a clip without one gets: an id of its own, described in words;
+ * with `picture`, a plate (where the show keeps plates) to be made first. */
+export function placeFor(shot: string, spec: ClipSpec, prefix: string, picture = false): { id: string; entry: Raw } {
   const id = `${shot}_place`;
   const description = (spec.placeText.trim() || spec.prompt.trim()).replace(/\s+/g, " ");
-  return { id, entry: { description, plate: picturePath("location", id, prefix)! } };
+  return { id, entry: picture ? { description, plate: picturePath("location", id, prefix)! } : { description } };
 }
 
 /** The clip's lines: its sequence header, then its shot. */

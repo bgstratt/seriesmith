@@ -102,6 +102,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
   const [placeText, setPlaceText] = useState("");
+  // a new place: words only (renders at once), or a picture made first
+  const [placePicture, setPlacePicture] = useState(false);
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
@@ -137,7 +139,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         // a place of the clip's own, its plate made before it renders
         const series = await api().source(ep, "series");
         const cur = JSON.parse(series.text) as Raw;
-        const p = placeFor(shot, spec, refsPrefix(cur));
+        const p = placeFor(shot, spec, refsPrefix(cur), placePicture);
         const next = setPath(cur, ["locations", p.id], p.entry);
         await api().putSource({ ep, file: "series", text: serialize(next, series.text), base_hash: series.hash, rebuild: false });
         location = p.id;
@@ -194,15 +196,23 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Someone" />
       </Row>
 
-      <Row label="Where" help={where ? "That place's picture is the background." : "Pick a place, or say it in words (empty: from what happens); its picture is made first."}>
+      <Row label="Where" help={where ? "That place's picture is the background." : placePicture
+        ? "Said in words (empty: from what happens); a picture of it is made first, and the clip renders after."
+        : "Said in words (empty: from what happens). With no picture, each clip imagines it its own way."}>
         <div className="h3-col" style={{ gap: 4 }}>
           <span className="h3-row h3-wrap" style={{ gap: 4 }}>
             <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
             <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
           </span>
           {!where && (
-            <input className="h3-in" value={placeText} placeholder="a stone lighthouse on a cliff at dusk, storm clouds"
-              onChange={(e) => setPlaceText(e.target.value)} />
+            <>
+              <input className="h3-in" value={placeText} placeholder="a stone lighthouse on a cliff at dusk, storm clouds"
+                onChange={(e) => setPlaceText(e.target.value)} />
+              <label className="h3-row h3-small" title="Slower to start, but the place then looks the same in every clip that picks it">
+                <input type="checkbox" checked={placePicture} onChange={(e) => setPlacePicture(e.target.checked)} />
+                Make a picture of it first (so it looks the same each time)
+              </label>
+            </>
           )}
         </div>
       </Row>
