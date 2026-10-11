@@ -145,13 +145,18 @@ class ComfyHostTest(unittest.TestCase):
 
     def test_it_registers_every_route(self):
         server, added = self.server()
-        self.assertTrue(comfyui.register(server))
+        self.assertTrue(comfyui.register(server, wait=0))
         self.assertEqual(len(added), len(A.ROUTES))
+        # the same app as `seriesmith serve`: its queue, its own journal
+        ctx = comfyui.start(server, wait=0)()
+        self.assertIsNotNone(ctx.runner)
+        self.assertTrue(ctx.runner.queue.journal.endswith("queue-comfyui.json"))
+        self.assertEqual(ctx.comfy_url, "http://127.0.0.1:8188")
 
     def test_it_stays_off_when_another_pack_serves_the_api(self):
         server, added = self.server(["/seriesmith/episodes"])
         with self.assertLogs("seriesmith", "WARNING"):
-            self.assertFalse(comfyui.register(server))
+            self.assertFalse(comfyui.register(server, wait=0))
         self.assertEqual(added, [])
 
     def test_its_own_address(self):

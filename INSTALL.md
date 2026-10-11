@@ -141,6 +141,23 @@ Restart ComfyUI whenever a `comfy_nodes/*.py` file changes, since ComfyUI import
 classes once at startup. The pack sits happily beside h3pipe's, if you keep that for
 h3pipe.
 
+### The editor inside ComfyUI (optional)
+
+The same pack also puts seriesmith's editor inside ComfyUI: **seriesmith Shots** and
+**seriesmith Refs** in the sidebar, **seriesmith Timeline** in the bottom panel. It's
+the same app as `seriesmith serve`, with the same project folders, settings and queue.
+For that, ComfyUI's own Python needs the seriesmith package (and comfy-api-proxy, which it
+starts for the local backend). With the portable ComfyUI, from the seriesmith repo:
+
+```
+C:\AI\ComfyUI\python_embeded\python.exe -m pip install -e . comfy-api-proxy
+```
+
+`-e` links it to the repo, so pulling updates it (restart ComfyUI after). Without it the
+nodes still load and the editor stays off (ComfyUI's console says so). The ComfyUI host
+keeps its own queue journal (`queue-comfyui.json`), so it and `seriesmith serve` can run at
+the same time.
+
 ### Check it
 
 ```

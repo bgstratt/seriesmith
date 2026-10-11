@@ -561,7 +561,7 @@ export function Timeline() {
       </div>
       <div className="h3-track-wrap" ref={wrapRef}>
         <div ref={trackRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
-        {!ep && <div className="h3-empty-state">Pick an episode in the h3 Shots tab.</div>}
+        {!ep && <div className="h3-empty-state">Pick an episode in the Shots tab.</div>}
         {ep && err && !st && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
         {ep && st && (
           <div className={`h3-track${drag ? " h3-track-dragging" : ""}`} ref={innerRef}>

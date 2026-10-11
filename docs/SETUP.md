@@ -47,7 +47,11 @@ ComfyUI's `custom_nodes` and restart ComfyUI:
     mklink /J "<ComfyUI>\custom_nodes\seriesmith" "<seriesmith>\comfy_nodes"     (Windows)
     ln -s "<seriesmith>/comfy_nodes" "<ComfyUI>/custom_nodes/seriesmith"           (elsewhere)
 
-They sit happily beside h3pipe's node pack if you keep it for h3pipe. A target's own model nodes (H3's
+They sit happily beside h3pipe's node pack if you keep it for h3pipe. With
+the seriesmith package installed in ComfyUI's own Python (`pip install -e
+<seriesmith> comfy-api-proxy` with that Python), the pack also serves the
+editor inside ComfyUI: the same app as `seriesmith serve` (INSTALL.md, "The
+editor inside ComfyUI"). A target's own model nodes (H3's
 `H3SLAAttention` from ComfyUI-PlagueKind-Nodes, for one) are still needed;
 `seriesmith render --dry-run` writes the graph a shot would run.
 

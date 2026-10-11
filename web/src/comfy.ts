@@ -123,15 +123,15 @@ export function install() {
 
   app.registerExtension({
     name: "seriesmith.editor",
-    bottomPanelTabs: [tab("timeline", "h3 Timeline")],
+    bottomPanelTabs: [tab("timeline", "seriesmith Timeline")],
     async setup() {
       const em = app.extensionManager;
       if (!em?.registerSidebarTab) {
         console.error("[seriesmith] this ComfyUI frontend has no extensionManager.registerSidebarTab; the editor needs frontend >= 1.3");
         return;
       }
-      em.registerSidebarTab({ ...tab("shots", "h3 Shots"), icon: "pi pi-video", tooltip: "seriesmith: episode, shots and takes" });
-      em.registerSidebarTab({ ...tab("refs", "h3 Refs"), icon: "h3-ico-images", tooltip: "seriesmith: references (characters, props, locations, voices)" });
+      em.registerSidebarTab({ ...tab("shots", "seriesmith Shots"), icon: "pi pi-clone", tooltip: "seriesmith: episode, shots and takes" });
+      em.registerSidebarTab({ ...tab("refs", "seriesmith Refs"), icon: "pi pi-users", tooltip: "seriesmith: references (characters, props, locations, voices)" });
       mountOverlay();
       await start();
     },

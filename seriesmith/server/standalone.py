@@ -151,27 +151,24 @@ def recover(runner, ask=None, rebuild=None) -> list[str]:
     return out
 
 
-def make_app(roots: list[str] | None = None, settings=None,
-             backends: dict | None = None) -> web.Application:
-    settings = settings or load_settings()
-    events = Events()
-    user_dir = os.path.dirname(settings_path())
-    env = dict(os.environ)
-    if roots:
-        have = [r for r in env.get("SERIESMITH_ROOTS", "").split(os.pathsep) if r]
-        env["SERIESMITH_ROOTS"] = os.pathsep.join(have + [os.path.abspath(r) for r in roots])
-
-    # seriesmith's queue: renders from the page go through the backends
+def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env=None,
+                backends: dict | None = None, journal: str = "queue.json"):
+    """seriesmith's queue for a host (this server, or ComfyUI's: server/
+    comfyui.py): renders from the page go through the backends, the live jobs
+    journaled in <user_dir>/<journal>. Returns (runner, make_context, recover_all):
+    recover_all() picks up what the journal had when the host last stopped
+    (recover), for the host to call once the backends can answer."""
     from seriesmith.backends import available
     from seriesmith.queue import Queue
     from seriesmith.runner import Runner
-    queue = Queue(events.emit, journal=os.path.join(user_dir, "queue.json"))
+    queue = Queue(emit, journal=os.path.join(user_dir, journal))
     queue.paid_limit = settings.paid_limit
     backends = backends if backends is not None else available(settings)
-    runner = Runner(queue, backends, events.emit)
+    runner = Runner(queue, backends, emit)
+    url = comfy_url or settings.comfyui_url
 
     def make_context():
-        return A.Context(user_dir, settings.comfyui_url, events.emit, env=env, runner=runner)
+        return A.Context(user_dir, url, emit, env=env, runner=runner)
 
     def ask(path: str, body: dict):
         """A queuing request asked again (after a restart), as the page would,
@@ -185,8 +182,28 @@ def make_app(roots: list[str] | None = None, settings=None,
             ASKED.req = None
 
     runner.ask = ask
-    for line in recover(runner, ask, lambda resume: A.rebuild_step(make_context(), resume)):
-        log.info("seriesmith: %s", line)
+
+    def recover_all() -> list[str]:
+        out = recover(runner, ask, lambda resume: A.rebuild_step(make_context(), resume))
+        for line in out:
+            log.info("seriesmith: %s", line)
+        return out
+    return runner, make_context, recover_all
+
+
+def make_app(roots: list[str] | None = None, settings=None,
+             backends: dict | None = None) -> web.Application:
+    settings = settings or load_settings()
+    events = Events()
+    user_dir = os.path.dirname(settings_path())
+    env = dict(os.environ)
+    if roots:
+        have = [r for r in env.get("SERIESMITH_ROOTS", "").split(os.pathsep) if r]
+        env["SERIESMITH_ROOTS"] = os.pathsep.join(have + [os.path.abspath(r) for r in roots])
+    runner, make_context, recover_all = start_queue(settings, user_dir, events.emit, env=env,
+                                                    backends=backends)
+    recover_all()
+    queue, backends = runner.queue, runner.backends
 
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
@@ -286,6 +303,7 @@ def make_app(roots: list[str] | None = None, settings=None,
                   "paid_limit"):
             setattr(settings, k, getattr(fresh, k))
         queue.paid_limit = settings.paid_limit
+        from seriesmith.backends import available
         backends.clear()
         backends.update(available(settings))
         return web.json_response({"settings": settings.describe(), "file": settings_path(),
@@ -369,9 +387,12 @@ def ensure_proxy(settings) -> str:
         return f"comfy-api-proxy: {settings.local_url}"
     if not _answers(settings.comfyui_url):
         return f"comfy-api-proxy: not started (no ComfyUI at {settings.comfyui_url})"
-    exe = os.path.join(os.path.dirname(sys.executable), "comfy-api-proxy" +
-                       (".exe" if os.name == "nt" else ""))
-    if not os.path.isfile(exe):
+    name = "comfy-api-proxy" + (".exe" if os.name == "nt" else "")
+    here = os.path.dirname(sys.executable)
+    # beside this Python: a venv's Scripts/, or ComfyUI's embedded Python's
+    exe = next((p for p in (os.path.join(here, name), os.path.join(here, "Scripts", name))
+                if os.path.isfile(p)), "")
+    if not exe:
         exe = shutil.which("comfy-api-proxy") or ""
     if not exe:
         return "comfy-api-proxy: not installed (pip install comfy-api-proxy; docs/SETUP.md)"

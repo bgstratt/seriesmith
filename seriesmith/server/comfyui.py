@@ -3,6 +3,14 @@ The ComfyUI host: the editor's API registered on ComfyUI's own server, its
 events sent through ComfyUI's websocket. Loaded by seriesmith's node pack
 (comfy_nodes/__init__.py), inside try/except, so nothing here can stop the
 nodes loading. Ported from h3pipe's comfy_nodes/h3pipe_routes.py.
+
+The same app as `seriesmith serve`: the same settings and project folders
+(seriesmith's own folder, settings.settings_path), and seriesmith's queue
+(standalone.start_queue) with its backends, its own journal
+(queue-comfyui.json, so the two hosts never recover each other's jobs), and
+comfy-api-proxy started for the local backend. What the journal had is
+picked up once this ComfyUI answers (in the background: at load time its
+server isn't up yet).
 """
 from __future__ import annotations
 
@@ -30,11 +38,10 @@ def base_url(server) -> str:
 
 
 def user_dir() -> str:
-    try:
-        import folder_paths
-        return folder_paths.get_user_directory()
-    except Exception:
-        return os.path.join(os.getcwd(), "user")
+    """seriesmith's own folder: the standalone server's too, so both see the
+    same project folders and settings."""
+    from seriesmith.settings import settings_path
+    return os.path.dirname(settings_path())
 
 
 def taken(server) -> list[str]:
@@ -45,7 +52,7 @@ def taken(server) -> list[str]:
     return [path for _, path, _, _ in A.ROUTES if path in have]
 
 
-def register(server) -> bool:
+def register(server, wait: float = 120.0) -> bool:
     """Add every route to `server.routes` (once). False, and nothing added,
     when another pack already serves them."""
     global REGISTERED
@@ -57,13 +64,51 @@ def register(server) -> bool:
                     "pack?) -- %s; seriesmith's editor stays off in this ComfyUI", clash[0])
         return False
 
-    def make_context():
-        return A.Context(user_dir(), base_url(server), lambda event, data: server.send_sync(event, data))
-
+    make_context = start(server, wait=wait)
     for method, path, view in routes(make_context):
         server.routes.route(method, path)(view)
     REGISTERED = True
     return True
+
+
+def start(server, settings=None, wait: float = 120.0):
+    """seriesmith's queue on this ComfyUI (standalone.start_queue), and, in
+    the background once the server answers: comfy-api-proxy for the local
+    backend, then what the journal had. Returns make_context. Without a
+    queue (it can't start) the editor still works, rendering as h3pipe did."""
+    import threading
+    import time
+
+    from seriesmith.server.standalone import _answers, ensure_proxy, start_queue
+    from seriesmith.settings import load_settings
+    url = base_url(server)
+
+    def emit(event, data):
+        server.send_sync(event, data)
+    try:
+        settings = settings or load_settings()
+        runner, make_context, recover_all = start_queue(settings, user_dir(), emit, comfy_url=url,
+                                                        journal="queue-comfyui.json")
+    except Exception as e:                                # noqa: BLE001  the editor still loads
+        log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
+                    "straight to ComfyUI", e)
+        return lambda: A.Context(user_dir(), url, emit)
+
+    def when_up():
+        end = time.time() + wait
+        while time.time() < end and not _answers(url):
+            time.sleep(1.0)
+        try:
+            log.info("seriesmith: %s", ensure_proxy(settings))
+        except Exception as e:                            # noqa: BLE001  log, go on
+            log.warning("seriesmith: comfy-api-proxy: %s", e)
+        try:
+            recover_all()
+        except Exception:                                 # noqa: BLE001  log, go on
+            log.exception("seriesmith: picking up the last session's jobs failed")
+    if wait:
+        threading.Thread(target=when_up, daemon=True, name="seriesmith-start").start()
+    return make_context
 
 
 def register_on_prompt_server() -> bool:
