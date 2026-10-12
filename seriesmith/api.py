@@ -2410,6 +2410,8 @@ def post_targets_router_inspect(ctx: Context, body):
     except RI.RouterInspectError as e:
         raise ApiError(400, str(e))
     ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
+    from seriesmith import limits as L
+    out["limits"] = L.describe(out["proposal"])
     tid = out["proposal"]["id"]
     if tid in {t.id for t in TG.list_targets(root=ep)}:
         out["warnings"].append(f"there is already a target called {tid}: saving replaces this show's own, "
@@ -2455,6 +2457,7 @@ def put_targets_custom(ctx: Context, body):
             spec.pop("draft", None)
     if not isinstance(spec, dict) or not spec:
         raise ApiError(400, "target must be the target.json to save, as an object")
+    spec = _with_limits(spec, body.get("limits"))
     graph, info = None, None
     try:
         info = ctx.comfy.object_info()
@@ -2495,6 +2498,20 @@ def put_targets_custom(ctx: Context, body):
 
 
 LOCAL_LIMITS = {"length", "size", "pictures"}       # a local target's: its graph has the rest
+
+
+def _with_limits(spec: dict, limits) -> dict:
+    """`spec` with the editor's limit changes written in (seriesmith.limits):
+    the Router wizard sends the proposal and what was changed in its form."""
+    if not limits:
+        return spec
+    from seriesmith import limits as L
+    if not isinstance(limits, dict):
+        raise ApiError(400, "limits must be an object (seriesmith.limits sections)")
+    try:
+        return L.apply(spec, {k: v for k, v in limits.items() if k in L.SECTIONS})
+    except ValueError as e:
+        raise ApiError(400, str(e))
 
 
 @handler
@@ -2577,6 +2594,7 @@ def post_targets_router_dryrun(ctx: Context, body):
             raise ApiError(404, str(e))
     if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):
         raise ApiError(400, "target must be a Router target's target.json, or its id")
+    spec = _with_limits(spec, body.get("limits"))
     try:
         doc = J.load_shotlist(ep, pass_)
     except FileNotFoundError:

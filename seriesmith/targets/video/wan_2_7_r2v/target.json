@@ -82,7 +82,8 @@
           "type": "reference_image",
           "url": "$url"
         },
-        "max": 5
+        "max": 5,
+        "max_total": 5
       },
       "first": {
         "list": "input.media",

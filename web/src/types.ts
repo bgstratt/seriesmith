@@ -1688,7 +1688,54 @@ export interface Target {
   /** A built-in that ships as a draft (an untested Router model): switched on
    * for every show in the settings (PUT /seriesmith/targets/custom {draft}). */
   shipped_draft?: boolean;
+  /** where it lives: seriesmith's own, every show's (beside the settings), or one show's */
+  scope?: "builtin" | "user" | "show";
+  /** a video target's limits (seriesmith.limits; PUT /seriesmith/targets/limits) */
+  limits?: Limits;
 }
+
+/** What a video target takes (seriesmith/limits.py): read from its target.json,
+ * written back where each lives. */
+export interface Limits {
+  length: {
+    frames?: { step: number; base: number; max: number };
+    fps?: number;
+    fps_from_series?: boolean;
+    /** the length the model was trained on (frames) */
+    trained?: number;
+    /** a hosted model's whole seconds: a range, or a set */
+    seconds?: { min?: number; max?: number; values?: number[] };
+  };
+  size: {
+    multiple?: number;
+    fit?: "error" | "snap";
+    long_side?: number;
+    pixels?: number;
+    /** the only sizes a model takes, [width, height] */
+    sizes?: [number, number][];
+    /** a hosted model's named resolutions ("720p", "1280x720") */
+    resolutions?: string[];
+  };
+  prompt: { max_chars?: number };
+  pictures: {
+    references?: number | null;
+    first?: boolean;
+    last?: boolean;
+    needs_first?: boolean;
+    /** how pictures are sent: "" a link, "base64" inline bytes, "datauri", "seedance" its library */
+    via?: string;
+  };
+  sound: boolean;
+  /** the sections (or "pictures.needs_first") that can change */
+  editable?: string[];
+  /** a built-in's limits changed on this machine, and what it shipped with */
+  overridden?: boolean;
+  shipped?: Omit<Limits, "editable" | "overridden" | "shipped">;
+}
+
+/** A schema field written for several models at once (router_inspect.shared_fields):
+ * this model's limit is in its prose. */
+export interface SharedField { input: string; field: string; text: string }
 
 /** Phase 12b: one saved ComfyUI workflow (GET /seriesmith/workflows). */
 export interface WorkflowFile {

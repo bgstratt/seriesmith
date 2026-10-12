@@ -1842,6 +1842,17 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return { proposal: { id: "mock_model", label: req.model, router: { model: req.model, inputs: { prompt: "prompt" } } },
                mapped: { prompt: "prompt" }, unplaced: [], warnings: [] };
     },
+    async putTargetLimits(_ep, id) {
+      await wait(40);
+      const t = (await this.targets({})).targets.find((x) => x.id === id);
+      if (!t) throw new MockError(`no target ${id}`, 404);
+      return { ok: true, id, path: "(mock)", target: t };
+    },
+    async routerDryRun(req) {
+      await wait(40);
+      return { ok: true, shot: req.shot || "sh010", pass: req.pass || "proxy", model: "mock/model",
+               arguments: { prompt: "(the shot's prompt)" }, prompt_chars: { written: 18 } };
+    },
     async drafts() {
       await wait(40);
       return { drafts: [] };

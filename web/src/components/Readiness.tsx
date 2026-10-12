@@ -11,6 +11,7 @@ import {
   targetCountsText, tierText,
 } from "../lib/readiness";
 import { byWhere, isHosted, findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
+import { LimitsCard } from "./Limits";
 import { useApp } from "../store";
 import type { MissingFile, Readiness, Resolution, Target, TargetList } from "../types";
 import { CustomTargets } from "./CustomTarget";
@@ -384,7 +385,9 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
           <span className="h3-grow">{statusLine(label, r)}</span>
         </div>
       </div>
-      <GraphCard t={t} />
+      {/* a hosted model has no workflow: Router runs it */}
+      {!isHosted(t) && <GraphCard t={t} />}
+      {t.kind === "video" && <LimitsCard t={t} />}
       {groups.map((g) => (
         <div key={g.tier} className="h3-col" style={{ gap: 4 }}>
           <div className="h3-h">{g.label} <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>{g.blurb}</span></div>

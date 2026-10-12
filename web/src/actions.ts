@@ -27,7 +27,7 @@ import {
 } from "./store";
 import type {
   AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
-  ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
+  Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest,
 } from "./types";
@@ -233,12 +233,13 @@ export async function inspectTarget(req: { workflow?: string; graph?: unknown; i
 }
 
 /** PUT /seriesmith/targets/custom: save it (a draft until a render proves it). */
-export async function saveCustomTarget(target: Record<string, unknown>): Promise<boolean> {
+export async function saveCustomTarget(target: Record<string, unknown>,
+  opts?: { scope?: "show" | "user"; limits?: Partial<Limits> | null }): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
   return withBusy("target-save", async () => {
     try {
-      const r = await api().saveCustomTarget(ep, target);
+      const r = await api().saveCustomTarget(ep, target, opts);
       await loadTargets(true);
       host().toast("success", `${r.id} is saved`,
         r.draft ? "A draft: render one shot on it from here, then enable it for shots." : undefined);
@@ -247,6 +248,24 @@ export async function saveCustomTarget(target: Record<string, unknown>): Promise
       const problems = e instanceof ApiError ? (e.data as { problems?: string[] })?.problems : undefined;
       report("That target can't be saved yet",
         problems?.length ? new Error(problems.join("; ")) : e);
+      return false;
+    }
+  });
+}
+
+/** Change a video target's limits (PUT /seriesmith/targets/limits): a built-in's
+ * on this machine, `null` putting it back as shipped; your own in its target.json. */
+export async function saveTargetLimits(id: string, limits: Partial<Limits> | null): Promise<boolean> {
+  const ep = get().ep;
+  return withBusy("target-save", async () => {
+    try {
+      await api().putTargetLimits(ep, id, limits);
+      await loadTargets(true);
+      host().toast("success", limits ? `${id}'s limits are saved` : `${id} is back to its shipped limits`);
+      return true;
+    } catch (e) {
+      const problems = e instanceof ApiError ? (e.data as { problems?: string[] })?.problems : undefined;
+      report("Those limits can't be saved", problems?.length ? new Error(problems.join("; ")) : e);
       return false;
     }
   });

@@ -104,7 +104,8 @@
           },
           "referenceType": "asset"
         },
-        "max": 3
+        "max": 3,
+        "max_total": 3
       },
       "ratio": {
         "name": "parameters.aspectRatio",

@@ -79,7 +79,7 @@ def describe(spec: dict) -> dict:
     keyframes = recipe.get("keyframes") or []
     if router is not None:
         refs = inp.get("references")
-        pictures = {"references": int((refs or {}).get("max") or caps.get("max_subjects") or 4) if refs else 0,
+        pictures = {"references": _refs_max(refs, caps) if refs else 0,
                     "first": "first" in inp, "last": "last" in inp, "via": inp.get("via", "")}
     else:
         pictures = {"references": caps.get("max_subjects"), "first": "first" in keyframes,
@@ -221,9 +221,11 @@ def apply(spec: dict, limits: dict) -> dict:
                 n = int(pics["references"] or 0)
                 _switch(inp, off, "references", n > 0)
                 if n > 0 and "references" in inp:
+                    # pictures in all, the place's plate included ("up to 3
+                    # asset images"): subjects first, the plate when there's room
                     refs = inp["references"]
-                    if refs.get("max", caps.get("max_subjects", 4)) != n:
-                        refs["max"] = n
+                    if _refs_max(refs, caps) != n:
+                        refs["max"] = refs["max_total"] = n
                     if caps.get("max_subjects", 4) != n:
                         caps["max_subjects"] = n
             if not off:
@@ -254,6 +256,12 @@ def apply(spec: dict, limits: dict) -> dict:
         if not was and not spec.get(k):
             spec.pop(k, None)
     return spec
+
+
+def _refs_max(refs: dict, caps: dict) -> int:
+    """How many reference pictures a hosted model takes: its total when set
+    (router_video's max_total), else its subjects' cap."""
+    return int(refs.get("max_total") or refs.get("max") or caps.get("max_subjects") or 4)
 
 
 def _switch(inp: dict, off: dict, key: str, on: bool) -> None:

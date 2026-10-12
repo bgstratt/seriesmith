@@ -146,6 +146,22 @@ class LimitsRoutesTest(ApiTest):
         self.assertFalse(runway["ok"])
         self.assertIn("first keyframe", runway["why"])
 
+    def test_the_wizards_limit_changes_go_into_the_request_and_the_save(self):
+        p = dict(proposal("kling/kling-v3-omni")["proposal"], id="my_omni")
+        change = {"pictures": {"references": 1}, "prompt": {"max_chars": 300}}
+        d = self.ok(A.post_targets_router_dryrun(self.ctx, {"ep": self.ep, "target": p, "limits": change}))
+        self.assertEqual(len(d["arguments"]["image_list"]), 1)
+        self.assertLessEqual(len(d["arguments"]["prompt"]), 300)
+        self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": p, "limits": change}))
+        lim = TG.load_target("my_omni", "video", root=self.ep).describe()["limits"]
+        self.assertEqual((lim["pictures"]["references"], lim["prompt"]["max_chars"]), (1, 300))
+        self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": p,
+                                                "limits": {"size": {"multiple": 0}}}), 400)
+
+    def test_the_proposal_comes_with_its_limits(self):
+        self.assertEqual(L.describe(proposal("veo/veo-3.1-fast-generate-001")["proposal"])["prompt"],
+                         {"max_chars": 1000})
+
 
 if __name__ == "__main__":
     unittest.main()

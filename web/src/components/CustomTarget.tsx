@@ -8,11 +8,12 @@ import {
   saveCustomTarget,
 } from "../actions";
 import { customTargets, isHosted } from "../lib/targets";
-import type { RouterProposal } from "../api";
+import type { RouterDryRun, RouterProposal } from "../api";
+import { LimitsForm, changedLimits } from "./Limits";
 import { api } from "../host";
 import { useStatus } from "./hooks";
 import { useApp } from "../store";
-import type { Target, TargetList, TargetProposal, WorkflowFile } from "../types";
+import type { Limits, Target, TargetList, TargetProposal, WorkflowFile } from "../types";
 
 /** The fields no graph states, so a person has to (the rest is detected). */
 interface Answers {
@@ -207,6 +208,14 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   // which provider serves it ("" the model's own), and whether Router may fall back
   const [provider, setProvider] = useState("");
   const [fallback, setFallback] = useState(true);
+  // its limits as proposed, looked over here (the server writes them in)
+  const [limits, setLimits] = useState<Limits | null>(null);
+  // every show's (beside the settings), or this show's own
+  const [scope, setScope] = useState<"user" | "show">("user");
+  const st = useStatus();
+  const [dryShot, setDryShot] = useState("");
+  const [dry, setDry] = useState<RouterDryRun | null>(null);
+  const [dryBusy, setDryBusy] = useState(false);
 
   async function read() {
     setBusy(true);
@@ -217,6 +226,8 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
       setId(got.proposal.id);
       setLabel(got.proposal.label);
       setJson(JSON.stringify(got.proposal, null, 2));
+      setLimits(got.limits ?? null);
+      setDry(null);
     } catch (e) {
       setErr((e as Error).message);
       setR(null);
@@ -225,20 +236,43 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
     }
   }
 
-  async function save() {
+  /** The target.json as it stands here (the JSON box, the id, the provider). */
+  function current(): Record<string, unknown> | null {
     let spec: Record<string, unknown>;
     try {
       spec = JSON.parse(json) as Record<string, unknown>;
     } catch (e) {
       setErr(`The target.json isn't valid JSON: ${(e as Error).message}`);
-      return;
+      return null;
     }
     const router = { ...(spec.router as Record<string, unknown>) };
     delete router.provider;
     delete router.fallback;
     if (provider) router.provider = provider;
     if (!fallback) router.fallback = false;
-    if (await saveCustomTarget({ ...spec, id, label, draft: true, router })) onClose();
+    return { ...spec, id, label, draft: true, router };
+  }
+
+  /** The limits that differ from the proposal's, for the server to write in. */
+  const changes = () => (limits && r?.limits ? changedLimits(limits, r.limits) : {});
+
+  async function dryRun() {
+    const spec = current();
+    if (!spec || !ep) return;
+    setDryBusy(true);
+    setErr(null);
+    try {
+      setDry(await api().routerDryRun({ ep, target: spec, limits: changes(), shot: dryShot || null }));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setDryBusy(false);
+    }
+  }
+
+  async function save() {
+    const spec = current();
+    if (spec && await saveCustomTarget(spec, { scope, limits: changes() })) onClose();
   }
 
   const WHAT: Record<string, string> = {
@@ -290,6 +324,39 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
               <input type="checkbox" checked={fallback} onChange={(e) => setFallback(e.target.checked)} /> let Router fall back to another
             </label>
           </div>
+          {limits && (
+            <div className="h3-col" style={{ gap: 4 }}>
+              <div className="h3-h">
+                Its limits
+                <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
+                  {" "}— from the schema; a field marked "check this" states this model's limit only in its prose
+                </span>
+              </div>
+              <LimitsForm value={limits} onChange={setLimits} shared={r.shared}
+                resolutionChoices={r.limits?.size.resolutions} />
+            </div>
+          )}
+          <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
+            <span>Try it on</span>
+            <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 140 }}>
+              <option value="">the first shot with a subject</option>
+              {(st?.shots ?? []).map((x) => <option key={x.shot} value={x.shot}>{x.shot}</option>)}
+            </select>
+            <button className="h3-btn" disabled={dryBusy} title="What it would send for that shot (proxy): nothing is uploaded or paid for"
+              onClick={() => void dryRun()}>
+              <i className={dryBusy ? "pi pi-spin pi-spinner" : "pi pi-eye"} /> Dry run (free)
+            </button>
+          </div>
+          {dry && (dry.ok ? (
+            <details open className="h3-small">
+              <summary style={{ cursor: "pointer" }}>
+                {dry.shot}: the request to {dry.model} ({dry.prompt_chars?.written ?? "?"} characters of prompt written)
+              </summary>
+              <pre className="h3-mono" style={{ whiteSpace: "pre-wrap", fontSize: 10, maxHeight: 260, overflow: "auto", margin: "4px 0 0" }}>
+                {JSON.stringify(dry.arguments, null, 2)}
+              </pre>
+            </details>
+          ) : <div className="h3-small h3-err">{dry.shot}: {dry.why}</div>)}
           {r.unplaced.length > 0 && (
             <div className="h3-small h3-err">It requires {r.unplaced.join(", ")}, which nothing was placed in: set it in the target.json below.</div>
           )}
@@ -303,6 +370,11 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
           )}
           <div className="h3-row" style={{ gap: 6 }}>
             <span className="h3-small h3-muted h3-grow">Saved as a draft: probe one shot (a paid render), look at the take, then enable it.</span>
+            <select className="h3-in" value={scope} onChange={(e) => setScope(e.target.value as "user" | "show")}
+              title="Every show: kept beside seriesmith's settings. This show: in its targets folder.">
+              <option value="user">for every show</option>
+              <option value="show">for this show only</option>
+            </select>
             <button className="h3-btn h3-primary" disabled={saving || !id} onClick={() => void save()}>
               <i className={saving ? "pi pi-spin pi-spinner" : "pi pi-save"} /> Save as draft
             </button>

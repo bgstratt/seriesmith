@@ -104,6 +104,9 @@
 .h3-root input[type="range"] { accent-color: var(--h3-accent); }
 .h3-field { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 6px; align-items: center; }
 .h3-field > label { color: var(--h3-muted); font-size: 11px; }
+/* several rows to a label (the limits form): the label at the top of its rows */
+.h3-field-top { align-items: start; }
+.h3-field-top > label { padding-top: 5px; }
 .h3-field > .h3-seg { justify-self: start; }
 .h3-col > .h3-seg { align-self: flex-start; }
 .h3-check { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }

@@ -18,7 +18,7 @@ import type {
   RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeRef, TargetKind, TargetList, TrackResult,
   MasterJob, MasterResult, UpscaleOptions, UpscaleRequest, UpscaleResult,
   PostOptions, PostRequest, PostResult,
-  CustomTargetResult, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
+  CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult,
 } from "./types";
@@ -46,6 +46,22 @@ export interface RouterProposal {
   /** fields the model requires that nothing was placed in */
   unplaced: string[];
   warnings: string[];
+  /** the proposal's limits, to look over before saving */
+  limits?: Limits;
+  /** limits section -> the schema fields written for several models at once */
+  shared?: Record<string, SharedField[]>;
+}
+
+/** POST /seriesmith/targets/router-dryrun: a Router target's request for one shot. */
+export interface RouterDryRun {
+  ok: boolean;
+  shot: string;
+  why?: string;
+  pass?: string;
+  model?: string;
+  arguments?: Record<string, unknown>;
+  routing?: Record<string, unknown>;
+  prompt_chars?: { written: number };
 }
 
 /** A Seedance draft its shot's final can be made from (GET /seriesmith/drafts). */
@@ -237,7 +253,10 @@ export interface Api {
   /** A Comfy Router model proposed as a target, from its published schema. */
   routerInspect(req: { model: string; ep?: string | null }): Promise<RouterProposal>;
   /** Phase 12b: save a show's own target (validated first; 400 lists every problem). */
-  saveCustomTarget(ep: string, target: Record<string, unknown>): Promise<CustomTargetResult>;
+  saveCustomTarget(ep: string, target: Record<string, unknown>, opts?: { scope?: "show" | "user"; limits?: Partial<Limits> | null }): Promise<CustomTargetResult>;
+  /** PUT /seriesmith/targets/limits: null puts a built-in back as shipped */
+  putTargetLimits(ep: string | null, id: string, limits: Partial<Limits> | null): Promise<{ ok: boolean; id: string; path: string; target: Target }>;
+  routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string }): Promise<RouterDryRun>;
   /** Phase 12b: remove one. */
   deleteCustomTarget(ep: string, id: string): Promise<CustomTargetResult>;
   /** Phase 12c: stop being a draft (a probe render proved it), or go back to one. */
@@ -650,7 +669,11 @@ export function createHttpApi(t: Transport): Api {
     },
     inspectTarget: (req) => call("POST", "/seriesmith/targets/inspect", req),
     routerInspect: (req) => call("POST", "/seriesmith/targets/router-inspect", req),
-    saveCustomTarget: (ep, target) => call("PUT", "/seriesmith/targets/custom", { ep, target }),
+    saveCustomTarget: (ep, target, opts) => call("PUT", "/seriesmith/targets/custom", {
+      ep, target, ...(opts?.scope ? { scope: opts.scope } : {}), ...(opts?.limits ? { limits: opts.limits } : {}),
+    }),
+    putTargetLimits: (ep, id, limits) => call("PUT", "/seriesmith/targets/limits", { ...(ep ? { ep } : {}), id, limits }),
+    routerDryRun: (req) => call("POST", "/seriesmith/targets/router-dryrun", req),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),
     putEpisodeTarget: async (ep, target) => {
