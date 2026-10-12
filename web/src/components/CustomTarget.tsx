@@ -7,7 +7,10 @@ import {
   deleteCustomTarget, enableCustomTarget, inspectTarget, loadWorkflows, probeTarget,
   saveCustomTarget,
 } from "../actions";
-import { customTargets } from "../lib/targets";
+import { customTargets, isHosted } from "../lib/targets";
+import type { RouterProposal } from "../api";
+import { api } from "../host";
+import { useStatus } from "./hooks";
 import { useApp } from "../store";
 import type { Target, TargetList, TargetProposal, WorkflowFile } from "../types";
 
@@ -83,6 +86,7 @@ function applyAnswers(p: TargetProposal, a: Answers): Record<string, unknown> {
 export function CustomTargets({ list }: { list: TargetList | null }) {
   const ep = useApp((s) => s.ep);
   const [open, setOpen] = useState(false);
+  const [routerOpen, setRouterOpen] = useState(false);
   const mine = useMemo(() => customTargets(list), [list]);
   if (!ep) return null;
   return (
@@ -90,7 +94,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
       <div className="h3-h">
         This show's own targets
         <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
-          {" "}— a ComfyUI workflow of yours, driven like any other model
+          {" "}— a ComfyUI workflow of yours, or a Comfy Router model, driven like any other
         </span>
       </div>
       {mine.map((t) => <MineRow key={t.id} t={t} />)}
@@ -100,17 +104,28 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
           out which widget takes the prompt, the size, the length, the seed and the model.
         </div>
       )}
-      {open
-        ? <Wizard onClose={() => setOpen(false)} />
-        : <div><button className="h3-btn" onClick={() => setOpen(true)}>
+      {open && <Wizard onClose={() => setOpen(false)} />}
+      {routerOpen && <RouterWizard onClose={() => setRouterOpen(false)} />}
+      {!open && !routerOpen && (
+        <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+          <button className="h3-btn" onClick={() => setOpen(true)}>
             <i className="pi pi-plus" /> Add a target from a workflow…
-          </button></div>}
+          </button>
+          <button className="h3-btn" title="A hosted model by its Router id (provider/model): seriesmith reads its schema and proposes how a shot goes in"
+            onClick={() => setRouterOpen(true)}>
+            <i className="pi pi-cloud" /> Add a Comfy Router model…
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function MineRow({ t }: { t: Target }) {
   const busy = useApp((s) => !!s.busy["target-save"] || !!s.busy["target-probe"]);
+  const st = useStatus();
+  const [shot, setShot] = useState("");
+  const hosted = isHosted(t);
   return (
     <div className="h3-mfile">
       <div className="h3-row">
@@ -119,7 +134,7 @@ function MineRow({ t }: { t: Target }) {
         </span>
         <b className="h3-ell h3-grow" title={t.id}>{t.label || t.id}</b>
         <span className="h3-mono h3-small h3-muted h3-ell" style={{ maxWidth: 220 }}
-              title={t.graph?.name}>{t.graph?.name}</span>
+              title={t.graph?.name}>{hosted ? "Comfy Router" : t.graph?.name}</span>
       </div>
       {t.draft && (
         <div className="h3-small">
@@ -130,8 +145,14 @@ function MineRow({ t }: { t: Target }) {
       <div className="h3-row h3-small">
         {t.draft && (
           <>
-            <button className="h3-btn" disabled={busy} onClick={() => void probeTarget(t.id)}>
-              <i className="pi pi-play" /> Probe render
+            <select className="h3-in" value={shot} onChange={(e) => setShot(e.target.value)}
+              title="The shot the probe renders (proxy)" style={{ maxWidth: 140 }}>
+              <option value="">the first shot</option>
+              {(st?.shots ?? []).map((x) => <option key={x.shot} value={x.shot}>{x.shot}</option>)}
+            </select>
+            <button className="h3-btn" disabled={busy} title={hosted ? "A paid render of that shot, in proxy" : "Render that shot in proxy"}
+              onClick={() => void probeTarget(t.id, shot || null)}>
+              <i className="pi pi-play" /> Probe render{hosted ? " (paid)" : ""}
             </button>
             <button className="h3-btn" disabled={busy} onClick={() => void enableCustomTarget(t.id)}>
               <i className="pi pi-check" /> Enable for shots
@@ -148,6 +169,107 @@ function MineRow({ t }: { t: Target }) {
           <i className="pi pi-trash" /> Remove
         </button>
       </div>
+    </div>
+  );
+}
+
+/** A Comfy Router model by its id: its schema read, the target proposed
+ * (where each part of a shot goes, its limits), looked over, saved as a draft. */
+function RouterWizard({ onClose }: { onClose: () => void }) {
+  const ep = useApp((s) => s.ep);
+  const saving = useApp((s) => !!s.busy["target-save"]);
+  const [model, setModel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [r, setR] = useState<RouterProposal | null>(null);
+  const [id, setId] = useState("");
+  const [label, setLabel] = useState("");
+  const [json, setJson] = useState("");
+  const [showJson, setShowJson] = useState(false);
+
+  async function read() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const got = await api().routerInspect({ model: model.trim(), ep });
+      setR(got);
+      setId(got.proposal.id);
+      setLabel(got.proposal.label);
+      setJson(JSON.stringify(got.proposal, null, 2));
+    } catch (e) {
+      setErr((e as Error).message);
+      setR(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save() {
+    let spec: Record<string, unknown>;
+    try {
+      spec = JSON.parse(json) as Record<string, unknown>;
+    } catch (e) {
+      setErr(`The target.json isn't valid JSON: ${(e as Error).message}`);
+      return;
+    }
+    if (await saveCustomTarget({ ...spec, id, label, draft: true })) onClose();
+  }
+
+  const WHAT: Record<string, string> = {
+    prompt: "the prompt", negative: "what to avoid", duration: "the length", resolution: "the size",
+    ratio: "the shape", seed: "the seed", audio: "the sound", references: "the reference pictures",
+    first: "the first frame", last: "the last frame",
+  };
+  return (
+    <div className="h3-col h3-mfile" style={{ gap: 6 }}>
+      <div className="h3-row" style={{ gap: 6 }}>
+        <input className="h3-in h3-grow h3-mono" value={model} placeholder="minimax/minimax-h3"
+          title="The model's Router id, provider/model (comfy.org's model catalog lists them)"
+          onChange={(e) => setModel(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && model.includes("/")) void read(); }} />
+        <button className="h3-btn h3-primary" disabled={busy || !model.includes("/")} onClick={() => void read()}>
+          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-search"} /> Read it
+        </button>
+        <button className="h3-btn" onClick={onClose}>Cancel</button>
+      </div>
+      {err && <div className="h3-small h3-err">{err}</div>}
+      {r && (
+        <>
+          <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+            <label className="h3-small h3-row" style={{ gap: 4 }}>id
+              <input className="h3-in h3-mono" style={{ width: 170 }} value={id} onChange={(e) => setId(e.target.value)} /></label>
+            <label className="h3-small h3-row h3-grow" style={{ gap: 4 }}>name
+              <input className="h3-in h3-grow" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
+          </div>
+          <table className="h3-table h3-small">
+            <thead><tr><th>A shot's</th><th>goes in the model's</th></tr></thead>
+            <tbody>
+              {Object.keys(WHAT).map((k) => (
+                <tr key={k}>
+                  <td>{WHAT[k]}</td>
+                  <td className="h3-mono">{r.mapped[k] ?? <span className="h3-muted">— (the model doesn't take it, or it wasn't found)</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {r.unplaced.length > 0 && (
+            <div className="h3-small h3-err">It requires {r.unplaced.join(", ")}, which nothing was placed in: set it in the target.json below.</div>
+          )}
+          {r.warnings.map((w) => <div key={w} className="h3-small h3-warn">{w}</div>)}
+          <button className="h3-link h3-small" style={{ alignSelf: "flex-start" }} onClick={() => setShowJson(!showJson)}>
+            {showJson ? "Hide" : "Show"} the target.json (limits, presets, fixed arguments)
+          </button>
+          {showJson && (
+            <textarea className="h3-in h3-mono" rows={16} value={json} spellCheck={false}
+              onChange={(e) => setJson(e.target.value)} style={{ fontSize: 11 }} />
+          )}
+          <div className="h3-row" style={{ gap: 6 }}>
+            <span className="h3-small h3-muted h3-grow">Saved as a draft: probe one shot (a paid render), look at the take, then enable it.</span>
+            <button className="h3-btn h3-primary" disabled={saving || !id} onClick={() => void save()}>
+              <i className={saving ? "pi pi-spin pi-spinner" : "pi pi-save"} /> Save as draft
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

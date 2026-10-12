@@ -290,10 +290,11 @@ export async function deleteCustomTarget(id: string): Promise<boolean> {
  * so a wrong frame grid or a missing file shows up before the target is used
  * for real. Queued like any other render; watch the take to see how it went.
  */
-export async function probeTarget(target: string): Promise<boolean> {
+export async function probeTarget(target: string, which?: string | null): Promise<boolean> {
   const ep = get().ep;
   const st = get().status[statusKey(ep ?? "", "proxy")] ?? get().status[statusKey(ep ?? "", "final")];
-  const shot = st?.shots?.[0]?.shot;
+  // the shot asked for, else the episode's first
+  const shot = which || st?.shots?.[0]?.shot;
   if (!ep || !shot) {
     host().toast("error", "Nothing to probe with", "Build the episode first: the probe renders its first shot.");
     return false;

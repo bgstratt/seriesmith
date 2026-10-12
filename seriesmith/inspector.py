@@ -878,6 +878,8 @@ def validate_spec(spec: dict, graph: dict | None = None,
     """
     out = []
     for key in REQUIRED_KEYS:
+        if key == "binding" and spec.get("router") is not None:
+            continue                                     # a Router model binds no workflow
         if not spec.get(key):
             out.append(f"target.json needs a {key}")
     tid = spec.get("id") or ""
@@ -889,6 +891,17 @@ def validate_spec(spec: dict, graph: dict | None = None,
                    f"not {spec['kind']!r}")
     if tid in {t.id for t in TG.list_targets()}:
         out.append(f"{tid!r} is a built-in target's name: choose another")
+    if spec.get("router") is not None:
+        # a Comfy Router model (targets/generic/router_video): no workflow to bind
+        r = spec.get("router") or {}
+        if not isinstance(r.get("model"), str) or "/" not in r["model"]:
+            out.append("router.model must be the Router model's id (provider/model)")
+        inputs = r.get("inputs")
+        if not isinstance(inputs, dict) or not inputs.get("prompt"):
+            out.append("router.inputs must say where the prompt goes")
+        if spec.get("code") not in (None, "builtin:router_video"):
+            out.append("a Router target's code is builtin:router_video")
+        return out
     b = spec.get("binding") or {}
     if not b.get("workflow_name"):
         out.append("binding.workflow_name must name the workflow (as saved in ComfyUI)")

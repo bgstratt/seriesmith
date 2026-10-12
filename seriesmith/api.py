@@ -2389,6 +2389,35 @@ def _workflow_data(ctx: Context, body: dict) -> dict:
 
 
 @handler
+def post_targets_router_inspect(ctx: Context, body):
+    """A Comfy Router video model proposed as a target (router_inspect): its
+    schema read from Router (the account's Comfy API key) and the target.json
+    that drives it proposed -- where each part of a shot goes, its limits, its
+    presets -- with what was placed, what it requires that wasn't, and what
+    was guessed. Read-only: saving is PUT /seriesmith/targets/custom (a draft,
+    until a probe render proves it). Body {model, ep?}."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    body = body_dict(body)
+    model = (_opt_str(body, "model") or "").strip()
+    key = load_settings().api_key
+    if not key:
+        raise ApiError(409, "reading a Router model needs your Comfy API key (Settings)")
+    try:
+        doc = RI.fetch_schema(model, key)
+        base = TG.load_target("seedance_2_5", "video").spec
+        out = RI.propose(model, doc, base=base)
+    except RI.RouterInspectError as e:
+        raise ApiError(400, str(e))
+    ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
+    tid = out["proposal"]["id"]
+    if tid in {t.id for t in TG.list_targets(root=ep)}:
+        out["warnings"].append(f"there is already a target called {tid}: saving replaces this show's own, "
+                               f"a built-in one can't be replaced (change the id)")
+    return 200, out
+
+
+@handler
 def put_targets_custom(ctx: Context, body):
     """Save a show's own target (`<show>/targets/<id>/target.json`). Validated
     first, against the workflow it names as a render would resolve it."""
@@ -2419,7 +2448,7 @@ def put_targets_custom(ctx: Context, body):
     except Exception:
         info = None
     name = ((spec.get("binding") or {}).get("workflow_name") or "")
-    if name:
+    if name and spec.get("router") is None:
         try:
             data = ctx.comfy.userdata(f"workflows/{name}")
         except Exception:
@@ -2430,7 +2459,7 @@ def put_targets_custom(ctx: Context, body):
         else:
             graph = J.graph_from(data, name)
     problems = IN.validate_spec(spec, graph, info)
-    if graph is None:
+    if graph is None and spec.get("router") is None:
         problems = [p for p in problems] + [
             f"no workflow called {name} is saved in ComfyUI, so the binding can't be checked: "
             f"save the graph there first (its name is binding.workflow_name)"]
@@ -3611,6 +3640,7 @@ ROUTES = [
     ("GET", "/seriesmith/workflows", get_workflows, "query"),
     ("POST", "/seriesmith/targets/inspect", post_targets_inspect, "body"),
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
+    ("POST", "/seriesmith/targets/router-inspect", post_targets_router_inspect, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),

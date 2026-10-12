@@ -10,7 +10,7 @@ import {
   pickWarning, readinessBadge, readinessOf, resolutionNotes, searchText, seriesSnippet, seriesTarget, targetCounts,
   targetCountsText, tierText,
 } from "../lib/readiness";
-import { byWhere, findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
+import { byWhere, isHosted, findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
 import { useApp } from "../store";
 import type { MissingFile, Readiness, Resolution, Target, TargetList } from "../types";
 import { CustomTargets } from "./CustomTarget";
@@ -337,6 +337,8 @@ function AllTargets({ video, list }: { video: Target[]; list: TargetList }) {
 
 /** The all-targets table's Graph cell: where this target's workflow comes from. */
 function graphWord(t: Target): React.ReactNode {
+  // a hosted model has no workflow: Router runs it
+  if (isHosted(t)) return <span className="h3-muted">Comfy Router</span>;
   const g = t.graph;
   if (!g) return "";
   const word = g.source === "env" ? `$${g.env}` :

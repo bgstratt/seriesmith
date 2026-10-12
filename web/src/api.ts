@@ -38,6 +38,16 @@ export type FrameSource =
   | { pass: string; shot: string; take: number; frame: number | "last" }
   | { video: string; time: number };
 
+/** A Router model's proposed target (POST /seriesmith/targets/router-inspect). */
+export interface RouterProposal {
+  proposal: Record<string, unknown> & { id: string; label: string; router: { model: string; inputs: Record<string, unknown> } };
+  /** input -> where it goes in the model's request */
+  mapped: Record<string, string>;
+  /** fields the model requires that nothing was placed in */
+  unplaced: string[];
+  warnings: string[];
+}
+
 /** A Seedance draft its shot's final can be made from (GET /seriesmith/drafts). */
 export interface DraftItem {
   shot: string;
@@ -224,6 +234,8 @@ export interface Api {
   workflows(): Promise<WorkflowFile[]>;
   /** Phase 12b: propose the target.json for one workflow. Read-only. */
   inspectTarget(req: { ep?: string | null; workflow?: string; graph?: unknown; id?: string; label?: string }): Promise<TargetProposal>;
+  /** A Comfy Router model proposed as a target, from its published schema. */
+  routerInspect(req: { model: string; ep?: string | null }): Promise<RouterProposal>;
   /** Phase 12b: save a show's own target (validated first; 400 lists every problem). */
   saveCustomTarget(ep: string, target: Record<string, unknown>): Promise<CustomTargetResult>;
   /** Phase 12b: remove one. */
@@ -635,6 +647,7 @@ export function createHttpApi(t: Transport): Api {
       return Array.isArray(r?.workflows) ? r.workflows : [];
     },
     inspectTarget: (req) => call("POST", "/seriesmith/targets/inspect", req),
+    routerInspect: (req) => call("POST", "/seriesmith/targets/router-inspect", req),
     saveCustomTarget: (ep, target) => call("PUT", "/seriesmith/targets/custom", { ep, target }),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),

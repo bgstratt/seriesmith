@@ -1,0 +1,343 @@
+"""
+A Comfy Router video model proposed as a target (docs/PLAN.md, "Router models
+as data"): its published schema (GET /v2/models/<provider>/<model>/openapi.json,
+the one Router validates requests against) read, and the target.json that
+drives it through targets/generic/router_video.py proposed -- which of its
+fields takes the prompt, the length, the size, the ratio, the seed, the sound,
+the references and the frames, with the limits the schema states -- for a
+person to look over before it's saved as a show's own (draft) target.
+
+The proposal is a reading of names and types, not a promise: what it found
+is listed (`mapped`), what the model requires that it didn't place
+(`unplaced`), and what it guessed (`warnings`). A first render settles it.
+
+Stdlib only.
+"""
+from __future__ import annotations
+
+import json
+import re
+import urllib.error
+import urllib.request
+
+API_BASE = "https://api.comfy.org"
+
+
+class RouterInspectError(ValueError):
+    pass
+
+
+def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
+    """The model's openapi.json from Router."""
+    if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", model or ""):
+        raise RouterInspectError(f"{model!r} isn't a Router model id (provider/model)")
+    req = urllib.request.Request(f"{API_BASE}/v2/models/{model}/openapi.json",
+                                 headers={"X-API-Key": api_key})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise RouterInspectError(f"Router has no model {model}") from None
+        raise RouterInspectError(f"Router answered {e.code} for {model}'s schema") from None
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise RouterInspectError(f"Router's schema for {model} couldn't be read: {e}") from None
+
+
+# -- the schema --------------------------------------------------------------------
+
+def _resolve(doc: dict, s):
+    seen = 0
+    while isinstance(s, dict) and "$ref" in s and seen < 20:
+        s = doc.get("components", {}).get("schemas", {}).get(s["$ref"].split("/")[-1], {})
+        seen += 1
+    if isinstance(s, dict) and "anyOf" in s and "type" not in s:
+        typed = [x for x in (_resolve(doc, y) for y in s["anyOf"]) if isinstance(x, dict) and x.get("type")]
+        if typed:
+            merged = dict(typed[0])
+            merged.update({k: v for k, v in s.items() if k != "anyOf"})
+            return merged
+    return s if isinstance(s, dict) else {}
+
+
+def request_schema(doc: dict) -> dict:
+    for ops in (doc.get("paths") or {}).values():
+        post = (ops or {}).get("post") or {}
+        s = (((post.get("requestBody") or {}).get("content") or {}).get("application/json") or {}).get("schema")
+        if s:
+            return _resolve(doc, s)
+    raise RouterInspectError("the schema has no request body to read")
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def fields(doc: dict, s: dict, prefix: str = "", depth: int = 0):
+    """(path, schema) of every field, objects walked into, an array of objects
+    walked into as its first item (".0.") -- except a list of items, which is
+    kept whole (a content or media list)."""
+    for k, v in ((s.get("properties") or {}).items()):
+        v = _resolve(doc, v)
+        path = f"{prefix}{k}"
+        yield path, v
+        if depth >= 2:
+            continue
+        if v.get("type") == "object":
+            yield from fields(doc, v, path + ".", depth + 1)
+        elif v.get("type") == "array":
+            item = _resolve(doc, v.get("items") or {})
+            if item.get("type") == "object" and not _is_media_list(doc, item):
+                if _norm(k) in ("instances",):
+                    yield from fields(doc, item, path + ".0.", depth + 1)
+
+
+def _is_media_list(doc: dict, item: dict) -> bool:
+    props = {_norm(k) for k in (item.get("properties") or {})}
+    return "type" in props and bool(props & {"text", "imageurl", "url", "role"})
+
+
+def _text(v: dict) -> str:
+    return json.dumps(v).lower()
+
+
+# -- the proposal ------------------------------------------------------------------
+
+NAMES = {
+    "prompt": ["prompt", "prompttext", "text"],
+    "negative": ["negativeprompt", "negative"],
+    "duration": ["duration", "durationseconds", "seconds", "length", "videoduration"],
+    "resolution": ["resolution", "quality", "videoresolution"],
+    "ratio": ["aspectratio", "ratio"],
+    "seed": ["seed"],
+    "audio": ["generateaudio", "audio", "sound", "withaudio", "enableaudio"],
+    "first": ["firstframe", "firstframeimage", "firstframeurl", "image", "imageurl", "imgurl",
+              "startimage", "imagestart", "startframe", "startimageurl"],
+    "last": ["lastframe", "lastframeimage", "lastframeurl", "endimage", "imageend", "tailimage",
+             "endframe", "endimageurl", "imagetail"],
+    "references": ["referenceimages", "referenceimage", "imageurls", "images", "referenceimageurls",
+                   "refimages"],
+}
+
+
+def _picture_item(doc: dict, v: dict):
+    """How one picture goes in a field or list item of schema `v`: "$url", or
+    {"url": "$url"}, {"gcsUri": "$url", "mimeType": "image/png"}, ..."""
+    v = _resolve(doc, v)
+    if v.get("type") != "object":
+        return "$url"
+    props = {k: _resolve(doc, x) for k, x in (v.get("properties") or {}).items()}
+    for k in props:
+        if _norm(k) in ("url", "imageurl", "uri"):
+            return {k: "$url"}
+    for k in props:
+        if _norm(k) == "gcsuri":
+            mime = next((m for m in props if _norm(m) == "mimetype"), None)
+            return {k: "$url", **({mime: "image/png"} if mime else {})}
+    for k, x in props.items():
+        if _norm(k) == "image":
+            inner = _picture_item(doc, x)
+            rest = {r: "asset" for r, y in props.items()
+                    if _norm(r) == "referencetype" and "asset" in (y.get("enum") or [])}
+            return {k: inner, **rest}
+    return "$url"
+
+
+def _sizes(values: list[str]) -> dict:
+    """final and proxy (width, height) from a model's resolutions."""
+    from seriesmith.targets.generic.router_video import size_of
+
+    def dims(v):
+        w, h = size_of(v)
+        return (w or (round(h * 16 / 9 / 2) * 2), h) if h else None
+    landscape = [d for d in (dims(v) for v in values) if d and d[0] >= d[1]]
+    if not landscape:
+        return {"final": (1280, 720), "proxy": (854, 480)}
+    landscape.sort(key=lambda d: d[1])
+    final = min(landscape, key=lambda d: abs(d[1] - 720))
+    proxy = landscape[0]
+    return {"final": final, "proxy": proxy}
+
+
+def propose(model: str, doc: dict, base: dict | None = None) -> dict:
+    """{"proposal": target.json, "mapped": {input: where}, "unplaced": [required
+    fields not placed], "warnings": [...]} for Router model `model` from its
+    schema `doc`. `base`: a target.json whose recipe and refs a new one starts
+    from (Seedance's)."""
+    body = request_schema(doc)
+    required = set(body.get("required") or [])
+    inputs: dict = {}
+    mapped: dict = {}
+    warnings: list[str] = []
+    args: dict = {}
+    all_fields = list(fields(doc, body))
+
+    # a list of typed items: a content list (text and pictures with roles) or a
+    # media list (pictures by type)
+    for path, v in all_fields:
+        if v.get("type") != "array":
+            continue
+        item = _resolve(doc, v.get("items") or {})
+        if item.get("type") != "object" or not _is_media_list(doc, item):
+            continue
+        props = {_norm(k): k for k in (item.get("properties") or {})}
+        roles_text = _text(item)
+        if "text" in props and "prompt" not in inputs:
+            inputs["prompt"] = {"list": path, "item": {props["type"]: "text", props["text"]: "$prompt"}}
+        if "imageurl" in props:                                  # content: {type, image_url{url}, role}
+            role_key = props.get("role")
+            url_obj = _picture_item(doc, (item.get("properties") or {})[props["imageurl"]])
+            for want, role in (("references", "reference_image"), ("first", "first_frame"),
+                               ("last", "last_frame")):
+                if role in roles_text or (want == "last" and "end_frame" in roles_text):
+                    r = role if role in roles_text else "end_frame"
+                    tpl = {props["type"]: "image_url", props["imageurl"]: url_obj}
+                    if role_key:
+                        tpl[role_key] = r
+                    else:
+                        tpl[props["type"]] = r
+                    inputs.setdefault(want, {"list": path, "item": tpl})
+        elif "url" in props:                                      # media: {type, url}
+            for want, role in (("references", "reference_image"), ("first", "first_frame"),
+                               ("last", "last_frame")):
+                if role in roles_text:
+                    inputs.setdefault(want, {"list": path, "item": {props["type"]: role, props["url"]: "$url"}})
+        for k in ("prompt", "references", "first", "last"):
+            if k in inputs and k not in mapped:
+                mapped[k] = f"{path}[] ({k})"
+
+    # the fields, by name
+    for path, v in all_fields:
+        leaf = _norm(path.split(".")[-1])
+        if any(path == m.get("list") or path.startswith(str(m.get("list")) + ".")
+               for m in inputs.values() if isinstance(m, dict)):
+            continue
+        t = v.get("type")
+        enum = v.get("enum")
+        if leaf in NAMES["prompt"] and t == "string" and "prompt" not in inputs:
+            inputs["prompt"] = path
+        elif leaf in NAMES["negative"] and t == "string" and "negative" not in inputs:
+            inputs["negative"] = path
+        elif leaf in NAMES["duration"] and "duration" not in inputs and t in ("integer", "number", "string"):
+            d = {"name": path}
+            if enum:
+                d["values"] = [int(float(x)) for x in enum if str(x).lstrip("-").replace(".", "").isdigit()
+                               and float(x) > 0]
+                if t == "string":
+                    d["as"] = "str"
+            else:
+                lo, hi = v.get("minimum"), v.get("maximum")
+                d["min"] = max(1, int(lo)) if isinstance(lo, (int, float)) and lo > 0 else 1
+                if isinstance(hi, (int, float)):
+                    d["max"] = int(hi)
+                if not isinstance(hi, (int, float)):
+                    warnings.append(f"{path}: the schema gives no longest length; check its description")
+            inputs["duration"] = d
+        elif leaf in NAMES["resolution"] and enum and "resolution" not in inputs:
+            vals = [x for x in enum if not str(x).lower() in ("auto",)]
+            # one spelling of each ("768P" and "768p"): the first
+            seen, uniq = set(), []
+            for x in vals:
+                if str(x).lower() not in seen:
+                    seen.add(str(x).lower())
+                    uniq.append(x)
+            inputs["resolution"] = {"name": path, "values": uniq}
+        elif leaf == "size" and t == "string" and "resolution" not in inputs:
+            warnings.append(f"{path}: a size as width*height with no list of values: left to the model")
+        elif leaf in NAMES["ratio"] and "ratio" not in inputs and (enum or t == "string"):
+            vals = list(enum) if enum else ["16:9", "9:16", "1:1"]
+            if not enum:
+                warnings.append(f"{path}: no ratios listed; 16:9, 9:16 and 1:1 assumed")
+            d = {"name": path, "values": [x for x in vals if ":" in str(x)]}
+            if "adaptive" in vals:
+                d["with_frames"] = "adaptive"
+            inputs["ratio"] = d
+        elif leaf in NAMES["seed"] and t in ("integer", "number") and "seed" not in inputs:
+            hi = v.get("maximum")
+            inputs["seed"] = {"name": path, "max": int(hi) if isinstance(hi, (int, float)) and hi > 0
+                              else 2147483647}
+            if not isinstance(hi, (int, float)):
+                warnings.append(f"{path}: no largest seed given; 2^31-1 assumed (Seedance refused more)")
+        elif leaf in NAMES["audio"] and "audio" not in inputs:
+            if t == "boolean":
+                inputs["audio"] = {"name": path}
+            elif enum and {"on", "off"} <= {str(x).lower() for x in enum}:
+                inputs["audio"] = {"name": path, "on": "on", "off": "off"}
+        elif leaf in NAMES["references"] and t == "array" and "references" not in inputs:
+            item = _resolve(doc, v.get("items") or {})
+            d = {"list": path}
+            tpl = _picture_item(doc, item)
+            if tpl != "$url":
+                d["item"] = tpl
+            if isinstance(v.get("maxItems"), int):
+                d["max"] = v["maxItems"]
+            inputs["references"] = d
+        elif leaf in NAMES["first"] and "first" not in inputs and t in ("string", "object"):
+            tpl = _picture_item(doc, v)
+            inputs["first"] = {"field": path, **({"item": tpl} if tpl != "$url" else {})}
+        elif leaf in NAMES["last"] and "last" not in inputs and t in ("string", "object"):
+            tpl = _picture_item(doc, v)
+            inputs["last"] = {"field": path, **({"item": tpl} if tpl != "$url" else {})}
+        elif leaf == "watermark" and t == "boolean":
+            args[path] = False
+        elif leaf in ("outputformat",) and enum and "mp4" in enum:
+            args[path] = "mp4"
+        elif leaf == "samplecount" and t == "integer":
+            args[path] = 1
+
+    for k, where in inputs.items():
+        mapped.setdefault(k, where if isinstance(where, str) else
+                          (where.get("name") or where.get("field") or f"{where.get('list')}[]"))
+    if "prompt" not in inputs:
+        warnings.append("no field for the prompt was found: the model can't be told what to draw")
+    if "first" in inputs and "references" in inputs:
+        warnings.append("it takes frames and references: a shot with a first frame sends its frames")
+    placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m for m in inputs.values()}
+    placed |= set(args)
+    unplaced = sorted(f for f in required if not any(p == f or p.startswith(f + ".") for p in placed))
+
+    # nested fixed arguments (sampleCount under parameters) go in by path
+    arguments: dict = {}
+    from seriesmith.targets.generic.router_video import put
+    for path, value in args.items():
+        put(arguments, path, value)
+
+    sizes = _sizes((inputs.get("resolution") or {}).get("values") or [])
+    d = inputs.get("duration") or {}
+    lo = min(d["values"]) if d.get("values") else d.get("min", 4)
+    hi = max(d["values"]) if d.get("values") else d.get("max", 10)
+    tid = re.sub(r"[^a-z0-9]+", "_", model.split("/", 1)[1].lower()).strip("_")
+    if not tid[:1].isalpha():
+        tid = "m_" + tid
+    base = json.loads(json.dumps(base or {}))
+    recipe = base.get("recipe") or {"policies": ["generate"], "prompt": "prose"}
+    recipe["keyframes"] = [e for e in ("first", "last") if e in inputs]
+    if "references" not in inputs:
+        recipe.pop("reference_image", None)
+    proposal = {
+        "id": tid,
+        "kind": "video",
+        "label": f"{model.split('/', 1)[1]} (hosted, Comfy Router)",
+        "short": model.split("/", 1)[1].split("-")[0].capitalize(),
+        "code": "builtin:router_video",
+        "draft": True,
+        "capabilities": {
+            "backends": ["router"],
+            "seed": "provider",
+            "max_subjects": (inputs.get("references") or {}).get("max", 4),
+        },
+        "template": {"fps": 24, "frames": {"step": 24, "base": max(1, int(lo)) * 24,
+                                           "max": max(int(lo), int(hi)) * 24},
+                     "size_multiple": 2, "size_fit": "snap"},
+        "recipe": recipe,
+        "router": {"model": model, "arguments": arguments, "inputs": inputs},
+        "presets": {p: {"model": model, "lora": None, "steps": 0,
+                        "width": sizes[p][0], "height": sizes[p][1]} for p in ("final", "proxy")},
+    }
+    if "refs" in base:
+        proposal["refs"] = base["refs"]
+    return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings}
+
+
+def _name(m: dict) -> str:
+    return m.get("name") or m.get("field") or ""
