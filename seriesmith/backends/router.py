@@ -23,7 +23,7 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable, Iterable
 
-from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in, patiently, transient
+from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in, patiently, tls, transient
 from seriesmith.backends.comfy import sdk_client
 
 COMPLETED = "COMPLETED"
@@ -56,7 +56,7 @@ def urls_in(value: Any) -> Iterable[str]:
 
 
 def download(url: str, path: str, timeout: float = 300.0) -> None:
-    with urllib.request.urlopen(url, timeout=timeout) as r, open(path, "wb") as fh:
+    with urllib.request.urlopen(url, timeout=timeout, context=tls()) as r, open(path, "wb") as fh:
         shutil.copyfileobj(r, fh)
 
 
@@ -208,7 +208,7 @@ class RouterBackend(Backend):
             data=json.dumps(body).encode("utf-8") if body is not None else None,
             headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=60, context=tls()) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             raise BackendError(f"{method} {path}: {e.code} {e.read().decode('utf-8', 'replace')[:300]}")

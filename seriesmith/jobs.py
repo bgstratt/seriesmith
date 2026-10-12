@@ -2032,7 +2032,12 @@ def collect_router_take(take: T.Take, run, status: str, arguments: dict | None =
     if status != "succeeded":
         mark_failed(take, run.error or f"the request ended {status}")
         return "failed"
-    videos = [o for o in run.outputs() if o.type == "video"]
+    outs = list(run.outputs())
+    videos = [o for o in outs if o.type == "video"]
+    if not videos:
+        # a link with no extension (MiniMax's: .../minimax/<id>?Expires=...): one
+        # of unknown type is tried, and kept only if it probes as a video below
+        videos = [o for o in outs if o.type == "file"][:1]
     if not videos:
         mark_failed(take, f"the model returned no video (outputs: "
                           f"{', '.join(o.name for o in run.outputs()) or 'none'})")

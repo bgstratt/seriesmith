@@ -34,7 +34,8 @@ def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
     req = urllib.request.Request(f"{API_BASE}/v2/models/{model}/openapi.json",
                                  headers={"X-API-Key": api_key})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        from seriesmith.backends import tls
+        with urllib.request.urlopen(req, timeout=timeout, context=tls()) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         if e.code == 404:

@@ -44,6 +44,28 @@ class BackendError(RuntimeError):
 PATIENCE = 15 * 60.0
 
 
+_TLS = None
+
+
+def tls():
+    """The TLS context seriesmith's own https calls use (the health check,
+    downloads, the Seedance library, Router schemas): certifi's CA list when
+    it's there -- comfy-sdk's (httpx's) list, so both see the same web --
+    else the system's. On Windows the system store can hold an expired copy
+    of a Let's Encrypt cross-signed root that OpenSSL picks over the valid
+    one: cloud.comfy.org then reads "certificate has expired" to Python while
+    curl and comfy-sdk reach it (2026-10-12)."""
+    global _TLS
+    if _TLS is None:
+        import ssl
+        try:
+            import certifi
+            _TLS = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            _TLS = ssl.create_default_context()
+    return _TLS
+
+
 def transient(exc: BaseException) -> bool:
     """Whether `exc` is the network or the service hiccupping (worth asking
     again) rather than an answer (a 4xx: not found, unauthorized, no credits).

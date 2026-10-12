@@ -212,6 +212,25 @@ class RenderRouterTest(Episode):
         self.assertTrue(fb.uploaded)
         self.assertEqual(fb.submitted, [])
 
+    def test_a_shows_own_router_model_renders_through_the_queue(self):
+        """A Router model the show added (its own target.json, builtin
+        router_video) is known on the queue's thread too, where the take is
+        rendered: it was 'no video target called ...' there."""
+        from seriesmith import inspector as IN
+        from seriesmith import router_inspect as RI
+        with open(os.path.join(HERE, "fixtures", "router_schemas", "minimax__minimax-h3.json"),
+                  encoding="utf-8") as fh:
+            spec = RI.propose("minimax/minimax-h3", json.load(fh),
+                              base=TG.load_target(SEEDANCE, "video").spec)["proposal"]
+        IN.save_spec(self.root, spec)
+        fb = FakeBackend("router", "router", outputs={"": [("out.mp4", "video", tiny_mp4())]})
+        self.assertEqual(self.render(fb, "--target", spec["id"]), 0)
+        (take,) = T.list_takes(self.root, "final", self.shot_id)
+        self.assertEqual(take.sidecar["status"], "ok", take.sidecar.get("save_notes"))
+        ((model, args),) = fb.calls
+        self.assertEqual(model, "minimax/minimax-h3")
+        self.assertEqual(args["content"][0]["type"], "text")
+
     def test_a_series_on_local_still_sends_hosted_shots_to_router(self):
         with open(os.path.join(self.root, T.OVERRIDES_FILE), "w", encoding="utf-8") as fh:
             json.dump({"episode": {"backend": "local"}}, fh)
@@ -281,6 +300,26 @@ class DraftTest(Episode):
                 return [Out()]
         self.assertEqual(J.collect_router_take(take, Run(), "succeeded", {"content": []}), "ok")
         return T.get_take(self.root, "proxy", self.shot_id, take.take)
+
+    @unittest.skipUnless(HAVE_FFMPEG, "needs ffmpeg")
+    def test_a_video_link_with_no_extension_is_still_the_video(self):
+        """MiniMax hands back .../minimax/<id>?Expires=...: no extension, so the
+        output's type is unknown; it's tried, and kept as it probes as video."""
+        take = J.start_job(self.job())
+
+        class Out:
+            type, name = "file", "xUn68-4514"
+
+            def save(self, path):
+                with open(path, "wb") as fh:
+                    fh.write(tiny_mp4())
+
+        class Run:
+            id, model, backend, error, result = "r2", "minimax/minimax-h3", "router", "", {}
+
+            def outputs(self):
+                return [Out()]
+        self.assertEqual(J.collect_router_take(take, Run(), "succeeded", {"content": []}), "ok")
 
     @unittest.skipUnless(HAVE_FFMPEG, "needs ffmpeg")
     def test_a_draft_keeps_its_task_id_for_a_week(self):

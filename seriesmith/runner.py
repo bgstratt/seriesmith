@@ -198,7 +198,7 @@ class Runner:
         T.update_sidecar(take.paths.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
         take.sidecar = T.read_sidecar(take.paths.sidecar)
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return take, qjob.id
 
     def enqueue_ref(self, s, job, base: dict | None, backend_name: str,
@@ -277,7 +277,7 @@ class Runner:
                     resume=res)
         R.mark_queued(take, qjob.id)
         T.update_sidecar(take.paths.sidecar, backend=backend.name, queue="seriesmith")
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return take, qjob.id
 
     def enqueue_finish(self, fin, backend_name: str, after: str | None = None) -> str:
@@ -350,7 +350,7 @@ class Runner:
                             "last": fin.last, "latent": fin.latent, "asked": asked()})
         T.update_sidecar(fin.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
                          queue="seriesmith")
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return qjob.id
 
     def enqueue_tour(self, s, ref, side: dict, graph: dict, backend_name: str) -> tuple[int, str]:
@@ -415,8 +415,26 @@ class Runner:
                     resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n, "asked": asked()})
         side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue="seriesmith")
         TR.save_side(ref, side)
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return n, qjob.id
+
+    def _submit(self, qjob: QJob) -> None:
+        """Queue `qjob` with the shows whose own targets are in force here
+        (targets.thread_roots, set by the request or the CLI) in force on the
+        thread that runs it too, and its episode's: a show's own target (a
+        Router model it added) is otherwise unknown to the queue's thread."""
+        from seriesmith import targets as TG
+        roots = list(TG.thread_roots())
+        ep = (qjob.info or {}).get("ep")
+        if ep:
+            roots.append(ep)
+        work = qjob.work
+
+        def in_roots(job, report):
+            with TG.use_roots(*roots):
+                return work(job, report)
+        qjob.work = in_roots
+        self.queue.submit(qjob)
 
     def enqueue_step(self, title: str, work, after: list | str | None = None,
                      info: dict | None = None, wait=None, spec: dict | None = None) -> str:
@@ -435,7 +453,7 @@ class Runner:
         qjob = QJob(kind="step", lane="steps", title=title, work=run, info=info or {},
                     after=after or None, wait=wait,
                     resume=({"kind": "step", **spec} if spec else None))
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return qjob.id
 
     # -- a run found again: after a restart (recover.py), or by a retry ------
@@ -508,7 +526,7 @@ class Runner:
         # the record is followed under the new job (the editor's progress, the
         # sweeps' "is its job alive"), then the job queued
         T.update_sidecar(path, comfy_prompt_id=qjob.id, status="queued")
-        self.queue.submit(qjob)
+        self._submit(qjob)
         return qjob.id
 
     def _collect(self, res: dict, run, status: str, backend_name: str) -> str:

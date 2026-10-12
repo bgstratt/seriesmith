@@ -15,6 +15,8 @@ import os
 import threading
 import urllib.error
 import urllib.request
+
+from seriesmith.backends import tls  # noqa: E402
 from typing import Callable
 
 from seriesmith.backends import (TERMINAL, Backend, BackendError, File, Output, Progress, Run,
@@ -56,9 +58,16 @@ def health(base_url: str, api_key: str | None = None, timeout: float = 5.0) -> s
     if api_key:
         req.add_header("Authorization", f"Bearer {api_key}")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout,
+                                    context=tls() if req.full_url.startswith("https") else None) as r:
             body = r.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return f"{base_url} refused the API key ({e.code})"
+        if api_key and e.code in (404, 405, 501):
+            # the key was taken and the server answered; Comfy Cloud no longer
+            # serves /api/v2/health itself (404 with a good key, 2026-10-12)
+            return None
         return f"{base_url} answered {e.code} {e.reason}"
     except (urllib.error.URLError, OSError) as e:
         reason = getattr(e, "reason", e)
