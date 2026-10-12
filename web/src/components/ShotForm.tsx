@@ -22,7 +22,7 @@ import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
-import { ModelOptions } from "./Targets";
+import { ModelOptions, ModelsButton } from "./Targets";
 
 const RECT_KEY = "seriesmith.shotform.rect";
 const PREVIEW_MS = 600;
@@ -297,10 +297,13 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     <input className="h3-in" value={form.keys.music ?? ""} onChange={(e) => set("music", e.target.value)} />
                   </Row>
                   <Row label="Video model class" help="Which model draws this shot, only when it needs something one model does; empty: the episode's.">
-                    <select className="h3-in" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
-                      <option value="">the episode's</option>
-                      <ModelOptions targets={videoTargets} />
-                    </select>
+                    <div className="h3-row" style={{ gap: 4 }}>
+                      <select className="h3-in h3-grow" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
+                        <option value="">the episode's</option>
+                        <ModelOptions targets={videoTargets} />
+                      </select>
+                      <ModelsButton />
+                    </div>
                   </Row>
                   {/* what that model loads: its file, its LoRAs, its steps */}
                   {!hosted && <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">

@@ -13,7 +13,7 @@ import { DiffView, LoraEditor, ModelSelect } from "./Fields";
 import { useDetail, useDetailError, useShotStatus } from "./hooks";
 import { MissingRefsNote } from "./MissingRefs";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
-import { TargetSelect, useTargetPickers, useTargets } from "./Targets";
+import { ModelsButton, TargetSelect, useTargetPickers, useTargets } from "./Targets";
 
 export function Dialog({ title, onClose, children, footer, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   useEffect(() => {
@@ -252,13 +252,16 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
           <>
             <label title="Which model draws this run (its target)">Model class</label>
             <div className="h3-col" style={{ gap: 2 }}>
-              <TargetSelect
-                value={runTarget}
-                list={list}
-                video={video}
-                title="Target for this run only (sent with the render). The shot's own target is changed in the inspector."
-                onChange={chooseTarget}
-              />
+              <div className="h3-row" style={{ gap: 4 }}>
+                <TargetSelect
+                  value={runTarget}
+                  list={list}
+                  video={video}
+                  title="Target for this run only (sent with the render). The shot's own target is changed in the inspector."
+                  onChange={chooseTarget}
+                />
+                <ModelsButton />
+              </div>
               <span className="h3-small h3-muted">
                 for this run{oneOff ? ` (the shot stays on ${targetLabel(list, current)})` : ""} · {size.text}
               </span>

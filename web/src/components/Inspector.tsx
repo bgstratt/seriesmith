@@ -23,7 +23,7 @@ import { MissingRefsNote } from "./MissingRefs";
 import { OverrideFields } from "./OverrideFields";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
 import { PassToggle } from "./ShotsTab";
-import { TargetSelect, useTargetPickers, useTargets } from "./Targets";
+import { ModelsButton, TargetSelect, useTargetPickers, useTargets } from "./Targets";
 import { Badges } from "./Thumb";
 import { CutSection } from "./CutSection";
 import { sizeRule, sizeText } from "../lib/size";
@@ -59,6 +59,7 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
           title="The video model this shot renders on (both passes). Its prompt, model, LoRA and steps defaults come with it."
           onChange={(id) => id && id !== current && void setShotTarget(shot, id, built)}
         />
+        <ModelsButton />
         {canRevert && (
           <button className="h3-btn" disabled={busy} title="Remove this shot's own target: it goes back to its script's target, else the episode's" onClick={() => void setShotTarget(shot, null, built)}>
             Revert target

@@ -22,7 +22,7 @@ import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { MasterRecipe } from "./MasterRecipe";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
-import { ModelOptions } from "./Targets";
+import { ModelOptions, ModelsButton } from "./Targets";
 
 const RECT_KEY = "seriesmith.seriesform.rect";
 
@@ -241,11 +241,14 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
     const mine = (targets ?? []).filter((t) => t.kind === kind && !t.draft);
     const dflt = defaults?.[kind as TargetKind];
     input = (
-      <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{dflt ? `default (${mine.find((t) => t.id === dflt)?.label ?? dflt})` : "default"}</option>
-        <ModelOptions targets={mine} text={(t) => `${t.label}${readinessNote(t)}`} />
-        {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
-      </select>
+      <div className="h3-row" style={{ gap: 4 }}>
+        <select className="h3-in h3-grow" value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{dflt ? `default (${mine.find((t) => t.id === dflt)?.label ?? dflt})` : "default"}</option>
+          <ModelOptions targets={mine} text={(t) => `${t.label}${readinessNote(t)}`} />
+          {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
+        </select>
+        <ModelsButton />
+      </div>
     );
   } else if (f.kind === "picture") {
     input = <PicturePath value={value} onChange={onChange} pickKey={`field:${f.path.join(".")}`} what={f.label.toLowerCase()} placeholder={f.placeholder} />;

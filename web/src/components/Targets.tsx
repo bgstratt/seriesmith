@@ -2,7 +2,7 @@
 // and the widget choices a target's binding allows, and the target badge.
 
 import { useEffect, useMemo } from "react";
-import { loadModelFiles, loadTargets, loadWidgetChoices } from "../actions";
+import { loadModelFiles, loadTargets, loadWidgetChoices, openMissing } from "../actions";
 import { byWhere, isHosted,
   findTarget, listDefaultTarget, pickerChoices, pickerSpec, seriesDefaultTarget, videoTargets, widgetKey, type WidgetSpec,
 } from "../lib/targets";
@@ -88,6 +88,19 @@ export function ModelOptions<T extends Target>({ targets, text }: { targets: T[]
   const opt = (t: T) => <option key={t.id} value={t.id} title={t.id}>{text ? text(t) : t.label || t.id}</option>;
   if (groups.length < 2) return <>{groups.flatMap((g) => g.targets.map(opt))}</>;
   return <>{groups.map((g) => <optgroup key={g.label} label={g.label}>{g.targets.map(opt)}</optgroup>)}</>;
+}
+
+/** Opens the Models window (all of them): add a Comfy Router model or a
+ * workflow of yours, and see what each model needs. Sits beside every model
+ * picker. */
+export function ModelsButton() {
+  return (
+    <button className="h3-btn h3-icon" type="button"
+      title="Add or validate models: a Comfy Router model, a workflow of yours, what each one needs"
+      onClick={(e) => { e.stopPropagation(); openMissing(null); }}>
+      <i className="pi pi-sliders-h" />
+    </button>
+  );
 }
 
 /** A select of the video targets, the default marked. */

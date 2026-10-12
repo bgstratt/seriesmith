@@ -240,7 +240,7 @@ function EpisodeTargetPicker({ list, video, current, source, series, onChoose }:
       <div className="h3-menu-sep" />
       <div className="h3-pop-item" onClick={() => openMissing(null)}>
         <i className="pi pi-download h3-muted" />
-        <span className="h3-grow">What's missing, for every target…</span>
+        <span className="h3-grow">Add / validate models…</span>
       </div>
     </div>
   );
@@ -268,7 +268,7 @@ export function MissingWindow() {
   const head = (
     <>
       <i className="pi pi-download h3-muted" />
-      <b>What's missing</b>
+      <b>Models</b>
       <select
         className="h3-in"
         style={{ maxWidth: 220 }}

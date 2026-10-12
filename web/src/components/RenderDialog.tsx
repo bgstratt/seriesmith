@@ -12,7 +12,7 @@ import { Dialog } from "./Dialogs";
 import { useDetail, useStatus } from "./hooks";
 import { MissingRefsNote } from "./MissingRefs";
 import { TargetReadinessNote } from "./Readiness";
-import { TargetSelect, useTargets } from "./Targets";
+import { ModelsButton, TargetSelect, useTargets } from "./Targets";
 
 export function RenderDialog() {
   const ask = useApp((s) => s.renderAsk);
@@ -105,6 +105,7 @@ function RenderBody() {
               title="Sent with the render as a one-off target; the shots' own targets don't change"
               onChange={(id) => setTarget(id === own ? "" : id)}
             />
+            <ModelsButton />
           </div>
           <span className="h3-small h3-muted">{size}</span>
           {runTargets.map((id) => <TargetReadinessNote key={id} id={id} list={list} />)}

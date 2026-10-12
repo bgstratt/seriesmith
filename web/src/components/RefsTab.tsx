@@ -35,7 +35,7 @@ import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, t
 import { sizeRule } from "../lib/size";
 import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSettings";
 import { useStatus } from "./hooks";
-import { ModelOptions, useTargets } from "./Targets";
+import { ModelOptions, ModelsButton, useTargets } from "./Targets";
 import { OverrideFields } from "./OverrideFields";
 import { EpisodeSelect, PassToggle } from "./ShotsTab";
 import { Progress } from "./Thumb";
@@ -98,6 +98,7 @@ function ImageModelBar() {
           <option value="">{editor ? "(back to the series config's default)" : `${targetLabel(list, cur)} (${refDefaultSourceLabel(src)})`}</option>
           <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind === "voices" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
         </select>
+        <ModelsButton />
         {warn && <span className={warn.severity === "err" ? "h3-err h3-small" : "h3-warn h3-small"} title={warn.text}>{warn.severity === "err" ? "not ready" : "degraded"}</span>}
       </span>
     );
