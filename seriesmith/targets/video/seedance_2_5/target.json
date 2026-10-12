@@ -83,7 +83,13 @@
       "output_format": "mp4"
     },
     "inputs": {
-      "shape": "content",
+      "prompt": {
+        "list": "content",
+        "item": {
+          "type": "text",
+          "text": "$prompt"
+        }
+      },
       "duration": {
         "name": "duration",
         "min": 4,
@@ -120,13 +126,34 @@
         "name": "generate_audio"
       },
       "references": {
-        "role": "reference_image"
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "reference_image"
+        }
       },
       "first": {
-        "role": "first_frame"
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "first_frame"
+        }
       },
       "last": {
-        "role": "last_frame"
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "last_frame"
+        }
       },
       "via": "seedance"
     },

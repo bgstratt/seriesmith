@@ -321,8 +321,8 @@ class GenericRouterTest(Episode):
             "duration": {"name": "duration", "values": [5, 10], "as": "str"},
             "ratio": {"name": "aspect_ratio", "values": ["16:9", "9:16", "1:1"]},
             "seed": {"name": "seed", "max": 99},
-            "audio": {"name": "sound"},
-            "references": {"name": "image_urls", "max": 2},
+            "audio": {"name": "sound", "on": "on", "off": "off"},
+            "references": {"list": "image_urls", "max": 2},
         })
         job = self.job()
         model, args = t.module.router_call(t, job)
@@ -332,17 +332,48 @@ class GenericRouterTest(Episode):
         self.assertIn(args["duration"], ("5", "10"))                  # snapped, as text
         self.assertEqual(args["aspect_ratio"], "16:9")
         self.assertTrue(0 <= args["seed"] <= 99)
-        self.assertIsInstance(args["sound"], bool)
+        self.assertIn(args["sound"], ("on", "off"))
         self.assertTrue(args["image_urls"] and all(isinstance(f, File) for f in args["image_urls"]))
         self.assertTrue(all(f.via == "" for f in args["image_urls"]))   # plain URLs
         self.assertNotIn("content", args)
 
     def test_wrapped_references_and_no_draft(self):
-        t = self.target({"references": {"name": "references", "wrap": "url"}},
+        t = self.target({"references": {"list": "references", "item": {"url": "$url"}}},
                         draft={"proxy": False})
         _, args = t.module.router_call(t, self.job())
         self.assertTrue(all(set(r) == {"url"} and isinstance(r["url"], File) for r in args["references"]))
         self.assertNotIn("draft", args)
+
+    def test_a_nested_request(self):
+        """Veo's shape: the prompt and pictures in instances[0], the rest in
+        parameters; a resolution by name, the size by WxH for another model."""
+        t = self.target({
+            "prompt": "instances.0.prompt",
+            "duration": {"name": "parameters.durationSeconds", "values": [4, 6, 8]},
+            "resolution": {"name": "parameters.resolution", "values": ["720p", "1080p", "4k"]},
+            "ratio": {"name": "parameters.aspectRatio", "values": ["16:9", "9:16"]},
+            "seed": {"name": "parameters.seed"},
+            "audio": {"name": "parameters.generateAudio"},
+            "references": {"list": "instances.0.referenceImages", "max": 3,
+                           "item": {"image": {"gcsUri": "$url", "mimeType": "image/png"},
+                                    "referenceType": "asset"}},
+        })
+        job = self.job()
+        _, args = t.module.router_call(t, job)
+        inst = args["instances"][0]
+        self.assertEqual(inst["prompt"], J._prompt_text(job.prompt))
+        self.assertTrue(inst["referenceImages"])
+        self.assertIsInstance(inst["referenceImages"][0]["image"]["gcsUri"], File)
+        self.assertEqual(inst["referenceImages"][0]["referenceType"], "asset")
+        p = args["parameters"]
+        self.assertIn(p["durationSeconds"], (4, 6, 8))
+        self.assertEqual((p["resolution"], p["aspectRatio"]), ("720p", "16:9"))
+        self.assertIsInstance(p["generateAudio"], bool)
+        from seriesmith.targets.generic import router_video as RV
+        self.assertEqual(RV.nearest_resolution(1280, 720, ["1280x720", "720x1280", "1920x1080"]), "1280x720")
+        self.assertEqual(RV.nearest_resolution(720, 1280, ["1280x720", "720x1280"]), "720x1280")
+        self.assertEqual(RV.nearest_resolution(1280, 720, ["768P", "2K"]), "768P")
+        self.assertEqual(RV.size_of("1280*720"), (1280, 720))
 
     def test_lengths_snap_to_what_the_model_takes(self):
         from seriesmith.targets.generic import router_video as RV

@@ -3342,14 +3342,16 @@ workflow. This is the contract.
   a module beside target.json (`Target.module`). A custom target with no `code` defaults to
   `builtin:video_prose` (`Target.default_code`), so it ships no Python at all.
 - **`"code": "builtin:router_video"`** (2026-10-12): a video model on Comfy Router described
-  by data. Its `router.inputs` maps a shot onto the model's own input: `shape` (`fields`,
-  or BytePlus's `content` list), and which field is the prompt, the negative, the length
-  (`min`/`max` or `values`, whole seconds, `as: "str"`), the resolution (named sizes), the
-  ratio (`values`; `with_frames` for frame mode), the seed (`max`), the sound, the
-  references (a list, `max`, `wrap`; or a content `role`) and the first and last frames;
-  `via` says how pictures go in (`seedance`: the virtual library), `router.draft` turns on
-  Seedance's Draft -> Final. A character's 4-panel sheet goes up as the one panel the shot
-  wants. Seedance 2.5 is this module plus data.
+  by data. Its `router.inputs` says where each part of a shot goes in the model's own
+  request: a field (a dotted path: `prompt`, `parameters.seed`, `instances.0.prompt`) or a
+  list it's appended to, with an item template (`$prompt`, `$url`). Inputs: the prompt,
+  the negative, the length (`min`/`max` or `values`, whole seconds, `as: "str"`), the
+  resolution (names like `720p` / `2K`, sizes like `1280x720`, or by height), the ratio
+  (`values`; `with_frames` for frame mode), the seed (`max`), the sound (`on`/`off` when
+  it isn't true/false), the references (`max`) and the first and last frames. `via` says
+  how pictures go in (`seedance`: the virtual library); `router.draft` turns on
+  Seedance's Draft -> Final. A character's 4-panel sheet goes up as the one panel the
+  shot wants. Seedance 2.5 is this module plus data.
 - **A show's own targets** live in `<show>/targets/<id>/target.json`, where `<show>` is the
   folder holding series.json — the episode folder, else its parent (`TG.show_folder`). The
   kind is read from the file (there is no kind folder). `TG.load_target(id, kind, root=…)`
