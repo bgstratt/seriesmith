@@ -23,7 +23,8 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
         "ratio": {"name": "aspect_ratio", "values": ["16:9", "9:16"], "with_frames": "omit"},
         "seed": {"name": "seed", "max": 2147483647},
         "audio": {"name": "generate_audio"},      # or "on": "on", "off": "off"
-        "references": {"list": "image_urls", "max": 4},           # item default "$url"
+        "references": {"list": "image_urls", "max": 4},           # item default "$url";
+                    # "mention": "<<<image_{n}>>>" names each in the prompt (Kling)
         "first": {"field": "image_url"},          # or a list and an item, e.g.
                   # {"list": "content", "item": {"type": "image_url",
                   #   "image_url": {"url": "$url"}, "role": "first_frame"}}
@@ -220,10 +221,10 @@ def place(args: dict, spec, **values) -> None:
 # -- the shot's pictures -----------------------------------------------------------
 
 def pictures(target, job, shot: dict, inp: dict):
-    """("frames" | "references", [(role, path)]): the frames when the model has
-    an input for a first frame and the shot has one on disk, else the shot's
-    references (subjects, up to max_subjects, then the rest), a sheet as the
-    panel its `view` asks for."""
+    """("frames" | "references", [(role, path, what)]): the frames when the
+    model has an input for a first frame and the shot has one on disk, else the
+    shot's references (subjects, up to max_subjects, then the rest), a sheet as
+    the panel its `view` asks for; `what` is the subject or the location."""
     from seriesmith import jobs as J
 
     def on_disk(rel: str) -> str | None:
@@ -232,7 +233,7 @@ def pictures(target, job, shot: dict, inp: dict):
 
     frames = {end: on_disk(p) for end, p in (shot.get("keyframes") or {}).items()}
     if inp.get("first") and frames.get("first"):
-        return "frames", [(end, frames[end]) for end in ("first", "last")
+        return "frames", [(end, frames[end], end) for end in ("first", "last")
                           if frames.get(end) and inp.get(end)]
     if not inp.get("references"):
         return "references", []
@@ -246,9 +247,21 @@ def pictures(target, job, shot: dict, inp: dict):
         if path and p.get("view") and p["view"] in (ref.get("views") or {}):
             path = panel_file(path, int(ref.get("sheet_panels") or 4), int(ref["views"][p["view"]]))
         if path:
-            out.append(("references", path))
+            out.append(("references", path, p.get("subject") or p.get("location") or ""))
     total = inp["references"].get("max_total")
     return "references", out[:total] if total else out
+
+
+def mentions(template: str, pics: list, shot: dict) -> str:
+    """The line naming each reference picture in the prompt, for a model that
+    takes them by name, e.g. <<<image_1>>> is Earl Booker. <<<image_2>>> is
+    the place, Pond Side."""
+    out = []
+    for n, (_, _, what) in enumerate(pics, 1):
+        name = str(what).replace("_", " ").title()
+        place_ = what and any(p.get("location") == what for p in shot.get("panels") or [])
+        out.append(f"{template.replace('{n}', str(n))} is {'the place, ' + name if place_ else name}.")
+    return " ".join(out)
 
 
 def router_call(target, job) -> tuple[str, dict]:
@@ -278,9 +291,13 @@ def router_call(target, job) -> tuple[str, dict]:
                          f"menu, or first: generate in the script)")
     args = copy.deepcopy(spec.get("arguments") or {})
 
+    mention = (inp.get("references") or {}).get("mention")
+    if mention and mode == "references" and pics:
+        text = f"{text}\n\n{mentions(mention, pics, shot)}"
+
     # the prompt, then the pictures, in that order (a content list keeps it)
     place(args, inp.get("prompt") or "prompt", prompt=text)
-    for role, path in pics:
+    for role, path, _ in pics:
         place(args, inp[role], url=File(path, via=via))
     neg = inp.get("negative")
     if neg and getattr(job, "negative", None):

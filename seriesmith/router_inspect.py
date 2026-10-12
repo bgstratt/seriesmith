@@ -199,6 +199,11 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
                     else:
                         tpl[props["type"]] = r
                     inputs.setdefault(want, {"list": path, "item": tpl})
+            # Kling's image_list: an item without a type is a reference picture
+            # (`type` only marks a first or last frame)
+            if (not role_key and "type" in props and props["type"] not in (item.get("required") or [])
+                    and "reference" in str(v.get("description", "")).lower()):
+                inputs.setdefault("references", {"list": path, "item": {props["imageurl"]: url_obj}})
         elif "url" in props:                                      # media: {type, url}
             for want, role in (("references", "reference_image"), ("first", "first_frame"),
                                ("last", "last_frame")):
@@ -244,6 +249,9 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
                     seen.add(str(x).lower())
                     uniq.append(x)
             inputs["resolution"] = {"name": path, "values": uniq}
+        elif leaf == "mode" and enum and {"std", "pro"} <= set(enum) and "resolution" not in inputs:
+            # Kling: std is 720p, pro 1080p (and the default: a proxy must say std)
+            inputs["resolution"] = {"name": path, "values": {"720": "std", "1080": "pro"}}
         elif leaf == "size" and t == "string" and "resolution" not in inputs:
             warnings.append(f"{path}: a size as width*height with no list of values: left to the model")
         elif leaf in NAMES["ratio"] and "ratio" not in inputs and (enum or t == "string"):
@@ -289,6 +297,16 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         elif leaf == "fps" and enum and 24 in enum:
             args[path] = 24                                  # the episode's rate
 
+    # seriesmith draws from refs and keyframes: a model that takes no picture
+    # (text to video) can't hold a character, and isn't offered
+    if not any(k in inputs for k in ("references", "first", "last")):
+        raise RouterInspectError(f"{model} takes no pictures (text to video only): seriesmith renders "
+                                 f"from your refs and keyframes, so it can't be used for shots")
+    # a prompt that names its pictures (Kling: <<<image_1>>>) says which is which
+    pdesc = next((str(v.get("description", "")) for p, v in all_fields if p == inputs.get("prompt")), "")
+    if "references" in inputs and "<<<image_1>>>" in pdesc:
+        inputs["references"]["mention"] = "<<<image_{n}>>>"
+
     # BytePlus's models take a person's picture only through the Seedance
     # virtual library (asset://): a plain URL is refused (2026-10-11)
     if model.startswith("byteplus/"):
@@ -313,7 +331,8 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
     for path, value in args.items():
         put(arguments, path, value)
 
-    sizes = _sizes((inputs.get("resolution") or {}).get("values") or [])
+    res = (inputs.get("resolution") or {}).get("values") or []
+    sizes = _sizes([f"{h}p" for h in res] if isinstance(res, dict) else res)
     d = inputs.get("duration") or {}
     lo = min(d["values"]) if d.get("values") else d.get("min", 4)
     hi = max(d["values"]) if d.get("values") else d.get("max", 10)

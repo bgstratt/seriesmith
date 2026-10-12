@@ -58,17 +58,27 @@ class ProposeTest(unittest.TestCase):
         self.assertEqual(proposal("veo/veo-3.1-generate-001")["proposal"]["router"]["arguments"],
                          {"parameters": {"sampleCount": 1}})
 
-    def test_wan_media_list_and_kling_text_values(self):
+    def test_wan_media_list_and_kling_values(self):
         wan = proposal("wan/wan2.6-r2v")["proposal"]["router"]["inputs"]
         self.assertEqual(wan["references"], {"list": "input.media",
                                              "item": {"type": "reference_image", "url": "$url"}})
         self.assertEqual(wan["ratio"]["with_frames"], "adaptive")
-        kling = proposal("kling/kling-v3")["proposal"]["router"]["inputs"]
-        self.assertEqual(kling["duration"]["as"], "str")
-        self.assertEqual(kling["audio"], {"name": "sound", "on": "on", "off": "off"})
-        self.assertNotIn("references", kling)
         omni = proposal("kling/kling-v3-omni")["proposal"]["router"]["inputs"]
+        self.assertEqual(omni["duration"]["as"], "str")
+        self.assertEqual(omni["audio"], {"name": "sound", "on": "on", "off": "off"})
         self.assertEqual(omni["last"]["item"], {"image_url": "$url", "type": "end_frame"})
+
+    def test_kling_omni_takes_references_by_name_and_says_std(self):
+        for m in ("kling/kling-v3-omni", "kling/kling-video-o1"):
+            inp = proposal(m)["proposal"]["router"]["inputs"]
+            self.assertEqual(inp["references"], {"list": "image_list", "item": {"image_url": "$url"},
+                                                 "mention": "<<<image_{n}>>>"})
+            self.assertEqual(inp["resolution"], {"name": "mode", "values": {"720": "std", "1080": "pro"}})
+
+    def test_a_text_only_model_is_refused(self):
+        for m in ("kling/kling-v3", "kling/kling-3.0-turbo", "ltx/ltx-2-5-pro"):
+            with self.assertRaisesRegex(RI.RouterInspectError, "takes no pictures"):
+                proposal(m)
 
     def test_runway_needs_a_first_frame(self):
         r = proposal("runway/gen4_turbo")
@@ -85,11 +95,8 @@ class ProposeTest(unittest.TestCase):
         self.assertEqual(inp["seed"]["max"], 2147483647)                 # the schema says 2^32-1
         self.assertEqual(proposal("runway/gen4_turbo")["proposal"]["router"]["inputs"]["seed"]["max"],
                          2147483647)
-        self.assertEqual(proposal("ltx/ltx-2-5-pro")["proposal"]["router"]["arguments"], {"fps": 24})
 
-    def test_ltx_sizes_and_a_bad_id(self):
-        inp = proposal("ltx/ltx-2-5-pro")["proposal"]["router"]["inputs"]
-        self.assertIn("1280x720", inp["resolution"]["values"])
+    def test_a_bad_id(self):
         with self.assertRaises(RI.RouterInspectError):
             RI.fetch_schema("not a model", "key")
 
@@ -109,6 +116,17 @@ class ProposedTargetRendersTest(Episode):
         self.assertTrue(4 <= args["duration"] <= 15)
         self.assertIn(args["resolution"], ("768P", "2K"))
         self.assertTrue(0 <= args["seed"] <= 2147483647)
+
+    def test_kling_omni_names_each_reference_in_the_prompt(self):
+        p = proposal("kling/kling-v3-omni")["proposal"]
+        t = TG.Target(TG.load_target("seedance_2_5", "video").folder, p)
+        model, args = t.module.router_call(t, self.job())
+        pics = args["image_list"]
+        self.assertTrue(pics and all(set(c) == {"image_url"} and isinstance(c["image_url"], File) for c in pics))
+        for n in range(1, len(pics) + 1):
+            self.assertIn(f"<<<image_{n}>>> is ", args["prompt"])
+        self.assertNotIn(f"<<<image_{len(pics) + 1}>>>", args["prompt"])
+        self.assertEqual(args["mode"], "std")
 
     def test_a_first_frame_model_refuses_a_shot_without_one(self):
         p = proposal("runway/gen4_turbo")["proposal"]
