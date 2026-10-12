@@ -645,7 +645,9 @@ class Target:
         for p in self.presets.values():
             for layer in (dict(p.extra, model=p.model, lora=p.lora), p.base or {}):
                 add(layer.get("model"), "model")
-                add(layer.get("lora"), "loras")
+                # a `lora:` value may be a chain ("a:0.6, b")
+                for lo in _lora_names(layer.get("lora")):
+                    add(lo, "loras")
                 add_loras(layer.get("loras"))
                 for param in models:
                     if param not in ("model", "loras"):
@@ -1192,6 +1194,18 @@ def layered(layers: list[dict], key: str, default=None, present: bool = False):
     return default
 
 
+def _lora_names(v) -> list[str]:
+    """The file names a `lora:` value names: one, or a chain separated by
+    commas, each maybe with its strength (":0.6"); none for none/off/-."""
+    if not isinstance(v, str):
+        return []
+    out = []
+    for one in (x.strip() for x in v.split(",")):
+        if one and one.lower() not in ("none", "off", "-"):
+            out.append(one.rpartition(":")[0] if re.search(r":\d*\.?\d+$", one) else one)
+    return out
+
+
 def layered_lora(layers: list[dict]) -> tuple[str, object] | None:
     """("lora", "name") from a script line or ("loras", [..]) from a profile,
     whichever layer sets one first; None if none does."""
@@ -1602,9 +1616,7 @@ def lora_slot(target: Target, pass_: str, series_cfg: dict | None = None,
         p = target.presets.get(pass_)
     layers = [dict(p.extra, lora=p.lora) if p is not None else {}, defaults or {}]
     for layer in layers:
-        lo = layer.get("lora")
-        if isinstance(lo, str) and lo.strip().lower() not in ("", "none", "off", "-"):
-            out.add(lo.rpartition(":")[0] if re.search(r":\d*\.?\d+$", lo) else lo)
+        out.update(_lora_names(layer.get("lora")))
         for x in layer.get("loras") or [] if isinstance(layer.get("loras"), list) else []:
             if isinstance(x, dict) and x.get("name"):
                 out.add(x["name"])

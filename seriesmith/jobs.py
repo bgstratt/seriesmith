@@ -1082,14 +1082,21 @@ def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> lis
 
 
 def parse_lora(spec: str) -> list[dict]:
-    """`name`, `name:0.7`, or none/off/- (no LoRA) -> a LoRA list."""
+    """`name`, `name:0.7`, a chain of them separated by commas (`a:0.6,
+    b`: applied in that order), or none/off/- (no LoRA) -> a LoRA list."""
     spec = spec.strip()
     if spec.lower() in LORA_OFF:
         return []
-    name, _, strength = spec.rpartition(":")
-    if name and _is_float(strength):
-        return [{"name": name, "strength": float(strength)}]
-    return [{"name": spec, "strength": 1.0}]
+    out = []
+    for one in (x.strip() for x in spec.split(",")):
+        if not one or one.lower() in LORA_OFF:
+            continue
+        name, _, strength = one.rpartition(":")
+        if name and _is_float(strength):
+            out.append({"name": name, "strength": float(strength)})
+        else:
+            out.append({"name": one, "strength": 1.0})
+    return out
 
 
 def _is_float(s: str) -> bool:

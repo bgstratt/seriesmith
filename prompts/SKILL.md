@@ -1077,7 +1077,7 @@ sound: running footsteps on grass, fabric movement
 | `text: OPEN 24 HOURS` | on-screen text the picture must show (a sign, a note, a screen), quoted into the prompt. Never the series title or credits: those are added in the edit, not rendered into a shot |
 | `policy: generate` | this shot's audio: `generate` (the model makes all of it), `dub` (lip sync to the recording's `audio:` window, which becomes the soundtrack), `dub_keep_foley` (the same, keeping the model's sound effects under it) or `clone` (spoken in each speaker's `voice_sample`). Without it, dialogue shots follow `audio.mode` and silent ones generate |
 | `retention: partially_copy` | how closely a dubbed shot copies the recording: `fully_copy`, `partially_copy` or `reference` (H3 Ref2VA; dub shots only) |
-| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header |
+| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v` or `wan22_vace`); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |

@@ -218,16 +218,17 @@ META = re.compile(r"^([a-z_]+)\s*:\s*(.*)$")
 
 
 def lora_line(loras: list) -> str | None:
-    """The `lora:` value for a LoRA list, or None when one line can't say it."""
+    """The `lora:` value for a LoRA list (a chain: "a:0.6, b"), or None when
+    one line can't say it (a name with a comma or a line break in it)."""
     if not loras:
         return "none"
-    if len(loras) > 1:
-        return None
-    lo = loras[0]
-    name, strength = lo.get("name") or "", float(lo.get("strength", 1.0))
-    if not name or name != name.strip() or "\n" in name:
-        return None
-    return name if strength == 1.0 else f"{name}:{strength:g}"
+    out = []
+    for lo in loras:
+        name, strength = lo.get("name") or "", float(lo.get("strength", 1.0))
+        if not name or name != name.strip() or "\n" in name or "," in name:
+            return None
+        out.append(name if strength == 1.0 else f"{name}:{strength:g}")
+    return ", ".join(out)
 
 
 def edit_script(text: str, spans: dict[str, tuple[int, int]],
@@ -389,8 +390,8 @@ def _pass_item(sid: str, f: str, vals: dict, before: dict) -> tuple[dict | None,
     if f == "loras":
         line = lora_line(value)
         if line is None:
-            return None, (f"a `lora:` line holds one LoRA and this override stacks "
-                          f"{len(value)} ({_show(value)}): put them in a profile's `loras`")
+            return None, (f"a `lora:` line can't name {_show(value)} (a name with a comma "
+                          f"in it): put them in a profile's `loras`")
     elif f == "steps":
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
             return None, f"steps {value!r} isn't a whole number of 1 or more"

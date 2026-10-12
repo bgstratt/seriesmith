@@ -358,7 +358,7 @@ class PromoteTest(ApiTest):
         self.set_ov("sh030", T.PASSES, None,
                     {"loras": [{"name": "x.safetensors", "strength": 0.5}]})
         self.set_ov("sh050", T.PASSES, {"note": "hm"},
-                    {"loras": [{"name": "a", "strength": 1.0}, {"name": "b", "strength": 1.0}],
+                    {"loras": [{"name": "a,1", "strength": 1.0}, {"name": "b", "strength": 1.0}],
                      "prompt": "hand written"})
         # a proxy-only steps override that the final pass already renders
         final_steps = E.pass_entries(self.ep, "sh110", H3)["final"]["steps"]
@@ -395,7 +395,14 @@ class PromoteTest(ApiTest):
         left = {(x.get("shot"), x["field"], x.get("pass")): x["reason"] for x in p["left"]}
         self.assertIn("picking the take", left[("sh010", "seed", None)])
         self.assertIn("only the final pass overrides steps", left[("sh020", "steps", None)])
-        self.assertIn("holds one LoRA", left[("sh050", "loras", None)])
+        self.assertIn("a name with a comma", left[("sh050", "loras", None)])
+        # a chain is one line now: "a:0.6, b"
+        self.assertEqual(P.lora_line([{"name": "a.safetensors", "strength": 0.6},
+                                      {"name": "b.safetensors", "strength": 1.0}]),
+                         "a.safetensors:0.6, b.safetensors")
+        self.assertEqual(J.parse_lora("a.safetensors:0.6, b.safetensors"),
+                         [{"name": "a.safetensors", "strength": 0.6},
+                          {"name": "b.safetensors", "strength": 1.0}])
         self.assertIn("no script form", left[("sh050", "prompt", "final")])
         self.assertIn("no place in the script", left[("sh050", "note", None)])
         self.assertEqual(p["hashes"], {"script": sha1(self.script), "series": sha1(self.series)})
