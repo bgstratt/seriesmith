@@ -93,6 +93,17 @@ class ProposedTargetRendersTest(Episode):
         self.assertIn(args["resolution"], ("768P", "2K"))
         self.assertTrue(0 <= args["seed"] <= 2147483647)
 
+    def test_a_saved_target_can_be_enabled(self):
+        """Enabling re-checks the target with the show's targets in force: it
+        mustn't find itself and call its own name a built-in's."""
+        p = proposal("minimax/minimax-h3")["proposal"]
+        IN.save_spec(self.root, p)
+        with TG.use_roots(self.root):
+            t = TG.load_target(p["id"], "video", root=self.root)
+            self.assertTrue(t.custom)
+            self.assertEqual(IN.validate_spec(dict(t.spec)), [])
+            self.assertTrue(IN.validate_spec(dict(t.spec, id="seedance_2_5")))     # a built-in's name
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -889,7 +889,9 @@ def validate_spec(spec: dict, graph: dict | None = None,
     if spec.get("kind") and spec["kind"] != KIND:
         out.append(f"kind must be {KIND!r} for a target made from a workflow, "
                    f"not {spec['kind']!r}")
-    if tid in {t.id for t in TG.list_targets()}:
+    # a built-in's name only: with a show in force its own targets are listed
+    # too, and one (being re-saved, enabled) would find itself
+    if tid in {t.id for t in TG.list_targets() if not t.custom}:
         out.append(f"{tid!r} is a built-in target's name: choose another")
     if spec.get("router") is not None:
         # a Comfy Router model (targets/generic/router_video): no workflow to bind
