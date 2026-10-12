@@ -38,6 +38,20 @@ export type FrameSource =
   | { pass: string; shot: string; take: number; frame: number | "last" }
   | { video: string; time: number };
 
+/** A Seedance draft its shot's final can be made from (GET /seriesmith/drafts). */
+export interface DraftItem {
+  shot: string;
+  take: number;
+  thumb: string | null;
+  mp4: string | null;
+  expires: string;
+  expired: boolean;
+  /** the shot's final takes, and those made from this draft */
+  finals: number;
+  made_from_it: number[];
+  target: string | null;
+}
+
 /** A video kept to take frames from (POST /seriesmith/refs/video). */
 export interface KeptVideo {
   /** relative to the episode */
@@ -70,6 +84,8 @@ export interface Api {
   refsVideo(ep: string, from: { source_path: string } | { file: Blob; name?: string }, onProgress?: UploadProgress): Promise<KeptVideo>;
   /** The videos kept to take frames from, newest first. */
   refsVideos(ep: string): Promise<{ videos: KeptVideo[] }>;
+  /** The Seedance drafts the proxy cut uses: what finals can be made from. */
+  drafts(ep: string): Promise<{ drafts: DraftItem[] }>;
   /** Simple mode: the Clips project (made the first time). */
   clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
   /** Simple mode: a clip's missing pictures, then its takes. */
@@ -427,6 +443,7 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/refs/video", form, onProgress);
     },
     refsVideos: (ep) => get(`/seriesmith/refs/videos?${qs({ ep })}`),
+    drafts: (ep) => get(`/seriesmith/drafts?${qs({ ep })}`),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),

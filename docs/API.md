@@ -1032,6 +1032,19 @@ from: the same bytes under the same name are reused, another file under it gets
 "copied", "duration"}`; 400 for a file that isn't a video. `GET` lists the kept ones,
 newest first: `{"videos": [...]}`. `GET /seriesmith/browse` takes `files=video`.
 
+### Seedance drafts: `GET /seriesmith/drafts?ep=…` and `from_draft` (2026-10-11)
+Seedance 2.5's proxy takes are Drafts (`draft: true`, 480p): the take's record keeps
+`draft: {task, made, expires}` (BytePlus's task id; a draft lasts 7 days), and the
+take summary carries `draft` (with `expired`) and, on a final made from one,
+`from_draft: {task, take, pass}`. `GET /seriesmith/drafts` lists the drafts the
+proxy cut uses: `{"drafts": [{shot, take, thumb, mp4, expires, expired, finals,
+made_from_it, target}]}`. `POST /seriesmith/render` with `pass: "final"` and
+`from_draft: {shot: proxy take}` makes those shots' finals from their drafts: the
+request is the draft's task id alone, at 1080p (the provider reuses the draft's
+prompt, pictures, length, ratio, seed and sound). 400 for a take that isn't a
+finished draft, 409 for an expired one. A Router take's record has the size the
+video came back at, and `model_request.provider` (its task id, seed, usage).
+
 ### `POST /seriesmith/clip/queue` (step 12)
 Body `{"ep", "shot", "pass"?, "takes"? (1–8), "backend"?, "still"?, "image_target"?}`.
 The pictures the shot still needs are generated (each its own `/refs/generate`

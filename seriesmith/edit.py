@@ -442,6 +442,9 @@ def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
                 "target": (t.sidecar or {}).get("target"),
                 "note": (t.sidecar or {}).get("note", ""),
                 "overrides": (t.sidecar or {}).get("overrides", []),
+                # a Seedance draft (its final can be made from it), or a final made from one
+                "draft": J.draft_of(t.sidecar),
+                "from_draft": (t.sidecar or {}).get("from_draft"),
                 "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache)
                 if shot else [],
                 "thumb": rel(root, t.paths.thumb),

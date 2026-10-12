@@ -37,6 +37,7 @@ import type { Surface } from "./host";
 import { useApp } from "./store";
 import css from "./styles.css?inline";
 import { PanelQueueWindows } from "./components/Jobs";
+import { FinalsFromDraftsWindow } from "./components/FinalsFromDrafts";
 
 const SURFACES: Record<Surface, ComponentType> = {
   shots: ShotsTab,
@@ -178,6 +179,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Issues", IssuesWindow],
   ["Add issue", IssueDialog],
   ["Take details", SidecarDialog],
+  ["Finals from drafts", FinalsFromDraftsWindow],
   ["Promote", PromoteDialog],
   ["Toasts", Toasts],
 ];

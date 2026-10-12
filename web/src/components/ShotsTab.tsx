@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, loadEpisodes, loadIssues, openBrowse, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, loadEpisodes, loadIssues, openBrowse, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -136,6 +136,9 @@ function BuildBar() {
   const stale = staleShots(st?.shots);
   const why = staleReasons(st?.shots);
   const failed = b.result && !b.result.ok;
+  // Seedance drafts the proxy cut uses: their finals can be made (Finals from drafts)
+  const drafted = pass === "proxy"
+    ? (st?.shots ?? []).filter((x) => x.takes.find((t) => t.take === x.cut?.take)?.draft).length : 0;
   return (
     <div className="h3-pad h3-col" style={{ gap: 4, paddingTop: 0 }}>
       <div className="h3-row h3-wrap">
@@ -163,6 +166,12 @@ function BuildBar() {
         >
           <i className="pi pi-refresh" /> Re-render stale{stale.length ? ` (${stale.length})` : ""}
         </button>
+        {drafted > 0 && (
+          <button className="h3-btn" title="Make finals (1080p, paid) from the Seedance drafts the proxy cut uses: choose which"
+            onClick={() => openDrafts(true)}>
+            <i className="pi pi-forward" /> Finals from drafts ({drafted})…
+          </button>
+        )}
       </div>
       {st && <MissingRefsSummary shots={st.shots} />}
       <TrackLine />

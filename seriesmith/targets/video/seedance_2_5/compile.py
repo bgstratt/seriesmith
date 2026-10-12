@@ -90,6 +90,12 @@ def router_call(target, job) -> tuple[str, dict]:
     from seriesmith.backends import File
 
     spec = target.spec["router"]
+    if getattr(job, "from_draft", None):
+        # the final of a draft: its task id alone; the provider reuses the
+        # draft's prompt, pictures, length, ratio, seed and sound, at 1080p
+        return spec["model"], {"content": [{"type": "draft_task",
+                                            "draft_task": {"id": job.from_draft["task"]}}],
+                               "resolution": "1080p"}
     shot = J.frozen_shotlist(job)["shots"][0]
     text = J._prompt_text(shot.get("prompt") or job.prompt)
 
@@ -130,4 +136,7 @@ def router_call(target, job) -> tuple[str, dict]:
     if not by_frames:
         args["ratio"] = nearest_ratio(int(job.width or 1280), int(job.height or 720),
                                       spec["ratios"])
+    if job.pass_ == "proxy" and spec.get("draft_proxy"):
+        # a proxy is a draft (480p only): its final can be made from it at 1080p
+        args["draft"], args["resolution"] = True, "480p"
     return spec["model"], args

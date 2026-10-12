@@ -1119,6 +1119,9 @@ class RenderRequest:
     # {shot: {"after", "pass"}}: continuity shots whose first frame is cut as the
     # render starts (refs.refresh_continuity's `live`; H3ContinuityFrame)
     continuity: dict | None = None
+    # {shot: {"task", "take", "pass"}}: a final made from that shot's Seedance
+    # draft (its BytePlus task id: the provider renders it at 1080p, as drawn)
+    from_draft: dict | None = None
     target: str | None = None          # render on this video target, this run only
     allow_model_mismatch: bool = False  # render even if a model file is another family
     negative: str | None = None        # the negative prompt, this run only (negative_for)
@@ -1195,6 +1198,8 @@ class Job:
     size: tuple | None = None
     # {"after", "pass"}: a continuity shot's first frame is cut when it starts
     continuity: dict | None = None
+    # {"task", "take", "pass"}: this take is the 1080p final of that draft
+    from_draft: dict | None = None
     target_source: str = ""            # request | override | script | episode | series | default
     # where the negative prompt comes from (negative_for): request | override |
     # negative.txt | series | preset, or "none" for a target without one
@@ -1598,7 +1603,8 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
                length_source=length_source, allow_model_mismatch=req.allow_model_mismatch,
                steps_set="steps" in explicit, target_source=target_source,
                values=values, negative_source=negative_source, save_latent=save_latent,
-               size=size, continuity=(req.continuity or {}).get(sid))
+               size=size, continuity=(req.continuity or {}).get(sid),
+               from_draft=(req.from_draft or {}).get(sid))
 
 
 def parse_size(v) -> tuple[int, int]:
@@ -1871,6 +1877,8 @@ def sidecar_for(job: Job) -> dict:
         **({"inputs": dict(job.inputs)} if job.inputs else {}),
         # its first frame is cut again when it starts (the node fills in `continuity`)
         **({"continuity_after": dict(job.continuity)} if job.continuity else {}),
+        # made from a draft: the provider rendered that draft at 1080p
+        **({"from_draft": dict(job.from_draft)} if job.from_draft else {}),
         # continuous: latent: the render held this many frames of the previous
         # take at its head, trimmed off (the node fills in `continued_from`)
         **({"hold": int((job.recompiled or job.shot)["hold"])}
@@ -2043,13 +2051,48 @@ def collect_router_take(take: T.Take, run, status: str, arguments: dict | None =
     if arguments is not None:
         sent = {k: v for k, v in arguments.items() if k != "content"}
         sent["inputs"] = [c.get("role") or c.get("type") for c in arguments.get("content") or []]
+    # what the provider says of it: its own task id, the seed it used, its
+    # usage; a draft's task id is what its final is made from (7 days)
+    result = getattr(run, "result", None)
+    provider = {}
+    draft = None
+    if isinstance(result, dict):
+        provider = {k: result[k] for k in ("id", "seed", "usage", "draft", "resolution")
+                    if k in result}
+        if result.get("draft") and result.get("id"):
+            made = result.get("created_at") or time.time()
+            draft = {"task": result["id"], "made": T.now(),
+                     "expires": time.strftime("%Y-%m-%dT%H:%M:%S%z",
+                                              time.localtime(float(made) + DRAFT_DAYS * 86400))}
     take.sidecar = T.update_sidecar(
         take.paths.sidecar, status="ok", finished=T.now(), frames=info["frames"],
         fps=info["fps"], mp4=os.path.basename(take.paths.mp4), thumb=thumb, strip=strip,
+        # the provider decides the size (a draft's final is 1080p): the video's, not the ask's
+        **({"width": info["width"], "height": info["height"]}
+           if info.get("width") and info.get("height") else {}),
         save_notes=f"{take.paths.stem}: " + "; ".join(notes),
-        **({"model_request": {"model": getattr(run, "model", None), "id": run.id, **sent}}
-           if sent is not None else {}))
+        **({"model_request": {"model": getattr(run, "model", None), "id": run.id, **sent,
+                              **({"provider": provider} if provider else {})}}
+           if sent is not None else {}),
+        **({"draft": draft} if draft else {}))
     return "ok"
+
+
+# how long a Seedance draft's task id can be made into its final (BytePlus)
+DRAFT_DAYS = 7
+
+
+def draft_of(sidecar: dict | None) -> dict | None:
+    """A take's draft ({"task", "made", "expires", "expired"}) when it is
+    one, else None."""
+    d = (sidecar or {}).get("draft")
+    if not isinstance(d, dict) or not d.get("task"):
+        return None
+    try:
+        left = time.mktime(time.strptime(d["expires"][:19], "%Y-%m-%dT%H:%M:%S")) - time.time()
+    except (KeyError, ValueError, TypeError):
+        left = 0
+    return {**d, "expired": left <= 0}
 
 
 # ---------------------------------------------------------------------------

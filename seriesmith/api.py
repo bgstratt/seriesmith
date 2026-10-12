@@ -1077,6 +1077,53 @@ def _opt_backend(ctx: Context, body: dict) -> str | None:
     return backend
 
 
+def _drafts_asked(ep: str, asked) -> tuple[dict, str, list]:
+    """from_draft ({shot: take}) checked against the proxy takes: each a
+    finished Seedance draft whose task id hasn't expired. Returns
+    ({shot: {"task", "take", "pass"}}, the drafts' target, [shots])."""
+    if not isinstance(asked, dict) or not asked:
+        raise ApiError(400, "from_draft must be {shot: its proxy draft take}")
+    out, targets = {}, set()
+    for shot, take_n in asked.items():
+        shot = check_shot(shot)
+        n = check_take(take_n, "from_draft take")
+        t = T.get_take(ep, "proxy", shot, n)
+        d = J.draft_of(t.sidecar if t else None)
+        if t is None or t.status != "ok" or d is None:
+            raise ApiError(400, f"{shot} proxy t{n:02d} isn't a finished draft")
+        if d["expired"]:
+            raise ApiError(409, f"{shot} proxy t{n:02d}'s draft has expired (drafts last "
+                                f"{J.DRAFT_DAYS} days): render its final instead")
+        out[shot] = {"task": d["task"], "take": n, "pass": "proxy"}
+        targets.add((t.sidecar or {}).get("target"))
+    if len(targets) != 1 or None in targets:
+        raise ApiError(400, "the drafts must all be from the one model")
+    return out, targets.pop(), list(out)
+
+
+@handler
+def get_drafts(ctx: Context, query: dict):
+    """The Seedance drafts an episode's finals could be made from: each
+    shot's take in the proxy cut that is a draft, with its thumbnail, when
+    its task id expires, and whether the shot has a final already (the
+    dialog ticks the ones without). {"drafts": [...]}."""
+    ep = check_ep(ctx, query.get("ep"))
+    out = []
+    for e in E.cut_entries(ep, "proxy"):
+        t, n, ok = E.cut_take(ep, e)
+        d = J.draft_of(t.sidecar if t else None) if ok else None
+        if d is None:
+            continue
+        finals = [x for x in T.list_takes(ep, "final", e.shot) if x.status == "ok"]
+        from_it = [x.take for x in finals
+                   if ((x.sidecar or {}).get("from_draft") or {}).get("task") == d["task"]]
+        out.append({"shot": e.shot, "take": n, "thumb": E.rel(ep, t.paths.thumb),
+                    "mp4": E.rel(ep, t.paths.mp4), "expires": d["expires"],
+                    "expired": d["expired"], "finals": len(finals), "made_from_it": from_it,
+                    "target": (t.sidecar or {}).get("target")})
+    return 200, {"drafts": out}
+
+
 @handler
 def post_render(ctx: Context, body):
     body = body_dict(body)
@@ -1120,6 +1167,11 @@ def post_render(ctx: Context, body):
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
         size=_opt_size(body.get("size")))
     J.load_shotlist(ep, pass_)                           # 404 before anything else
+    if body.get("from_draft") is not None:
+        # finals made from Seedance drafts: {shot: its proxy draft take}
+        if pass_ != "final":
+            raise ApiError(400, "from_draft makes final takes: pass must be final")
+        template.from_draft, template.target, shots = _drafts_asked(ep, body["from_draft"])
     workflows: dict = {}
 
     def base_for(target_id: str) -> dict:
@@ -3525,6 +3577,7 @@ ROUTES = [
     ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
     ("POST", "/seriesmith/refs/from-frame", post_refs_from_frame, "body"),
     ("POST", "/seriesmith/refs/video", post_refs_video, "form"),
+    ("GET", "/seriesmith/drafts", get_drafts, "query"),
     ("GET", "/seriesmith/refs/videos", get_refs_videos, "query"),
     ("POST", "/seriesmith/import", post_import, "body"),
     ("GET", "/seriesmith/issues", get_issues, "query"),

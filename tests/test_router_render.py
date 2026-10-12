@@ -240,5 +240,68 @@ class RenderRouterTest(Episode):
         self.assertEqual((fb.calls, fb.uploaded), ([], []))
 
 
+class DraftTest(Episode):
+    """Seedance's Draft -> Final: a proxy take is a draft (draft: true, 480p),
+    its record keeps the provider's task id, and a final made from it sends
+    only that id, at 1080p (POST /seriesmith/render with from_draft)."""
+
+    def proxy_job(self) -> J.Job:
+        doc = J.load_shotlist(self.root, "proxy")
+        i = next(n for n, s in enumerate(doc["shots"]) if s["id"] == self.shot_id)
+        return J.plan_job(self.root, "proxy", doc, i, J.RenderRequest(self.shot_id, target=SEEDANCE), {})
+
+    def test_a_proxy_is_a_draft_and_a_final_from_it_is_its_id_alone(self):
+        t = TG.load_target(SEEDANCE, "video")
+        _, args = t.module.router_call(t, self.proxy_job())
+        self.assertEqual((args["draft"], args["resolution"]), (True, "480p"))
+        _, args = t.module.router_call(t, self.job())                 # a final: no draft
+        self.assertNotIn("draft", args)
+        job = self.job()
+        job.from_draft = {"task": "cgt-1", "take": 2, "pass": "proxy"}
+        _, args = t.module.router_call(t, job)
+        self.assertEqual(args, {"content": [{"type": "draft_task", "draft_task": {"id": "cgt-1"}}],
+                                "resolution": "1080p"})
+
+    def draft_take(self, made: float):
+        job = self.proxy_job()
+        take = J.start_job(job)
+
+        class Out:
+            type, name = "video", "v.mp4"
+
+            def save(self, path):
+                with open(path, "wb") as fh:
+                    fh.write(tiny_mp4())
+
+        class Run:
+            id, model, backend, error = "r1", MODEL, "router", ""
+            result = {"id": "cgt-draft", "draft": True, "created_at": made, "seed": 5}
+
+            def outputs(self):
+                return [Out()]
+        self.assertEqual(J.collect_router_take(take, Run(), "succeeded", {"content": []}), "ok")
+        return T.get_take(self.root, "proxy", self.shot_id, take.take)
+
+    @unittest.skipUnless(HAVE_FFMPEG, "needs ffmpeg")
+    def test_a_draft_keeps_its_task_id_for_a_week(self):
+        import time
+        from seriesmith import api as A
+        t = self.draft_take(time.time())
+        d = J.draft_of(t.sidecar)
+        self.assertEqual((d["task"], d["expired"]), ("cgt-draft", False))
+        self.assertEqual(t.sidecar["model_request"]["provider"]["id"], "cgt-draft")
+        drafts, target, shots = A._drafts_asked(self.root, {self.shot_id: t.take})
+        self.assertEqual((drafts[self.shot_id]["task"], target, shots),
+                         ("cgt-draft", SEEDANCE, [self.shot_id]))
+        # eight days on, its final can't be made from it
+        old = self.draft_take(time.time() - 8 * 86400)
+        self.assertTrue(J.draft_of(old.sidecar)["expired"])
+        with self.assertRaises(A.ApiError) as cm:
+            A._drafts_asked(self.root, {self.shot_id: old.take})
+        self.assertEqual(cm.exception.status, 409)
+        with self.assertRaises(A.ApiError):
+            A._drafts_asked(self.root, {self.shot_id: 99})          # no such draft
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -412,6 +412,8 @@ export interface AppState {
   /** the queue's controls live in the editor's own panels (inside ComfyUI,
    * whose page has no top bar of ours): set once the server has a queue */
   queueInPanel: boolean;
+  /** the Finals from drafts window (components/FinalsFromDrafts.tsx) */
+  draftsOpen: boolean;
   /** the standalone page's Settings window (components/SettingsWindow.tsx) */
   settingsOpen: boolean;
   /** P10: the note being written (null: no box open) */
@@ -516,6 +518,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     renderBackend: "",
     jobsOpen: false,
     queueInPanel: false,
+    draftsOpen: false,
     settingsOpen: false,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,

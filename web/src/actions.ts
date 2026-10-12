@@ -1010,6 +1010,28 @@ export function requestRender(shots: string[], redo = false, title?: string,
   void renderShots(shots, redo, false, null, seedMode);
 }
 
+/**
+ * Make the finals of Seedance drafts ({shot: its proxy draft take}): each a
+ * paid 1080p render of that draft as drawn (POST /seriesmith/render with
+ * from_draft). The caller has asked (the dialog, or the take's menu).
+ */
+export async function makeFinalsFromDrafts(picks: Record<string, number>): Promise<boolean> {
+  const ep = get().ep;
+  const shots = Object.keys(picks);
+  if (!ep || !shots.length) return false;
+  const r = await queueRender({ ...baseRender(ep, "final", shots), redo: true, from_draft: picks });
+  if (!r) return false;
+  const n = r.queued?.length ?? 0;
+  if (n) host().toast("success", `${n} final${n > 1 ? "s" : ""} from drafts queued`,
+    "1080p on Seedance: they arrive in the final pass when they're done.");
+  return n > 0;
+}
+
+/** The Finals from drafts window. */
+export function openDrafts(open = true) {
+  set({ draftsOpen: open, menu: null });
+}
+
 /** A backend that bills (Comfy Cloud, Router, a deployment); "" is each shot's own. */
 export function isPaidBackend(name: string | null | undefined): boolean {
   return !!name && name !== "local";

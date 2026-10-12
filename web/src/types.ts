@@ -35,6 +35,10 @@ export interface TakeSummary {
   seed_source: string | null;
   note: string;
   overrides: string[];
+  /** a Seedance draft: its final can be made from it, until `expires` (7 days) */
+  draft?: { task: string; made: string; expires: string; expired: boolean } | null;
+  /** a final made from a draft (that proxy take) */
+  from_draft?: { task: string; take: number; pass: string } | null;
   stale: StaleReason[];
   thumb: string | null;
   strip: string | null;
@@ -609,6 +613,8 @@ export interface RenderRequest {
   allow_model_mismatch?: boolean;
   /** "WxH": render this run at that size, beating the override. Only sent when set. */
   size?: string | null;
+  /** finals made from Seedance drafts: {shot: its proxy draft take} (pass final). Only sent when set. */
+  from_draft?: Record<string, number>;
   /** Phase 13: keep the take's latent beside it for an upscale later. Absent: the
    * server's default (the series config's upscale.save_latents; final pass only). */
   save_latent?: boolean;

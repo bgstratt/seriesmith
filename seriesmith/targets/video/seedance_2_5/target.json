@@ -93,6 +93,8 @@
     ],
     "_seed_note": "Router's schema says [-1, 2^32-1], but BytePlus finishes any request with a seed past 2^31-1 as invalid_input (2026-10-11: Router's own example rendered; the same with seed 2454889240 was refused in 5 s, as were sh040's and sh190's takes). So seeds wrap at 2^31.",
     "seed_max": 2147483647,
+    "_draft_note": "A proxy take is a Seedance Draft (draft: true, 480p): POST /seriesmith/render with from_draft makes its final from the draft's task id, at 1080p, within 7 days (the provider reuses the draft's prompt, pictures, length, ratio, seed and sound).",
+    "draft_proxy": true,
     "arguments": {
       "watermark": false,
       "output_format": "mp4"

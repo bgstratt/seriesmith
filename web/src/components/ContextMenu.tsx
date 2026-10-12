@@ -3,7 +3,7 @@ import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
-  upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu,
+  upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts,
 } from "../actions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -262,6 +262,20 @@ export function ContextMenu() {
           <button onClick={run(() => openRedo(menu.shot, take.take, menu.pass))}>
             <i className="pi pi-refresh" /> New take like this one…
           </button>
+          {menu.pass === "proxy" && take.draft && take.status === "ok" && (
+            <button disabled={take.draft.expired}
+              title={take.draft.expired ? "Its draft has expired (they last 7 days): render the shot's final instead"
+                : "A paid 1080p render of this draft exactly as drawn (its prompt, pictures, seed and sound), as the shot's final"}
+              onClick={run(() => {
+                const changed = take.stale.length
+                  ? `\n\nThe shot has changed since this draft (${take.stale.join(", ")}): the final will match the draft, not the script.` : "";
+                if (confirm(`Make ${menu.shot}'s final from draft ${tn(take.take)}? A paid 1080p render of this draft as drawn.${changed}`)) {
+                  void makeFinalsFromDrafts({ [menu.shot]: take.take });
+                }
+              })}>
+              <i className="pi pi-forward" /> Make final from draft (1080p)…
+            </button>
+          )}
           <button onClick={run(() => openSidecar(menu.shot, take.take, menu.pass))}>
             <i className="pi pi-info-circle" /> Show details
           </button>

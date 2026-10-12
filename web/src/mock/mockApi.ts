@@ -1837,6 +1837,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { videos: [] };
     },
+    async drafts() {
+      await wait(40);
+      return { drafts: [] };
+    },
     async clipsEnsure() {
       await wait(60);
       return { ep: EP, made: false };
