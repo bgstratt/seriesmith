@@ -124,6 +124,27 @@ class RouterCallTest(Episode):
         self.assertTrue(0 <= args["seed"] <= 2147483647)      # BytePlus refuses past 2^31-1
         self.assertIs(args["watermark"], False)
 
+    def test_a_sheet_goes_up_as_its_one_panel(self):
+        """The provider refuses a 4:1 sheet (invalid_input, 2026-10-11): a
+        character's sheet is sent as the panel the shot wants, cut once."""
+        from PIL import Image
+        job = self.job()
+        panels = J.frozen_shotlist(job)["shots"][0]["panels"]
+        sheet = next(p for p in panels if p.get("view"))
+        path = os.path.normpath(J._abs(job.root, sheet["path"]))
+        img = Image.new("RGB", (400, 100))
+        for i, c in enumerate([(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0)]):
+            img.paste(c, (i * 100, 0, (i + 1) * 100, 100))
+        img.save(path)
+        _, (_, args) = self.call(job)
+        sent = [p["image_url"]["url"].path for p in args["content"][1:]]
+        cut = next(s for s in sent if "_panels" in s)
+        with Image.open(cut) as got:
+            self.assertEqual(got.size, (100, 100))
+            want = {"body": (255, 0, 0), "face": (255, 255, 0)}[sheet["view"]]
+            self.assertEqual(got.getpixel((50, 50)), want)
+        self.assertNotIn(path, sent)
+
     def test_a_first_keyframe_makes_it_frame_generation(self):
         job = self.job()
         kf = J.frozen_shotlist(job)["shots"][0]["keyframes"]["first"]
