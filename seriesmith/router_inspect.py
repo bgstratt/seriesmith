@@ -132,10 +132,16 @@ def _picture_item(doc: dict, v: dict):
     for k in props:
         if _norm(k) in ("url", "imageurl", "uri"):
             return {k: "$url"}
+    mime = next((m for m in props if _norm(m) == "mimetype"), None)
+    for k in props:
+        # the picture's own bytes where offered (Veo): its gcsUri takes only
+        # Google Cloud Storage, and a Comfy asset link came back invalid_input
+        # (2026-10-12); the file goes in base64 (File.via "base64")
+        if _norm(k) == "bytesbase64encoded":
+            return {k: "$url", **({mime: "$mime"} if mime else {})}
     for k in props:
         if _norm(k) == "gcsuri":
-            mime = next((m for m in props if _norm(m) == "mimetype"), None)
-            return {k: "$url", **({mime: "image/png"} if mime else {})}
+            return {k: "$url", **({mime: "$mime"} if mime else {})}
     for k, x in props.items():
         if _norm(k) == "image":
             inner = _picture_item(doc, x)
@@ -222,7 +228,9 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         t = v.get("type")
         enum = v.get("enum")
         if leaf in NAMES["prompt"] and t == "string" and "prompt" not in inputs:
-            inputs["prompt"] = path
+            # a longest prompt (Runway's 1000): the prose is cut to it, by sentence
+            inputs["prompt"] = {"field": path, "max_chars": v["maxLength"]} \
+                if isinstance(v.get("maxLength"), int) else path
         elif leaf in NAMES["negative"] and t == "string" and "negative" not in inputs:
             inputs["negative"] = path
         elif leaf in NAMES["duration"] and "duration" not in inputs and t in ("integer", "number", "string"):
@@ -261,6 +269,8 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
             d = {"name": path, "values": [x for x in vals if ":" in str(x)]}
             if "adaptive" in vals:
                 d["with_frames"] = "adaptive"
+            elif path in required:
+                d["with_frames"] = "keep"            # Runway: asked for even with a frame
             inputs["ratio"] = d
         elif leaf in NAMES["seed"] and t in ("integer", "number") and "seed" not in inputs:
             # never past 2^31-1, whatever the schema says: BytePlus's said 2^32-1
@@ -303,7 +313,9 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         raise RouterInspectError(f"{model} takes no pictures (text to video only): seriesmith renders "
                                  f"from your refs and keyframes, so it can't be used for shots")
     # a prompt that names its pictures (Kling: <<<image_1>>>) says which is which
-    pdesc = next((str(v.get("description", "")) for p, v in all_fields if p == inputs.get("prompt")), "")
+    ppath = inputs.get("prompt")
+    ppath = _name(ppath) if isinstance(ppath, dict) else ppath
+    pdesc = next((str(v.get("description", "")) for p, v in all_fields if p == ppath), "")
     if "references" in inputs and "<<<image_1>>>" in pdesc:
         inputs["references"]["mention"] = "<<<image_{n}>>>"
 
@@ -311,6 +323,14 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
     # virtual library (asset://): a plain URL is refused (2026-10-11)
     if model.startswith("byteplus/"):
         inputs["via"] = "seedance"
+    elif '"$url"' in json.dumps(inputs) and "bytesBase64Encoded" in json.dumps(inputs):
+        inputs["via"] = "base64"
+    elif any(p == _name(inputs.get("first") or {}) and "data uri" in _text(_resolve(doc, v))
+             for p, v in all_fields):
+        # a picture field that takes a data: URI (Runway's promptImage): the
+        # picture goes in the request, as Runway failed on an asset link with
+        # provider_error (2026-10-12)
+        inputs["via"] = "datauri"
     for k, where in inputs.items():
         if k == "via":
             continue

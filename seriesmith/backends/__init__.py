@@ -117,7 +117,9 @@ class File:
     `via` names a provider's own way in, when a plain URL won't do
     ("seedance": registered in the Seedance virtual library, sent as
     asset://<id>, as ComfyUI's own Seedance nodes do: BytePlus refuses
-    pictures of photoreal people any other way)."""
+    pictures of photoreal people any other way; "base64": the file's bytes
+    themselves, not uploaded -- Veo's gcsUri takes Google Cloud Storage only;
+    "datauri": the same as a data: URI, for a field that takes a URL or one)."""
     path: str
     via: str = ""
 

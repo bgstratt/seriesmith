@@ -12,6 +12,7 @@ provider's own JSON; every http(s) URL in it is offered as an output.
 """
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -166,7 +167,12 @@ class RouterBackend(Backend):
         urls: dict[tuple, str] = {}
         for container, key, f in list(files_in(args)):
             k = (f.path, f.via)
-            if k not in urls:
+            if k not in urls and f.via in ("base64", "datauri"):
+                with open(f.path, "rb") as fh:
+                    b64 = base64.b64encode(fh.read()).decode("ascii")
+                mime = "image/jpeg" if f.path.lower().endswith((".jpg", ".jpeg")) else "image/png"
+                urls[k] = b64 if f.via == "base64" else f"data:{mime};base64,{b64}"
+            elif k not in urls:
                 asset = self.client.assets.from_file(f.path)
                 asset.commit()
                 url = asset.get_download_url().url

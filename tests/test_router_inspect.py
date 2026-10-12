@@ -51,8 +51,10 @@ class ProposeTest(unittest.TestCase):
     def test_veo_is_nested(self):
         inp = proposal("veo/veo-3.1-generate-001")["proposal"]["router"]["inputs"]
         self.assertEqual(inp["prompt"], "instances.0.prompt")
+        # the bytes, not a link: gcsUri takes Google Cloud Storage only (2026-10-12)
         self.assertEqual(inp["first"], {"field": "instances.0.image",
-                                        "item": {"gcsUri": "$url", "mimeType": "image/png"}})
+                                        "item": {"bytesBase64Encoded": "$url", "mimeType": "$mime"}})
+        self.assertEqual(inp["via"], "base64")
         self.assertEqual(inp["references"]["item"]["referenceType"], "asset")
         self.assertEqual(inp["resolution"]["name"], "parameters.resolution")
         self.assertEqual(proposal("veo/veo-3.1-generate-001")["proposal"]["router"]["arguments"],
@@ -88,6 +90,20 @@ class ProposeTest(unittest.TestCase):
         self.assertEqual(r["unplaced"], [])
         sd = TG.load_target("seedance_2_5", "video")
         self.assertTrue(TG.Target(sd.folder, p).capabilities()["requires_first"])
+        # Router refused a 1421-character promptText (2026-10-12)
+        self.assertEqual(p["router"]["inputs"]["prompt"], {"field": "promptText", "max_chars": 1000})
+        self.assertEqual(p["router"]["inputs"]["via"], "datauri")       # its field takes one
+
+    def test_a_long_prompt_keeps_whole_sentences(self):
+        from seriesmith.targets.generic.router_video import fit
+        text = 'Style: film. A porch. A man sits. He says: "Hi there." The sound is wind.'
+        self.assertEqual(fit(text, 100), text)
+        self.assertEqual(fit(text, 70), 'A porch. A man sits. He says: "Hi there." The sound is wind.')
+        self.assertEqual(fit(text, 40), 'He says: "Hi there." The sound is wind.')
+        self.assertEqual(fit(text, 6), "The so")
+        # the ratio Runway requires goes out with its first frame
+        p = proposal("runway/gen4_turbo")["proposal"]
+        self.assertEqual(p["router"]["inputs"]["ratio"]["with_frames"], "keep")
 
     def test_byteplus_goes_through_the_library_and_seeds_stay_under_2_31(self):
         inp = proposal("byteplus/dreamina-seedance-2-0-260128")["proposal"]["router"]["inputs"]

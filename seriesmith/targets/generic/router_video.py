@@ -252,6 +252,22 @@ def pictures(target, job, shot: dict, inp: dict):
     return "references", out[:total] if total else out
 
 
+def fit(text: str, most: int) -> str:
+    """`text` in at most `most` characters, by whole sentences: the style line
+    goes first, then sentences from the start (the place, then the people's
+    looks, which the pictures carry), so what happens -- the action, the
+    dialogue, the sound, at the end -- stays; cut mid-sentence only when the
+    last one alone is longer than that."""
+    if len(text) <= most:
+        return text
+    sents = [s.strip() for s in re.findall(r"[^.!?]*[.!?]+[\"”')]*|[^.!?]+$", text) if s.strip()]
+    sents = [s for s in sents if not s.startswith("Style:")] or sents
+    while len(sents) > 1 and len(" ".join(sents)) > most:
+        sents.pop(0)
+    out = " ".join(sents)
+    return out if len(out) <= most else out[:most].rstrip()
+
+
 def mentions(template: str, pics: list, shot: dict) -> str:
     """The line naming each reference picture in the prompt, for a model that
     takes them by name, e.g. <<<image_1>>> is Earl Booker. <<<image_2>>> is
@@ -291,14 +307,22 @@ def router_call(target, job) -> tuple[str, dict]:
                          f"menu, or first: generate in the script)")
     args = copy.deepcopy(spec.get("arguments") or {})
 
+    # the pictures named at the end (Kling), the prose cut to the longest
+    # prompt the model takes (Runway: 1000) to leave room for them
+    pspec = inp.get("prompt") or "prompt"
     mention = (inp.get("references") or {}).get("mention")
-    if mention and mode == "references" and pics:
-        text = f"{text}\n\n{mentions(mention, pics, shot)}"
+    tail = mentions(mention, pics, shot) if mention and mode == "references" and pics else ""
+    limit = pspec.get("max_chars") if isinstance(pspec, dict) else None
+    if limit:
+        text = fit(text, limit - (len(tail) + 2 if tail else 0))
+    if tail:
+        text = f"{text}\n\n{tail}"
 
     # the prompt, then the pictures, in that order (a content list keeps it)
-    place(args, inp.get("prompt") or "prompt", prompt=text)
+    place(args, pspec, prompt=text)
     for role, path, _ in pics:
-        place(args, inp[role], url=File(path, via=via))
+        place(args, inp[role], url=File(path, via=via),
+              mime="image/jpeg" if path.lower().endswith((".jpg", ".jpeg")) else "image/png")
     neg = inp.get("negative")
     if neg and getattr(job, "negative", None):
         place(args, neg, negative=job.negative)
