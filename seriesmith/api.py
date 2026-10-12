@@ -2405,8 +2405,11 @@ def post_targets_router_inspect(ctx: Context, body):
         raise ApiError(409, "reading a Router model needs your Comfy API key (Settings)")
     try:
         doc = RI.fetch_schema(model, key)
-        base = TG.load_target("seedance_2_5", "video").spec
-        out = RI.propose(model, doc, base=base)
+        if RI.kind_of(model) == "image":
+            out = RI.propose_image(model, doc)
+        else:
+            base = TG.load_target("seedance_2_5", "video").spec
+            out = RI.propose(model, doc, base=base)
     except RI.RouterInspectError as e:
         raise ApiError(400, str(e))
     ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
@@ -2528,6 +2531,49 @@ def put_targets_custom(ctx: Context, body):
 
 
 LOCAL_LIMITS = {"length", "size", "pictures"}       # a local target's: its graph has the rest
+IMAGE_DRYRUN_BASE = "nano_banana_pro"   # a hosted edit model: plans a ref job with its pictures
+
+
+def _image_dryrun(ep: str, spec: dict, ref_id: str | None, view: str | None):
+    """What a Router image target would send for one ref take (the router
+    dry run's image half): the ref planned as a hosted edit model plans it
+    (its references chosen), then this target's request made from it."""
+    from seriesmith import refs as R
+    from seriesmith.backends import File
+    s = R.load_series(ep)
+    refs = R.series_refs(s)
+    if ref_id:
+        try:
+            ref = R.find_ref(s, ref_id)
+        except Exception as e:                          # noqa: BLE001  an unknown id
+            raise ApiError(404, str(e))
+    else:
+        ref = next((r for r in refs if r.kind == "character"), refs[0] if refs else None)
+        if ref is None:
+            raise ApiError(404, "this episode has no refs to try it on")
+    jobs = R.plan_generate(s, R.GenRequest(ref=ref.id, view=view, target=IMAGE_DRYRUN_BASE))
+    if not jobs:
+        raise ApiError(400, f"{ref.id}: nothing to generate")
+    job = jobs[0]
+    t = TG.Target(TG.load_target(IMAGE_DRYRUN_BASE, "image").folder, spec)
+    job.target = t
+    R.hosted_references(s, job)
+    model, args = t.module.router_call(t, job)
+
+    def plain(v):
+        if isinstance(v, File):
+            return {"file": v.path, **({"via": v.via} if v.via else {})}
+        if isinstance(v, dict):
+            return {k: plain(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [plain(x) for x in v]
+        return v
+    from seriesmith.backends.router import ROUTING
+    routing = args.pop(ROUTING, None)
+    return 200, {"ok": True, "shot": f"{ref.id}{' ' + job.view if job.view else ''}", "ref": ref.id,
+                 "view": job.view, "model": model, "arguments": plain(args),
+                 **({"routing": routing} if routing else {}),
+                 "prompt_chars": {"written": len(job.prompt or "")}}
 
 
 def _with_limits(spec: dict, limits) -> dict:
@@ -2557,14 +2603,18 @@ def put_targets_limits(ctx: Context, body):
     ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
     tid = _opt_str(body, "id") or ""
     try:
-        t = TG.load_target(tid, "video", root=ep)
+        t = TG.load_target(tid, root=ep)
     except TG.TargetError as e:
         raise ApiError(404, str(e))
+    if t.kind not in ("video", "image"):
+        raise ApiError(400, f"{t.id} is an {t.kind} target: it has no limits to change here")
     limits = body.get("limits")
     if limits is not None and not isinstance(limits, dict):
         raise ApiError(400, "limits must be an object (seriesmith.limits sections), or null")
     limits = {k: v for k, v in (limits or {}).items() if k in L.SECTIONS}
-    if t.spec.get("router") is None:
+    if t.spec.get("router") is None and t.kind == "image" and limits:
+        raise ApiError(400, f"{t.id} is a local workflow: its limits are what its graph does")
+    if t.spec.get("router") is None and t.kind == "video":
         extra = set(limits) - LOCAL_LIMITS
         pics = set((limits.get("pictures") or {})) - {"needs_first"}
         if extra or pics:
@@ -2602,7 +2652,7 @@ def put_targets_limits(ctx: Context, body):
     if ep:
         episode_event(ctx, ep)
     return 200, {"ok": True, "id": t.id, "path": path,
-                 "target": TG.load_target(t.id, "video", root=ep).describe()}
+                 "target": TG.load_target(t.id, t.kind, root=ep).describe()}
 
 
 @handler
@@ -2625,6 +2675,8 @@ def post_targets_router_dryrun(ctx: Context, body):
     if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):
         raise ApiError(400, "target must be a Router target's target.json, or its id")
     spec = _with_limits(spec, body.get("limits"))
+    if spec.get("kind") == "image":
+        return _image_dryrun(ep, spec, _opt_str(body, "ref"), _opt_str(body, "view"))
     try:
         doc = J.load_shotlist(ep, pass_)
     except FileNotFoundError:

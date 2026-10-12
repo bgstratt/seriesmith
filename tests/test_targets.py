@@ -31,8 +31,9 @@ from test_render import FIXTURE, build_episode  # noqa: E402
 H3 = "minimax_h3_ref2va"
 # the Comfy Router video models tools/make_router_targets.py writes
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from make_router_targets import MODELS as _ROUTER  # noqa: E402
-ROUTER = {m[1] for m in _ROUTER}
+from make_router_targets import IMAGE_MODELS as _ROUTER_IMAGE, MODELS as _ROUTER  # noqa: E402
+# Krea 2 (Router) was a built-in before the generator made it
+ROUTER = {m[1] for m in _ROUTER} | ({m[1] for m in _ROUTER_IMAGE} - {"krea_2_router"})
 
 
 def kitchen_sink():
@@ -46,7 +47,7 @@ def kitchen_sink():
 class LoadingTest(unittest.TestCase):
     def test_list_and_load(self):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
-        self.assertEqual(ids - {("video", r) for r in ROUTER}, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"),
+        self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"),
                                ("video", "minimax_h3_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
@@ -472,14 +473,14 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual(data["default"],
                          {"video": H3, "image": "krea2", "audio": "ltx2_voice"})
         images = self.ok(A.get_targets(self.ctx, {"kind": "image"}))["targets"]
-        self.assertEqual([t["id"] for t in images],
+        self.assertEqual([t["id"] for t in images if t["id"] not in ROUTER],
                          ["flux2_klein", "flux2_klein_edit", "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
                           "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio", "z_image_turbo"])
         # seriesmith's fields (where a job runs, whether it repeats) are the same
         # for every workflow target (test_capabilities); h3pipe's are compared here
         for t in images:
             # a hosted one runs on Router only, and the provider decides what a seed means
-            want = (["router"], False) if t["id"] == "krea_2_router" else (["local", "deployment"], True)
+            want = (["router"], False) if t["id"] == "krea_2_router" or t["id"] in ROUTER else (["local", "deployment"], True)
             self.assertEqual((t["capabilities"].pop("backends"), t["capabilities"].pop("reproducible")),
                              want, t["id"])
         caps = {t["id"]: t["capabilities"] for t in images}

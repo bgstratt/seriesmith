@@ -471,7 +471,9 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
 # "Seedance 2.0, 2.0 fast & 2.0 mini: [4,15]", "Veo 3/3.1: 4, 6, or 8"
 PER_MODEL = re.compile(r"(?m)(?:^\s*-\s*[^\n:]{2,90}:|\b[A-Z][A-Za-z]+ \d[^\n:]{0,60}:)")
 SECTION_OF = {"duration": "length", "resolution": "size", "prompt": "prompt",
-              "references": "pictures", "first": "pictures", "last": "pictures"}
+              "references": "pictures", "first": "pictures", "last": "pictures",
+              # image models'
+              "size": "size", "ratio": "size", "images": "pictures"}
 
 
 def shared_fields(inputs: dict, all_fields: list) -> dict[str, list[dict]]:
@@ -495,3 +497,197 @@ def shared_fields(inputs: dict, all_fields: list) -> dict[str, list[dict]]:
 
 def _name(m: dict) -> str:
     return m.get("name") or m.get("field") or ""
+
+
+# -- image models ---------------------------------------------------------------------
+#
+# An image model proposed as a target driven by targets/generic/router_image.py.
+# Image requests vary more than video's -- a chat message's parts (Gemini,
+# Qwen), numbered input fields (Flux), one field taking a picture or a list
+# (GPT Image, Seedream), a ratio and a 1K/2K size, a WxH string -- so this is a
+# first reading to look over (the editor's Limits, the target.json), and the
+# models seriesmith ships are mapped by hand (tools/make_router_targets.py).
+
+GEMINI_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
+_PICTURE_NAMES = ("image", "images", "imageurls", "imagelist", "inputimage", "inputimages",
+                  "referenceimages", "imageinput", "imageurl")
+
+
+def propose_image(model: str, doc: dict) -> dict:
+    """{"proposal": an image target.json, "mapped", "unplaced", "warnings",
+    "shared"} for Router image model `model` from its schema `doc`."""
+    body = request_schema(doc)
+    required = set(body.get("required") or [])
+    all_fields = list(fields(doc, body))
+    by_path = dict(all_fields)
+    inputs: dict = {}
+    args: dict = {}
+    warnings: list[str] = []
+
+    # a chat message: an array whose items hold a list of parts with text
+    for path, v in all_fields:
+        if v.get("type") != "array" or "." in path and path.count(".") > 1:
+            continue
+        item = _resolve(doc, v.get("items") or {})
+        props = item.get("properties") or {}
+        parts_key = next((k for k in ("parts", "content") if k in props), None)
+        if not parts_key:
+            continue
+        part = _resolve(doc, (_resolve(doc, props[parts_key]).get("items") or {}))
+        pprops = {k: _resolve(doc, x) for k, x in (part.get("properties") or {}).items()}
+        if "text" not in pprops:
+            continue
+        lst = f"{path}.0.{parts_key}"
+        inputs["prompt"] = {"list": lst, "item": {"text": "$prompt"}}
+        if "role" in props:
+            put_path(args, f"{path}.0.role", "user")
+        if "inlineData" in pprops:
+            inputs["images"] = {"list": lst, "first": True, "max": 4,
+                                "item": {"inlineData": {"mimeType": "$mime", "data": "$url"}}}
+            inputs["via"] = "base64"
+        elif "image" in pprops:
+            inputs["images"] = {"list": lst, "item": {"image": "$url"}, "first": True,
+                                "max": _max_from(pprops["image"], 3)}
+        break
+
+    numbered = sorted((p for p, _ in all_fields if re.fullmatch(r"input_image(_\d+)?", p)),
+                      key=lambda p: int(p.rsplit("_", 1)[1]) if p[-1].isdigit() else 1)
+    for path, v in all_fields:
+        leaf = _norm(path.split(".")[-1])
+        t = v.get("type")
+        enum = v.get("enum")
+        desc = str(v.get("description") or "")
+        if any(path == m.get("list") or path.startswith(str(m.get("list")) + ".")
+               for m in inputs.values() if isinstance(m, dict)):
+            continue
+        if "not supported" in desc.lower()[:80]:
+            continue                                     # "Size of the image (not supported)"
+        if leaf in ("prompt", "textprompt") and t == "string" and "prompt" not in inputs:
+            inputs["prompt"] = {"field": path, "max_chars": v["maxLength"]} \
+                if isinstance(v.get("maxLength"), int) else path
+        elif leaf in ("negativeprompt",) and t == "string" and "negative" not in inputs:
+            inputs["negative"] = path
+        elif leaf in _PICTURE_NAMES and "images" not in inputs:
+            if numbered and path == numbered[0]:
+                inputs["images"] = {"fields": numbered, "max": len(numbered)}
+            elif t == "array":
+                item = _resolve(doc, v.get("items") or {})
+                tpl = _picture_item(doc, item)
+                inputs["images"] = {"list": path, **({"item": tpl} if tpl != "$url" else {}),
+                                    "max": int(v.get("maxItems") or 4)}
+            elif not numbered:
+                inputs["images"] = {"field": path, "max": _max_from(v, 4)}
+        elif leaf in ("aspectratio", "ratio") and "ratio" not in inputs:
+            vals = [x for x in (enum or []) if ":" in str(x)] or GEMINI_RATIOS
+            if not enum:
+                warnings.append(f"{path}: no ratios listed; the common ones assumed")
+            inputs["ratio"] = {"name": path, "values": vals}
+        elif leaf in ("resolution", "imagesize") and "resolution" not in inputs and t == "string":
+            vals = [x for x in (enum or []) if re.fullmatch(r"\d+(\.\d+)?k", str(x).lower())]
+            if not vals and re.search(r"WIDTHxHEIGHT|\b\d{3,4}\s*[x*]\s*\d{3,4}\b", desc):
+                inputs["size"] = {"name": path, "format": "{w}x{h}", "multiple": 16}    # Ideogram's
+                continue
+            if not vals:
+                vals = [f"{k}K" for k in dict.fromkeys(re.findall(r"\b(\d)K\b", desc))]
+            if vals:
+                inputs["resolution"] = {"name": path, "values": vals}
+        elif leaf == "size" and t == "string" and "size" not in inputs:
+            star = "*" in re.sub(r"\s", "", desc[:400]) and re.search(r"\d+\*\d+", desc)
+            sizes = re.findall(r"\b(\d{3,4}x\d{3,4})\b", desc)
+            free = re.search(r"total pixels|pixel area|width and height in pixels", desc, re.I)
+            if sizes and not star and not free and len(desc) < 300:
+                # a short list ("e.g., 1024x1024, 1536x1024, auto"): those, and each
+                # landscape one's portrait twin
+                vals = list(dict.fromkeys(sizes))
+                for v in list(vals):
+                    a, b = v.split("x")
+                    if int(a) > int(b) and f"{b}x{a}" not in vals:
+                        vals.append(f"{b}x{a}")
+                inputs["size"] = {"name": path, "values": vals}
+            else:
+                inputs["size"] = {"name": path, "format": "{w}*{h}" if star else "{w}x{h}", "multiple": 16}
+                # "a pixel area between 262144 (512*512) and 6553600 (2560*2560)"
+                big = [int(x) for x in re.findall(r"\b\d{5,}\b", desc)[:2]]
+                if len(big) == 2 and big[0] < big[1]:
+                    inputs["size"].update(min_pixels=big[0], max_pixels=big[1])
+        elif leaf in ("width", "height") and t == "integer":
+            d = {"name": path, "multiple": 16}
+            for k, src in (("min", "minimum"), ("max", "maximum")):
+                if isinstance(v.get(src), (int, float)):
+                    d[k] = int(v[src])
+            inputs[leaf] = d
+        elif leaf == "seed" and t in ("integer", "number") and "seed" not in inputs:
+            hi = v.get("maximum")
+            inputs["seed"] = {"name": path, "max": min(int(hi), SEED_MAX)
+                              if isinstance(hi, (int, float)) and hi > 0 else SEED_MAX}
+        elif leaf in ("n", "numimages", "numberofimages", "samplecount") and t == "integer":
+            args[path] = 1
+        elif leaf == "responseformat" and enum and "url" in enum:
+            args[path] = "url"
+        elif leaf == "watermark" and t == "boolean":
+            args[path] = False
+        elif leaf == "outputformat" and enum and "png" in enum:
+            args[path] = "png"
+        elif leaf == "responsemodalities":
+            args[path] = ["IMAGE"]
+        elif leaf == "sequentialimagegeneration" and enum and "disabled" in enum:
+            args[path] = "disabled"
+        elif leaf == "promptupsampling" and t == "boolean":
+            args[path] = False
+
+    if "width" in inputs and "height" not in inputs or "height" in inputs and "width" not in inputs:
+        inputs.pop("width", None)
+        inputs.pop("height", None)
+    imgs = inputs.get("images")
+    if imgs and "<<<image_1>>>" in str((by_path.get(_name(inputs["prompt"]) if isinstance(inputs.get("prompt"), dict)
+                                                       else inputs.get("prompt")) or {}).get("description")):
+        imgs["mention"] = "<<<image_{n}>>>"
+    if model.startswith("byteplus/") and imgs:
+        warnings.append("BytePlus may refuse a photoreal person's picture as a plain link (as Seedance "
+                        "did): if so, set Limits -> pictures sent as -> the Seedance library")
+    if "prompt" not in inputs:
+        warnings.append("no field for the prompt was found: set router.inputs.prompt")
+    if not any(k in inputs for k in ("ratio", "resolution", "size", "width")):
+        warnings.append("no size field was found: the model's own default size")
+
+    arguments: dict = {}
+    from seriesmith.targets.generic.router_video import put
+    for path, value in args.items():
+        put(arguments, path, value)
+    placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m
+              for k, m in inputs.items() if k != "via"}
+    placed |= set(args) | {f for m in inputs.values() if isinstance(m, dict) for f in (m.get("fields") or [])}
+    unplaced = sorted(f for f in required if not any(p == f or p.startswith(f + ".") for p in placed))
+    tid = re.sub(r"[^a-z0-9]+", "_", model.split("/", 1)[1].lower()).strip("_")
+    if not tid[:1].isalpha():
+        tid = "m_" + tid
+    proposal = {
+        "id": tid, "kind": "image",
+        "label": f"{model.split('/', 1)[1]} (hosted, Comfy Router)",
+        "short": model.split("/", 1)[1].split("-")[0].capitalize(),
+        "code": "builtin:router_image", "draft": True,
+        "capabilities": {"backends": ["router"], "seed": "provider",
+                         "mode": "edit" if imgs else "t2i",
+                         "max_refs": int(imgs.get("max") or 1) if imgs else 0},
+        "template": {"view_size": [1024, 1024], "plate_size": [1344, 768], "object_size": [1024, 1024]},
+        "recipe": {"views": ["01_threequarter", "02_side", "03_back", "04_face"], "ref_word": "image"},
+        "router": {"model": model, "arguments": arguments, "inputs": inputs},
+        "presets": {"final": {"model": model, "lora": "", "steps": 0, "cfg": 1.0}},
+    }
+    mapped = {k: (m if isinstance(m, str) else m.get("list") or _name(m) or ", ".join(m.get("fields") or []))
+              for k, m in inputs.items() if k != "via"}
+    return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings,
+            "shared": shared_fields(inputs, all_fields)}
+
+
+def _max_from(v: dict, default: int) -> int:
+    """How many pictures a field takes: its maxItems, or one of its oneOf's."""
+    for x in [v] + list(v.get("oneOf") or []):
+        if isinstance(x, dict) and isinstance(x.get("maxItems"), int):
+            return int(x["maxItems"])
+    return default
+
+
+def put_path(args: dict, path: str, value) -> None:
+    from seriesmith.targets.generic.router_video import put
+    put(args, path, value)

@@ -59,11 +59,20 @@ def urls_in(value: Any) -> Iterable[str]:
 def inline_in(value: Any) -> Iterable[tuple[str, str]]:
     """(base64 data, mime type) of every file a provider's result carries
     inline, in order: Veo returns its video as {"bytesBase64Encoded",
-    "mimeType"}, not a link."""
+    "mimeType"}, GPT Image its pictures as {"b64_json"}, Gemini as
+    {"inlineData": {"mimeType", "data"}} -- not links."""
     if isinstance(value, dict):
         data = value.get("bytesBase64Encoded")
         if isinstance(data, str) and data:
             yield data, str(value.get("mimeType") or "video/mp4")
+            return
+        data = value.get("b64_json")
+        if isinstance(data, str) and data:
+            yield data, "image/" + str(value.get("output_format") or "png")
+            return
+        inline = value.get("inlineData") or value.get("inline_data")
+        if isinstance(inline, dict) and isinstance(inline.get("data"), str) and inline["data"]:
+            yield inline["data"], str(inline.get("mimeType") or inline.get("mime_type") or "image/png")
             return
         for x in value.values():
             yield from inline_in(x)

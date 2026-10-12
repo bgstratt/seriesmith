@@ -1,0 +1,75 @@
+{
+  "id": "seedream_5_0",
+  "kind": "image",
+  "label": "Seedream 5.0 (hosted, Comfy Router)",
+  "short": "Seedream",
+  "code": "builtin:router_image",
+  "_note": "BytePlus. A picture of a photoreal person may be refused as a plain link (as Seedance's were): if so, send pictures through the Seedance library (Limits: sent as).",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 10
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "byteplus/seedream-5-0-260128",
+    "arguments": {
+      "response_format": "url",
+      "watermark": false,
+      "sequential_image_generation": "disabled",
+      "output_format": "png"
+    },
+    "inputs": {
+      "prompt": "prompt",
+      "images": {
+        "field": "image",
+        "max": 10
+      },
+      "size": {
+        "name": "size",
+        "format": "{w}x{h}",
+        "multiple": 16,
+        "min_pixels": 3686400,
+        "max_pixels": 9437184
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "byteplus/seedream-5-0-260128",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

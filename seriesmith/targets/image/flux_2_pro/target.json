@@ -1,0 +1,87 @@
+{
+  "id": "flux_2_pro",
+  "kind": "image",
+  "label": "Flux 2 Pro (hosted, Comfy Router)",
+  "short": "Flux 2 Pro",
+  "code": "builtin:router_image",
+  "_note": "Black Forest Labs.",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 8
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "bfl/flux-2-pro",
+    "arguments": {
+      "output_format": "png",
+      "prompt_upsampling": false
+    },
+    "inputs": {
+      "prompt": "prompt",
+      "images": {
+        "fields": [
+          "input_image",
+          "input_image_2",
+          "input_image_3",
+          "input_image_4",
+          "input_image_5",
+          "input_image_6",
+          "input_image_7",
+          "input_image_8"
+        ],
+        "max": 8
+      },
+      "width": {
+        "name": "width",
+        "min": 256,
+        "max": 2048,
+        "multiple": 16
+      },
+      "height": {
+        "name": "height",
+        "min": 256,
+        "max": 2048,
+        "multiple": 16
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "bfl/flux-2-pro",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

@@ -886,7 +886,8 @@ def validate_spec(spec: dict, graph: dict | None = None,
     if tid and not ID_RE.match(tid):
         out.append(f"id {tid!r} must be lowercase letters, digits and underscores, "
                    f"starting with a letter")
-    if spec.get("kind") and spec["kind"] != KIND:
+    hosted_image = spec.get("router") is not None and spec.get("kind") == "image"
+    if spec.get("kind") and spec["kind"] != KIND and not hosted_image:
         out.append(f"kind must be {KIND!r} for a target made from a workflow, "
                    f"not {spec['kind']!r}")
     # a built-in's name only: with a show in force its own targets are listed
@@ -901,8 +902,9 @@ def validate_spec(spec: dict, graph: dict | None = None,
         inputs = r.get("inputs")
         if not isinstance(inputs, dict) or not inputs.get("prompt"):
             out.append("router.inputs must say where the prompt goes")
-        if spec.get("code") not in (None, "builtin:router_video"):
-            out.append("a Router target's code is builtin:router_video")
+        code = "builtin:router_image" if hosted_image else "builtin:router_video"
+        if spec.get("code") not in (None, code):
+            out.append(f"a Router {spec.get('kind', 'video')} target's code is {code}")
         return out
     b = spec.get("binding") or {}
     if not b.get("workflow_name"):

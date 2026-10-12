@@ -1,0 +1,93 @@
+{
+  "id": "qwen_image_3",
+  "kind": "image",
+  "label": "Qwen Image 3.0 (hosted, Comfy Router)",
+  "short": "Qwen Image",
+  "code": "builtin:router_image",
+  "_note": "Alibaba. 1 to 3 pictures to edit.",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 3
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "qwen/qwen-image-3.0",
+    "arguments": {
+      "input": {
+        "messages": [
+          {
+            "role": "user"
+          }
+        ]
+      },
+      "parameters": {
+        "n": 1,
+        "prompt_extend": false,
+        "watermark": false
+      }
+    },
+    "inputs": {
+      "prompt": {
+        "list": "input.messages.0.content",
+        "item": {
+          "text": "$prompt"
+        }
+      },
+      "images": {
+        "list": "input.messages.0.content",
+        "item": {
+          "image": "$url"
+        },
+        "first": true,
+        "max": 3
+      },
+      "negative": "parameters.negative_prompt",
+      "size": {
+        "name": "parameters.size",
+        "format": "{w}*{h}",
+        "multiple": 16,
+        "min_pixels": 262144,
+        "max_pixels": 6553600
+      },
+      "seed": {
+        "name": "parameters.seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "qwen/qwen-image-3.0",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

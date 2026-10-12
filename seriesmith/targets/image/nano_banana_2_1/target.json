@@ -1,0 +1,110 @@
+{
+  "id": "nano_banana_2_1",
+  "kind": "image",
+  "label": "Nano Banana 2.1 (hosted, Comfy Router)",
+  "short": "Nano Banana",
+  "code": "builtin:router_image",
+  "_note": "Google's own, on Vertex. Up to 6 reference pictures sent inline.",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 6
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "vertexai/gemini-nano-banana-2.1",
+    "arguments": {
+      "contents": [
+        {
+          "role": "user"
+        }
+      ],
+      "generationConfig": {
+        "responseModalities": [
+          "IMAGE"
+        ]
+      }
+    },
+    "inputs": {
+      "prompt": {
+        "list": "contents.0.parts",
+        "item": {
+          "text": "$prompt"
+        }
+      },
+      "images": {
+        "list": "contents.0.parts",
+        "first": true,
+        "max": 6,
+        "item": {
+          "inlineData": {
+            "mimeType": "$mime",
+            "data": "$url"
+          }
+        }
+      },
+      "via": "base64",
+      "ratio": {
+        "name": "generationConfig.imageConfig.aspectRatio",
+        "values": [
+          "1:1",
+          "2:3",
+          "3:2",
+          "3:4",
+          "4:3",
+          "4:5",
+          "5:4",
+          "9:16",
+          "16:9",
+          "21:9"
+        ]
+      },
+      "resolution": {
+        "name": "generationConfig.imageConfig.imageSize",
+        "values": [
+          "1K",
+          "2K",
+          "4K"
+        ]
+      },
+      "seed": {
+        "name": "generationConfig.seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "vertexai/gemini-nano-banana-2.1",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

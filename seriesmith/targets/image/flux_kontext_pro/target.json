@@ -1,0 +1,85 @@
+{
+  "id": "flux_kontext_pro",
+  "kind": "image",
+  "label": "Flux Kontext Pro (hosted, Comfy Router)",
+  "short": "Kontext Pro",
+  "code": "builtin:router_image",
+  "_note": "Black Forest Labs. The first picture is the one edited; the others are references.",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 4
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "bfl/flux-kontext-pro",
+    "arguments": {
+      "output_format": "png",
+      "prompt_upsampling": false
+    },
+    "inputs": {
+      "prompt": "prompt",
+      "images": {
+        "fields": [
+          "input_image",
+          "input_image_2",
+          "input_image_3",
+          "input_image_4"
+        ],
+        "max": 4
+      },
+      "ratio": {
+        "name": "aspect_ratio",
+        "values": [
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "1:1",
+          "3:4",
+          "2:3",
+          "9:16",
+          "9:21"
+        ]
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "bfl/flux-kontext-pro",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

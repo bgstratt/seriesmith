@@ -844,7 +844,7 @@ class Target:
                 # where it lives (builtin, user: every show's, show), and its limits
                 # (seriesmith.limits), changed on this machine or as shipped
                 "scope": scope_of(self.folder),
-                **({"limits": _limits_json(self)} if self.kind == "video" else {}),
+                **({"limits": _limits_json(self)} if self.kind in ("video", "image") else {}),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -929,8 +929,8 @@ def custom_folders(root: str) -> list[tuple[str, str, str]]:
 
 
 def _limits_json(t: "Target") -> dict:
-    """A video target's limits for the editor: describe's dict, plus whether
-    this machine overrides a built-in's (and what it shipped with)."""
+    """A video or image target's limits for the editor: describe's dict, plus
+    whether this machine overrides a built-in's (and what it shipped with)."""
     from seriesmith import limits as L
     d = L.describe(t.spec)
     if t.shipped_spec is not None:

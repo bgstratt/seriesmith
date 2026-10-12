@@ -1690,8 +1690,20 @@ export interface Target {
   shipped_draft?: boolean;
   /** where it lives: seriesmith's own, every show's (beside the settings), or one show's */
   scope?: "builtin" | "user" | "show";
-  /** a video target's limits (seriesmith.limits; PUT /seriesmith/targets/limits) */
-  limits?: Limits;
+  /** a video or (hosted) image target's limits (seriesmith.limits; PUT /seriesmith/targets/limits) */
+  limits?: Limits | ImageLimits;
+}
+
+/** What a hosted image model takes (seriesmith/limits.py describe_image): no
+ * length or sound; its size as the ratios / named resolutions / sizes it
+ * offers or a pixel range; how many pictures (0: text to image only). */
+export interface ImageLimits {
+  size: { ratios?: string[]; resolutions?: string[]; sizes?: string[]; min_pixels?: number; max_pixels?: number };
+  prompt: { max_chars?: number };
+  pictures: { references?: number; via?: string };
+  editable?: string[];
+  overridden?: boolean;
+  shipped?: Omit<ImageLimits, "editable" | "overridden" | "shipped">;
 }
 
 /** What a video target takes (seriesmith/limits.py): read from its target.json,

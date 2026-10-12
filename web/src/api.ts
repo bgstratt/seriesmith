@@ -269,7 +269,7 @@ export interface Api {
   /** PUT /seriesmith/targets/limits: null puts a built-in back as shipped */
   putTargetLimits(ep: string | null, id: string, limits: Partial<Limits> | null): Promise<{ ok: boolean; id: string; path: string; target: Target }>;
   routerModels(ep: string | null): Promise<{ models: RouterCatalogModel[] }>;
-  routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string }): Promise<RouterDryRun>;
+  routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string; ref?: string | null; view?: string | null }): Promise<RouterDryRun>;
   /** Phase 12b: remove one. */
   deleteCustomTarget(ep: string, id: string): Promise<CustomTargetResult>;
   /** Phase 12c: stop being a draft (a probe render proved it), or go back to one. */

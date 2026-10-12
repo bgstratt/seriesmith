@@ -45,6 +45,8 @@ def _router(spec: dict) -> dict | None:
 
 def describe(spec: dict) -> dict:
     """The limits a target.json states (see the module docstring)."""
+    if spec.get("kind") == "image":
+        return describe_image(spec)
     tpl = spec.get("template") or {}
     caps = spec.get("capabilities") or {}
     recipe = spec.get("recipe") or {}
@@ -95,6 +97,8 @@ def apply(spec: dict, limits: dict) -> dict:
     """A copy of target.json `spec` with `limits` (all of describe's dict, or
     some sections of it) written where each lives. ValueError for a limit that
     can't be (an empty grid, a size list with a bad entry, an unknown via)."""
+    if spec.get("kind") == "image":
+        return apply_image(spec, limits)
     spec = copy.deepcopy(spec)
     router = _router(spec)
     hosted = router is not None
@@ -270,3 +274,109 @@ def _switch(inp: dict, off: dict, key: str, on: bool) -> None:
         inp[key] = off.pop(key)
     elif not on and key in inp:
         off[key] = inp.pop(key)
+
+
+# -- image targets ----------------------------------------------------------------
+#
+# A hosted image model (targets/generic/router_image.py) has no length and no
+# sound; its size is the ratios and named resolutions it offers, a list of
+# sizes, or a pixel range; its pictures are how many it takes (0: text to
+# image only) and how they're sent:
+#
+#     {"size": {"ratios": [...], "resolutions": ["1K", "2K"], "sizes": ["1024x1024"],
+#               "min_pixels": 3686400, "max_pixels": 9437184},
+#      "prompt": {"max_chars": 2500},
+#      "pictures": {"references": 6, "via": "base64"},
+#      "editable": ["size", "prompt", "pictures"]}
+#
+# A local image workflow's limits are its graph's: described, not edited here.
+
+IMAGE_SECTIONS = ("size", "prompt", "pictures")
+
+
+def describe_image(spec: dict) -> dict:
+    router = _router(spec)
+    if router is None:
+        caps = spec.get("capabilities") or {}
+        return {"size": {}, "prompt": {}, "pictures": {"references": int(caps.get("max_refs") or 0)},
+                "editable": []}
+    inp = router.get("inputs") or {}
+    size: dict = {}
+    if isinstance(inp.get("ratio"), dict):
+        size["ratios"] = list(inp["ratio"].get("values") or [])
+    if isinstance(inp.get("resolution"), dict):
+        size["resolutions"] = list(inp["resolution"].get("values") or [])
+    sz = inp.get("size")
+    if isinstance(sz, dict):
+        if sz.get("values"):
+            size["sizes"] = list(sz["values"])
+        for k in ("min_pixels", "max_pixels"):
+            if sz.get(k):
+                size[k] = int(sz[k])
+    p = inp.get("prompt")
+    prompt = {"max_chars": p.get("max_chars")} if isinstance(p, dict) and p.get("max_chars") else {}
+    imgs = inp.get("images")
+    pictures = {"references": int(imgs.get("max") or 1) if imgs else 0, "via": inp.get("via", "")}
+    return {"size": size, "prompt": prompt, "pictures": pictures, "editable": list(IMAGE_SECTIONS)}
+
+
+def apply_image(spec: dict, limits: dict) -> dict:
+    spec = copy.deepcopy(spec)
+    router = _router(spec)
+    if router is None:
+        if any(limits.get(k) for k in IMAGE_SECTIONS):
+            raise ValueError(f"{spec.get('id', 'this target')} is a local workflow: its limits are its graph's")
+        return spec
+    inp = router.setdefault("inputs", {})
+    caps = spec.setdefault("capabilities", {})
+    size = limits.get("size")
+    if size:
+        for key, field in (("ratios", "ratio"), ("resolutions", "resolution")):
+            if key in size and isinstance(inp.get(field), dict):
+                if not size[key]:
+                    raise ValueError(f"size: keep at least one of the {key}")
+                inp[field]["values"] = list(size[key])
+        sz = inp.get("size")
+        if isinstance(sz, dict):
+            if "sizes" in size and sz.get("values") is not None:
+                if not size["sizes"]:
+                    raise ValueError("size: keep at least one size")
+                sz["values"] = list(size["sizes"])
+            for k in ("min_pixels", "max_pixels"):
+                if k in size:
+                    if size[k]:
+                        sz[k] = int(size[k])
+                    else:
+                        sz.pop(k, None)
+    prompt = limits.get("prompt")
+    if prompt is not None:
+        p = inp.get("prompt") or "prompt"
+        n = prompt.get("max_chars")
+        if isinstance(p, str):
+            p = {"field": p}
+        if n:
+            p["max_chars"] = int(n)
+        else:
+            p.pop("max_chars", None)
+        inp["prompt"] = p if (n or "list" in p) else (p.get("field") or "prompt")
+    pics = limits.get("pictures")
+    if pics:
+        off = router.setdefault("off", {})
+        if "references" in pics:
+            n = int(pics["references"] or 0)
+            _switch(inp, off, "images", n > 0)
+            if n > 0 and "images" in inp:
+                if int(inp["images"].get("max") or 1) != n:
+                    inp["images"]["max"] = n
+            caps["mode"] = "edit" if "images" in inp else "t2i"
+            caps["max_refs"] = int(inp["images"].get("max") or 1) if "images" in inp else 0
+        if not off:
+            router.pop("off", None)
+        if "via" in pics:
+            if pics["via"] not in VIAS:
+                raise ValueError(f"pictures: via is one of {', '.join(v or 'link' for v in VIAS)}")
+            if pics["via"]:
+                inp["via"] = pics["via"]
+            else:
+                inp.pop("via", None)
+    return spec

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { saveTargetLimits } from "../actions";
-import type { Limits, SharedField, Target } from "../types";
+import type { ImageLimits, Limits, SharedField, Target } from "../types";
 import { useApp } from "../store";
 
 const VIAS: [string, string][] = [
@@ -288,23 +288,29 @@ const SCOPE: Record<string, string> = {
   show: "this show's own",
 };
 
-/** The details window's limits card: read, then Edit; a built-in's changes go
- * back with "Back to shipped". */
+/** The details window's limits card (a video target's, or a hosted image
+ * model's): read, then Edit; a built-in's changes go back with "Back to
+ * shipped". */
 export function LimitsCard({ t }: { t: Target }) {
   const saving = useApp((s) => !!s.busy["target-save"]);
-  const [draft, setDraft] = useState<Limits | null>(null);
+  const [draft, setDraft] = useState<Limits | ImageLimits | null>(null);
   const l = t.limits;
   if (!l) return null;
-  const base = (l.overridden && l.shipped ? { ...l, ...l.shipped } : l) as Limits;
+  const image = t.kind === "image";
+  if (image && !(l.editable ?? []).length) return null;          // a local workflow's: its graph's
+  const base = (l.overridden && l.shipped ? { ...l, ...l.shipped } : l) as Limits | ImageLimits;
+  const changed = (d: Limits | ImageLimits, from: Limits | ImageLimits) => (image
+    ? changedImageLimits(d as ImageLimits, from as ImageLimits)
+    : changedLimits(d as Limits, from as Limits));
   async function save() {
     if (!draft) return;
     // a built-in's override is everything that differs from what it shipped with
-    const diff = changedLimits(draft, t.scope === "builtin" ? base : l!);
+    const diff = changed(draft, t.scope === "builtin" ? base : l!);
     if (t.scope === "builtin" && !Object.keys(diff).length) {
       if (await saveTargetLimits(t.id, null)) setDraft(null);
       return;
     }
-    if (await saveTargetLimits(t.id, diff)) setDraft(null);
+    if (await saveTargetLimits(t.id, diff as Partial<Limits>)) setDraft(null);
   }
   return (
     <div className="h3-col" style={{ gap: 6 }}>
@@ -316,7 +322,9 @@ export function LimitsCard({ t }: { t: Target }) {
       </div>
       {draft ? (
         <>
-          <LimitsForm value={draft} onChange={setDraft} />
+          {image
+            ? <ImageLimitsForm value={draft as ImageLimits} onChange={setDraft} />
+            : <LimitsForm value={draft as Limits} onChange={setDraft} />}
           <div className="h3-row" style={{ gap: 6 }}>
             <span className="h3-grow" />
             <button className="h3-btn" onClick={() => setDraft(null)}>Cancel</button>
@@ -327,7 +335,7 @@ export function LimitsCard({ t }: { t: Target }) {
         </>
       ) : (
         <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
-          <span className="h3-grow">{limitsSummary(l)}</span>
+          <span className="h3-grow">{image ? imageLimitsSummary(l as ImageLimits) : limitsSummary(l as Limits)}</span>
           {l.overridden && (
             <button className="h3-btn" disabled={saving} title="Drop this machine's changes: the limits seriesmith ships"
               onClick={() => void saveTargetLimits(t.id, null)}>
@@ -341,6 +349,122 @@ export function LimitsCard({ t }: { t: Target }) {
       )}
     </div>
   );
+}
+
+/** Ticks over a set of choices (ratios, resolutions, sizes), at least one kept. */
+function Ticks({ all, value, onChange, disabled }: {
+  all: string[]; value: string[]; onChange: (v: string[]) => void; disabled?: boolean;
+}) {
+  return (
+    <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+      {all.map((r) => (
+        <label key={r} className="h3-check h3-small">
+          <input type="checkbox" disabled={disabled || (value.length === 1 && value[0] === r)} checked={value.includes(r)}
+            onChange={(e) => onChange(e.target.checked ? all.filter((x) => x === r || value.includes(x))
+                                                       : value.filter((x) => x !== r))} />
+          {r}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** A hosted image model's limits: the size it's asked for in, its prompt, its
+ * pictures (how many; 0 is text to image only) and how they're sent. */
+export function ImageLimitsForm({ value, onChange, shared, choices }: {
+  value: ImageLimits;
+  onChange: (l: ImageLimits) => void;
+  shared?: Record<string, SharedField[]>;
+  /** every ratio / resolution / size the schema lists (the wizard), to tick */
+  choices?: ImageLimits["size"];
+}) {
+  const l = value;
+  const set = <K extends "size" | "prompt" | "pictures">(k: K, patch: Partial<ImageLimits[K]>) =>
+    onChange({ ...l, [k]: { ...l[k], ...patch } });
+  const all = (k: "ratios" | "resolutions" | "sizes") =>
+    Array.from(new Set([...(choices?.[k] ?? []), ...(l.shipped?.size[k] ?? []), ...(l.size[k] ?? [])]));
+  return (
+    <div className="h3-col" style={{ gap: 8 }}>
+      <div className="h3-field h3-field-top">
+        <label>Size</label>
+        <div className="h3-col" style={{ gap: 4 }}>
+          {l.size.ratios && (<><span className="h3-small h3-muted">shapes it's asked for in</span>
+            <Ticks all={all("ratios")} value={l.size.ratios} onChange={(v) => set("size", { ratios: v })} /></>)}
+          {l.size.resolutions && (<><span className="h3-small h3-muted">sizes (1K is about a megapixel; the smallest that fits is asked for)</span>
+            <Ticks all={all("resolutions")} value={l.size.resolutions} onChange={(v) => set("size", { resolutions: v })} /></>)}
+          {l.size.sizes && (<><span className="h3-small h3-muted">only these sizes (the nearest in shape is asked for)</span>
+            <Ticks all={all("sizes")} value={l.size.sizes} onChange={(v) => set("size", { sizes: v })} /></>)}
+          {(l.size.min_pixels !== undefined || l.size.max_pixels !== undefined || (!l.size.ratios && !l.size.resolutions && !l.size.sizes)) && (
+            <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+              <span className="h3-small">from</span>
+              <Num value={l.size.min_pixels} width={100} placeholder="—" title="The fewest pixels it draws (a smaller ref is asked for bigger)"
+                onChange={(v) => set("size", { min_pixels: v })} />
+              <span className="h3-small">to</span>
+              <Num value={l.size.max_pixels} width={100} placeholder="—" title="The most pixels it draws"
+                onChange={(v) => set("size", { max_pixels: v })} />
+              <span className="h3-small">pixels</span>
+            </div>
+          )}
+        </div>
+        <SharedNote fields={shared?.size} />
+      </div>
+      <div className="h3-field h3-field-top">
+        <label>Prompt</label>
+        <div className="h3-row" style={{ gap: 6 }}>
+          <span className="h3-small">at most</span>
+          <Num value={l.prompt.max_chars} width={80} placeholder="—" title="The longest prompt it takes, in characters"
+            onChange={(v) => set("prompt", { max_chars: v })} />
+          <span className="h3-small">characters</span>
+        </div>
+        <SharedNote fields={shared?.prompt} />
+      </div>
+      <div className="h3-field h3-field-top">
+        <label>Pictures</label>
+        <div className="h3-col" style={{ gap: 4 }}>
+          <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+            <span className="h3-small">takes up to</span>
+            <Num value={l.pictures.references ?? 0} width={50}
+              title="Reference pictures: an edit's source, a keyframe's characters and plate, a variant's base view. 0: text to image only."
+              onChange={(v) => set("pictures", { references: v ?? 0 })} />
+            <span className="h3-small">{(l.pictures.references ?? 0) ? "pictures (edits and references)" : "— text to image only"}</span>
+          </div>
+          <div className="h3-row" style={{ gap: 6 }}>
+            <span className="h3-small">sent as</span>
+            <select className="h3-in" value={l.pictures.via ?? ""} onChange={(e) => set("pictures", { via: e.target.value })}>
+              {VIAS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        <SharedNote fields={shared?.pictures} />
+      </div>
+    </div>
+  );
+}
+
+/** The sections of an image model's `draft` that differ from `from`. */
+export function changedImageLimits(draft: ImageLimits, from: ImageLimits): Partial<ImageLimits> {
+  const out: Record<string, unknown> = {};
+  for (const k of ["size", "prompt", "pictures"] as const) {
+    if (JSON.stringify(draft[k]) !== JSON.stringify(from[k])) out[k] = draft[k];
+  }
+  return out as Partial<ImageLimits>;
+}
+
+/** One line: "16:9, 1:1… · 1K, 2K · up to 6 pictures, inline". */
+export function imageLimitsSummary(l: ImageLimits): string {
+  const parts: string[] = [];
+  const z = l.size;
+  if (z.ratios?.length) parts.push(z.ratios.length > 4 ? `${z.ratios.length} shapes` : z.ratios.join(", "));
+  if (z.resolutions?.length) parts.push(z.resolutions.join(", "));
+  if (z.sizes?.length) parts.push(z.sizes.join(", "));
+  if (z.min_pixels || z.max_pixels) {
+    parts.push(`${z.min_pixels ? (z.min_pixels / 1e6).toFixed(1) : "?"}–${z.max_pixels ? (z.max_pixels / 1e6).toFixed(1) : "?"} MP`);
+  }
+  if (l.prompt.max_chars) parts.push(`prompt ≤ ${l.prompt.max_chars}`);
+  const n = l.pictures.references ?? 0;
+  parts.push(n ? `up to ${n} picture${n > 1 ? "s" : ""}${l.pictures.via ? `, ${l.pictures.via === "base64" ? "inline" : l.pictures.via}` : ""}`
+               : "text to image only");
+  return parts.join(" · ");
 }
 
 /** One line: "2–10 s · 720P, 1080P · prompt ≤ 1000 · 5 references, first frame · silent". */

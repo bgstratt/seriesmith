@@ -90,7 +90,7 @@ class SharedFieldsTest(unittest.TestCase):
     def test_the_fields_that_hid_a_limit_are_named(self):
         sd = proposal("byteplus/dreamina-seedance-2-0-260128")["shared"]
         self.assertEqual({k: [x["input"] for x in v] for k, v in sd.items()},
-                         {"length": ["duration"], "size": ["resolution"]})
+                         {"length": ["duration"], "size": ["resolution", "ratio"]})
         self.assertIn("[4,15]", sd["length"][0]["text"])
         self.assertEqual(proposal("kling/kling-v3-omni")["shared"], {})
 
@@ -183,6 +183,20 @@ class LimitsRoutesTest(ApiTest):
         self.assertEqual(by["openai/gpt-5"]["kind"], "other")
         with mock.patch.dict(os.environ, {"COMFY_API_KEY": ""}):
             self.ok(A.get_router_models(self.ctx, {}), 409)
+
+    def test_an_image_model_is_read_and_dry_run_on_a_ref(self):
+        from unittest import mock
+        with open(os.path.join(SCHEMAS, "kling__kling-image-o1.json"), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        with mock.patch.dict(os.environ, {"COMFY_API_KEY": "k"}),                 mock.patch.object(RI, "fetch_schema", return_value=doc):
+            d = self.ok(A.post_targets_router_inspect(self.ctx, {"model": "kling/kling-image-o1", "ep": self.ep}))
+        self.assertEqual((d["proposal"]["kind"], d["proposal"]["code"]), ("image", "builtin:router_image"))
+        self.assertEqual(d["limits"]["editable"], ["size", "prompt", "pictures"])
+        run = self.ok(A.post_targets_router_dryrun(self.ctx, {"ep": self.ep, "target": d["proposal"]}))
+        self.assertTrue(run["ok"], run)
+        self.assertEqual(run["model"], "kling/kling-image-o1")
+        self.assertIn("aspect_ratio", run["arguments"])
+        self.assertTrue(run["ref"])
 
     def test_the_proposal_comes_with_its_limits(self):
         self.assertEqual(L.describe(proposal("veo/veo-3.1-fast-generate-001")["proposal"])["prompt"],

@@ -1,0 +1,90 @@
+{
+  "id": "kling_image_o1",
+  "kind": "image",
+  "label": "Kling Image O1 (hosted, Comfy Router)",
+  "short": "Kling Image",
+  "code": "builtin:router_image",
+  "_note": "Kling. Its pictures are named in the prompt (<<<image_1>>>).",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "mode": "edit",
+    "max_refs": 10
+  },
+  "template": {
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ]
+  },
+  "recipe": {
+    "views": [
+      "01_threequarter",
+      "02_side",
+      "03_back",
+      "04_face"
+    ],
+    "ref_word": "image"
+  },
+  "router": {
+    "model": "kling/kling-image-o1",
+    "arguments": {
+      "n": 1,
+      "result_type": "single"
+    },
+    "inputs": {
+      "prompt": {
+        "field": "prompt",
+        "max_chars": 2500
+      },
+      "images": {
+        "list": "image_list",
+        "item": {
+          "image": "$url"
+        },
+        "max": 10,
+        "mention": "<<<image_{n}>>>"
+      },
+      "ratio": {
+        "name": "aspect_ratio",
+        "values": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3",
+          "21:9"
+        ]
+      },
+      "resolution": {
+        "name": "resolution",
+        "values": [
+          "1k",
+          "2k",
+          "4k"
+        ]
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "kling/kling-image-o1",
+      "lora": "",
+      "steps": 0,
+      "cfg": 1.0
+    }
+  },
+  "draft": true
+}

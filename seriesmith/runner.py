@@ -223,6 +223,8 @@ class Runner:
         if not hosted:
             R.stage_references(s, job, collector)
             R.stage_voice_reference(s, job, collector)
+        else:
+            R.hosted_references(s, job)          # the pictures it sends, as local files
         take = R.start_gen(s, job)
         if hosted:
             # a hosted model (target.json `router`): one call, whatever it returns

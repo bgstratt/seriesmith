@@ -3323,6 +3323,27 @@ def compose_composite(s: Series, job: GenJob) -> None:
                 pass
 
 
+def hosted_references(s: Series, job: GenJob) -> list[str]:
+    """A hosted model's reference pictures as local files, which the Router
+    backend sends (uploaded or inline): each reference gets its `file` -- a
+    composite composed first (compose_composite), a view cut out of its
+    4-panel sheet (`crop`) as that panel alone. Returns the files."""
+    if not job.references:
+        return []
+    if job.references[0].get("role") == "composite" and not job.references[0].get("path"):
+        compose_composite(s, job)
+    from seriesmith.targets.generic.router_video import panel_file
+    out = []
+    for r in job.references:
+        path = r.get("path")
+        if not path:
+            continue
+        crop = r.get("crop")
+        r["file"] = panel_file(path, int(crop["panels"]), int(crop["index"])) if crop else path
+        out.append(r["file"])
+    return out
+
+
 def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload a job's reference images to ComfyUI's input folder
     (seriesmith/<sha1>.png, through POST /upload/image) and record their names in

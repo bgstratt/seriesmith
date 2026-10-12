@@ -4,16 +4,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteCustomTarget, enableCustomTarget, inspectTarget, loadWorkflows, probeTarget,
+  deleteCustomTarget, enableCustomTarget, generateRef, inspectTarget, loadRefs, loadWorkflows, probeTarget,
   saveCustomTarget,
 } from "../actions";
 import { customTargets, isHosted } from "../lib/targets";
 import type { RouterCatalogModel, RouterDryRun, RouterProposal } from "../api";
-import { LimitsForm, changedLimits } from "./Limits";
+import { ImageLimitsForm, LimitsCard, LimitsForm, changedImageLimits, changedLimits } from "./Limits";
 import { api } from "../host";
 import { useStatus } from "./hooks";
 import { useApp } from "../store";
-import type { Limits, Target, TargetList, TargetProposal, WorkflowFile } from "../types";
+import type { ImageLimits, Limits, Ref, Target, TargetList, TargetProposal, WorkflowFile } from "../types";
 
 /** The fields no graph states, so a person has to (the rest is detected). */
 interface Answers {
@@ -146,11 +146,38 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
   );
 }
 
+/** The refs an image model can be tried on: everything but voices, keyframes
+ * first (they show the pictures going in), then characters, props, places. */
+function useProbeRefs(): Ref[] {
+  const ep = useApp((s) => s.ep);
+  const refs = useApp((s) => (ep ? s.refs[ep] : undefined));
+  useEffect(() => {
+    if (ep && !refs) void loadRefs(ep);
+  }, [ep, refs]);
+  return useMemo(() => {
+    const order: Record<string, number> = { keyframe: 0, character: 1, prop: 2, vehicle: 3, location: 4 };
+    return (refs ?? []).filter((r) => r.kind !== "voice")
+      .sort((a, b) => (order[a.kind] ?? 9) - (order[b.kind] ?? 9));
+  }, [refs]);
+}
+
 function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
   const busy = useApp((s) => !!s.busy["target-save"] || !!s.busy["target-probe"]);
   const st = useStatus();
   const [shot, setShot] = useState("");
+  const [showLimits, setShowLimits] = useState(false);
   const hosted = isHosted(t);
+  const image = t.kind === "image";
+  const probeRefs = useProbeRefs();
+  const probeRef = probeRefs.find((x) => x.id === shot) ?? null;
+  async function probeImage() {
+    const ref = probeRef ?? probeRefs.find((x) => x.kind === "character") ?? probeRefs[0];
+    if (!ref) return;
+    // one picture: a character's first view, not all four
+    const view = ref.kind === "character" ? (ref.views?.[0]?.view ?? "01_threequarter") : null;
+    await generateRef({ ref: ref.id, view, count: 1, seed_mode: "auto", seed: null, prompt: null, model: null,
+                        loras: null, steps: null, note: `probe for ${t.id}`, target: t.id });
+  }
   return (
     <div className="h3-mfile">
       <div className="h3-row">
@@ -163,12 +190,26 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
       </div>
       {t.draft && (
         <div className="h3-small">
-          Nothing renders on it yet. Probe one shot, look at the take, then enable it — a wrong
-          frame grid or a missing file shows up here rather than mid-episode.
+          {image
+            ? "Nothing is made with it yet. Probe one ref (a keyframe shows its pictures going in), look at the take, then enable it."
+            : "Nothing renders on it yet. Probe one shot, look at the take, then enable it — a wrong frame grid or a missing file shows up here rather than mid-episode."}
         </div>
       )}
       <div className="h3-row h3-small">
-        {t.draft && (
+        {t.draft && image && (
+          <>
+            <select className="h3-in" value={shot} onChange={(e) => setShot(e.target.value)}
+              title="The ref the probe makes (one picture: a character's first view)" style={{ maxWidth: 180 }}>
+              <option value="">the first character</option>
+              {probeRefs.map((x) => <option key={x.id} value={x.id}>{x.name || x.id}</option>)}
+            </select>
+            <button className="h3-btn" disabled={busy || !probeRefs.length} title="A paid take of that ref, kept with its takes"
+              onClick={() => void probeImage()}>
+              <i className="pi pi-play" /> Probe (paid)
+            </button>
+          </>
+        )}
+        {t.draft && !image && (
           <>
             <select className="h3-in" value={shot} onChange={(e) => setShot(e.target.value)}
               title="The shot the probe renders (proxy)" style={{ maxWidth: 140 }}>
@@ -179,15 +220,24 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
               onClick={() => void probeTarget(t.id, shot || null)}>
               <i className="pi pi-play" /> Probe render{hosted ? " (paid)" : ""}
             </button>
+          </>
+        )}
+        {t.draft && (
+          <>
             <button className="h3-btn" disabled={busy} onClick={() => void enableCustomTarget(t.id)}
               title={builtin ? "Offer it for shots in every show (saved in seriesmith's settings)" : undefined}>
-              <i className="pi pi-check" /> Enable for shots{builtin ? " (every show)" : ""}
+              <i className="pi pi-check" /> Enable{image ? " for refs" : " for shots"}{builtin ? " (every show)" : ""}
             </button>
           </>
         )}
         {!t.draft && (
           <button className="h3-btn" disabled={busy} onClick={() => void enableCustomTarget(t.id, true)}>
             <i className="pi pi-undo" /> Back to draft
+          </button>
+        )}
+        {hosted && t.limits && (
+          <button className="h3-btn" onClick={() => setShowLimits(!showLimits)} title="What it takes: sizes, prompt, pictures">
+            <i className="pi pi-sliders-h" /> Limits
           </button>
         )}
         {!builtin && (
@@ -197,6 +247,7 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
           </button>
         )}
       </div>
+      {showLimits && <LimitsCard t={t} />}
     </div>
   );
 }
@@ -221,7 +272,7 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = useState("");
   const [fallback, setFallback] = useState(true);
   // its limits as proposed, looked over here (the server writes them in)
-  const [limits, setLimits] = useState<Limits | null>(null);
+  const [limits, setLimits] = useState<Limits | ImageLimits | null>(null);
   // every show's (beside the settings), or this show's own
   const [scope, setScope] = useState<"user" | "show">("user");
   const st = useStatus();
@@ -268,7 +319,12 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   }
 
   /** The limits that differ from the proposal's, for the server to write in. */
-  const changes = () => (limits && r?.limits ? changedLimits(limits, r.limits) : {});
+  const changes = () => (limits && r?.limits
+    ? (r.proposal.kind === "image"
+      ? changedImageLimits(limits as ImageLimits, r.limits as ImageLimits)
+      : changedLimits(limits as Limits, r.limits as Limits))
+    : {}) as Partial<Limits>;
+  const probeRefs = useProbeRefs();
 
   async function dryRun() {
     const spec = current();
@@ -276,7 +332,9 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
     setDryBusy(true);
     setErr(null);
     try {
-      setDry(await api().routerDryRun({ ep, target: spec, limits: changes(), shot: dryShot || null }));
+      setDry(await api().routerDryRun(image
+        ? { ep, target: spec, limits: changes(), ref: dryShot || null }
+        : { ep, target: spec, limits: changes(), shot: dryShot || null }));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -289,7 +347,12 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
     if (spec && await saveCustomTarget(spec, { scope, limits: changes() })) onClose();
   }
 
-  const WHAT: Record<string, string> = {
+  const image = r?.proposal.kind === "image";
+  const WHAT: Record<string, string> = image ? {
+    prompt: "the prompt", negative: "what to avoid", images: "the pictures (an edit, references)",
+    ratio: "the shape", resolution: "the size (1K, 2K…)", size: "the size (WxH)", width: "the width",
+    height: "the height", seed: "the seed",
+  } : {
     prompt: "the prompt", negative: "what to avoid", duration: "the length", resolution: "the size",
     ratio: "the shape", seed: "the seed", audio: "the sound", references: "the reference pictures",
     first: "the first frame", last: "the last frame",
@@ -308,9 +371,9 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
               <input className="h3-in h3-grow" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
           </div>
           <table className="h3-table h3-small">
-            <thead><tr><th>A shot's</th><th>goes in the model's</th></tr></thead>
+            <thead><tr><th>{image ? "A ref's" : "A shot's"}</th><th>goes in the model's</th></tr></thead>
             <tbody>
-              {Object.keys(WHAT).map((k) => (
+              {Object.keys(WHAT).filter((k) => !image || r.mapped[k] || ["prompt", "images", "seed"].includes(k)).map((k) => (
                 <tr key={k}>
                   <td>{WHAT[k]}</td>
                   <td className="h3-mono">{r.mapped[k] ?? <span className="h3-muted">— (the model doesn't take it, or it wasn't found)</span>}</td>
@@ -339,16 +402,27 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
                   {" "}— from the schema; a field marked "check this" states this model's limit only in its prose
                 </span>
               </div>
-              <LimitsForm value={limits} onChange={setLimits} shared={r.shared}
-                resolutionChoices={r.limits?.size.resolutions} />
+              {image
+                ? <ImageLimitsForm value={limits as ImageLimits} onChange={setLimits} shared={r.shared}
+                    choices={(r.limits as ImageLimits | undefined)?.size} />
+                : <LimitsForm value={limits as Limits} onChange={setLimits} shared={r.shared}
+                    resolutionChoices={(r.limits as Limits | undefined)?.size.resolutions} />}
             </div>
           )}
           <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
             <span>Try it on</span>
-            <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 140 }}>
-              <option value="">the first shot with a subject</option>
-              {(st?.shots ?? []).map((x) => <option key={x.shot} value={x.shot}>{x.shot}</option>)}
-            </select>
+            {image ? (
+              <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 200 }}
+                title="A keyframe shows its pictures going in; a character's view is drawn from text">
+                <option value="">the first character</option>
+                {probeRefs.map((x) => <option key={x.id} value={x.id}>{x.name || x.id}</option>)}
+              </select>
+            ) : (
+              <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 140 }}>
+                <option value="">the first shot with a subject</option>
+                {(st?.shots ?? []).map((x) => <option key={x.shot} value={x.shot}>{x.shot}</option>)}
+              </select>
+            )}
             <button className="h3-btn" disabled={dryBusy} title="What it would send for that shot (proxy): nothing is uploaded or paid for"
               onClick={() => void dryRun()}>
               <i className={dryBusy ? "pi pi-spin pi-spinner" : "pi pi-eye"} /> Dry run (free)
