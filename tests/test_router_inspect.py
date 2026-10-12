@@ -50,7 +50,8 @@ class ProposeTest(unittest.TestCase):
 
     def test_veo_is_nested(self):
         inp = proposal("veo/veo-3.1-generate-001")["proposal"]["router"]["inputs"]
-        self.assertEqual(inp["prompt"], "instances.0.prompt")
+        # a limit the schema doesn't state: a 1278-character prompt failed (2026-10-12)
+        self.assertEqual(inp["prompt"], {"field": "instances.0.prompt", "max_chars": 1000})
         # the bytes, not a link: gcsUri takes Google Cloud Storage only (2026-10-12)
         self.assertEqual(inp["first"], {"field": "instances.0.image",
                                         "item": {"bytesBase64Encoded": "$url", "mimeType": "$mime"}})

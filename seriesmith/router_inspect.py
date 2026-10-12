@@ -23,6 +23,15 @@ import urllib.request
 API_BASE = "https://api.comfy.org"
 SEED_MAX = 2147483647
 
+# longest prompts a schema doesn't state, by model id prefix: Veo 3.1 Fast
+# took 930- and 968-character prompts with reference pictures and failed
+# their 1278-character sum with provider_error (2026-10-12)
+PROMPT_LIMITS = {"veo/": 1000}
+
+
+def _known_limit(model: str) -> int | None:
+    return next((n for pre, n in PROMPT_LIMITS.items() if model.startswith(pre)), None)
+
 
 class RouterInspectError(ValueError):
     pass
@@ -229,8 +238,9 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         enum = v.get("enum")
         if leaf in NAMES["prompt"] and t == "string" and "prompt" not in inputs:
             # a longest prompt (Runway's 1000): the prose is cut to it, by sentence
-            inputs["prompt"] = {"field": path, "max_chars": v["maxLength"]} \
-                if isinstance(v.get("maxLength"), int) else path
+            most = v["maxLength"] if isinstance(v.get("maxLength"), int) else None
+            most = min(x for x in (most, _known_limit(model)) if x) if most or _known_limit(model) else None
+            inputs["prompt"] = {"field": path, "max_chars": most} if most else path
         elif leaf in NAMES["negative"] and t == "string" and "negative" not in inputs:
             inputs["negative"] = path
         elif leaf in NAMES["duration"] and "duration" not in inputs and t in ("integer", "number", "string"):
@@ -392,6 +402,8 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
     if "audio" not in inputs and not re.search(r"audio|\bsound", _text(doc)):
         proposal["capabilities"]["audio"] = "none"
         recipe["policies"] = ["silent"]
+        recipe["policy_fallback"] = {"to": "silent", "why": f"{model} makes no sound: the take is "
+                                                            f"mute, and the edit lays the sound under it"}
     return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings}
 
 
