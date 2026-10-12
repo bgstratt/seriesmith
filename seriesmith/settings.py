@@ -12,7 +12,10 @@ Read from a JSON file, then the environment over it:
      "cloud_url":   "https://cloud.comfy.org",
      "api_key":     "comfyui-...",               better kept in COMFY_API_KEY
      "deployments": {"minimax_h3_ref2va": "https://<build>.run.comfy.app"},
-     "enabled_drafts": ["veo_3_1_lite"]}          built-in draft targets switched on
+     "enabled_drafts": ["veo_3_1_lite"],          built-in draft targets switched on
+     "target_limits": {"ltx2": {"size": {"multiple": 32}}}}
+                                                  this machine's changes to built-in
+                                                  targets' limits (seriesmith.limits)
 
     environment   SERIESMITH_LOCAL_URL, SERIESMITH_COMFYUI_URL, SERIESMITH_CLOUD_URL,
                   COMFY_API_KEY
@@ -43,13 +46,17 @@ class Settings:
     # built-in targets that ship as drafts (an untested Router model) and are
     # switched on here, for every show (the editor's Enable)
     enabled_drafts: list[str] = field(default_factory=list)
+    # this machine's changes to built-in targets' limits: {id: seriesmith.limits
+    # sections}, applied as the target loads (the editor's Limits form)
+    target_limits: dict[str, dict] = field(default_factory=dict)
 
     def describe(self) -> dict:
         """The settings without the key itself (for listings and logs)."""
         return {"local_url": self.local_url, "comfyui_url": self.comfyui_url,
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
                 "deployments": dict(self.deployments), "path": self.path,
-                "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts)}
+                "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts),
+                "target_limits": dict(self.target_limits)}
 
 
 def settings_path() -> str:
@@ -88,7 +95,9 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
         path=path,
         paid_limit=_paid_limit(data.get("paid_limit")),
-        enabled_drafts=[str(x) for x in data.get("enabled_drafts") or [] if isinstance(x, str)])
+        enabled_drafts=[str(x) for x in data.get("enabled_drafts") or [] if isinstance(x, str)],
+        target_limits={str(k): v for k, v in (data.get("target_limits") or {}).items()
+                       if isinstance(v, dict)} if isinstance(data.get("target_limits"), dict) else {})
 
 
 def _paid_limit(v) -> int | None:
@@ -96,7 +105,7 @@ def _paid_limit(v) -> int | None:
 
 
 FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "paid_limit",
-          "enabled_drafts")
+          "enabled_drafts", "target_limits")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
              "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY"}
 
@@ -142,6 +151,16 @@ def save_settings(updates: dict, path: str | None = None) -> str:
                 raise ValueError("enabled_drafts: a list of target ids")
             else:
                 data[k] = sorted(set(v))
+            continue
+        if k == "target_limits":
+            if v in (None, {}):
+                data.pop(k, None)
+            elif not isinstance(v, dict) or not all(isinstance(x, dict) for x in v.values()):
+                raise ValueError("target_limits: {target id: its limits}")
+            else:
+                data[k] = {str(t): x for t, x in v.items() if x}
+                if not data[k]:
+                    data.pop(k)
             continue
         if k == "deployments":
             if v in (None, {}):

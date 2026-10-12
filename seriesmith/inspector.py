@@ -937,10 +937,11 @@ def validate_spec(spec: dict, graph: dict | None = None,
     return out
 
 
-def save_spec(root: str, spec: dict) -> str:
-    """Write a show's own target and forget the cached targets. Returns the
-    path. The caller validates first (validate_spec)."""
-    path = target_path(root, spec["id"])
+def save_spec(root: str, spec: dict, base: str | None = None) -> str:
+    """Write a show's own target -- or, with `base`, one into that folder of
+    targets (TG.user_folder: every show's) -- and forget the cached targets.
+    Returns the path. The caller validates first (validate_spec)."""
+    path = os.path.join(base, spec["id"], "target.json") if base else target_path(root, spec["id"])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8", newline="\n") as fh:

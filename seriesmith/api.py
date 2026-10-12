@@ -2479,11 +2479,147 @@ def put_targets_custom(ctx: Context, body):
     if problems:
         raise ApiError(400, "this target.json can't be used yet: " + problems[0],
                        problems=problems)
-    path = IN.save_spec(ep, spec)
+    # where it goes: back where it was (a draft switch), else the show's own,
+    # or every show's (`scope: "user"`, the user folder beside the settings)
+    if body.get("scope") not in (None, "show", "user"):
+        raise ApiError(400, 'scope is "show" or "user" (every show)')
+    if spec is not None and body.get("target") is None and body.get("id"):
+        base = os.path.dirname(TG.load_target(spec["id"], root=ep).folder)
+    else:
+        base = TG.user_folder() if body.get("scope") == "user" else None
+    path = IN.save_spec(ep, spec, base=base)
     episode_event(ctx, ep)
     return 200, {"ok": True, "id": spec["id"], "path": path,
                  "draft": bool(spec.get("draft")),
                  "targets": IN.custom_targets(ep)}
+
+
+LOCAL_LIMITS = {"length", "size", "pictures"}       # a local target's: its graph has the rest
+
+
+@handler
+def put_targets_limits(ctx: Context, body):
+    """Change a video target's limits (seriesmith.limits): a built-in's on this
+    machine (settings `target_limits`; `limits: null` puts it back as
+    shipped), a user or show target's in its own target.json. A local target's
+    pictures and sound are its graph's, so only its length, size and
+    needs-a-first-frame change. Body {ep?, id, limits}."""
+    from seriesmith import limits as L
+    from seriesmith import settings as S
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep")) if body.get("ep") else None
+    tid = _opt_str(body, "id") or ""
+    try:
+        t = TG.load_target(tid, "video", root=ep)
+    except TG.TargetError as e:
+        raise ApiError(404, str(e))
+    limits = body.get("limits")
+    if limits is not None and not isinstance(limits, dict):
+        raise ApiError(400, "limits must be an object (seriesmith.limits sections), or null")
+    limits = {k: v for k, v in (limits or {}).items() if k in L.SECTIONS}
+    if t.spec.get("router") is None:
+        extra = set(limits) - LOCAL_LIMITS
+        pics = set((limits.get("pictures") or {})) - {"needs_first"}
+        if extra or pics:
+            raise ApiError(400, f"{t.id} is a local workflow: its pictures and sound are what the graph "
+                                f"wires; only its length, size and needs-a-first-frame change here")
+    if not t.custom:
+        base = t.shipped_spec or t.spec
+        try:
+            L.apply(base, limits)
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        overrides = dict(S.load_settings().target_limits)
+        if limits:
+            overrides[t.id] = limits
+        else:
+            overrides.pop(t.id, None)
+        try:
+            S.save_settings({"target_limits": overrides})
+        except (OSError, ValueError) as e:
+            raise ApiError(500, f"the settings couldn't be saved: {e}")
+        path = S.settings_path()
+    else:
+        if body.get("limits") is None:
+            raise ApiError(400, f"{t.id} is your own target: there is no shipped version to go back to")
+        try:
+            spec = L.apply(t.spec, limits)
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        problems = IN.validate_spec(dict(spec)) if spec.get("router") is not None else []
+        problems = [p for p in problems if "built-in target's name" not in p]
+        if problems:
+            raise ApiError(400, "those limits can't be used: " + problems[0], problems=problems)
+        path = IN.save_spec(ep or "", spec, base=os.path.dirname(t.folder))
+    TG.forget_targets()
+    if ep:
+        episode_event(ctx, ep)
+    return 200, {"ok": True, "id": t.id, "path": path,
+                 "target": TG.load_target(t.id, "video", root=ep).describe()}
+
+
+@handler
+def post_targets_router_dryrun(ctx: Context, body):
+    """What a Router target -- saved, or proposed and not saved yet -- would send
+    for one shot: {model, arguments, prompt_chars}, each picture as its local
+    path. Nothing is uploaded or sent. Body {ep, shot?, pass?, target:
+    target.json (or its id)}."""
+    import dataclasses
+    from seriesmith.backends import File
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"), "proxy")
+    spec = body.get("target")
+    if isinstance(spec, str):
+        try:
+            spec = TG.load_target(spec, "video", root=ep).spec
+        except TG.TargetError as e:
+            raise ApiError(404, str(e))
+    if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):
+        raise ApiError(400, "target must be a Router target's target.json, or its id")
+    try:
+        doc = J.load_shotlist(ep, pass_)
+    except FileNotFoundError:
+        raise ApiError(404, "this episode has no build yet")
+    shots = doc.get("shots") or []
+    want = _opt_str(body, "shot")
+    index = next((i for i, s in enumerate(shots) if s.get("id") == want), None) if want else \
+        next((i for i, s in enumerate(shots) if s.get("subjects")), 0 if shots else None)
+    if index is None:
+        raise ApiError(404, f"no shot {want} in this episode" if want else "this episode has no shots")
+    base = TG.load_target("seedance_2_5", "video")
+    t = TG.Target(base.folder, spec)
+    # the shot as every Router model gets it (the same prose and pictures),
+    # sized and timed for this one
+    job = J.plan_job(ep, pass_, doc, index, J.RenderRequest(shots[index]["id"], target=base.id), {})
+    if job.action == "error":
+        raise ApiError(400, job.error)
+    preset = (spec.get("presets") or {}).get(pass_) or {}
+    try:
+        length = t.template.snap(job.frames)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    job = dataclasses.replace(job, shot=dict(job.shot, length=length),
+                              size=(preset["width"], preset["height"]) if preset.get("width") else job.size)
+    try:
+        model, args = t.module.router_call(t, job)
+    except ValueError as e:
+        return 200, {"ok": False, "shot": job.shot["id"], "why": str(e)}
+
+    def plain(v):
+        if isinstance(v, File):
+            return {"file": v.path, **({"via": v.via} if v.via else {})}
+        if isinstance(v, dict):
+            return {k: plain(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [plain(x) for x in v]
+        return v
+    from seriesmith.backends.router import ROUTING
+    routing = args.pop(ROUTING, None)
+    text = J._prompt_text(job.shot.get("prompt") or job.prompt)
+    return 200, {"ok": True, "shot": job.shot["id"], "pass": pass_, "model": model,
+                 "arguments": plain(args), **({"routing": routing} if routing else {}),
+                 "prompt_chars": {"written": len(text)}}
 
 
 @handler
@@ -3654,6 +3790,8 @@ ROUTES = [
     ("POST", "/seriesmith/targets/inspect", post_targets_inspect, "body"),
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
     ("POST", "/seriesmith/targets/router-inspect", post_targets_router_inspect, "body"),
+    ("POST", "/seriesmith/targets/router-dryrun", post_targets_router_dryrun, "body"),
+    ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),

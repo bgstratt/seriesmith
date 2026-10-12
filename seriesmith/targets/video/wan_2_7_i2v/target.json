@@ -114,6 +114,15 @@
         "name": "parameters.seed",
         "max": 2147483647
       }
+    },
+    "off": {
+      "references": {
+        "list": "input.media",
+        "item": {
+          "type": "reference_image",
+          "url": "$url"
+        }
+      }
     }
   },
   "presets": {

@@ -119,7 +119,9 @@ class Template:
     {"long_side": n} and/or {"pixels": n}. `size_fit` is how a size that isn't
     legal is treated: "error" (the default; the build names the nearest legal
     sizes) or "snap" (rounded down to the multiple, then shrunk under the
-    maximum, keeping the aspect ratio; fit_size)."""
+    maximum, keeping the aspect ratio; fit_size). `sizes`, when given, is the
+    only sizes the model takes ([[1280, 720], ...]): a size is fitted to the
+    nearest of them in shape, then in area (seriesmith.limits edits it)."""
 
     def __init__(self, spec: dict, short: str):
         fr = spec.get("frames") or {"step": 1, "base": 1, "max": 1 << 30}
@@ -130,6 +132,7 @@ class Template:
         self.size_multiple = int(spec.get("size_multiple", 1))
         self.max_size = dict(spec.get("max_size") or {})
         self.size_fit = spec.get("size_fit", "error")
+        self.sizes = [(int(w), int(h)) for w, h in (spec.get("sizes") or [])]
         self.short = short
         self.spec = spec
 
@@ -143,6 +146,8 @@ class Template:
         """(width, height) made legal: validate_size's rules, or with
         `size_fit: snap`, snapped down to the multiple and shrunk under the
         maximum size, keeping the aspect ratio as near as the grid allows."""
+        if self.sizes:
+            return self.nearest_size(width, height)
         if self.size_fit != "snap":
             self.validate_size(width, height)
             return width, height
@@ -157,7 +162,20 @@ class Template:
         w, h = max(m, int(width * k) // m * m), max(m, int(height * k) // m * m)
         return w, h
 
+    def nearest_size(self, width: int, height: int) -> tuple[int, int]:
+        """The listed size nearest (width, height): the closest shape, then the
+        closest area."""
+        want = width / height
+        return min(self.sizes, key=lambda s: (round(abs(math.log((s[0] / s[1]) / want)), 3),
+                                              abs(s[0] * s[1] - width * height)))
+
     def validate_size(self, width: int, height: int) -> None:
+        if self.sizes:
+            if (width, height) not in self.sizes:
+                w, h = self.nearest_size(width, height)
+                raise ValueError(f"{width}x{height} isn't a size {self.short} takes "
+                                 f"({', '.join(f'{a}x{b}' for a, b in self.sizes)}); nearest: {w}x{h}")
+            return
         m = self.size_multiple
         for nm, v in (("width", width), ("height", height)):
             if m > 1 and v % m:
@@ -197,6 +215,8 @@ class Template:
             d["max_size"] = dict(self.max_size)
         if self.size_fit != "error":
             d["size_fit"] = self.size_fit
+        if self.sizes:
+            d["sizes"] = [list(s) for s in self.sizes]
         return d
 
 
@@ -387,6 +407,9 @@ class Target:
         self.spec = spec
         # a show's own target (<show>/targets/<id>/): data only, no Python
         self.custom = is_custom(folder)
+        # a built-in's target.json as shipped, when this machine overrides its
+        # limits (settings target_limits; _load_folder)
+        self.shipped_spec: dict | None = None
         self.id: str = spec["id"]
         self.kind: str = spec["kind"]
         self.label: str = spec.get("label", self.id)
@@ -818,6 +841,10 @@ class Target:
                 **({"draft": True} if self.draft else {}),
                 # a built-in draft: listed with the show's own, Enable or Back to draft
                 **({"shipped_draft": True} if self.shipped_draft else {}),
+                # where it lives (builtin, user: every show's, show), and its limits
+                # (seriesmith.limits), changed on this machine or as shipped
+                "scope": scope_of(self.folder),
+                **({"limits": _limits_json(self)} if self.kind == "video" else {}),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -898,7 +925,37 @@ def custom_folders(root: str) -> list[tuple[str, str, str]]:
     `<show>/targets/<id>/target.json`, its kind read from the file (a custom
     target has no kind folder). An unreadable or mislabelled one is skipped
     here and named by load_target."""
-    d = os.path.join(show_folder(root), CUSTOM_DIR)
+    return _targets_in(os.path.join(show_folder(root), CUSTOM_DIR))
+
+
+def _limits_json(t: "Target") -> dict:
+    """A video target's limits for the editor: describe's dict, plus whether
+    this machine overrides a built-in's (and what it shipped with)."""
+    from seriesmith import limits as L
+    d = L.describe(t.spec)
+    if t.shipped_spec is not None:
+        d["overridden"] = True
+        d["shipped"] = {k: v for k, v in L.describe(t.shipped_spec).items() if k != "editable"}
+    return d
+
+
+def user_folder() -> str:
+    """Where the targets for every show live: `targets/` beside the settings
+    file (a Router model added in the editor, `scope: user`)."""
+    from seriesmith import settings as S
+    return os.path.join(os.path.dirname(os.path.abspath(S.settings_path())), CUSTOM_DIR)
+
+
+def scope_of(folder: str) -> str:
+    """"builtin" (this repo's), "user" (every show's: user_folder) or "show"."""
+    if not is_custom(folder):
+        return "builtin"
+    user = os.path.normcase(os.path.abspath(user_folder()))
+    return "user" if os.path.normcase(os.path.abspath(folder)).startswith(user + os.sep) else "show"
+
+
+def _targets_in(d: str) -> list[tuple[str, str, str]]:
+    """(kind, id, folder) of every `<d>/<id>/target.json`."""
     out = []
     if not os.path.isdir(d):
         return out
@@ -952,36 +1009,53 @@ def _scan_folders(root: str | None) -> list[tuple[str, str, str]]:
             if os.path.isfile(os.path.join(d, name, "target.json")):
                 out.append((kind, name, os.path.join(d, name)))
     seen = {os.path.normcase(f) for _, _, f in out}
+    # every show's (user_folder), then the shows' own
+    entries = _targets_in(user_folder())
     for r in ((root,) if root else ()) + thread_roots():
-        for entry in custom_folders(r):
-            if os.path.normcase(entry[2]) not in seen:
-                seen.add(os.path.normcase(entry[2]))
-                out.append(entry)
+        entries += custom_folders(r)
+    for entry in entries:
+        if os.path.normcase(entry[2]) not in seen:
+            seen.add(os.path.normcase(entry[2]))
+            out.append(entry)
     return out
 
 
-_ENABLED: dict = {}                                       # the settings file's mtime -> ids
+_SETTINGS: dict = {}                                      # path -> (mtime, Settings | None)
 
 
-def enabled_drafts() -> frozenset[str]:
-    """The built-in drafts the settings switch on (`enabled_drafts`), read
-    again when the settings file changes."""
+def _settings() -> tuple:
+    """(the settings file's mtime or None, its Settings or None), read again
+    when the file changes: the targets' part of the settings (enabled_drafts,
+    target_limits) is asked for on every listing."""
     from seriesmith import settings as S
     path = S.settings_path()
     try:
         stamp = os.stat(path).st_mtime_ns
     except OSError:
         stamp = None
-    hit = _ENABLED.get(path)
+    hit = _SETTINGS.get(path)
     if hit and hit[0] == stamp:
-        return hit[1]
+        return hit
     try:
-        ids = frozenset(S.load_settings(path).enabled_drafts) if stamp else frozenset()
+        s = S.load_settings(path) if stamp else None
     except ValueError:
-        ids = frozenset()
-    _ENABLED.clear()
-    _ENABLED[path] = (stamp, ids)
-    return ids
+        s = None
+    _SETTINGS.clear()
+    _SETTINGS[path] = (stamp, s)
+    return stamp, s
+
+
+def enabled_drafts() -> frozenset[str]:
+    """The built-in drafts the settings switch on (`enabled_drafts`)."""
+    s = _settings()[1]
+    return frozenset(s.enabled_drafts) if s else frozenset()
+
+
+def limit_overrides() -> dict[str, dict]:
+    """This machine's changes to built-in targets' limits (`target_limits`:
+    {id: seriesmith.limits sections}), applied as the target is loaded."""
+    s = _settings()[1]
+    return dict(s.target_limits) if s else {}
 
 
 def is_custom(folder: str) -> bool:
@@ -1015,12 +1089,17 @@ def load_target(target_id: str, kind: str | None = None, root: str | None = None
 def _load_folder(kind: str, name: str, folder: str) -> Target:
     """The target in one folder, cached by folder (so two shows may each have a
     custom target of the same name), read again when its target.json changes
-    (a hand edit while the server runs)."""
+    (a hand edit while the server runs). A built-in one gets this machine's
+    limit overrides (settings `target_limits`), so the settings' stamp counts
+    too."""
     path = os.path.join(folder, "target.json")
     try:
         stamp = os.stat(path).st_mtime_ns
     except OSError:
         stamp = None
+    builtin = not is_custom(folder)
+    override = limit_overrides().get(name) if builtin else None
+    stamp = (stamp, _settings()[0] if builtin else None)
     hit = _CACHE.get(folder)
     if hit is not None and _STAMPS.get(folder) == stamp:
         return hit
@@ -1028,7 +1107,17 @@ def _load_folder(kind: str, name: str, folder: str) -> Target:
         spec = json.load(fh)
     if spec.get("id") != name or spec.get("kind") != kind:
         raise TargetError(f"{folder}/target.json must say id {name!r} and kind {kind!r}")
+    shipped = None
+    if override:
+        from seriesmith import limits as L
+        shipped = spec
+        try:
+            spec = L.apply(spec, override)
+        except ValueError:
+            spec = shipped                # a bad override is ignored, the shipped limits kept
+            shipped = None
     t = Target(folder, spec)
+    t.shipped_spec = shipped              # the target.json as shipped, when overridden
     _CACHE[folder] = t
     _STAMPS[folder] = stamp
     return t

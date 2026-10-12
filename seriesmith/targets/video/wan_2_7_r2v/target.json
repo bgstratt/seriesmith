@@ -126,6 +126,15 @@
         "name": "parameters.seed",
         "max": 2147483647
       }
+    },
+    "off": {
+      "last": {
+        "list": "input.media",
+        "item": {
+          "type": "last_frame",
+          "url": "$url"
+        }
+      }
     }
   },
   "presets": {

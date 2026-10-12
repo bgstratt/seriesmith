@@ -404,7 +404,34 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         recipe["policies"] = ["silent"]
         recipe["policy_fallback"] = {"to": "silent", "why": f"{model} makes no sound: the take is "
                                                             f"mute, and the edit lays the sound under it"}
-    return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings}
+    return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings,
+            "shared": shared_fields(inputs, all_fields)}
+
+
+# a description written for several models at once: "- wan2.7-r2v: [2, 10]",
+# "Seedance 2.0, 2.0 fast & 2.0 mini: [4,15]", "Veo 3/3.1: 4, 6, or 8"
+PER_MODEL = re.compile(r"(?m)(?:^\s*-\s*[^\n:]{2,90}:|\b[A-Z][A-Za-z]+ \d[^\n:]{0,60}:)")
+SECTION_OF = {"duration": "length", "resolution": "size", "prompt": "prompt",
+              "references": "pictures", "first": "pictures", "last": "pictures"}
+
+
+def shared_fields(inputs: dict, all_fields: list) -> dict[str, list[dict]]:
+    """{limits section: [{"input", "field", "text"}]} for each placed input whose
+    schema field is described for several models at once: the limit for this
+    one is in that prose, not in the schema, and is what the proposal can't
+    know (Seedance 2.0's [4,15], Wan 2.7's 720P/1080P, Veo's 4/6/8 were all
+    there). The editor shows them beside the limits to check."""
+    desc = {p: str(v.get("description") or "") for p, v in all_fields}
+    out: dict[str, list[dict]] = {}
+    for key, section in SECTION_OF.items():
+        m = inputs.get(key)
+        if m is None:
+            continue
+        path = m if isinstance(m, str) else (m.get("list") or _name(m))
+        text = desc.get(path, "")
+        if len(PER_MODEL.findall(text)) >= 2:
+            out.setdefault(section, []).append({"input": key, "field": path, "text": text})
+    return out
 
 
 def _name(m: dict) -> str:

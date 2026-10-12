@@ -137,7 +137,7 @@ class ShippedRouterTargetsTest(unittest.TestCase):
 
     def test_every_one_is_built_in_and_the_drafts_say_so(self):
         ids = {t.id: t for t in TG.list_targets("video")}
-        for model, tid, *_, draft in self.tool().MODELS:
+        for model, tid, _label, _short, _limits, draft, _extra in self.tool().MODELS:
             self.assertFalse(ids[tid].custom, tid)
             self.assertEqual(bool(ids[tid].spec.get("draft")), draft, tid)
 
