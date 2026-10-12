@@ -56,6 +56,27 @@ def urls_in(value: Any) -> Iterable[str]:
     yield from walk(value)
 
 
+def inline_in(value: Any) -> Iterable[tuple[str, str]]:
+    """(base64 data, mime type) of every file a provider's result carries
+    inline, in order: Veo returns its video as {"bytesBase64Encoded",
+    "mimeType"}, not a link."""
+    if isinstance(value, dict):
+        data = value.get("bytesBase64Encoded")
+        if isinstance(data, str) and data:
+            yield data, str(value.get("mimeType") or "video/mp4")
+            return
+        for x in value.values():
+            yield from inline_in(x)
+    elif isinstance(value, list):
+        for x in value:
+            yield from inline_in(x)
+
+
+def _write_b64(data: str, path: str) -> None:
+    with open(path, "wb") as fh:
+        fh.write(base64.b64decode(data))
+
+
 def download(url: str, path: str, timeout: float = 300.0) -> None:
     with urllib.request.urlopen(url, timeout=timeout, context=tls()) as r, open(path, "wb") as fh:
         shutil.copyfileobj(r, fh)
@@ -125,9 +146,15 @@ class RouterRun(Run):
     def outputs(self) -> list[Output]:
         if self.status != "succeeded":
             return []
-        return [Output("", os.path.basename(urllib.parse.urlparse(u).path) or "output",
-                       output_type(u), (lambda path, u=u: patiently(lambda: download(u, path))))
-                for u in urls_in(self.result)]
+        out = [Output("", os.path.basename(urllib.parse.urlparse(u).path) or "output",
+                      output_type(u), (lambda path, u=u: patiently(lambda: download(u, path))))
+               for u in urls_in(self.result)]
+        # a file the result carries itself (Veo: {"bytesBase64Encoded", "mimeType"})
+        for i, (data, mime) in enumerate(inline_in(self.result)):
+            kind = mime.split("/")[0] if mime.split("/")[0] in ("video", "image", "audio") else "file"
+            ext = {"video": ".mp4", "image": ".png", "audio": ".wav"}.get(kind, ".bin")
+            out.append(Output("", f"output_{i}{ext}", kind, (lambda path, d=data: _write_b64(d, path))))
+        return out
 
 
 API_BASE = "https://api.comfy.org"

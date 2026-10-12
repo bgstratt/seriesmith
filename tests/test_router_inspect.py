@@ -121,6 +121,25 @@ class ProposeTest(unittest.TestCase):
             RI.fetch_schema("not a model", "key")
 
 
+class InlineOutputTest(unittest.TestCase):
+    def test_a_video_in_the_result_is_an_output(self):
+        """Veo's result carries its video as base64, not a link: a take that
+        only looked for links was lost after it was paid for (2026-10-12)."""
+        import base64
+        import tempfile
+        import types
+        from seriesmith.backends.router import RouterRun
+        run = RouterRun(types.SimpleNamespace(request_id="r1"), "veo/veo-3.1-fast-generate-001")
+        run.status = "succeeded"
+        run.result = {"done": True, "response": {"raiMediaFilteredCount": 0, "videos": [
+            {"bytesBase64Encoded": base64.b64encode(b"mp4 bytes").decode(), "mimeType": "video/mp4"}]}}
+        (out,) = run.outputs()
+        self.assertEqual((out.type, out.name), ("video", "output_0.mp4"))
+        with tempfile.TemporaryDirectory() as d:
+            with open(out.save(os.path.join(d, "t.mp4")), "rb") as fh:
+                self.assertEqual(fh.read(), b"mp4 bytes")
+
+
 class ProposedTargetRendersTest(Episode):
     def test_a_proposed_target_makes_a_request_for_a_shot(self):
         p = proposal("minimax/minimax-h3")["proposal"]
