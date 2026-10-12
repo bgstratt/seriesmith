@@ -18,6 +18,7 @@ import json
 import logging
 import threading
 import os
+import signal
 import sys
 
 from aiohttp import ClientSession, WSMsgType, web
@@ -30,6 +31,12 @@ log = logging.getLogger("seriesmith")
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
 DEFAULT_PORT = 8190
+# the exit code that asks the launcher (run_seriesmith*.bat) to start it again
+RESTART = 3
+# how long a stop waits for requests in flight (aiohttp's own is 60 s, spent
+# waiting on the editor's live connection: Ctrl+C looked hung, then was killed)
+SHUTDOWN_WAIT = 5.0
+LOOPBACK = ("127.0.0.1", "::1", "localhost")
 # what the page listens for from ComfyUI (web/src/host.ts HostEvent)
 COMFY_EVENTS = {"progress", "executing", "execution_start", "execution_success",
                 "execution_error", "execution_interrupted", "execution_cached"}
@@ -286,18 +293,53 @@ def make_app(roots: list[str] | None = None, settings=None,
     if os.path.isdir(os.path.join(STATIC, "assets")):
         app.router.add_static("/assets", os.path.join(STATIC, "assets"))
 
+    async def stop_view(request: web.Request) -> web.Response:
+        """POST /seriesmith/server/stop {restart?}: stop this server cleanly
+        (the editor's Stop / Restart, `seriesmith stop`). Only from this
+        machine: the server may listen on the network with no password."""
+        if request.remote not in LOOPBACK:
+            return web.json_response({"error": "the server can be stopped from its own machine only"},
+                                     status=403)
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        restart = bool((body or {}).get("restart"))
+        app["exit_code"] = RESTART if restart else 0
+        print(f"  seriesmith: {'restarting' if restart else 'stopping'} (asked from the editor)", flush=True)
+        asyncio.get_running_loop().call_later(0.3, _graceful_exit)
+        return web.json_response({"ok": True, "restart": restart})
+
+    for p in ("/seriesmith/server/stop", "/api/seriesmith/server/stop"):
+        app.router.add_post(p, stop_view)
+
     async def start(app: web.Application) -> None:
         events.loop = asyncio.get_running_loop()
         app["relay"] = asyncio.create_task(comfy_relay(app))
 
-    async def stop(app: web.Application) -> None:
+    async def closing(app: web.Application) -> None:
+        # before the server waits on requests in flight: the editor's live
+        # connections closed (they never end by themselves), the queue's
+        # journal written, so the next start picks up where this one stopped
         app["relay"].cancel()
         for ws in list(events.sockets):
-            await ws.close()
+            await ws.close(code=1001, message=b"seriesmith is stopping")
+        try:
+            queue.write_journal()
+        except OSError:
+            pass
+
+    async def stop(app: web.Application) -> None:
+        app["relay"].cancel()
 
     app.on_startup.append(start)
+    app.on_shutdown.append(closing)
     app.on_cleanup.append(stop)
     return app
+
+
+def _graceful_exit() -> None:
+    raise web.GracefulExit()
 
 
 def ensure_proxy(settings) -> str:
@@ -372,7 +414,48 @@ def main(argv: list[str] | None = None) -> int:
                   "networks only)", flush=True)
     else:
         print(f"  seriesmith editor: http://{args.host}:{args.port}/   (Ctrl+C stops it)", flush=True)
-    web.run_app(app, host=args.host, port=args.port, print=None)
+    if os.name == "nt" and hasattr(signal, "SIGBREAK"):
+        # Ctrl+Break as Ctrl+C: a clean stop
+        signal.signal(signal.SIGBREAK, lambda *_: _interrupt())
+    try:
+        web.run_app(app, host=args.host, port=args.port, print=None, shutdown_timeout=SHUTDOWN_WAIT)
+    except KeyboardInterrupt:
+        # a second Ctrl+C while the first one's stop is finishing: still a
+        # stop, not a traceback (the queue's journal is written as jobs change)
+        app["exit_code"] = 0
+    code = app.get("exit_code", 0)
+    print("  seriesmith: " + ("restarting" if code == RESTART else "stopped") + ".", flush=True)
+    return code
+
+
+def _interrupt() -> None:
+    raise KeyboardInterrupt
+
+
+def stop_main(argv: list[str] | None = None) -> int:
+    """`seriesmith stop [--restart] [--port N]`: ask the editor's server on
+    this machine to stop (or restart, under a run_seriesmith launcher)."""
+    import argparse
+    import urllib.error
+    import urllib.request
+    ap = argparse.ArgumentParser(prog="seriesmith stop", description=stop_main.__doc__)
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
+    ap.add_argument("--restart", action="store_true",
+                    help="start again (the run_seriesmith launchers do; a bare `seriesmith serve` just stops)")
+    args = ap.parse_args(argv)
+    req = urllib.request.Request(f"http://127.0.0.1:{args.port}/seriesmith/server/stop",
+                                 data=json.dumps({"restart": args.restart}).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            json.load(r)
+    except urllib.error.HTTPError as e:
+        print(f"seriesmith stop: the server said {e.code}", file=sys.stderr)
+        return 1
+    except (urllib.error.URLError, OSError):
+        print(f"seriesmith stop: nothing answers on port {args.port}", file=sys.stderr)
+        return 1
+    print(f"seriesmith: {'restarting' if args.restart else 'stopping'} the server on port {args.port}")
     return 0
 
 

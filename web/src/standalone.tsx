@@ -135,7 +135,7 @@ createRoot(jobsEl).render(
   <StrictMode>
     <Boundary name="Jobs">
       <JobsWindow />
-      <SettingsWindow />
+      <SettingsWindow server />
     </Boundary>
   </StrictMode>,
 );

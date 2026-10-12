@@ -36,13 +36,78 @@ async function refreshBackends() {
   }
 }
 
-export function SettingsWindow() {
+/** `server`: the standalone page, whose own server this is (Stop / Restart);
+ * inside ComfyUI the server is ComfyUI's, so it has none. */
+export function SettingsWindow({ server = false }: { server?: boolean }) {
   const open = useApp((s) => s.settingsOpen);
   if (!open) return null;
-  return <SettingsBody />;
+  return <SettingsBody server={server} />;
 }
 
-function SettingsBody() {
+/** The standalone server: stopped (start it again from run_seriesmith.bat), or
+ * restarted under that launcher, the page reloading once it answers again. */
+function ServerSection() {
+  const [state, setState] = useState<"" | "stopping" | "stopped" | "restarting" | "gone">("");
+  const [err, setErr] = useState<string | null>(null);
+  async function stop(restart: boolean) {
+    if (!restart && !confirm("Stop seriesmith's server? Jobs on Router carry on and are picked up "
+      + "when it starts again; start it with run_seriesmith.bat.")) return;
+    setErr(null);
+    setState(restart ? "restarting" : "stopping");
+    try {
+      const r = await fetch("/seriesmith/server/stop", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restart }),
+      });
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error || r.statusText);
+    } catch (e) {
+      setErr((e as Error).message);
+      setState("");
+      return;
+    }
+    if (!restart) {
+      setState("stopped");
+      return;
+    }
+    // back up (the launcher starts it again): reload onto the new server
+    await new Promise((res) => setTimeout(res, 1500));
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await fetch("/seriesmith/config", { cache: "no-store" });
+        if (r.ok) {
+          location.reload();
+          return;
+        }
+      } catch { /* not up yet */ }
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    setState("gone");
+  }
+  return (
+    <section className="h3-col" style={{ gap: 6 }}>
+      <span className="h3-h">This server</span>
+      <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+        <button className="h3-btn" disabled={!!state && state !== "gone"}
+          title="Stop and start again (under run_seriesmith.bat): new code, settings read afresh. The page reloads."
+          onClick={() => void stop(true)}>
+          <i className={state === "restarting" ? "pi pi-spin pi-spinner" : "pi pi-refresh"} /> Restart
+        </button>
+        <button className="h3-btn" disabled={!!state && state !== "gone"} onClick={() => void stop(false)}>
+          <i className="pi pi-power-off" /> Stop
+        </button>
+        <span className="h3-small h3-muted h3-grow">
+          {state === "stopping" ? "Stopping…"
+            : state === "stopped" ? "Stopped. Start it again with run_seriesmith.bat."
+            : state === "restarting" ? "Restarting: the page reloads when it's back…"
+            : state === "gone" ? "It didn't come back: was it started with run_seriesmith.bat? Start it again there."
+            : "Jobs on Router carry on through a stop and are picked up on the next start."}
+        </span>
+      </div>
+      {err && <div className="h3-small h3-err">{err}</div>}
+    </section>
+  );
+}
+
+function SettingsBody({ server }: { server: boolean }) {
   const targets = useApp((s) => s.targets);
   const [view, setView] = useState<SettingsView | null>(null);
   const [urls, setUrls] = useState({ comfyui_url: "", local_url: "", cloud_url: "" });
@@ -174,6 +239,8 @@ function SettingsBody() {
           ))}
           <div><button className="h3-btn" onClick={() => setDeps([...deps, { target: "", url: "" }])}>+ Deployment</button></div>
         </section>
+
+        {server && <ServerSection />}
 
         {error && <div className="h3-err">{error}</div>}
       </div>

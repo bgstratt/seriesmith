@@ -45,6 +45,14 @@ queue — files go up with each job and come back as its outputs.
 
 ## Config
 
+### `POST /seriesmith/server/stop` (standalone only)
+
+Body `{restart?: bool}`. Stops `seriesmith serve` cleanly: the page's connection closed,
+the queue's journal written, then the process exits — with code 3 when `restart` is set,
+which `run_seriesmith*.bat` starts it again on. Only from the machine it runs on (403
+otherwise: the server may listen on the network with no password). `seriesmith stop
+[--restart] [--port N]` calls it.
+
 ### `GET /seriesmith/config`
 ```json
 {"roots": ["C:/Shows"], "comfy": "http://127.0.0.1:8188",

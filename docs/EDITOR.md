@@ -23,7 +23,11 @@ you to write into:
    or set up a cloud backend ([SETUP.md](SETUP.md)).
 2. **Run `seriesmith serve`** (`--root C:\Shows` names your project folders) and open
    http://127.0.0.1:8190. It starts comfy-api-proxy in front of your ComfyUI if it isn't
-   running.
+   running. `run_seriesmith.bat` does the same (`run_seriesmith_ext.bat` opens it to your
+   network). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
+   starts it again under the .bat launchers, and the page reloads), `seriesmith stop
+   [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
+   journal first, so it's quick, and jobs on Router are picked up on the next start.
 3. **Open Shots → the folder button** and add the folder that *contains* your episode
    folders (the root), then pick the episode from the drop-down beside it.
 4. **No episode yet? New episode…** in that same window writes the two files for you — see

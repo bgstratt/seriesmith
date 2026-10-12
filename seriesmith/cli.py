@@ -6,6 +6,7 @@ seriesmith — one command for every stage.
     seriesmith render <episode> [--only sh010] [--redo] [--backend local]
     seriesmith backends [--try NAME]        where jobs can run, and whether each answers
     seriesmith serve [--root FOLDER]        the editor in your browser (port 8190)
+    seriesmith stop [--restart]             stop (or restart) that editor's server cleanly
 
 and h3pipe's commands, through seriesmith.commands (`seriesmith <command> --help`):
 
@@ -49,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "serve":
         from seriesmith.server import standalone
         return standalone.main(rest)
+    if cmd == "stop":
+        from seriesmith.server import standalone
+        return standalone.stop_main(rest)
     # everything else h3pipe's `h3.py` did (takes, pick, override, cut, refs,
     # supply, issues, promote, assemble, upscale, post, master, publish, new,
     # targets, align, all): its dispatcher, ported as seriesmith.commands

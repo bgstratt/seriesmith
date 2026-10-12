@@ -113,6 +113,36 @@ class StandaloneTest(unittest.TestCase):
             self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
                                              "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
 
+    def test_stop_and_restart_from_this_machine_only(self):
+        """POST /seriesmith/server/stop: the editor's Stop / Restart. Restart's
+        exit code (3) is what run_seriesmith*.bat starts it again on."""
+        from unittest import mock
+        stops = []
+
+        async def body(client, app):
+            with mock.patch.object(standalone, "_graceful_exit", lambda: stops.append(True)):
+                r = await client.post("/seriesmith/server/stop", json={"restart": True})
+                ok = (r.status, await r.json(), app["exit_code"])
+                await asyncio.sleep(0.5)
+            with mock.patch.object(standalone, "LOOPBACK", ()):
+                far = (await client.post("/seriesmith/server/stop", json={})).status
+            return ok, far
+        (status, data, code), far = self.run_app(body)
+        self.assertEqual((status, data, code), (200, {"ok": True, "restart": True}, standalone.RESTART))
+        self.assertEqual(stops, [True])
+        self.assertEqual(far, 403)
+
+    def test_a_stop_closes_the_pages_connection(self):
+        """The editor's live connection is closed as the server shuts down:
+        left open, the stop waited on it (aiohttp's 60 s), then was killed."""
+        async def body(client, app):
+            ws = await client.ws_connect("/ws")
+            await asyncio.sleep(0.05)
+            await app.shutdown()
+            await asyncio.wait_for(ws.receive(), 5)
+            return ws.close_code
+        self.assertEqual(self.run_app(body), 1001)
+
     def test_the_apis_events_reach_the_page(self):
         async def body(client, app):
             ws = await client.ws_connect("/ws")
