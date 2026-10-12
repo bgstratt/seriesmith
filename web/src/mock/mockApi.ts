@@ -1848,6 +1848,14 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!t) throw new MockError(`no target ${id}`, 404);
       return { ok: true, id, path: "(mock)", target: t };
     },
+    async routerModels() {
+      await wait(40);
+      return { models: [
+        { id: "kling/kling-v3-omni", provider: "kling", model: "kling-v3-omni", kind: "video" as const, text_only: false },
+        { id: "wan/wan2.7-t2v", provider: "wan", model: "wan2.7-t2v", kind: "video" as const, text_only: true },
+        { id: "byteplus/seedream-5-0-260128", provider: "byteplus", model: "seedream-5-0-260128", kind: "image" as const, text_only: false },
+      ] };
+    },
     async routerDryRun(req) {
       await wait(40);
       return { ok: true, shot: req.shot || "sh010", pass: req.pass || "proxy", model: "mock/model",

@@ -2420,6 +2420,36 @@ def post_targets_router_inspect(ctx: Context, body):
 
 
 @handler
+def get_router_models(ctx: Context, query: dict):
+    """Router's model catalog for the wizard's picker: [{id, provider, model,
+    kind ("video" | "image" | "other", guessed from the name), text_only (its
+    name says text-to-video), added (a target already drives it: its id)}],
+    read with the account's Comfy API key and kept an hour. Query {ep?}."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    key = load_settings().api_key
+    if not key:
+        raise ApiError(409, "Router's model list needs your Comfy API key (Settings)")
+    try:
+        ids = RI.fetch_catalog(key)
+    except RI.RouterInspectError as e:
+        raise ApiError(502, str(e))
+    ep = check_ep(ctx, query.get("ep")) if query.get("ep") else None
+    added = {}
+    for t in TG.list_targets(root=ep):
+        m = (t.spec.get("router") or {}).get("model")
+        if m:
+            added.setdefault(m, t.id)
+    out = []
+    for i in sorted(ids):
+        prov, _, name = i.partition("/")
+        out.append({"id": i, "provider": prov, "model": name, "kind": RI.kind_of(i),
+                    "text_only": bool(re.search(r"t2v|text-to-video", name)),
+                    **({"added": added[i]} if i in added else {})})
+    return 200, {"models": out}
+
+
+@handler
 def put_targets_custom(ctx: Context, body):
     """Save a show's own target (`<show>/targets/<id>/target.json`). Validated
     first, against the workflow it names as a render would resolve it."""
@@ -3809,6 +3839,7 @@ ROUTES = [
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
     ("POST", "/seriesmith/targets/router-inspect", post_targets_router_inspect, "body"),
     ("POST", "/seriesmith/targets/router-dryrun", post_targets_router_dryrun, "body"),
+    ("GET", "/seriesmith/router/models", get_router_models, "query"),
     ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),

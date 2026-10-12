@@ -95,6 +95,16 @@ class SharedFieldsTest(unittest.TestCase):
         self.assertEqual(proposal("kling/kling-v3-omni")["shared"], {})
 
 
+class CatalogTest(unittest.TestCase):
+    def test_a_models_kind_from_its_name(self):
+        for i, k in (("kling/kling-v3-omni", "video"), ("pika/pika-2.5-image-to-video", "video"),
+                     ("kling/kling-image-o1", "image"), ("byteplus/seedream-5-0-260128", "image"),
+                     ("vertexai/gemini-3-pro-image", "image"), ("wan/wan2.7-r2v", "video"),
+                     ("anthropic/claude-opus-5-5", "other"), ("wavespeed/seedvr2", "other"),
+                     ("elevenlabs/eleven_v3", "other"), ("runway/gen4_turbo", "video")):
+            self.assertEqual(RI.kind_of(i), k, i)
+
+
 class LimitsRoutesTest(ApiTest):
     def setUp(self):
         super().setUp()
@@ -134,6 +144,9 @@ class LimitsRoutesTest(ApiTest):
         self.assertEqual(self.limits("my_kling")["pictures"]["references"], 2)
         with open(os.path.join(TG.user_folder(), "my_kling", "target.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["router"]["inputs"]["references"]["max"], 2)
+        d = self.ok(A.delete_targets_custom(self.ctx, {"ep": self.ep, "id": "my_kling"}))
+        self.assertTrue(d["deleted"])
+        self.assertFalse(os.path.exists(os.path.join(TG.user_folder(), "my_kling")))
 
     def test_a_proposed_target_is_dry_run_on_a_shot(self):
         p = proposal("kling/kling-v3-omni")["proposal"]
@@ -157,6 +170,19 @@ class LimitsRoutesTest(ApiTest):
         self.assertEqual((lim["pictures"]["references"], lim["prompt"]["max_chars"]), (1, 300))
         self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": p,
                                                 "limits": {"size": {"multiple": 0}}}), 400)
+
+    def test_the_catalog_for_the_wizards_picker(self):
+        from unittest import mock
+        ids = ["kling/kling-v3-omni", "wan/wan2.7-t2v", "byteplus/seedream-5-0-260128", "openai/gpt-5"]
+        with mock.patch.dict(os.environ, {"COMFY_API_KEY": "k"}),                 mock.patch.object(RI, "fetch_catalog", return_value=ids):
+            d = self.ok(A.get_router_models(self.ctx, {"ep": self.ep}))
+        by = {m["id"]: m for m in d["models"]}
+        self.assertEqual(by["kling/kling-v3-omni"]["added"], "kling_v3_omni")
+        self.assertEqual((by["wan/wan2.7-t2v"]["kind"], by["wan/wan2.7-t2v"]["text_only"]), ("video", True))
+        self.assertEqual(by["byteplus/seedream-5-0-260128"]["kind"], "image")
+        self.assertEqual(by["openai/gpt-5"]["kind"], "other")
+        with mock.patch.dict(os.environ, {"COMFY_API_KEY": ""}):
+            self.ok(A.get_router_models(self.ctx, {}), 409)
 
     def test_the_proposal_comes_with_its_limits(self):
         self.assertEqual(L.describe(proposal("veo/veo-3.1-fast-generate-001")["proposal"])["prompt"],

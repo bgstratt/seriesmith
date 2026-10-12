@@ -953,9 +953,12 @@ def save_spec(root: str, spec: dict, base: str | None = None) -> str:
 
 
 def delete_spec(root: str, target_id: str) -> bool:
-    """Remove a show's own target (its folder, if nothing else is in it).
-    False when there was none."""
+    """Remove a show's own target, or one for every show (the user folder):
+    its target.json, and its folder if nothing else is in it. False when
+    there was none."""
     path = target_path(root, target_id)
+    if not os.path.isfile(path):
+        path = os.path.join(TG.user_folder(), target_id, "target.json")
     if not os.path.isfile(path):
         return False
     os.remove(path)
@@ -976,7 +979,7 @@ def custom_targets(root: str) -> list[dict]:
         if not t.custom:
             continue
         out.append({"id": t.id, "kind": t.kind, "label": t.label, "short": t.short,
-                    "draft": bool(t.spec.get("draft")),
+                    "draft": bool(t.spec.get("draft")), "scope": TG.scope_of(t.folder),
                     "workflow": t.binding.workflow_name,
                     "path": os.path.join(t.folder, "target.json")})
     return out

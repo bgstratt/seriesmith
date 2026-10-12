@@ -2,13 +2,13 @@
 // a target, confirm what seriesmith worked out and what it guessed, save it as a
 // draft, probe-render one shot on it, then enable it for shots.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   deleteCustomTarget, enableCustomTarget, inspectTarget, loadWorkflows, probeTarget,
   saveCustomTarget,
 } from "../actions";
 import { customTargets, isHosted } from "../lib/targets";
-import type { RouterDryRun, RouterProposal } from "../api";
+import type { RouterCatalogModel, RouterDryRun, RouterProposal } from "../api";
 import { LimitsForm, changedLimits } from "./Limits";
 import { api } from "../host";
 import { useStatus } from "./hooks";
@@ -83,16 +83,41 @@ function applyAnswers(p: TargetProposal, a: Answers): Record<string, unknown> {
   return spec;
 }
 
-/** "Add a target from a workflow", and the show's own targets as they stand. */
+/** Adding a model (a workflow of yours, or a Comfy Router model) first, then
+ * the hosted models seriesmith ships untested, then your own. */
 export function CustomTargets({ list }: { list: TargetList | null }) {
   const ep = useApp((s) => s.ep);
   const [open, setOpen] = useState(false);
   const [routerOpen, setRouterOpen] = useState(false);
   const mine = useMemo(() => customTargets(list), [list]);
   const shipped = useMemo(() => (list?.targets ?? []).filter((t) => t.shipped_draft), [list]);
+  // an opened wizard is brought into view (the window is usually scrolled to the table)
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open || routerOpen) top.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [open, routerOpen]);
   if (!ep) return null;
   return (
     <div className="h3-col" style={{ gap: 6 }}>
+      <div ref={top} className="h3-h">
+        Add a model
+        <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
+          {" "}— a Comfy Router model from its catalog, or a ComfyUI workflow of yours
+        </span>
+      </div>
+      {routerOpen && <RouterWizard onClose={() => setRouterOpen(false)} />}
+      {open && <Wizard onClose={() => setOpen(false)} />}
+      {!open && !routerOpen && (
+        <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+          <button className="h3-btn h3-primary" title="Pick one from Router's catalog: seriesmith reads its schema and proposes how a shot goes in"
+            onClick={() => setRouterOpen(true)}>
+            <i className="pi pi-cloud" /> Add a Comfy Router model…
+          </button>
+          <button className="h3-btn" onClick={() => setOpen(true)}>
+            <i className="pi pi-plus" /> Add a target from a workflow…
+          </button>
+        </div>
+      )}
       {shipped.length > 0 && (
         <>
           <div className="h3-h">
@@ -105,29 +130,16 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
         </>
       )}
       <div className="h3-h">
-        This show's own targets
+        Your own models
         <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
-          {" "}— a ComfyUI workflow of yours, or a Comfy Router model, driven like any other
+          {" "}— added here: for every show, or this show only
         </span>
       </div>
       {mine.map((t) => <MineRow key={t.id} t={t} />)}
       {!mine.length && (
         <div className="h3-small h3-muted">
-          None yet. Save a workflow in ComfyUI, then add it here: seriesmith reads the graph and works
-          out which widget takes the prompt, the size, the length, the seed and the model.
-        </div>
-      )}
-      {open && <Wizard onClose={() => setOpen(false)} />}
-      {routerOpen && <RouterWizard onClose={() => setRouterOpen(false)} />}
-      {!open && !routerOpen && (
-        <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-          <button className="h3-btn" onClick={() => setOpen(true)}>
-            <i className="pi pi-plus" /> Add a target from a workflow…
-          </button>
-          <button className="h3-btn" title="A hosted model by its Router id (provider/model): seriesmith reads its schema and proposes how a shot goes in"
-            onClick={() => setRouterOpen(true)}>
-            <i className="pi pi-cloud" /> Add a Comfy Router model…
-          </button>
+          None yet. Add a Router model above, or save a workflow in ComfyUI and add it: seriesmith reads the
+          graph and works out which widget takes the prompt, the size, the length, the seed and the model.
         </div>
       )}
     </div>
@@ -179,8 +191,8 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
           </button>
         )}
         {!builtin && (
-          <button className="h3-btn" disabled={busy} title={`Remove ${t.id} from this show`}
-                  onClick={() => { if (confirm(`Remove ${t.label || t.id} from this show? Takes already rendered on it are kept.`)) void deleteCustomTarget(t.id); }}>
+          <button className="h3-btn" disabled={busy} title={`Remove ${t.id} from ${t.scope === "user" ? "every show" : "this show"}`}
+                  onClick={() => { if (confirm(`Remove ${t.label || t.id} from ${t.scope === "user" ? "every show" : "this show"}? Takes already rendered on it are kept.`)) void deleteCustomTarget(t.id); }}>
             <i className="pi pi-trash" /> Remove
           </button>
         )}
@@ -217,11 +229,13 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   const [dry, setDry] = useState<RouterDryRun | null>(null);
   const [dryBusy, setDryBusy] = useState(false);
 
-  async function read() {
+  async function read(which?: string) {
+    const target = (which ?? model).trim();
+    if (which) setModel(which);
     setBusy(true);
     setErr(null);
     try {
-      const got = await api().routerInspect({ model: model.trim(), ep });
+      const got = await api().routerInspect({ model: target, ep });
       setR(got);
       setId(got.proposal.id);
       setLabel(got.proposal.label);
@@ -282,15 +296,8 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   };
   return (
     <div className="h3-col h3-mfile" style={{ gap: 6 }}>
-      <div className="h3-row" style={{ gap: 6 }}>
-        <input className="h3-in h3-grow h3-mono" value={model} placeholder="minimax/minimax-h3"
-          title="The model's Router id, provider/model (comfy.org's model catalog lists them)"
-          onChange={(e) => setModel(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && model.includes("/")) void read(); }} />
-        <button className="h3-btn h3-primary" disabled={busy || !model.includes("/")} onClick={() => void read()}>
-          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-search"} /> Read it
-        </button>
-        <button className="h3-btn" onClick={onClose}>Cancel</button>
-      </div>
+      <RouterModelPicker value={model} onChange={setModel} onPick={(m) => void read(m)}
+        busy={busy} onRead={() => void read()} onClose={onClose} collapsed={!!r} />
       {err && <div className="h3-small h3-err">{err}</div>}
       {r && (
         <>
@@ -380,6 +387,83 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Router's catalog as a combo box: type to narrow (any part of the id),
+ * Video / Image / All, grouped by provider; a click reads that model. A
+ * model a target already drives says which; one whose name says
+ * text-to-video is marked (seriesmith can't use it for shots). */
+function RouterModelPicker({ value, onChange, onPick, onRead, onClose, busy, collapsed }: {
+  value: string; onChange: (v: string) => void; onPick: (id: string) => void; onRead: () => void;
+  onClose: () => void; busy: boolean; collapsed: boolean;
+}) {
+  const ep = useApp((s) => s.ep);
+  const [models, setModels] = useState<RouterCatalogModel[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [kind, setKind] = useState<"video" | "image" | "all">("video");
+  const [open, setOpen] = useState(!collapsed);
+  useEffect(() => {
+    let live = true;
+    api().routerModels(ep).then((d) => { if (live) setModels(d.models); })
+      .catch((e) => { if (live) setErr((e as Error).message); });
+    return () => { live = false; };
+  }, [ep]);
+  useEffect(() => { if (collapsed) setOpen(false); }, [collapsed]);
+  const words = value.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (models ?? []).filter((m) => (kind === "all" || m.kind === kind)
+    && words.every((w) => m.id.toLowerCase().includes(w)));
+  const groups = new Map<string, RouterCatalogModel[]>();
+  for (const m of shown) groups.set(m.provider, [...(groups.get(m.provider) ?? []), m]);
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <div className="h3-row" style={{ gap: 6 }}>
+        <input className="h3-in h3-grow h3-mono" value={value} placeholder="search Router's models: kling, veo, seedream…"
+          title="Type any part of a model's id to narrow the list, or a whole provider/model id"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const pick = value.includes("/") ? value.trim() : shown.length === 1 ? shown[0].id : "";
+              if (pick) { setOpen(false); onPick(pick); }
+            }
+            if (e.key === "Escape") setOpen(false);
+          }} />
+        <span className="h3-seg">
+          {(["video", "image", "all"] as const).map((k) => (
+            <button key={k} className={kind === k ? "h3-on" : ""} onClick={() => { setKind(k); setOpen(true); }}>
+              {k === "all" ? "All" : k === "video" ? "Video" : "Image"}
+            </button>
+          ))}
+        </span>
+        <button className="h3-btn h3-primary" disabled={busy || !value.includes("/")} onClick={() => { setOpen(false); onRead(); }}>
+          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-search"} /> Read it
+        </button>
+        <button className="h3-btn" onClick={onClose}>Cancel</button>
+      </div>
+      {open && (
+        <div className="h3-mfile" style={{ maxHeight: 260, overflow: "auto", padding: 4 }}>
+          {err && <div className="h3-small h3-err">{err}</div>}
+          {!models && !err && <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading Router's model list…</div>}
+          {models && !shown.length && <div className="h3-small h3-muted">No {kind === "all" ? "" : `${kind} `}model matches that.</div>}
+          {[...groups.entries()].map(([prov, ms]) => (
+            <div key={prov} className="h3-col" style={{ gap: 1, marginBottom: 4 }}>
+              <div className="h3-small h3-muted" style={{ fontWeight: 600 }}>{prov}</div>
+              {ms.map((m) => (
+                <button key={m.id} className="h3-pick-row h3-row" style={{ gap: 6 }}
+                  title={m.text_only ? "Its name says text to video: seriesmith draws from pictures, so it will likely be refused" : `Read ${m.id}`}
+                  onClick={() => { setOpen(false); onPick(m.id); }}>
+                  <span className="h3-mono h3-grow h3-ell">{m.model}</span>
+                  {m.text_only && <span className="h3-small h3-warn">text only?</span>}
+                  {m.added && <span className="h3-small h3-muted">added: {m.added}</span>}
+                  {kind === "all" && <span className="h3-small h3-muted">{m.kind}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

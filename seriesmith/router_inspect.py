@@ -55,6 +55,65 @@ def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
         raise RouterInspectError(f"Router's schema for {model} couldn't be read: {e}") from None
 
 
+# -- the catalog ---------------------------------------------------------------------
+
+# what a Router model makes, from its id (the catalog doesn't say): "video" in
+# it first (pika-2.5-image-to-video), then image words, then video families
+_VIDEO = re.compile(r"video|seedance|kling|veo|gen4_turbo|aleph|\bwan|happyhorse|ltx|\bray-|minimax-h3|"
+                    r"h3-max|[it]2v|r2v|pika|lip-sync|sync-3|starfish|switchx")
+_IMAGE = re.compile(r"image|seedream|flux|banana|krea|recraft|ideogram|photon|bria|imagen|[ti]2i|kontext|"
+                    r"fibo|erase|expand|fill|vto|uni-1|skin|patina")
+_OTHER = re.compile(r"upscal|seedvr|flashvsr|audio|eleven|meshy|hunyuan-3d|rigging|remesh|animations")
+
+
+def kind_of(model_id: str) -> str:
+    """"video", "image" or "other" (language, audio, 3D, upscalers) for a
+    Router model id: a guess from its name, for narrowing a list."""
+    s = model_id.lower()
+    if _OTHER.search(s):
+        return "other"
+    if "video" in s:
+        return "video"
+    if _IMAGE.search(s):
+        return "image"
+    if _VIDEO.search(s):
+        return "video"
+    return "other"
+
+
+_CATALOG: dict = {}                   # api key -> (monotonic time, [model ids])
+CATALOG_TTL = 3600.0
+
+
+def fetch_catalog(api_key: str, timeout: float = 30.0) -> list[str]:
+    """Every model id Router serves (GET /v2/models, paged), kept an hour."""
+    import time
+    import urllib.parse
+    hit = _CATALOG.get(api_key)
+    if hit and time.monotonic() - hit[0] < CATALOG_TTL:
+        return list(hit[1])
+    from seriesmith.backends import tls
+    ids: list[str] = []
+    cursor = None
+    for _ in range(50):
+        q = "?limit=100" + (f"&cursor={urllib.parse.quote(cursor)}" if cursor else "")
+        req = urllib.request.Request(f"{API_BASE}/v2/models{q}", headers={"X-API-Key": api_key})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=tls()) as r:
+                page = json.load(r)
+        except urllib.error.HTTPError as e:
+            raise RouterInspectError(f"Router answered {e.code} for its model list") from None
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            raise RouterInspectError(f"Router's model list couldn't be read: {e}") from None
+        ids += [str(m.get("id")) for m in page.get("data") or [] if m.get("id")]
+        cursor = page.get("next_cursor")
+        if not page.get("has_more") or not cursor:
+            break
+    _CATALOG.clear()
+    _CATALOG[api_key] = (time.monotonic(), ids)
+    return list(ids)
+
+
 # -- the schema --------------------------------------------------------------------
 
 def _resolve(doc: dict, s):

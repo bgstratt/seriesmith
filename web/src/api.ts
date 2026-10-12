@@ -52,6 +52,18 @@ export interface RouterProposal {
   shared?: Record<string, SharedField[]>;
 }
 
+/** One of Router's models (GET /seriesmith/router/models): its kind guessed from its name. */
+export interface RouterCatalogModel {
+  id: string;
+  provider: string;
+  model: string;
+  kind: "video" | "image" | "other";
+  /** its name says text-to-video: seriesmith can't use it for shots */
+  text_only: boolean;
+  /** the target that already drives it */
+  added?: string;
+}
+
 /** POST /seriesmith/targets/router-dryrun: a Router target's request for one shot. */
 export interface RouterDryRun {
   ok: boolean;
@@ -256,6 +268,7 @@ export interface Api {
   saveCustomTarget(ep: string, target: Record<string, unknown>, opts?: { scope?: "show" | "user"; limits?: Partial<Limits> | null }): Promise<CustomTargetResult>;
   /** PUT /seriesmith/targets/limits: null puts a built-in back as shipped */
   putTargetLimits(ep: string | null, id: string, limits: Partial<Limits> | null): Promise<{ ok: boolean; id: string; path: string; target: Target }>;
+  routerModels(ep: string | null): Promise<{ models: RouterCatalogModel[] }>;
   routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string }): Promise<RouterDryRun>;
   /** Phase 12b: remove one. */
   deleteCustomTarget(ep: string, id: string): Promise<CustomTargetResult>;
@@ -674,6 +687,7 @@ export function createHttpApi(t: Transport): Api {
     }),
     putTargetLimits: (ep, id, limits) => call("PUT", "/seriesmith/targets/limits", { ...(ep ? { ep } : {}), id, limits }),
     routerDryRun: (req) => call("POST", "/seriesmith/targets/router-dryrun", req),
+    routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),
     putEpisodeTarget: async (ep, target) => {

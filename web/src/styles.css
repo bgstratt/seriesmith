@@ -679,3 +679,8 @@
 .sm-log { margin: 6px 0 0; padding: 6px; font-size: 11px; max-height: 160px; overflow: auto; background: var(--comfy-input-bg); border-radius: 4px; white-space: pre-wrap; }
 .sm-queue-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 8px; border-bottom: 1px solid var(--border-color); }
 .sm-queue-bar .sm-jobs-btn { background: none; border: 1px solid var(--border-color); border-radius: 6px; color: var(--fg-color); padding: 3px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+
+/* a picker's list rows (the Router model picker): text, a highlight on hover */
+.h3-pick-row { width: 100%; background: none; border: 0; border-radius: 3px; padding: 2px 6px;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.h3-pick-row:hover, .h3-pick-row:focus-visible { background: var(--h3-hover, rgba(255, 255, 255, 0.08)); outline: none; }
