@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { planRedo, type RedoPlan } from "../src/actions";
 import { createHttpApi, type Transport } from "../src/api";
 import {
-  comboChoices, isRetargeted, pickerChoices, pickerSpec, retargetNote, runSize, seriesDefaultTarget,
+  byWhere, comboChoices, isHosted, isRetargeted, pickerChoices, pickerSpec, retargetNote, runSize, seriesDefaultTarget,
   shotTarget, shotTargetBadge, takeTargetBadge, targetBadges, targetShort, videoTargets,
 } from "../src/lib/targets";
 import { createMockApi } from "../src/mock/mockApi";
@@ -274,5 +274,19 @@ describe("mock: retargeting", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("models grouped by where they run", () => {
+  const t = (id: string, label: string, backends?: string[]) =>
+    ({ id, label, capabilities: backends ? { backends } : {} }) as unknown as Parameters<typeof isHosted>[0] & { id: string; label: string };
+  it("your GPU first, then Comfy Router, each alphabetical; an empty group left out", () => {
+    const list = [t("seedance", "Seedance 2.5", ["router"]), t("wan", "Wan 2.2"), t("h3", "MiniMax H3", ["local", "cloud"]),
+                  t("kling", "Kling 3", ["router"])];
+    expect(byWhere(list).map((g) => [g.label, g.targets.map((x) => x.id)])).toEqual([
+      ["Your GPU", ["h3", "wan"]],
+      ["Comfy Router (paid)", ["kling", "seedance"]],
+    ]);
+    expect(byWhere([t("wan", "Wan 2.2")]).map((g) => g.label)).toEqual(["Your GPU"]);
   });
 });

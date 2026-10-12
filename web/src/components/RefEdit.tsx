@@ -13,7 +13,7 @@ import { targetOptionText } from "../lib/readiness";
 import { useApp } from "../store";
 import type { Ref, RefEditRecord, RefEditWith } from "../types";
 import { LoraEditor } from "./Fields";
-import { useTargets } from "./Targets";
+import { ModelOptions, useTargets } from "./Targets";
 
 const EXAMPLES = [
   "replace the coat with a grey wool hoodie",
@@ -116,10 +116,10 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
         <select className="h3-in" value={target} onChange={(e) => setTarget(e.target.value)} title="The edit model. The default is this ref's own model if it can edit, else the episode's keyframe model.">
           <option value="">(the episode's edit model)</option>
-          {edits.map((x) => {
+          <ModelOptions targets={edits} text={(x) => {
             const n = x.capabilities?.max_refs;
-            return <option key={x.id} value={x.id}>{`${targetOptionText(x)}${n ? ` · up to ${n} picture${n === 1 ? "" : "s"}` : ""}`}</option>;
-          })}
+            return `${targetOptionText(x)}${n ? ` · up to ${n} picture${n === 1 ? "" : "s"}` : ""}`;
+          }} />
         </select>
         <select className="h3-in" value={count} onChange={(e) => setCount(Number(e.target.value))} title="How many candidates (each with a new seed)">
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}×</option>)}

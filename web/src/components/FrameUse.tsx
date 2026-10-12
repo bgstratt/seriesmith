@@ -18,6 +18,7 @@ import { useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 import { usePictureBrowse } from "./Picture";
 import { Row } from "./ShotForm";
+import { ModelOptions } from "./Targets";
 
 type Make = "character" | "place" | "existing";
 
@@ -260,7 +261,7 @@ function FrameUse({ ep, take: src, video0 }: {
             : "Takes the people out, leaving the place."}>
             <select className="h3-in" value={chosen} onChange={(e) => setModel(e.target.value)}>
               <option value="">the series' edit model</option>
-              {edits.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              <ModelOptions targets={edits} />
             </select>
           </Row>
         )}

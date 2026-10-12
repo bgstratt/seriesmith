@@ -22,6 +22,7 @@ import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { MasterRecipe } from "./MasterRecipe";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { ModelOptions } from "./Targets";
 
 const RECT_KEY = "seriesmith.seriesform.rect";
 
@@ -242,9 +243,7 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
     input = (
       <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{dflt ? `default (${mine.find((t) => t.id === dflt)?.label ?? dflt})` : "default"}</option>
-        {mine.map((t) => (
-          <option key={t.id} value={t.id}>{t.label}{readinessNote(t)}</option>
-        ))}
+        <ModelOptions targets={mine} text={(t) => `${t.label}${readinessNote(t)}`} />
         {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
       </select>
     );

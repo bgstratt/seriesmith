@@ -10,6 +10,7 @@ import { loadTargets, openSettings, setBackends } from "../actions";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { ModelOptions } from "./Targets";
 
 interface SettingsView {
   settings: { local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>; path: string | null; paid_limit?: number | null };
@@ -163,7 +164,7 @@ function SettingsBody() {
             <div key={i} className="h3-row" style={{ gap: 4 }}>
               <select className="h3-in" value={d.target} onChange={(e) => setDeps(deps.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))}>
                 <option value="">a model…</option>
-                {video.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                <ModelOptions targets={video} />
                 {d.target && !video.some((t) => t.id === d.target) && <option value={d.target}>{d.target}</option>}
               </select>
               <input className="h3-in h3-grow h3-mono" value={d.url} placeholder="https://….run.comfy.app"

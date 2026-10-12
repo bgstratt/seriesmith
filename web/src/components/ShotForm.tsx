@@ -21,6 +21,7 @@ import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { ModelOptions } from "./Targets";
 
 const RECT_KEY = "seriesmith.shotform.rect";
 const PREVIEW_MS = 600;
@@ -292,7 +293,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                   <Row label="Video model" help="Only when this shot needs something only one model does; empty: the episode's.">
                     <select className="h3-in" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
                       <option value="">the episode's</option>
-                      {videoTargets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      <ModelOptions targets={videoTargets} />
                     </select>
                   </Row>
                   <Row label="Continues" help="Carries straight on from the shot before in the cut: first opens on its last frame, latent holds its last frames and goes on from them.">

@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo } from "react";
 import { loadModelFiles, loadTargets, loadWidgetChoices } from "../actions";
-import {
+import { byWhere,
   findTarget, listDefaultTarget, pickerChoices, pickerSpec, seriesDefaultTarget, videoTargets, widgetKey, type WidgetSpec,
 } from "../lib/targets";
 import { targetOptionText } from "../lib/readiness";
@@ -76,6 +76,16 @@ export function useTargetPickers(targetId: string | null | undefined): TargetPic
   return { models, loras, target, modelFiles, twoStage, modelLowFiles };
 }
 
+/** `<option>`s for a list of models, in two groups by where they run (your
+ * GPU, then Comfy Router), alphabetical within each; one group alone is drawn
+ * without its heading. `text(t)` is each option's text. */
+export function ModelOptions<T extends Target>({ targets, text }: { targets: T[]; text?: (t: T) => string }) {
+  const groups = byWhere(targets);
+  const opt = (t: T) => <option key={t.id} value={t.id} title={t.id}>{text ? text(t) : t.label || t.id}</option>;
+  if (groups.length < 2) return <>{groups.flatMap((g) => g.targets.map(opt))}</>;
+  return <>{groups.map((g) => <optgroup key={g.label} label={g.label}>{g.targets.map(opt)}</optgroup>)}</>;
+}
+
 /** A select of the video targets, the default marked. */
 export function TargetSelect({ value, onChange, list, video, disabled, title, extra }: {
   value: string;
@@ -93,11 +103,7 @@ export function TargetSelect({ value, onChange, list, video, disabled, title, ex
     <select className="h3-in" value={value} disabled={disabled} title={title} onChange={(e) => onChange(e.target.value)}>
       {extra != null && <option value="">{extra}</option>}
       {!known && <option value={value}>{value} (unknown target)</option>}
-      {video.map((t) => (
-        <option key={t.id} value={t.id} title={t.id}>
-          {targetOptionText(t, t.id === def)}
-        </option>
-      ))}
+      <ModelOptions targets={video} text={(t) => targetOptionText(t, t.id === def)} />
     </select>
   );
 }

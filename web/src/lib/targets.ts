@@ -22,6 +22,22 @@ export function videoTargets(list: TargetList | null | undefined, withDrafts = f
     && (withDrafts || !t.draft));
 }
 
+/** A model that only runs hosted (its `backends` name no `local`: a Router model). */
+export function isHosted(t: Pick<Target, "capabilities">): boolean {
+  const b = (t.capabilities as { backends?: unknown } | undefined)?.backends;
+  return Array.isArray(b) && b.length > 0 && !b.includes("local");
+}
+
+/** Models grouped by where they run -- your GPU first, then Comfy Router --
+ * each group alphabetical by its label; an empty group is left out. */
+export function byWhere<T extends Pick<Target, "id" | "label" | "capabilities">>(ts: T[]): { label: string; targets: T[] }[] {
+  const sorted = [...ts].sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
+  return [
+    { label: "Your GPU", targets: sorted.filter((t) => !isHosted(t)) },
+    { label: "Comfy Router (paid)", targets: sorted.filter(isHosted) },
+  ].filter((g) => g.targets.length);
+}
+
 /** A show's own targets (`<show>/targets/<id>/target.json`), drafts included. */
 export function customTargets(list: TargetList | null | undefined): Target[] {
   return (list?.targets ?? []).filter((t) => t.custom);

@@ -35,7 +35,7 @@ import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, t
 import { sizeRule } from "../lib/size";
 import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSettings";
 import { useStatus } from "./hooks";
-import { useTargets } from "./Targets";
+import { ModelOptions, useTargets } from "./Targets";
 import { OverrideFields } from "./OverrideFields";
 import { EpisodeSelect, PassToggle } from "./ShotsTab";
 import { Progress } from "./Thumb";
@@ -96,11 +96,7 @@ function ImageModelBar() {
           onChange={(e) => void setRefDefault(kind, e.target.value || null)}
         >
           <option value="">{editor ? "(back to the series config's default)" : `${targetLabel(list, cur)} (${refDefaultSourceLabel(src)})`}</option>
-          {choices.map((x) => (
-            <option key={x.id} value={x.id} title={kind === "voices" ? voiceModeText(x) : imageModeText(x)}>
-              {targetOptionText(x)}{kind === "voices" ? "" : isEditTarget(x) ? " · edit" : ""}
-            </option>
-          ))}
+          <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind === "voices" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
         </select>
         {warn && <span className={warn.severity === "err" ? "h3-err h3-small" : "h3-warn h3-small"} title={warn.text}>{warn.severity === "err" ? "not ready" : "degraded"}</span>}
       </span>
@@ -596,7 +592,7 @@ function RefTargetOverride({ r }: { r: Ref }) {
           onChange={(e) => void saveRefOverride(r.id, { target: e.target.value || null })}
         >
           <option value="">{`(${refDefaultSourceLabel(src)}: ${targetLabel(list, fallback)})`}</option>
-          {choices.map((x) => <option key={x.id} value={x.id}>{targetOptionText(x)}{kind !== "voices" && isEditTarget(x) ? " · edit" : ""}</option>)}
+          <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind !== "voices" && isEditTarget(x) ? " · edit" : ""}`} />
         </select>
       </div>
       {t && <span className="h3-small h3-muted">{targetLabel(list, cur.target)}{mode(t) ? `: ${mode(t)}` : ""}{cur.source === "override" ? " (this ref's own)" : ""}</span>}

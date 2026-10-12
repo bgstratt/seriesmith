@@ -19,6 +19,7 @@ import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
 import { Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { ModelOptions } from "./Targets";
 
 /** Simple / Advanced, at the top of the sidebar. */
 export function ModeSwitch() {
@@ -213,13 +214,13 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       {picture ? (
         <Row label="Model" help={(IMAGE_NOTES[imageTarget] ?? it?.label ?? "") + (it?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
           <select className="h3-in" value={imageTarget} onChange={(e) => setImageModel(e.target.value === imageDefault ? "" : e.target.value)}>
-            {images.map((v) => <option key={v.id} value={v.id}>{v.label}{v.id === imageDefault ? " (default)" : ""}</option>)}
+            <ModelOptions targets={images} text={(v) => `${v.label}${v.id === imageDefault ? " (default)" : ""}`} />
           </select>
         </Row>
       ) : (
         <Row label="Model" help={(MODEL_NOTES[target] ?? t?.label ?? "") + (t?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
           <select className="h3-in" value={target} onChange={(e) => setModel(e.target.value === seriesTarget ? "" : e.target.value)}>
-            {video.map((v) => <option key={v.id} value={v.id}>{v.label}{v.id === seriesTarget ? " (default)" : ""}</option>)}
+            <ModelOptions targets={video} text={(v) => `${v.label}${v.id === seriesTarget ? " (default)" : ""}`} />
           </select>
         </Row>
       )}
