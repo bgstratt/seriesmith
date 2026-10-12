@@ -10,7 +10,7 @@ import {
   pickWarning, readinessBadge, readinessOf, resolutionNotes, searchText, seriesSnippet, seriesTarget, targetCounts,
   targetCountsText, tierText,
 } from "../lib/readiness";
-import { findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
+import { byWhere, findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
 import { useApp } from "../store";
 import type { MissingFile, Readiness, Resolution, Target, TargetList } from "../types";
 import { CustomTargets } from "./CustomTarget";
@@ -187,7 +187,10 @@ function EpisodeTargetPicker({ list, video, current, source, series, onChoose }:
   return (
     <div className="h3-pop" role="listbox">
       <div className="h3-menu-head">The episode's model, for every shot without its own</div>
-      {video.map((t) => {
+      {byWhere(video).map((g, _i, all) => (
+        <div key={g.label}>
+          {all.length > 1 && <div className="h3-menu-head h3-small" style={{ opacity: 0.75 }}>{g.label}</div>}
+          {g.targets.map((t) => {
         const r = readinessOf(list, t.id);
         const b = readinessBadge(r);
         const on = t.id === current;
@@ -209,7 +212,9 @@ function EpisodeTargetPicker({ list, video, current, source, series, onChoose }:
             {on && <i className="pi pi-check" />}
           </div>
         );
-      })}
+          })}
+        </div>
+      ))}
       {source === "editor" && (
         <>
           <div className="h3-menu-sep" />
