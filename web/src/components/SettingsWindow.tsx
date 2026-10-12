@@ -240,7 +240,9 @@ function SettingsBody({ server }: { server: boolean }) {
           <div><button className="h3-btn" onClick={() => setDeps([...deps, { target: "", url: "" }])}>+ Deployment</button></div>
         </section>
 
-        {server && <ServerSection />}
+        {/* only on the PC itself: the server refuses a stop from another device (no password
+            on the network), so the buttons aren't offered there */}
+        {server && ["127.0.0.1", "localhost", "[::1]", "::1"].includes(location.hostname) && <ServerSection />}
 
         {error && <div className="h3-err">{error}</div>}
       </div>
