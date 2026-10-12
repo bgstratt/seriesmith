@@ -50,7 +50,7 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
   return (
     <div className="h3-col" style={{ gap: 2 }}>
       <div className="h3-target-row">
-        <span className="h3-h">Target</span>
+        <span className="h3-h" title="Which model draws this shot (its target)">Video model class</span>
         <TargetSelect
           value={current}
           list={list}
@@ -386,6 +386,7 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
         seedTitle="Pinned seed for this shot (both passes). Empty = the built seed; a redo still picks a new one unless you choose same/typed."
         modelPlaceholder={`(${whose}) ${ov.model == null ? shortName(eff.model, 40) : ""}`}
         stepsPlaceholder={`${ov.steps == null ? eff.steps : ""} (${whose})`}
+        noSteps={tgt?.presets?.[pass]?.steps === 0}
         size={{ built: sizeText(d.built_values?.width ?? (ov.size == null ? eff.width : null), d.built_values?.height ?? (ov.size == null ? eff.height : null)), rule: sizeRule(tgt?.template) }}
         effLoras={eff.loras}
         lorasOverridden={ov.loras != null}

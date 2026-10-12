@@ -259,5 +259,22 @@ export function loraLine(name: string, strength: string): string {
   return !strength.trim() || !Number.isFinite(n) || n === 1 ? name.trim() : `${name.trim()}:${strength.trim()}`;
 }
 
+/** A `lora:` value as its LoRAs: "" (the default), `none`, or a chain
+ * separated by commas ("a:0.6, b"), each a {name, strength}. */
+export function parseLoraChain(v: string): { off: boolean; rows: { name: string; strength: string }[] } {
+  const s = v.trim();
+  if (!s) return { off: false, rows: [] };
+  if (LORA_OFF.has(s.toLowerCase())) return { off: true, rows: [] };
+  return { off: false, rows: s.split(",").map((x) => x.trim()).filter(Boolean).map((x) => {
+    const p = parseLoraLine(x);
+    return { name: p.name, strength: p.strength };
+  }) };
+}
+
+/** The `lora:` value for a chain (rows without a name left out; none: ""). */
+export function loraChainLine(rows: { name: string; strength: string }[]): string {
+  return rows.map((r) => loraLine(r.name, r.strength)).filter(Boolean).join(", ");
+}
+
 /** What a `first:` / `last:` value is: a method, or a picture's path. */
 export const KEYFRAME_METHODS = ["generate", "import", "none"];

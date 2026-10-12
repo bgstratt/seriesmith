@@ -181,6 +181,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const videoTargets = (targets?.targets ?? []).filter((t) => t.kind === "video" && !t.draft);
   // the model this shot renders on: its own, else what the preview compiled it for
   const renderTarget = form?.keys.target || (preview?.ok ? preview.target ?? null : null);
+  // a model with no steps setting (a hosted one: its preset says 0 steps)
+  const noSteps = videoTargets.find((t) => t.id === renderTarget)?.presets?.final?.steps === 0;
 
 
   const head = (
@@ -290,12 +292,22 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                   <Row label="Music" help="Audience-only score; usually left out and decided in the edit.">
                     <input className="h3-in" value={form.keys.music ?? ""} onChange={(e) => set("music", e.target.value)} />
                   </Row>
-                  <Row label="Video model" help="Only when this shot needs something only one model does; empty: the episode's.">
+                  <Row label="Video model class" help="Which model draws this shot, only when it needs something one model does; empty: the episode's.">
                     <select className="h3-in" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
                       <option value="">the episode's</option>
                       <ModelOptions targets={videoTargets} />
                     </select>
                   </Row>
+                  {/* what that model loads: its file, its LoRAs, its steps */}
+                  <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
+                    <ModelLine value={form.keys.model ?? ""} onChange={(v) => set("model", v)} target={renderTarget} empty="the series' (or the model's own)" />
+                  </Row>
+                  <Row label="LoRAs" help={`LoRAs for this shot, from what ${renderTarget ?? "its model"} loads, each with its strength, applied in this order; none for none.`}>
+                    <LoraLine value={form.keys.lora ?? ""} onChange={(v) => set("lora", v)} target={renderTarget} empty="the series' (or the model's own)" />
+                  </Row>
+                  {noSteps
+                    ? <Row label="Steps" help="This model has no steps setting: the provider decides."><span className="h3-small h3-muted">none (the provider's)</span></Row>
+                    : <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />}
                   <Row label="Continues" help="Carries straight on from the shot before in the cut: first opens on its last frame, latent holds its last frames and goes on from them.">
                     <select className="h3-in" value={form.keys.continuous ?? ""} onChange={(e) => set("continuous", e.target.value)}>
                       <option value="">no</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="none">none: break a sequence's chain</option>
@@ -326,13 +338,6 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                       </select>
                     </Row>
                   )}
-                  <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />
-                  <Row label="LoRA" help={`One LoRA for this shot, from what ${renderTarget ?? "its model"} loads, and its strength; none for none.`}>
-                    <LoraLine value={form.keys.lora ?? ""} onChange={(v) => set("lora", v)} target={renderTarget} empty="the series' (or the model's own)" />
-                  </Row>
-                  <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
-                    <ModelLine value={form.keys.model ?? ""} onChange={(v) => set("model", v)} target={renderTarget} empty="the series' (or the model's own)" />
-                  </Row>
                 </div>
               )}
             </>

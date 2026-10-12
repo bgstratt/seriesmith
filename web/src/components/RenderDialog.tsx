@@ -96,7 +96,7 @@ function RenderBody() {
       {list && video.length > 0 && (
         <div className="h3-col" style={{ gap: 2 }}>
           <div className="h3-target-row">
-            <span className="h3-h">Target for this run</span>
+            <span className="h3-h" title="Which model draws this run (its target)">Video model class for this run</span>
             <TargetSelect
               value={one ? run : target}
               list={list}

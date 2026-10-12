@@ -250,7 +250,7 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
       <div className="h3-field" style={{ gridTemplateColumns: "76px minmax(0,1fr)" }}>
         {list && current && (
           <>
-            <label title="Target for this run">Target</label>
+            <label title="Which model draws this run (its target)">Model class</label>
             <div className="h3-col" style={{ gap: 2 }}>
               <TargetSelect
                 value={runTarget}

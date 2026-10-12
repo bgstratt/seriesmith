@@ -1,8 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { loadModelFiles, loadModels } from "../actions";
 import { diffStats, diffWords } from "../lib/diff";
 import type { LoraRow } from "../lib/overrideForm";
-import { loraLine, parseLoraLine } from "../lib/shotForm";
+import { loraChainLine, parseLoraChain } from "../lib/shotForm";
 import { shortName } from "../lib/format";
 import { isModelMismatch, modelGroups, modelWarning } from "../lib/targets";
 import { useApp } from "../store";
@@ -135,8 +135,9 @@ export function MoreToggle({ open, onToggle, label }: { open: boolean; onToggle:
   );
 }
 
-/** One LoRA as a `lora:` line writes it (`name`, `name:0.7`, `none`), picked from
- * what `target` loads. "" is the default (the series' or the target's preset). */
+/** A `lora:` line's LoRAs (`name`, `name:0.7`, a chain "a:0.6, b" applied in
+ * that order, or `none`), picked from what `target` loads: one row per LoRA,
+ * "+ LoRA" for another. "" is the default (the series' or the target's preset). */
 export function LoraLine({ value, onChange, target, empty = "the default" }: {
   value: string; onChange: (v: string) => void; target: string | null; empty?: string;
 }) {
@@ -151,20 +152,49 @@ export function LoraLine({ value, onChange, target, empty = "the default" }: {
     if (t?.models?.loras) void loadModelFiles(t.id, "loras");
   }, [t?.id]);
   const list = pickers.loras?.length ? pickers.loras : family?.files.length ? family.files.map((f) => f.name) : loras ?? [];
-  const cur = parseLoraLine(value);
-  const pick = value.trim() === "" ? "" : cur.off ? "__none" : cur.name;
+  const cur = parseLoraChain(value);
+  // rows added with "+ LoRA" and not chosen yet (the line can't hold them)
+  const [blank, setBlank] = useState(0);
+  const rows = [...cur.rows, ...Array.from({ length: blank }, () => ({ name: "", strength: "1" }))];
+  if (!rows.length) rows.push({ name: "", strength: "1" });
+  const emit = (next: { name: string; strength: string }[]) => {
+    setBlank(next.some((r) => r.name) ? next.filter((r) => !r.name).length : 0);
+    onChange(loraChainLine(next));
+  };
+  const setRow = (i: number, patch: Partial<{ name: string; strength: string }>) =>
+    emit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
-    <div className="h3-row h3-wrap" style={{ gap: 4 }}>
-      <select className="h3-in h3-grow" style={{ minWidth: 0 }} value={pick} title={cur.name || undefined}
-        onChange={(e) => onChange(e.target.value === "" ? "" : e.target.value === "__none" ? "none" : loraLine(e.target.value, cur.strength))}>
-        <option value="">{empty}</option>
-        <option value="__none">none (no LoRA)</option>
-        {cur.name && !list.includes(cur.name) && <option value={cur.name}>{shortName(cur.name, 44)} (not installed)</option>}
-        {list.map((l) => <option key={l} value={l} title={l}>{shortName(l, 44)}</option>)}
-      </select>
-      {pick !== "" && pick !== "__none" && (
-        <input className="h3-in" type="number" step={0.05} style={{ width: 70 }} title="Strength" value={cur.strength}
-          onChange={(e) => onChange(loraLine(cur.name, e.target.value))} />
+    <div className="h3-col" style={{ gap: 3 }}>
+      {rows.map((r, i) => {
+        // the first row also says the default, or none at all
+        const pick = i === 0 && cur.off ? "__none" : r.name;
+        return (
+          <div key={i} className="h3-row" style={{ gap: 4 }}>
+            <select className="h3-in h3-grow" style={{ minWidth: 0 }} value={pick} title={r.name || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (i === 0 && v === "__none") return onChange("none");
+                if (v === "" && rows.length === 1) return onChange("");
+                setRow(i, { name: v });
+              }}>
+              <option value="">{i === 0 ? empty : "(choose a LoRA)"}</option>
+              {i === 0 && <option value="__none">none (no LoRA)</option>}
+              {r.name && !list.includes(r.name) && <option value={r.name}>{shortName(r.name, 44)} (not installed)</option>}
+              {list.map((l) => <option key={l} value={l} title={l}>{shortName(l, 44)}</option>)}
+            </select>
+            {r.name && (
+              <input className="h3-in" type="number" step={0.05} style={{ width: 70 }} title="Strength" value={r.strength}
+                onChange={(e) => setRow(i, { strength: e.target.value })} />
+            )}
+            {rows.length > 1 && (
+              <button className="h3-btn h3-icon" title="Remove this LoRA" onClick={() => emit(rows.filter((_, j) => j !== i))}>✕</button>
+            )}
+          </div>
+        );
+      })}
+      {!cur.off && rows.some((r) => r.name) && (
+        <button className="h3-link h3-small" style={{ alignSelf: "flex-start" }} title="Add another LoRA: they're applied in this order"
+          onClick={() => setBlank(blank + 1)}>+ LoRA</button>
       )}
     </div>
   );

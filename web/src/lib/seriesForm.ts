@@ -200,7 +200,7 @@ export const SECTIONS: Section[] = [
     title: "Models",
     help: "Which model makes what. Empty: the default, and the editor can still choose per episode, shot or ref.",
     fields: [
-      { path: ["series", "target"], label: "Video model", kind: "video_target",
+      { path: ["series", "target"], label: "Video model class", kind: "video_target",
         help: "What the shots render on. MiniMax H3 Ref2VA (the default) keeps characters and places from their reference pictures and lip-syncs; a shot or a sequence can name another." },
       { path: ["series", "backend"], label: "Render on", kind: "backend", more: true,
         help: "Where jobs run unless a request, shot or episode says otherwise: local (your ComfyUI), cloud, a deployment, router. Empty: each model's own." },

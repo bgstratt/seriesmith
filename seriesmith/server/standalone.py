@@ -232,8 +232,12 @@ def make_app(roots: list[str] | None = None, settings=None,
         return web.FileResponse(page, headers={"Cache-Control": "no-cache"})
 
     async def comfy_models(request: web.Request) -> web.Response:
+        """ComfyUI's /models[/{folder}] and /object_info/{node} (what a loader
+        node offers: the model and LoRA pickers), passed on."""
         folder = request.match_info.get("folder")
-        url = settings.comfyui_url + "/models" + (f"/{folder}" if folder else "")
+        node = request.match_info.get("node")
+        url = settings.comfyui_url + (f"/object_info/{node}" if node else
+                                      "/models" + (f"/{folder}" if folder else ""))
         try:
             async with ClientSession() as cs, cs.get(url, timeout=10) as r:
                 if r.status == 200:
@@ -274,6 +278,8 @@ def make_app(roots: list[str] | None = None, settings=None,
     for p in ("/models", "/api/models"):
         app.router.add_get(p, comfy_models)
         app.router.add_get(p + "/{folder}", comfy_models)
+    for p in ("/object_info", "/api/object_info"):
+        app.router.add_get(p + "/{node}", comfy_models)
     for p in ("/queue", "/api/queue"):
         app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)

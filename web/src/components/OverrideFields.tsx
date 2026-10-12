@@ -11,6 +11,8 @@ import { SizePicker } from "./SizePicker";
 
 export interface OverrideFieldsProps {
   form: OverrideForm;
+  /** the model has no steps setting (a hosted one): Steps reads "none" */
+  noSteps?: boolean;
   set: (patch: Partial<OverrideForm>) => void;
   /** what the prompt is without an override */
   builtPrompt: string;
@@ -54,44 +56,9 @@ export function OverrideFields(p: OverrideFieldsProps) {
   const locked = p.promptLocked;
   return (
     <>
-      {locked ? (
-        <>
-          <div className="h3-row">
-            <span className="h3-h h3-grow">Prompt <span className="h3-muted">({locked.label ?? "written by the target, read-only"})</span></span>
-          </div>
-          <div className="h3-note h3-note-info h3-small">{locked.note}</div>
-          <pre className="h3-pre" style={{ maxHeight: 260 }}>{locked.text}</pre>
-        </>
-      ) : (
-        <>
-          <div className="h3-row">
-            <span className="h3-h h3-grow">Prompt {p.promptOverridden ? <span className="h3-badge h3-b-override">override</span> : <span className="h3-muted">({built})</span>}</span>
-            <label className="h3-check h3-small"><input type="checkbox" checked={p.showDiff} onChange={(e) => p.setShowDiff(e.target.checked)} /> diff</label>
-            <button className="h3-btn" disabled={!promptChanged} title={`Put the ${built} prompt back in the box`} onClick={() => set({ prompt: p.builtPrompt })}>
-              {built === "built" ? "Built" : "Series config"}
-            </button>
-          </div>
-          {p.showDiff ? (
-            <DiffView oldText={p.builtPrompt} newText={form.prompt} />
-          ) : (
-            <textarea className="h3-in" rows={p.rows ?? 12} value={form.prompt} onChange={(e) => set({ prompt: e.target.value })} spellCheck={false} />
-          )}
-        </>
-      )}
+      {/* the model's own settings first (its file, LoRAs, steps), then what it's asked */}
       <div className="h3-field">
-        <label>Seed</label>
-        <div className="h3-row">
-          <input
-            className="h3-in h3-grow h3-mono"
-            inputMode="numeric"
-            placeholder={p.seedPlaceholder}
-            value={form.seed}
-            onChange={(e) => set({ seed: e.target.value.replace(/[^\d]/g, "") })}
-            title={p.seedTitle}
-          />
-          {form.seed && <button className="h3-btn h3-icon" title="Clear" onClick={() => set({ seed: "" })}>✕</button>}
-        </div>
-        <label>Model</label>
+        <label>Model file</label>
         {p.modelChoices === null ? (
           <span className="h3-muted h3-small">set by the target (it has no model widget)</span>
         ) : (
@@ -136,7 +103,47 @@ export function OverrideFields(p: OverrideFieldsProps) {
           </>
         )}
         <label>Steps</label>
-        <input className="h3-in" inputMode="numeric" placeholder={p.stepsPlaceholder} value={form.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />
+        {p.noSteps
+          ? <span className="h3-muted h3-small" title="This model has no steps setting: the provider decides">none (the provider's)</span>
+          : <input className="h3-in" inputMode="numeric" placeholder={p.stepsPlaceholder} value={form.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />}
+      </div>
+      {locked ? (
+        <>
+          <div className="h3-row">
+            <span className="h3-h h3-grow">Prompt <span className="h3-muted">({locked.label ?? "written by the target, read-only"})</span></span>
+          </div>
+          <div className="h3-note h3-note-info h3-small">{locked.note}</div>
+          <pre className="h3-pre" style={{ maxHeight: 260 }}>{locked.text}</pre>
+        </>
+      ) : (
+        <>
+          <div className="h3-row">
+            <span className="h3-h h3-grow">Prompt {p.promptOverridden ? <span className="h3-badge h3-b-override">override</span> : <span className="h3-muted">({built})</span>}</span>
+            <label className="h3-check h3-small"><input type="checkbox" checked={p.showDiff} onChange={(e) => p.setShowDiff(e.target.checked)} /> diff</label>
+            <button className="h3-btn" disabled={!promptChanged} title={`Put the ${built} prompt back in the box`} onClick={() => set({ prompt: p.builtPrompt })}>
+              {built === "built" ? "Built" : "Series config"}
+            </button>
+          </div>
+          {p.showDiff ? (
+            <DiffView oldText={p.builtPrompt} newText={form.prompt} />
+          ) : (
+            <textarea className="h3-in" rows={p.rows ?? 12} value={form.prompt} onChange={(e) => set({ prompt: e.target.value })} spellCheck={false} />
+          )}
+        </>
+      )}
+      <div className="h3-field">
+        <label>Seed</label>
+        <div className="h3-row">
+          <input
+            className="h3-in h3-grow h3-mono"
+            inputMode="numeric"
+            placeholder={p.seedPlaceholder}
+            value={form.seed}
+            onChange={(e) => set({ seed: e.target.value.replace(/[^\d]/g, "") })}
+            title={p.seedTitle}
+          />
+          {form.seed && <button className="h3-btn h3-icon" title="Clear" onClick={() => set({ seed: "" })}>✕</button>}
+        </div>
         {p.size && (
           <>
             <label title="The size every take of this pass renders at. A master re-samples each take by its own size.">Size</label>
