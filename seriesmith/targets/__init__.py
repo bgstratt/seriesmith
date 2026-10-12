@@ -815,6 +815,7 @@ class Target:
 # ---------------------------------------------------------------------------
 
 _CACHE: dict[str, Target] = {}                            # folder -> Target
+_STAMPS: dict[str, int | None] = {}                       # folder -> its target.json mtime
 CUSTOM_DIR = "targets"                                    # <show>/targets/<id>/target.json
 
 
@@ -972,15 +973,23 @@ def load_target(target_id: str, kind: str | None = None, root: str | None = None
 
 def _load_folder(kind: str, name: str, folder: str) -> Target:
     """The target in one folder, cached by folder (so two shows may each have a
-    custom target of the same name)."""
-    if folder in _CACHE:
-        return _CACHE[folder]
-    with open(os.path.join(folder, "target.json"), encoding="utf-8") as fh:
+    custom target of the same name), read again when its target.json changes
+    (a hand edit while the server runs)."""
+    path = os.path.join(folder, "target.json")
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        stamp = None
+    hit = _CACHE.get(folder)
+    if hit is not None and _STAMPS.get(folder) == stamp:
+        return hit
+    with open(path, encoding="utf-8") as fh:
         spec = json.load(fh)
     if spec.get("id") != name or spec.get("kind") != kind:
         raise TargetError(f"{folder}/target.json must say id {name!r} and kind {kind!r}")
     t = Target(folder, spec)
     _CACHE[folder] = t
+    _STAMPS[folder] = stamp
     return t
 
 

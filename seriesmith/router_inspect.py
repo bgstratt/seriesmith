@@ -325,12 +325,6 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         inputs["via"] = "seedance"
     elif '"$url"' in json.dumps(inputs) and "bytesBase64Encoded" in json.dumps(inputs):
         inputs["via"] = "base64"
-    elif any(p == _name(inputs.get("first") or {}) and "data uri" in _text(_resolve(doc, v))
-             for p, v in all_fields):
-        # a picture field that takes a data: URI (Runway's promptImage): the
-        # picture goes in the request, as Runway failed on an asset link with
-        # provider_error (2026-10-12)
-        inputs["via"] = "datauri"
     for k, where in inputs.items():
         if k == "via":
             continue
@@ -392,6 +386,12 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
     }
     if "refs" in base:
         proposal["refs"] = base["refs"]
+    # a model that makes no sound (Runway: no sound field, no word of audio
+    # anywhere): the silent prose, no quoted lines or soundscape -- Runway
+    # failed every prompt carrying them with provider_error (2026-10-12)
+    if "audio" not in inputs and not re.search(r"audio|\bsound", _text(doc)):
+        proposal["capabilities"]["audio"] = "none"
+        recipe["policies"] = ["silent"]
     return {"proposal": proposal, "mapped": mapped, "unplaced": unplaced, "warnings": warnings}
 
 

@@ -92,7 +92,10 @@ class ProposeTest(unittest.TestCase):
         self.assertTrue(TG.Target(sd.folder, p).capabilities()["requires_first"])
         # Router refused a 1421-character promptText (2026-10-12)
         self.assertEqual(p["router"]["inputs"]["prompt"], {"field": "promptText", "max_chars": 1000})
-        self.assertEqual(p["router"]["inputs"]["via"], "datauri")       # its field takes one
+        self.assertNotIn("via", p["router"]["inputs"])                  # an asset link does
+        # it makes no sound: the silent prose (quoted lines failed, 2026-10-12)
+        self.assertEqual((p["capabilities"]["audio"], p["recipe"]["policies"]), ("none", ["silent"]))
+        self.assertNotIn("audio", proposal("minimax/minimax-h3")["proposal"]["capabilities"])
 
     def test_a_long_prompt_keeps_whole_sentences(self):
         from seriesmith.targets.generic.router_video import fit
@@ -149,6 +152,22 @@ class ProposedTargetRendersTest(Episode):
         t = TG.Target(TG.load_target("seedance_2_5", "video").folder, p)
         with self.assertRaisesRegex(ValueError, "first keyframe"):
             t.module.router_call(t, self.job())
+
+    def test_a_hand_edit_is_read_again(self):
+        """A running server sent the old length after target.json was edited
+        by hand (2026-10-12): the cache is kept only while the file is the same."""
+        p = proposal("runway/gen4_turbo")["proposal"]
+        path = IN.save_spec(self.root, p)
+        with TG.use_roots(self.root):
+            t = TG.load_target(p["id"], "video", root=self.root)
+            self.assertIn(2, t.spec["router"]["inputs"]["duration"]["values"])
+            p["router"]["inputs"]["duration"]["values"] = [5, 10]
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(p, fh)
+            st = os.stat(path)
+            os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+            t = TG.load_target(p["id"], "video", root=self.root)
+            self.assertEqual(t.spec["router"]["inputs"]["duration"]["values"], [5, 10])
 
     def test_a_saved_target_can_be_enabled(self):
         """Enabling re-checks the target with the show's targets in force: it
