@@ -1775,6 +1775,9 @@ export interface TargetProposal {
   /** the graph itself is wrong: nothing can be saved until these are fixed */
   problems: string[];
   can_save?: boolean;
+  /** everything read, by level: an error stops it being saved, a warning is
+   * worth checking, info is how the graph was read */
+  notes?: { level: "error" | "warning" | "info"; text: string }[];
 }
 
 /** PUT / DELETE /seriesmith/targets/custom. */

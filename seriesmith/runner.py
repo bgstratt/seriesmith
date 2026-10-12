@@ -238,7 +238,10 @@ class Runner:
                 R.mark_failed(take, f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
                 raise J.NotPortable(f"{job.ref.id} still uses h3pipe's nodes: "
                                     f"{', '.join(uses_h3pipe(g))}")
-            savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio")]
+            # the picture comes back from the workflow's own save node: SaveImage,
+            # or whatever an image workflow of the user's ends in (binding.saver.replace)
+            own = ((job.target.binding.saver or {}).get("replace") or {}).get("class_type")
+            savers = [k for k, v in g.items() if v["class_type"] in ("SaveImage", "SaveAudio", own)]
         want = "audio" if job.is_audio else "image"
         ep = s.ep
         title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"

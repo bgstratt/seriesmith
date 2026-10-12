@@ -220,7 +220,7 @@ export async function loadWorkflows(): Promise<WorkflowFile[]> {
 }
 
 /** POST /seriesmith/targets/inspect: the target.json a workflow suggests. */
-export async function inspectTarget(req: { workflow?: string; graph?: unknown; id?: string; label?: string }): Promise<TargetProposal | null> {
+export async function inspectTarget(req: { workflow?: string; graph?: unknown; id?: string; label?: string; kind?: "auto" | "video" | "image" }): Promise<TargetProposal | null> {
   const ep = get().ep;
   return withBusy("target-inspect", async () => {
     try {

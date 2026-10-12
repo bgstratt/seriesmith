@@ -55,20 +55,25 @@ function applyAnswers(p: TargetProposal, a: Answers): Record<string, unknown> {
   spec.id = a.id.trim();
   spec.label = a.label.trim() || spec.id;
   spec.short = a.short.trim() || spec.label;
-  spec.template = {
-    ...spec.template,
-    fps: a.fps === "series" ? "series" : Number(a.fps) || 24,
-    size_multiple: Number(a.sizeMultiple) || 16,
-    frames: { step: Number(a.step) || 1, base: Number(a.base) || 1, max: Number(a.max) || 121 },
-  };
-  spec.capabilities = { ...spec.capabilities, audio: a.audio };
-  spec.recipe = { ...spec.recipe, prompt: a.prompt };
-  if (a.audio === "none") {
-    spec.recipe.policies = ["silent"];
-    spec.recipe.policy_fallback = { to: "silent", why: "this model makes no sound" };
+  if (spec.kind === "image") {
+    // an image model for refs: its sizes are the template's, no frames or sound
+    spec.template = { ...spec.template, size_multiple: Number(a.sizeMultiple) || 16 };
   } else {
-    spec.recipe.policies = ["generate"];
-    delete spec.recipe.policy_fallback;
+    spec.template = {
+      ...spec.template,
+      fps: a.fps === "series" ? "series" : Number(a.fps) || 24,
+      size_multiple: Number(a.sizeMultiple) || 16,
+      frames: { step: Number(a.step) || 1, base: Number(a.base) || 1, max: Number(a.max) || 121 },
+    };
+    spec.capabilities = { ...spec.capabilities, audio: a.audio };
+    spec.recipe = { ...spec.recipe, prompt: a.prompt };
+    if (a.audio === "none") {
+      spec.recipe.policies = ["silent"];
+      spec.recipe.policy_fallback = { to: "silent", why: "this model makes no sound" };
+    } else {
+      spec.recipe.policies = ["generate"];
+      delete spec.recipe.policy_fallback;
+    }
   }
   for (const amb of p.ambiguous) {
     const picked = a.chosen[amb.param];
@@ -114,7 +119,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
             <i className="pi pi-cloud" /> Add a Comfy Router model…
           </button>
           <button className="h3-btn" onClick={() => setOpen(true)}>
-            <i className="pi pi-plus" /> Add a target from a workflow…
+            <i className="pi pi-plus" /> Add a model from a workflow…
           </button>
         </div>
       )}
@@ -543,6 +548,35 @@ function RouterModelPicker({ value, onChange, onPick, onRead, onClose, busy, col
   );
 }
 
+const NOTE_LEVELS: { level: "error" | "warning" | "info"; head: string; cls: string; open: boolean }[] = [
+  { level: "error", head: "must be fixed before it can be saved", cls: "h3-err", open: true },
+  { level: "warning", head: "worth checking", cls: "h3-warn", open: true },
+  { level: "info", head: "how the graph was read", cls: "h3-muted", open: false },
+];
+
+/** What reading the workflow found, by level: errors and warnings open, the
+ * info folded. An older server's flat `warnings` show as warnings. */
+function WorkflowNotes({ p }: { p: TargetProposal }) {
+  const notes = p.notes ?? [...p.problems.map((t) => ({ level: "error" as const, text: t })),
+    ...p.warnings.map((t) => ({ level: "warning" as const, text: t }))];
+  return (
+    <>
+      {NOTE_LEVELS.map(({ level, head, cls, open }) => {
+        const these = notes.filter((n) => n.level === level);
+        if (!these.length || (level === "error" && p.problems.length && !p.notes)) return null;
+        return (
+          <details key={level} open={open} className="h3-small">
+            <summary className={cls} style={{ cursor: "pointer" }}>
+              {these.length} {level === "info" ? "note" : level}{these.length > 1 ? "s" : ""}: {head}
+            </summary>
+            <ul className="h3-missing-list">{these.map((n) => <li key={n.text}>{n.text}</li>)}</ul>
+          </details>
+        );
+      })}
+    </>
+  );
+}
+
 function Wizard({ onClose }: { onClose: () => void }) {
   const busy = useApp((s) => !!s.busy["target-inspect"]);
   const saving = useApp((s) => !!s.busy["target-save"]);
@@ -550,6 +584,8 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [pick, setPick] = useState("");
   const [proposal, setProposal] = useState<TargetProposal | null>(null);
   const [a, setA] = useState<Answers | null>(null);
+  // what the workflow makes: a video model, or an image model for refs (auto: read from the graph)
+  const [kind, setKind] = useState<"auto" | "video" | "image">("auto");
 
   useEffect(() => {
     void loadWorkflows().then(setFiles);
@@ -557,7 +593,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
 
   const set = (patch: Partial<Answers>) => setA((prev) => (prev ? { ...prev, ...patch } : prev));
   const read = async () => {
-    const r = await inspectTarget({ workflow: pick });
+    const r = await inspectTarget({ workflow: pick, kind });
     setProposal(r);
     setA(r ? answersFrom(r) : null);
   };
@@ -570,7 +606,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
   return (
     <div className="h3-mfile h3-col" style={{ gap: 6 }}>
       <div className="h3-row">
-        <b className="h3-grow">Add a target from a workflow</b>
+        <b className="h3-grow">Add a model from a workflow</b>
         <button className="h3-btn h3-icon" title="Close" onClick={onClose}>
           <i className="pi pi-times" />
         </button>
@@ -582,6 +618,12 @@ function Wizard({ onClose }: { onClose: () => void }) {
           {(files ?? []).map((f) => (
             <option key={f.name} value={f.name}>{f.name}{f.target ? "  (seriesmith's own)" : ""}</option>
           ))}
+        </select>
+        <select className="h3-in" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}
+          title="What the workflow makes: read from the graph (a video node, a frame count, a video save), or say so">
+          <option value="auto">it makes… (auto)</option>
+          <option value="video">a video (shots)</option>
+          <option value="image">an image (refs, keyframes)</option>
         </select>
         <button className="h3-btn" disabled={!pick || busy} onClick={() => void read()}>
           <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-search"} /> Read it
@@ -597,7 +639,10 @@ function Wizard({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <div className="h3-small">
-            Detected: {Object.entries(proposal.matched).map(([k, v]) => `${k} → ${v}`).join(", ") || "nothing"}
+            <b>{(proposal.proposal as { kind?: string }).kind === "image"
+              ? `An image model for refs${(proposal.proposal as { capabilities?: { mode?: string } }).capabilities?.mode === "edit" ? " (it edits: keyframes and edits)" : " (text to image)"}`
+              : "A video model for shots"}</b>
+            {" · "}Detected: {Object.entries(proposal.matched).map(([k, v]) => `${k} → ${v}`).join(", ") || "nothing"}
           </div>
           <div className="h3-lora">
             <label className="h3-small h3-muted">id</label>
@@ -605,6 +650,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
             <label className="h3-small h3-muted">name</label>
             <input className="h3-in" value={a.label} onChange={(e) => set({ label: e.target.value })} />
           </div>
+          {(proposal.proposal as { kind?: string }).kind !== "image" && (<>
           <div className="h3-row h3-small">
             <span className="h3-muted" title="Frames are step × n + base, up to max">frames</span>
             <input className="h3-in" style={{ width: 70 }} value={a.step} onChange={(e) => set({ step: e.target.value })} title="step" />
@@ -627,6 +673,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
               <option value="prose_silent">prose, dialogue as silent acting</option>
             </select>
           </div>
+          </>)}
           {proposal.ambiguous.map((amb) => (
             <div key={amb.param} className="h3-note h3-note-info h3-small">
               <div>{amb.ask}</div>
@@ -647,12 +694,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
               Model files: {proposal.models.map((m) => `${m.param} ${m.file}${m.family ? "" : " (family unknown)"}`).join(", ")}
             </div>
           )}
-          {!!proposal.warnings.length && (
-            <details className="h3-small">
-              <summary>{proposal.warnings.length} thing(s) seriesmith guessed or couldn't bind</summary>
-              <ul className="h3-missing-list">{proposal.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-            </details>
-          )}
+          <WorkflowNotes p={proposal} />
           <div className="h3-row h3-small">
             <button className="h3-btn" disabled={saving || !a.id || !!proposal.problems.length}
                     onClick={() => void save()}>

@@ -207,23 +207,149 @@ def saver_recipes(kind: str = KIND) -> dict:
     return out
 
 
-def find_saver(graph: dict, kind: str = KIND) -> tuple[dict, str]:
-    """(the binding's saver spec, the node it replaces). InspectError when the
-    graph ends in nothing this knows."""
+def find_saver(graph: dict, kind: str = KIND, object_info: dict | None = None) -> tuple[dict, str]:
+    """(the binding's saver spec, the node it replaces). A graph ending as a
+    shipped target's does (CreateVideo / SaveVideo / SaveImage) gets that
+    target's saver; any other is read from /object_info (generic_saver).
+    InspectError when nothing in it saves or previews a picture."""
     recipes = saver_recipes(kind)
     for ctype, spec in recipes.items():
         ids = nodes_of(graph, ctype)
         if len(ids) == 1:
             return spec, ids[0]
-        if len(ids) > 1:
-            raise InspectError(f"the graph has {len(ids)} {ctype} nodes; leave one, or the "
-                              f"take's video can't be told from a preview")
     saver = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video").binding.saver_class
-    if nodes_of(graph, saver):
+    if kind == "video" and nodes_of(graph, saver):
         return {"class_type": saver}, nodes_of(graph, saver)[0]
-    known = ", ".join(sorted(recipes) + [saver])
-    raise InspectError(f"the graph ends in nothing h3pipe can save from: it needs one of "
-                       f"{known}")
+    return generic_saver(graph, kind, object_info)
+
+
+# what a media input is, by its /object_info type
+_FRAMES, _AUDIO, _VIDEO = "IMAGE", "AUDIO", "VIDEO"
+# a save node's class, ranked for what a take is: a video file first, then an
+# animation, then a still; a preview last (its file is temporary)
+_RANK_VIDEO = [(re.compile(r"video|webm|mp4|combine|h26[45]|mov", re.I), 1),
+               (re.compile(r"animated|gif|webp|apng", re.I), 2),
+               (re.compile(r"save", re.I), 3), (re.compile(r"preview", re.I), 5)]
+_RANK_IMAGE = [(re.compile(r"preview", re.I), 5), (re.compile(r"save", re.I), 0)]
+_OUTPUT_NAME = re.compile(r"^(Save|Preview)|VideoCombine|SaveVideo|Save", re.I)
+
+
+def typed_inputs(object_info: dict | None, ctype: str) -> dict[str, str]:
+    """{input name: its type} of one class ("IMAGE", "AUDIO", "VIDEO", ...)."""
+    info = class_info(object_info or {}, ctype).get("input") or {}
+    out = {}
+    for group in ("required", "optional"):
+        for name, spec in (info.get(group) or {}).items():
+            if isinstance(spec, list) and spec and isinstance(spec[0], str):
+                out[name] = spec[0]
+    return out
+
+
+def is_output(object_info: dict | None, ctype: str) -> bool:
+    """A node ComfyUI runs for its own sake (its `output_node`); by its name
+    when /object_info doesn't say."""
+    info = class_info(object_info or {}, ctype)
+    if "output_node" in info:
+        return bool(info["output_node"])
+    return bool(_OUTPUT_NAME.search(ctype))
+
+
+def _media_inputs(object_info: dict | None, graph: dict, nid: str) -> dict[str, str]:
+    """{type: input name} of a node's linked media inputs (IMAGE, AUDIO, VIDEO),
+    from /object_info, else the usual names (images, audio, video)."""
+    v = graph[nid]
+    types = typed_inputs(object_info, v["class_type"])
+    if not types:
+        types = {"images": _FRAMES, "image": _FRAMES, "frames": _FRAMES,
+                 "audio": _AUDIO, "video": _VIDEO}
+    out = {}
+    for name, val in (v.get("inputs") or {}).items():
+        t = types.get(name)
+        if t in (_FRAMES, _AUDIO, _VIDEO) and J.is_link(val) and t not in out:
+            out[t] = name
+    return out
+
+
+def media_outputs(object_info: dict | None, graph: dict, kind: str) -> list[str]:
+    """The graph's output nodes that save (or preview) pictures, best first:
+    for video a video file, then an animation, then frames; for an image a
+    save before a preview."""
+    rank = _RANK_VIDEO if kind == "video" else _RANK_IMAGE
+    found = []
+    for nid, v in graph.items():
+        if not is_output(object_info, v["class_type"]):
+            continue
+        media = _media_inputs(object_info, graph, nid)
+        if not (_FRAMES in media or (kind == "video" and _VIDEO in media)):
+            continue
+        r = 0 if _VIDEO in media else next((n for rx, n in rank if rx.search(v["class_type"])), 4)
+        found.append((r, int(nid) if str(nid).isdigit() else 0, nid))
+    return [nid for _, _, nid in sorted(found)]
+
+
+def generic_saver(graph: dict, kind: str, object_info: dict | None) -> tuple[dict, str]:
+    """The saver spec for a graph that ends in any save node: the best of its
+    media outputs (media_outputs) is the take. When it takes a finished video
+    (SaveVideo), the node making that video is replaced -- its frames and
+    sound go to seriesmith's saver; otherwise the save node itself, its
+    frames (and sound) going there. The other outputs are dropped (a second
+    format, a preview)."""
+    outs = media_outputs(object_info, graph, kind)
+    if not outs:
+        what = "video or frames" if kind == "video" else "image"
+        raise InspectError(f"nothing in the graph saves or previews its {what}: add a save node "
+                           f"(SaveImage, SaveVideo, SaveWEBM, Video Combine, ...) at the end")
+    term = outs[0]
+    media = _media_inputs(object_info, graph, term)
+    replace, drop = term, set()
+    if _VIDEO in media:
+        src = graph[term]["inputs"][media[_VIDEO]][0]
+        sm = _media_inputs(object_info, graph, src)
+        if _FRAMES not in sm:
+            raise InspectError(f"{graph[term]['class_type']} saves a video made by "
+                               f"{graph[src]['class_type']}, which takes no frames seriesmith can "
+                               f"save: end the graph in a node that takes the frames")
+        replace, media = src, sm
+        drop.add(graph[term]["class_type"])
+    drop |= {graph[n]["class_type"] for n in outs[1:]}
+    drop.discard(graph[replace]["class_type"])
+    if kind == "video":
+        base = TG.load_target(TG.DEFAULT_VIDEO_TARGET, "video").binding.saver
+        spec = {"class_type": base["class_type"], "inputs": dict(base.get("inputs") or {}),
+                "set": {"save_frames": False}}
+    else:
+        spec = {"class_type": "H3SaveRefTake"}
+    rep_inputs = {"images": media[_FRAMES]}
+    if kind == "video" and _AUDIO in media:
+        rep_inputs["audio"] = media[_AUDIO]
+    spec["replace"] = {"class_type": graph[replace]["class_type"], "inputs": rep_inputs}
+    if drop:
+        spec["drop"] = sorted(drop)
+    return spec, replace
+
+
+def guess_kind(object_info: dict | None, graph: dict) -> str:
+    """"video" when the graph saves a video or an animation, or has a length
+    widget; "image" otherwise."""
+    for nid in media_outputs(object_info, graph, "video"):
+        cls = graph[nid]["class_type"]
+        media = _media_inputs(object_info, graph, nid)
+        if _VIDEO in media or any(rx.search(cls) for rx, n in _RANK_VIDEO if n <= 2):
+            return "video"
+    for v in graph.values():
+        # a node that makes video (MiniMaxH3ImageToVideo, Wan22ImageToVideoLatent,
+        # AnimateDiff, VACE, a chain or shot saver of its own) ...
+        if _VIDEO_NODE.search(v["class_type"]):
+            return "video"
+        # ... or a frame count
+        if any(name in (v.get("inputs") or {}) for name in _FRAME_WIDGETS):
+            return "video"
+    return "image"
+
+
+_VIDEO_NODE = re.compile(r"video|i2v|t2v|animatediff|vace|saveshots?\b|saverender|chainsegment|"
+                         r"h3save(shot|render|upscale)", re.I)
+_FRAME_WIDGETS = ("length", "num_frames", "frame_count", "video_frames", "frames_number", "batch_frames")
 
 
 # ---------------------------------------------------------------------------
@@ -685,17 +811,26 @@ def detect_downloads(ui_graph: dict | None) -> dict:
 # ---------------------------------------------------------------------------
 
 def inspect_graph(data: dict, object_info: dict, model_list=None, target_id: str = "",
-                  label: str = "", workflow_name: str = "", kind: str = KIND,
+                  label: str = "", workflow_name: str = "", kind: str = "auto",
                   extra: dict | None = None, series_cfg: dict | None = None) -> dict:
     """Propose the target.json for one workflow (`data` a canvas save or an API
-    export). See the module docstring for the answer's shape."""
-    if kind != KIND:
-        raise InspectError(f"only {KIND} targets can be proposed from a workflow so far, "
-                           f"not {kind!r}")
+    export). See the module docstring for the answer's shape. `kind` "video",
+    "image" (a model for refs and keyframes) or "auto" (guess_kind)."""
     ui = data if ("nodes" in data and "links" in data) else None
     graph = J.graph_from(data, "the workflow")
     problems = J.check_graph(graph, object_info or None)
-    saver, saver_node = find_saver(graph, kind)
+    if kind in ("auto", "", None):
+        kind = guess_kind(object_info, graph)
+    if kind not in ("video", "image"):
+        raise InspectError(f"a workflow makes a video or an image model, not {kind!r}")
+    saver, saver_node = find_saver(graph, kind, object_info)
+    # what a render drops (a second save, a preview) isn't read for settings: a
+    # param bound to it would find nothing to set
+    drop = set(saver.get("drop") or [])
+    graph = {k: v for k, v in graph.items() if v.get("class_type") not in drop}
+    if kind == "image":
+        return with_notes(_inspect_image(data, ui, graph, problems, saver, saver_node, object_info,
+                                         model_list, target_id, label, workflow_name, extra))
     params, matched, ambiguous, warnings0 = detect_params(object_info, graph, saver_node)
     pparams, pmatched, warnings = detect_prompt(object_info, graph)
     warnings = warnings0 + warnings
@@ -714,7 +849,7 @@ def inspect_graph(data: dict, object_info: dict, model_list=None, target_id: str
     elif "model" in params:
         params["loras"] = {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
                            "strength": "strength_model", "input": "model", "chain": True,
-                           "insert_after": {"class_type": params["model"]["class_type"],
+                           "insert_after": {"class_type": _first(params["model"])["class_type"],
                                             "output": 0}}
         warnings.append("loras: the graph has no LoRA loader, so one is inserted after the "
                         "model loader when a shot or profile names a LoRA.")
@@ -764,6 +899,124 @@ def inspect_graph(data: dict, object_info: dict, model_list=None, target_id: str
         warnings.append("these widgets keep the graph's own value for every shot: "
                         + ", ".join(sorted({f"{u['class_type']}.{u['field']}" for u in unbound}))
                         + ". Bind one in binding.params if a shot should set it.")
+    warnings.insert(0, saving_note(graph, saver, saver_node))
+    return with_notes({"proposal": proposal, "matched": matched, "ambiguous": ambiguous,
+                       "warnings": warnings, "models": report, "nodes": unknown,
+                       "unbound": unbound, "problems": problems})
+
+
+def _first(spec):
+    """A param's spec, or the first of several (a model two loaders share)."""
+    return spec[0] if isinstance(spec, list) else spec
+
+
+def saving_note(graph: dict, saver: dict, saver_node: str) -> str:
+    """Where the take comes from: the node seriesmith's saver takes the place
+    of, and the other outputs it drops."""
+    cls = graph[saver_node]["class_type"]
+    ins = (saver.get("replace") or {}).get("inputs") or {}
+    what = "frames and sound" if "audio" in ins else "pictures"
+    drop = saver.get("drop") or []
+    return (f"saving: the take is {cls}'s {what}, saved by seriesmith in its place"
+            + (f"; {', '.join(drop)} dropped (one take per run)" if drop else ""))
+
+
+# a note's level, by what it says: an error stops the target being saved
+# (the problems), a warning is worth checking, info is how the graph was read
+_INFO_NOTES = re.compile(r"is fed by another node|couldn't tell which models folder|has no LoRA "
+                         r"loader|keep the graph's own value|declared silent|^saving:", re.I)
+_ERROR_NOTES = re.compile(r"no (field|widget) for the prompt|can't be told what to draw", re.I)
+
+
+def with_notes(out: dict) -> dict:
+    """`out` with `notes`: [{"level": "error" | "warning" | "info", "text"}],
+    the problems first, then the warnings by what they say (the old
+    `warnings` list stays, for older editors)."""
+    notes = [{"level": "error", "text": p} for p in out.get("problems") or []]
+    for w in out.get("warnings") or []:
+        level = "error" if _ERROR_NOTES.search(w) else "info" if _INFO_NOTES.search(w) else "warning"
+        notes.append({"level": level, "text": w})
+    order = {"error": 0, "warning": 1, "info": 2}
+    out["notes"] = sorted(notes, key=lambda n: order[n["level"]])
+    return out
+
+
+def _inspect_image(data: dict, ui, graph: dict, problems: list, saver: dict, saver_node: str,
+                   object_info: dict, model_list, target_id: str, label: str, workflow_name: str,
+                   extra: dict | None) -> dict:
+    """An image workflow proposed as an image model for refs and keyframes
+    (targets/generic/workflow_image.py drives it): its prompt, seed, steps,
+    cfg, size, model files and LoRAs bound as a video workflow's are; its
+    LoadImage nodes are the pictures a take starts from (an edit's source, a
+    keyframe's characters and plate), so with any it's an edit model."""
+    params, matched, ambiguous, warnings = detect_params(object_info, graph, saver_node)
+    pparams, pmatched, pw = detect_prompt(object_info, graph)
+    warnings += pw
+    params.update(pparams)
+    matched.update(pmatched)
+    models, mparams, report, mwarn = detect_models(object_info, graph, model_list, extra)
+    models, mparams = group_shared(models, mparams, report)
+    warnings += mwarn
+    for name, spec in mparams.items():
+        params.setdefault(name, spec)
+    matched.update({k: ", ".join(f"{x['class_type']}.{x['field']}"
+                                 for x in (v if isinstance(v, list) else [v]))
+                    for k, v in mparams.items()})
+    if "loras" in models:
+        params["loras"] = _lora_spec(graph, params)
+    elif "model" in params:
+        params["loras"] = {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                           "strength": "strength_model", "input": "model", "chain": True,
+                           "insert_after": {"class_type": _first(params["model"])["class_type"],
+                                            "output": 0}}
+        warnings.append("loras: the graph has no LoRA loader, so one is inserted after the "
+                        "model loader when a ref names a LoRA.")
+    for name in ("length", "fps"):
+        params.pop(name, None)
+    tpl, _ = detect_template(object_info, graph, params)
+    loads = sorted(nodes_of(graph, "LoadImage"), key=lambda n: int(n) if str(n).isdigit() else 0)
+    titles = [title_of(graph, n) for n in loads]
+    refs = [({"class_type": "LoadImage", "title": t} if t and titles.count(t) == 1
+             else {"class_type": "LoadImage", "index": i}) for i, t in enumerate(titles)]
+    if refs:
+        warnings.append(f"pictures: its {len(refs)} LoadImage node{'s' if len(refs) > 1 else ''} take "
+                        f"the ref's pictures in order (an edit's source; a keyframe's characters, "
+                        f"then its plate). Every take needs one, so it's for keyframes and edits, not "
+                        f"a character's first view.")
+    tid = target_id or _id_from(workflow_name) or "my_image_model"
+    final = {k: v for k, v in detect_presets(graph, params, models, 24.0)["final"].items()
+             if k not in ("length", "fps")}
+    final.setdefault("lora", None)
+    proposal = {
+        "id": tid,
+        "kind": "image",
+        "label": label or tid.replace("_", " "),
+        "short": (label or tid).split()[0][:12],
+        "draft": True,
+        "code": "builtin:workflow_image",
+        "capabilities": {"mode": "edit" if refs else "t2i", "max_refs": len(refs)},
+        "models": models,
+        "template": {"view_size": [1024, 1024], "plate_size": [1344, 768], "object_size": [1024, 1024],
+                     "size_multiple": int(tpl.get("size_multiple") or 16)},
+        "recipe": {"ref_word": "image"},
+        "binding": {"workflow_name": workflow_name or f"{tid}.json",
+                    "env": f"H3_{tid.upper()}_WORKFLOW", "saver": saver, "prune": True,
+                    "params": params, **({"references": refs} if refs else {})},
+        "presets": {"final": final},
+        "downloads": detect_downloads(ui),
+    }
+    unknown = {v["class_type"]: str(class_info(object_info, v["class_type"])
+                                    .get("python_module") or "unknown")
+               for v in graph.values() if not is_core(object_info, v["class_type"])}
+    if unknown:
+        proposal["nodes"] = {c: {"tier": "required"} for c in sorted(unknown)
+                             if c != saver["class_type"]}
+    unbound = unbound_widgets(object_info, graph, params, saver_node)
+    if unbound:
+        warnings.append("these widgets keep the graph's own value for every take: "
+                        + ", ".join(sorted({f"{u['class_type']}.{u['field']}" for u in unbound}))
+                        + ". Bind one in binding.params if a ref should set it.")
+    warnings.insert(0, saving_note(graph, saver, saver_node))
     return {"proposal": proposal, "matched": matched, "ambiguous": ambiguous,
             "warnings": warnings, "models": report, "nodes": unknown,
             "unbound": unbound, "problems": problems}
@@ -887,9 +1140,11 @@ def validate_spec(spec: dict, graph: dict | None = None,
         out.append(f"id {tid!r} must be lowercase letters, digits and underscores, "
                    f"starting with a letter")
     hosted_image = spec.get("router") is not None and spec.get("kind") == "image"
-    if spec.get("kind") and spec["kind"] != KIND and not hosted_image:
-        out.append(f"kind must be {KIND!r} for a target made from a workflow, "
+    if spec.get("kind") and spec["kind"] not in ("video", "image"):
+        out.append(f"kind must be 'video' or 'image' for a target made from a workflow, "
                    f"not {spec['kind']!r}")
+    if spec.get("kind") == "image" and spec.get("router") is None             and spec.get("code") != "builtin:workflow_image":
+        out.append("an image workflow's code is builtin:workflow_image")
     # a built-in's name only: with a show in force its own targets are listed
     # too, and one (being re-saved, enabled) would find itself
     if tid in {t.id for t in TG.list_targets() if not t.custom}:

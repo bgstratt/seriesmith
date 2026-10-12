@@ -261,7 +261,7 @@ export interface Api {
   /** Phase 12b: the workflows saved in this ComfyUI, for the target wizard. */
   workflows(): Promise<WorkflowFile[]>;
   /** Phase 12b: propose the target.json for one workflow. Read-only. */
-  inspectTarget(req: { ep?: string | null; workflow?: string; graph?: unknown; id?: string; label?: string }): Promise<TargetProposal>;
+  inspectTarget(req: { ep?: string | null; workflow?: string; graph?: unknown; id?: string; label?: string; kind?: "auto" | "video" | "image" }): Promise<TargetProposal>;
   /** A Comfy Router model proposed as a target, from its published schema. */
   routerInspect(req: { model: string; ep?: string | null }): Promise<RouterProposal>;
   /** Phase 12b: save a show's own target (validated first; 400 lists every problem). */

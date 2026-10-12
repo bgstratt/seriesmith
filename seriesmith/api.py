@@ -2361,6 +2361,7 @@ def post_targets_inspect(ctx: Context, body):
                                target_id=_opt_str(body, "id") or "",
                                label=_opt_str(body, "label") or "",
                                workflow_name=_opt_str(body, "workflow") or "",
+                               kind=_opt_str(body, "kind") or "auto",
                                extra=extra,
                                series_cfg=J.series_config(ep) if ep else None)
     except (IN.InspectError, ValueError) as e:
