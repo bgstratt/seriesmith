@@ -38,6 +38,10 @@ required_refs = G.required_refs
 ref_slots = G.ref_slots
 
 ROLES = {"first": "first_frame", "last": "last_frame"}
+# every picture goes in through the Seedance virtual library (asset://<id>), as
+# ComfyUI's own Seedance nodes send them: BytePlus refuses a photoreal person
+# -- an AI-made one too -- as a plain URL (content_policy_violation, 2026-10-11)
+VIA = "seedance"
 
 
 def panel_file(sheet: str, panels: int, index: int) -> str:
@@ -99,7 +103,7 @@ def router_call(target, job) -> tuple[str, dict]:
     if by_frames:
         for end in ("first", "last"):
             if frames.get(end):
-                content.append({"type": "image_url", "image_url": {"url": File(frames[end])},
+                content.append({"type": "image_url", "image_url": {"url": File(frames[end], via=VIA)},
                                 "role": ROLES[end]})
     else:
         panels = shot.get("panels") or []
@@ -112,7 +116,7 @@ def router_call(target, job) -> tuple[str, dict]:
                 # a character's sheet: the one panel the shot wants, not the 4:1 strip
                 path = panel_file(path, int(ref.get("sheet_panels") or 4), int(ref["views"][p["view"]]))
             if path:
-                content.append({"type": "image_url", "image_url": {"url": File(path)},
+                content.append({"type": "image_url", "image_url": {"url": File(path, via=VIA)},
                                 "role": "reference_image"})
     fps = job.fps or target.template.fps
     args = dict(spec.get("arguments") or {})

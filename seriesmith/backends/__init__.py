@@ -91,8 +91,13 @@ def patiently(fn: Callable[[], Any], window: float | None = None,
 
 @dataclass(frozen=True)
 class File:
-    """A local file a job needs, uploaded by the backend that runs it."""
+    """A local file a job needs, uploaded by the backend that runs it.
+    `via` names a provider's own way in, when a plain URL won't do
+    ("seedance": registered in the Seedance virtual library, sent as
+    asset://<id>, as ComfyUI's own Seedance nodes do: BytePlus refuses
+    pictures of photoreal people any other way)."""
     path: str
+    via: str = ""
 
     def __post_init__(self):
         if not os.path.isfile(self.path):

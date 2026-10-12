@@ -4,14 +4,21 @@ The Router backend: a hosted model through Comfy Router.
 A call is the model id ("provider/model") and the provider's own arguments.
 Input files are uploaded to Comfy Cloud as assets and passed as URLs, the only
 kind of input a provider can fetch, so Router needs a Comfy API key even when
-nothing else runs in the cloud. The result is the provider's own JSON; every
-http(s) URL in it is offered as an output.
+nothing else runs in the cloud. A file marked `via="seedance"` goes one step
+further, into the Seedance virtual library (seedance_asset): BytePlus refuses a
+picture of a photoreal person -- an AI-made one too -- as a plain URL
+(content_policy_violation), and takes it as asset://<id>. The result is the
+provider's own JSON; every http(s) URL in it is offered as an output.
 """
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import os
+import time
 import shutil
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Callable, Iterable
@@ -119,6 +126,11 @@ class RouterRun(Run):
                 for u in urls_in(self.result)]
 
 
+API_BASE = "https://api.comfy.org"
+VIRTUAL_LIBRARY = "/proxy/seedance/virtual-library/assets"
+ASSET = "/proxy/seedance/assets/{id}"
+
+
 class RouterBackend(Backend):
     name = kind = "router"
 
@@ -142,14 +154,48 @@ class RouterBackend(Backend):
 
     def call(self, model: str, arguments: dict) -> Run:
         args = copy.deepcopy(arguments)
-        urls: dict[str, str] = {}
+        urls: dict[tuple, str] = {}
         for container, key, f in list(files_in(args)):
-            if f.path not in urls:
+            k = (f.path, f.via)
+            if k not in urls:
                 asset = self.client.assets.from_file(f.path)
                 asset.commit()
-                urls[f.path] = asset.get_download_url().url
-            container[key] = urls[f.path]
+                url = asset.get_download_url().url
+                urls[k] = self.seedance_asset(f.path, url) if f.via == "seedance" else url
+            container[key] = urls[k]
         return RouterRun(self.client.models.submit(model, args), model)
+
+    def _api(self, method: str, path: str, body: dict | None = None) -> dict:
+        req = urllib.request.Request(
+            API_BASE + path, method=method,
+            data=json.dumps(body).encode("utf-8") if body is not None else None,
+            headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            raise BackendError(f"{method} {path}: {e.code} {e.read().decode('utf-8', 'replace')[:300]}")
+
+    def seedance_asset(self, path: str, url: str, wait: float = 600.0) -> str:
+        """`path` (uploaded, at `url`) in this account's Seedance virtual
+        library, once it's Active: "asset://<id>". The library de-duplicates
+        by the hash (the file's sha256), so a picture is registered once."""
+        with open(path, "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        made = patiently(lambda: self._api("POST", VIRTUAL_LIBRARY, {"url": url, "hash": digest}))
+        aid = made.get("asset_id")
+        if not aid:
+            raise BackendError(f"the Seedance library gave no asset id for {os.path.basename(path)}: {made}")
+        end = time.monotonic() + wait
+        while True:
+            got = patiently(lambda: self._api("GET", ASSET.format(id=aid)))
+            status = got.get("status")
+            if status == "Active":
+                return f"asset://{aid}"
+            if status == "Failed" or time.monotonic() > end:
+                raise BackendError(f"the Seedance library didn't take {os.path.basename(path)} "
+                                   f"({status}): {got.get('error')}")
+            time.sleep(3)
 
     def attach(self, run_id: str, model: str | None = None) -> Run:
         """A request made through Router, by its model and request id

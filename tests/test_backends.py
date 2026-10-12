@@ -281,3 +281,55 @@ class RouterPatienceTest(unittest.TestCase):
         self.assertEqual((run.id, run.model), ("req-9", "byteplus/seedance"))
         with self.assertRaises(B.BackendError):
             rb.attach("req-9")
+
+    def test_a_seedance_picture_goes_in_through_the_virtual_library(self):
+        """BytePlus refuses a photoreal person as a plain URL: a File marked
+        via="seedance" is registered in the Seedance virtual library and sent
+        as asset://<id>; a plain File is still its download URL."""
+        import tempfile
+        from types import SimpleNamespace as NS
+        from unittest import mock
+
+        from seriesmith.backends.router import RouterBackend
+        rb = RouterBackend("comfyui-test", "https://cloud.example")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        pic = os.path.join(tmp.name, "mills.png")
+        with open(pic, "wb") as fh:
+            fh.write(b"not really a png")
+
+        class Asset:
+            def __init__(self, path):
+                self.path = path
+
+            def commit(self):
+                pass
+
+            def get_download_url(self):
+                return NS(url="https://store/" + os.path.basename(self.path))
+
+        sent, asked = {}, []
+
+        class Models:
+            def submit(self, model, args):
+                sent.update(args)
+                return NS(request_id="r1")
+
+        def api(method, path, body=None):
+            asked.append((method, path, body))
+            if method == "POST":
+                return {"asset_id": "asset-1"}
+            return {"status": "Active" if len(asked) > 2 else "Processing"}
+        rb._client = NS(assets=NS(from_file=Asset), models=Models())
+        with mock.patch.object(rb, "_api", side_effect=api), \
+                mock.patch("seriesmith.backends.router.time.sleep"):
+            rb.call("byteplus/seedance", {"content": [
+                {"image_url": {"url": B.File(pic, via="seedance")}},
+                {"image_url": {"url": B.File(pic)}}]})
+        self.assertEqual([c["image_url"]["url"] for c in sent["content"]],
+                         ["asset://asset-1", "https://store/mills.png"])
+        post = asked[0]
+        self.assertEqual((post[0], post[1], post[2]["url"]),
+                         ("POST", "/proxy/seedance/virtual-library/assets", "https://store/mills.png"))
+        self.assertEqual(len(post[2]["hash"]), 64)                # the file's sha256
+        self.assertEqual([a[0] for a in asked], ["POST", "GET", "GET"])   # waited until Active

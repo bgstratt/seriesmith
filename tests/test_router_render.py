@@ -115,6 +115,7 @@ class RouterCallTest(Episode):
         for p in pictures:
             self.assertEqual((p["type"], p["role"]), ("image_url", "reference_image"))
             self.assertIsInstance(p["image_url"]["url"], File)
+            self.assertEqual(p["image_url"]["url"].via, "seedance")   # through the virtual library
         panels = J.frozen_shotlist(job)["shots"][0]["panels"]
         self.assertEqual(len(pictures), len(panels))
         self.assertEqual(args["ratio"], "16:9")
