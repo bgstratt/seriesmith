@@ -282,6 +282,32 @@ class RouterPatienceTest(unittest.TestCase):
         with self.assertRaises(B.BackendError):
             rb.attach("req-9")
 
+    def test_another_provider_is_asked_for_on_the_queued_route(self):
+        """Router's model_provider / fallback_provider query, sent with the
+        queued submit (comfy-sdk 0.4 sends it on run only); the provider that
+        served it is read from Router's header."""
+        from types import SimpleNamespace as NS
+        from seriesmith.backends.router import ROUTING, RouterBackend
+        rb = RouterBackend("comfyui-test", "https://cloud.example")
+        sent = {}
+
+        class Low:
+            _p = NS(router_base_url="https://router.example",
+                    parse_or_raise=lambda resp, ok: {"request_id": "r9"})
+
+            def raw_request(self, method, url, headers=None, json=None, **kw):
+                sent.update(method=method, url=url, body=json, headers=headers)
+                return NS(headers={"X-Comfy-Router-Fallback-Provider": "wavespeed"})
+        rb._client = NS(models=NS(_low=Low(), _retry=None, submit=lambda *a: self.fail("plain submit")))
+        run = rb.call("byteplus/seedance", {"prompt": "x", ROUTING: {"provider": "fal", "fallback": False}})
+        self.assertEqual(sent["method"], "POST")
+        self.assertIn("/v2/models/byteplus/seedance/requests?", sent["url"])
+        self.assertIn("model_provider=fal", sent["url"])
+        self.assertIn("fallback_provider=false", sent["url"])
+        self.assertEqual(sent["body"], {"prompt": "x"})                    # the key taken off
+        self.assertTrue(sent["headers"].get("Idempotency-Key"))
+        self.assertEqual((run.id, run.provider, run.served_by), ("r9", "fal", "wavespeed"))
+
     def test_a_seedance_picture_goes_in_through_the_virtual_library(self):
         """BytePlus refuses a photoreal person as a plain URL: a File marked
         via="seedance" is registered in the Seedance virtual library and sent

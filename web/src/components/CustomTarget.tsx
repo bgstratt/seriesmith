@@ -173,6 +173,9 @@ function MineRow({ t }: { t: Target }) {
   );
 }
 
+// the providers Router can serve a model from (not every model has each)
+const PROVIDERS: [string, string][] = [["fal", "fal"], ["higgsfield", "Higgsfield"], ["runware", "Runware"], ["wavespeed", "WaveSpeed"]];
+
 /** A Comfy Router model by its id: its schema read, the target proposed
  * (where each part of a shot goes, its limits), looked over, saved as a draft. */
 function RouterWizard({ onClose }: { onClose: () => void }) {
@@ -186,6 +189,9 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   const [label, setLabel] = useState("");
   const [json, setJson] = useState("");
   const [showJson, setShowJson] = useState(false);
+  // which provider serves it ("" the model's own), and whether Router may fall back
+  const [provider, setProvider] = useState("");
+  const [fallback, setFallback] = useState(true);
 
   async function read() {
     setBusy(true);
@@ -212,7 +218,12 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
       setErr(`The target.json isn't valid JSON: ${(e as Error).message}`);
       return;
     }
-    if (await saveCustomTarget({ ...spec, id, label, draft: true })) onClose();
+    const router = { ...(spec.router as Record<string, unknown>) };
+    delete router.provider;
+    delete router.fallback;
+    if (provider) router.provider = provider;
+    if (!fallback) router.fallback = false;
+    if (await saveCustomTarget({ ...spec, id, label, draft: true, router })) onClose();
   }
 
   const WHAT: Record<string, string> = {
@@ -251,6 +262,19 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
               ))}
             </tbody>
           </table>
+          <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
+            <label className="h3-row" style={{ gap: 4 }}
+              title="Who runs the model: its own provider, or another that serves it (Router translates the request). Prices and limits differ.">
+              Provider
+              <select className="h3-in" value={provider} onChange={(e) => setProvider(e.target.value)}>
+                <option value="">the model's own (Comfy)</option>
+                {PROVIDERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </label>
+            <label className="h3-row" style={{ gap: 4 }} title="When the provider is down, Router tries another (on unless turned off)">
+              <input type="checkbox" checked={fallback} onChange={(e) => setFallback(e.target.checked)} /> let Router fall back to another
+            </label>
+          </div>
           {r.unplaced.length > 0 && (
             <div className="h3-small h3-err">It requires {r.unplaced.join(", ")}, which nothing was placed in: set it in the target.json below.</div>
           )}

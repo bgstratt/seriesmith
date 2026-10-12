@@ -30,7 +30,9 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
         "last": {"field": "last_frame_url"},
         "via": "seedance"                         # how pictures go in (File.via)
       },
-      "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"}
+      "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"},
+      "provider": "fal",                            # another provider of the model
+      "fallback": false                             # Router may not try another
     }
 
 What a shot sends: its prose prompt (the shared prose compile, video_prose);
@@ -40,7 +42,10 @@ the plate, a character's 4-panel sheet cut to the one panel the shot wants
 (no provider takes a 4:1 strip) -- its length, size and ratio snapped to what
 the model takes, its seed folded into the model's range, and whether it
 makes sound. `draft` (Seedance 2.5): a proxy take is a Draft, and a final
-made from one (job.from_draft) sends that draft's task id alone.
+made from one (job.from_draft) sends that draft's task id alone. `provider`:
+another provider serves the model (Router translates the model's own
+arguments to its input), `fallback: false` stops Router trying another when
+that one is down; both ride in the arguments under backends.router.ROUTING.
 
 Stdlib only (a panel is cut by helpers/refsheet.py, run as a subprocess).
 """
@@ -259,9 +264,9 @@ def router_call(target, job) -> tuple[str, dict]:
     if getattr(job, "from_draft", None):
         # the final of a draft: its task id alone; the provider reuses the
         # draft's prompt, pictures, length, ratio, seed and sound
-        return spec["model"], {"content": [{"type": "draft_task",
-                                            "draft_task": {"id": job.from_draft["task"]}}],
-                               res_name: draft.get("final_resolution", "1080p")}
+        return spec["model"], with_routing({"content": [{"type": "draft_task",
+                                                         "draft_task": {"id": job.from_draft["task"]}}],
+                                            res_name: draft.get("final_resolution", "1080p")}, spec)
     shot = J.frozen_shotlist(job)["shots"][0]
     text = J._prompt_text(shot.get("prompt") or job.prompt)
     via = inp.get("via", "")
@@ -303,4 +308,14 @@ def router_call(target, job) -> tuple[str, dict]:
         args["draft"] = True
         if draft.get("resolution"):
             put(args, res_name, draft["resolution"])
-    return spec["model"], args
+    return spec["model"], with_routing(args, spec)
+
+
+def with_routing(args: dict, spec: dict) -> dict:
+    """`args` with how Router is to serve the call (the model's provider, and
+    whether it may fall back), when the target says."""
+    from seriesmith.backends.router import ROUTING
+    how = {k: spec[k] for k in ("provider", "fallback") if spec.get(k) is not None}
+    if how:
+        args[ROUTING] = how
+    return args

@@ -344,6 +344,14 @@ class GenericRouterTest(Episode):
         self.assertTrue(all(set(r) == {"url"} and isinstance(r["url"], File) for r in args["references"]))
         self.assertNotIn("draft", args)
 
+    def test_another_provider_rides_with_the_call(self):
+        from seriesmith.backends.router import ROUTING
+        t = self.target({"prompt": "prompt"}, provider="fal", fallback=False)
+        _, args = t.module.router_call(t, self.job())
+        self.assertEqual(args[ROUTING], {"provider": "fal", "fallback": False})
+        _, args = self.target({"prompt": "prompt"}).module.router_call(self.target({"prompt": "prompt"}), self.job())
+        self.assertNotIn(ROUTING, args)
+
     def test_a_nested_request(self):
         """Veo's shape: the prompt and pictures in instances[0], the rest in
         parameters; a resolution by name, the size by WxH for another model."""

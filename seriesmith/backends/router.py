@@ -68,6 +68,9 @@ class RouterRun(Run):
         self.id = handle.request_id
         self.status = "queued"
         self.result: Any = None
+        # another provider asked for, and the one Router says served it
+        self.provider: str | None = None
+        self.served_by: str | None = None
 
     def _settle(self) -> None:
         """Collect the result of a completed request (or its error). A dropped
@@ -127,6 +130,9 @@ class RouterRun(Run):
 
 
 API_BASE = "https://api.comfy.org"
+# the key a call's arguments carry how Router is to serve it ({"provider",
+# "fallback"}), taken off before the request is sent
+ROUTING = "__router"
 VIRTUAL_LIBRARY = "/proxy/seedance/virtual-library/assets"
 ASSET = "/proxy/seedance/assets/{id}"
 
@@ -154,6 +160,9 @@ class RouterBackend(Backend):
 
     def call(self, model: str, arguments: dict) -> Run:
         args = copy.deepcopy(arguments)
+        # how Router serves it (router_video puts it here): another provider of
+        # the model, and whether Router may fall back to one
+        how = args.pop(ROUTING, None) or {}
         urls: dict[tuple, str] = {}
         for container, key, f in list(files_in(args)):
             k = (f.path, f.via)
@@ -163,7 +172,35 @@ class RouterBackend(Backend):
                 url = asset.get_download_url().url
                 urls[k] = self.seedance_asset(f.path, url) if f.via == "seedance" else url
             container[key] = urls[k]
-        return RouterRun(self.client.models.submit(model, args), model)
+        provider, fallback = how.get("provider") or None, how.get("fallback")
+        if provider is None and fallback is None:
+            return RouterRun(self.client.models.submit(model, args), model)
+        handle, served = self._submit(model, args, provider, fallback)
+        run = RouterRun(handle, model)
+        run.provider, run.served_by = provider, served
+        return run
+
+    def _submit(self, model: str, args: dict, provider: str | None, fallback):
+        """models.submit with Router's alt-provider query (model_provider,
+        fallback_provider), which comfy-sdk 0.4 sends on models.run only: the
+        same queued request, built with its own helpers. (handle, the provider
+        that served it when Router says)."""
+        from comfy_low.transport import _router_run_query, model_submit_request
+        from comfy_sdk._core import new_idempotency_key
+        from comfy_sdk.exceptions import translating
+        from comfy_sdk.model_requests import RequestHandle, _request_id_of
+        models = self.client.models
+        low = models._low
+        key = new_idempotency_key()
+        path, body, headers = model_submit_request(model, args, key)
+        query = _router_run_query(provider, None, fallback)
+        if query:
+            path = f"{path}?{query}"
+        with translating(idempotency_key=key):
+            resp = low.raw_request("POST", low._p.router_base_url + path, headers=headers, json=body)
+            out = low._p.parse_or_raise(resp, (200, 201, 202))
+        served = resp.headers.get("X-Comfy-Router-Fallback-Provider") or provider
+        return RequestHandle(low, model, _request_id_of(out), models._retry), served
 
     def _api(self, method: str, path: str, body: dict | None = None) -> dict:
         req = urllib.request.Request(

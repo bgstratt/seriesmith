@@ -3352,6 +3352,12 @@ workflow. This is the contract.
   how pictures go in (`seedance`: the virtual library); `router.draft` turns on
   Seedance's Draft -> Final. A character's 4-panel sheet goes up as the one panel the
   shot wants. Seedance 2.5 is this module plus data.
+  `router.provider` asks another provider for the model (fal, higgsfield, runware,
+  wavespeed: Router translates the model's own arguments to its input) and
+  `router.fallback: false` stops Router trying another when it's down; they're sent as
+  Router's `model_provider` / `fallback_provider` query on the queued submit (comfy-sdk
+  0.4 sends them on `run` only), and the take's record says who served it
+  (`model_request.served_by`, from `X-Comfy-Router-Fallback-Provider`).
 - **A show's own targets** live in `<show>/targets/<id>/target.json`, where `<show>` is the
   folder holding series.json — the episode folder, else its parent (`TG.show_folder`). The
   kind is read from the file (there is no kind folder). `TG.load_target(id, kind, root=…)`

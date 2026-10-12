@@ -2079,7 +2079,9 @@ def collect_router_take(take: T.Take, run, status: str, arguments: dict | None =
            if info.get("width") and info.get("height") else {}),
         save_notes=f"{take.paths.stem}: " + "; ".join(notes),
         **({"model_request": {"model": getattr(run, "model", None), "id": run.id, **sent,
-                              **({"provider": provider} if provider else {})}}
+                              **({"provider": provider} if provider else {}),
+                              # who served it, when another provider was asked for
+                              **({"served_by": run.served_by} if getattr(run, "served_by", None) else {})}}
            if sent is not None else {}),
         **({"draft": draft} if draft else {}))
     return "ok"
