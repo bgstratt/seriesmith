@@ -303,5 +303,55 @@ class DraftTest(Episode):
             A._drafts_asked(self.root, {self.shot_id: 99})          # no such draft
 
 
+class GenericRouterTest(Episode):
+    """targets/generic/router_video: a Router model described by data. Its
+    `router.inputs` maps a shot onto the model's own fields."""
+
+    def target(self, inputs: dict, **router):
+        sd = TG.load_target(SEEDANCE, "video")
+        spec = json.loads(json.dumps(sd.spec))
+        spec["id"] = "kling_like"
+        spec["router"] = {"model": "kling/kling-v3", "arguments": {"mode": "pro"},
+                          "inputs": inputs, **router}
+        return TG.Target(sd.folder, spec)
+
+    def test_a_model_with_plain_fields(self):
+        t = self.target({
+            "prompt": "prompt", "negative": "negative_prompt",
+            "duration": {"name": "duration", "values": [5, 10], "as": "str"},
+            "ratio": {"name": "aspect_ratio", "values": ["16:9", "9:16", "1:1"]},
+            "seed": {"name": "seed", "max": 99},
+            "audio": {"name": "sound"},
+            "references": {"name": "image_urls", "max": 2},
+        })
+        job = self.job()
+        model, args = t.module.router_call(t, job)
+        self.assertEqual(model, "kling/kling-v3")
+        self.assertEqual(args["mode"], "pro")
+        self.assertEqual(args["prompt"], J._prompt_text(job.prompt))
+        self.assertIn(args["duration"], ("5", "10"))                  # snapped, as text
+        self.assertEqual(args["aspect_ratio"], "16:9")
+        self.assertTrue(0 <= args["seed"] <= 99)
+        self.assertIsInstance(args["sound"], bool)
+        self.assertTrue(args["image_urls"] and all(isinstance(f, File) for f in args["image_urls"]))
+        self.assertTrue(all(f.via == "" for f in args["image_urls"]))   # plain URLs
+        self.assertNotIn("content", args)
+
+    def test_wrapped_references_and_no_draft(self):
+        t = self.target({"references": {"name": "references", "wrap": "url"}},
+                        draft={"proxy": False})
+        _, args = t.module.router_call(t, self.job())
+        self.assertTrue(all(set(r) == {"url"} and isinstance(r["url"], File) for r in args["references"]))
+        self.assertNotIn("draft", args)
+
+    def test_lengths_snap_to_what_the_model_takes(self):
+        from seriesmith.targets.generic import router_video as RV
+        self.assertEqual(RV.seconds_for(96, 24, {"min": 4, "max": 30}), 4)
+        self.assertEqual(RV.seconds_for(48, 24, {"min": 4, "max": 30}), 4)       # clamped up
+        self.assertEqual(RV.seconds_for(170, 24, {"values": [5, 10]}), 5)
+        self.assertEqual(RV.seconds_for(200, 24, {"values": [5, 10], "as": "str"}), "10")
+        self.assertEqual(RV.nearest_ratio(1280, 720, ["adaptive", "16:9", "4:3"]), "16:9")
+
+
 if __name__ == "__main__":
     unittest.main()

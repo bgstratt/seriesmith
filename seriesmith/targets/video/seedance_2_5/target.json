@@ -3,7 +3,7 @@
   "kind": "video",
   "label": "Seedance 2.5 (hosted, Comfy Router)",
   "short": "Seedance",
-  "code": "compile.py",
+  "code": "builtin:router_video",
   "_note": "ByteDance's Seedance 2.5 as a hosted model through Comfy Router (byteplus/dreamina-seedance-2-5-260628, docs.comfy.org/development/comfy-router/models/byteplus/dreamina-seedance-2-5-260628). No workflow: a render is one Router call (router_call in compile.py). Its prompt is prose with the spoken lines (the ltx2 writer, builtin video_prose); its references go in as separate reference images (each subject's sheet, then the plate), and a shot's first/last keyframes as first_frame/last_frame. It makes its own sound and can't be handed a recording, so every audio policy renders as generate. Not yet tried against the live service (docs/PLAN.md, step 4).",
   "capabilities": {
     "_note": "Hosted: Router only, and the provider decides what a seed means (a take can't be promised to come out the same again). The docs give no limit on reference images; four subjects and the plate is what the compile sends.",
@@ -77,27 +77,64 @@
   },
   "router": {
     "model": "byteplus/dreamina-seedance-2-5-260628",
-    "resolutions": {
-      "480": "480p",
-      "720": "720p",
-      "1080": "1080p"
-    },
-    "ratios": [
-      "16:9",
-      "4:3",
-      "1:1",
-      "3:4",
-      "9:16",
-      "21:9",
-      "9:21"
-    ],
-    "_seed_note": "Router's schema says [-1, 2^32-1], but BytePlus finishes any request with a seed past 2^31-1 as invalid_input (2026-10-11: Router's own example rendered; the same with seed 2454889240 was refused in 5 s, as were sh040's and sh190's takes). So seeds wrap at 2^31.",
-    "seed_max": 2147483647,
-    "_draft_note": "A proxy take is a Seedance Draft (draft: true, 480p): POST /seriesmith/render with from_draft makes its final from the draft's task id, at 1080p, within 7 days (the provider reuses the draft's prompt, pictures, length, ratio, seed and sound).",
-    "draft_proxy": true,
+    "_note": "How a shot becomes Seedance 2.5's own request (targets/generic/router_video.py): BytePlus's content list (the prose, then the pictures with their roles), each picture through the Seedance virtual library (BytePlus refuses a photoreal person, an AI-made one too, as a plain URL: content_policy_violation, 2026-10-11).",
     "arguments": {
       "watermark": false,
       "output_format": "mp4"
+    },
+    "inputs": {
+      "shape": "content",
+      "duration": {
+        "name": "duration",
+        "min": 4,
+        "max": 30
+      },
+      "resolution": {
+        "name": "resolution",
+        "values": {
+          "480": "480p",
+          "720": "720p",
+          "1080": "1080p"
+        }
+      },
+      "ratio": {
+        "name": "ratio",
+        "values": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9",
+          "9:21"
+        ],
+        "with_frames": "omit",
+        "_note": "first-frame / first-last-frame generation follows the frame's shape: a concrete ratio is refused"
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647,
+        "_note": "Router's schema says [-1, 2^32-1], but BytePlus finishes any request with a seed past 2^31-1 as invalid_input (2026-10-11: Router's own example rendered; the same with seed 2454889240 was refused in 5 s, as were sh040's and sh190's takes). So seeds wrap at 2^31."
+      },
+      "audio": {
+        "name": "generate_audio"
+      },
+      "references": {
+        "role": "reference_image"
+      },
+      "first": {
+        "role": "first_frame"
+      },
+      "last": {
+        "role": "last_frame"
+      },
+      "via": "seedance"
+    },
+    "_draft_note": "A proxy take is a Seedance Draft (draft: true, 480p): POST /seriesmith/render with from_draft makes its final from the draft's task id, at 1080p, within 7 days (the provider reuses the draft's prompt, pictures, length, ratio, seed and sound).",
+    "draft": {
+      "proxy": true,
+      "resolution": "480p",
+      "final_resolution": "1080p"
     },
     "result": {
       "video": "content.video_url"
