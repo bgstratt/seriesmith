@@ -1685,6 +1685,9 @@ export interface Target {
   /** Phase 12: saved but not proved yet — no probe render has succeeded, so the
    * shot and episode pickers leave it out. */
   draft?: boolean;
+  /** A built-in that ships as a draft (an untested Router model): switched on
+   * for every show in the settings (PUT /seriesmith/targets/custom {draft}). */
+  shipped_draft?: boolean;
 }
 
 /** Phase 12b: one saved ComfyUI workflow (GET /seriesmith/workflows). */

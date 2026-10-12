@@ -88,9 +88,21 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
   const [open, setOpen] = useState(false);
   const [routerOpen, setRouterOpen] = useState(false);
   const mine = useMemo(() => customTargets(list), [list]);
+  const shipped = useMemo(() => (list?.targets ?? []).filter((t) => t.shipped_draft), [list]);
   if (!ep) return null;
   return (
     <div className="h3-col" style={{ gap: 6 }}>
+      {shipped.length > 0 && (
+        <>
+          <div className="h3-h">
+            Hosted models to try
+            <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
+              {" "}— Comfy Router models seriesmith ships untested: probe a shot, then enable it for every show
+            </span>
+          </div>
+          {shipped.map((t) => <MineRow key={t.id} t={t} builtin />)}
+        </>
+      )}
       <div className="h3-h">
         This show's own targets
         <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
@@ -121,7 +133,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
   );
 }
 
-function MineRow({ t }: { t: Target }) {
+function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
   const busy = useApp((s) => !!s.busy["target-save"] || !!s.busy["target-probe"]);
   const st = useStatus();
   const [shot, setShot] = useState("");
@@ -154,8 +166,9 @@ function MineRow({ t }: { t: Target }) {
               onClick={() => void probeTarget(t.id, shot || null)}>
               <i className="pi pi-play" /> Probe render{hosted ? " (paid)" : ""}
             </button>
-            <button className="h3-btn" disabled={busy} onClick={() => void enableCustomTarget(t.id)}>
-              <i className="pi pi-check" /> Enable for shots
+            <button className="h3-btn" disabled={busy} onClick={() => void enableCustomTarget(t.id)}
+              title={builtin ? "Offer it for shots in every show (saved in seriesmith's settings)" : undefined}>
+              <i className="pi pi-check" /> Enable for shots{builtin ? " (every show)" : ""}
             </button>
           </>
         )}
@@ -164,10 +177,12 @@ function MineRow({ t }: { t: Target }) {
             <i className="pi pi-undo" /> Back to draft
           </button>
         )}
-        <button className="h3-btn" disabled={busy} title={`Remove ${t.id} from this show`}
-                onClick={() => { if (confirm(`Remove ${t.label || t.id} from this show? Takes already rendered on it are kept.`)) void deleteCustomTarget(t.id); }}>
-          <i className="pi pi-trash" /> Remove
-        </button>
+        {!builtin && (
+          <button className="h3-btn" disabled={busy} title={`Remove ${t.id} from this show`}
+                  onClick={() => { if (confirm(`Remove ${t.label || t.id} from this show? Takes already rendered on it are kept.`)) void deleteCustomTarget(t.id); }}>
+            <i className="pi pi-trash" /> Remove
+          </button>
+        )}
       </div>
     </div>
   );

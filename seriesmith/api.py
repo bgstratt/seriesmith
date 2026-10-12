@@ -2433,6 +2433,19 @@ def put_targets_custom(ctx: Context, body):
             t = TG.load_target(str(body["id"]), root=ep)
         except TG.TargetError as e:
             raise ApiError(404, str(e))
+        if t.shipped_draft:
+            # a built-in that ships as a draft: switched on (or off) for every
+            # show in the settings, its target.json left as it is
+            from seriesmith import settings as S
+            on = set(S.load_settings().enabled_drafts)
+            on = on - {t.id} if body["draft"] else on | {t.id}
+            try:
+                S.save_settings({"enabled_drafts": sorted(on)})
+            except (OSError, ValueError) as e:
+                raise ApiError(500, f"the settings couldn't be saved: {e}")
+            episode_event(ctx, ep)
+            return 200, {"ok": True, "id": t.id, "path": S.settings_path(),
+                         "draft": body["draft"], "targets": IN.custom_targets(ep)}
         if not t.custom:
             raise ApiError(400, f"{t.id} is a built-in target, not this show's")
         spec = dict(t.spec)

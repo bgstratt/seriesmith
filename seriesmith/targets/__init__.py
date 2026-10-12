@@ -422,6 +422,21 @@ class Target:
     def __repr__(self) -> str:
         return f"<Target {self.kind}/{self.id}>"
 
+    # -- draft ---------------------------------------------------------------
+
+    @property
+    def shipped_draft(self) -> bool:
+        """A built-in target that ships as a draft (an untested Router model)."""
+        return not self.custom and bool(self.spec.get("draft"))
+
+    @property
+    def draft(self) -> bool:
+        """Not offered for shots yet: target.json says `draft`, and (for a
+        built-in) the settings' `enabled_drafts` doesn't switch it on."""
+        if not self.spec.get("draft"):
+            return False
+        return self.custom or self.id not in enabled_drafts()
+
     # -- code --------------------------------------------------------------
 
     @property
@@ -800,7 +815,9 @@ class Target:
                 "short": self.short,
                 # Phase 12: a show's own target, and one that hasn't rendered yet
                 **({"custom": True} if self.custom else {}),
-                **({"draft": True} if self.spec.get("draft") else {}),
+                **({"draft": True} if self.draft else {}),
+                # a built-in draft: listed with the show's own, Enable or Back to draft
+                **({"shipped_draft": True} if self.shipped_draft else {}),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -941,6 +958,30 @@ def _scan_folders(root: str | None) -> list[tuple[str, str, str]]:
                 seen.add(os.path.normcase(entry[2]))
                 out.append(entry)
     return out
+
+
+_ENABLED: dict = {}                                       # the settings file's mtime -> ids
+
+
+def enabled_drafts() -> frozenset[str]:
+    """The built-in drafts the settings switch on (`enabled_drafts`), read
+    again when the settings file changes."""
+    from seriesmith import settings as S
+    path = S.settings_path()
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        stamp = None
+    hit = _ENABLED.get(path)
+    if hit and hit[0] == stamp:
+        return hit[1]
+    try:
+        ids = frozenset(S.load_settings(path).enabled_drafts) if stamp else frozenset()
+    except ValueError:
+        ids = frozenset()
+    _ENABLED.clear()
+    _ENABLED[path] = (stamp, ids)
+    return ids
 
 
 def is_custom(folder: str) -> bool:
@@ -1278,7 +1319,7 @@ def continuous_target(shot_id: str, mode: str, t: "Target", named: bool,
     if partner and partner in known and not named:
         return partner
     # what a shot can name: a draft (not switched on yet) isn't offered
-    can = [x.id for x in list_targets("video") if mode in continuous_modes(x) and not x.spec.get("draft")]
+    can = [x.id for x in list_targets("video") if mode in continuous_modes(x) and not x.draft]
     if named:
         raise ValueError(f"shot {shot_id}: `continuous: {mode}` on {t.id}, which the shot names, "
                          f"but {t.id} can't render it: name one that can ({', '.join(can)}), or "

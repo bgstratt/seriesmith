@@ -580,5 +580,39 @@ class InspectRoutesTest(ApiTest):
         self.assertTrue(any("save the graph there first" in p for p in data["problems"]))
 
 
+class ShippedDraftTest(ApiTest):
+    """A built-in that ships as a draft (an untested Router model): listed with
+    `shipped_draft`, switched on for every show in the settings by the same
+    PUT /seriesmith/targets/custom {id, draft} as a show's own."""
+
+    def setUp(self):
+        super().setUp()
+        self.settings = os.path.join(self.tmp, "user", "settings.json")
+        os.environ["SERIESMITH_SETTINGS"] = self.settings
+        self.addCleanup(os.environ.__setitem__, "SERIESMITH_SETTINGS",
+                        os.path.join(ROOT, "tests", "_no_settings.json"))
+
+    def listed(self, tid):
+        d = self.ok(A.get_targets(self.ctx, {"ep": self.ep}))
+        return next(t for t in d["targets"] if t["id"] == tid)
+
+    def test_enable_and_back_to_draft(self):
+        t = self.listed("veo_3_1_lite")
+        self.assertTrue(t["draft"] and t["shipped_draft"])
+        d = self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "id": "veo_3_1_lite", "draft": False}))
+        self.assertFalse(d["draft"])
+        with open(self.settings, encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["enabled_drafts"], ["veo_3_1_lite"])
+        t = self.listed("veo_3_1_lite")
+        self.assertNotIn("draft", t)
+        self.assertTrue(t["shipped_draft"])                   # still listed, to put back
+        self.assertFalse(os.path.isdir(os.path.join(self.ep, "targets")))   # nothing in the show
+        self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "id": "veo_3_1_lite", "draft": True}))
+        self.assertTrue(self.listed("veo_3_1_lite")["draft"])
+
+    def test_a_live_built_in_cant_be_made_a_draft(self):
+        self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "id": "veo_3_1_fast", "draft": True}), 400)
+
+
 if __name__ == "__main__":
     unittest.main()
