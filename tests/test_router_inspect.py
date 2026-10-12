@@ -1,6 +1,6 @@
 """
 A Comfy Router model proposed as a target from its published schema
-(seriesmith/router_inspect.py): six real schemas (tests/fixtures/
+(seriesmith/router_inspect.py): real schemas (tests/fixtures/
 router_schemas, as Router served them on 2026-10-12), what each proposal
 places where, and a proposed target driving a real shot's request through
 targets/generic/router_video.
@@ -70,6 +70,23 @@ class ProposeTest(unittest.TestCase):
         omni = proposal("kling/kling-v3-omni")["proposal"]["router"]["inputs"]
         self.assertEqual(omni["last"]["item"], {"image_url": "$url", "type": "end_frame"})
 
+    def test_runway_needs_a_first_frame(self):
+        r = proposal("runway/gen4_turbo")
+        p = r["proposal"]
+        self.assertEqual(p["router"]["inputs"]["first"], {"field": "promptImage"})
+        self.assertIn("first", p["recipe"]["keyframe_required"])
+        self.assertEqual(r["unplaced"], [])
+        sd = TG.load_target("seedance_2_5", "video")
+        self.assertTrue(TG.Target(sd.folder, p).capabilities()["requires_first"])
+
+    def test_byteplus_goes_through_the_library_and_seeds_stay_under_2_31(self):
+        inp = proposal("byteplus/dreamina-seedance-2-0-260128")["proposal"]["router"]["inputs"]
+        self.assertEqual(inp["via"], "seedance")
+        self.assertEqual(inp["seed"]["max"], 2147483647)                 # the schema says 2^32-1
+        self.assertEqual(proposal("runway/gen4_turbo")["proposal"]["router"]["inputs"]["seed"]["max"],
+                         2147483647)
+        self.assertEqual(proposal("ltx/ltx-2-5-pro")["proposal"]["router"]["arguments"], {"fps": 24})
+
     def test_ltx_sizes_and_a_bad_id(self):
         inp = proposal("ltx/ltx-2-5-pro")["proposal"]["router"]["inputs"]
         self.assertIn("1280x720", inp["resolution"]["values"])
@@ -92,6 +109,12 @@ class ProposedTargetRendersTest(Episode):
         self.assertTrue(4 <= args["duration"] <= 15)
         self.assertIn(args["resolution"], ("768P", "2K"))
         self.assertTrue(0 <= args["seed"] <= 2147483647)
+
+    def test_a_first_frame_model_refuses_a_shot_without_one(self):
+        p = proposal("runway/gen4_turbo")["proposal"]
+        t = TG.Target(TG.load_target("seedance_2_5", "video").folder, p)
+        with self.assertRaisesRegex(ValueError, "first keyframe"):
+            t.module.router_call(t, self.job())
 
     def test_a_saved_target_can_be_enabled(self):
         """Enabling re-checks the target with the show's targets in force: it

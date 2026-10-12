@@ -271,6 +271,11 @@ def router_call(target, job) -> tuple[str, dict]:
     text = J._prompt_text(shot.get("prompt") or job.prompt)
     via = inp.get("via", "")
     mode, pics = pictures(target, job, shot, inp)
+    if target.capabilities().get("requires_first") and mode != "frames":
+        # an image-to-video model (Runway): nothing to start from, nothing to send
+        raise ValueError(f"{target.short or target.id} starts every shot from its first keyframe, and "
+                         f"{shot.get('id', 'this shot')} has none yet: make it first (the shot's "
+                         f"menu, or first: generate in the script)")
     args = copy.deepcopy(spec.get("arguments") or {})
 
     # the prompt, then the pictures, in that order (a content list keeps it)

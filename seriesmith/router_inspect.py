@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 
 API_BASE = "https://api.comfy.org"
+SEED_MAX = 2147483647
 
 
 class RouterInspectError(ValueError):
@@ -113,7 +114,7 @@ NAMES = {
     "seed": ["seed"],
     "audio": ["generateaudio", "audio", "sound", "withaudio", "enableaudio"],
     "first": ["firstframe", "firstframeimage", "firstframeurl", "image", "imageurl", "imgurl",
-              "startimage", "imagestart", "startframe", "startimageurl"],
+              "startimage", "imagestart", "startframe", "startimageurl", "promptimage"],
     "last": ["lastframe", "lastframeimage", "lastframeurl", "endimage", "imageend", "tailimage",
              "endframe", "endimageurl", "imagetail"],
     "references": ["referenceimages", "referenceimage", "imageurls", "images", "referenceimageurls",
@@ -254,11 +255,11 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
                 d["with_frames"] = "adaptive"
             inputs["ratio"] = d
         elif leaf in NAMES["seed"] and t in ("integer", "number") and "seed" not in inputs:
+            # never past 2^31-1, whatever the schema says: BytePlus's said 2^32-1
+            # and refused anything past 2^31-1 (2026-10-11)
             hi = v.get("maximum")
-            inputs["seed"] = {"name": path, "max": int(hi) if isinstance(hi, (int, float)) and hi > 0
-                              else 2147483647}
-            if not isinstance(hi, (int, float)):
-                warnings.append(f"{path}: no largest seed given; 2^31-1 assumed (Seedance refused more)")
+            inputs["seed"] = {"name": path, "max": min(int(hi), SEED_MAX)
+                              if isinstance(hi, (int, float)) and hi > 0 else SEED_MAX}
         elif leaf in NAMES["audio"] and "audio" not in inputs:
             if t == "boolean":
                 inputs["audio"] = {"name": path}
@@ -273,7 +274,7 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
             if isinstance(v.get("maxItems"), int):
                 d["max"] = v["maxItems"]
             inputs["references"] = d
-        elif leaf in NAMES["first"] and "first" not in inputs and t in ("string", "object"):
+        elif leaf in NAMES["first"] and "first" not in inputs and t in ("string", "object", None):
             tpl = _picture_item(doc, v)
             inputs["first"] = {"field": path, **({"item": tpl} if tpl != "$url" else {})}
         elif leaf in NAMES["last"] and "last" not in inputs and t in ("string", "object"):
@@ -285,15 +286,24 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
             args[path] = "mp4"
         elif leaf == "samplecount" and t == "integer":
             args[path] = 1
+        elif leaf == "fps" and enum and 24 in enum:
+            args[path] = 24                                  # the episode's rate
 
+    # BytePlus's models take a person's picture only through the Seedance
+    # virtual library (asset://): a plain URL is refused (2026-10-11)
+    if model.startswith("byteplus/"):
+        inputs["via"] = "seedance"
     for k, where in inputs.items():
+        if k == "via":
+            continue
         mapped.setdefault(k, where if isinstance(where, str) else
                           (where.get("name") or where.get("field") or f"{where.get('list')}[]"))
     if "prompt" not in inputs:
         warnings.append("no field for the prompt was found: the model can't be told what to draw")
     if "first" in inputs and "references" in inputs:
         warnings.append("it takes frames and references: a shot with a first frame sends its frames")
-    placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m for m in inputs.values()}
+    placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m
+              for k, m in inputs.items() if k != "via"}
     placed |= set(args)
     unplaced = sorted(f for f in required if not any(p == f or p.startswith(f + ".") for p in placed))
 
@@ -313,6 +323,12 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
     base = json.loads(json.dumps(base or {}))
     recipe = base.get("recipe") or {"policies": ["generate"], "prompt": "prose"}
     recipe["keyframes"] = [e for e in ("first", "last") if e in inputs]
+    if _name(inputs.get("first") or {}) in required:
+        # an image-to-video model (Runway): a shot needs its first keyframe,
+        # asked for like any missing picture (capabilities.requires_first)
+        recipe["keyframe_required"] = {"first": f"{model} starts every shot from its first frame: "
+                                                f"generate one, import one, or give the shot "
+                                                f"`continuous: first`"}
     if "references" not in inputs:
         recipe.pop("reference_image", None)
     proposal = {
