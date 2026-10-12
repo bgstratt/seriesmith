@@ -15,6 +15,7 @@ import {
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
+import { isHosted } from "../lib/targets";
 import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
@@ -182,7 +183,10 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   // the model this shot renders on: its own, else what the preview compiled it for
   const renderTarget = form?.keys.target || (preview?.ok ? preview.target ?? null : null);
   // a model with no steps setting (a hosted one: its preset says 0 steps)
-  const noSteps = videoTargets.find((t) => t.id === renderTarget)?.presets?.final?.steps === 0;
+  const renderT = videoTargets.find((t) => t.id === renderTarget);
+  const noSteps = renderT?.presets?.final?.steps === 0;
+  // a Comfy Router model has no file or LoRAs to pick
+  const hosted = !!renderT && isHosted(renderT);
 
 
   const head = (
@@ -299,12 +303,12 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     </select>
                   </Row>
                   {/* what that model loads: its file, its LoRAs, its steps */}
-                  <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
+                  {!hosted && <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
                     <ModelLine value={form.keys.model ?? ""} onChange={(v) => set("model", v)} target={renderTarget} empty="the series' (or the model's own)" />
-                  </Row>
-                  <Row label="LoRAs" help={`LoRAs for this shot, from what ${renderTarget ?? "its model"} loads, each with its strength, applied in this order; none for none.`}>
+                  </Row>}
+                  {!hosted && <Row label="LoRAs" help={`LoRAs for this shot, from what ${renderTarget ?? "its model"} loads, each with its strength, applied in this order; none for none.`}>
                     <LoraLine value={form.keys.lora ?? ""} onChange={(v) => set("lora", v)} target={renderTarget} empty="the series' (or the model's own)" />
-                  </Row>
+                  </Row>}
                   {noSteps
                     ? <Row label="Steps" help="This model has no steps setting: the provider decides."><span className="h3-small h3-muted">none (the provider's)</span></Row>
                     : <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />}

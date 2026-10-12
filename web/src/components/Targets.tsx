@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo } from "react";
 import { loadModelFiles, loadTargets, loadWidgetChoices } from "../actions";
-import { byWhere,
+import { byWhere, isHosted,
   findTarget, listDefaultTarget, pickerChoices, pickerSpec, seriesDefaultTarget, videoTargets, widgetKey, type WidgetSpec,
 } from "../lib/targets";
 import { targetOptionText } from "../lib/readiness";
@@ -53,6 +53,8 @@ export interface TargetPickers {
   twoStage: boolean;
   /** GET /seriesmith/models for `model_low` */
   modelLowFiles: ModelList | undefined;
+  /** the model runs on Comfy Router: no model file, no LoRAs (models and loras are null) */
+  hosted: boolean;
 }
 
 /** What the model and LoRA pickers may offer under `targetId`. */
@@ -73,7 +75,9 @@ export function useTargetPickers(targetId: string | null | undefined): TargetPic
   useEffect(() => {
     if (twoStage && target) void loadModelFiles(target.id, "model_low");
   }, [twoStage, target]);
-  return { models, loras, target, modelFiles, twoStage, modelLowFiles };
+  const hosted = !!target && isHosted(target);
+  if (hosted) return { models: null, loras: null, target, modelFiles: undefined, twoStage: false, modelLowFiles: undefined, hosted };
+  return { models, loras, target, modelFiles, twoStage, modelLowFiles, hosted };
 }
 
 /** `<option>`s for a list of models, in two groups by where they run (your

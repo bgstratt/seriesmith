@@ -36,6 +36,8 @@ export interface OverrideFieldsProps {
   modelFiles?: ModelList;
   /** the same for LoRAs; null hides the LoRA rows */
   loraChoices?: string[] | null;
+  /** a Comfy Router model: no model file row (the provider's model is the model) */
+  hosted?: boolean;
   /** Phase 8: the prompt can't be overridden (a retargeted shot): show this
    * note and the effective prompt read-only instead of the editor. */
   promptLocked?: { note: ReactNode; text: string; label?: string } | null;
@@ -58,8 +60,8 @@ export function OverrideFields(p: OverrideFieldsProps) {
     <>
       {/* the model's own settings first (its file, LoRAs, steps), then what it's asked */}
       <div className="h3-field">
-        <label>Model file</label>
-        {p.modelChoices === null ? (
+        {!p.hosted && <label>Model file</label>}
+        {p.hosted ? null : p.modelChoices === null ? (
           <span className="h3-muted h3-small">set by the target (it has no model widget)</span>
         ) : (
           <ModelSelect value={form.model} onChange={(model) => set({ model })} placeholder={p.modelPlaceholder} choices={p.modelChoices} grouped={p.modelFiles} />

@@ -393,6 +393,7 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
         modelChoices={pickers.models}
         modelFiles={pickers.modelFiles}
         loraChoices={pickers.loras}
+        hosted={pickers.hosted}
         promptLocked={promptLocked}
         negative={takesNegative(tgt, eff)
           ? {

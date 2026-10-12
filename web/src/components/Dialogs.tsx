@@ -290,8 +290,8 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
             <input className="h3-in h3-mono" inputMode="numeric" value={f.typedSeed} onChange={(e) => set({ typedSeed: e.target.value.replace(/[^\d]/g, "") })} />
           )}
         </div>
-        <label>Model</label>
-        {pickers.models === null ? (
+        {!pickers.hosted && <label>Model</label>}
+        {pickers.hosted ? null : pickers.models === null ? (
           <span className="h3-muted h3-small">set by the target (it has no model widget)</span>
         ) : (
           <ModelSelect value={f.model} onChange={(model) => set({ model })} placeholder="(the workflow's model)" choices={pickers.models} grouped={pickers.modelFiles} />
