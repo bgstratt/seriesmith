@@ -1391,7 +1391,8 @@ export interface RedoPlan {
   seed: RedoSeed;
   model: string;
   loras: Lora[] | null;
-  steps: number;
+  /** null: the model has none (a hosted model's preset says 0 steps) */
+  steps: number | null;
   prompt: string;
   note: string;
   saveAsOverride: boolean;
@@ -1441,7 +1442,7 @@ export function planRedo(p: RedoPlan, ep: string, d: ShotDetail): { override: Ov
   if (!p.lockPrompt && p.prompt !== eff.prompt) f.prompt = p.prompt === d.built_prompt ? null : p.prompt;
   if (p.model !== eff.model) f.model = p.model || null;
   if (!sameLoras(p.loras, eff.loras)) f.loras = p.loras;
-  if (p.steps !== eff.steps) f.steps = p.steps;
+  if (p.steps != null && p.steps !== eff.steps) f.steps = p.steps;
   if (seed != null && seed !== d.override.seed) f.seed = seed;
   return { override: Object.keys(f).length ? f : null, render: base };
 }

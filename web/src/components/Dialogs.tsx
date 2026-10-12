@@ -199,7 +199,7 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
 
   const submit = async () => {
     let seed: RedoSeed;
-    let steps: number;
+    let steps: number | null;
     let loras;
     try {
       if (f.seedChoice === "new") seed = { mode: "new" };
@@ -207,7 +207,8 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
         if (!parentSeed) throw new Error("The parent take has no recorded seed; type one instead.");
         seed = { mode: "same", seed: parentSeed };
       } else seed = { mode: "typed", seed: parseSeed(f.typedSeed) };
-      steps = parseSteps(f.steps);
+      // a model with no steps (a hosted one: its preset says 0) gets none
+      steps = noSteps ? null : parseSteps(f.steps);
       if (f.size) {
         const bad = sizeCheck(f.size, sizeRule(findTarget(list, runTarget)?.template));
         if (bad?.level === "err") throw new Error(bad.text);
@@ -234,6 +235,9 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
   };
 
   const builtPrompt = targetD?.built_prompt ?? d.built_prompt;
+  // a model with no steps setting (a hosted one, Seedance: its presets say 0)
+  const runPreset = findTarget(list, runTarget)?.presets?.[f.pass] ?? findTarget(list, runTarget)?.presets?.final;
+  const noSteps = runPreset?.steps === 0;
   // the model this run loads is another family than the target needs: the server skips it unless allowed
   const runModel = f.model || (oneOff ? "" : (targetD ?? d).effective.model);
   const mismatch = isModelMismatch(pickers.modelFiles, runModel);
@@ -305,7 +309,11 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
           </>
         )}
         <label>Steps</label>
-        <input className="h3-in" style={{ width: 80 }} inputMode="numeric" value={f.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />
+        {noSteps ? (
+          <span className="h3-small h3-muted" title="This model has no steps setting: the provider decides">none (the provider's)</span>
+        ) : (
+          <input className="h3-in" style={{ width: 80 }} inputMode="numeric" value={f.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />
+        )}
         <label title="The size this take renders at. For this run only: set it on the shot's override (inspector) to keep it. A master re-samples each take by its own size.">Size</label>
         <div className="h3-col" style={{ gap: 2 }}>
           <SizePicker value={f.size} onChange={(size) => set({ size })} own={effSize} ownLabel="the shot's" rule={rule} />
@@ -390,7 +398,7 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
       {err && <div className="h3-note h3-note-err">{err}</div>}
       <div className="h3-row" style={{ justifyContent: "flex-end" }}>
         <span className="h3-muted h3-small h3-grow">
-          {runLabel ? `${runLabel} · ` : ""}{f.model ? shortName(f.model, 40) : ""} · {f.steps} steps · seed {f.seedChoice === "new" ? "new" : f.seedChoice === "same" ? parentSeed : f.typedSeed || "?"}
+          {runLabel ? `${runLabel} · ` : ""}{f.model ? shortName(f.model, 40) : ""} · {noSteps ? "provider's steps" : `${f.steps} steps`} · seed {f.seedChoice === "new" ? "new" : f.seedChoice === "same" ? parentSeed : f.typedSeed || "?"}
         </span>
         <button className="h3-btn" onClick={closeRedo}>Cancel</button>
         <button className="h3-btn h3-primary" disabled={busy} onClick={() => void submit()}>
