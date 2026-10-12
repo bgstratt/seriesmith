@@ -1,0 +1,122 @@
+{
+  "id": "runway_gen4_turbo",
+  "kind": "video",
+  "label": "Runway Gen-4 Turbo (hosted, Comfy Router)",
+  "short": "Runway",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4,
+    "audio": "none"
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 48,
+      "max": 240
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "silent"
+    ],
+    "policy_fallback": {
+      "to": "silent",
+      "why": "runway/gen4_turbo makes no sound: the take is mute, and the edit lays the sound under it"
+    },
+    "keyframes": [
+      "first"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    },
+    "keyframe_required": {
+      "first": "runway/gen4_turbo starts every shot from its first frame: generate one, import one, or give the shot `continuous: first`"
+    }
+  },
+  "router": {
+    "model": "runway/gen4_turbo",
+    "arguments": {},
+    "inputs": {
+      "duration": {
+        "name": "duration",
+        "values": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      "first": {
+        "field": "promptImage"
+      },
+      "prompt": {
+        "field": "promptText",
+        "max_chars": 1000
+      },
+      "ratio": {
+        "name": "ratio",
+        "values": [
+          "1280:720",
+          "720:1280",
+          "1104:832",
+          "832:1104",
+          "960:960",
+          "1584:672",
+          "1280:768",
+          "768:1280"
+        ],
+        "with_frames": "keep"
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "runway/gen4_turbo",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "runway/gen4_turbo",
+      "lora": null,
+      "steps": 0,
+      "width": 854,
+      "height": 480
+    }
+  },
+  "_note": "Image to video: every shot starts from its first keyframe (promptImage); no reference pictures, no sound (the silent prose: Runway failed every prompt carrying quoted lines, 2026-10-12)."
+}

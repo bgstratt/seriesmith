@@ -29,6 +29,10 @@ from test_api import ApiTest  # noqa: E402
 from test_render import FIXTURE, build_episode  # noqa: E402
 
 H3 = "minimax_h3_ref2va"
+# the Comfy Router video models tools/make_router_targets.py writes
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from make_router_targets import MODELS as _ROUTER  # noqa: E402
+ROUTER = {m[1] for m in _ROUTER}
 
 
 def kitchen_sink():
@@ -42,7 +46,7 @@ def kitchen_sink():
 class LoadingTest(unittest.TestCase):
     def test_list_and_load(self):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
-        self.assertEqual(ids, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"),
+        self.assertEqual(ids - {("video", r) for r in ROUTER}, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"),
                                ("video", "minimax_h3_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
@@ -52,7 +56,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
                                ("image", "krea_2_router"),
                                ("audio", "ltx2_voice")})
-        self.assertEqual([t.id for t in TG.list_targets("video")],
+        self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
                          ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
@@ -181,9 +185,11 @@ class ProfileTest(unittest.TestCase):
         series_cfg["profiles"]["dialogue_close"]["target"] = "ltx_2_3"
         with self.assertRaises(ValueError) as cm:
             TG.episode_target(story, series_cfg)
-        self.assertIn("not a video target (known: ltx2, ltx2_ingredients, minimax_h3_fl2va, "
-                      "minimax_h3_ref2va, seedance_2_5, wan22_i2v, wan22_ti2v, wan22_vace)",
-                      str(cm.exception))
+        self.assertIn("not a video target (known: ", str(cm.exception))
+        known = str(cm.exception).split("(known: ")[1].split(")")[0].split(", ")
+        self.assertEqual(sorted(set(known) - ROUTER),
+                         ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", "minimax_h3_ref2va",
+                          "seedance_2_5", "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         # sh320 names the series target itself, which beats its profile's; sh330
         # takes the profile's
         self.assertIn("shot sh330:", str(cm.exception))
@@ -406,7 +412,7 @@ class TargetsRouteTest(ApiTest):
     def test_targets(self):
         data = self.ok(A.get_targets(self.ctx, {}))
         by = {t["id"]: t for t in data["targets"]}
-        self.assertEqual(set(by), {H3, "ltx2", "ltx2_ingredients", "minimax_h3_fl2va", "krea2",
+        self.assertEqual(set(by) - ROUTER, {H3, "ltx2", "ltx2_ingredients", "minimax_h3_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",

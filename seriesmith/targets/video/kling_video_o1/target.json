@@ -1,0 +1,158 @@
+{
+  "id": "kling_video_o1",
+  "kind": "video",
+  "label": "Kling Video O1 (hosted, Comfy Router)",
+  "short": "Kling O1",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 72,
+      "max": 360
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "reference_image": {
+      "sheet_panels": 4,
+      "views": {
+        "body": 0,
+        "face": 3
+      },
+      "face_sizes": [
+        "close",
+        "cu",
+        "mcu",
+        "ecu"
+      ],
+      "plate": true,
+      "_note": "The shot's subjects' sheets and its plate, sent as separate reference images (compile.py router_call), never composed into one picture as VACE's are."
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "kling/kling-video-o1",
+    "arguments": {},
+    "inputs": {
+      "first": {
+        "list": "image_list",
+        "item": {
+          "type": "first_frame",
+          "image_url": "$url"
+        }
+      },
+      "last": {
+        "list": "image_list",
+        "item": {
+          "type": "end_frame",
+          "image_url": "$url"
+        }
+      },
+      "references": {
+        "list": "image_list",
+        "item": {
+          "image_url": "$url"
+        },
+        "mention": "<<<image_{n}>>>"
+      },
+      "ratio": {
+        "name": "aspect_ratio",
+        "values": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ]
+      },
+      "duration": {
+        "name": "duration",
+        "values": [
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "as": "str"
+      },
+      "resolution": {
+        "name": "mode",
+        "values": {
+          "720": "std",
+          "1080": "pro"
+        }
+      },
+      "prompt": {
+        "field": "prompt",
+        "max_chars": 2500
+      },
+      "audio": {
+        "name": "sound",
+        "on": "on",
+        "off": "off"
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "kling/kling-video-o1",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "kling/kling-video-o1",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    }
+  }
+}

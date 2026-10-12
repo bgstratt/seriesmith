@@ -1,0 +1,168 @@
+{
+  "id": "seedance_2_0_fast",
+  "kind": "video",
+  "label": "Seedance 2.0 Fast (hosted, Comfy Router)",
+  "short": "Seedance",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 96,
+      "max": 360
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "reference_image": {
+      "sheet_panels": 4,
+      "views": {
+        "body": 0,
+        "face": 3
+      },
+      "face_sizes": [
+        "close",
+        "cu",
+        "mcu",
+        "ecu"
+      ],
+      "plate": true,
+      "_note": "The shot's subjects' sheets and its plate, sent as separate reference images (compile.py router_call), never composed into one picture as VACE's are."
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "byteplus/dreamina-seedance-2-0-fast-260128",
+    "arguments": {
+      "output_format": "mp4",
+      "watermark": false
+    },
+    "inputs": {
+      "prompt": {
+        "list": "content",
+        "item": {
+          "type": "text",
+          "text": "$prompt"
+        }
+      },
+      "references": {
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "reference_image"
+        }
+      },
+      "first": {
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "first_frame"
+        }
+      },
+      "last": {
+        "list": "content",
+        "item": {
+          "type": "image_url",
+          "image_url": {
+            "url": "$url"
+          },
+          "role": "last_frame"
+        }
+      },
+      "duration": {
+        "name": "duration",
+        "min": 4,
+        "max": 15
+      },
+      "audio": {
+        "name": "generate_audio"
+      },
+      "ratio": {
+        "name": "ratio",
+        "values": [
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16",
+          "21:9",
+          "9:21"
+        ],
+        "with_frames": "keep"
+      },
+      "resolution": {
+        "name": "resolution",
+        "values": [
+          "480p",
+          "720p"
+        ]
+      },
+      "seed": {
+        "name": "seed",
+        "max": 2147483647
+      },
+      "via": "seedance"
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "byteplus/dreamina-seedance-2-0-fast-260128",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "byteplus/dreamina-seedance-2-0-fast-260128",
+      "lora": null,
+      "steps": 0,
+      "width": 854,
+      "height": 480
+    }
+  },
+  "draft": true
+}

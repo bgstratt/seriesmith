@@ -1,0 +1,159 @@
+{
+  "id": "veo_3_1_fast",
+  "kind": "video",
+  "label": "Veo 3.1 Fast (hosted, Comfy Router)",
+  "short": "Veo",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 3
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 96,
+      "max": 192
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "reference_image": {
+      "sheet_panels": 4,
+      "views": {
+        "body": 0,
+        "face": 3
+      },
+      "face_sizes": [
+        "close",
+        "cu",
+        "mcu",
+        "ecu"
+      ],
+      "plate": true,
+      "_note": "The shot's subjects' sheets and its plate, sent as separate reference images (compile.py router_call), never composed into one picture as VACE's are."
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "veo/veo-3.1-fast-generate-001",
+    "arguments": {
+      "parameters": {
+        "sampleCount": 1
+      }
+    },
+    "inputs": {
+      "first": {
+        "field": "instances.0.image",
+        "item": {
+          "bytesBase64Encoded": "$url",
+          "mimeType": "$mime"
+        }
+      },
+      "last": {
+        "field": "instances.0.lastFrame",
+        "item": {
+          "bytesBase64Encoded": "$url",
+          "mimeType": "$mime"
+        }
+      },
+      "prompt": {
+        "field": "instances.0.prompt",
+        "max_chars": 1000
+      },
+      "references": {
+        "list": "instances.0.referenceImages",
+        "item": {
+          "image": {
+            "bytesBase64Encoded": "$url",
+            "mimeType": "$mime"
+          },
+          "referenceType": "asset"
+        },
+        "max": 3
+      },
+      "ratio": {
+        "name": "parameters.aspectRatio",
+        "values": [
+          "16:9",
+          "9:16"
+        ]
+      },
+      "duration": {
+        "name": "parameters.durationSeconds",
+        "values": [
+          4,
+          6,
+          8
+        ]
+      },
+      "audio": {
+        "name": "parameters.generateAudio"
+      },
+      "negative": "parameters.negativePrompt",
+      "resolution": {
+        "name": "parameters.resolution",
+        "values": [
+          "720p",
+          "1080p",
+          "4k"
+        ]
+      },
+      "seed": {
+        "name": "parameters.seed",
+        "max": 2147483647
+      },
+      "via": "base64"
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "veo/veo-3.1-fast-generate-001",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "veo/veo-3.1-fast-generate-001",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    }
+  }
+}

@@ -1277,7 +1277,8 @@ def continuous_target(shot_id: str, mode: str, t: "Target", named: bool,
     partner = (t.spec.get("continuous") or {}).get(mode)
     if partner and partner in known and not named:
         return partner
-    can = [x.id for x in list_targets("video") if mode in continuous_modes(x)]
+    # what a shot can name: a draft (not switched on yet) isn't offered
+    can = [x.id for x in list_targets("video") if mode in continuous_modes(x) and not x.spec.get("draft")]
     if named:
         raise ValueError(f"shot {shot_id}: `continuous: {mode}` on {t.id}, which the shot names, "
                          f"but {t.id} can't render it: name one that can ({', '.join(can)}), or "

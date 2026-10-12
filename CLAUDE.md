@@ -26,7 +26,7 @@ user's side.
 - `seriesmith/server/` — `seriesmith serve` (`standalone.py`: the editor page, its API, the queue, comfy-api-proxy started), `views.py` (the API on aiohttp), `comfyui.py` (the same API on a ComfyUI's own server); `static/` is the built page
 - `web/` — the editor (React/Vite); `npm run build:standalone` writes `seriesmith/server/static/`
 - `docs/` — DESIGN, PLAN, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN
-- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`); `tests/test_docs.py` and `tests/test_new_episode.py` check them
+- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video models in `seriesmith/targets/video/`, from the schemas in `tests/fixtures/router_schemas/`); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
 
 ## Rules
 
@@ -35,9 +35,10 @@ user's side.
 - Tests: `.venv\Scripts\python -m pytest` (the whole suite takes ~8 minutes;
   run the files you touched first).
 - Never hand-edit generated files (`shotlist/`, `refs_todo.*`, `prompts/`, INSTALL.md's
-  model block, `seriesmith/server/static/`); change the script, the series config, the
+  model block, `seriesmith/server/static/`, the Router models' target.json); change the script, the series config, the
   docs or the code and regenerate (`python tools/make_prompts.py`,
-  `python tools/make_models_md.py`, `npm run build:standalone`).
+  `python tools/make_models_md.py`, `python tools/make_router_targets.py`,
+  `npm run build:standalone`).
 - Refactors keep the golden outputs byte-identical (`python -m pytest`) unless the
   change is intended and the goldens are updated in the same commit with the
   reason stated (`python tests/test_golden.py --update`, then review the diff).

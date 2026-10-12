@@ -1,0 +1,156 @@
+{
+  "id": "wan_3_0",
+  "kind": "video",
+  "label": "Wan 3.0 (hosted, Comfy Router)",
+  "short": "Wan",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 10
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 48,
+      "max": 720
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "reference_image": {
+      "sheet_panels": 4,
+      "views": {
+        "body": 0,
+        "face": 3
+      },
+      "face_sizes": [
+        "close",
+        "cu",
+        "mcu",
+        "ecu"
+      ],
+      "plate": true,
+      "_note": "The shot's subjects' sheets and its plate, sent as separate reference images (compile.py router_call), never composed into one picture as VACE's are."
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "wan/wan3.0-video",
+    "arguments": {
+      "parameters": {
+        "watermark": false
+      }
+    },
+    "inputs": {
+      "references": {
+        "list": "input.media",
+        "item": {
+          "type": "reference_image",
+          "url": "$url"
+        },
+        "max": 10
+      },
+      "first": {
+        "list": "input.media",
+        "item": {
+          "type": "first_frame",
+          "url": "$url"
+        }
+      },
+      "last": {
+        "list": "input.media",
+        "item": {
+          "type": "last_frame",
+          "url": "$url"
+        }
+      },
+      "negative": "input.negative_prompt",
+      "prompt": {
+        "field": "input.prompt",
+        "max_chars": 20000
+      },
+      "audio": {
+        "name": "parameters.audio"
+      },
+      "duration": {
+        "name": "parameters.duration",
+        "min": 2,
+        "max": 30
+      },
+      "ratio": {
+        "name": "parameters.ratio",
+        "values": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "with_frames": "adaptive"
+      },
+      "resolution": {
+        "name": "parameters.resolution",
+        "values": [
+          "480P",
+          "720P",
+          "1080P"
+        ]
+      },
+      "seed": {
+        "name": "parameters.seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "wan/wan3.0-video",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "wan/wan3.0-video",
+      "lora": null,
+      "steps": 0,
+      "width": 854,
+      "height": 480
+    }
+  }
+}

@@ -46,7 +46,9 @@ class ProposeTest(unittest.TestCase):
         self.assertEqual(inp["resolution"]["values"], ["2K", "768P"])
         self.assertEqual((p["presets"]["final"]["width"], p["presets"]["final"]["height"]), (1366, 768))
         self.assertEqual(r["unplaced"], [])
-        self.assertEqual(IN.validate_spec(p), [])
+        # seriesmith ships it under that id: a show's own copy needs another
+        self.assertEqual(IN.validate_spec(dict(p, id="my_h3")), [])
+        self.assertTrue(IN.validate_spec(p))
 
     def test_veo_is_nested(self):
         inp = proposal("veo/veo-3.1-generate-001")["proposal"]["router"]["inputs"]
@@ -121,6 +123,25 @@ class ProposeTest(unittest.TestCase):
             RI.fetch_schema("not a model", "key")
 
 
+class ShippedRouterTargetsTest(unittest.TestCase):
+    @staticmethod
+    def tool():
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import make_router_targets
+        return make_router_targets
+
+    def test_they_are_what_the_schemas_make(self):
+        """seriesmith/targets/video's Router models are generated: change
+        tools/make_router_targets.py (or a schema) and run it."""
+        self.assertEqual(self.tool().main(["--check"]), 0)
+
+    def test_every_one_is_built_in_and_the_drafts_say_so(self):
+        ids = {t.id: t for t in TG.list_targets("video")}
+        for model, tid, *_, draft in self.tool().MODELS:
+            self.assertFalse(ids[tid].custom, tid)
+            self.assertEqual(bool(ids[tid].spec.get("draft")), draft, tid)
+
+
 class InlineOutputTest(unittest.TestCase):
     def test_a_video_in_the_result_is_an_output(self):
         """Veo's result carries its video as base64, not a link: a take that
@@ -192,7 +213,7 @@ class ProposedTargetRendersTest(Episode):
     def test_a_saved_target_can_be_enabled(self):
         """Enabling re-checks the target with the show's targets in force: it
         mustn't find itself and call its own name a built-in's."""
-        p = proposal("minimax/minimax-h3")["proposal"]
+        p = dict(proposal("minimax/minimax-h3")["proposal"], id="my_h3")    # minimax_h3 ships
         IN.save_spec(self.root, p)
         with TG.use_roots(self.root):
             t = TG.load_target(p["id"], "video", root=self.root)

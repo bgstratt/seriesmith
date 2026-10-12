@@ -1,0 +1,136 @@
+{
+  "id": "wan_2_7_i2v",
+  "kind": "video",
+  "label": "Wan 2.7 (first frame) (hosted, Comfy Router)",
+  "short": "Wan",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 48,
+      "max": 360
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    },
+    "keyframe_required": {
+      "first": "wan/wan2.7-i2v starts every shot from its first frame: generate one, import one, or give the shot `continuous: first`"
+    }
+  },
+  "router": {
+    "model": "wan/wan2.7-i2v",
+    "arguments": {
+      "parameters": {
+        "watermark": false
+      }
+    },
+    "inputs": {
+      "first": {
+        "list": "input.media",
+        "item": {
+          "type": "first_frame",
+          "url": "$url"
+        }
+      },
+      "last": {
+        "list": "input.media",
+        "item": {
+          "type": "last_frame",
+          "url": "$url"
+        }
+      },
+      "negative": "input.negative_prompt",
+      "prompt": {
+        "field": "input.prompt",
+        "max_chars": 20000
+      },
+      "audio": {
+        "name": "parameters.audio"
+      },
+      "duration": {
+        "name": "parameters.duration",
+        "min": 2,
+        "max": 15
+      },
+      "ratio": {
+        "name": "parameters.ratio",
+        "values": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "with_frames": "adaptive"
+      },
+      "resolution": {
+        "name": "parameters.resolution",
+        "values": [
+          "720P",
+          "1080P"
+        ]
+      },
+      "seed": {
+        "name": "parameters.seed",
+        "max": 2147483647
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "wan/wan2.7-i2v",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "wan/wan2.7-i2v",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "draft": true
+}
