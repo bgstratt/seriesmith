@@ -92,11 +92,12 @@ export function loadTargets(force = false): Promise<void> {
     try {
       let targets;
       try {
-        targets = await api().targets({ ready: true });
+        // with the episode open: its show's own targets (a workflow, a Router model) too
+        targets = await api().targets({ ready: true, ep: get().ep });
       } catch (e) {
         // readiness failing (ComfyUI busy, older server) mustn't lose the picker
         if (e instanceof ApiError && e.status === 404) throw e;
-        targets = await api().targets();
+        targets = await api().targets({ ep: get().ep });
       }
       set({ targets, targetsError: null, readinessAt: Date.now() });
     } catch (e) {
@@ -446,6 +447,8 @@ export function selectEpisode(ep: string | null) {
   if (ep) {
     void openOnTakes(ep);
     if (get().refs[ep] || refsWanted) void loadRefs(ep);
+    // another show may have its own targets
+    void loadTargets(true);
   }
 }
 

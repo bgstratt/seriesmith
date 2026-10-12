@@ -296,6 +296,8 @@ export interface TargetsQuery {
   kind?: TargetKind;
   /** ask for readiness (`?ready=1`) */
   ready?: boolean;
+  /** the episode open: its show's own targets are listed too */
+  ep?: string | null;
 }
 
 /** `targets("video")` and `targets({kind, ready})` both work. */
@@ -628,8 +630,8 @@ export function createHttpApi(t: Transport): Api {
     },
     loras: () => get("/models/loras"),
     targets: async (opts) => {
-      const { kind, ready } = targetsQuery(opts);
-      const r = await get<Partial<TargetList>>(`/seriesmith/targets?${qs({ kind, ready: ready ? "1" : undefined })}`);
+      const { kind, ready, ep } = targetsQuery(opts);
+      const r = await get<Partial<TargetList>>(`/seriesmith/targets?${qs({ kind, ready: ready ? "1" : undefined, ep: ep || undefined })}`);
       return { targets: Array.isArray(r?.targets) ? r.targets : [], default: r?.default ?? {} };
     },
     installWorkflow: async (target, opts) => {
