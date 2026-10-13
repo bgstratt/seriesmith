@@ -110,8 +110,9 @@ Left for later steps:
   frames (H3ContinuityFrame) still read the episode folder: local only (step 5).
   (Done in step 8: portable, on any backend.)
 - Each run leaves its files in ComfyUI's output/seriesmith/<run>/ after they
-  are copied into the take; the API can't delete them. A cleanup command, or
-  the proxy's retention, is needed before long episodes. (Still open.)
+  are copied into the take; the API can't delete them. (Left to you: those
+  folders are copies, safe to empty by hand; an automatic cleanup was
+  dropped, 2026-10-12.)
 
 ## Step 4 — the first hosted render: Router ✅ (live since 2026-10-11)
 
