@@ -413,7 +413,7 @@ def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
 
 def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
              on_progress=None, on_run=None, prompt_id: str | None = None,
-             on_resume=None) -> str:
+             on_resume=None, on_status=None) -> str:
     """Render a started take on `backend` and collect it: the portable graph
     (or a hosted model's call) submitted, followed (on_progress gets each
     backends.Progress), and its outputs written into the take. `on_run(run)`
@@ -431,7 +431,8 @@ def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
             else {"model": None, "arguments": None, "saver": J.node_of(what, J.PORTABLE_SAVER)})
     if on_resume is not None:
         on_resume(bits)
-    status = run.watch(on_progress=on_progress)
+    status = run.watch(on_progress=on_progress,
+                       on_status=(lambda st: on_status(run, st)) if on_status else None)
     return collect_run(take, run, status, bits)
 
 

@@ -13,11 +13,12 @@ user's side.
 ## Layout
 
 - `seriesmith/core/` — model-free: script parser -> story IR, series config, framing, speech pacing
-- `seriesmith/targets/` — one folder per model (`target.json`, prompt writer, compile, workflow)
+- `seriesmith/targets/` — one folder per model (`target.json`, prompt writer, compile, workflow); `generic/` the code data-only models use (`video_prose`, `router_video` / `router_image` for Comfy Router models, `workflow_image` for an image workflow of the user's); models for every show live beside the settings (`targets/`), a show's own in `<show>/targets/`
 - `seriesmith/build.py` — script + series config -> story IR -> each target's shotlist, refs_todo
 - `seriesmith/cli.py` — the `seriesmith` command (`build`, `check`, `render`, `backends`, `serve`; the rest through `commands.py`)
 - `seriesmith/backends/` — where a job runs: local ComfyUI (via comfy-api-proxy), Cloud, deployments (`comfy.py`), Router (`router.py`), a fake for tests
-- `seriesmith/settings.py` — this machine's settings (backend URLs, API key); never the series config
+- `seriesmith/settings.py` — this machine's settings (backend URLs, API key, built-in drafts switched on, limit overrides); never the series config
+- `seriesmith/limits.py` — a video or hosted image model's limits read into one form and written back where each lives; `router_inspect.py` — a Router model's schema read into a proposed target (video and image), its catalog
 - `seriesmith/jobs.py`, `takes.py`, `render.py` — planning a take, its files and record, rendering through a backend (portable graphs)
 - `seriesmith/queue.py`, `runner.py`, `finishing.py` — the server's job queue, what puts renders, refs, upscales and posts on it, and the upscale/post graphs made portable when their job starts
 - the rest of h3pipe, ported as is: `refs`, `edit`, `source`, `promote`, `issues`, `tour`, `track`, `align`, `upscale`, `master`, `post`, `assemble`, `publish`, `inspector`, `kreagen`, `mksheet`; `api.py` (the editor's routes as functions); `commands.py` (the stage and editing commands, reached as `seriesmith <command>`)
@@ -26,7 +27,7 @@ user's side.
 - `seriesmith/server/` — `seriesmith serve` (`standalone.py`: the editor page, its API, the queue, comfy-api-proxy started), `views.py` (the API on aiohttp), `comfyui.py` (the same API on a ComfyUI's own server); `static/` is the built page
 - `web/` — the editor (React/Vite); `npm run build:standalone` writes `seriesmith/server/static/`
 - `docs/` — DESIGN, PLAN, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN
-- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video models in `seriesmith/targets/video/`, from the schemas in `tests/fixtures/router_schemas/`); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
+- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
 
 ## Rules
 

@@ -165,6 +165,41 @@ class RouterCallTest(Episode):
 
 @unittest.skipUnless(HAVE_FFMPEG, "needs ffmpeg and ffprobe")
 class CollectRouterTest(Episode):
+    def test_a_cost_the_provider_reports_is_recorded_as_its_own(self):
+        """Runway's result carried {"cost": {"credits": 25}} in its own units
+        (2026-10-12); Krea's carried none. Recorded as it comes."""
+        fb = FakeBackend("router", "router", outputs={"": [("out.mp4", "video", tiny_mp4())]})
+        job = self.job()
+        take = J.start_job(job)
+        t = J.job_target(job)
+        model, args = t.module.router_call(t, job)
+        run = fb.call(model, args)
+        run.result = {"id": "task-1", "cost": {"credits": 25}}
+        self.assertEqual(J.collect_router_take(take, run, run.watch(), render.as_json(args)), "ok")
+        self.assertEqual(T.read_sidecar(take.paths.sidecar)["model_request"]["provider"]["cost"], {"credits": 25})
+
+    def test_routers_place_in_line_shows_on_the_job_and_the_take(self):
+        import types
+        from seriesmith.queue import Job as QJob, Queue
+        from seriesmith.runner import Runner
+        job = self.job()
+        take = J.start_job(job)
+        runner = Runner(Queue(), {}, lambda e, d: None)
+        qjob = QJob(kind="render", lane="router", title="t", work=lambda j, r: "succeeded")
+        lines = []
+        on = runner._remote(qjob, take.paths.sidecar, lambda *a, line=None, **k: lines.append(line))
+        run = types.SimpleNamespace(backend="router", position=2)
+        on(run, "queued")
+        self.assertEqual(qjob.info["remote"], "waiting at Router (#2 in line)")
+        run.position = 0
+        on(run, "running")
+        on(run, "running")                                # said once
+        self.assertEqual(lines, ["waiting at Router (#2 in line)", "running on Router"])
+        self.assertEqual(T.read_sidecar(take.paths.sidecar)["remote"], "running on Router")
+        self.assertEqual(T.read_sidecar(take.paths.sidecar)["status"], "queued")   # a take is queued till collected
+        on(types.SimpleNamespace(backend="local", position=None), "running")
+        self.assertEqual(len(lines), 2)                   # ComfyUI's runs say nothing here
+
     def test_the_returned_video_becomes_the_take(self):
         mp4 = tiny_mp4()
         fb = FakeBackend("router", "router",

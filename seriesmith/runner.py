@@ -153,7 +153,8 @@ class Runner:
             try:
                 stage(report)
                 status = RD.run_take(job, take, backend, base, gkw, on_progress=progress,
-                                     on_run=got_run, prompt_id=qjob.id, on_resume=resume)
+                                     on_run=got_run, prompt_id=qjob.id, on_resume=resume,
+                                     on_status=self._remote(qjob, take.paths.sidecar, report))
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -200,6 +201,32 @@ class Runner:
         take.sidecar = T.read_sidecar(take.paths.sidecar)
         self._submit(qjob)
         return take, qjob.id
+
+    def _remote(self, qjob: QJob, sidecar: str, report):
+        """A run's status listener for a backend that runs requests in turn
+        (Router): "waiting at Router (#2 in line)" or "running on Router", on
+        the job (`info.remote`, which the Jobs window shows) and the take's
+        record (`remote`), each time it changes. A take stays "queued" until it
+        is collected; this says where it is meanwhile."""
+        said = {"text": None}
+
+        def on_status(run, status):
+            if run.backend != "router" or status not in ("queued", "running"):
+                return
+            pos = getattr(run, "position", None)
+            text = ("running on Router" if status == "running"
+                    else f"waiting at Router{f' (#{pos} in line)' if pos else ''}")
+            if text == said["text"]:
+                return
+            said["text"] = text
+            qjob.info["remote"] = text
+            report(line=text)
+            try:
+                T.update_sidecar(sidecar, remote=text)
+            except OSError:
+                pass
+            self.queue._changed(qjob)
+        return on_status
 
     def enqueue_ref(self, s, job, base: dict | None, backend_name: str,
                     lora_clip: bool = True) -> tuple[object, str]:
@@ -257,7 +284,8 @@ class Runner:
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
                 T.update_sidecar(take.paths.sidecar, backend_job=run.id)
-                status = run.watch(on_progress=progress)
+                remote = self._remote(qjob, take.paths.sidecar, report)
+                status = run.watch(on_progress=progress, on_status=lambda st: remote(run, st))
                 result = collect_ref(take, run, status, res, backend.name)
             except Exception as e:                       # noqa: BLE001  the take fails
                 R.mark_failed(take, stopped(qjob) if qjob.cancel_asked else str(e)[:800])
@@ -692,7 +720,17 @@ def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:
         os.remove(tmp)
     if not is_audio and hosted:
         ext = R.image_ext(data)
-    return R.close_take(take, data, f"from {backend_name}: {outs[0].name}", ext=ext)
+    out = R.close_take(take, data, f"from {backend_name}: {outs[0].name}", ext=ext)
+    result = getattr(run, "result", None)
+    if hosted and isinstance(result, dict):
+        # what the provider says of it (its own task id, usage, its own cost figure)
+        provider = {k: result[k] for k in ("id", "seed", "usage", "cost") if k in result}
+        if provider:
+            try:
+                T.update_sidecar(take.paths.sidecar, provider=provider)
+            except OSError:
+                pass
+    return out
 
 
 def collect_tour(s, ref, side: dict, run, status: str, hold) -> None:

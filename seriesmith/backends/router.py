@@ -102,6 +102,9 @@ class RouterRun(Run):
         # another provider asked for, and the one Router says served it
         self.provider: str | None = None
         self.served_by: str | None = None
+        # Router runs an account's requests in turn: where this one is in line
+        # (0 / None: being made), as its last status said
+        self.position: int | None = None
 
     def _settle(self) -> None:
         """Collect the result of a completed request (or its error). A dropped
@@ -120,6 +123,7 @@ class RouterRun(Run):
         if upd.status == COMPLETED:
             self._settle()
         elif upd.status:
+            self.position = upd.queue_position
             self.status = "running" if upd.queue_position in (None, 0) else "queued"
         return self.status
 
@@ -134,6 +138,7 @@ class RouterRun(Run):
                     for upd in self._handle.iter_events():
                         if upd.status == COMPLETED:
                             break
+                        self.position = upd.queue_position
                         self.status = "running" if upd.queue_position in (None, 0) else "queued"
                         if on_status:
                             on_status(self.status)

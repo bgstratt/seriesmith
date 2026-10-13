@@ -2069,7 +2069,9 @@ def collect_router_take(take: T.Take, run, status: str, arguments: dict | None =
     provider = {}
     draft = None
     if isinstance(result, dict):
-        provider = {k: result[k] for k in ("id", "seed", "usage", "draft", "resolution")
+        # "cost" is the provider's own figure in its own units (Runway's credits
+        # are not Comfy's): recorded as it comes, when it comes
+        provider = {k: result[k] for k in ("id", "seed", "usage", "cost", "draft", "resolution")
                     if k in result}
         if result.get("draft") and result.get("id"):
             made = result.get("created_at") or time.time()

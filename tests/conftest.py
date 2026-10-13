@@ -15,3 +15,26 @@ os.environ["SERIESMITH_LOCAL_URL"] = _NOWHERE
 os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE
 os.environ["SERIESMITH_CLOUD_URL"] = _NOWHERE
 os.environ.pop("COMFY_API_KEY", None)
+
+_PINNED = {k: os.environ[k] for k in ("SERIESMITH_SETTINGS", "SERIESMITH_LOCAL_URL",
+                                      "SERIESMITH_COMFYUI_URL", "SERIESMITH_CLOUD_URL")}
+
+try:
+    import pytest
+
+    @pytest.fixture(autouse=True)
+    def _this_machine_stays_out():
+        """Every test starts on the settings above, whatever the one before did:
+        a test that points SERIESMITH_SETTINGS at a scratch file and pops it
+        when done left the next ones on this machine's real settings -- and
+        its models for every show (a user's Wan workflow, saved beside them,
+        turned up in the built-in lists, 2026-10-12). The targets' cache is
+        dropped too: its listing doesn't know which settings it was made on."""
+        os.environ.update(_PINNED)
+        from seriesmith import targets as TG
+        TG.forget_targets()
+        yield
+        os.environ.update(_PINNED)
+        TG.forget_targets()
+except ImportError:                                      # pragma: no cover (unittest alone)
+    pass

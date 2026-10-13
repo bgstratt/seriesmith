@@ -3466,6 +3466,93 @@ code (`seriesmith/helpers/refsheet.py`, per-target recipes), and a JSON DSL for 
 the wrong abstraction — the same call the plan's decision table makes about prompt formats.
 A custom target that needs subject refs gets a repo folder.
 
+## Hosted models, limits and your own workflows (as built, 2026-10-12)
+
+Comfy Router models as data (video: `builtin:router_video`; image: `builtin:router_image`),
+seriesmith's limits form for every model, models for every show, and workflows that end in
+any save node, video or image. The editor's side: EDITOR.md, "The Models window" on.
+
+### Where models live
+
+`seriesmith/targets/<kind>/<id>/` (built-in), `<settings dir>/targets/<id>/` (every show's:
+`scope: "user"`) and `<show>/targets/<id>/` (one show's). `GET /seriesmith/targets` gives
+each target `scope` (`builtin` | `user` | `show`), `limits` (a video or hosted image
+target's, below), `draft` (true while not offered for shots or refs) and `shipped_draft`
+(a built-in that ships as a draft). The Router built-ins are written by
+`tools/make_router_targets.py` from `tests/fixtures/router_schemas/` and its limit
+corrections; `tests/test_router_inspect.py` checks they're current.
+
+Settings (`settings.json`, beside which the user folder sits): `enabled_drafts` (built-in
+drafts switched on for every show) and `target_limits` (`{id: limits}`: this machine's
+changes to built-ins, applied as each loads).
+
+### `GET /seriesmith/router/models[?ep=…]`
+
+Router's catalog for the wizard's picker, read with the account's key and kept an hour:
+`{models: [{id, provider, model, kind: "video" | "image" | "other", text_only, added?}]}`.
+`kind` is a guess from the name (`router_inspect.kind_of`); `text_only` when the name says
+text-to-video; `added` the target that already drives it. 409 without a key, 502 when
+Router can't be read.
+
+### `POST /seriesmith/targets/router-inspect`
+
+`{model, ep?}` → `{proposal, mapped, unplaced, warnings, shared, limits}`. An image model
+(by `kind_of`) is read by `router_inspect.propose_image`, a video one by `propose`, which
+refuses one that takes no picture (400). `shared`: `{limits section: [{input, field,
+text}]}`, the schema fields written for several models at once — this model's limit is in
+their prose. `limits`: the proposal's (`seriesmith.limits.describe`).
+
+### `POST /seriesmith/targets/router-dryrun`
+
+`{ep, target: target.json | id, limits?, pass?, shot? | ref?, view?}` → what a Router
+target would send, nothing uploaded or paid: `{ok: true, shot, model, arguments,
+routing?, prompt_chars: {written}}`, each picture as `{file, via?}`; or `{ok: false, shot,
+why}` (a first-frame model on a shot with no first keyframe). A video target is tried on a
+shot (default the first with a subject); an image target on a ref (default the first
+character; a keyframe shows its pictures going in), planned as a hosted edit model plans it.
+`limits` are written in first (the wizard's changes).
+
+### `PUT /seriesmith/targets/limits`
+
+`{ep?, id, limits}` changes a video or hosted image target's limits: a built-in's on this
+machine (settings `target_limits`; `limits: null` puts it back as shipped), a user or show
+target's in its own target.json (validated). A local workflow's pictures and sound are its
+graph's: only its length, size and `pictures.needs_first` change (400 otherwise); a local
+image workflow's not at all. → `{ok, id, path, target}` (the target as listed again).
+
+Limits (`seriesmith/limits.py`): video `{length: {frames: {step, base, max}, fps, trained?,
+seconds?: {min, max} | {values}}, size: {multiple, fit, long_side?, pixels?, sizes?,
+resolutions?}, prompt: {max_chars?}, pictures: {references, first, last, needs_first,
+via?}, sound, editable}`; hosted image `{size: {ratios?, resolutions?, sizes?, min_pixels?,
+max_pixels?}, prompt, pictures: {references, via}, editable}`. A listed built-in whose
+limits are changed here adds `overridden: true` and `shipped` (what it shipped with).
+
+### `PUT /seriesmith/targets/custom`, additions
+
+`scope: "user"` saves for every show (`"show"`, the default, in the show's folder);
+`limits` are written into the target first. `{ep, id, draft}` on a built-in that ships as a
+draft switches it on or off for every show (settings `enabled_drafts`), its target.json
+untouched; on a user target, saved where it lives. `DELETE` finds a user target too.
+
+### `POST /seriesmith/targets/inspect`, additions
+
+`kind`: `auto` (the default: `inspector.guess_kind` — a video node, a frame count or a video
+save makes it video), `video` or `image`. An image workflow is proposed as an image model
+(`builtin:workflow_image`): its LoadImage nodes are `binding.references`, so with any it's
+an edit model (`capabilities.mode` / `max_refs`). The saver is read from `/object_info`
+(`inspector.generic_saver`: the graph's output nodes, a video file before an animation
+before frames, a save before a preview; a node taking a finished video has the node making
+it replaced), its other outputs in `saver.drop`, never read for params. The answer adds
+`notes: [{level: "error" | "warning" | "info", text}]` (errors first; `warnings` stays).
+
+### Takes and jobs
+
+A hosted take's record: `remote` (Router's state while it runs: "waiting at Router (#2 in
+line)" / "running on Router"; the take's `status` stays `queued` until it's collected);
+`model_request.provider.cost` (a video take) or `provider.cost` (a ref take) when the result
+carries one, in the provider's own units. The job (`GET /seriesmith/jobs`): `info.remote`,
+the same words.
+
 ## LTX-2.5: the quality profile and ingredients references (as built, 2026-09-19)
 
 Two additions to the `ltx2` target. Both are decided **at queue time**, from the model file

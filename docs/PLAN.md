@@ -112,7 +112,7 @@ Left for later steps:
   are copied into the take; the API can't delete them. A cleanup command, or
   the proxy's retention, is needed before long episodes.
 
-## Step 4 — the first hosted render: Router (built; live run waits for a key)
+## Step 4 — the first hosted render: Router ✅ (live since 2026-10-11)
 
 - [x] A Router target kind: no workflow; target.json `router` (the model
       string, its named sizes and ratios, fixed arguments) and a
@@ -129,9 +129,10 @@ Left for later steps:
       record what was sent (`model_request`, without the pictures).
 - [x] A hosted take is finished by seriesmith: the video in, ffprobe for its
       length, thumbnail and strip by ffmpeg (`seriesmith/finish.py`).
-- [ ] **Live:** one real Router call with a Comfy API key (COMFY_API_KEY), to
-      confirm the request shape, the upload of inputs as Cloud assets, and the
-      result's `content.video_url`. `seriesmith render <ep> --only <shot>
+- [x] **Live** (2026-10-11): Seedance 2.5 on Porchlights ep02 (once its
+      pictures went through the Seedance virtual library: BytePlus refuses a
+      photoreal person as a plain link), hosted MiniMax H3 on ep03, a restart
+      reattaching a run. Then the rest of Router, as step 14. `seriesmith render <ep> --only <shot>
       --target seedance_2_5 --dry-run` shows the request without a key.
 
 Provider inputs can also be sent inline as base64 data URIs (the Seedance
@@ -273,8 +274,7 @@ With the UI there to try each one:
       master still queue on ComfyUI directly, and the compute nodes
       (H3PixelUpscale, H3FinishUpscale, H3HoldAudio, H3MotionBlur, ...) are
       still h3pipe's (step 9).
-- [ ] Deployments, and the live Router run (both need a Comfy API key; not
-      before there is a UI to drive them from).
+- [ ] Deployments, live (the Router run is done: step 4, step 14).
 
 ## Step 9 — leaving h3pipe behind
 
@@ -513,7 +513,58 @@ camera words, and the box says which words it follows.
       it). Everything after is the frame's way above. Checked in the
       browser: a clip uploaded, scrubbed to 4.5s, made a new place's plate.
 
+## Step 14 — hosted models as data, limits, your own workflows ✅ (2026-10-12)
+
+- [x] **Router models as data:** `builtin:router_video` / `builtin:router_image` drive
+      any Router model from its target.json `router` block (where the prompt, pictures,
+      length, size, seed and sound go); `router_inspect` proposes one from the model's
+      published schema (video, refusing text-to-video; image), and flags the fields written
+      for several models, where a limit hides in prose.
+- [x] **Live, on Porchlights ep03:** video — Seedance 2.0, Kling v3 Omni and Video O1,
+      Wan 3.0, Runway Gen-4 Turbo (its prompt: no quoted lines; it makes no sound) and
+      Veo 3.1 Fast (a prompt over ~1000 characters fails; pictures inline); image — Nano
+      Banana Pro and 2.1, Gemini 3.1 Flash, Seedream 5.0, GPT Image 2, Flux Kontext Pro,
+      Flux 2 Pro, Qwen Image 3.0, Kling Image O1 (each on sh350's keyframe), Krea 2.
+      Shipped as built-ins (`tools/make_router_targets.py`); untested ones as drafts,
+      switched on per machine (`enabled_drafts`).
+- [x] **Limits:** one form for every video model and hosted image model
+      (`seriesmith/limits.py`); a built-in's changes kept per machine (`target_limits`).
+- [x] **The Models window:** reached from every model picker; the Router catalog picker,
+      a free dry run of a proposed model, models for every show (the user folder).
+- [x] **Your own workflows:** any save node (read from /object_info), image workflows as
+      models for refs (their LoadImage nodes the take's pictures), the reading's notes as
+      errors, warnings and info. Live: Wan 2.2 5B from a SaveWEBM workflow rendered sh350.
+- [x] Jobs say where Router has a take (waiting, its place in line, running); a cost the
+      provider reports is recorded in its own units. `seriesmith stop [--restart]` and
+      Settings' Stop / Restart for the standalone server.
+
+## Step 15 — models behind other APIs (next)
+
+Router reaches most providers through one key; some are only (or more cheaply, or
+sooner) behind their own API, a gateway (fal, Replicate, WaveSpeed, Runware), or a
+self-hosted endpoint. The same data-driven model, a different transport:
+
+- [ ] **An HTTP backend** (`backends/http.py`): a request built as `router_video` /
+      `router_image` build theirs (the same `inputs` mapping), sent to the model's own
+      endpoint; then the result found by data: synchronous (the answer is the result),
+      or submit → poll → result (the job id's path in the answer, the status URL, which
+      values mean done or failed, where the files are). Reattached after a restart by its
+      job id, as Router's are; a lane per provider with its own parallel limit.
+- [ ] **Keys per provider** in this machine's settings (never the series config),
+      environment variables over them; Settings lists them, write-only like the Comfy key.
+- [ ] **Pictures:** inline (base64 / data URI) where the API takes it, else a link it can
+      fetch (the Comfy asset store while there's a Comfy key; a provider's own upload
+      route where it has one).
+- [ ] **Gateway presets** for the common shapes, so a model is a pick, not a mapping:
+      fal's queue API, Replicate's predictions, OpenAI-style images, Google's Gemini /
+      Vertex, then direct providers as needed (Runway, Kling, BFL).
+- [ ] **The wizard:** a model's OpenAPI document (a URL, or pasted) read by the same
+      proposer as Router's, else a mapping started from the closest preset; dry run and
+      probe as for Router models.
+- [ ] Costs where the API reports them (often it does, in its own units, as Router's
+      providers do).
+
 ## Later
 
-- Publishing: the ComfyUI Manager listing for the node pack and the ComfyUI
-  host; PyPI for the app.
+- Publishing (after step 15): the ComfyUI Manager listing for the node pack and the
+  ComfyUI host; PyPI for the app.

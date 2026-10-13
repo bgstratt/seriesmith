@@ -24,6 +24,18 @@ from seriesmith.backends.fake import FakeBackend  # noqa: E402
 from seriesmith.queue import Job, Queue  # noqa: E402
 
 
+def settle_queue_threads(timeout: float = 3.0) -> None:
+    """Let the queue's workers (threads named seriesmith-<lane>) finish before a
+    test's folder is deleted: a worker marks its job done, then rewrites the
+    journal in that folder, and a cleanup racing the write fails with "the
+    directory is not empty" (seen under the full suite's load). A worker that
+    never ends (HoldRun) is waited on for what's left of `timeout`, no more."""
+    import threading
+    end = time.time() + timeout
+    for t in [t for t in threading.enumerate() if t.name.startswith("seriesmith-")]:
+        t.join(max(0.0, end - time.time()))
+
+
 def wait_for(cond, timeout=10.0):
     end = time.time() + timeout
     while time.time() < end:
@@ -149,6 +161,7 @@ class EditorRenderTest(unittest.TestCase):
         from test_render import FIXTURE, build_episode
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(settle_queue_threads)              # runs first: cleanups are LIFO
         self.shows = os.path.join(self._tmp.name, "Shows")
         self.ep = os.path.join(self.shows, "ks01")
         os.makedirs(self.ep)

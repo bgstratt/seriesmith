@@ -27,7 +27,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith.backends.fake import FakeBackend, FakeRun  # noqa: E402
 from seriesmith.queue import DONE, Job, PaidLimit, Queue  # noqa: E402
 from seriesmith.runner import Runner  # noqa: E402
-from test_queue import Gate, wait_for  # noqa: E402
+from test_queue import Gate, settle_queue_threads, wait_for  # noqa: E402
 from test_render import FIXTURE, build_episode  # noqa: E402
 
 
@@ -35,6 +35,7 @@ class QueueResilienceTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(settle_queue_threads)              # runs first: cleanups are LIFO
         self.journal = os.path.join(self._tmp.name, "queue.json")
         self.q = Queue(journal=self.journal)
 
@@ -126,6 +127,7 @@ class EpisodeCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(settle_queue_threads)              # runs first: cleanups are LIFO
         self.shows = os.path.join(self._tmp.name, "Shows")
         self.ep = os.path.join(self.shows, "ks01")
         os.makedirs(self.ep)

@@ -249,6 +249,8 @@ function JobsBody() {
                       <span className="sm-job-title" title={j.id}>{j.title}</span>
                       <span className="h3-muted h3-small">
                         {j.status}{j.status === "running" && j.step && j.steps ? ` · step ${j.step}/${j.steps}` : ""}
+                        {/* where a backend that runs requests in turn has it (Router) */}
+                        {j.status === "running" && typeof j.info?.remote === "string" ? ` · ${j.info.remote}` : ""}
                         {j.started ? ` · ${elapsed(j, now)}` : ""}
                       </span>
                       <span className="h3-grow" />

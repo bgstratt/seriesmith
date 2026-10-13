@@ -348,8 +348,9 @@ mp4 — but it is worth confirming after a ComfyUI or driver update before you r
 
 ### The graph a model renders with
 
-Each target renders a ComfyUI workflow, and **What's missing** (the model status window)
-shows which copy of it is in force, per target:
+Each target renders a ComfyUI workflow, and the **Models** window (Model: → **Add / validate
+models…**, or the sliders button beside any model picker) shows which copy of it is in force,
+per target:
 
 | It says | What that means |
 |---|---|
@@ -362,8 +363,8 @@ shows which copy of it is in force, per target:
 To change how a model renders, press **Copy to ComfyUI**: the repo's graph is written into
 ComfyUI's workflows under the name the target looks up. Open it on the canvas, change what
 you like, save — from then on your saved copy is what that target renders. Your own graph
-works the same way: save it in ComfyUI under that name (What's missing shows the name, with
-a copy button). **Revert to the repo's copy** deletes the saved one and puts the shipped
+works the same way: save it in ComfyUI under that name (the Models window shows the name,
+with a copy button). **Revert to the repo's copy** deletes the saved one and puts the shipped
 graph back; it never touches an environment variable.
 
 What a render sets per shot stays out of your hands: the prompt, size, length, seed, model
@@ -374,30 +375,94 @@ built — is yours.
 From the command line: `seriesmith targets` prints the same per-target line, and
 `--install-workflow <target>` / `--revert-workflow <target>` are the two buttons.
 
+### The Models window
+
+Everything about the models a show can use is in one window: **Model: → Add / validate
+models…** in the Shots tab, or the sliders button beside every model picker (the shot
+inspector's and Edit shot's video model class, New take like this one, Render's run target,
+the Refs tab's refs / keyframes / voices models, and the series settings' four). It opens on
+**All targets**:
+
+- **Add a model**: a Comfy Router model from its catalog, or a workflow of yours (below).
+- **Hosted models to try**: the Router models seriesmith ships untested (drafts). **Probe**
+  one — a shot for a video model, a ref for an image model (one picture: a character's first
+  view, or a keyframe to see its pictures go in) — look at the take, then **Enable** it: it
+  joins the pickers in every show (kept in seriesmith's settings, `enabled_drafts`), and
+  **Back to draft** takes it out again.
+- **Your own models**: the ones added here, for every show or for this show only.
+- Each model's **details** (its row in the table, or the picker at the top) say what files it
+  needs and where its graph comes from, and carry its **Limits**.
+
+### Comfy Router models
+
+A hosted model needs your Comfy API key (Settings) and no GPU. seriesmith ships the ones it
+has tried (video: MiniMax H3, Seedance 2.0 and 2.5, Kling v3 Omni and Video O1, Wan 3.0,
+Veo 3.1 Fast, Runway Gen-4 Turbo; images: Nano Banana Pro and 2.1, Gemini 3.1 Flash, Seedream
+5.0, GPT Image 2, Flux Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1, Krea 2) and a
+few drafts. To add another: **Add a Comfy Router model…**
+
+1. **Pick it.** Router's catalog, narrowed by typing any part of an id and by Video / Image
+   / All (a guess from the name). A model already added says so; one whose name says
+   text-to-video is marked (seriesmith draws from pictures, so it will be refused).
+2. **Read it.** seriesmith reads the model's published schema and proposes where a shot's
+   (or a ref's) prompt, pictures, length, size, seed and sound go. A field written for
+   several models at once is flagged **Check this**, its text beside it: that's where a
+   limit hides that the schema states only in prose (Seedance 2.0's 4–15 s, Wan 2.7's
+   720P/1080P).
+3. **Its limits**: the form below. Correct what the prose says.
+4. **Dry run (free)**: the exact request for a shot (or a ref) you pick, nothing sent.
+5. **Save** for every show (beside seriesmith's settings) or this show only. It's a draft:
+   probe it, then enable it.
+
+What a hosted take costs is the provider's; Router's own figure is recorded on the take when
+it reports one (in the provider's units, which aren't Comfy's credits). While Router runs an
+account's requests in turn, the Jobs window says where each is: *waiting at Router (#2 in
+line)* or *running on Router*.
+
+### Limits
+
+Every video model, and every hosted image model, has a **Limits** card in its details: one
+line, and **Edit**:
+
+| | Local workflows | Hosted models |
+|---|---|---|
+| Length | the frame grid (LTX `8k+1`, H3 `17k+5`, Wan `4k+1`), the trained length | whole seconds: a range or a set |
+| Size | the multiple (64, 32, 16), snap or refuse, the longest side, the pixels, or a list of the only sizes it takes | the resolutions (named, or WxH) |
+| Prompt | — | the longest, in characters: a longer one loses its style line first, then the place and looks, keeping the action and dialogue |
+| Pictures | needs a first keyframe | how many (a total, the plate counted), first and last frame, how they're sent (a link, inline, the Seedance library) |
+| Sound | — | whether it makes any: off, its prompt has no quoted lines |
+
+A change to one seriesmith ships is kept on this machine (settings `target_limits`) — **Back
+to shipped** drops it; a change to your own model is written into its target.json.
+
 ### Your own model, from your own workflow
 
-A workflow that isn't a variant of one seriesmith ships can become a model of its own, for this
-show, without touching the repo. Save the graph in ComfyUI, then in **What's missing** →
-**This show's own targets** → **Add a target from a workflow…**:
+A workflow of yours can become a model, video (for shots) or image (for refs and keyframes).
+Save the graph in ComfyUI, then **Add a model from a workflow…**:
 
-1. **Pick the workflow and press Read it.** seriesmith works out which widget takes the prompt,
-   the negative, the size, the length, the seed, the steps, the sampler and each model file,
-   which node saves the video, whether the graph makes sound, and where a keyframe goes.
-2. **Answer what no graph can state.** A name; the frame grid (`step`, `base`, longest); the
-   size multiple; fps; whether the model makes sound; whether dialogue is spoken or acted
-   silently. Anything ambiguous — two nodes that could take the same value — is a list to
-   choose from, or title the node in ComfyUI and read it again.
-3. **Save as a draft.** It lands in `<show>/targets/<id>/target.json`, beside series.json.
-   It travels with the show and survives updating seriesmith.
-4. **Probe render, then enable it.** The probe queues the episode's first shot on it at the
-   proxy pass. Look at the take: a wrong frame grid stutters, a missing file is reported.
-   When it looks right, **Enable for shots** — until then the shot and episode pickers leave
-   it out, so a draft can't quietly become the episode's model.
+1. **Pick the workflow, say what it makes (or leave it on auto), and Read it.** Auto reads
+   the graph: a video node, a frame count or a video save makes it a video model; otherwise
+   it's an image model. seriesmith works out which widget takes the prompt, the negative,
+   the size, the length, the seed, the steps, the sampler and each model file.
+2. **It can end in any save node.** SaveVideo, SaveWEBM, an animated WebP or PNG, Video
+   Combine (with its sound), a frames saver, SaveImage, a node pack's own: the best of the
+   graph's outputs (a video file, then an animation, then frames; a save before a preview)
+   is the take, and seriesmith saves it in that node's place. When the node takes a finished
+   video, the node making the video is the one replaced. Other outputs are dropped.
+3. **An image model's LoadImage nodes are its pictures.** Without any it's text to image (a
+   character's views, props, plates); with them it edits, and each take's pictures go into
+   them in order — an edit's source, a keyframe's characters then its plate. Every take
+   needs a picture, so an edit workflow is for keyframes and edits.
+4. **Read the notes.** **Errors** stop it being saved (the graph itself is wrong);
+   **warnings** are worth checking (the longest length is a guess, where the keyframe goes
+   in, a model file seriesmith can't check); **notes** say how the graph was read (which
+   node saves, links cut so a shot's value goes in, widgets left as you set them).
+5. **Answer what no graph can state** (a video model: the frame grid, size multiple, fps,
+   sound, whether dialogue is spoken) and **Save** — for every show, or this show only
+   (`<show>/targets/<id>/target.json`). It's a draft until enabled; **Probe** it first.
 
-What it can do: prompt, size, length, seed, steps, model and LoRAs per shot, plus one first
-keyframe. What it can't, yet: subject reference sheets (character identity), which stay a
-repo target's job. `seriesmith target-from-workflow <workflow> [<episode>] --save` is the
-same thing without the UI.
+`seriesmith target-from-workflow <workflow> [<episode>] --save` is the same thing without
+the UI.
 
 ### A character or a place from a frame
 

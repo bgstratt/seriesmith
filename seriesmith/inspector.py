@@ -402,7 +402,7 @@ def detect_params(object_info: dict, graph: dict, saver_node: str) -> tuple[dict
             if cands:
                 warnings.append(
                     f"{param}: {', '.join(sorted({graph[n]['class_type'] for n, _ in cands}))}"
-                    f".{cands[0][1]} is fed by another node; h3pipe will cut that link and "
+                    f".{cands[0][1]} is fed by another node; seriesmith will cut that link and "
                     f"write the shot's value.")
         if not cands:
             continue
@@ -549,7 +549,7 @@ def detect_models(object_info: dict, graph: dict, model_list=None,
                            "folder": folder, "class_type": ctype, "field": field,
                            "label": TG.modelid.family_label(family) if family else ""})
             if not family:
-                warnings.append(f"{name}: {value} isn't a family h3pipe knows, so a substitute "
+                warnings.append(f"{name}: {value} isn't a family seriesmith knows, so a substitute "
                                 f"can't be checked. It will be required exactly as named.")
             if not folder:
                 warnings.append(f"{name}: couldn't tell which models folder {value} is in "
