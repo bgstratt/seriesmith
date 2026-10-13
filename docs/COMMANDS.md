@@ -5,23 +5,49 @@ episode from a terminal. The editor ([EDITOR.md](EDITOR.md)) does the same throu
 server; both write the same files. `seriesmith` with no arguments lists every command, and
 each has `--help`.
 
+## Every command
+
+| Command | What it does |
+|---|---|
+| `seriesmith new <show>\<name>` | A new episode (`series.json` + script) that builds, from the newest episode beside it, else `examples/starter/` (`--title`, `--series-id`) |
+| `seriesmith build <episode>` | The script and series config compiled into the shotlists and `refs_todo` (final and proxy) |
+| `seriesmith check <episode>` | `build --check` and `--pace`: errors, warnings, crammed lines; writes nothing |
+| `seriesmith refs <episode>` | Reference pictures (and with `--voices`, voice samples): kreagen |
+| `seriesmith supply <episode> <file-or-folder>…` | Pictures you already have put into their ref slots (`--ref id[:view]`, `--no-pick`, `--dry-run`) |
+| `seriesmith render <episode>…` | Each shot as a take, on its backend |
+| `seriesmith takes` / `pick` / `override` / `keyframe` / `discard` / `cut` | Takes, the cut and per-shot tweaks (below) |
+| `seriesmith promote <episode>` | Overrides moved into the script or the series config |
+| `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note>`, `--export`, `--clear`, `--resolve <id>`) |
+| `seriesmith align <episode> <recording>` | The script timed against a dialogue recording |
+| `seriesmith assemble <episode>` | The review cut |
+| `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
+| `seriesmith all <episode>` | build → refs → render → assemble (`--skip-build` keeps the shotlists on disk) |
+| `seriesmith targets [<episode>]` | Which models the running ComfyUI can render, what to download for the rest |
+| `seriesmith target-from-workflow <workflow> [<episode>]` | A ComfyUI workflow proposed as a model (`--save` writes it into the show) |
+| `seriesmith backends` | Where jobs can run on this machine, and whether each answers (`--try local`) |
+| `seriesmith serve` / `stop` | The editor's server (below) |
+
+`build`, `check`, `refs`, `assemble` and `all` take several episode folders at once, or a
+parent with `--each`; `render` and `master` take several folders.
+
 ## The modules
 
 | Module | What it does | Reads | Writes |
 |---|---|---|---|
 | `seriesmith` (`cli.py`, `commands.py`) | One command for every step | an episode folder | — |
 | `seriesmith build` | Parses the script into the story IR, picks each shot's target and compiles it: prompts, frame counts, seeds, reference slots, audio settings. Checks pacing | `series.json`, `epNN.md` | `shotlist/shots.json`, `shotlist.json`, `shotlist.<target>.json`, `_proxy` twins, `refs_todo.md/.json` |
-| `seriesmith/kreagen.py` | Generates every missing reference image through the image target and saves it where the series config names | `refs_todo.json`, `series.json` | `refs/…` (takes in `refs/_takes/`) |
+| `seriesmith/kreagen.py` (`seriesmith refs`) | Generates every missing reference image through the image target, on its backend, and saves it where the series config names | `refs_todo.json`, `series.json` | `refs/…` (takes in `refs/_takes/`) |
 | `seriesmith/mksheet.py` | Joins four character views into one 4096×1024 sheet (kreagen calls it) | 4 images | `refs/<char>/<char>_sheet_4panel.png` |
 | `seriesmith/render.py` | Renders each shot through its target on its backend, one take at a time, skips finished shots | `shotlist*.json`, `overrides.json`, the workflows | `renders/` or `renders_proxy/` |
 | `seriesmith/edit.py` | `takes`, `pick`, `override`, `keyframe`, `discard`, `cut`, `targets` (through `seriesmith`) | the episode | `cut.json`, `overrides.json`, `refs/shots/` |
 | `seriesmith/promote.py` | Moves an override into the script or the series config where it belongs, and rebuilds | `overrides.json`, `epNN.md`, `series.json` | updated script and series config, `_history/` |
 | `seriesmith/align.py` | Times the script against a dialogue recording and writes the `audio:` windows | recording, `epNN.md`, `series.json` | updated script and series config, `align_report.md` |
 | `seriesmith/upscale.py` | Upscales takes 2x (either pass): re-sampled from late in the take's schedule under its frozen shotlist (H3, LTX-2, Wan), through a pixel upscale model (`--method pixel`) or SeedVR2 (`--method seedvr2`); the audio held and copied on | a take, its frozen shotlist and latent | `<stem>.up.mp4`, `<stem>.up.json` beside the take |
-| `seriesmith/master.py` | The series' `upscale.master` recipe on every shot of the cut, then the master assembled and titled | the episode, its cut | `<episode>/master/` |
+| `seriesmith/post.py` | The post pass on a take's upscale: enhance (draft / production / cinematic), then motion blur | a take's `.up.mp4` | `<stem>.post.mp4`, `<stem>.post.json` beside the take |
+| `seriesmith/master.py` | The series' `upscale.master` recipe on every shot of the cut (and `post.master` with `--post`), then the master assembled and titled | the episode, its cut | `<episode>/master/` |
 | `seriesmith/publish.py` | The review cut between the series intro and outro, with the episode title | a cut, `_titles/` | `<episode>/publish/` |
 | `seriesmith/issues.py` | The pass's review notepad, each note snapshotting the shot's script lines and compiled prompt | the episode | `<episode>/_issues.json` |
-| `seriesmith/inspector.py` | Proposes a `target.json` from a ComfyUI workflow | a workflow | `<show>/targets/<id>/target.json` |
+| `seriesmith/inspector.py` (`seriesmith target-from-workflow`) | Proposes a `target.json` from a ComfyUI workflow, video or image, ending in any save node | a workflow, ComfyUI's `/object_info` | `<show>/targets/<id>/target.json` |
 | `seriesmith/assemble.py` | Joins the rendered shots in cut order (`cut.json`, else script order), trimming timed shots to their windows and using each clip's chosen audio | `shotlist*.json`, `cut.json`, renders | `renders/epNN.mp4`, `epNN_shots.txt` |
 
 `seriesmith/core/` (parser, story IR, series config, speech pacing), `jobs.py`,
@@ -30,7 +56,9 @@ alignment) and `peaks.py` (waveforms) are the library the commands and the edito
 share. `backends/` (local, cloud, deployments, Router), `queue.py` and `runner.py` (the
 job queue, and what puts renders, refs, upscales, posts and tours on it), `finishing.py`
 (the upscale and post graphs made portable) and `server/` (the editor's server) are how
-work gets done; `comfy_nodes/` is what runs inside ComfyUI.
+work gets done; `comfy_nodes/` is what runs inside ComfyUI. `settings.py` is this
+machine's settings, `limits.py` a model's limits, and `router_inspect.py` reads a Comfy
+Router model's schema (the editor's Models window; no command of its own).
 
 ### What you write
 
@@ -46,7 +74,7 @@ work gets done; `comfy_nodes/` is what runs inside ComfyUI.
 - **`negative.txt`** (optional, beside the script): the episode's negative prompt, for the
   targets that take one.
 
-**[docs/AUTHORING.md](docs/AUTHORING.md) is the full format**: every field, choosing a
+**[AUTHORING.md](AUTHORING.md) is the full format**: every field, choosing a
 target, keyframes, the frame grids, the syllable budget, the camera vocabulary, how to
 break a scene into shots, giving two people in one scene an angle each, and the
 reference-slot rules. Read it once before writing an episode.
@@ -140,6 +168,9 @@ seriesmith refs Shows\ep05               # everything missing, most-needed first
 seriesmith refs Shows\ep05 --voices      # also the voice samples, on the audio target
 ```
 
+- Each take is a job on this command's own queue: `--backend` picks where (`local`, `cloud`,
+  `deployment:<target>`; default each image target's own, so a hosted one goes to Router).
+  `--target` picks the image model, a hosted one included.
 - Skips anything already on disk. `--redo` makes a new take (kept in `refs/_takes/`) and
   leaves the live file alone unless you add `--pick`; combine it with `--only`. `--all`
   works from the whole series config instead of `refs_todo.json`.
@@ -162,13 +193,16 @@ seriesmith refs Shows\ep05 --voices      # also the voice samples, on the audio 
   voice candidate.
 - `--discard subject:ada:02_side:2` moves a candidate to `refs/_takes/_trash/` (nothing is
   deleted; if it was the pick, the ref is cleared).
+- `--edit location:kitchen --instruction "night, the lights off"` changes a picture the ref
+  already has on an edit model, into new candidates (`--with` brings in another ref's
+  picture, `--count`, `--seed`, `--as-typed`).
 - Each character is made as four square views sharing a seed, then joined by mksheet.
   Every view is a take in `refs/_takes/subject__<char>/`, so one angle can be redone and
   re-picked in the editor's Refs tab (seriesmith/refs.py).
 - Negative prompts do nothing on krea2 turbo: no negative field, and no guidance branch at
   cfg 1. kreagen leaves a workflow's negative side as saved, so a NAG or negpip setup passes
   through; `--negative-file` only bites above `--cfg 1.0`, on a model that expects guidance.
-  H3 takes no negative prompt at all. Details in `KREA_PIPE.md`. The other image targets
+  H3 takes no negative prompt at all. Details in [KREAGEN.md](KREAGEN.md). The other image targets
   take the episode's `negative.txt` or the series config's `negative` (inert at cfg 1 too);
   `--negative-file` beats both for its run.
 - `--target z_image_turbo` (or any image target) draws with another model; `--clear
@@ -199,13 +233,16 @@ seriesmith render Shows\ep05 --proxy                 # animatic, to renders_prox
 seriesmith render Shows\ep05 --only sh040,sh050 --redo
 seriesmith render Shows\ep05 Shows\ep06 --proxy      # several episodes
 seriesmith render Shows\ep05 --only sh040 --backend cloud
+seriesmith render Shows\ep05 --only sh040 --target seedance_2_5            # a hosted model, on Router
+seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the request, nothing sent
 ```
 
 - Runs each shot through its target on its backend (`--backend`, else the shot's, the
   episode's, the series config's `series.backend`, else the target's own; see
-  [SETUP.md](SETUP.md)). A workflow target's graph goes as a job, with the shot and its
-  reference pictures as uploads; the files that come back are written into the take. A
-  hosted target (Seedance) is one Router call. Each take is a job on this command's own
+  [SETUP.md](SETUP.md); `seriesmith backends` lists them). A workflow target's graph goes as
+  a job, with the shot and its reference pictures as uploads; the files that come back are
+  written into the take. A hosted target (Seedance, Kling, Veo, hosted H3, …) is one Router
+  call, and its takes are marked `reproducible: false`. Each take is a job on this command's own
   queue, run one at a time and waited for; a `continuous: latent` shot holds the take
   rendered just before it.
 - It runs anywhere the episode folder is: the backend never reads it. It checks the render
@@ -241,13 +278,15 @@ seriesmith render Shows\ep05 --only sh040 --backend cloud
 - Each target's workflow comes from the running ComfyUI's saved workflows (the name in its
   `target.json` binding: `H3_Ref2VA_Shotlist_v1.json` for H3, `krea2_refs_t2i.json` for
   reference images), so it always matches your ComfyUI's node versions; failing that,
-  `$COMFYUI_PATH`'s workflows folder, then the copy in this repo. `--workflow` and the
-  target's own env var (`$SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW`, `$KREA_WORKFLOW`, …) beats all of those. Every
-  target's name and variable is in [INSTALL.md](INSTALL.md#3-workflows). Keep the saved
+  `$COMFYUI_PATH`'s workflows folder, then the copy in this repo. The target's own env var
+  (`$SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW`, `$KREA_WORKFLOW`, …) beats all of those (kreagen
+  also takes `--workflow`). Every target's name and variable is in
+  [INSTALL.md](../INSTALL.md#3-workflows); `seriesmith targets --install-workflow <target>`
+  copies a target's graph into ComfyUI to edit on the canvas. Keep the saved
   `krea2_refs_t2i.json` free of style LoRAs (experiment under another name), since the
   references must follow the series config's look.
 - It converts the canvas workflow to API format itself. If ComfyUI rejects it, save
-  **Workflow → Export (API)** and pass that file with `--workflow`.
+  **Workflow → Export (API)** and point the target's env var at that file.
 
 ### assemble
 
@@ -330,9 +369,71 @@ seriesmith cut Shows\ep05 --proxy --audio sh020 file audio\line_b.wav --at 0.4 -
 `cut.json` holds it all — order, the take each shot uses, trims, locks and per-clip audio —
 per pass, and `assemble` follows it. The editor's Timeline writes the same file.
 
+### Finishing: upscale, post, master, publish
+
+```
+seriesmith upscale Shows\ep05 --check                  # the final cut's takes at 2x: the plan
+seriesmith upscale Shows\ep05 --only sh020 --method pixel
+seriesmith post    Shows\ep05 --enhance production --blur 0.25
+seriesmith master  Shows\ep05 --check                  # the series' recipe on the cut: the plan
+seriesmith master  Shows\ep05 --post --prores          # upscales, posts, the master, a ProRes copy
+seriesmith publish Shows\ep05                          # intro + review cut + outro, titled
+```
+
+- `upscale` refines each take of the pass's cut that has no fresh upscale into
+  `<stem>.up.mp4` beside it: `--method latent` (re-sampled late in the take's own schedule;
+  the default where the target has one), `pixel` (an upscale model) or `seedvr2`.
+  `--start-step`, `--scale`, `--vae`, `--deliver WxH`, `--quality review|master`, `--redo`.
+- `post` finishes an upscale into `<stem>.post.mp4`: `--enhance draft|production|cinematic`
+  (or `pixel|seedvr2|supir|none`), `--blur`, `--grain`; with neither, the series config's
+  `post.master` recipe ([POST_PROCESSING.md](POST_PROCESSING.md)).
+- `master` runs the series config's `upscale.master` recipe (and `post.master` with
+  `--post`) on every shot of the cut, waits for them, then assembles and titles the master
+  into `<episode>/master/`. `--conform`, `--allow-gaps`, `--order cut|target`,
+  `--prores` / `--prores-only`.
+- `publish` puts the show's `_titles/INTRO.mp4` and `OUTRO.mp4` around a cut (`--input`,
+  default the review cut) with the episode title, into `<episode>/publish/`.
+- `upscale`, `post` and `master` queue on a backend like a render (`--backend`, default
+  `local`); `publish` is ffmpeg on this machine.
+
+### Models
+
+```
+seriesmith targets                                   # what the running ComfyUI can render, what's missing
+seriesmith targets Shows\ep05 --kind video --json
+seriesmith targets --install-workflow ltx2           # its graph into ComfyUI to edit (--revert-workflow undoes it)
+seriesmith target-from-workflow my_wan.json Shows\ep05            # the proposal and its notes
+seriesmith target-from-workflow my_wan.json Shows\ep05 --save --id my_wan
+```
+
+- `target-from-workflow` reads a saved workflow (a name among ComfyUI's, or a `.json`
+  path) against the running ComfyUI's `/object_info`, and proposes a video or image model:
+  which widget takes the prompt, size, length, seed, steps and each model file, and which
+  output node saves the take. `--save` writes it into `<show>/targets/<id>/target.json`.
+- A model for every show, a Comfy Router model, limits, and switching on a built-in draft
+  are done in the editor's Models window ([EDITOR.md](EDITOR.md), "The Models window").
+
+### Backends and the editor's server
+
+```
+seriesmith backends                    # each configured backend, and whether it answers
+seriesmith backends --try local        # a picture up to ComfyUI, inverted, and back
+seriesmith serve                       # the editor on http://127.0.0.1:8190/
+seriesmith serve --host 0.0.0.0 --root D:\Shows    # open to your network; a folder of shows
+seriesmith stop                        # stop that server cleanly (--restart: start it again)
+```
+
+- `backends` reads this machine's settings and `COMFY_API_KEY` ([SETUP.md](SETUP.md)):
+  `local` always, `cloud` and `router` with a key, a `deployment:<target>` per deployment.
+- `serve` starts comfy-api-proxy for the local backend and picks up the jobs the last run
+  left. `--port` (default 8190), `--host`, `--root` (repeatable).
+- `stop` asks the server on this machine to stop (`--port`); `--restart` restarts it when
+  it runs under `run_seriesmith.bat` / `run_seriesmith_ext.bat` (a bare `seriesmith serve`
+  just stops). Jobs still running on a backend are picked up on the next start.
+
 ## Recorded dialogue (lip sync)
 
-Full guide: `RECORDED_DIALOGUE.md`.
+Full guide: [RECORDED_DIALOGUE.md](RECORDED_DIALOGUE.md).
 
 ```
 pip install faster-whisper numpy                    # once; the model downloads on first run
@@ -346,7 +447,7 @@ seriesmith assemble Shows\ep05 --proxy --audio master          # picture over th
 - The editor does the same from its **Recording** window: attach the file (browse the
   ComfyUI machine, type a path, or drop it in), then align, with progress and the report.
   It runs align in whichever Python has `faster-whisper` and `numpy` — see
-  [INSTALL.md](INSTALL.md#1-requirements) if it picks the wrong one.
+  [INSTALL.md](../INSTALL.md#1-requirements) if it picks the wrong one.
 - align transcribes the recording with word timings, matches it to the script, and cuts it
   into one continuous run of windows with cuts at the quietest point of each pause.
 - It writes `audio: in-out` on every shot, points the series config at the recording, keeps the
@@ -376,7 +477,8 @@ the series config). `clone` and `generate` shots don't use it.
   shotlist/shotlist.<target>.json   generated: shots on another target
   shotlist/*_proxy.json        generated: the same for the proxy pass
   refs_todo.md / .json         generated work order
-  overrides.json               editor / `seriesmith override`: per-shot tweaks, retargets, episode target
+  overrides.json               editor / `seriesmith override`: per-shot tweaks, retargets, episode target,
+                               where a shot or the episode renders (`backend`)
   cut.json                     editor / `seriesmith cut` / `pick`: per pass, the order, the take
                                each shot uses, trims, locks and each clip's audio source
   align_report.md              generated: what align matched (seriesmith align)

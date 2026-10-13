@@ -40,7 +40,9 @@ does with it all is the [README](README.md).
     under Windows; the default H3 stack (an int8 diffusion model and a 32B text encoder in
     nvfp4) wants a recent NVIDIA card. seriesmith expects it at `http://127.0.0.1:8188`.
   - **Comfy's cloud**: a Comfy API key (platform.comfy.org) for Comfy Cloud, your
-    deployments and the hosted models through Router ([docs/SETUP.md](docs/SETUP.md)).
+    deployments and the hosted models through Comfy Router ([docs/SETUP.md](docs/SETUP.md)).
+    A hosted model (Seedance, Kling, Veo, Nano Banana, ...) needs no GPU and no model
+    files; paid use is billed to the key's account.
 - **Third-party node packs** for some targets — see [the table below](#third-party-node-packs).
 
 ### Third-party node packs
@@ -66,7 +68,7 @@ A deployment or Comfy Cloud needs the same packs there.
 | `pip install faster-whisper numpy` | `seriesmith align` / the editor's Recording window: transcribe a dialogue recording and write `audio:` windows onto every shot |
 | `pip install demucs`, for the `python` first on **ComfyUI's** PATH | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node shells out to `python -m demucs` |
 | `pip install pytest` | `python -m pytest`, the test suite |
-| Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built page is committed |
+| Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built pages are committed |
 | The Comfyui_Minimax_h3_latent_Upscaler node pack and its model (**The upscaler**, below) | `seriesmith upscale` and the editor's Upscale on H3 takes |
 | The comfyui-obvpm-timeline node pack (**The upscaler**) | upscaling H3 takes longer than 5.5 s without running out of memory |
 | Three LoRAs (**For the editor's 360s and turned views**, section 4) | the Refs tab's **Make 360** and a character's **Turn** |
@@ -154,9 +156,10 @@ C:\AI\ComfyUI\python_embeded\python.exe -m pip install -e . comfy-api-proxy
 ```
 
 `-e` links it to the repo, so pulling updates it (restart ComfyUI after). Without it the
-nodes still load and the editor stays off (ComfyUI's console says so). The ComfyUI host
-keeps its own queue journal (`queue-comfyui.json`), so it and `seriesmith serve` can run at
-the same time.
+nodes still load and the editor stays off (ComfyUI's console says so). Inside ComfyUI, a
+bar on top of **seriesmith Shots** has **Render on**, the **Jobs** button and
+**Settings**, as the standalone page's top bar does. The ComfyUI host keeps its own queue
+journal (`queue-comfyui.json`), so it and `seriesmith serve` can run at the same time.
 
 ### Check it
 
@@ -169,14 +172,18 @@ seriesmith targets                # what this ComfyUI can render, and what's mis
 Then `seriesmith serve` (add `--root C:\Shows` to name your project folders) and open
 http://127.0.0.1:8190. Set your **project roots** — the folders holding your episodes —
 in the Shots tab if you didn't pass `--root`; every episode the editor touches has to
-live inside one of them. They are kept in seriesmith's user folder
-(`default/seriesmith/config.json`), else read from `SERIESMITH_ROOTS` (`;`-separated, `:`
-on Linux/macOS).
+live inside one of them. They are kept in seriesmith's folder beside its settings file
+(`%APPDATA%\seriesmith\default\seriesmith\config.json`; `~/.config/seriesmith/...`
+on Linux/macOS), else read from `SERIESMITH_ROOTS` (`;`-separated, `:` on Linux/macOS).
 
 On Windows the repo has two launchers, like ComfyUI's: **`run_seriesmith.bat`** (this PC
 only) and **`run_seriesmith_ext.bat`** (other devices on your network too: it listens on
 every interface, `--host 0.0.0.0`, and prints the address to open on a laptop or phone).
-Double-click one, or make a desktop shortcut to it. The network one has no password:
+Double-click one, or make a desktop shortcut to it. Each starts seriesmith again when the
+editor's **Settings → This server → Restart** (or `seriesmith stop --restart`) asks it
+to, and closes when it is stopped (**Stop**, `seriesmith stop`, or Ctrl+C, without cmd's
+"Terminate batch job" question). Stop and Restart are offered only on the PC that runs
+the server. The network one has no password:
 anyone on that network can open your project folders, import files from the PC, see the
 API key in Settings and queue paid runs, so use it on home Wi-Fi you trust and never
 port-forward it. Away from home, a private network between your own devices (Tailscale)
@@ -291,11 +298,16 @@ seriesmith targets
 
 prints one line per target — `ready`, `degraded`, `not_ready` or `unknown` — and under it
 every file it cannot find, with the folder it belongs in and the download link. `--kind
-video`, `--kind image` or `--kind audio` narrows it; `--json` prints data. In the editor, the target
-picker and the **What's missing** window show the same thing. A file you already have
-under another name usually still counts: seriesmith identifies models by family (names first,
-then the safetensors header), so a re-quantized or renamed copy of the same model is
-accepted and the take's sidecar records what was actually used.
+video`, `--kind image` or `--kind audio` narrows it; `--json` prints data. In the editor,
+the model pickers and the **Models** window (the button beside each picker) show the same
+thing. A file you already have under another name usually still counts: seriesmith
+identifies models by family (names first, then the safetensors header), so a re-quantized
+or renamed copy of the same model is accepted and the take's sidecar records what was
+actually used.
+
+**Hosted models need no files.** The Comfy Router targets (`seedance_2_5`,
+`krea_2_router`, `nano_banana_pro`, ...) run on Router with your API key, so nothing
+below applies to them.
 
 **Nodes count too.** Some targets need node classes as well as files. Most are core
 ComfyUI (MiniMax H3 FL2VA's `MiniMaxH3AddGuide`, the Wan 2.2 and LTX-2.5 video graphs);
@@ -821,13 +833,15 @@ linked or updated. Link `comfy_nodes\` into `custom_nodes\` (section 2) and rest
 ComfyUI. A deployment or Comfy Cloud needs the pack too.
 
 **You changed `web/` and nothing changed in the browser.**
-The editor is served from the committed page in `seriesmith\server\static\`, not from
-`web/`. Rebuild it:
+The editor is served from the committed pages, not from `web/`: `seriesmith serve` from
+`seriesmith\server\static\`, the editor inside ComfyUI from
+`comfy_nodes\web\seriesmith-editor.js`. Rebuild both:
 
 ```
 cd web
 npm install                  # once
 npm run build:standalone     # -> ../seriesmith/server/static/
+npm run build                # -> ../comfy_nodes/web/seriesmith-editor.js
 ```
 
 then hard-reload the tab (Ctrl-Shift-R). `npm run dev` serves `dev.html` against a mock

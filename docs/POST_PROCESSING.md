@@ -1,10 +1,12 @@
 # Post-processing: faces, enhancement, motion blur
 
-Status (2026-10-06): **enhance and motion blur are built** (`seriesmith/post.py`, `seriesmith post`;
-not yet in master or the editor) and are being compared on ep01. **Faces are dropped**:
-see **Bake-off, round 1**, below. This file is the design
-record; once a phase lands, its contracts move to the docstrings, `docs/API.md` and
-`docs/AUTHORING.md`, and this file shrinks to what's still open.
+Status (2026-10-12): **enhance and motion blur are built** (`seriesmith/post.py`,
+`seriesmith post`), in master (`seriesmith master --post`, `--post present`) and in the
+editor (the Post dialog, the take menu, the Master dialog's Post-process). Posts run on
+any backend through seriesmith's queue (`seriesmith/finishing.py`). **Faces are dropped**:
+see **Bake-off, round 1**, below. This file is the design record; the contracts are in the
+docstrings, `docs/API.md` (**Post-process**) and `docs/AUTHORING.md` (**Post-process: the
+`post` block**). The face sections below are the plan as it stood when it was dropped.
 
 ## Why
 
@@ -26,7 +28,7 @@ take  <stem>.mp4                   rendered (960×544 / 1344×768)
   │  upscale (exists)            re-sample 2x / pixel / SeedVR2
   ▼
 upscale  <stem>.up.mp4             1080p / 1440p / 4K
-  │  post (new)                  enhance → faces → motion blur, each optional
+  │  post                        enhance → motion blur, each optional (faces: dropped)
   ▼
 post  <stem>.post.mp4              same size, same frames, same audio
   │  master (exists)             uses .post.mp4 when the recipe has a post block
@@ -238,6 +240,8 @@ You shouldn't have to watch every clip's boxes:
 - Later, in the editor: a "Show face boxes" item on the take menu that plays the
   preview.
 
+### 3. Motion blur
+
 **Built**: `SeriesmithMotionBlur` (`comfy_nodes/finish.py`), post's last step.
 
 - Optical flow from RAFT-large, through ComfyUI core's `OpticalFlowLoader`
@@ -267,7 +271,8 @@ Audio is untouched. The step only reads and writes frames.
 This mirrors `upscale.master`: one recipe in the series config, per-shot overrides in
 `overrides.json`.
 
-Built so far: `enhance` and `motion_blur`.
+Built: `enhance` (a tier, `none`, or an object with its fields, `grain` among them) and
+`motion_blur`.
 
 ```json
 "post": { "master": { "enhance": "production", "motion_blur": 0 } }
@@ -277,7 +282,7 @@ Built so far: `enhance` and `motion_blur`.
 and in overrides.json, `"post": { "sh040": { "motion_blur": 0.3 }, "sh050": { "enhance": "none" } }`.
 `seriesmith post <ep>` uses the recipe when neither `--enhance` nor `--blur` is given.
 
-The faces block, as planned (not built):
+The faces block, as planned (dropped; not built):
 
 ```json
 "post": {
@@ -301,29 +306,34 @@ The faces block, as planned (not built):
 Each step is skipped when its block is missing. `overrides.json` gets a top-level
 `"post": {"sh040": {...}}` merged over the recipe, in the same way as `"upscale"`.
 
-Each subject gets an optional `"face": "refs/walker/walker_face.png"`. Supplying faces for
-the cast is the one new authoring step, and it's optional.
+Each subject would have got an optional `"face": "refs/walker/walker_face.png"` (not
+built).
 
 ## Files and commands
 
+What's built:
+
 | | |
 |---|---|
-| `seriesmith/post.py` | plan, track, identify, queue, report (stdlib); `seriesmith post` |
-| `comfy_nodes/finish.py` | `H3DetectFaces`, `H3FaceCrop` / `H3FacePaste` (stabilised crop out, feathered paste back), `SeriesmithMotionBlur` |
-| `seriesmith/takes.py` | `post_mp4`, `post_sidecar`, `post_boxes` paths; staleness against the upscale |
-| `seriesmith/master.py` | `--post` (the dialog's Post-process checkbox): a row uses `.post.mp4`, queueing upscale → post as needed; post status counts towards `ok` / `kept` / `gap`. Without it, unchanged |
-| `seriesmith/upscale.py` | none, except the enhancer-tier shorthand resolving to `then` |
-| editor | Master dialog: post on/off and tier. Take menu: Show face boxes, Redo post. Upscale dialog: tier picker |
+| `seriesmith/post.py` | plan and queue a post (stdlib); `seriesmith post` |
+| `seriesmith/finishing.py` | the post's graph made portable when its job starts, its files collected into the take |
+| `comfy_nodes/finish.py` | `SeriesmithPixelUpscale`, `SeriesmithFinishUpscale` (the frequency-split finish), `SeriesmithMotionBlur` |
+| `seriesmith/takes.py` | `post_mp4`, `post_sidecar` paths; staleness against the upscale |
+| `seriesmith/master.py` | `--post` (recipe) / `--post present` (the dialog's Post-process): a row uses `.post.mp4`, queueing upscale → post as needed; post status counts towards `ok` / `kept` / `gap`. Without it, unchanged |
+| `seriesmith/assemble.py` | `--upscaled --post`: the cut from its posts |
+| editor | the Post dialog (tier, blur), the take menu's post items, the Master dialog's Post-process |
 
 ```
-seriesmith post <episode> [--only sh040,sh050] [--check] [--boxes] [--redo]
-                  [--variant NAME --set faces.detailer=image ...] [--compare A,B]
+seriesmith post <episode> [--proxy] [--only sh040,sh050] [--take N] [--redo]
+                [--enhance TIER|METHOD] [--strength 0.2] [--seedvr2-model 7b]
+                [--pixel-model FILE] [--grain 0.05] [--blur 0.25] [--recipe]
+                [--backend NAME] [--check]
 ```
 
-`--variant` writes `<stem>.post.<NAME>.mp4` and doesn't touch the real post.
-`--compare A,B` writes `<episode>/_compare/<shot>_A_vs_B.mp4`: the two side by side, and
-under them a 2x crop of each tracked face. This is the bake-off tool, and it stays
-useful afterwards.
+Planned for faces and not built: `--boxes` (a preview of each track's box), `--variant
+NAME` (a post beside the real one) and `--compare A,B` (two variants side by side, with a
+2x crop of each tracked face), and the `H3DetectFaces` / `H3FaceCrop` / `H3FacePaste`
+nodes.
 
 ## Phases
 
@@ -410,8 +420,8 @@ sharpness are ratios to the upscale, measured inside the face box.
 faces worse. Z-Image looked like an improvement on a still frame, but in motion the face
 reads as an overlay the head moves through, like a watermark. The face step (P1–P2) is
 not being built. The detection and matching code stays in the bake-off harness, and the
-`H3SaveFaceTracks` / `H3LoadFaceTracks` nodes stay in case a body or face pass ever comes
-back with a video model on the crop.
+`H3SaveFaceTracks` / `H3LoadFaceTracks` nodes stay in h3pipe (not ported) in case a body or
+face pass ever comes back with a video model on the crop.
 
 **P1: detect, track, identify, preview.** `H3DetectFaces`, the stdlib tracker and
 assignment, `--boxes`, the report. Useful on its own: it tells you which shots have
@@ -421,15 +431,15 @@ recorded detections (no torch).
 **P2: face detail.** Crop, detail and paste with the P0 winner (and `image` as the cheap
 fallback), `.post.mp4` / `.post.json`, staleness, `--variant` / `--compare`.
 
-**P3: master.** The `post.master` recipe, per-shot overrides, master's rows, the editor's
-Master dialog, AUTHORING's section (then regenerate `prompts/`).
+**P3: master.** Built for enhance and blur: the `post.master` recipe, per-shot overrides,
+master's rows (`--post`, `--post present`), the editor's Master dialog and Post dialog,
+AUTHORING's section.
 
 **P4: motion blur.** Built (2026-10-06): `SeriesmithMotionBlur`, `--blur`, `motion_blur`.
 Whether to use it is the comparison's question.
 
 **P5: enhancer tiers.** Built (2026-10-06): post's enhance step, the three tiers,
-SeedVR2 3B/7B and SUPIR at the upscale's size. Not yet in master (`--post`) or the
-editor (P3).
+SeedVR2 3B/7B and SUPIR at the upscale's size, in master and the editor (P3).
 
 **Bodies.** The same detect → track → crop → redraw → paste, with a person detector
 (`person_yolov8m-seg.pt` is installed) in place of the face one. Not planned until a

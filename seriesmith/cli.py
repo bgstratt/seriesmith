@@ -11,7 +11,8 @@ seriesmith — one command for every stage.
 and h3pipe's commands, through seriesmith.commands (`seriesmith <command> --help`):
 
     new, takes, pick, override, keyframe, discard, cut, issues, supply, promote,
-    targets, refs, align, assemble, upscale, post, master, publish, all
+    targets, target-from-workflow, refs, align, assemble, upscale, post, master,
+    publish, all
 """
 from __future__ import annotations
 

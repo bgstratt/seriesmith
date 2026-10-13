@@ -1,9 +1,10 @@
 # Continuous shots: `continuous: first` and `continuous: latent`
 
-Status (2026-10-09): **phase (a) built** (`continuous: first`, the migration, the
-auto-switch); `latent` (b) and its upscales (c) are next. This file is the design record and the
-checklist. As each phase lands, its contracts move to the docstrings, `docs/API.md` and
-`docs/AUTHORING.md`, and this file shrinks to what's still open.
+Status (2026-10-12): **built**: `continuous: first`, the migration and the auto-switch (a),
+`continuous: latent` (b) and its upscales (c), on every backend (d; see **Where it runs**).
+This file is the design record and the checklist; the contracts are in the docstrings,
+`docs/API.md` and `docs/AUTHORING.md` (**Continuous shots**). What's still open is under
+**Open questions**.
 
 ## Why
 
@@ -11,7 +12,7 @@ A shot that carries straight on from the one before it (the same moment, the cam
 running) needs to start from what the previous clip ended on. Otherwise the cut jumps:
 people re-pose, light shifts, the camera resets.
 
-Two half-mechanisms do this today, and they got mixed up:
+Before this design, two half-mechanisms did this, and they got mixed up:
 
 - **`first: continuity`** is a keyframe method: the shot's first keyframe is cut from the
   previous take's last frame. It only works on a target that reads a first frame, so in
@@ -35,15 +36,15 @@ overlap: 39          # optional: frames of the previous clip held (latent only)
 
 | `continuous:` | What it does | Where it renders |
 |---|---|---|
-| `first` | The previous take's last frame is this shot's first keyframe. Today's `first: continuity`. | A target that reads a first frame. An H3 Ref2VA shot switches to H3 FL2VA automatically when its models are installed. |
-| `latent` | The tail of the previous take's saved latent (video and audio) is held at the head of this shot's latent (noise mask 0), and H3 generates the rest. The held frames are trimmed after decode. This shot keeps its own refs and prompt. | H3 Ref2VA first (FL2VA possibly later). |
+| `first` | The previous take's last frame is this shot's first keyframe (the old `first: continuity`). | Any target that reads a first frame, hosted ones included. An H3 Ref2VA shot builds on H3 FL2VA instead. |
+| `latent` | The tail of the previous take's latent (video and audio: its kept latent, else its last frames encoded) is held at the head of this shot's latent (noise mask 0), and H3 generates the rest. The held frames are trimmed after decode. This shot keeps its own refs and prompt. | H3 Ref2VA (FL2VA possibly later). |
 | *(absent)* | The shot doesn't continue. This is the default. | — |
 
 - **"Previous" means the previous shot in the cut**, not the script. Moving a shot on the
-  timeline changes what it continues from, as `first: continuity` does today.
-- **`overlap:`** only matters for `latent`. Its default comes from series.json (proposed:
-  `continuous: {"overlap": 39}` at the top level); a shot's own value beats it. `first` is
-  always one frame.
+  timeline changes what it continues from.
+- **`overlap:`** only matters for `latent`. Its default comes from the series config
+  (`continuous: {"overlap": 39}` at the top level), else the target's (39); a shot's or its
+  header's own value beats it. `first` is always one frame.
 - **On a `#` header** (a sequence's, not the episode's `=` line), `continuous:` is a
   shortcut for "every shot after the first **in this sequence**". It stops at the next `#`;
   there is no episode-wide default, since a new sequence is a new place or time. A shot can
@@ -59,58 +60,66 @@ overlap: 39          # optional: frames of the previous clip held (latent only)
 - `first: continuity` reads as `continuous: first`, and `continuous: yes` (header) as
   `continuous: latent`. `seriesmith check` warns on each and says how to write it now. Nothing
   breaks while scripts are updated.
-- Until `latent` is built (phase b), a `continuous: latent` shot is a build error that says
-  so. So an old `continuous: yes` script needs its shots changed to `continuous: first`, or
-  their `continuous` removed, before it builds. Note the "continue the incoming action"
-  sentence goes away either way.
+- An old `continuous: yes` header therefore really chains its shots now (on H3 Ref2VA);
+  the "continue the incoming action" sentence is gone.
 - The jump-cut check is left as it is.
 
 ### Targets declare what they can do
 
-A target lists the continuity modes it supports (beside how it declares keyframes today),
-e.g. `"continuous": ["first"]` on FL2VA, LTX-2 and Wan I2V, and `["latent"]` on Ref2VA.
+A target supports `first` when it reads a first keyframe (`recipe.keyframes`); anything
+else is declared in target.json's `continuous` block. Only Ref2VA has one:
+`"modes": ["latent"]`, `"first": "minimax_h3_fl2va"` (its first-frame partner), and the
+`latent` settings (overlap, hold_audio, the sampler input the hold goes in front of).
 
-- `continuous: first` on a target without it switches to that target's declared partner
-  for first-frame continuity (Ref2VA → FL2VA) when the partner is ready (its models
-  installed), with a note in the build. Otherwise it's an error naming what's needed.
+- `continuous: first` on a target without it builds on that target's declared partner
+  for first-frame continuity (Ref2VA → FL2VA), with a note in the build; a shot that names
+  its own target isn't switched (an error). Whether the partner's models are installed is
+  the render's readiness check, as for any target.
 - `continuous: latent` on a target without it is an error.
 
 ### Queueing
 
-This is how `first` already works, and `latent` works the same way:
-
-- Queueing a continuous shot reads what it needs from the previous shot **when its render
-  starts**, not when it's queued: the last frame (`first`) or the latent tail (`latent`,
-  SeriesmithChainLatent), from whatever take the cut uses at that moment, sent with the
-  job as uploads.
+- A continuous shot reads what it needs from the previous shot **when its job starts**,
+  not when it's queued, from whatever take the cut uses at that moment
+  (`runner.Runner.enqueue_render`): for `first`, the first frame is cut in Python then
+  (`refs.continuity_at_start`); for `latent`, `refs.chain_source` finds the previous take's
+  kept latent and mp4. Either goes with the job as uploads.
 - A chain queued together goes in cut order, and each job waits for the one it continues
   (the queue's `after`), so each shot starts from the new take of the one ahead of it.
 - A continuous shot whose previous shot has no take, and none coming, is an error.
 
-### Latents must be kept
+### Where it runs
 
-`latent` reads the previous take's `<take>.latent.safetensors`. Today only final takes keep
-one (`upscale.save_latents`, final-only by default).
+Continuous shots are portable: they render on any backend (local ComfyUI, Comfy Cloud, a
+deployment), from the editor's queue and from `seriesmith render`, which puts each take on
+a queue of its own. The graph sent doesn't read the episode folder: h3pipe's run-time nodes
+(H3ContinuityFrame, H3ChainLatent with its `project_root`) are not sent.
+`jobs.chain_portable` turns the chain node into **SeriesmithChainLatent**
+(`comfy_nodes/chain.py`), given the previous take's latent (`previous`) and mp4
+(`previous_video`) as uploads, and H3ChainTrim into **SeriesmithChainTrim**; a continuity
+shot's first frame is an ordinary uploaded picture. A graph that still reads the episode
+folder is refused on any backend but local (`render.prepare`, `render.episode_bound`): a guard,
+since a continuous shot's graph no longer has such a node.
 
-- Any take whose next shot in the cut is `continuous: latent` keeps its latent, **in both
-  passes**. This is worked out when it's queued; the previous shot declares nothing.
-- If the previous shot's current take has no latent, queueing the chained shot says so:
-  re-render the previous shot (it then keeps one).
+### Latents are not required
+
+Any take can be continued. SeriesmithChainLatent holds the previous take's kept latent
+(`<take>.latent.safetensors`) when it has one of the right size and model; otherwise it
+encodes that take's last frames and sound through the VAEs. Re-rendering the previous shot
+is never needed.
 
 ### Upscales
 
-- **`first`: built** (`5a9e01d`). Every upscale keeps its last frame at the size it was made
-  (`<take>.up_last.png`). A continuity shot's upscale reads it when it runs
-  (`H3LoadTakeFrame`), falling back to the low-res keyframe. Master queues a source before
-  its continuation and remakes either upscale when it was made before this. **To switch
-  over:** it currently finds continuity by tracing the first keyframe back to the frame it
-  was cut from. Once `continuous: first` exists, it should read the shot's field instead,
-  keeping the trace for takes rendered before.
-- **`latent`: per shot.** Shot N's 2x re-sample holds its head on shot N−1's *upscaled*
-  latent tail, so the two upscales join exactly. That means an upscale keeps its re-sampled
-  latent (`<take>.up.latent.safetensors`), but only when a `continuous: latent` shot
-  follows it. It's read when shot N's upscale runs, so N−1's must be queued first, exactly
-  like `up_last.png`.
+- **`first`: built.** Every upscale keeps its last frame at the size it was made
+  (`<take>.up_last.png`). A continuity shot's upscale starts from it, decided when its job
+  starts (`finishing.portable`: uploaded as a picture), falling back to the take's own
+  keyframe. Master queues a source before its continuation and remakes either upscale when
+  it was made before this. Continuity is found by tracing the first keyframe back to the
+  take it was cut from, which covers takes rendered before and after `continuous: first`.
+- **`latent`: per shot, built.** Shot N's 2x re-sample holds its head on shot N−1's
+  *upscaled* latent tail, so the two upscales join exactly. An upscale keeps its re-sampled
+  latent (`<take>.up.latent.safetensors`) only when a `continuous: latent` shot follows it.
+  It's read when shot N's upscale job starts, so N−1's is queued first, like `up_last.png`.
 - The alternative, obvpm's joint re-sample over a whole chain's concatenated latents, is
   seamless by construction, but re-rendering one shot would mean re-upscaling the whole
   chain. Rejected for now: it fights per-shot takes.
@@ -199,13 +208,15 @@ Built (2026-10-09). How it fits together:
   take's latent tail is then its video tail, which a shot after it holds.
 - **Loader.** Renders `snap(asked + hold)` frames; a dub's recording window starts `hold`
   frames earlier, so the voices land under the shot's own frames.
-- **Graph** (`jobs.chain_latent`, from target.json `continuous.latent`): SeriesmithChainLatent
-  between MiniMaxH3ReferenceToVideo's latent and the sampler, fed both VAEs; SeriesmithChainTrim
-  on everything the decoders fed (the saver, the review copy).
-- **At run time** the node asks `refs.chain_source` for the take the cut uses for the
-  previous shot NOW (keyframe_source's rule): its kept latent, else (none, another size,
-  not an H3 latent) its last `hold` frames and their sound encoded through the VAEs. So no
-  take ever has to be re-rendered to be continued. The sidecar records `continued_from`.
+- **Graph** (`jobs.chain_latent`, from target.json `continuous.latent`): the chain node
+  between MiniMaxH3ReferenceToVideo's latent and the sampler, fed both VAEs; the trim node
+  on everything the decoders fed (the saver, the review copy). `jobs.chain_portable` makes
+  them SeriesmithChainLatent / SeriesmithChainTrim.
+- **When the job starts** the runner asks `refs.chain_source` for the take the cut uses for
+  the previous shot NOW (keyframe_source's rule) and uploads its kept latent and its mp4.
+  The node holds the latent, else (none, another size, not an H3 latent) the mp4's last
+  `hold` frames and their sound encoded through the VAEs. So no take ever has to be
+  re-rendered to be continued. The take's record gets `continued_from`.
 - **Queueing** (`refs.chains_before_render`, inside refresh_continuity): a chain queues
   in cut order and waits on the take ahead of it; nothing to continue is an error.
 - **Upscale** (phase c's minimum): a held take re-samples its whole kept latent and
@@ -245,8 +256,9 @@ Built (2026-10-09). How it fits together:
       `continuous: latent` shot follows it in the cut (upscale.set_chain `keep_latent`;
       SeriesmithSaveUpscale's `latent` / `latent_file`).
 - [x] A `continuous: latent` shot's re-sample holds its head on the previous shot's upscaled
-      latent tail, read when it runs (`held_from`, from the take's `continued_from`;
-      SeriesmithChainLatent with `missing_ok`, video only: SeriesmithHoldAudio holds the sound), and its
+      latent tail, read when its job starts (`held_from`, from the take's `continued_from`;
+      SeriesmithChainLatent, video only, left out when the previous upscale kept no latent;
+      SeriesmithHoldAudio holds the sound), and its
       upscale record says whether it held (`chain_hold`); master queues sources first
       (in_order) and remakes a source with no kept latent or a chain that wasn't held
       (master.chain_rows). With a then-step (SeedVR2, a pixel model) after the
@@ -264,3 +276,12 @@ Built (2026-10-09). How it fits together:
       `record` goes to the saver (SeriesmithSaveTake `chain`, SeriesmithSaveUpscale `chain_hold`). Writing
       it from the node raced the queuer's prompt id on an idle ComfyUI and lost it (the
       upscale then read as failed though it ran).
+
+### (d) Portable
+
+- [x] Renders: a `continuous: first` shot's frame is cut in Python when its job starts
+      (`refs.continuity_at_start`, runner.py); a `latent` shot's previous take goes up to
+      SeriesmithChainLatent (`refs.chain_source`, `jobs.chain_portable`). Upscales: the
+      previous upscale's last frame or latent goes up as a file (`finishing.portable`).
+- [x] So continuous shots and their upscales run on Comfy Cloud and deployments, through the
+      editor's queue and `seriesmith render`.

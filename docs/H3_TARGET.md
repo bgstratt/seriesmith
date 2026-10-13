@@ -3,7 +3,9 @@
 The default video target, `minimax_h3_ref2va`: how a shot reaches MiniMax H3 Ref2VA, what each reference slot holds, how sheets, voices and audio policies work, and what comes out.
 
 How the default target works. The other targets are described in
-[docs/AUTHORING.md](docs/AUTHORING.md) and their own `seriesmith/targets/video/<id>/` code.
+[AUTHORING.md](AUTHORING.md) and their own `seriesmith/targets/video/<id>/` folders.
+`minimax_h3` is a different target: H3 hosted on Comfy Router (`builtin:router_video`),
+with none of the slots, sheets or audio policies below.
 
 ## The Ref2VA ComfyUI workflow (`H3_Ref2VA_Shotlist_v1.json`)
 
@@ -141,7 +143,7 @@ around.
 *reference* socket tells H3 to match silence.
 
 A dub shot also has a `retention` setting (`fully_copy`, `partially_copy`, `reference`); see
-[Recorded dialogue](#recorded-dialogue-lip-sync).
+[RECORDED_DIALOGUE.md](RECORDED_DIALOGUE.md#audio-policy-and-retention).
 
 ## Speech pacing
 
@@ -180,6 +182,14 @@ Or render the final pass at `960×544` and upscale the picked takes to `1920×10
 (`seriesmith upscale`, then `seriesmith assemble --upscaled --size 1920x1080`): a take costs
 under half as much to try, and only the kept ones are upscaled. docs/AUTHORING.md,
 **Final resolution**, says which to choose.
+
+## Continuous shots
+
+Ref2VA renders `continuous: latent`: the previous take's last frames (39 by default) are
+held at the head of the render, video and audio, by **SeriesmithChainLatent**, and trimmed
+off again before the saver (**SeriesmithChainTrim**). `continuous: first` needs a first
+keyframe, which Ref2VA doesn't read: such a shot builds on `minimax_h3_fl2va` instead.
+[CONTINUOUS.md](CONTINUOUS.md) has how it works.
 
 ## What you get out
 

@@ -15,7 +15,7 @@ seriesmith render   Shows\ep05 --proxy
 seriesmith assemble Shows\ep05 --proxy --audio master  # picture + your recording, to check sync
 ```
 
-Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path.
+Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it into the Python that runs seriesmith. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
 
 ## Recording
 
@@ -29,7 +29,7 @@ Put the recording inside the episode folder (for example `ep05\audio\`) so the s
 - **Series config:** sets `audio.mode` to `source_track` and `audio.track` to your recording. The old copy is kept in `<episode>\_history\` too (the same history the editor writes, so both show the same versions).
 - **Report:** writes `align_report.md` with every window and line, plus any problems it found.
 - **Transcript cache:** saves the transcript as `<recording>.words.json`, so re-running is instant. Use `--retranscribe` after you replace the recording.
-- **Cut points:** cuts land at the quietest point of each pause. Speaking shots are lengthened to H3's allowed frame counts when the pause has room.
+- **Cut points:** cuts land at the quietest point of each pause. Speaking shots are lengthened to the frame grid of the target they render on (H3's 17k+5, LTX's 8k+1) when the pause has room.
 
 ## Audio policy and retention
 
@@ -57,7 +57,7 @@ Frame lip-sync shots as close or medium shots. The reference image's framing mat
 | `--model <name>` | Whisper model: `tiny.en`, `base.en`, `small.en`, `medium.en` (default), `large-v3` |
 | `--device cuda\|cpu` | Where Whisper runs. `auto` by default |
 | `--script <file>` | Pick the script when the folder holds more than one `.md` |
-| `--no-snap` | Leave windows exactly as measured instead of lengthening them to H3's frame grid |
+| `--no-snap` | Leave windows exactly as measured instead of lengthening them to the target's frame grid |
 | `--policy`, `--retention` | Override the defaults in the table above for the whole episode |
 
 ## Conform

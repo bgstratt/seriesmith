@@ -141,6 +141,7 @@ shot 93. So:
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
+| hosted models on Comfy Router (`seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, `minimax_h3`, …) | your refs as pictures (one panel of a sheet, then the plate) or the keyframes, plus words | generated (Runway: none) | first, and last on most | whole seconds, each model's range | trying a shot on another model with no install; a Comfy API key, paid per take |
 
 - **Leave the target out** unless the choice is a decision about the film. Shots with no
   `target:` render on the episode's target (set in the editor) or the series config's
@@ -150,8 +151,8 @@ shot 93. So:
   needs something only one model does: a silent insert on Wan, a shot whose length you want
   LTX to choose (`dur: model`). A `continuous: first` shot moves to H3 FL2VA by itself (see
   **Continuous shots**).
-- **Dialogue needs a target with sound**, and lip sync to a recording needs an H3 target.
-  Wan acts the lines silently.
+- **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
+  workflow targets (`minimax_h3_ref2va`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
   `wan22_ti2v`; `wan22_vace` takes the sheets but not the plate), the `design` and location
   `description` sentences are what the model knows about the look, apart from any
@@ -160,7 +161,12 @@ shot 93. So:
   targets that read them.
 
 Details per target are under **Rendering a shot on …** below; `seriesmith targets` says
-which ones your ComfyUI can render.
+which ones your ComfyUI can render. A hosted model sends one call per take through Comfy
+Router: its prompt is the same prose the LTX and Wan targets get, its seed is the
+provider's (`reproducible: false`), and `seriesmith backends` says whether this machine
+has the API key for it. A show can add its own models too: another Router model, or a
+workflow saved in ComfyUI (the editor's **Models** window; `seriesmith
+target-from-workflow`), named in `target:` like any other.
 
 ## The series config: series.json
 
@@ -231,13 +237,17 @@ which ones your ComfyUI can render.
   720 is not. 1344×768 is H3's native canvas. The other targets snap it to their own sizes.
   Whether the final pass renders at the size you deliver, or smaller and is upscaled, is
   **Final resolution** below.
-- `steps`, `lora` and `model` are optional per pass; see the README's **Steps, model and LoRA**.
+- `steps`, `lora` and `model` are optional per pass. `lora` takes one LoRA or a chain, as
+  the script's `lora:` line does (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`);
+  see [COMMANDS.md](COMMANDS.md), **Steps, model and LoRA**.
 - `series.target` names the video model the episode renders on: `minimax_h3_ref2va`
   (MiniMax H3, the default: leave it out), `ltx2` (LTX-2.5 distilled), `ltx2_ingredients`
   (LTX-2.3 with your character sheets and plates), `minimax_h3_fl2va` (MiniMax H3 from
-  first/last keyframes), or one of the silent Wan 2.2 models: `wan22_i2v` (14B, from a
+  first/last keyframes), one of the silent Wan 2.2 models: `wan22_i2v` (14B, from a
   first frame), `wan22_ti2v` (5B, text or a first frame) or `wan22_vace` (14B with your
-  character sheets). Single shots or sequences can render on another one; see
+  character sheets), or a hosted model (`seedance_2_5`, `kling_v3_omni`, ...). `series.backend`
+  says where its jobs run (`local`, `cloud`, `deployment:<target>`, `router`), else each
+  target's own. Single shots or sequences can render on another one; see
   **Rendering a shot on LTX-2**, **Rendering a shot on H3 from keyframes** and **Rendering a
   shot on Wan 2.2** below.
 
@@ -754,6 +764,9 @@ config can say which:
 | `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
 | `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
+| `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 reference images |
+| `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
+| hosted on Comfy Router: `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | one call a picture, nothing to install; most take reference images |
 
 | audio target | what it is |
 |---|---|
@@ -766,8 +779,9 @@ nothing to edit from, so it falls back to drawing the variant from its `design` 
 base's seed; write that sentence as close to the original's as the change allows, because
 there the wording is all the identity there is.
 
-The editor can choose per episode (kept in `overrides.json`, not here) and per ref, and a
-generate request can name one; most specific wins. `seriesmith targets --kind image`
+An image workflow of your own (a show's model made from a workflow saved in ComfyUI) is an
+image target too. The editor can choose per episode (kept in `overrides.json`, not here) and
+per ref, and a generate request can name one; most specific wins. `seriesmith targets --kind image`
 (or `--kind audio`) says which are installed and what to download for the rest. A ref is
 worded the same whichever model makes it.
 
@@ -1079,7 +1093,7 @@ sound: running footsteps on grass, fabric movement
 | `retention: partially_copy` | how closely a dubbed shot copies the recording: `fully_copy`, `partially_copy` or `reference` (H3 Ref2VA; dub shots only) |
 | `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v` or `wan22_vace`); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
@@ -1092,13 +1106,13 @@ sound: running footsteps on grass, fabric movement
 
 Any other line is action prose. Prose under a `#` header before its first shot is a
 scene-setting note and is ignored. A line under a `#` header (`model:`, `lora:`, `steps:`,
-`profile:`, `target:`, `first:`, `last:`) is the default for every shot in the sequence; a
-shot's own line beats it.
+`profile:`, `target:`, `first:`, `last:`, `overlap:`) is the default for every shot in the
+sequence (`continuous:` for every shot after the first); a shot's own line beats it.
 
 ### Rendering a shot on LTX-2
 
 `target: ltx2` on a `##` shot, under a `#` header, or in a profile renders that shot (or
-sequence) on LTX-2.5 instead of the series target; any other name is an error. One episode
+sequence) on LTX-2.5 instead of the series target; a name that isn't a target is an error. One episode
 can mix the two: the build writes the LTX shots to their own shotlist, and the editor, the
 render command and the review cut treat the episode as one. What changes for an LTX shot:
 
@@ -1280,8 +1294,10 @@ Some video targets start (or end) a shot on a picture you give them: its **keyfr
 each shot renders on:
 
 - `wan22_i2v` **requires** a first frame (it animates it);
-- `ltx2`, `minimax_h3_fl2va`, `wan22_ti2v` (first only) and `wan22_vace` use them when they
-  exist (**optional**);
+- `ltx2`, `minimax_h3_fl2va`, `wan22_ti2v` (first only), `wan22_vace` and the hosted video
+  models (first and last on most; `runway_gen4_turbo` and `wan_2_7_r2v` first only) use them
+  when they exist (**optional**; a hosted model given a first frame is sent the keyframes
+  instead of the refs);
 - `minimax_h3_ref2va` and `ltx2_ingredients` don't read keyframes.
 
 The Refs tab lists every keyframe a shot needs, before anything exists, with how it will be
@@ -1336,7 +1352,8 @@ continuous: first
 ```
 
 - `first`: it opens on the previous shot's last frame, as its first keyframe. That needs a
-  target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets). A shot on
+  target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets, the hosted
+  models). A shot on
   H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, unless the shot names
   its own `target:` (then it's an error that says which targets can).
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
@@ -1373,7 +1390,9 @@ its `dur:` asks, like any H3 length. It continues whichever take the cut uses fo
 previous shot when its render **starts**: a whole chain can be queued at once, each shot
 behind the one it continues. The previous take's kept latent is used when it has one (the
 final pass keeps them, `upscale.save_latents`); otherwise its last frames and sound are read
-back through H3's VAEs, which works for any take, even one from another target.
+back through H3's VAEs, which works for any take, even one from another target. Both kinds
+of continuous shot render on any backend (your ComfyUI, Comfy Cloud, a deployment): what
+they need from the previous take is sent with the job.
 
 **Generating a keyframe** writes a still from the shot: the look, the framing and the
 location, who is in frame (their `design`), and the action at that moment: for `first` how
@@ -1413,7 +1432,8 @@ prediction between 3 and 8 seconds (without a range: 1 to 20).
 
 Every video model takes only certain frame counts, and a `dur:` between two of them rounds
 **up**, so you pay for frames you throw away. The grid is the target's: `17k + 5` frames on
-the H3 targets, `8k + 1` on LTX, `4k + 1` on Wan (at 24 fps; best kept to 3 s). The build
+the H3 targets, `8k + 1` on LTX, `4k + 1` on Wan (at 24 fps; best kept to 3 s), whole
+seconds in each model's range on a hosted one. The build
 snaps each shot to its own target's grid, and `--check` warns about wasted padding.
 
 Write for H3's grid, the default; the other grids are fine-grained enough that these
@@ -1815,11 +1835,13 @@ seriesmith build series.json ep01.md --pace      # dialogue pacing per shot
 target it renders on, so it also reports each target's limits.
 
 Errors name the line and quote it. Common ones: a name in `who:` that is not in the series config; a
-location with no plate; an ALL-CAPS `NAME:` line for someone who cannot speak (usually a typo,
+location that isn't in the series config, or one with no `description`; an ALL-CAPS `NAME:` line for someone who cannot speak (usually a typo,
 which would otherwise become action prose); more than three subjects on H3 Ref2VA; a shot
 with neither `dur:` nor `audio:`; `dur: auto` on a shot with no dialogue; a `dur: model`
 range that isn't `min-max` seconds with min below max; a `target:` or `profile:` name that
-doesn't exist; a `first:` / `last:` that isn't a method or an image path. Warnings cover
+doesn't exist; a `first:` / `last:` that isn't a method or an image path; a `continuous:`
+the shot's own target can't render (`latent` off H3 Ref2VA, `first` on a target that reads
+no first frame). Warnings cover
 crammed dialogue, wasted grid padding, and what a target can't do (a dialogue shot on Wan,
 a `clone` shot on LTX).
 

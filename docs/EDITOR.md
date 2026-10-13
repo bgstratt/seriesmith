@@ -5,10 +5,16 @@ http://127.0.0.1:8190. This is the guide to driving it: the order things happen 
 every button does, and what each click, double-click and right-click means in each panel.
 
 The page has the **Shots** and **Refs** tabs down the left, the **Viewer** docked in the
-middle, the **Timeline** along the bottom, and the **Jobs** button (the queue) at the top
-right. Everything else — the Script and Series config, the Inspector, Recording, What's
-missing and the dialogs — opens as a floating window you can move, and dock beside the
-viewer.
+middle, the **Timeline** along the bottom, and along the top **Render on**, the **Jobs**
+button (the queue), **Settings** and **Theme**. Everything else — the Script and Series
+config, Series settings, the Inspector, Recording, Models and the dialogs — opens as a
+floating window you can move, and dock beside the viewer.
+
+**Inside ComfyUI** (seriesmith's node pack linked into its `custom_nodes`) the same editor
+is three panels of ComfyUI's own: **seriesmith Shots** and **seriesmith Refs** in the
+sidebar and **seriesmith Timeline** in the bottom panel. When that ComfyUI runs
+seriesmith's queue, a bar on top of seriesmith Shots has **Render on**, **Jobs** and
+**Settings**; the floating windows open over the canvas.
 
 [INSTALL.md](../INSTALL.md) installs it. [AUTHORING.md](AUTHORING.md) is the format of the
 two files you write. [API.md](API.md) is the HTTP contract underneath, for changing the
@@ -28,8 +34,9 @@ you to write into:
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop
    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.
-3. **Open Shots → the folder button** and add the folder that *contains* your episode
-   folders (the root), then pick the episode from the drop-down beside it.
+3. **Open Shots → the folder button** (beside the episode drop-down) and add the folder
+   that *contains* your episode folders (the root), then pick the episode from the
+   drop-down.
 4. **No episode yet? New episode…** in that same window writes the two files for you — see
    below. Otherwise write them yourself: `Shows\ep01\series.json` and `Shows\ep01\ep01.md`
    ([AUTHORING.md](AUTHORING.md) opens with a complete pair to copy).
@@ -37,13 +44,15 @@ you to write into:
 6. **Go to Refs and make the references** — character sheets, props, plates, voices.
    Renders are blocked until the pictures a shot needs are on disk, so this comes before
    rendering, not after.
-7. **Come back to Shots and render**, proxy first. Each take is a job: watch them in
-   **Jobs**.
+7. **Come back to Shots and render.** Each take is a job: watch them in **Jobs**.
 
-**Proxy first, always.** The proxy pass is the same shots at the same seeds, rendered small
-and cheap. It tells you whether the cut works, the timing lands and the characters hold,
-for a fraction of the time. Switch the pass selector to `final` once the proxy says the
-episode is right.
+**Proxy or final.** The proxy pass is the same shots at the same seeds, rendered small and
+cheap: it tells you whether the cut works, the timing lands and the characters hold, for a
+fraction of the time. A proxy take is no preview of its final, though, and most work
+renders final and re-renders what's wrong, so a page opens on `final` until you choose one,
+and an episode opens on the pass that has its takes. On Seedance 2.5 a proxy take is a
+**draft** whose final can be made from it exactly as drawn (**Finals from drafts**,
+below).
 
 ## Simple mode
 
@@ -77,29 +86,46 @@ starts the series wizard.
 
 ### The toolbar
 
-Left to right:
+Along the Shots bar, after **Simple / Advanced**, left to right:
 
 | Icon | What it does |
 |---|---|
-| folder-open | **Project folders** — browse, add or remove roots, open an episode |
-| refresh | **Rescan the project roots** (after adding an episode folder outside the editor) |
-| folder | The episode drop-down |
-| *(pass)* | **final / proxy** — which pass you are looking at and rendering |
-| play | **Build** — runs `build` for both passes from the script and series config |
 | file-edit | **Edit the episode's script** — opens the Script window |
-| book | **Edit the series config** (`series.json`) |
+| **+ Shot** | **Add a shot** after the selected one, as a form (below) |
+| pencil | **Edit the selected shot** as a form |
+| cog | **Series settings** — the series config as a form |
+| book | **Edit the series config** (`series.json`) as text |
 | volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one |
 | sliders | **Inspect the selected shot** |
 | play | **Play all** — the cut, played from its takes, no export needed |
 | film | **Open the timeline** |
+| speech bubble | **Issues** — the pass's notes (below), with how many are open |
 | images | **Open the Refs tab** |
 | refresh | **Refresh** — re-read the episode from disk |
 
+Under it: the **episode drop-down**, **Rescan the project roots** (after adding an episode
+folder outside the editor) and **Project folders** (browse, add or remove roots, open an
+episode). Then **Model:**, the episode's video model (below), and the row that works on
+the pass: **proxy / final** (which pass you are looking at and rendering), **Build** (runs
+`build` for both passes from the script and series config), **Render missing**, **Re-render
+stale** and, in proxy, **Finals from drafts**.
+
+### The episode's model
+
+**Model:** is the model every shot without one of its own renders on, with whether it is
+ready on this machine. Its list is grouped by where a model runs: **Your GPU** first, then
+**Comfy Router (paid)**, as every model picker in the editor is. Choosing one here is the
+episode's (kept in `overrides.json`); the list gives the line to put in `series.json` to
+make it permanent, and **Use series.json's** goes back. A model that isn't ready says what
+it lacks, and **What's missing** opens its files in the Models window. **Add / validate
+models…** at the foot of the list opens the Models window (below).
+
 ### New series, new episode
 
-In **Project folders** (the folder-open button), browse to a folder and press **New
-series…** (a show of its own, in a folder made inside this one) or **New episode…** (in
-this folder: the show's folder, not an episode's). Either opens a short wizard:
+In **Project folders** (the folder button beside the episode drop-down), browse to a
+folder and press **New series…** (a show of its own, in a folder made inside this one) or
+**New episode…** (in this folder: the show's folder, not an episode's). Either opens a
+short wizard:
 
 1. **Where**: for a new series its title and its show folder (made from the title); the
    episode's name (the next number there, `ep03` after `ep02`) and its title. When the
@@ -151,6 +177,21 @@ A take badged only `unknown` (no provenance: it predates take sidecars) is left 
 evidence of anything. A shot with a take already queued is left out too. Hover the button for
 the reasons behind the count ("12 script, 3 ref").
 
+When some of the shots are missing refs or their model isn't ready, both open the **Render**
+dialog first: what it will queue, what it would skip (missing refs are left out unless you
+render anyway), **Video model class for this run** (a one-off, the shots' own targets
+unchanged) and **Render on** (below). Otherwise they queue at once; a batch for a paid
+backend, or of more than 8 renders, asks first.
+
+### Finals from drafts
+
+A Seedance 2.5 proxy take is a 480p **draft**, and for 7 days its 1080p final can be made
+from it exactly as drawn: the same prompt, pictures, seed and sound. In proxy, **Finals from
+drafts (n)…** lists the drafts the proxy cut uses, with their thumbnails; the shots with no
+final yet start ticked, an expired draft is greyed out, and **Make n finals** queues them
+(each a paid render, on the final pass). One at a time: **Make final from draft (1080p)…**
+in a draft take's menu, which warns when the shot has changed since the draft.
+
 ### How far through a pass you are
 
 Beside the filter box, the Shots tab reads out the pass as it goes:
@@ -193,21 +234,29 @@ Everything you do to a shot lives here:
 | **Render this shot** | Queue it with its current settings, on its backend |
 | **Render with settings…** | The same, after changing model, LoRAs, steps, seed or target for this run |
 | **New take like this one…** | Re-render from *this* take's exact settings, with a new seed by default. The one you will reach for most |
+| **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
 | **Use this take** | Put it in the cut |
 | **Play** / **Compare with…** | Open in the viewer; compare two takes side by side or with a wipe |
 | **Play from here** | Play the cut starting at this shot |
-| **Inspect shot** | The Inspector: target, overrides, refs used, refs missing |
+| **Inspect shot** | The Inspector: model, overrides, refs used, refs missing |
 | **Show in script** | Jump the Script window to that shot's lines |
 | **Edit shot…** / **Add a shot after** | The shot form (below) |
 | **Show missing refs (n)** | Which pictures this shot is waiting on |
 | **Discard take…** | Move a candidate to `_trash/` — nothing is deleted, but the bin stays readable |
 | **Show details** / **Copy path** | The take's sidecar, and its file path |
+| **Upscale (2x)…** / **Keep upscale** / **Remove upscale** | The take's upscale (see **Finishing**); a kept one is left alone by Master |
+| **Post-process…** / **Remove post** | Finish the take's upscale (see **Finishing**) |
 | **Generate first frame** / **Clear keyframe** | Make (or drop) this shot's opening still |
 | **Use previous shot's last frame as first frame** | Continuity: chain this shot onto the one before it |
 | **Use this frame as the next shot's first frame** | The same, pushed forward |
-| **Lock in the cut** / **Unlock** | Freeze a clip so it can't be moved, trimmed or re-picked |
-| **Audio from…** | This clip's picture with another clip's (or a file's) sound |
+| **Character or place from this frame…** | In the viewer, at a frame (see **A character or a place from a frame**) |
+| **Flag to come back to** / **Unflag** | See **Flagging clips** |
+| **Lock in the cut** / **Unlock in the cut** | Freeze a clip so it can't be moved, trimmed or re-picked |
+| **Leave out of the cut** / **Put back in the cut** | The shot keeps its place in the script and its takes; Export, Play all and Master skip it |
+| **Clear trims** | Back to the whole take |
+| **Add issue…** | Note what is wrong with it (see **Noting what's wrong**) |
+| **Audio from…** / **Back to its own audio** | This clip's picture with another clip's (or a file's) sound |
 | **Move left / right in the cut** | Reorder (`Alt+←` / `Alt+→` in the timeline) |
 
 ### Editing a shot
@@ -220,8 +269,8 @@ in the script as fields:
   sh015), and for a new shot the sequence it goes in, or a new sequence with its location.
 - **Who's in it** and **With**: picked from the cast in the series config, in order; **+
   Character** / **+ Prop** opens a new cast card.
-- **Size**, **Length** (H3's grid, or auto to fit the dialogue), **Background** (another
-  location than the sequence's).
+- **Size**, **Length** (the model's grid, or auto to fit the dialogue), **Background**
+  (another location than the sequence's).
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
@@ -231,10 +280,15 @@ pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
   **Extras**, **On-screen text**.
-- **More** (the arrow): music, a different video model, continuity, first and last frames
-  (the default, generate, import, none, or **a picture you have…**, picked in the folder
-  browser and kept relative to the episode), the audio policy, pace, profile, steps, and
-  the LoRA and model file, each picked from what the shot's model can load.
+- **More** (the arrow): music; **Video model class** (another model for this shot, with
+  the Models button beside it) and right under it what that model loads, its **Model
+  file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
+  (**Continues**); first and last frames (the default, generate, import, none, or **a
+  picture you have…**, picked in the folder browser and kept relative to the episode); the
+  audio policy, pace and profile.
+- **LoRAs** is a chain: one row per LoRA with its strength, **+ LoRA** for another, applied
+  in order (it writes `lora: a.safetensors:0.6, b.safetensors`). A hosted model has no
+  model file or LoRAs to pick, and its steps read *none (the provider's)*.
 
 Beside the fields is what will render on the current pass, compiled as you type: the
 model, size and frames, the dialogue's pace against the shot's length (with how long it
@@ -246,7 +300,9 @@ then queues a take on the current pass.
 ### Editing a prompt
 
 **Inspect shot** is where a shot's prompt, seed, model, LoRAs and steps are edited, per
-pass. Save, then render it — the Inspector has two buttons for that:
+pass: its **Video model class** first, then what that model loads (model file, LoRAs as a
+chain, steps), then the prompt and seed. Save, then render it — the Inspector has two
+buttons for that:
 
 | Button | What it does |
 |---|---|
@@ -261,9 +317,9 @@ override. **Promote** moves overrides that the authored files can express back i
 
 ### Rendering one shot on another model
 
-The render and redo dialogs have **Target for this run**: a one-off, sent with the render,
-leaving the shot's own target alone. Under it, the size and length are **that target's, for
-this shot** — not a preset. That matters because a target's frame grid decides the length: one
+The Render dialog has **Video model class for this run**, and New take like this one…
+**Model class**: a one-off, sent with the render, leaving the shot's own target alone.
+Under it, the size and length are **that target's, for this shot** — not a preset. That matters because a target's frame grid decides the length: one
 shot came out 448×256 at 124 frames on H3, 448×256 at 129 on LTX and 640×352 at 125 on Wan.
 The dialog asks the server for the real numbers (P9), so what it prints is what you get.
 
@@ -491,7 +547,11 @@ right. Every character view, prop, plate, voice and shot keyframe the series con
 script call for is listed here.
 
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
-  series config, on its card (as a group's **+** does).
+  series config, on its card (as a group's **+** does); **Series** opens Series settings.
+- **Refs render with:**, **Keyframes with:** and **Voices with:** pick the models that make
+  each (a choice here is this episode's, kept in `overrides.json`, with the `series.json`
+  line to make it the series default); a ref with its own model keeps it.
+- **this episode / all / missing** filters the list.
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
@@ -521,6 +581,14 @@ script call for is listed here.
   there and it becomes that view's own; **Remove this view's own settings** drops only those
   and leaves the character's. A view's prompt has the series config's wording behind it, so
   **Diff** shows what you changed and **Series config** puts it back.
+
+### A place's tour
+
+A location (or one of its angles) with a plate has a **Tour**: pick a move (or write one),
+set how long it runs, and **Run tour**. H3 moves the camera through the place from its plate
+and holds; each held frame lands as one of the place's tour holds, and **Grab frame** in
+the viewer keeps another. **Use** copies a hold in as a plate candidate of the location or
+an angle; **Use and sharpen** queues a sharpening edit on it too.
 
 ### References you already have
 
@@ -581,8 +649,8 @@ You get a confirm when:
   whoever owns it.
 
 Picking over your own episode's pick says nothing, which is the case you are in all day while
-making refs. On the command line, `seriesmith/kreagen.py --clear` refuses a shared live file unless you
-pass `--yes`.
+making refs. On the command line, `seriesmith refs <episode> --clear <ref>` refuses a shared
+live file unless you pass `--yes`.
 
 ### Choosing a model
 
@@ -597,7 +665,9 @@ The target picker sets which image model generates. They are not interchangeable
 | `minimax_h3_still` | Up to 9 | The video model rendering 5 frames and keeping the first |
 | `qwen_image_21` | Up to 16 | Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable cfg, scheduler, denoise and negative prompt |
 
-`seriesmith targets --kind image` says which are installed.
+The hosted image models (Nano Banana, Seedream, GPT Image 2, Flux Kontext Pro, Krea 2 on
+Router, …) are under **Comfy Router (paid)** in the same pickers; most of them take
+pictures to edit from. `seriesmith targets --kind image` says which are installed.
 
 ### Wardrobe variants
 
@@ -620,7 +690,8 @@ prompt alone`.
 
 ## Importing a series
 
-**Import series…** (Shots, beside the project folders) brings a whole season in at once:
+**Import series…** (in **Project folders**, beside New series… and New episode…) brings a
+whole season in at once:
 pick the scripts (`Files…`) or a folder of them (`Folder…`), with one series config for the
 lot or one per episode (a `series.json` beside a script, or named after it). Each script
 becomes an episode folder under the show you choose, named from its header; the import
@@ -631,12 +702,13 @@ build it). Then build and render them as any other episode.
 
 Every render, reference, voice, upscale, post and tour is a **job**, and a job runs on a
 **backend**: `local` (your own ComfyUI, through comfy-api-proxy), `cloud` (Comfy Cloud),
-`deployment:<target>` or `router` (a hosted model). The Render dialog's **Render on**
-row picks one for that request (every backend this machine is set up for, a greyed-out one
-not answering); left at **each shot's own backend**, a shot uses its own (an override), the
-episode's, the series config's `series.backend`, else its target's first. A hosted target
-(Seedance, Krea 2 on Router) only runs on `router`; a shot sent somewhere its target can't
-run says so in its error ([SETUP.md](SETUP.md) sets backends up). The take's record says
+`deployment:<target>` or `router` (a hosted model). **Render on** in the top bar (on top of
+seriesmith Shots inside ComfyUI) picks one for every render from the page this session, and
+the Render dialog's own row for that request: every backend this machine is set up for, a
+greyed-out one not answering. Left at **each shot's own**, a shot uses its own (an
+override), the episode's, the series config's `series.backend`, else its target's first. A
+hosted target (Seedance, Krea 2 on Router) only runs on `router`; a shot sent somewhere its
+target can't run says so in its error ([SETUP.md](SETUP.md) sets backends up). The take's record says
 where it ran.
 
 ## Jobs
@@ -682,13 +754,15 @@ where things are. What it would lose to a restart, it doesn't:
 
 ## Settings
 
-**Settings** in the top bar is this machine's own, never the series': the **Comfy API key**
-(from platform.comfy.org; it turns on Comfy Cloud and Comfy Router, and paid use is billed
-to that account), the Cloud address, where your **ComfyUI** and **comfy-api-proxy** are,
-and **deployments** (a model built into a Comfy deployment of its own, which then shows in
-**Render on** as `deployment:<model>`). Saving applies at once. They live in
+**Settings** in the top bar (on top of seriesmith Shots inside ComfyUI) is this machine's
+own, never the series': the **Comfy API key** (from platform.comfy.org; it turns on Comfy
+Cloud and Comfy Router, and paid use is billed to that account), the Cloud address, **Paid
+runs per session** (the cap; empty is none), where your **ComfyUI** and **comfy-api-proxy**
+are, and **deployments** (a model built into a Comfy deployment of its own, which then
+shows in **Render on** as `deployment:<model>`). Saving applies at once. They live in
 `%APPDATA%\seriesmith\settings.json`; a value the environment sets (`COMFY_API_KEY`, ...)
-wins and shows as such.
+wins and shows as such. On the standalone page opened on the PC that runs the server,
+**This server** has **Stop** and **Restart**.
 
 ## The viewer
 
@@ -711,15 +785,37 @@ The cut as an editable track, along the bottom of the page.
 - **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
-- **Ctrl + wheel** over the track zooms.
-- **Turn on the waveform lane** to see the audio under the cut. Useful with a recording
-  attached.
-- **Export** assembles the mp4; **Play all** watches it straight from the takes without
-  assembling anything.
+- **Ctrl + wheel** over the track zooms (or the slider).
+- **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
+  with a recording attached.
+- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
+  **2x** beside it assembles from the takes' upscales. **Add Titles** assembles the whole
+  cut and puts the series intro and outro around it with the episode's title
+  (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into `<episode>/publish/`).
+  **Play all** watches the cut straight from the takes without assembling anything.
+- **Cut** (the menu in the header): undo / redo, **Reset order**, **Clear trims**, copy the
+  order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the
+  cut…**, **Master…** and the waveforms. The header also counts the clips flagged (click:
+  the next one), moved out of script order, and missing refs (click: the Refs tab).
 
 Setting a shot's keyframe from its neighbour is how you make a cut continuous: use the
 menu's **Use this frame as the next shot's first frame** on the take you like, and the
 next shot starts where this one ended.
+
+### Finishing: upscale, post, master
+
+A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the
+same performance) or an upscale model, its own audio kept. **Post-process…** then finishes
+that upscale: an enhance step (draft, production or cinematic) and motion blur. Each
+dialog follows the series' recipe (`upscale.master`, `post.master`, in Series settings) or,
+with **Choose for this run**, your choice. The Cut menu does the same for the whole pass.
+
+**Master** (the timeline header, or Cut → **Master…**) shows what each shot of the cut is
+against the series' upscale recipe, queues the upscales it needs, then assembles the master
+into `<episode>/master/`, with the intro and outro when the show has `_titles/`. It is a
+job the server keeps, so closing the dialog or reloading the page doesn't stop it. **Keep
+upscale** on a take makes Master leave that upscale alone.
+[POST_PROCESSING.md](POST_PROCESSING.md) has the detail.
 
 ### Keyboard
 

@@ -863,7 +863,7 @@ def inspect_graph(data: dict, object_info: dict, model_list=None, target_id: str
     params.update(saver_params(object_info, saver["class_type"], params))
     tid = target_id or _id_from(workflow_name) or "my_target"
     binding = {"workflow_name": workflow_name or f"{tid}.json",
-               "env": f"H3_{tid.upper()}_WORKFLOW", "saver": saver, "prune": True,
+               "env": f"SERIESMITH_{tid.upper()}_WORKFLOW", "saver": saver, "prune": True,
                "params": params}
     if inputs:
         binding["inputs"] = inputs
@@ -1000,7 +1000,7 @@ def _inspect_image(data: dict, ui, graph: dict, problems: list, saver: dict, sav
                      "size_multiple": int(tpl.get("size_multiple") or 16)},
         "recipe": {"ref_word": "image"},
         "binding": {"workflow_name": workflow_name or f"{tid}.json",
-                    "env": f"H3_{tid.upper()}_WORKFLOW", "saver": saver, "prune": True,
+                    "env": f"SERIESMITH_{tid.upper()}_WORKFLOW", "saver": saver, "prune": True,
                     "params": params, **({"references": refs} if refs else {})},
         "presets": {"final": final},
         "downloads": detect_downloads(ui),

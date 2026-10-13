@@ -1,7 +1,7 @@
 # seriesmith
 
 A series config and episode scripts in, finished episodes out: any shot on any
-model, on your own GPU or on Comfy's cloud.
+model, on your own GPU, on Comfy's cloud, or hosted through Comfy Router.
 
 You describe a show once in `series.json` (the cast, the places, the voices, the
 look) and write each episode as a screenplay-flavoured markdown script (`epNN.md`).
@@ -71,12 +71,13 @@ for its new target when it is queued; no rebuild.
 | `wan22_i2v` | Wan 2.2 14B I2V | a ComfyUI |
 | `wan22_ti2v` | Wan 2.2 5B TI2V | a ComfyUI |
 | `wan22_vace` | Wan 2.2 14B VACE (refs) | a ComfyUI |
-| `seedance_2_5` | Seedance 2.5 (hosted) | Comfy Router |
+| `minimax_h3`, `seedance_2_0`, `seedance_2_5`, `kling_v3_omni`, `kling_video_o1`, `wan_3_0`, `veo_3_1_fast`, `runway_gen4_turbo` | hosted models: MiniMax H3, Seedance 2.0 and 2.5, Kling v3 Omni and Video O1, Wan 3.0, Veo 3.1 Fast, Runway Gen-4 Turbo | Comfy Router |
+| `seedance_2_0_fast`, `seedance_2_0_mini`, `wan_3_0_prime`, `wan_2_7_r2v`, `wan_2_7_i2v`, `veo_3_1`, `veo_3_1_lite` | hosted drafts: shipped untried, switched on per machine once probed | Comfy Router |
 
 | Image target | Label |
 |---|---|
 | `krea2` (default for refs) | Krea 2 turbo (text to image) |
-| `krea_2_router` | Krea 2, hosted on Comfy Router |
+| `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | hosted on Comfy Router: Krea 2, Nano Banana Pro and 2.1, Gemini 3.1 Flash Image, Seedream 5.0, GPT Image 2, Flux Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1 |
 | `z_image_turbo` | Z-Image Turbo (fast text to image) |
 | `flux2_klein` | FLUX.2 Klein 9B (text to image) |
 | `flux2_klein_edit` (default for keyframes, when installed) | FLUX.2 Klein 9B edit (uses reference images) |
@@ -93,7 +94,20 @@ for its new target when it is queued; no rebuild.
 Each target lives in `seriesmith/targets/<kind>/<id>/`: `target.json` (presets, the
 model files it needs with their tier and download links, how to drive it, which
 backends can run it), its code (the prompt writer, the compile) and, for a workflow
-target, `workflow.json`.
+target, `workflow.json`. A Comfy Router model is data only: its `target.json` says
+where a shot's prompt, pictures, length, size and seed go in the provider's request
+(`tools/make_router_targets.py` writes the built-in ones).
+
+**Your own models.** The editor's **Models** window (beside every model picker) adds
+another Comfy Router model from Router's catalog (its schema read, its limits checked,
+a free dry run of the request), or turns a workflow saved in your ComfyUI into a model:
+video for shots, or image for refs and keyframes, ending in any save node. Save one for
+every show (`targets/` beside the settings file) or for one show
+(`<show>/targets/<id>/`); a new one is a draft until you probe it and enable it. Every
+video model and hosted image model has a **Limits** form (length, size, prompt length,
+pictures, sound); a change to a built-in one is kept on this machine.
+From the command line, `seriesmith target-from-workflow <workflow> <episode> --save`
+saves a workflow as that show's model.
 
 **Backends** are where a job runs: `local` (your own ComfyUI, through
 comfy-api-proxy), `cloud` (Comfy Cloud), `deployment:<target>` (a deployed
@@ -107,8 +121,8 @@ sets them up.
 target (`ready`, `degraded`, `not_ready`, `unknown`) and every missing file under it
 with its models folder and download link. A missing required file skips the shot
 with its link; a missing accelerator (a turbo LoRA) renders the slower base preset,
-and the take says so. The editor's target picker and its **What's missing** window
-show the same.
+and the take says so. The editor's model pickers and its **Models** window show the
+same.
 
 ## Install
 
@@ -124,7 +138,12 @@ mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\co
 
 (`ln -s` on Linux/macOS.) Restart ComfyUI so it loads seriesmith's nodes, then
 `seriesmith serve` opens the editor at http://127.0.0.1:8190 and starts the proxy
-in front of your ComfyUI. The default MiniMax H3 targets also need the
+in front of your ComfyUI. On Windows, `run_seriesmith.bat` (this PC) or
+`run_seriesmith_ext.bat` (your home network too) does the same and starts it again
+after the editor's **Restart**; `seriesmith stop [--restart]` stops it from a
+terminal. With the seriesmith package installed in ComfyUI's own Python, the node
+pack also puts the editor inside ComfyUI (INSTALL.md, "The editor inside ComfyUI").
+The default MiniMax H3 targets also need the
 [ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes)
 pack (its `H3SLAAttention` node); INSTALL.md lists every pack and which target
 needs it, and every model file with its link (generated from the targets by
@@ -158,8 +177,11 @@ http://127.0.0.1:8190:
   queued, running and done, per backend — with progress, the log, cancel, reorder,
   pause a backend, and run again as a new take.
 - **Script**, **Series config**, **Inspector**, **Recording**, **Audio from…**,
-  **Promote**, **Upscale**, **Post-process**, **Master** and **What's missing**
-  open as floating windows.
+  **Promote**, **Upscale**, **Post-process**, **Master** and **Models** open as
+  floating windows.
+- **Settings** (top bar): this machine's Comfy API key, ComfyUI, proxy and
+  deployment addresses, and, on the PC that runs the server, **Stop** and
+  **Restart**.
 
 **[docs/EDITOR.md](docs/EDITOR.md) is the guide to driving all of it.** Everything
 the editor does is a file in the episode folder (`overrides.json`, `cut.json`, take

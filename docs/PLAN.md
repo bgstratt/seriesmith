@@ -108,9 +108,10 @@ Left for later steps:
   directly, so they only mean something for the local backend.
 - Continuous shots (`continuous: latent`, H3ChainLatent) and continuity first
   frames (H3ContinuityFrame) still read the episode folder: local only (step 5).
+  (Done in step 8: portable, on any backend.)
 - Each run leaves its files in ComfyUI's output/seriesmith/<run>/ after they
   are copied into the take; the API can't delete them. A cleanup command, or
-  the proxy's retention, is needed before long episodes.
+  the proxy's retention, is needed before long episodes. (Still open.)
 
 ## Step 4 — the first hosted render: Router ✅ (live since 2026-10-11)
 
@@ -137,14 +138,16 @@ Left for later steps:
 
 Provider inputs can also be sent inline as base64 data URIs (the Seedance
 docs), which would spare small pictures the Cloud upload; worth trying when the
-live run happens.
+live run happens. (Done in step 14: a target's `pictures.via` sends them as Cloud
+links, inline, or through Seedance's virtual library; Veo 3.1 Fast takes them
+inline.)
 
 **Done when** one Porchlights episode renders with some shots on local H3 and
 some on the hosted model, from the same script. Without a key: tested end to
 end on the fake backend (tests/test_router_render.py), and Porchlights ep02
-sh180's request checked by eye (2026-10-10).
+sh180's request checked by eye (2026-10-10). With a key: live 2026-10-11 (above).
 
-## Step 5 — every local target; continuity and deployments (partly)
+## Step 5 — every local target ✅; continuity and deployments moved
 
 - [x] LTX-2, LTX ingredients, Wan (I2V, TI2V, VACE), H3 FL2V on the portable
       graph: their staged inputs (keyframes, a composed reference sheet, the
@@ -179,8 +182,10 @@ Moved:
   job at a time and collects each take before the next -- cuts the first
   frame, or uploads the previous take's latent (else its mp4) to a portable
   chain node, just before staging the shot. Until then such shots render on
-  local only, through h3pipe's nodes.
-- **Deployments** wait for a Comfy API key, with the Router live run.
+  local only, through h3pipe's nodes. (Done in step 8, on any backend.)
+- **Deployments** wait for a Comfy API key, with the Router live run. (The key
+  came with that run, 2026-10-11; a deployment hasn't been run live yet: step 8's
+  last item.)
 
 ## Step 6 — the rest of h3pipe, as it is ✅
 
@@ -212,7 +217,9 @@ backend now (tests/fakes.py).
 
 - [x] The server: the route table (h3pipe's comfy_nodes/h3pipe_routes.py)
       mounted by `seriesmith serve` (the ComfyUI host is written, and stays off
-      while h3pipe's node pack serves the same routes).
+      while h3pipe's node pack serves the same routes). Switched on 2026-10-11
+      (f2c7352): seriesmith's node pack serves the editor inside ComfyUI, with its
+      own queue and journal, Jobs, Render on and Settings (526065d).
 - [x] The editor (h3pipe's `web/`): a standalone host beside the ComfyUI one;
       the layout (Shots/Refs sidebar, docked viewer, timeline).
 - [x] Rendering from the editor through the backends; the queue: seriesmith's
@@ -229,7 +236,7 @@ go to the local ComfyUI directly, as in h3pipe, until step 8 moves them.
       /h3pipe/import; "Import series…" in the episode browser). Porchlights
       season 2 (10 episodes, each with its own config) imports and checks clean.
 
-## Step 8 — each stage portable, continuity, deployments
+## Step 8 — each stage portable, continuity, deployments (all but deployments live)
 
 With the UI there to try each one:
 - [x] Refs through targets and backends: generating a ref (and Generate
@@ -242,7 +249,7 @@ With the UI there to try each one:
 - [x] The 360 tour and kreagen's command line. A tour from the page goes on
       seriesmith's queue (runner.Runner.enqueue_tour): the location's plate is
       the graph's upload, and the video that comes back is kept and its holds
-      found here. `seriesmith kreagen --backend <name>` makes each take on a
+      found here. `seriesmith refs --backend <name>` (kreagen's) makes each take on a
       backend (Runner.enqueue_ref, waited for) and picks as before. Live
       2026-10-10: a 6 s tour of diner_counter_morning (ep02 scratch) on
       local, two holds.
@@ -251,6 +258,8 @@ With the UI there to try each one:
       (Runner.enqueue_ref's hosted path); the picture comes back as whatever
       the provider sends (.jpg / .webp kept as such). Tested on the fake
       backend only: the live run waits for an API key, with the rest below.
+      Live 2026-10-12 with the other Router image models (step 14), now driven
+      by `builtin:router_image` like them.
 - [x] Continuity across backends: seriesmith's queue stages a take when its
       job starts, so `first: continuity` cuts the first frame from the take
       the cut uses then, and `continuous: latent` uploads that take's latent
@@ -276,7 +285,7 @@ With the UI there to try each one:
       still h3pipe's (step 9).
 - [ ] Deployments, live (the Router run is done: step 4, step 14).
 
-## Step 9 — leaving h3pipe behind
+## Step 9 — leaving h3pipe behind ✅
 
 - [x] Nothing of h3pipe's node pack needed: every node seriesmith's graphs use
       is in its own pack.
@@ -315,7 +324,7 @@ With the UI there to try each one:
       Kept: the h3pipe-latent/1 header of latents on disk, H3_Ref2VA_Shotlist_v1.json
       and everything that really is MiniMax H3.
 
-## Step 10 — forms instead of files
+## Step 10 — forms instead of files ✅
 
 The two authored files stay the source of truth (the text windows stay one click
 away); forms read them, change only what they show, and save through the same
@@ -369,7 +378,7 @@ check, history copy and rebuild.
       the hash to refresh by), else the series config's paths. Checked live on
       a Porchlights episode's own sheets and plates.
 
-## Step 11 — resilience
+## Step 11 — resilience ✅
 
 A restart, a dropped connection or a hung job must never leave work stuck,
 lose a paid result, or spend money twice. (Done before it: a record whose job
@@ -417,7 +426,7 @@ the queue lost is failed, not queued forever, f270b20 / 1de4e1d.)
       pictures a clip or a frame asks for are kept as their own requests
       (/refs/generate), so a waiting one is asked again as itself.
 
-## Step 12 — simple mode
+## Step 12 — simple mode ✅
 
 A **Simple / Advanced** toggle on the editor, not a separate app: the same
 projects, queue and takes underneath, with most of the settings out of sight.
@@ -455,7 +464,7 @@ multi-shot clip, or a series with episodes.
       to those shots). Checked live (the lane paused): two Krea 2 pictures;
       two shots of two takes each.
 
-## Step 13 — a character (or a place) from a frame
+## Step 13 — a character (or a place) from a frame ✅
 
 Once a clip exists (rendered or uploaded), the best reference is often a
 frame of it: scrub to the moment the character reads well and make their

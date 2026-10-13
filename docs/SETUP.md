@@ -62,8 +62,28 @@ environment rather than in a file:
 
     setx COMFY_API_KEY comfyui-...    (Windows; export COMFY_API_KEY=... elsewhere)
 
-Router also needs it when everything else runs locally: a hosted model can only
-fetch its reference pictures from Comfy Cloud, so they are uploaded there.
+Router also needs it when everything else runs locally: a hosted model fetches its
+reference pictures from Comfy Cloud, so they are uploaded there (a few models take
+them inline in the request instead).
+
+The editor's **Settings** window sets the key too (saved in the settings file below);
+`seriesmith backends` says whether one is set.
+
+### Comfy Router models
+
+A hosted model is a target like any other, on the `router` backend only: no GPU, no
+model files. seriesmith ships the ones it has tried (video: MiniMax H3, Seedance 2.0
+and 2.5, Kling v3 Omni and Video O1, Wan 3.0, Veo 3.1 Fast, Runway Gen-4 Turbo; images:
+Krea 2, Nano Banana Pro and 2.1, Gemini 3.1 Flash Image, Seedream 5.0, GPT Image 2, Flux
+Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1), and a few video models as
+**drafts** (Seedance 2.0 Fast and Mini, Wan 3.0 Prime, Wan 2.7, Veo 3.1 and Lite), which
+stay out of the pickers until you probe one and **Enable** it in the editor's **Models**
+window. That window also adds any other model from Router's catalog
+([EDITOR.md](EDITOR.md), "Comfy Router models").
+
+What a hosted take costs is the provider's, billed to the key's account. Runs on Cloud,
+Router or a deployment are counted in the Jobs window, and `paid_limit` (below) caps
+them per server session.
 
 ## Settings
 
@@ -78,6 +98,21 @@ Anything not in the environment can go in a settings file,
   "deployments": {"minimax_h3_ref2va": "https://<your-build>.run.comfy.app"}
 }
 ```
+
+The other keys, most of them written by the editor rather than by hand:
+
+- `cloud_url` (default `https://cloud.comfy.org`) and `api_key` (better kept in
+  `COMFY_API_KEY`).
+- `paid_limit`: how many paid runs one server session may queue (none: no cap).
+- `enabled_drafts`: the built-in draft models switched on for every show (the Models
+  window's **Enable**).
+- `target_limits`: this machine's changes to a built-in model's limits (its **Limits**
+  form; **Back to shipped** removes one).
+
+Beside the settings file live the models you saved for every show (`targets/<id>/`),
+the editor's project folders (`default/seriesmith/config.json`) and the queue's journal
+(`queue.json`; `queue-comfyui.json` for the editor inside ComfyUI). A model saved for one
+show only goes in `<show>/targets/<id>/` instead.
 
 The environment wins over the file: `SERIESMITH_LOCAL_URL`,
 `SERIESMITH_COMFYUI_URL`, `SERIESMITH_CLOUD_URL`, `COMFY_API_KEY`;

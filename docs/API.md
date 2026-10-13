@@ -20,6 +20,50 @@ design record carried over from h3pipe: where they name h3pipe's nodes (`H3SaveR
 `H3ContinuityFrame`, a `project_root` input), seriesmith does the same thing through the
 queue — files go up with each job and come back as its outputs.
 
+## Route index
+
+Every route `seriesmith/api.py` (`ROUTES`) and `seriesmith/server/queue_views.py` serve,
+with the section that documents it. Later sections amend earlier ones, so read a route's
+section and search for the path for its later additions.
+
+| Route | Section |
+|---|---|
+| `GET` / `PUT /seriesmith/config` | Config |
+| `POST /seriesmith/server/stop` | Config (standalone only) |
+| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `POST /seriesmith/build` | Episodes |
+| `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
+| `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
+| `GET /seriesmith/file` | Files |
+| `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
+| `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
+| `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
+| `POST /seriesmith/assemble` | Assemble |
+| `POST` / `DELETE /seriesmith/upscale`, `GET /seriesmith/upscale/options`, `PUT /seriesmith/upscale/recipe`, `PUT /seriesmith/upscale/keep`, `POST /seriesmith/master`, `GET /seriesmith/master/job` | Upscale |
+| `POST` / `DELETE /seriesmith/post`, `GET /seriesmith/post/options` | Post-process |
+| `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
+| `GET /seriesmith/browse` | Round 2 additions |
+| `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos` | References (Phase 5) |
+| `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
+| `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure` | References (Phase 5): step 12, simple mode |
+| `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
+| `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
+| `POST /seriesmith/refs/keyframe` | Continuity keyframes |
+| `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
+| `POST /seriesmith/discard`, `POST /seriesmith/refs/discard`, `POST /seriesmith/refs/generate-missing` | Phase 8.6 |
+| `POST /seriesmith/refs/match` | Supplying references you already have (P8) |
+| `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
+| `GET /seriesmith/align/ready`, `POST /seriesmith/track`, `POST /seriesmith/align`, `POST /seriesmith/refs/voice-from-take` | Phase 9c |
+| `POST /seriesmith/audio/import` | Phase 9d |
+| `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
+| `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
+| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
+
+Not seriesmith's own: the page's websocket `/ws` (Live updates) and, under `seriesmith
+serve`, ComfyUI's `/models`, `/object_info/{node}` and `/queue` (Models). The `api.py`
+routes and `server/stop` also answer under `/api/seriesmith/...` (inside ComfyUI, every
+route does, as ComfyUI serves its own).
+
 ## Conventions
 
 - Prefix `/seriesmith/`. JSON in and out (`Content-Type: application/json`), UTF-8.
@@ -34,7 +78,9 @@ queue — files go up with each job and come back as its outputs.
   a `series.json` per episode so an episode can add props and locations of its own — and
   without it every sheet and plate in the Refs tab is a broken image. A sibling episode's
   files, the show folder's own files and anything outside a configured root stay refused.
-- **`pass`** is `"final"` or `"proxy"`. Default `"proxy"`.
+- **`pass`** is `"final"` or `"proxy"`. Default `"proxy"`, except the upscale, post and
+  master routes, where it is `"final"`. (The editor itself opens on `final` until the user
+  picks a pass; it always sends one.)
 - **Seeds are strings** in every request and response. Built seeds are 63-bit and
   JavaScript numbers lose precision above 2^53. Never parse them to a JS number.
 - Errors: status 4xx/5xx with `{"error": "message"}`. 400 bad input, 403 path outside
@@ -58,8 +104,9 @@ otherwise: the server may listen on the network with no password). `seriesmith s
 {"roots": ["C:/Shows"], "comfy": "http://127.0.0.1:8188",
  "review_copy": false, "version": 1}
 ```
-Stored in seriesmith's user folder as `default/seriesmith/config.json`. If that file
-doesn't exist, `roots` comes from `$SERIESMITH_ROOTS` (`os.pathsep`-separated), else `[]`.
+Stored in seriesmith's user folder (the settings file's folder, `%APPDATA%\seriesmith\` on
+Windows, for both hosts) as `default/seriesmith/config.json`. If that file doesn't exist,
+`roots` comes from `$SERIESMITH_ROOTS` (`os.pathsep`-separated), else `[]`.
 
 `review_copy` (2026-09-21, **false** by default) keeps a workflow's own video branch, so
 ComfyUI writes a second copy of each render into its `output/` folder. Every take is written
@@ -140,6 +187,13 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
   the episode's frames. A shot's `seconds` is its build's `length` at its target's rate.
 - The strip is `STRIP_FRAMES` (8) cells of equal width, left to right, evenly spaced
   through the clip. Hover scrub picks a cell from the pointer's x position.
+- The example is the original shape. Fields added since, each in its own section below:
+  the episode's `target`, `target_source`, `series_target` (The episode target) and
+  `track` (Phase 9c); a shot's `target`, `target_source`, `built_target`, `profile`
+  (Phase 7/8), `missing_refs`, `retarget_error`, `length_estimated`, `audio_in` /
+  `audio_out`; `cut.fps`, `order`, `script_index`, `out_of_order` (Phase 9b), `audio`,
+  `audio_file`, `audio_why` (Phase 9d); a take's `fps`, `width`, `height`, `target`,
+  `audio`, `draft` / `from_draft` (Seedance drafts), `upscale` and `post`.
 
 ### `GET /seriesmith/shot?ep=…&pass=…&shot=sh020`
 `edit.shot_detail(ep, pass, shot)`, seeds as strings. It has:
@@ -227,6 +281,16 @@ what makes the episode discoverable; a name that isn't a folder name, or is one
   builds. `seriesmith.episode` is emitted for the new folder. Same thing from the CLI:
   `seriesmith new Shows\ep02 [--title "…"] [--series-id …]`.
 
+### `POST /seriesmith/import`
+The editor's **Import series…**: a series config and a stack of scripts in, episode
+folders out (`source.import_series`). Body `{"parent"` (a folder inside a root), `"show"?`
+(the show folder to make or fill inside it; without one the episodes go straight into
+`parent`), `"series"?` (the series config's text, for every script without its own),
+`"scripts": [{"name", "text", "series"?}]}`. Each script becomes an episode folder named
+from its header. Nothing is built. Returns `{"show",
+"episodes": [{"ep", "name", "own_config", "check"}], "skipped": [{"name", "why"}],
+"errors": [{"file", "error"}]}` and emits `seriesmith.episode` for each episode made.
+
 ## Issues: a pass's notepad (P10, 2026-09-23)
 
 `<ep>/_issues.json` — what is wrong with a shot **as it was rendered**, filled while watching a
@@ -299,11 +363,15 @@ renders every shot of the request there.
     shotlist's; the take's sidecar records it, and a master re-samples it by its own size
     (`scale: "auto"`). A size off the target's grid is that shot's error (H3: multiples of
     32), or is snapped with a note on a target that snaps (LTX).
-- The workflow comes from `jobs.resolve_workflow(None, WORKFLOW_NAME, <this
-  server>)`: the copy saved in ComfyUI, else the repo copy. (Phase 7: the shotlist's
-  target's binding names it, `jobs.target_workflow`; for H3 that is still
-  `H3_Ref2VA_Shotlist_v1.json` among ComfyUI's saved workflows, and the repo copy is
-  now `seriesmith/targets/video/minimax_h3_ref2va/workflow.json`.)
+- Also in the body, each optional: `target` (a one-off video target for this run, Phase 8),
+  `negative`, `allow_missing_refs`, `allow_model_mismatch` (Model families), `save_frames`
+  (keep the frames as PNGs), `save_latent` (keep the latent for an upscale; null: the
+  pass's default), `backend`, and `from_draft` (`{shot: proxy draft take}`, final pass
+  only: see Seedance drafts).
+- Each job's workflow is its target's (`jobs.target_workflow`, resolved once per target
+  per request): an environment variable's file, else the copy saved in ComfyUI under the
+  binding's `workflow_name`, else the repo's `seriesmith/targets/<kind>/<id>/workflow.json`
+  (Phase 11). A target whose workflow can't be read fails every shot on it, per shot.
 - For each shot the route calls `plan_job` and `Runner.enqueue_render`, which reserves
   the take (`start_job`, its record `queued`, `queue: "seriesmith"`, its `backend`) and
   queues the job. When the job starts its inputs are staged (keyframes, a composed sheet),
@@ -729,14 +797,36 @@ progress in ComfyUI's shapes — `execution_start`, `progress` (`{prompt_id, val
   finished, picked, cleared or discarded.
 - **`seriesmith.queue`**, the lanes (`GET /seriesmith/jobs`' `lanes`) after a move or a
   pause.
+- **`seriesmith.master`**, the whole job as `GET /seriesmith/master/job` has it: once when an
+  `assemble` starts, at every step (each clip written, each title encoded), and once
+  more when it is `done` or `failed`.
+- **`seriesmith.issues`**, `{"ep", "pass", ...}`, when an issue is added or removed;
+  **`seriesmith.align`**, `{"ep", "stage", "pct", ...}`, an alignment's progress (Phase 9c).
 
 ## The queue
 
-These are the standalone server's own (`seriesmith/server/standalone.py`).
+These are the queue's own routes (`seriesmith/server/queue_views.py`), registered by
+`seriesmith serve` and by a ComfyUI whose node pack started the queue (inside ComfyUI the
+editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answers).
+
+### `GET /seriesmith/info`
+`{"version", "settings" (as `GET /seriesmith/settings` describes them), "comfy_connected"}`.
+
+### `GET /seriesmith/settings` / `PUT /seriesmith/settings`
+This machine's settings (`seriesmith/settings.py`; never the series config). GET answers
+`{"settings": {"local_url", "comfyui_url", "cloud_url", "api_key": "set" | null,
+"deployments": {target: url}, "path", "paid_limit", "enabled_drafts", "target_limits"},
+"file", "from_env": {field: env var}}` — never the key itself. PUT takes any of
+`local_url`, `comfyui_url`, `cloud_url`, `api_key` (null removes it), `deployments`,
+`paid_limit` (null: no cap), `enabled_drafts`, `target_limits`; saves the file, makes the
+backends again from it (a running job keeps its own) and answers as GET. 400 for a value
+it can't take. A field the environment sets wins over the file.
 
 ### `GET /seriesmith/jobs`
-`{"jobs": [job], "lanes": {name: {"paused", "parallel", "waiting": [id], "running": [id]}}}`:
-every job queued or running, then the last 200 finished, newest first. A job is
+`{"jobs": [job], "lanes": {name: {"paused", "parallel", "waiting": [id], "running": [id]}},
+"paid": {"count", "limit"}}`: every job queued or running, then the last 200 finished,
+newest first; `paid` counts the runs sent to a paid backend this session against
+`paid_limit`. A job is
 `{"id", "kind" (render | ref | upscale | post | tour), "lane" (its backend), "title",
 "after" (the job it waits for, or null), "info" ({ep, pass, shot, take, target, backend,
 ...}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
@@ -747,7 +837,8 @@ every job queued or running, then the last 200 finished, newest first. A job is
 `cancel` `{"id"}` (a waiting job leaves the queue; a running one is asked to stop),
 `move` `{"id", "index"}` (a waiting job to that place in its lane; 0 is next), `retry`
 `{"id"}` (a finished job again; a render: a new take with the same settings), `pause`
-`{"lane", "paused"}` (a lane stops starting jobs, or resumes). Answers with
+`{"lane", "paused"}` (a lane stops starting jobs, or resumes), `paid-reset` `{}` (the paid
+run count back to 0). Answers with
 `GET /seriesmith/jobs`' body; 404 for an unknown job, 409 for one that can't (moving a
 running job).
 
@@ -755,15 +846,16 @@ running job).
 `{"backends": [{"name", "kind", "down" (why it doesn't answer, or null), "where"}],
 "api_key": true | false}`: the backends this machine is set up for, each asked whether it
 answers, and whether an API key is set (never the key).
-- **`seriesmith.master`**, the whole job as `GET /seriesmith/master/job` has it: once when an
-  `assemble` starts, at every step (each clip written, each title encoded), and once
-  more when it is `done` or `failed`.
 
 ## Models
 
 The UI reads ComfyUI's own lists: `GET /models/diffusion_models` (and
-`/models/unet` on older installs) for the model picker, `GET /models/loras` for LoRAs.
-No seriesmith route is needed. (Later: `GET /seriesmith/models` groups a target's model picker by
+`/models/unet` on older installs) for the model picker, `GET /models/loras` for LoRAs,
+`GET /object_info/<node>` for a loader's choices. Inside ComfyUI these are ComfyUI's own
+routes; `seriesmith serve` passes `/models`, `/models/{folder}` and `/object_info/{node}`
+(each also under `/api/`) on to this machine's ComfyUI (503 when it doesn't answer), and
+answers `/queue` in ComfyUI's shape with ComfyUI's own queue followed by seriesmith's jobs.
+(Later: `GET /seriesmith/models` groups a target's model picker by
 model family; see **Model families** at the end.)
 
 ## As built (Phase 2): readings of the points above that were ambiguous
@@ -811,7 +903,8 @@ model family; see **Model families** at the end.)
 - **`PUT /seriesmith/cut`:** duplicate shots and unknown entry fields answer 400.
 - **Not handled yet:** ComfyUI multi-user mode (config always lives in `default/`),
   and a TLS-fronted ComfyUI (self-queueing uses `http://`).
-- **Aliases:** every route also answers under `/api/seriesmith/...`.
+- **Aliases:** every route also answers under `/api/seriesmith/...` (under `seriesmith
+  serve`, the queue's routes excepted: see the Route index).
 
 ## Round 2 additions
 
@@ -1061,6 +1154,11 @@ makes them live and asks for the renders (or, `still`, the picture). With every
 picture there, the renders are asked for at once. Returns `{"refs", "waiting_on",
 "step", "renders", "stills"}`.
 
+### `POST /seriesmith/clips/ensure` (step 12)
+Body `{"root"?}`. Simple mode's **Clips** project (`clips.ensure_clips`): `Clips/clips/`
+in `root` (default the first project root), made the first time. Returns `{"ep", "made"}`
+and, when it was made, emits `seriesmith.episode`. 409 when there is no project root yet.
+
 ### `PUT /seriesmith/refs/pick`
 Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the
 sheet when all four views are picked. Returns the ref as `/refs` lists it. 409 if the
@@ -1155,10 +1253,17 @@ Everything model-specific lives in a **target**: `seriesmith/targets/video/<id>/
 one of each: `minimax_h3_ref2va` (MiniMax H3 Ref2VA) and `krea2`. A built shotlist
 belongs to one video target, the series config's `series.target` (default
 `minimax_h3_ref2va`). Episodes that mix targets arrive with Phase 8. (Phase 8: they have;
-`ltx2` is the second video target. See **Phase 8 as built** at the end.)
+`ltx2` is the second video target. See **Phase 8 as built** at the end. Today seriesmith
+ships two dozen video targets and about twenty image targets, the Comfy Router models
+among them, plus `ltx2_voice` (audio); a show adds its own: **Hosted models, limits and
+your own workflows**.)
 
-### `GET /seriesmith/targets[?kind=video|image]`
-Every target, for pickers. Nothing here is per-episode.
+### `GET /seriesmith/targets[?kind=video|image|audio][&ep=…][&ready=1]`
+Every target, for pickers. `ep` adds that show's own targets (Phase 12); `ready=1` adds each
+one's `readiness` (Readiness, below). Each also carries `graph` (Phase 11: which copy of its
+workflow is in force) and, added since the example below, `short`, `family`, `models`,
+`capabilities`, `downloads`, `limits`, `draft` / `shipped_draft`, `custom` and `scope`
+(the later sections). Otherwise nothing here is per-episode.
 ```json
 {"targets": [{
    "id": "minimax_h3_ref2va", "kind": "video", "label": "MiniMax H3 Ref2VA",
@@ -3229,7 +3334,7 @@ Two new flags, both needing a reachable ComfyUI:
 
 ### The editor
 
-The What's missing window is where a target's detail already lives, so the **Graph** card
+The What's missing window (now the **Models** window) is where a target's detail already lives, so the **Graph** card
 sits at the top of it: the workflow name, where it comes from, an "edited here" chip when
 `differs`, and one button — **Copy to ComfyUI** (with a confirm before replacing a saved
 file) or **Revert to the repo's copy** when a saved copy is in force. `$ENV` shows the
@@ -3447,7 +3552,7 @@ it.
 
 ### 12c: the editor
 
-The What's missing window — where a target's detail already lives — gains **This show's own
+The What's missing window (now the **Models** window) — where a target's detail already lives — gains **This show's own
 targets**: each one with `draft` / `ready`, its workflow, and buttons for **Probe render**,
 **Enable for shots**, **Back to draft** and **Remove**. **Add a target from a workflow…**
 opens a wizard: pick one of ComfyUI's saved workflows, Read it, then confirm the handful of

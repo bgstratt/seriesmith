@@ -1,11 +1,12 @@
-# krea pipeline — reference images for h3
+# kreagen — reference images
 
-`seriesmith/kreagen.py` reads the same `refs_todo.json` build already writes, generates
-every image asset on a local ComfyUI with the krea2 turbo image stack, and
-writes each result straight to the path build expects. No copying files
-around, no renaming.
+`seriesmith/kreagen.py` (`seriesmith refs <episode>`) reads the same `refs_todo.json`
+build already writes, generates every image asset on an image target (krea2 turbo
+unless you choose another), and writes each result straight to the path build expects.
+No copying files around, no renaming.
 
 ```bash
+seriesmith refs Shows/ep01 --list                           # the same, through the CLI
 python -m seriesmith.kreagen --project-root . --list        # what would run
 python -m seriesmith.kreagen --project-root . --dry-run     # the exact prompts
 python -m seriesmith.kreagen --project-root .               # generate
@@ -19,6 +20,13 @@ the busiest plate (6) come out before anything that gates a single shot.
 Existing files are skipped unless `--redo`, which can be combined with `--only`.
 
 ## Which graph runs
+
+The image target decides: `--target`, else each ref's override, the episode's choice
+(the editor), the series config's `refs.target`, else `krea2`. Any target other than
+krea2 uses its own workflow (`seriesmith/targets/image/<id>/`), or one Router call for
+a hosted one (`krea_2_router`, `gpt_image_2`, `nano_banana_pro`, ... :
+`builtin:router_image`); an image workflow of your own is a target too
+(`builtin:workflow_image`, proposed by the inspector). The rest of this section is krea2.
 
 `--workflow <file>` drives a specific ComfyUI workflow. With no flag, kreagen
 looks for `$KREA_WORKFLOW`, then `krea2_refs_t2i.json` as saved in the running
@@ -55,18 +63,19 @@ sheet and the 27 shot prompts still cannot drift.
 
 ## Three fixes to the base graph
 
-`krea2_h3_refs_t2i.json` is a krea2 turbo text-to-image graph with three
-changes from the stock one. kreagen can drive that file directly — save it as
+The krea2 target's workflow (`seriesmith/targets/image/krea2/workflow.json`, saved in
+ComfyUI as `krea2_refs_t2i.json`) is a krea2 turbo text-to-image graph with three
+changes from the stock one. kreagen drives that file — save your own copy as
 `krea2_refs_t2i.json` among ComfyUI's workflows, or point `--workflow` at it — and
 otherwise builds the same shape of graph in API form from the krea2 target
 (`seriesmith/targets/image/krea2/target.json` and `graph.py`). Driving the file is the better habit: the model, LoRA, sampler
 and scheduler then live on the canvas, where you can see them.
 
-**1. 1280×720 → 1344×768.** 720 isn't divisible by 32. Per the seriesmith README
-the loader raises on it rather than letting H3 fail deep in the graph, so
-every plate generated at 720 would have been unusable.
+**1. 1280×720 → 1344×768.** 720 isn't divisible by 32. H3's shot loader raises on it
+rather than letting H3 fail deep in the graph, so every plate generated at 720 would
+have been unusable.
 
-**2. The LoRA's CLIP output was going nowhere.** In the base, `CLIPTextEncode`
+**2. The LoRA's CLIP output was going nowhere.** In the stock graph, `CLIPTextEncode`
 took its CLIP straight off `CLIPLoader`, so a style LoRA's `strength_clip` had
 no effect at all — you got the model side of the LoRA only. Now, when a LoRA is
 in play, the text encoder reads the LoRA's CLIP; `--no-lora-clip` restores the
@@ -78,8 +87,9 @@ look `series.json` asks for and a realism LoRA fights a storybook one. Add one
 per run with `--lora <file> --lora-strength 0.7`. For photoreal work a Krea2
 realism LoRA earns its place; for flat 2D shows, none usually beats any.
 
-**3. Prompt box** seeded with the `core_wide` plate prompt instead of the cat
-collar left over from the last project.
+**3. Prompt box** says that kreagen sets it per image (paste a prompt from
+`refs_todo.md` to test by hand) instead of holding a prompt left over from another
+project.
 
 ## Negatives
 
@@ -126,13 +136,19 @@ file; `--pick` puts it live.
 
 `seriesmith/kreagen.py` expects `seriesmith/mksheet.py` beside it — keep both in `seriesmith/`, or pass
 `--mksheet`. Every take is a job on seriesmith's queue (this process's own),
-made on `--backend` (default: each target's own, usually `local`): the graph keeps
-its SaveImage, and the picture the backend hands back closes the take.
+made on `--backend` (`local`, `cloud`, `deployment:<target>`; default: each target's
+own, usually `local`, a Router target's `router`): the graph keeps its SaveImage, and
+the picture the backend hands back closes the take.
+
+The same command does the rest of a ref's takes: `--clear` / `--discard` a pick or a
+candidate, `--edit REF --instruction "..."` (with `--with` for another ref's picture)
+on an edit target, and `--voices` for the voice refs on the audio target
+(`ltx2_voice` by default) or `--from-take` to cut one out of a rendered take.
 
 ## After a run
 
 ```bash
-seriesmith build series.json ep01.md --check     # references N/22 on disk
+seriesmith check Shows/ep01                      # references N/22 on disk
 python -m seriesmith.mksheet refs/sam/sam_sheet_4panel.png --check
 ```
 

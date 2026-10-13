@@ -18,14 +18,22 @@ Issues and pull requests are welcome.
   change means to alter them; then regenerate them with
   `python tests/test_golden.py --update`, review the diff and say why in the PR. If a
   change touches rendering, say what you rendered to verify it.
-- The editor lives in `web/` (React/Vite): `npm run build:standalone` there writes the
-  committed page in `seriesmith/server/static/`, so commit both; `npx vitest run` runs
-  its tests.
+- The editor lives in `web/` (React/Vite) and is built twice: `npm run build:standalone`
+  writes the page `seriesmith serve` serves (`seriesmith/server/static/`), `npm run build`
+  the one inside ComfyUI (`comfy_nodes/web/seriesmith-editor.js`). Both are committed, so
+  rebuild and commit them with the source; `npx vitest run` runs its tests.
 - `prompts/` and the skill in `build/skill/` are generated. Edit `docs/AUTHORING.md` (and
   `docs/SCRIPT_CONVERSION.md`) and run `python tools/make_prompts.py`.
 - INSTALL.md's model list is generated too. If you change a target's `models`, `presets`
   or `downloads`, run `python tools/make_models_md.py` and commit the result;
   `tests/test_docs.py` fails when it is out of date (`--check` does the same without
-  writing). Never add a download URL you cannot trace to a ComfyUI template, a saved
-  workflow or ComfyUI-Manager's model list — leave `url` null and say so in `source`.
+  writing). It lists the shipped targets only, never the models you saved. Never add a
+  download URL you cannot trace to a ComfyUI template, a saved workflow or ComfyUI-Manager's model list — leave `url` null and say so in `source`.
+- The built-in Comfy Router models (`seriesmith/targets/{video,image}/` whose `code` is
+  `builtin:router_video` / `builtin:router_image`) are generated too, from the schemas in
+  `tests/fixtures/router_schemas/` and the limit corrections in
+  `tools/make_router_targets.py`. Change those and run it; `tests/test_router_inspect.py`
+  fails when they are out of date.
+- The tests run on settings of their own (`tests/conftest.py`), so your machine's
+  settings, API key and own models never reach them.
 - `series.json` is the **series config**, never the bible.

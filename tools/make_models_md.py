@@ -29,6 +29,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+# the shipped targets only: not the models this machine saved for every show
+# (beside its settings), which INSTALL.md isn't about
+os.environ["SERIESMITH_SETTINGS"] = os.path.join(ROOT, "tools", "_no_settings.json")
 
 from seriesmith import targets as TG                              # noqa: E402
 from seriesmith.targets import modelid                            # noqa: E402
