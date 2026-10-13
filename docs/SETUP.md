@@ -72,12 +72,9 @@ The editor's **Settings** window sets the key too (saved in the settings file be
 ### Comfy Router models
 
 A hosted model is a target like any other, on the `router` backend only: no GPU, no
-model files. seriesmith ships the ones it has tried (video: MiniMax H3, Seedance 2.0
-and 2.5, Kling v3 Omni and Video O1, Wan 3.0, Veo 3.1 Fast, Runway Gen-4 Turbo; images:
-Krea 2, Nano Banana Pro and 2.1, Gemini 3.1 Flash Image, Seedream 5.0, GPT Image 2, Flux
-Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1), and a few video models as
-**drafts** (Seedance 2.0 Fast and Mini, Wan 3.0 Prime, Wan 2.7, Veo 3.1 and Lite), which
-stay out of the pickers until you probe one and **Enable** it in the editor's **Models**
+model files. seriesmith ships the video and image models it has tried (Seedance, Kling,
+Wan, Veo, Runway, hosted H3; Nano Banana, Seedream, GPT Image, Flux, Qwen, Krea 2 and
+more), and others as **drafts**, which stay out of the pickers until you probe one and **Enable** it in the editor's **Models**
 window. That window also adds any other model from Router's catalog
 ([EDITOR.md](EDITOR.md), "Comfy Router models").
 

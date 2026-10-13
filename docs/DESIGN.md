@@ -241,11 +241,7 @@ The work list, with what "done" means for each step, is [PLAN.md](PLAN.md).
 
 - Does Comfy Cloud accept arbitrary custom node packs, or only a curated set?
   (Deployments clearly do.)
-- Does Comfy Cloud return a saved latent as an output, as the proxy does?
-- The Comfy Dev Platform Challenge was postponed; check its rules when it is
-  re-posted. Our reading: the entry must run its generation through the
-  Developer Platform, Comfy Cloud or the SDK; where the UI lives doesn't matter.
-  The feature to lead with is character and location consistency across a series.
+- Does Comfy Cloud return a saved latent as an output, as the proxy does?
 
 Answered since: Router's hosted H3 (`minimax_h3`) takes reference images and
 first/last frames, no reference audio (it makes its own sound); Router answers an

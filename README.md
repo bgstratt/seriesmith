@@ -71,13 +71,12 @@ for its new target when it is queued; no rebuild.
 | `wan22_i2v` | Wan 2.2 14B I2V | a ComfyUI |
 | `wan22_ti2v` | Wan 2.2 5B TI2V | a ComfyUI |
 | `wan22_vace` | Wan 2.2 14B VACE (refs) | a ComfyUI |
-| `minimax_h3`, `seedance_2_0`, `seedance_2_5`, `kling_v3_omni`, `kling_video_o1`, `wan_3_0`, `veo_3_1_fast`, `runway_gen4_turbo` | hosted models: MiniMax H3, Seedance 2.0 and 2.5, Kling v3 Omni and Video O1, Wan 3.0, Veo 3.1 Fast, Runway Gen-4 Turbo | Comfy Router |
-| `seedance_2_0_fast`, `seedance_2_0_mini`, `wan_3_0_prime`, `wan_2_7_r2v`, `wan_2_7_i2v`, `veo_3_1`, `veo_3_1_lite` | hosted drafts: shipped untried, switched on per machine once probed | Comfy Router |
+| hosted video models (Seedance, Kling, Wan, Veo, Runway, hosted H3, …) | the models seriesmith has tried, plus drafts to probe; the Models window lists them, and adds any other from Router's catalog | Comfy Router |
 
 | Image target | Label |
 |---|---|
 | `krea2` (default for refs) | Krea 2 turbo (text to image) |
-| `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | hosted on Comfy Router: Krea 2, Nano Banana Pro and 2.1, Gemini 3.1 Flash Image, Seedream 5.0, GPT Image 2, Flux Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1 |
+| hosted image models (Nano Banana, Seedream, GPT Image, Flux, Qwen, Krea 2, …) | on Comfy Router; listed and added in the Models window |
 | `z_image_turbo` | Z-Image Turbo (fast text to image) |
 | `flux2_klein` | FLUX.2 Klein 9B (text to image) |
 | `flux2_klein_edit` (default for keyframes, when installed) | FLUX.2 Klein 9B edit (uses reference images) |

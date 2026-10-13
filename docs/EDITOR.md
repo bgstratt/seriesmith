@@ -452,10 +452,9 @@ the Refs tab's refs / keyframes / voices models, and the series settings' four).
 ### Comfy Router models
 
 A hosted model needs your Comfy API key (Settings) and no GPU. seriesmith ships the ones it
-has tried (video: MiniMax H3, Seedance 2.0 and 2.5, Kling v3 Omni and Video O1, Wan 3.0,
-Veo 3.1 Fast, Runway Gen-4 Turbo; images: Nano Banana Pro and 2.1, Gemini 3.1 Flash, Seedream
-5.0, GPT Image 2, Flux Kontext Pro, Flux 2 Pro, Qwen Image 3.0, Kling Image O1, Krea 2) and a
-few drafts. To add another: **Add a Comfy Router model…**
+has tried (Seedance, Kling, Wan, Veo, Runway, hosted H3; Nano Banana, Seedream, GPT Image,
+Flux, Qwen, Krea 2 and more: **Hosted models to try** and the pickers list them) and a few
+drafts. To add another: **Add a Comfy Router model…**
 
 1. **Pick it.** Router's catalog, narrowed by typing any part of an id and by Video / Image
    / All (a guess from the name). A model already added says so; one whose name says
