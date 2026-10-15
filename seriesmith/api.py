@@ -1367,13 +1367,13 @@ def post_upscale(ctx: Context, body):
         raise ApiError(400, "seedvr2_model must be 7b, 3b or a model file name, or null")
     pixel_model = body.get("pixel_model")
     if pixel_model is not None and (not isinstance(pixel_model, str) or not pixel_model):
-        raise ApiError(400, "pixel_model must be an upscale model's file name, or null")
+        raise ApiError(400, "pixel_model must be an upscale model's file name (or rtx_vsr), or null")
     detail = body.get("detail")
     if detail is not None and detail not in U.DETAILS:
         raise ApiError(400, "detail must be 0, 1 or 2, or null")
     then_model = body.get("then_pixel_model")
     if then_model is not None and (not isinstance(then_model, str) or not then_model):
-        raise ApiError(400, "then_pixel_model must be an upscale model's file name, or null")
+        raise ApiError(400, "then_pixel_model must be an upscale model's file name (or rtx_vsr), or null")
     encoder = body.get("encoder") or "auto"
     if encoder not in U.ENCODERS:
         raise ApiError(400, f"encoder must be one of {', '.join(U.ENCODERS)}")

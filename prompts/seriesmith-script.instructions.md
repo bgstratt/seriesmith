@@ -336,6 +336,13 @@ Takes on a show's own targets (and any take, by choice) can still be upscaled by
 ComfyUI's `models/upscale_models`) over the frames, with the take's audio copied on. It is
 fast and needs nothing but the model, but it only sharpens what's there; it draws no new
 detail the way a re-sample does. `seriesmith upscale <ep> --method pixel` uses it for any take.
+On an NVIDIA RTX card, **RTX Video Super Resolution** is offered among the upscale models
+(`--pixel-model rtx_vsr`; INSTALL.md says how to add it): no model file, and about 15 s a
+5 s shot at 2x against RealESRGAN_x2's two minutes (SeedVR2 7B: seven to nine). It is a
+little softer than RealESRGAN and a little steadier frame to frame, and likewise draws
+nothing new. Its default level (ULTRA) is the one for generated takes; HIGHBITRATE_ULTRA
+leaves a clean take nearly as it was. It goes wherever an
+upscale model goes (the pixel method, `--then-pixel rtx_vsr`, a Wan re-sample's start, a post).
 
 **SeedVR2** is the third method, for any take too: a one-step video restoration model
 (ComfyUI's own nodes; files in INSTALL.md). It gives the sharpest single frames of the three,

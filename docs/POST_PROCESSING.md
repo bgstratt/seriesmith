@@ -67,6 +67,7 @@ restoration, not another upscale). The tiers name the methods:
 |---|---|---|---|---|
 | Draft | `"draft"` / `{"method": "pixel"}` | an upscale model (RealESRGAN_x2) at 1x, colour and tone the source's: a sharpen | per frame, but it invents little, so little flickers | seconds |
 | Production | `"production"` / `{"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": 6}` | SeedVR2 7B at 1x in fixed chunks (`"fit"`: 61 frames at 1080p, 33 at 1440p, 13 at 4K, by pixel count) crossfaded over 6 latent frames, then the frequency-split finish | yes, a video model | 4.3 min for a 5 s shot at 1080p (sh2100); 11.2 min for a 6.6 s shot at 1440p, with blur 0.3 (measured: about 100 s per second of footage) |
+| | `{"method": "pixel", "pixel_model": "rtx_vsr:DEBLUR_ULTRA"}` | NVIDIA RTX Video Super Resolution's deblur at 1x (`DENOISE_*` / `DEBLUR_*` levels, or `rtx_vsr` itself; an RTX card and Comfy-Org's RTX nodes, INSTALL.md), then the finish | per frame | seconds (not measured) |
 | | `{"method": "seedvr2", "seedvr2_model": "3b"}` | SeedVR2 3B | yes | 4.2–4.4 min at 1080p (measured) |
 | Cinematic | `"cinematic"` / `{"method": "supir", "strength": 0.2}` | SUPIR (ComfyUI core's `SUPIRApply`) on SDXL at denoise 0.05–0.5, two frames at a time, the same seed on every batch, then the frequency split (only its detail is kept) | **no** | to measure: about 10 SDXL steps a frame |
 

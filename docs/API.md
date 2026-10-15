@@ -517,7 +517,9 @@ upscale is skipped unless `redo`.
 block) or `"pixel"` (an upscale model over the frames: any target, the default for the
 rest), null for each take's default. `pixel_model` names the pixel method's model, a file
 in ComfyUI's `models/upscale_models` (null: `RealESRGAN_x2.pth` if installed, else the first
-2x model); `detail` (0, 1 or 2) starts a re-sample that many steps earlier than the default
+2x model), or `"rtx_vsr"` / `"rtx_vsr:<level>"` for NVIDIA RTX Video Super Resolution (its
+`RTXVideoSuperResolution` node, ULTRA unless a level is named; listed in options' `pixel.models`
+when this ComfyUI has the node, and taken wherever a pixel model is, `then_pixel_model` too); `detail` (0, 1 or 2) starts a re-sample that many steps earlier than the default
 (more detail, more change). The pixel method needs no latent, no frozen shotlist and none
 of the take's target's models, and a scale only has to land on even sides. `scale` is more
 than 1 and at most 4: a pixel scale lands on even sides, an H3 re-sample's on the 32 grid,

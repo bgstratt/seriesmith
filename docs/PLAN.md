@@ -578,3 +578,12 @@ self-hosted endpoint. The same data-driven model, a different transport:
 
 - Publishing (after step 15): the ComfyUI Manager listing for the node pack and the
   ComfyUI host; PyPI for the app.
+- RTX Video Super Resolution (`rtx_vsr`, among the pixel models; 2026-10-14). Measured
+  2026-10-15 on the RTX 5090, 2x of two 5 s takes (Porchlights ep02 sh2440, H3 1344x768;
+  sh190, Seedance 1280x720), whole job: RealESRGAN_x2 128-159 s, VSR ULTRA 14 s warm
+  (35 s cold), VSR HIGHBITRATE_ULTRA 14-17 s, SeedVR2 7B 433-515 s. Flicker added over the
+  take's own (frames back at its size, mean abs diff of frame-to-frame change):
+  VSR ULTRA 1.14-1.20, HIGHBITRATE 0.86-0.95, RealESRGAN 1.39-1.43, SeedVR2 1.87-1.88.
+  By eye: SeedVR2 adds real detail; RealESRGAN sharper than VSR ULTRA, edging to
+  oversharp; VSR ULTRA clean, skin smoothed; HIGHBITRATE close to lanczos. Still open:
+  whether its full-size float output needs chunking for a long 4K take.

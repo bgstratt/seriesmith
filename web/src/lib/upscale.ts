@@ -102,3 +102,16 @@ export function methodFor(choice: "auto" | "latent" | "pixel" | "seedvr2", laten
   if (choice !== "auto") return choice;
   return latent && latent.status === "ready" ? "latent" : "pixel";
 }
+
+/** RTX Video Super Resolution: offered among the upscale models by name
+ *  ("rtx_vsr", or "rtx_vsr:<level>"); it has no precision to choose. */
+export function isVsr(model?: string | null): boolean {
+  return !!model && (model === "rtx_vsr" || model.startsWith("rtx_vsr:"));
+}
+
+/** An upscale model as the dropdowns show it. */
+export function modelLabel(model: string): string {
+  if (!isVsr(model)) return model;
+  const level = model.includes(":") ? model.split(":")[1] : "ULTRA";
+  return `RTX Video Super Resolution (${level.toLowerCase().replace(/_/g, " ")})`;
+}

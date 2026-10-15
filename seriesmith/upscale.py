@@ -25,7 +25,9 @@ video target) re-samples as above; Wan's, with no latent upscaler, from its
 frames through a pixel model. `pixel` (any target, the default for the rest) runs an
 upscale model from ComfyUI's models/upscale_models (RealESRGAN, UltraSharp...)
 over the take's frames and copies its audio on: fast, adds no generated detail.
-`--method pixel --pixel-model RealESRGAN_x4.pth` picks it for any take.
+`--method pixel --pixel-model RealESRGAN_x4.pth` picks it for any take;
+`--pixel-model rtx_vsr` runs NVIDIA RTX Video Super Resolution instead (an RTX
+card and Comfy-Org's RTX nodes; no model file), wherever a pixel model goes.
 `seedvr2` (any target) restores the frames with SeedVR2.
 
 Stdlib only.
@@ -359,10 +361,68 @@ DETAILS = (0, 1, 2)                     # steps earlier than the default start
 MAX_SCALE = 4.0                         # the H3 latent upscaler's limit; the pixel method's too
 
 
+# NVIDIA RTX Video Super Resolution (Comfy-Org's Nvidia_RTX_Nodes_ComfyUI pack,
+# on the nvidia-vfx wheel; RTX cards only): fast, no model file, so it is offered
+# beside the upscale models by name. "rtx_vsr" runs it at ULTRA; "rtx_vsr:<level>"
+# names another of its quality levels (HIGHBITRATE_ULTRA: tuned for clean
+# sources rather than streamed ones; DEBLUR_ / DENOISE_ levels restore at the
+# input's size, for a post). Its output is a multiple of 8 each way.
+VSR = "rtx_vsr"
+VSR_NODE = "RTXVideoSuperResolution"
+VSR_OFFERED = (VSR, VSR + ":HIGHBITRATE_ULTRA")
+VSR_NODES = ("H3LoadTakeVideo", VSR_NODE, "ImageScale", "SeriesmithFinishUpscale", "H3SaveUpscale")
+VSR_PACK = ("install Comfy-Org's Nvidia RTX Nodes pack (ComfyUI Manager: search \"RTX\"; "
+            "an NVIDIA RTX card and its nvidia-vfx wheel)")
+
+
+def is_vsr(model: str | None) -> bool:
+    """A pixel model that is RTX Video Super Resolution, not a file."""
+    return model == VSR or str(model or "").startswith(VSR + ":")
+
+
+def vsr_quality(model: str) -> str:
+    return model.split(":", 1)[1] if ":" in model else "ULTRA"
+
+
+def pixel_nodes(g: dict, model_id: str, step_id: str, images: list, model: str,
+                width: int, height: int, precision: str, finish: dict, chunk: int = 4) -> list:
+    """A pixel model's step on `images` to width x height, finished against them
+    (`finish`: SeriesmithPixelUpscale's finish inputs); returns the link to the
+    result. An upscale model is loaded as `model_id` and run as `step_id`; RTX
+    VSR runs as `step_id` to the size rounded up to 8, lanczos to the exact size
+    when that differs, and our finish after it."""
+    if not is_vsr(model):
+        g[model_id] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": model}}
+        g[step_id] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
+            "images": images, "upscale_model": [model_id, 0], "width": width, "height": height,
+            "chunk": chunk, "precision": precision, **finish}}
+        return [step_id, 0]
+    w8, h8 = -(-int(width) // 8) * 8, -(-int(height) // 8) * 8
+    g[step_id] = {"class_type": VSR_NODE, "inputs": {
+        "images": images, "resize_type": "target dimensions", "resize_type.width": w8,
+        "resize_type.height": h8, "quality": vsr_quality(model), "strength": 1.0,
+        "image_encoding": "8-bit RGB"}}
+    out = [step_id, 0]
+    # its DENOISE_ / DEBLUR_ levels keep the input's size whatever is asked
+    if (w8, h8) != (width, height) or vsr_quality(model).startswith(("DENOISE_", "DEBLUR_")):
+        g[step_id + "_fit"] = {"class_type": "ImageScale", "inputs": {
+            "image": out, "upscale_method": "lanczos", "width": width, "height": height,
+            "crop": "disabled"}}
+        out = [step_id + "_fit", 0]
+    g[step_id + "_finish"] = {"class_type": "SeriesmithFinishUpscale", "inputs": {
+        "images": out, "source": images, "chunk": 8, **finish}}
+    return [step_id + "_finish", 0]
+
+
 def pixel_models(object_info: dict | None) -> list[str] | None:
-    """The upscale models this ComfyUI lists (models/upscale_models), or None."""
-    return J.choices_in(object_info or {}, "UpscaleModelLoader", "model_name") \
-        if object_info else None
+    """The upscale models this ComfyUI lists (models/upscale_models), then RTX
+    VSR's levels when it has that node; None without object_info."""
+    if not object_info:
+        return None
+    files = J.choices_in(object_info, "UpscaleModelLoader", "model_name")
+    if VSR_NODE not in object_info:
+        return files
+    return [*(files or []), *VSR_OFFERED]
 
 
 def default_pixel_model(models: list[str] | None) -> str:
@@ -380,9 +440,18 @@ def pixel_readiness(object_info: dict | None, want: str | None = None) -> dict:
     model (`want`, if named). {"status", "missing", "models", "default"}."""
     if object_info is None:
         return {"status": "unknown", "missing": [], "models": [], "default": DEFAULT_PIXEL_MODEL}
+    models = pixel_models(object_info) or []
+    if is_vsr(want):
+        missing = [f"node {c}: {VSR_PACK}" if c == VSR_NODE else
+                   f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
+                   for c in VSR_NODES if c not in object_info]
+        levels = J.choices_in(object_info, VSR_NODE, "quality")
+        if levels and vsr_quality(want) not in levels:
+            missing.append(f"RTX VSR quality {vsr_quality(want)}: it's {', '.join(levels)}")
+        return {"status": "not_ready" if missing else "ready", "missing": missing,
+                "models": models, "default": default_pixel_model(models)}
     missing = [f"node {c} (update ComfyUI and its node packs -- seriesmith's, h3pipe's -- and restart it)"
                for c in PIXEL_NODES if c not in object_info]
-    models = pixel_models(object_info) or []
     if not models:
         missing.append("an upscale model in models/upscale_models/ (RealESRGAN_x2.pth, say)")
     elif want and want not in models:
@@ -1301,12 +1370,9 @@ def pixel_refine(g: dict, up: UpscaleJob, sampler: str) -> None:
     vae = J.select_nodes(g, b.specs("vae")[0])[0]
     g["up_video"] = {"class_type": "H3LoadTakeVideo", "inputs": {
         "project_root": root, "video_file": rel(root, take.paths.mp4), "audio_file": ""}}
-    g["up_model"] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": up.pixel_model}}
-    g["up_pixels"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
-        "images": ["up_video", 0], "upscale_model": ["up_model", 0],
-        "width": up.width, "height": up.height, "chunk": 4, "precision": up.precision,
-        **up.finish_inputs(grain=False)}}
-    g["up_venc"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["up_pixels", 0], "vae": [vae, 0]}}
+    pixels = pixel_nodes(g, "up_model", "up_pixels", ["up_video", 0], up.pixel_model, up.width,
+                         up.height, up.precision, up.finish_inputs(grain=False))
+    g["up_venc"] = {"class_type": "VAEEncode", "inputs": {"pixels": pixels, "vae": [vae, 0]}}
     si = g[sampler]["inputs"]
     si["latent_image"] = ["up_venc", 0]
     ref = up.spec.get("reference")
@@ -1352,13 +1418,9 @@ def finish_graph(g: dict, up: UpscaleJob, images: list) -> dict:
                                                           *up.made_size)
     elif up.then_model:
         # the re-sample's frames through an upscale model before they're saved
-        g["up_then_model"] = {"class_type": "UpscaleModelLoader",
-                              "inputs": {"model_name": up.then_model}}
-        g["up_then"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
-            "images": images, "upscale_model": ["up_then_model", 0],
-            "width": up.made_size[0], "height": up.made_size[1], "chunk": 2,
-            "precision": up.precision, **up.finish_inputs()}}
-        g["up_save"]["inputs"]["images"] = ["up_then", 0]
+        g["up_save"]["inputs"]["images"] = pixel_nodes(
+            g, "up_then_model", "up_then", images, up.then_model, *up.made_size,
+            up.precision, up.finish_inputs(), chunk=2)
     J.prune(g, "up_save")
     return g
 
@@ -1437,23 +1499,21 @@ def pixel_graph(up: UpscaleJob) -> dict:
     the target size, saved with the take's audio copied on. No model of the
     take's target is loaded, so it works for any take."""
     take, root = up.take, up.root
-    return {
-        "up_video": {"class_type": "H3LoadTakeVideo", "inputs": {
-            "project_root": root, "audio_file": "",
-            # on top of its existing upscale, or from the take
-            "video_file": rel(root, take.paths.up_mp4 if up.previous else take.paths.mp4)}},
-        "up_model": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": up.pixel_model}},
-        "up_pixels": {"class_type": "SeriesmithPixelUpscale", "inputs": {
-            "images": ["up_video", 0], "upscale_model": ["up_model", 0],
-            "width": up.width, "height": up.height, "chunk": 4, "precision": up.precision,
-            **up.finish_inputs()}},
+    g = {"up_video": {"class_type": "H3LoadTakeVideo", "inputs": {
+        "project_root": root, "audio_file": "",
+        # on top of its existing upscale, or from the take
+        "video_file": rel(root, take.paths.up_mp4 if up.previous else take.paths.mp4)}}}
+    pixels = pixel_nodes(g, "up_model", "up_pixels", ["up_video", 0], up.pixel_model, up.width,
+                         up.height, up.precision, up.finish_inputs())
+    g.update({
         "up_save": {"class_type": "H3SaveUpscale", "inputs": {
-            "images": ["up_pixels", 0], "project_root": root,
+            "images": pixels, "project_root": root,
             "source_mp4": rel(root, take.paths.mp4), "out_mp4": rel(root, take.paths.up_mp4),
             "fps": float((take.sidecar or {}).get("fps") or 24),
             "sidecar": rel(root, take.paths.up_sidecar), "encoder": up.encoder,
             **up.save_inputs()}},
-    }
+    })
+    return g
 
 
 def not_ready(jobs: list[UpscaleJob], object_info: dict | None) -> list[str]:
@@ -1759,7 +1819,9 @@ def main(argv=None) -> int:
     ap.add_argument("--method", choices=METHODS,
                     help="latent (re-sample; the default where the target has one) or pixel "
                          "(an upscale model over the frames; any target)")
-    ap.add_argument("--pixel-model", help=f"the pixel method's model (default {DEFAULT_PIXEL_MODEL})")
+    ap.add_argument("--pixel-model", help=f"the pixel method's model (default {DEFAULT_PIXEL_MODEL}), "
+                                          f"or {VSR} for NVIDIA RTX Video Super Resolution "
+                                          f"({VSR}:HIGHBITRATE_ULTRA, say, for another level)")
     ap.add_argument("--seedvr2-model", help="the SeedVR2 method's model: 7b (default) or 3b, or a file name")
     ap.add_argument("--encoder", choices=ENCODERS, default="auto",
                     help="auto: H.264, on the GPU (NVENC) up to 4096 wide, x264 past it; "

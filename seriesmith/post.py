@@ -350,11 +350,8 @@ def post_graph(job: PostJob) -> dict:
     images = ["pp_video", 0]
     e = job.enhance
     if e and e["method"] == "pixel":
-        g["pp_model"] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": e["pixel_model"]}}
-        g["pp_pixels"] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
-            "images": images, "upscale_model": ["pp_model", 0], "width": job.width,
-            "height": job.height, "chunk": 4, "precision": "fp16", **finish_of(job)}}
-        images = ["pp_pixels", 0]
+        images = U.pixel_nodes(g, "pp_model", "pp_pixels", images, e["pixel_model"], job.width,
+                               job.height, "fp16", finish_of(job))
     elif e and e["method"] == "seedvr2":
         images = U.seedvr2_chain(g, images, e["seedvr2_model"], job.width, job.height,
                                  seed_of(job), finish_of(job), prefix="pp_sv_",

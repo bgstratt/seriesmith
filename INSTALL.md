@@ -202,6 +202,14 @@ film grain) and RealESRGAN_x4 from the `xinntao/Real-ESRGAN` releases, or 4x-Ult
 from OpenModelDB (check its licence: it may be non-commercial). ComfyUI-Manager's Model
 Manager installs them too. They load with core ComfyUI nodes.
 
+On an NVIDIA RTX card, **RTX Video Super Resolution** can stand in for an upscale model (no
+model file): install Comfy-Org's **Nvidia RTX Nodes** pack (ComfyUI-Manager: search "RTX";
+it needs CUDA PyTorch cu130 or newer) and restart ComfyUI. Its `nvidia-vfx` wheel is on
+NVIDIA's own index, and PyPI's is a stub that fails to install, so if ComfyUI's log says
+`No module named 'nvvfx'`, install it into ComfyUI's Python and restart again:
+`python_embeded\python.exe -m pip install nvidia-vfx --extra-index-url https://pypi.nvidia.com`. The Upscale dialog then lists "RTX Video Super Resolution" beside the models
+(`rtx_vsr`; `rtx_vsr:HIGHBITRATE_ULTRA` for its level tuned to clean sources).
+
 1. Clone **LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler** into `custom_nodes`:
    ```
    cd C:\AI\ComfyUI\ComfyUI\custom_nodes

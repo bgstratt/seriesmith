@@ -8,7 +8,7 @@ import { errText } from "../api";
 import { api } from "../host";
 import { closeUpscale, upscale, upscaleRequestOf, type UpscaleForm } from "../actions";
 import { statusKey, useApp } from "../store";
-import { DELIVERS, SCALES, fitSize, fitWords, methodFor, parseDeliver, thenSize, upscaleSize, type SizeCheck } from "../lib/upscale";
+import { DELIVERS, SCALES, fitSize, fitWords, isVsr, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize, type SizeCheck } from "../lib/upscale";
 import type { TakeSummary, UpscaleOptions } from "../types";
 import { Dialog } from "./Dialogs";
 
@@ -277,7 +277,7 @@ function UpscaleBody() {
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">Upscale model{f.method === "pixel" ? "" : refineModel ? " (pixel takes, and Wan's re-sample starts with it)" : " (for takes without a re-sample)"}</span>
               <select value={f.pixelModel ?? ""} onChange={(e) => set({ pixelModel: e.target.value })}>
-                {opts.pixel.models.map((m) => <option key={m} value={m}>{m}{m === opts.pixel.default ? " (default)" : ""}</option>)}
+                {opts.pixel.models.map((m) => <option key={m} value={m}>{modelLabel(m)}{m === opts.pixel.default ? " (default)" : ""}</option>)}
               </select>
             </label>
           )}
@@ -354,7 +354,7 @@ function UpscaleBody() {
                     </select>
                   ) : (
                     <select value={f.thenModel} onChange={(e) => set({ thenModel: e.target.value })}>
-                      {opts.pixel.models.map((m) => <option key={m} value={m}>{m}</option>)}
+                      {opts.pixel.models.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
                     </select>
                   )}
                   {!D && (
@@ -383,7 +383,7 @@ function UpscaleBody() {
                 <option value="master">Master</option>
               </select>
             </label>
-            {f.method !== "seedvr2" && (f.method !== "latent" || (!!f.thenModel && !thenSv2)) && (
+            {f.method !== "seedvr2" && (f.method === "latent" ? !!f.thenModel && !thenSv2 && !isVsr(f.thenModel) : !isVsr(f.pixelModel)) && (
               <label className="h3-col" style={{ gap: 2 }} title="The upscale model's precision: 16-bit is about twice as fast and looks the same; 32-bit is how ComfyUI's own node runs it">
                 <span className="h3-h">Model precision</span>
                 <select value={f.precision} onChange={(e) => set({ precision: e.target.value as UpscaleForm["precision"] })}>

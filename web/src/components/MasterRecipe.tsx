@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../host";
 import { MASTER_TARGETS, getPath, setPath, type Raw } from "../lib/seriesForm";
+import { modelLabel } from "../lib/upscale";
 import { useApp } from "../store";
 import type { UpscaleOptions } from "../types";
 
@@ -117,7 +118,7 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
                 <select className="h3-in" value={then} onChange={(e) => set({ then: e.target.value || undefined, then_scale: e.target.value ? sec.then_scale : undefined })}>
                   <option value="">nothing</option>
                   <option value="seedvr2">SeedVR2</option>
-                  {[...new Set([...pixelModels, ...(then && then !== "seedvr2" ? [then] : [])])].map((m) => <option key={m} value={m}>{m}</option>)}
+                  {[...new Set([...pixelModels, ...(then && then !== "seedvr2" ? [then] : [])])].map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
                 </select>
               </div>
             )}
@@ -125,7 +126,7 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
               <div className="h3-row h3-wrap" style={{ gap: 6 }}>
                 <span className="h3-small">model</span>
                 <select className="h3-in" value={(sec.pixel_model as string) ?? ""} onChange={(e) => set({ pixel_model: e.target.value || undefined })}>
-                  {[...new Set([...pixelModels, ...(sec.pixel_model ? [sec.pixel_model as string] : [])])].map((m) => <option key={m} value={m}>{m}{pixelModels.includes(m) ? "" : " (not installed)"}</option>)}
+                  {[...new Set([...pixelModels, ...(sec.pixel_model ? [sec.pixel_model as string] : [])])].map((m) => <option key={m} value={m}>{modelLabel(m)}{pixelModels.includes(m) ? "" : " (not installed)"}</option>)}
                   {!pixelModels.length && !sec.pixel_model && <option value="">no upscale models found</option>}
                 </select>
               </div>

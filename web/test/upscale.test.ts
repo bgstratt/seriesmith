@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitSize, fitWords, methodFor, parseDeliver, thenSize, upscaleSize } from "../src/lib/upscale";
+import { fitSize, fitWords, isVsr, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize } from "../src/lib/upscale";
 
 const h3 = { status: "ready" as const, missing: [], mode: "resample" as const, align: 32, fixed_scale: null };
 const ltx = { status: "ready" as const, missing: [], mode: "second_stage" as const, align: 32, fixed_scale: 2 };
@@ -51,5 +51,17 @@ describe("delivery sizes (the Output size menu)", () => {
     expect(fitWords(3840, 2196, 3840, 2160, "crop")).toBe("36 rows cropped (1.6%)");
     expect(fitWords(3780, 2160, 3840, 2160, "pad")).toBe("bars left and right (30 px each)");
     expect(fitWords(2688, 1536, 3840, 2160, "pad")).toBe("resized, bars left and right (30 px each)");
+  });
+});
+
+describe("RTX Video Super Resolution among the upscale models", () => {
+  it("is told apart from a model file and labelled by its level", () => {
+    expect(isVsr("rtx_vsr")).toBe(true);
+    expect(isVsr("rtx_vsr:HIGHBITRATE_ULTRA")).toBe(true);
+    expect(isVsr("RealESRGAN_x2.pth")).toBe(false);
+    expect(isVsr(null)).toBe(false);
+    expect(modelLabel("rtx_vsr")).toBe("RTX Video Super Resolution (ultra)");
+    expect(modelLabel("rtx_vsr:HIGHBITRATE_ULTRA")).toBe("RTX Video Super Resolution (highbitrate ultra)");
+    expect(modelLabel("4x-UltraSharp.pth")).toBe("4x-UltraSharp.pth");
   });
 });
