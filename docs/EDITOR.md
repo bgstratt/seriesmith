@@ -662,7 +662,9 @@ The target picker sets which image model generates. They are not interchangeable
 | `flux_kontext` | One | The only edit target that takes a negative prompt |
 | `flux2_klein_edit` | Up to 4 | The default for keyframes when installed |
 | `minimax_h3_still` | Up to 9 | The video model rendering 5 frames and keeping the first |
-| `qwen_image_21` | Up to 16 | Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable cfg, scheduler, denoise and negative prompt |
+| `qwen_image_21` | Up to 16 | Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable denoise; cfg, scheduler and negative prompt are ordinary settings |
+| `flux3_klein` | Up to 10 | FLUX.3 Image Klein: text to image *or* an edit, as `qwen_image_21`. cfg, scheduler and negative prompt are ordinary settings |
+| `flux3_klein_turbo` | Up to 10 | The step-distilled FLUX.3 Klein: the same in 16 steps at cfg 1, so no negative prompt |
 
 The hosted image models (Nano Banana, Seedream, GPT Image 2, Flux Kontext Pro, Krea 2 on
 Router, …) are under **Comfy Router (paid)** in the same pickers; most of them take
@@ -674,7 +676,7 @@ A subject with `of:` in the series config is the same character in different clo
 its own sheet ([AUTHORING.md](AUTHORING.md), "A wardrobe change is a new subject"). How its
 views are made depends on the model:
 
-- **On an edit model** (`qwen_image_21`, `flux2_klein_edit`, `flux_kontext`,
+- **On an edit model** (`qwen_image_21`, `flux3_klein`, `flux3_klein_turbo`, `flux2_klein_edit`, `flux_kontext`,
   `minimax_h3_still`) each view is generated **from the character's own matching view** —
   the towel's back panel is an edit of their back panel.
 - **On a text-to-image model** there is nothing to edit from, so it draws the variant from

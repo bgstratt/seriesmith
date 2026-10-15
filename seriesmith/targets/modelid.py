@@ -105,7 +105,7 @@ FAMILIES: dict[str, dict] = {
     "umt5-xxl": {"label": "UMT5-XXL (Wan's text encoder)"},
     # Krea 2
     "krea2": {"label": "Krea 2"},
-    "qwen3vl-4b": {"label": "Qwen3-VL 4B (Krea 2's text encoder)"},
+    "qwen3vl-4b": {"label": "Qwen3-VL 4B (Krea 2's and FLUX.3 Klein's text encoder)"},
     # the image targets of Phase 8.5: Z-Image, FLUX.2 Klein, FLUX.1 Kontext
     "z-image": {"label": "Z-Image"},
     "z-image-turbo": {"label": "Z-Image Turbo", "parent": "z-image", "names": ["*turbo*"]},
@@ -121,6 +121,9 @@ FAMILIES: dict[str, dict] = {
     "flux2-klein-9b-base": {"label": "FLUX.2 Klein 9B base"},
     "qwen3-8b": {"label": "Qwen3 8B (FLUX.2 Klein 9B's text encoder)"},
     "flux2-vae": {"label": "FLUX.2 VAE"},
+    # FLUX.3 Image Klein (targets/image/flux3_klein, flux3_klein_turbo)
+    "flux3-klein": {"label": "FLUX.3 Image Klein"},
+    "flux3-klein-distilled": {"label": "FLUX.3 Image Klein step-distilled (turbo)"},
     "flux1": {"label": "FLUX.1"},
     "flux1-dev": {"label": "FLUX.1 dev", "parent": "flux1"},
     "flux1-schnell": {"label": "FLUX.1 schnell", "parent": "flux1"},
