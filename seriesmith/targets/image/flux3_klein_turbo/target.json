@@ -1,0 +1,81 @@
+{
+  "id": "flux3_klein_turbo",
+  "kind": "image",
+  "label": "FLUX.3 Image Klein turbo (step-distilled: text to image, and edit from reference images)",
+  "short": "Klein 3 turbo",
+  "code": "target.py",
+
+  "capabilities": {
+    "_note": "flux3_klein's graph on the step-distilled checkpoint: one graph, both jobs (ReferenceMultiLatent, cut out with no references: flux3_klein/target.py), up to 10 references. 16 steps at cfg 1 with the negative zeroed, so no negative prompt; well over twice as fast as the base.",
+    "mode": "edit",
+    "max_refs": 10
+  },
+
+  "template": {
+    "_note": "As flux3_klein's.",
+    "view_size": [1024, 1024],
+    "plate_size": [1344, 768],
+    "object_size": [1024, 1024],
+    "size_multiple": 16,
+    "min_pixels": 786432
+  },
+
+  "recipe": {
+    "_note": "As flux3_klein's.",
+    "ref_word": "image"
+  },
+
+  "binding": {
+    "_note": "An API graph built from ComfyUI's image_flux3_klein_distilled_image_edit.json (workflow templates 0.11.85), left out and replaced as flux3_klein's: the negative is the template's ConditioningZeroOut of the positive, KSampler 16 steps, cfg 1, euler/simple. The distilled text-to-image template's prompt upsampler is left out too.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_flux3_klein_turbo.json",
+    "env": "SERIESMITH_FLUX3_KLEIN_TURBO_WORKFLOW",
+    "saver": {"class_type": "H3SaveRefTake",
+              "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "vae": {"class_type": "VAELoader", "field": "vae_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name", "strength": "strength_model",
+                "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "title": "Positive prompt"},
+      "width": {"class_type": "EmptyFlux2LatentImage", "field": "width"},
+      "height": {"class_type": "EmptyFlux2LatentImage", "field": "height"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "sampler": {"class_type": "KSampler", "field": "sampler_name"},
+      "scheduler": {"class_type": "KSampler", "field": "scheduler"}
+    }
+  },
+
+  "models": {
+    "_note": "As flux3_klein's, but the model is the step-distilled checkpoint (`_sd_` in BFL's file names).",
+    "model": {"family": "flux3-klein-distilled", "patterns": ["flux3_image_klein_sd*", "*flux*3*klein*sd*", "*flux*3*klein*distill*"],
+              "tier": "required", "exclude": ["*lora*", "*upsampler*"]},
+    "text_encoder": {"family": "qwen3vl-4b", "patterns": ["*qwen3*vl*4b*"], "tier": "required"},
+    "vae": {"family": "flux2-vae", "patterns": ["flux2-vae*", "full_encoder_small_decoder*", "*flux*2*vae*"],
+            "tier": "required"}
+  },
+
+  "presets": {
+    "_note": "The distilled edit template's settings: 16 steps (it suggests 4-16), cfg 1, euler/simple.",
+    "final": {
+      "model": "flux3_image_klein_sd_int8_convrot.safetensors",
+      "text_encoder": "qwen3vl_4b_int8_convrot.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "lora": "",
+      "steps": 16, "cfg": 1.0, "sampler": "euler", "scheduler": "simple"
+    }
+  },
+
+  "downloads": {
+    "_note": "As flux3_klein's: BFL's gated ComfyUI repo.",
+    "flux3_image_klein_sd_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_sd_int8_convrot.safetensors", "source": "ComfyUI template image_flux3_klein_distilled_image_edit.json (properties.models); gated: accept its licence on the page first"},
+    "flux3_image_klein_sd_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_sd_bf16.safetensors", "source": "the Hugging Face repo black-forest-labs/flux-3-image-klein-comfy (file and name checked on the repo 2026-10-15): the same model at bf16, twice the int8 file's size, resolved by family; gated: accept its licence on the page first"},
+    "qwen3vl_4b_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors", "source": "ComfyUI template image_flux3_klein_image_edit.json (properties.models); gated: accept its licence on the page first"},
+    "flux2-vae.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors", "source": "ComfyUI template image_flux2_klein_9b_kv_image_edit.json (properties.models); the FLUX.3 templates name the same file in BFL's repo"}
+  }
+}

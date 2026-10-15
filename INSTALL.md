@@ -542,8 +542,27 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `flux2-vae.safetensors` | `models/vae/` | required | `flux2_klein_edit`, `klein_erp_360` | [Comfy-Org/flux2-dev](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| `flux2-vae.safetensors` | `models/vae/` | required | `flux2_klein_edit`, `flux3_klein`, `flux3_klein_turbo`, `klein_erp_360` | [Comfy-Org/flux2-dev](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
 | `full_encoder_small_decoder.safetensors` | `models/vae/` | required | `flux2_klein` | [black-forest-labs/FLUX.2-small-decoder](https://huggingface.co/black-forest-labs/FLUX.2-small-decoder/resolve/main/full_encoder_small_decoder.safetensors) |
+
+**FLUX.3 Image Klein** (`flux3-klein`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `flux3_image_klein_int8_convrot.safetensors` | `models/diffusion_models/` | required | `flux3_klein` | [black-forest-labs/flux-3-image-klein-comfy](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_int8_convrot.safetensors) |
+
+**Qwen3-VL 4B (Krea 2's and FLUX.3 Klein's text encoder)** (`qwen3vl-4b`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `qwen3vl_4b_fp8_scaled.safetensors` | `models/text_encoders/` | required | `krea2` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) |
+| `qwen3vl_4b_int8_convrot.safetensors` | `models/text_encoders/` | required | `flux3_klein`, `flux3_klein_turbo` | [black-forest-labs/flux-3-image-klein-comfy](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors) |
+
+**FLUX.3 Image Klein step-distilled (turbo)** (`flux3-klein-distilled`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `flux3_image_klein_sd_int8_convrot.safetensors` | `models/diffusion_models/` | required | `flux3_klein_turbo` | [black-forest-labs/flux-3-image-klein-comfy](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_sd_int8_convrot.safetensors) |
 
 **FLUX.1 Kontext dev** (`flux1-kontext-dev`)
 
@@ -580,12 +599,6 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `krea2_turbo_fp8_scaled.safetensors` | `models/diffusion_models/` | required | `krea2` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors) |
-
-**Qwen3-VL 4B (Krea 2's text encoder)** (`qwen3vl-4b`)
-
-| File | ComfyUI folder | Tier | Targets | Download |
-|---|---|---|---|---|
-| `qwen3vl_4b_fp8_scaled.safetensors` | `models/text_encoders/` | required | `krea2` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) |
 
 **Qwen-Image 2.1** (`qwen-image-2.1`)
 

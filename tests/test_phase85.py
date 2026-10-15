@@ -35,7 +35,8 @@ OBJECT_INFO_WAN = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                               "object_info_wan.json"), encoding="utf-8"))
 OBJECT_INFO_LTX = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                               "object_info_ltx.json"), encoding="utf-8"))
-IMAGE_TARGETS = ("z_image_turbo", "flux2_klein", "flux2_klein_edit", "flux_kontext")
+IMAGE_TARGETS = ("z_image_turbo", "flux2_klein", "flux2_klein_edit", "flux_kontext",
+                 "flux3_klein", "flux3_klein_turbo")
 COMFY_MODELS = os.environ.get("COMFYUI_MODELS", r"C:\AI\ComfyUI\ComfyUI\models")
 
 _BUILT: dict = {}
@@ -182,6 +183,46 @@ class ImageTargetsTest(Episode):
         self.assertEqual(first_pos["_meta"]["title"], "Reference 1 positive")
         self.assertEqual(g[first_pos["inputs"]["conditioning"][0]]["_meta"]["title"],
                          "Positive prompt")
+
+    def test_flux3_klein_references(self):
+        # one ReferenceMultiLatent takes every picture on its autogrow slots
+        # (image0, image1, ...); with none it is cut out (test above: t2i)
+        for tid in ("flux3_klein", "flux3_klein_turbo"):
+            t = TG.load_target(tid, "image")
+            names = [f"h3pipe/{n}.png" for n in "abcdefghijkl"]       # 12, over max_refs
+            job = self.job(tid)
+            job.inputs = {"references": names}
+            g = R.image_graph(J.load_graph(t.binding.workflow), job, None)
+            self.assertEqual(J.check_graph(g, OBJECT_INFO), [], tid)
+            (refs,) = [v["inputs"] for v in g.values()
+                       if v["class_type"] == "ReferenceMultiLatent"]
+            slots = sorted((k for k in refs if k.startswith("images.")),
+                           key=lambda k: int(k.removeprefix("images.image")))
+            self.assertEqual(slots, [f"images.image{i}" for i in range(10)], tid)
+            self.assertEqual([g[refs[k][0]]["inputs"]["image"] for k in slots], names[:10], tid)
+            sampler = next(v for v in g.values() if v["class_type"] == "KSampler")["inputs"]
+            self.assertEqual((sampler["steps"], sampler["cfg"]),
+                             (25, 3.5) if tid == "flux3_klein" else (16, 1.0), tid)
+
+    def test_flux3_klein_resolution(self):
+        # the bf16 checkpoints in place of the int8 ones, Krea 2's Qwen3-VL 4B
+        # for the encoder: each target takes its own checkpoint, by family
+        installed = {"diffusion_models": ["flux3_image_klein_bf16.safetensors",
+                                          "flux3_image_klein_sd_bf16.safetensors"],
+                     "text_encoders": ["qwen3vl_4b_fp8_scaled.safetensors"],
+                     "vae": ["flux2-vae.safetensors"]}
+        for tid, model in (("flux3_klein", "flux3_image_klein_bf16.safetensors"),
+                           ("flux3_klein_turbo", "flux3_image_klein_sd_bf16.safetensors")):
+            job = self.job(tid)
+            missing = R.resolve_job_models(job, lambda spec: installed.get(spec["folder"]))
+            self.assertEqual(missing, [], tid)
+            self.assertEqual(job.model, model, tid)
+            self.assertEqual(job.resolved["model"]["how"], "family", tid)
+        # the distilled checkpoint alone does not stand in for the base
+        installed["diffusion_models"] = ["flux3_image_klein_sd_bf16.safetensors"]
+        job = self.job("flux3_klein")
+        missing = R.resolve_job_models(job, lambda spec: installed.get(spec["folder"]))
+        self.assertEqual([m["param"] for m in missing], ["model"])
 
     def test_resolution_by_family(self):
         t = TG.load_target("flux2_klein_edit", "image")

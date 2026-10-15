@@ -1,0 +1,83 @@
+{
+  "id": "flux3_klein",
+  "kind": "image",
+  "label": "FLUX.3 Image Klein (text to image, and edit from reference images)",
+  "short": "Klein 3",
+  "code": "target.py",
+
+  "capabilities": {
+    "_note": "One graph, both jobs: ReferenceMultiLatent adds each reference image to both conditionings, and with none it is cut out and the graph is text to image (target.py). Up to 10 references (BFL's model card), a real negative prompt (cfg 3.5) and an ordinary KSampler. The base checkpoint: slower than flux3_klein_turbo (25 steps against 16, and the negative pass), the one for LoRAs trained on the base.",
+    "mode": "edit",
+    "max_refs": 10
+  },
+
+  "template": {
+    "_note": "Sizes a series ref is generated at (as krea2's). A keyframe is generated at its shot's render size, scaled up (same aspect, multiples of size_multiple) to at least min_pixels, as flux2_klein_edit's. The output is the job's size (EmptyFlux2LatentImage), not the first reference's (the template's empty_latent); each reference is scaled to 1 MP by ReferenceMultiLatent, as the template does.",
+    "view_size": [1024, 1024],
+    "plate_size": [1344, 768],
+    "object_size": [1024, 1024],
+    "size_multiple": 16,
+    "min_pixels": 786432
+  },
+
+  "recipe": {
+    "_note": "The prompt names each reference by its number ('image 1', 'image 2', ...; `ref_word`) and says what to take from it (targets/image/common.py reference_intro), up to max_refs.",
+    "ref_word": "image"
+  },
+
+  "binding": {
+    "_note": "An API graph built from ComfyUI's image_flux3_klein_image_edit.json (workflow templates 0.11.85): UNETLoader, CLIPLoader type flux3, VAELoader, a positive and an empty negative CLIPTextEncode into ReferenceMultiLatent (resize, 1 MP), KSampler euler/simple. The template's bounding-box nodes, ImageCompare and its unconnected EmptyFlux2LatentImage are left out; the latent is an EmptyFlux2LatentImage at the job's size instead of the node's empty_latent. The text-to-image template's prompt upsampler (a 9B Qwen3.5 TextGenerate before the encoder) is left out: the prompts seriesmith writes are already full captions. H3SaveRefTake takes the place of SaveImage.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_flux3_klein.json",
+    "env": "SERIESMITH_FLUX3_KLEIN_WORKFLOW",
+    "saver": {"class_type": "H3SaveRefTake",
+              "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "vae": {"class_type": "VAELoader", "field": "vae_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name", "strength": "strength_model",
+                "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "title": "Positive prompt"},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "title": "Negative prompt"},
+      "width": {"class_type": "EmptyFlux2LatentImage", "field": "width"},
+      "height": {"class_type": "EmptyFlux2LatentImage", "field": "height"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "sampler": {"class_type": "KSampler", "field": "sampler_name"},
+      "scheduler": {"class_type": "KSampler", "field": "scheduler"}
+    }
+  },
+
+  "models": {
+    "_note": "Name-based identification only: no header fingerprint is recorded for FLUX.3 Klein yet (targets/modelid.py RULES). The text encoder is the same Qwen3-VL 4B as Krea 2's (ComfyUI loads both as TEModel.QWEN3VL_4B), so Krea 2's fp8 file serves as well; the VAE is FLUX.2's.",
+    "model": {"family": "flux3-klein", "patterns": ["flux3_image_klein*", "*flux*3*klein*"],
+              "tier": "required", "exclude": ["*_sd_*", "*distill*", "*lora*", "*upsampler*"]},
+    "text_encoder": {"family": "qwen3vl-4b", "patterns": ["*qwen3*vl*4b*"], "tier": "required"},
+    "vae": {"family": "flux2-vae", "patterns": ["flux2-vae*", "full_encoder_small_decoder*", "*flux*2*vae*"],
+            "tier": "required"}
+  },
+
+  "presets": {
+    "_note": "The edit template's settings: 25 steps, cfg 3.5, euler/simple (BFL's card says 50 for full quality). The negative is empty, as the template's.",
+    "final": {
+      "model": "flux3_image_klein_int8_convrot.safetensors",
+      "text_encoder": "qwen3vl_4b_int8_convrot.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "lora": "",
+      "steps": 25, "cfg": 3.5, "sampler": "euler", "scheduler": "simple",
+      "negative": ""
+    }
+  },
+
+  "downloads": {
+    "_note": "BFL's ComfyUI repo, gated: accept its licence (FLUX Kommunity) on the page first and download with a Hugging Face token. The repo also has bf16 and nvfp4 (Blackwell) copies of the checkpoint; the templates name the int8 ones.",
+    "flux3_image_klein_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_int8_convrot.safetensors", "source": "ComfyUI template image_flux3_klein_image_edit.json (properties.models); gated: accept its licence on the page first"},
+    "flux3_image_klein_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3_image_klein_bf16.safetensors", "source": "the Hugging Face repo black-forest-labs/flux-3-image-klein-comfy (file and name checked on the repo 2026-10-15): the same model at bf16, twice the int8 file's size, resolved by family; gated: accept its licence on the page first"},
+    "qwen3vl_4b_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors", "source": "ComfyUI template image_flux3_klein_image_edit.json (properties.models); gated: accept its licence on the page first"},
+    "flux2-vae.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors", "source": "ComfyUI template image_flux2_klein_9b_kv_image_edit.json (properties.models); the FLUX.3 templates name the same file in BFL's repo"}
+  }
+}

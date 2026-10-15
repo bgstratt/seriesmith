@@ -769,6 +769,8 @@ config can say which:
 | `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
 | `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
+| `flux3_klein` | FLUX.3 Image Klein — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 10 reference images. Takes a real negative prompt |
+| `flux3_klein_turbo` | FLUX.3 Image Klein step-distilled: the same as `flux3_klein` in 16 steps, over twice as fast, without a negative prompt |
 | `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 reference images |
 | `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
 | hosted on Comfy Router: `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | one call a picture, nothing to install; most take reference images |

@@ -54,6 +54,8 @@ export const IMAGE_NOTES: Record<string, string> = {
   flux2_klein_edit: "Draws your people and places into the scene from their pictures.",
   flux_kontext: "Works from one reference picture.",
   qwen_image_21: "From words, or with your people's and places' pictures.",
+  flux3_klein: "FLUX.3: from words, or with up to ten of your pictures.",
+  flux3_klein_turbo: "FLUX.3, faster: from words, or with up to ten of your pictures.",
   qwen_rapid_aio: "Quick, from up to three of your pictures.",
   minimax_h3_still: "A frame as H3 would render it, from your pictures.",
 };
