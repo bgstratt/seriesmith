@@ -11,7 +11,7 @@ import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
 import {
-  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, DURATIONS, SIZES, cameraLine, insertAfter, listOf, newShot,
+  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, newShot,
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
@@ -20,6 +20,7 @@ import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { LengthPicker } from "./LengthPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
@@ -248,18 +249,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     {form.keys.size && !SIZES.some((s) => s.value === form.keys.size) && <option value={form.keys.size}>{form.keys.size}</option>}
                   </select>
                 </Row>
-                <Row label="Length" help="Seconds on H3's grid (other lengths round up and cost frames); auto fits the dialogue.">
-                  <div className="h3-row">
-                    <select className="h3-in" value={DURATIONS.some((d) => d.value === form.keys.dur) ? form.keys.dur : form.keys.dur ? "__other" : ""}
-                      onChange={(e) => set("dur", e.target.value === "__other" ? (form.keys.dur || "3") : e.target.value)}>
-                      <option value="">—</option>
-                      {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                      <option value="__other">other…</option>
-                    </select>
-                    {form.keys.dur && !DURATIONS.some((d) => d.value === form.keys.dur) && (
-                      <input className="h3-in" style={{ width: 80 }} value={form.keys.dur} onChange={(e) => set("dur", e.target.value)} />
-                    )}
-                  </div>
+                <Row label="Length" help="Seconds on H3's grid (other lengths round up onto the model's own; the preview says what renders); auto fits the dialogue.">
+                  <LengthPicker value={form.keys.dur ?? ""} onChange={(v) => set("dur", v)} empty="—" auto model />
                 </Row>
                 <Row label="Background" help="The location behind this shot. Empty: the sequence's location.">
                   <PlacePick ep={ep} value={form.keys.plate ?? ""} places={cast.places} empty="the sequence's location"

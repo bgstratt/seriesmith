@@ -76,15 +76,16 @@ settings and the text windows wait in Advanced. It is remembered in this browser
 - **What's said**, **Framing**, **Length**, **Takes**, then **Queue**. A picture asks how
   many pictures; several shots has a row per shot (what we see, framing, length), in order,
   sharing the people and the place, each queued with that many takes.
-- **Length** is seconds, typed or picked (auto fits the dialogue; LTX-2 can choose its
+- **Length**: the lengths the shot form offers, each with what it suits, or **Custom…**
+  and a box for any length in seconds (auto fits the dialogue; LTX-2 can choose its
   own). Each model renders on its own frame grid, so under it is what the model picked
-  makes of it: rounded up (5 s is 5.17 s on H3), and past the model's longest, its
+  makes of it: rounded up (1.62 s is 4 s on Seedance), and past the model's longest, its
   longest.
 - **Size** is the project's picture size for the pass you're on (proxy or final): width ×
-  height in pixels, or **480p** / **720p** / **1080p** (⇄ turns it portrait). **Set**
-  writes it as the project's model takes it (H3 needs multiples of 32: 1280×720 is
-  1280×704), and every clip of the project renders at it; under it, what another model
-  picked for the clip makes of it.
+  height in pixels, typed or filled from the list beside them (H3's 1344×768, 480p, 720p,
+  1080p, their vertical sizes, square). **Set** writes it as the project's model takes it
+  (H3 needs multiples of 32: 1280×720 is 1280×704), and every clip of the project renders
+  at it; under it, what another model picked for the clip makes of it.
 
 Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
 the same queue, and the takes once they are made; **Your clips** lists them, newest

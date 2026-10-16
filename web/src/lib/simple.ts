@@ -105,9 +105,6 @@ export function withClip(script: string, block: string[]): string {
   return `${body}\n\n${block.join("\n")}\n`;
 }
 
-/** Simple mode's lengths to pick from; any other can be typed. */
-export const QUICK_LENGTHS = ["2", "3", "4", "5", "6", "8", "10"];
-
 /** A typed length as `template`'s model renders it (targets.Template.snap):
  * rounded UP onto its frame grid, at least its shortest, and capped at its
  * longest (`capped`: the length typed was past it). null when the text isn't

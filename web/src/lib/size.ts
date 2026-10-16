@@ -83,9 +83,14 @@ export function fitSize(width: number, height: number, template: TargetTemplate 
   return [Math.max(m, Math.floor(Math.floor(width * k) / m) * m), Math.max(m, Math.floor(Math.floor(height * k) / m) * m)];
 }
 
-/** Simple mode's quick sizes: the picture's height (its short side, landscape). */
-export const QUICK_SIZES: { label: string; width: number; height: number }[] = [
-  { label: "480p", width: 854, height: 480 },
-  { label: "720p", width: 1280, height: 720 },
-  { label: "1080p", width: 1920, height: 1080 },
+/** Simple mode's common sizes, to fill its width and height from. */
+export const COMMON_SIZES: { label: string; width: number; height: number }[] = [
+  { label: "1344×768 (H3's own)", width: 1344, height: 768 },
+  { label: "854×480 (480p)", width: 854, height: 480 },
+  { label: "1280×720 (720p)", width: 1280, height: 720 },
+  { label: "1920×1080 (1080p)", width: 1920, height: 1080 },
+  { label: "768×1344 (H3, vertical)", width: 768, height: 1344 },
+  { label: "720×1280 (720p vertical)", width: 720, height: 1280 },
+  { label: "1080×1920 (1080p vertical)", width: 1080, height: 1920 },
+  { label: "1024×1024 (square)", width: 1024, height: 1024 },
 ];

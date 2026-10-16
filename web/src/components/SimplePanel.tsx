@@ -16,13 +16,13 @@ import { pictureOf } from "../lib/pictures";
 import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, QUICK_LENGTHS, clipBlock, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, snapLength,
-  withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
 } from "../lib/simple";
-import { QUICK_SIZES, fitSize } from "../lib/size";
+import { COMMON_SIZES, fitSize } from "../lib/size";
 import type { TargetTemplate } from "../types";
 import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
+import { LengthPicker } from "./LengthPicker";
 import { Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions } from "./Targets";
@@ -140,37 +140,10 @@ function ProjectPick({ ep, root }: { ep: string; root: string | null }) {
   );
 }
 
-/** A length in seconds: typed, or one of the quick ones; under it, what the
- * model renders (its frame grid rounds it up, and caps it at its longest). */
-function LengthInput({ value, onChange, template, fps, auto, model, short }: {
-  value: string; onChange: (v: string) => void; template: TargetTemplate | undefined; fps: number;
-  auto?: boolean; model?: boolean; short?: string;
-}) {
-  const snap = snapLength(value, template, fps);
-  const note = !snap ? "" : snap.capped ? `${snap.seconds} s, ${short ?? "the model"}'s longest`
-    : Math.abs(snap.seconds - Number(value)) > 0.005 ? `renders ${snap.seconds} s` : "";
-  return (
-    <span className="h3-col" style={{ gap: 1 }}>
-      <span className="h3-row" style={{ gap: 3 }}>
-        <input className="h3-in" style={{ width: 70 }} list="sm-lengths" value={value} inputMode="decimal"
-          title={"Seconds: type any length, or pick one" + (auto ? "; auto fits the dialogue" : "")}
-          onChange={(e) => onChange(e.target.value)} />
-        <span className="h3-small h3-muted">s</span>
-      </span>
-      <datalist id="sm-lengths">
-        {QUICK_LENGTHS.map((v) => <option key={v} value={v} />)}
-        {auto && <option value="auto">as long as the dialogue needs</option>}
-        {model && <option value="model">the model chooses</option>}
-      </datalist>
-      {note && <span className="h3-small h3-muted">{note}</span>}
-    </span>
-  );
-}
-
 /** The project's picture size for the pass on (`series` for final, `proxy`
- * for proxy, in its series config): width and height, or a quick size. It is
- * written as the project's model takes it; under it, what the clip's model
- * renders when that differs. */
+ * for proxy, in its series config): width and height, typed or filled from a
+ * common size. Set writes it as the project's model takes it; under it, what
+ * the clip's model renders when that differs. */
 function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
   raw: Raw; pass: string; status: { width: number | null; height: number | null } | null;
   seriesTemplate: TargetTemplate | undefined; template: TargetTemplate | undefined; short: string;
@@ -192,11 +165,7 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
     setBusy(true);
     try { await save(sw, sh); } finally { setBusy(false); }
   }
-  const quick = (q: { width: number; height: number }) => {
-    const tall = nh > nw;
-    setW(String(tall ? q.height : q.width));
-    setH(String(tall ? q.width : q.height));
-  };
+  const preset = COMMON_SIZES.find((q) => q.width === nw && q.height === nh);
   const notes = [
     valid && (sw !== nw || sh !== nh) ? `the project's model takes ${sw}×${sh}` : "",
     valid && template && (rw !== sw || rh !== sh) ? `${short} renders ${rw}×${rh}` : "",
@@ -205,15 +174,19 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
     <Row label={`Size (${pass})`} help="">
       <span className="h3-col" style={{ gap: 2 }}>
         <span className="h3-row h3-wrap" style={{ gap: 4 }}>
-          <input className="h3-in" style={{ width: 64 }} inputMode="numeric" value={w} onChange={(e) => setW(e.target.value)} title="Width, pixels" />
+          <input className="h3-in" style={{ width: 60 }} inputMode="numeric" value={w} onChange={(e) => setW(e.target.value.replace(/\D/g, ""))} title="Width, pixels" />
           <span className="h3-small">×</span>
-          <input className="h3-in" style={{ width: 64 }} inputMode="numeric" value={h} onChange={(e) => setH(e.target.value)} title="Height, pixels" />
-          <button className="h3-link" title="Swap: landscape / portrait" onClick={() => { setW(h); setH(w); }}>⇄</button>
-          {QUICK_SIZES.map((q) => <button key={q.label} className="h3-btn" onClick={() => quick(q)}>{q.label}</button>)}
-          {dirty && (
-            <button className="h3-btn h3-primary" disabled={busy} onClick={() => void set()}
-              title={`Every clip of this project renders at it (${pass})`}>Set</button>
-          )}
+          <input className="h3-in" style={{ width: 60 }} inputMode="numeric" value={h} onChange={(e) => setH(e.target.value.replace(/\D/g, ""))} title="Height, pixels" />
+          <select className="h3-in" value={preset ? `${preset.width}x${preset.height}` : ""} title="A common size: fills the boxes"
+            onChange={(e) => {
+              const q = COMMON_SIZES.find((x) => `${x.width}x${x.height}` === e.target.value);
+              if (q) { setW(String(q.width)); setH(String(q.height)); }
+            }}>
+            <option value="" disabled>custom</option>
+            {COMMON_SIZES.map((q) => <option key={q.label} value={`${q.width}x${q.height}`}>{q.label}</option>)}
+          </select>
+          <button className="h3-btn h3-primary" disabled={busy || !dirty} onClick={() => void set()}
+            title={`Every clip of this project renders at it (${pass})`}>Set</button>
         </span>
         {notes.length > 0 && <span className="h3-small h3-muted">{notes.join("; ")}</span>}
       </span>
@@ -248,7 +221,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [model, setModel] = useState("");
   const [imageModel, setImageModel] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3" }, { prompt: "", size: "medium", dur: "3" }]);
+  const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3.04" }, { prompt: "", size: "medium", dur: "3.04" }]);
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
   const [placeText, setPlaceText] = useState("");
@@ -256,7 +229,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [placePicture, setPlacePicture] = useState(false);
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
-  const [dur, setDur] = useState("3");
+  const [dur, setDur] = useState("3.04");
   const [takes, setTakes] = useState(1);
   const [busy, setBusy] = useState(false);
   const target = model || seriesTarget;
@@ -382,7 +355,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                   <select className="h3-in" value={r.size} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, size: e.target.value } : x)))}>
                     {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label.split(" — ")[0]}</option>)}
                   </select>
-                  <LengthInput value={r.dur} template={tpl} fps={fps} short={t?.short}
+                  <LengthPicker value={r.dur} template={tpl} fps={fps} short={t?.short} compact
                     onChange={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, dur: v } : x)))} />
                   <span className="h3-grow" />
                   {rows.length > 1 && <button className="h3-link" title="Remove this shot" onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</button>}
@@ -392,7 +365,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                   onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
               </div>
             ))}
-            {rows.length < 8 && <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3" }])}>+ Shot</button></div>}
+            {rows.length < 8 && <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3.04" }])}>+ Shot</button></div>}
           </div>
         </Row>
       ) : (
@@ -454,7 +427,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         )}
         {mode === "clip" && (
           <Row label="Length" help="">
-            <LengthInput value={dur} onChange={setDur} template={tpl} fps={fps} short={t?.short} auto model={target.startsWith("ltx2")} />
+            <LengthPicker value={dur} onChange={setDur} template={tpl} fps={fps} short={t?.short} auto model={target.startsWith("ltx2")} />
           </Row>
         )}
         <Row label={picture ? "Pictures" : mode === "shots" ? "Takes of each" : "Takes"} help="">
