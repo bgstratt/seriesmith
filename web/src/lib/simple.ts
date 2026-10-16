@@ -5,6 +5,7 @@
 // imagined its own way), or with a plate made before it renders, so the place
 // looks the same in every clip that uses it (POST /seriesmith/clip/queue).
 
+import type { TargetTemplate } from "../types";
 import { picturePath, type Raw } from "./seriesForm";
 import { writeShot, type DialogueLine } from "./shotForm";
 
@@ -102,4 +103,36 @@ export function shotsBlock(seq: string, shot: string, location: string, specs: C
 export function withClip(script: string, block: string[]): string {
   const body = script.replace(/\s+$/, "");
   return `${body}\n\n${block.join("\n")}\n`;
+}
+
+/** Simple mode's lengths to pick from; any other can be typed. */
+export const QUICK_LENGTHS = ["2", "3", "4", "5", "6", "8", "10"];
+
+/** A typed length as `template`'s model renders it (targets.Template.snap):
+ * rounded UP onto its frame grid, at least its shortest, and capped at its
+ * longest (`capped`: the length typed was past it). null when the text isn't
+ * a length in seconds. */
+export function snapLength(text: string, template: TargetTemplate | null | undefined, seriesFps = 24):
+    { seconds: number; frames: number; capped: boolean } | null {
+  const s = Number(String(text).trim());
+  if (!String(text).trim() || !Number.isFinite(s) || s <= 0) return null;
+  const fps = typeof template?.fps === "number" ? template.fps : seriesFps;
+  const step = Math.max(1, template?.frames?.step ?? 1), base = Math.max(1, template?.frames?.base ?? 1);
+  const max = template?.frames?.max ?? Number.MAX_SAFE_INTEGER;
+  const want = Math.max(1, Math.round(s * fps));
+  let frames = want <= base ? base : step * Math.ceil((want - base) / step) + base;
+  let capped = false;
+  if (frames > max) {
+    frames = base + Math.floor((max - base) / step) * step;
+    capped = true;
+  }
+  return { seconds: Math.round((frames / fps) * 100) / 100, frames, capped };
+}
+
+/** What a script's `dur:` should say for a typed length: as typed, or the
+ * model's longest when it's past that (the build refuses a longer one). */
+export function durFor(text: string, template: TargetTemplate | null | undefined, seriesFps = 24): string {
+  const t = String(text).trim();
+  const snap = snapLength(t, template, seriesFps);
+  return snap?.capped ? String(snap.seconds) : t;
 }

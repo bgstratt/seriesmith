@@ -126,6 +126,8 @@ export interface Api {
   drafts(ep: string): Promise<{ drafts: DraftItem[] }>;
   /** Simple mode: the Clips project (made the first time). */
   clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
+  /** Simple mode: a project of its own, `<root>/<Name>/<name>/` (default the first root). */
+  clipsNew(title: string, root?: string | null): Promise<{ ep: string }>;
   /** Simple mode: a clip's missing pictures, then its takes. */
   clipQueue(req: { ep: string; shot: string; pass?: Pass; takes?: number; backend?: string | null }): Promise<ClipQueueResult>;
   /** GET /seriesmith/episode/new — what a new episode in `parent` (or its new show folder) starts from. */
@@ -491,6 +493,7 @@ export function createHttpApi(t: Transport): Api {
     refsVideos: (ep) => get(`/seriesmith/refs/videos?${qs({ ep })}`),
     drafts: (ep) => get(`/seriesmith/drafts?${qs({ ep })}`),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
+    clipsNew: (title, root) => call("POST", "/seriesmith/clips/new", root ? { title, root } : { title }),
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),
     importSeries: (req) => call("POST", "/seriesmith/import", req),

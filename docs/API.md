@@ -45,7 +45,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
 | `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
-| `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure` | References (Phase 5): step 12, simple mode |
+| `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
 | `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
 | `POST /seriesmith/refs/keyframe` | Continuity keyframes |
@@ -132,8 +132,10 @@ optional and keeps its stored value when the body leaves it out. Returns the new
 `edit.find_episodes(roots)`:
 ```json
 [{"ep": "C:\\...\\DeanStories\\ep05", "name": "ep05", "series": "…", "title": "…",
-  "built": {"final": true, "proxy": true}, "shots": 49, "script": "ep05.md"}]
+  "built": {"final": true, "proxy": true}, "shots": 49, "script": "ep05.md", "simple": false}]
 ```
+`simple`: one of Simple mode's projects, which its project picker lists (`clips.is_simple`:
+its series config says `"simple": true`, or it is `Clips/clips/`).
 Every folder up to two levels below a root with a series config and a script. The config
 is the folder's own or — as `episode_series_config` has always allowed, and as of
 2026-09-23 the listing too — the one in its parent, a series folder shared by the
@@ -1160,6 +1162,15 @@ picture there, the renders are asked for at once. Returns `{"refs", "waiting_on"
 Body `{"root"?}`. Simple mode's **Clips** project (`clips.ensure_clips`): `Clips/clips/`
 in `root` (default the first project root), made the first time. Returns `{"ep", "made"}`
 and, when it was made, emits `seriesmith.episode`. 409 when there is no project root yet.
+
+### `POST /seriesmith/clips/new` (step 12)
+Body `{"title", "root"?}`. A Simple project of its own (`clips.new_project`), a show
+folder named from the title: `Storm at the lighthouse` makes
+`Storm_at_the_lighthouse/storm_at_the_lighthouse/` in `root` (default the first project
+root), its pictures in the show's `refs/`, its series config the Clips one, titled and
+saying `"simple": true`. Returns `{"ep"}` and emits `seriesmith.episode`. 400 for a title
+with no letters or digits, 409 when that show folder is already there or there is no
+project root yet.
 
 ### `PUT /seriesmith/refs/pick`
 Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the

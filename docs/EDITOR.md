@@ -60,6 +60,9 @@ below).
 setting up a series: the sidebar becomes one **Make** panel and the Refs tab, the
 settings and the text windows wait in Advanced. It is remembered in this browser.
 
+- **Project**: where the clips go: **Clips**, or **+ New project** for a folder of its own
+  (`<Name>/<name>/` in your first project folder), so its clips, people and places stay
+  together. The picker lists only Simple's projects; a series' episodes open in Advanced.
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
 - **Model**: the video model, with a line on what each is good at (H3 by default); for a
   picture, the image model (Krea 2 by default; an edit model draws the people and the place
@@ -73,13 +76,22 @@ settings and the text windows wait in Advanced. It is remembered in this browser
 - **What's said**, **Framing**, **Length**, **Takes**, then **Queue**. A picture asks how
   many pictures; several shots has a row per shot (what we see, framing, length), in order,
   sharing the people and the place, each queued with that many takes.
+- **Length** is seconds, typed or picked (auto fits the dialogue; LTX-2 can choose its
+  own). Each model renders on its own frame grid, so under it is what the model picked
+  makes of it: rounded up (5 s is 5.17 s on H3), and past the model's longest, its
+  longest.
+- **Size** is the project's picture size for the pass you're on (proxy or final): width ×
+  height in pixels, or **480p** / **720p** / **1080p** (⇄ turns it portrait). **Set**
+  writes it as the project's model takes it (H3 needs multiples of 32: 1280×720 is
+  1280×704), and every clip of the project renders at it; under it, what another model
+  picked for the clip makes of it.
 
 Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
 the same queue, and the takes once they are made; **Your clips** lists them, newest
 first: a clip plays its newest take, several shots play cut together, a picture opens
-its pictures. Underneath it is an ordinary project, **Clips**
-(`Clips/clips/` in your first project folder): each clip is a shot of it, so everything
-in Advanced works on it too, and a clip can later go into a real series. **A series…**
+its pictures. Underneath each project is an ordinary episode, **Clips**
+(`Clips/clips/` in your first project folder) or one of your own: each clip is a shot of
+it, so everything in Advanced works on it too, and a clip can later go into a real series. **A series…**
 starts the series wizard.
 
 ## Shots

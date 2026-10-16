@@ -21,6 +21,21 @@ export interface EpisodeSummary {
   built: Record<Pass, boolean>;
   shots: number;
   script: string;
+  /** one of Simple mode's projects (its series config says `"simple": true`, or it is Clips) */
+  simple?: boolean;
+}
+
+/** A target's frame grid and size rules (GET /seriesmith/targets, `template`). */
+export interface TargetTemplate {
+  /** a number, or "series": the series config's fps */
+  fps?: number | "series";
+  frames?: { step?: number; base?: number; max?: number };
+  size_multiple?: number;
+  /** "snap": an off-grid size is rounded down; otherwise it is refused */
+  size_fit?: string;
+  max_size?: { long_side?: number; pixels?: number };
+  /** the only sizes the model takes */
+  sizes?: [number, number][];
 }
 
 export type TakeStatus = "queued" | "ok" | "failed";
@@ -1673,7 +1688,7 @@ export interface Target {
     max_seconds?: number;
     [key: string]: unknown;
   };
-  template?: { fps?: number; frames?: { step?: number; base?: number; max?: number }; size_multiple?: number; size_fit?: string };
+  template?: TargetTemplate;
   /** The family each model param must be (target.json `models`), by param. */
   models?: Record<string, { family: string; label?: string; patterns?: string[]; folder?: string | null; tier?: RequirementTier }>;
   /** Only with `?ready=1`: what's installed, what's missing and where to get it. */

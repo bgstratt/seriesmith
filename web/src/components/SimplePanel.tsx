@@ -1,9 +1,10 @@
 // Simple mode (docs/PLAN.md, step 12): the sidebar as one panel for making a
 // clip -- pick the model, write what happens, pick who and where by picture
 // (or add them), queue some takes -- and the clips so far. A clip is a shot
-// of the Clips project (seriesmith/clips.py), written by lib/simple.ts; its
-// missing pictures are made first (POST /seriesmith/clip/queue). Everything
-// else (settings, the text windows, the Refs tab) waits in Advanced.
+// of a Simple project (seriesmith/clips.py: Clips, made first, or one of its
+// own from + New project), written by lib/simple.ts; its missing pictures are
+// made first (POST /seriesmith/clip/queue). Everything else (settings, the
+// text windows, the Refs tab) waits in Advanced.
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -13,8 +14,13 @@ import {
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
-import { DURATIONS, SIZES, type DialogueLine } from "../lib/shotForm";
-import { IMAGE_NOTES, MODEL_NOTES, clipBlock, nextClipIds, pictureModel, placeFor, shotsBlock, withClip } from "../lib/simple";
+import { SIZES, type DialogueLine } from "../lib/shotForm";
+import {
+  IMAGE_NOTES, MODEL_NOTES, QUICK_LENGTHS, clipBlock, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, snapLength,
+  withClip,
+} from "../lib/simple";
+import { QUICK_SIZES, fitSize } from "../lib/size";
+import type { TargetTemplate } from "../types";
 import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
 import { Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
@@ -35,22 +41,30 @@ export function ModeSwitch() {
 export function SimplePanel() {
   const ep = useApp((s) => s.ep);
   const config = useApp((s) => s.config);
+  const episodes = useApp((s) => s.episodes);
   const [clipsEp, setClipsEp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isSimple = (e: string | null) => !!e && (e === clipsEp || !!episodes?.some((x) => x.ep === e && x.simple));
 
-  // the Clips project, made the first time, and opened
+  // the Clips project, made the first time; opened unless a Simple project is
   useEffect(() => {
     let gone = false;
     api().clipsEnsure()
       .then(async (r) => {
         if (gone) return;
         setClipsEp(r.ep);
-        if (r.made) await loadEpisodes();
-        if (store.get().ep !== r.ep) selectEpisode(r.ep);
+        if (r.made || !store.get().episodes) await loadEpisodes();
+        const cur = store.get().ep;
+        const keep = cur && (cur === r.ep || (store.get().episodes ?? []).some((x) => x.ep === cur && x.simple));
+        if (!keep) selectEpisode(r.ep);
       })
       .catch((e) => !gone && setError((e as Error).message));
     return () => { gone = true; };
   }, [config?.roots?.join("|")]);
+  // an episode of Advanced's opened meanwhile: back to Clips
+  useEffect(() => {
+    if (clipsEp && episodes && ep && !isSimple(ep)) selectEpisode(clipsEp);
+  }, [ep, clipsEp, episodes]);
 
   const head = (
     <div className="h3-bar" style={{ justifyContent: "space-between" }}>
@@ -69,14 +83,141 @@ export function SimplePanel() {
       </div>
     );
   }
-  if (!clipsEp || ep !== clipsEp) {
+  if (!clipsEp || !ep || !isSimple(ep)) {
     return <div className="h3-surface">{head}<div className="h3-pad h3-muted h3-small">Opening your clips…</div></div>;
   }
   return (
     <div className="h3-surface">
       {head}
-      <ClipMaker ep={clipsEp} root={config?.roots?.[0] ?? null} />
+      <ClipMaker key={ep} ep={ep} root={config?.roots?.[0] ?? null} />
     </div>
+  );
+}
+
+/** Which Simple project the clips go in: Clips, or one of its own (+ New project). */
+function ProjectPick({ ep, root }: { ep: string; root: string | null }) {
+  const episodes = useApp((s) => s.episodes);
+  const [name, setName] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const mine = (episodes ?? []).filter((e) => e.simple || e.ep === ep);
+  async function make() {
+    if (!name?.trim()) return;
+    setBusy(true);
+    try {
+      const r = await api().clipsNew(name.trim(), root);
+      await loadEpisodes();
+      selectEpisode(r.ep);
+      setName(null);
+    } catch (e) {
+      host().toast("error", "The project wasn't made", (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (name !== null) {
+    return (
+      <Row label="New project" help="A folder of its own for its clips, people and places.">
+        <span className="h3-row" style={{ gap: 4 }}>
+          <input className="h3-in h3-grow" autoFocus value={name} placeholder="Storm at the lighthouse"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void make(); if (e.key === "Escape") setName(null); }} />
+          <button className="h3-btn h3-primary" disabled={busy || !name.trim()} onClick={() => void make()}>Make</button>
+          <button className="h3-btn" disabled={busy} onClick={() => setName(null)}>Cancel</button>
+        </span>
+      </Row>
+    );
+  }
+  return (
+    <Row label="Project" help="">
+      <span className="h3-row" style={{ gap: 4 }}>
+        <select className="h3-in h3-grow" value={ep} onChange={(e) => selectEpisode(e.target.value)}>
+          {mine.map((e) => <option key={e.ep} value={e.ep}>{e.series || e.title || e.name}</option>)}
+        </select>
+        <button className="h3-btn" disabled={!root} title="A project of its own: its clips, people and places kept together"
+          onClick={() => setName("")}>+ New project</button>
+      </span>
+    </Row>
+  );
+}
+
+/** A length in seconds: typed, or one of the quick ones; under it, what the
+ * model renders (its frame grid rounds it up, and caps it at its longest). */
+function LengthInput({ value, onChange, template, fps, auto, model, short }: {
+  value: string; onChange: (v: string) => void; template: TargetTemplate | undefined; fps: number;
+  auto?: boolean; model?: boolean; short?: string;
+}) {
+  const snap = snapLength(value, template, fps);
+  const note = !snap ? "" : snap.capped ? `${snap.seconds} s, ${short ?? "the model"}'s longest`
+    : Math.abs(snap.seconds - Number(value)) > 0.005 ? `renders ${snap.seconds} s` : "";
+  return (
+    <span className="h3-col" style={{ gap: 1 }}>
+      <span className="h3-row" style={{ gap: 3 }}>
+        <input className="h3-in" style={{ width: 70 }} list="sm-lengths" value={value} inputMode="decimal"
+          title={"Seconds: type any length, or pick one" + (auto ? "; auto fits the dialogue" : "")}
+          onChange={(e) => onChange(e.target.value)} />
+        <span className="h3-small h3-muted">s</span>
+      </span>
+      <datalist id="sm-lengths">
+        {QUICK_LENGTHS.map((v) => <option key={v} value={v} />)}
+        {auto && <option value="auto">as long as the dialogue needs</option>}
+        {model && <option value="model">the model chooses</option>}
+      </datalist>
+      {note && <span className="h3-small h3-muted">{note}</span>}
+    </span>
+  );
+}
+
+/** The project's picture size for the pass on (`series` for final, `proxy`
+ * for proxy, in its series config): width and height, or a quick size. It is
+ * written as the project's model takes it; under it, what the clip's model
+ * renders when that differs. */
+function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
+  raw: Raw; pass: string; status: { width: number | null; height: number | null } | null;
+  seriesTemplate: TargetTemplate | undefined; template: TargetTemplate | undefined; short: string;
+  save: (w: number, h: number) => Promise<boolean>;
+}) {
+  const block = pass === "final" ? "series" : "proxy";
+  const cw = Number(getPath(raw, [block, "width"])) || status?.width || 0;
+  const ch = Number(getPath(raw, [block, "height"])) || status?.height || 0;
+  const [w, setW] = useState(cw ? String(cw) : "");
+  const [h, setH] = useState(ch ? String(ch) : "");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setW(cw ? String(cw) : ""); setH(ch ? String(ch) : ""); }, [cw, ch]);
+  const nw = Math.round(Number(w)), nh = Math.round(Number(h));
+  const valid = nw >= 64 && nh >= 64 && nw <= 8192 && nh <= 8192;
+  const [sw, sh] = valid ? fitSize(nw, nh, seriesTemplate) : [0, 0];
+  const [rw, rh] = valid ? fitSize(sw, sh, template) : [0, 0];
+  const dirty = valid && (sw !== cw || sh !== ch);
+  async function set() {
+    setBusy(true);
+    try { await save(sw, sh); } finally { setBusy(false); }
+  }
+  const quick = (q: { width: number; height: number }) => {
+    const tall = nh > nw;
+    setW(String(tall ? q.height : q.width));
+    setH(String(tall ? q.width : q.height));
+  };
+  const notes = [
+    valid && (sw !== nw || sh !== nh) ? `the project's model takes ${sw}×${sh}` : "",
+    valid && template && (rw !== sw || rh !== sh) ? `${short} renders ${rw}×${rh}` : "",
+  ].filter(Boolean);
+  return (
+    <Row label={`Size (${pass})`} help="">
+      <span className="h3-col" style={{ gap: 2 }}>
+        <span className="h3-row h3-wrap" style={{ gap: 4 }}>
+          <input className="h3-in" style={{ width: 64 }} inputMode="numeric" value={w} onChange={(e) => setW(e.target.value)} title="Width, pixels" />
+          <span className="h3-small">×</span>
+          <input className="h3-in" style={{ width: 64 }} inputMode="numeric" value={h} onChange={(e) => setH(e.target.value)} title="Height, pixels" />
+          <button className="h3-link" title="Swap: landscape / portrait" onClick={() => { setW(h); setH(w); }}>⇄</button>
+          {QUICK_SIZES.map((q) => <button key={q.label} className="h3-btn" onClick={() => quick(q)}>{q.label}</button>)}
+          {dirty && (
+            <button className="h3-btn h3-primary" disabled={busy} onClick={() => void set()}
+              title={`Every clip of this project renders at it (${pass})`}>Set</button>
+          )}
+        </span>
+        {notes.length > 0 && <span className="h3-small h3-muted">{notes.join("; ")}</span>}
+      </span>
+    </Row>
   );
 }
 
@@ -107,7 +248,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [model, setModel] = useState("");
   const [imageModel, setImageModel] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3.04" }, { prompt: "", size: "medium", dur: "3.04" }]);
+  const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3" }, { prompt: "", size: "medium", dur: "3" }]);
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
   const [placeText, setPlaceText] = useState("");
@@ -115,12 +256,17 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [placePicture, setPlacePicture] = useState(false);
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
-  const [dur, setDur] = useState("3.04");
+  const [dur, setDur] = useState("3");
   const [takes, setTakes] = useState(1);
   const [busy, setBusy] = useState(false);
   const target = model || seriesTarget;
   const imageTarget = imageModel || imageDefault;
   const picture = mode === "picture";
+  const status = useApp((s) => s.status[statusKey(ep, s.pass)]);
+  const fps = Number(raw && getPath(raw, ["series", "fps"])) || 24;
+  const all = targets?.targets ?? [];
+  const tpl = all.find((x) => x.id === target)?.template;
+  const seriesTpl = all.find((x) => x.id === seriesTarget)?.template;
 
   const cast = useMemo(() => {
     const subj = (getPath(raw ?? {}, ["subjects"]) ?? {}) as Record<string, Raw>;
@@ -149,8 +295,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       const { seq, shot } = nextClipIds(script.text);
       const base = { who, where, placeText, target, dialogue: mode === "clip" ? dialogue : [] };
       const specs = mode === "shots"
-        ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: r.dur }))
-        : [{ ...base, prompt, size, dur, still: picture }];
+        ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: durFor(r.dur, tpl, fps) }))
+        : [{ ...base, prompt, size, dur: durFor(dur, tpl, fps), still: picture }];
       let location = where;
       if (!location) {
         // a place of the clip's own: words only, or its plate made first
@@ -201,6 +347,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const what = picture ? "picture" : "take";
   return (
     <div className="h3-col" style={{ gap: 10, padding: 10, overflow: "auto", minHeight: 0, flex: 1 }}>
+      <ProjectPick ep={ep} root={root} />
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
         <span className="h3-seg" title="What you're making">
           <button className={mode === "clip" ? "h3-on" : ""} onClick={() => setMode("clip")}>A clip</button>
@@ -235,9 +382,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                   <select className="h3-in" value={r.size} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, size: e.target.value } : x)))}>
                     {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label.split(" — ")[0]}</option>)}
                   </select>
-                  <select className="h3-in" value={r.dur} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, dur: e.target.value } : x)))}>
-                    {DURATIONS.filter((d) => d.value !== "model" && d.value !== "auto").map((d) => <option key={d.value} value={d.value}>{d.label.split(" — ")[0]}</option>)}
-                  </select>
+                  <LengthInput value={r.dur} template={tpl} fps={fps} short={t?.short}
+                    onChange={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, dur: v } : x)))} />
                   <span className="h3-grow" />
                   {rows.length > 1 && <button className="h3-link" title="Remove this shot" onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</button>}
                 </div>
@@ -246,7 +392,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                   onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
               </div>
             ))}
-            {rows.length < 8 && <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3.04" }])}>+ Shot</button></div>}
+            {rows.length < 8 && <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3" }])}>+ Shot</button></div>}
           </div>
         </Row>
       ) : (
@@ -308,9 +454,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         )}
         {mode === "clip" && (
           <Row label="Length" help="">
-            <select className="h3-in" value={dur} onChange={(e) => setDur(e.target.value)}>
-              {DURATIONS.filter((d) => d.value !== "model" || target.startsWith("ltx2")).map((d) => <option key={d.value} value={d.value}>{d.label.split(" — ")[0]}</option>)}
-            </select>
+            <LengthInput value={dur} onChange={setDur} template={tpl} fps={fps} short={t?.short} auto model={target.startsWith("ltx2")} />
           </Row>
         )}
         <Row label={picture ? "Pictures" : mode === "shots" ? "Takes of each" : "Takes"} help="">
@@ -319,6 +463,15 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           </select>
         </Row>
       </div>
+
+      {raw && (
+        <SizeRow raw={raw} pass={pass} status={status ? { width: status.width, height: status.height } : null}
+          seriesTemplate={seriesTpl} template={picture ? undefined : tpl} short={t?.short ?? target}
+          save={(w, h) => {
+            const block = pass === "final" ? "series" : "proxy";
+            return sc.save(setPath(setPath(raw, [block, "width"], w), [block, "height"], h), "the size");
+          }} />
+      )}
 
       <button className="h3-btn h3-primary" style={{ alignSelf: "flex-start" }} disabled={busy || !ready || !raw} onClick={() => void queue()}>
         {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-play" />} Queue {runs} {what}{runs > 1 ? "s" : ""}

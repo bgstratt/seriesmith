@@ -464,6 +464,17 @@ multi-shot clip, or a series with episodes.
       `c007b`, ...), each shot queued, played cut together (Play all limited
       to those shots). Checked live (the lane paused): two Krea 2 pictures;
       two shots of two takes each.
+- [x] Projects (2026-10-16): **+ New project** makes a Simple project of its
+      own, a show folder (`<Name>/<name>/`, its pictures in `<Name>/refs/`),
+      so a piece of work keeps its clips, people and places together; the
+      picker lists Simple's projects only (`"simple": true`, or Clips), so a
+      clip never lands in a series' script. One take by default.
+- [x] Length typed in seconds, rounded up onto the picked model's frame grid
+      and capped at its longest, with what it renders shown (it had offered
+      H3's grid whatever the model).
+- [x] Size: the project's width × height for the pass on, typed or 480p /
+      720p / 1080p, written as the project's model takes it, with what the
+      clip's model renders shown. (A size per clip would need a script key.)
 
 ## Step 13 — a character (or a place) from a frame ✅
 

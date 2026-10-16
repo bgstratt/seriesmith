@@ -502,6 +502,22 @@ def post_clips_ensure(ctx: Context, body):
 
 
 @handler
+def post_clips_new(ctx: Context, body):
+    """A Simple project of its own (clips.new_project): {"title", "root"?}
+    (default the first project root) -> {"ep"}."""
+    from seriesmith import clips as CL
+    body = body_dict(body)
+    roots = load_roots(ctx)
+    root = body.get("root") or (roots[0] if roots else None)
+    if not root:
+        raise ApiError(409, "no project folder yet: add one (Project folders) first")
+    root = check_folder(ctx, root, "root")
+    res = CL.new_project(root, body.get("title"))
+    episode_event(ctx, res["ep"])
+    return 200, res
+
+
+@handler
 def post_clip_queue(ctx: Context, body):
     """Queue a clip (a shot of the Clips project, or of any episode): the
     pictures it still needs are generated first (clips.needed_refs; one
@@ -3853,6 +3869,7 @@ ROUTES = [
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
     ("POST", "/seriesmith/clips/ensure", post_clips_ensure, "body"),
+    ("POST", "/seriesmith/clips/new", post_clips_new, "body"),
     ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
     ("POST", "/seriesmith/refs/from-frame", post_refs_from_frame, "body"),
     ("POST", "/seriesmith/refs/video", post_refs_video, "form"),

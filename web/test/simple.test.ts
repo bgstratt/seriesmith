@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, nextClipIds, placeFor, shotsBlock, withClip, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, type ClipSpec } from "../src/lib/simple";
+import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
   prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "", placeText: "",
@@ -47,5 +48,32 @@ describe("simple mode's clips", () => {
     expect(ids).toEqual(["c004a", "c004b"]);
     expect(lines).toEqual(["# cl004  pier", "", "## c004a", "size: wide", "dur: 3.04", "Wide on the pier.",
       "", "## c004b", "size: cu", "dur: 3.04", "Close on her hands."]);
+  });
+});
+
+describe("simple mode's length and size", () => {
+  const H3 = { fps: 24, frames: { step: 17, base: 5, max: 3592 }, size_multiple: 32 };
+  const SEEDANCE = { fps: 24, frames: { step: 24, base: 96, max: 720 }, size_multiple: 2, size_fit: "snap",
+                     max_size: { long_side: 1920 } };
+  it("a typed length rounds up onto the model's grid", () => {
+    expect(snapLength("5", H3)).toEqual({ seconds: 5.17, frames: 124, capped: false });
+    expect(snapLength("3.04", H3)?.frames).toBe(73);
+    expect(snapLength("5", SEEDANCE)).toEqual({ seconds: 5, frames: 120, capped: false });
+    expect(snapLength("4.2", SEEDANCE)?.seconds).toBe(5);
+    expect(snapLength("2", SEEDANCE)?.seconds).toBe(4);              // its shortest
+    expect(snapLength("", H3)).toBeNull();
+    expect(snapLength("auto", H3)).toBeNull();
+  });
+  it("past the model's longest it is capped, and that is what the script says", () => {
+    expect(snapLength("45", SEEDANCE)).toEqual({ seconds: 30, frames: 720, capped: true });
+    expect(durFor("45", SEEDANCE)).toBe("30");
+    expect(durFor(" 5 ", SEEDANCE)).toBe("5");
+    expect(durFor("auto", H3)).toBe("auto");
+  });
+  it("a size is made one the model takes", () => {
+    expect(fitSize(1280, 720, H3)).toEqual([1280, 704]);
+    expect(fitSize(1920, 1080, SEEDANCE)).toEqual([1920, 1080]);
+    expect(fitSize(3840, 2160, SEEDANCE)).toEqual([1920, 1080]);
+    expect(fitSize(1000, 1000, { sizes: [[1280, 720], [720, 1280], [960, 960]] })).toEqual([960, 960]);
   });
 });

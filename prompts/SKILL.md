@@ -250,6 +250,8 @@ target-from-workflow`), named in `target:` like any other.
   target's own. Single shots or sequences can render on another one; see
   **Rendering a shot on LTX-2**, **Rendering a shot on H3 from keyframes** and **Rendering a
   shot on Wan 2.2** below.
+- `"simple": true` marks a project the editor's Simple mode made (Clips, or + New project):
+  its project picker lists it. It changes nothing about how the episode builds or renders.
 
 ### Final resolution: render at size, or render small and upscale
 

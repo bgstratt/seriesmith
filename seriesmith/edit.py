@@ -210,7 +210,9 @@ def browse(path: str | None, files: str | None = None) -> dict:
 
 
 def episode_summary(root: str, script: str | None = None) -> dict:
+    from seriesmith import clips as CL
     title = series = ""
+    b: dict = {}
     series_cfg = episode_series_config(root)
     if series_cfg:
         b = T.read_json(series_cfg) or {}
@@ -225,7 +227,9 @@ def episode_summary(root: str, script: str | None = None) -> dict:
             break
     return {"ep": os.path.abspath(root), "name": os.path.basename(os.path.normpath(root)),
             "series": series, "title": title, "built": built, "shots": shots,
-            "script": os.path.basename(script or episode_script(root) or "")}
+            "script": os.path.basename(script or episode_script(root) or ""),
+            # one of Simple mode's projects (clips.is_simple): its project picker lists it
+            "simple": CL.is_simple(root, b)}
 
 
 def episode_fps(root: str) -> float:

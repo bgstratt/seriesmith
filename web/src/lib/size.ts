@@ -2,6 +2,8 @@
 // A shot renders at its shotlist's size unless a take or its override asks for
 // another: a good 1344x768 take in a 960x544 episode, mastered by its own size.
 
+import type { TargetTemplate } from "../types";
+
 /** The sizes offered besides the shot's own (H3's 32 grid; 1344x768 is its native size). */
 export const SIZE_CHOICES = ["1344x768", "1024x576", "960x544"];
 
@@ -57,3 +59,33 @@ export function sizeCheck(text: string, rule: SizeRule): { level: "err" | "info"
   const bad = [w % m ? `width ${near(w)}` : "", h % m ? `height ${near(h)}` : ""].filter(Boolean).join(", ");
   return { level: "err", text: `Not a multiple of ${m}, which this target needs: ${bad}.` };
 }
+
+/** (width, height) as `template`'s model renders it (targets.Template.fit_size):
+ * the nearest of its listed sizes, else rounded down to its grid and shrunk
+ * under its maximum, keeping the shape. A model that refuses an off-grid size
+ * is rounded the same way here, so what is written is a size it takes. */
+export function fitSize(width: number, height: number, template: TargetTemplate | null | undefined): [number, number] {
+  const sizes = template?.sizes ?? [];
+  if (sizes.length) {
+    const want = width / height;
+    const key = ([w, h]: [number, number]) => [Math.round(Math.abs(Math.log(w / h / want)) * 1000), Math.abs(w * h - width * height)];
+    return [...sizes].sort((a, b) => {
+      const [x1, y1] = key(a), [x2, y2] = key(b);
+      return x1 - x2 || y1 - y2;
+    })[0];
+  }
+  const m = Math.max(1, Number(template?.size_multiple) || 1);
+  let k = 1;
+  const long = template?.max_size?.long_side;
+  if (long && Math.max(width, height) > long) k = Math.min(k, long / Math.max(width, height));
+  const pixels = template?.max_size?.pixels;
+  if (pixels && width * height * k * k > pixels) k = Math.min(k, Math.sqrt(pixels / (width * height)));
+  return [Math.max(m, Math.floor(Math.floor(width * k) / m) * m), Math.max(m, Math.floor(Math.floor(height * k) / m) * m)];
+}
+
+/** Simple mode's quick sizes: the picture's height (its short side, landscape). */
+export const QUICK_SIZES: { label: string; width: number; height: number }[] = [
+  { label: "480p", width: 854, height: 480 },
+  { label: "720p", width: 1280, height: 720 },
+  { label: "1080p", width: 1920, height: 1080 },
+];
