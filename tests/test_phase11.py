@@ -108,8 +108,8 @@ class GraphSourceTest(unittest.TestCase):
         a canvas that once rendered an episode is not "edited here"."""
         saved = repo_graph(H3)
         for node in saved["nodes"]:
-            if node["type"] == "H3ShotListLoader":
-                node["widgets_values"][0] = r"C:\Shows\ep05"
+            if node["type"] == "SeriesmithShotLoader":
+                node["widgets_values"][0] = '{"shots": [{"id": "sh010"}]}'
             if node["type"] == "UNETLoader":
                 node["widgets_values"][0] = "something_else.safetensors"
             if node["type"] == "KSamplerSelect":
@@ -118,6 +118,18 @@ class GraphSourceTest(unittest.TestCase):
         g = self.source()
         self.assertEqual(g["source"], "comfy")
         self.assertFalse(g["differs"])
+
+    def test_seriesmith_nodes_read_as_the_binding_names(self):
+        """The canvas copy holds seriesmith's loader and saver; the binding still
+        finds them under h3pipe's names, and a copy saved with those reads the same."""
+        g = J.graph_from(repo_graph(H3))
+        classes = {v["class_type"] for v in g.values()}
+        self.assertTrue({"H3ShotListLoader", "H3SaveShot"} <= classes)
+        self.assertFalse(classes & {"SeriesmithShotLoader", "SeriesmithSaveTake"})
+        sent = {k: dict(v, class_type=J.SENT_AS.get(v["class_type"], v["class_type"]))
+                for k, v in g.items()}                      # as an API export would hold them
+        self.assertEqual(J.graph_from(sent), g)
+        self.assertEqual(J.graph_from(copy.deepcopy(g)), g)  # h3pipe's names: unchanged
 
     def test_real_edit_differs(self):
         saved = repo_graph(H3)

@@ -489,12 +489,20 @@ def load_graph(path: str) -> dict:
 
 
 def graph_from(data: dict, where: str = "workflow") -> dict:
-    """A UI save or an API export, as an API graph."""
+    """A UI save or an API export, as an API graph. A workflow saved with
+    seriesmith's own loader, saver or chain nodes reads as the h3pipe names
+    the bindings look up (SENT_AS): a job sends seriesmith's either way."""
     if "nodes" in data and "links" in data:
-        return ui_to_api(data)
-    if all(isinstance(v, dict) and "class_type" in v for v in data.values()):
-        return data
-    raise ValueError(f"{where} is neither a ComfyUI workflow save nor an API export")
+        g = ui_to_api(data)
+    elif all(isinstance(v, dict) and "class_type" in v for v in data.values()):
+        g = data
+    else:
+        raise ValueError(f"{where} is neither a ComfyUI workflow save nor an API export")
+    bound = {v: k for k, v in SENT_AS.items()}
+    for v in g.values():
+        if v.get("class_type") in bound:
+            v["class_type"] = bound[v["class_type"]]
+    return g
 
 
 def workflow_candidates(explicit: str | None, name: str = WORKFLOW_NAME,
@@ -2458,6 +2466,13 @@ def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = No
 PORTABLE_LOADER = "SeriesmithShotLoader"
 PORTABLE_SAVER = "SeriesmithSaveTake"
 PORTABLE = {"H3ShotListLoader": PORTABLE_LOADER, "H3SaveShot": PORTABLE_SAVER}
+# every h3pipe class a target's workflow may still name, as a job sends it
+# (make_portable, chain_portable): what readiness asks the backend for
+SENT_AS = {**PORTABLE, "H3ChainLatent": "SeriesmithChainLatent",
+           "H3ChainTrim": "SeriesmithChainTrim"}
+# an image or voice take is sent with its workflow's own SaveImage / SaveAudio
+# in place of these (refs.graph_for, portable)
+KEPT_SAVE = frozenset({"H3SaveRefTake", "H3SaveRefAudio"})
 
 
 class NotPortable(ValueError):

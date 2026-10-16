@@ -1633,7 +1633,14 @@ def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dic
         classes = set()
     if b.saver.get("replaces"):                          # krea2: the saver takes SaveImage's place
         classes.discard(b.saver["replaces"])
-    for c in sorted(classes | {x for x in (b.loader_class, b.saver_class) if x}):
+    # h3pipe's loader, saver and chain nodes are sent as seriesmith's own; an
+    # image or voice saver as the SaveImage / SaveAudio it took the place of
+    kept = (b.saver.get("replace") or {}).get("class_type") or b.saver.get("replaces")
+
+    def sent(c):
+        return kept if c in J.KEPT_SAVE and kept else J.SENT_AS.get(c, c)
+    for c in sorted({sent(x) for x in
+                     classes | {x for x in (b.loader_class, b.saver_class) if x}}):
         need[c] = {"tier": "required", "feature": ""}
     need.update(t.nodes)
     _NODES[key] = need

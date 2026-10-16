@@ -486,9 +486,9 @@ class ReadinessTest(unittest.TestCase):
                           "the quality profile (LTX-2.5 dev transformer)"])
 
     def test_nodes(self):
-        r = self.ready(fake_object_info(drop_nodes={"LTXVDurationPredictor", "H3SaveShot"}))
-        self.assertEqual(r["ltx2"]["nodes_missing"], ["H3SaveShot", "LTXVDurationPredictor"])
-        self.assertEqual(r["ltx2"]["status"], "not_ready")                   # H3SaveShot
+        r = self.ready(fake_object_info(drop_nodes={"LTXVDurationPredictor", "SeriesmithSaveTake"}))
+        self.assertEqual(r["ltx2"]["nodes_missing"], ["SeriesmithSaveTake", "LTXVDurationPredictor"])
+        self.assertEqual(r["ltx2"]["status"], "not_ready")                   # the saver
         r = self.ready(fake_object_info(drop_nodes={"LTXVDurationPredictor"}))
         self.assertEqual((r["ltx2"]["status"], r["ltx2"]["features_off"]),
                          ("degraded", ["dur: model (duration head)"]))
@@ -497,9 +497,17 @@ class ReadinessTest(unittest.TestCase):
         self.assertEqual(r["wan22_vace"]["nodes_missing"], ["WanVaceToVideo"])
         # the workflow's own classes, as a job keeps them (pruned, saver in place)
         need = E.target_nodes(TG.load_target("ltx2_ingredients"))
-        self.assertIn("H3SaveShot", need)
+        self.assertIn("SeriesmithSaveTake", need)                           # as a job sends it
+        self.assertNotIn("H3SaveShot", need)
         self.assertNotIn("SaveVideo", need)
         self.assertNotIn("TextGenerateLTX2Prompt", need)                    # pruned away
+        # no target asks for h3pipe's pack: what a job sends is seriesmith's
+        # nodes, or an image / voice workflow's own SaveImage / SaveAudio
+        from seriesmith.shotnodes import H3PIPE_NODES
+        for t in TG.list_targets():
+            self.assertFalse(set(E.target_nodes(t)) & H3PIPE_NODES, t.id)
+        self.assertIn("SaveImage", E.target_nodes(TG.load_target("flux3_klein")))
+        self.assertIn("SaveAudio", E.target_nodes(TG.load_target("ltx2_voice")))
 
     def test_route(self):
         info = fake_object_info(drop_files={"ltx-2.5-duration-head-bf16.safetensors"})

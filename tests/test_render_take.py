@@ -121,8 +121,10 @@ class PortableGraphTest(Episode):
         self.assertEqual({k: v for k, v in g.items() if k not in (loader, saver)},
                          {k: v for k, v in plain.items() if k not in (loader, saver)})
         for nid in (loader, saver):
+            # what make_portable sets is left out (the canvas holds empty ones)
             kept = {k: v for k, v in plain[nid]["inputs"].items()
-                    if k not in ("project_root", "shotlist_file", "subfolder", "sidecar")}
+                    if k not in ("project_root", "shotlist_file", "subfolder", "sidecar",
+                                 "shotlist", "files", "run") and not k.startswith("file_")}
             self.assertEqual({k: g[nid]["inputs"][k] for k in kept}, kept)
 
     def test_a_workflow_with_another_saver_is_not_portable(self):

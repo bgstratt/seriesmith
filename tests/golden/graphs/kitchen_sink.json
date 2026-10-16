@@ -14,15 +14,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh010/sh010_t01.shotlist.json"
      }
     },
@@ -254,7 +280,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -280,6 +306,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -483,15 +510,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh020/sh020_t01.shotlist.json"
      }
     },
@@ -723,7 +776,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -749,6 +802,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -994,15 +1048,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh030/sh030_t01.shotlist.json"
      }
     },
@@ -1234,7 +1314,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -1260,6 +1340,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -1477,15 +1558,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh040/sh040_t01.shotlist.json"
      }
     },
@@ -1717,7 +1824,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -1743,6 +1850,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -1955,15 +2063,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh050/sh050_t01.shotlist.json"
      }
     },
@@ -2195,7 +2329,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -2221,6 +2355,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -2458,15 +2593,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh060/sh060_t01.shotlist.json"
      }
     },
@@ -2698,7 +2859,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -2724,6 +2885,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -2953,15 +3115,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh110/sh110_t01.shotlist.json"
      }
     },
@@ -3193,7 +3381,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -3219,6 +3407,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -3449,15 +3638,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh120/sh120_t01.shotlist.json"
      }
     },
@@ -3689,7 +3904,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -3715,6 +3930,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -3927,15 +4143,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh130/sh130_t01.shotlist.json"
      }
     },
@@ -4167,7 +4409,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -4193,6 +4435,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -4405,15 +4648,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh140/sh140_t01.shotlist.json"
      }
     },
@@ -4645,7 +4914,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -4671,6 +4940,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -4874,15 +5144,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh150/sh150_t01.shotlist.json"
      }
     },
@@ -5114,7 +5410,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -5140,6 +5436,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -5343,15 +5640,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh210/sh210_t01.shotlist.json"
      }
     },
@@ -5583,7 +5906,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -5609,6 +5932,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -5858,15 +6182,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh310/sh310_t01.shotlist.json"
      }
     },
@@ -6098,7 +6448,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -6124,6 +6474,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -6328,15 +6679,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh320/sh320_t01.shotlist.json"
      }
     },
@@ -6568,7 +6945,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -6594,6 +6971,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -6834,15 +7212,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh330/sh330_t01.shotlist.json"
      }
     },
@@ -7074,7 +7478,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -7100,6 +7504,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -7318,15 +7723,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders/sh340/sh340_t01.shotlist.json"
      }
     },
@@ -7558,7 +7989,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -7584,6 +8015,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -7816,15 +8248,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh010/sh010_t01.shotlist.json"
      }
     },
@@ -8056,7 +8514,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -8078,6 +8536,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -8280,15 +8739,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh020/sh020_t01.shotlist.json"
      }
     },
@@ -8520,7 +9005,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -8542,6 +9027,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -8763,15 +9249,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh030/sh030_t01.shotlist.json"
      }
     },
@@ -9003,7 +9515,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -9025,6 +9537,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -9229,15 +9742,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh040/sh040_t01.shotlist.json"
      }
     },
@@ -9469,7 +10008,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -9491,6 +10030,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -9702,15 +10242,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh050/sh050_t01.shotlist.json"
      }
     },
@@ -9942,7 +10508,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -9964,6 +10530,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -10177,15 +10744,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh060/sh060_t01.shotlist.json"
      }
     },
@@ -10417,7 +11010,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -10439,6 +11032,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -10644,15 +11238,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh110/sh110_t01.shotlist.json"
      }
     },
@@ -10884,7 +11504,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -10906,6 +11526,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -11135,15 +11756,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh120/sh120_t01.shotlist.json"
      }
     },
@@ -11375,7 +12022,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -11397,6 +12044,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -11608,15 +12256,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh130/sh130_t01.shotlist.json"
      }
     },
@@ -11848,7 +12522,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -11870,6 +12544,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -12081,15 +12756,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh140/sh140_t01.shotlist.json"
      }
     },
@@ -12321,7 +13022,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -12343,6 +13044,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -12545,15 +13247,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh150/sh150_t01.shotlist.json"
      }
     },
@@ -12785,7 +13513,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -12807,6 +13535,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -13009,15 +13738,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh210/sh210_t01.shotlist.json"
      }
     },
@@ -13249,7 +14004,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -13271,6 +14026,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -13485,15 +14241,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh310/sh310_t01.shotlist.json"
      }
     },
@@ -13725,7 +14507,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -13747,6 +14529,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -13950,15 +14733,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh320/sh320_t01.shotlist.json"
      }
     },
@@ -14190,7 +14999,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -14212,6 +15021,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -14439,15 +15249,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh330/sh330_t01.shotlist.json"
      }
     },
@@ -14679,7 +15515,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -14701,6 +15537,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
@@ -14906,15 +15743,41 @@
     },
     "11": {
      "_meta": {
-      "title": "Shot List Loader"
+      "title": "Shot Loader (seriesmith)"
      },
      "class_type": "H3ShotListLoader",
      "inputs": {
+      "file_00": "",
+      "file_01": "",
+      "file_02": "",
+      "file_03": "",
+      "file_04": "",
+      "file_05": "",
+      "file_06": "",
+      "file_07": "",
+      "file_08": "",
+      "file_09": "",
+      "file_10": "",
+      "file_11": "",
+      "file_12": "",
+      "file_13": "",
+      "file_14": "",
+      "file_15": "",
+      "file_16": "",
+      "file_17": "",
+      "file_18": "",
+      "file_19": "",
+      "file_20": "",
+      "file_21": "",
+      "file_22": "",
+      "file_23": "",
+      "files": "[]",
       "fps": 24,
       "index": 0,
       "panel_mode": "auto",
       "project_root": "<ROOT>",
       "resolution_override": "",
+      "shotlist": "{}",
       "shotlist_file": "renders_proxy/sh340/sh340_t01.shotlist.json"
      }
     },
@@ -15146,7 +16009,7 @@
     },
     "42": {
      "_meta": {
-      "title": "Save Shot (frames / wav / mp4)"
+      "title": "Save Take (seriesmith)"
      },
      "class_type": "H3SaveShot",
      "inputs": {
@@ -15168,6 +16031,7 @@
        "11",
        15
       ],
+      "run": "take",
       "save_frames": false,
       "shot_id": [
        "11",
