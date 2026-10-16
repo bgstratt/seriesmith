@@ -396,6 +396,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", action="append", metavar="FOLDER",
                     help="a folder of shows the editor may open (repeat for more; it also "
                          "keeps the ones you add in the editor)")
+    ap.add_argument("--auto-launch", action="store_true",
+                    help="open the editor in the default browser once the server is "
+                         "listening (as ComfyUI's --auto-launch)")
     args = ap.parse_args(argv)
     try:
         app = make_app(args.root)
@@ -417,8 +420,16 @@ def main(argv: list[str] | None = None) -> int:
     if os.name == "nt" and hasattr(signal, "SIGBREAK"):
         # Ctrl+Break as Ctrl+C: a clean stop
         signal.signal(signal.SIGBREAK, lambda *_: _interrupt())
+    url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '::', '') else args.host}:{args.port}/"
+
+    def listening(_msg):
+        # run_app's print hook: called once the sites are up
+        if args.auto_launch:
+            import webbrowser
+            webbrowser.open(url)
     try:
-        web.run_app(app, host=args.host, port=args.port, print=None, shutdown_timeout=SHUTDOWN_WAIT)
+        web.run_app(app, host=args.host, port=args.port, print=listening,
+                    shutdown_timeout=SHUTDOWN_WAIT)
     except KeyboardInterrupt:
         # a second Ctrl+C while the first one's stop is finishing: still a
         # stop, not a traceback (the queue's journal is written as jobs change)
