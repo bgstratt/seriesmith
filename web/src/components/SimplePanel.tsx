@@ -116,7 +116,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
-  const [takes, setTakes] = useState(2);
+  const [takes, setTakes] = useState(1);
   const [busy, setBusy] = useState(false);
   const target = model || seriesTarget;
   const imageTarget = imageModel || imageDefault;
