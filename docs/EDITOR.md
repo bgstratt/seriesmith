@@ -60,22 +60,27 @@ below).
 setting up a series: the sidebar becomes one **Make** panel and the Refs tab, the
 settings and the text windows wait in Advanced. It is remembered in this browser.
 
-- **Project**: where the clips go: **Clips**, or **+ New project** for a folder of its own
-  (`<Name>/<name>/` in your first project folder), so its clips, people and places stay
-  together. The picker lists only Simple's projects; a series' episodes open in Advanced.
+- **Project**, the panel's title: its name is a dropdown of Simple's projects (a series'
+  episodes open in Advanced), cut off at the edge when it's long. **+ New project** makes a
+  folder of its own (`<Name>/<name>/` in your first project folder), so its clips, people
+  and places stay together.
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
-- **Model**: the video model, with a line on what each is good at (H3 by default); for a
-  picture, the image model (Krea 2 by default; an edit model draws the people and the place
-  from their pictures, a text-to-image one from their words).
-- **What happens**: the prompt, as you'd describe the shot to a camera crew.
-- **Who's in it**: pick people by their picture, or **+ Someone**: a name, a description
-  and, if you have one, a picture of them (it is taken in and used as it is; without one
-  it is made from the description).
-- **Where**: pick a place by its picture, **+ Place**, or just say it in words (empty: the
-  prompt is the place). A place said in words gets a picture of its own.
-- **What's said**, **Framing**, **Length**, **Takes**, then **Queue**. A picture asks how
-  many pictures; several shots has a row per shot (what we see, framing, length), in order,
-  sharing the people and the place, each queued with that many takes.
+- **What happens?**: the prompt, as you'd describe the shot to a camera crew, and in the
+  same card:
+  - **Who**: pick people by their picture, or **+ Someone**: a name, a description and,
+    if you have one, a picture of them (it is taken in and used as it is; without one it
+    is made from the description).
+  - **Where**: pick a place by its picture, **+ Place**, or say a new one in words (empty:
+    the prompt is the place). **Make a picture of it first (so it looks the same each
+    time)** makes its picture before the clip renders, and the place is then there to pick
+    for the next clip; left off, each clip imagines it its own way.
+  - **Said** (a clip with people in it): the lines, under who says them.
+- The settings: **Model** (the video model, with a line on what each is good at, H3 by
+  default; for a picture, the image model, Krea 2 by default: an edit model draws the
+  people and the place from their pictures, a text-to-image one from their words),
+  **Framing**, **Length** and **Size**. Several shots has a row per shot instead (what we
+  see, framing, length), in order, sharing the people and the place.
+- **Make take** (**Make picture**, **Make N shots**) queues one; another click, another.
 - **Length**: a box for seconds, and beside it **lengths**, the ones the shot form offers
   (each with what it suits), to fill it from; `auto` fits the dialogue, and LTX-2 can
   choose its own (`model`). The shot form and the new episode wizard ask the same way. Each model renders on its own frame grid, so under it is what the model picked

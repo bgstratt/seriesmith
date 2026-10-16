@@ -479,6 +479,13 @@ multi-shot clip, or a series with episodes.
       square), written as the project's model takes it, with what the clip's
       model renders shown. (A size per clip would need a script key.) The New
       take dialog and the inspector's override ask the same way (SizePicker).
+- [x] A look of its own (2026-10-16): warm paper, light and dark (the
+      standalone page's palette; inside ComfyUI, its theme), DM Sans with
+      Newsreader for titles, cards, rounder controls and windows. Simple mode
+      as the mockups chose: the project as the panel's title (a dropdown over
+      its name, cut off rather than wrapped), who and where inside the What
+      happens card, a settings card, one Make button (one take a click: no
+      Takes), the clips as a thumbnail grid.
 
 ## Step 13 — a character (or a place) from a frame ✅
 
