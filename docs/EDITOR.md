@@ -80,7 +80,8 @@ settings and the text windows wait in Advanced. It is remembered in this browser
   people and the place from their pictures, a text-to-image one from their words),
   **Framing**, **Length** and **Size**. Several shots has a row per shot instead (what we
   see, framing, length), in order, sharing the people and the place.
-- **Make take** (**Make picture**, **Make N shots**) queues one; another click, another.
+- **Generate** (**Generate N shots** for several) queues one take, or one picture; another
+  click, another.
 - **Length**: a box for seconds, and beside it **lengths**, the ones the shot form offers
   (each with what it suits), to fill it from; `auto` fits the dialogue, and LTX-2 can
   choose its own (`model`). The shot form and the new episode wizard ask the same way. Each model renders on its own frame grid, so under it is what the model picked

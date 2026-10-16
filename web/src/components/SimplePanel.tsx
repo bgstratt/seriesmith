@@ -328,7 +328,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
 
   const t = video.find((x) => x.id === target);
   const it = images.find((x) => x.id === imageTarget);
-  const make = picture ? "Make picture" : mode === "shots" ? (runs ? `Make ${runs} shot${runs === 1 ? "" : "s"}` : "Make shots") : "Make take";
+  const make = mode === "shots" && runs > 1 ? `Generate ${runs} shots` : "Generate";
   const tabs: { id: Mode; label: string; title?: string }[] = [
     { id: "clip", label: "A clip" },
     { id: "picture", label: "A picture" },

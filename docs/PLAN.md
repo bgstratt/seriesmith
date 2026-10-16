@@ -484,8 +484,8 @@ multi-shot clip, or a series with episodes.
       Newsreader for titles, cards, rounder controls and windows. Simple mode
       as the mockups chose: the project as the panel's title (a dropdown over
       its name, cut off rather than wrapped), who and where inside the What
-      happens card, a settings card, one Make button (one take a click: no
-      Takes), the clips as a thumbnail grid.
+      happens card, a settings card, one Generate button (one take a click:
+      no Takes), the clips as a thumbnail grid.
 
 ## Step 13 — a character (or a place) from a frame ✅
 
