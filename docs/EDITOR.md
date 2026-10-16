@@ -75,7 +75,7 @@ settings and the text windows wait in Advanced. It is remembered in this browser
     time)** makes its picture before the clip renders, and the place is then there to pick
     for the next clip; left off, each clip imagines it its own way.
   - **Said** (a clip with people in it): the lines, under who says them.
-- The settings: **Model** (the video model, with a line on what each is good at, H3 by
+- The settings: **Model** (the video model, what each is good at in its tooltip, H3 by
   default; for a picture, the image model, Krea 2 by default: an edit model draws the
   people and the place from their pictures, a text-to-image one from their words),
   **Framing**, **Length** and **Size**. Several shots has a row per shot instead (what we

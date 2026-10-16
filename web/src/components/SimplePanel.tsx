@@ -429,15 +429,15 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       <section className="sm-card sm-settings">
         {picture ? (
           <Field label="Model" htmlFor="sm-model"
-            note={(IMAGE_NOTES[imageTarget] ?? it?.label ?? "") + (it?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
-            <select id="sm-model" className="h3-in" value={imageTarget} onChange={(e) => setImageModel(e.target.value === imageDefault ? "" : e.target.value)}>
+            note={it?.readiness?.status === "not_ready" ? "Its files aren't all installed." : undefined}>
+            <select id="sm-model" className="h3-in" title={IMAGE_NOTES[imageTarget] ?? it?.label} value={imageTarget} onChange={(e) => setImageModel(e.target.value === imageDefault ? "" : e.target.value)}>
               <ModelOptions targets={images} text={(v) => `${v.label}${v.id === imageDefault ? " (default)" : ""}`} />
             </select>
           </Field>
         ) : (
           <Field label="Model" htmlFor="sm-model" wide={mode === "shots"}
-            note={(MODEL_NOTES[target] ?? t?.label ?? "") + (t?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
-            <select id="sm-model" className="h3-in" value={target} onChange={(e) => setModel(e.target.value === seriesTarget ? "" : e.target.value)}>
+            note={t?.readiness?.status === "not_ready" ? "Its files aren't all installed." : undefined}>
+            <select id="sm-model" className="h3-in" title={MODEL_NOTES[target] ?? t?.label} value={target} onChange={(e) => setModel(e.target.value === seriesTarget ? "" : e.target.value)}>
               <ModelOptions targets={video} text={(v) => `${v.label}${v.id === seriesTarget ? " (default)" : ""}`} />
             </select>
           </Field>
