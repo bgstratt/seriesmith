@@ -469,14 +469,16 @@ multi-shot clip, or a series with episodes.
       so a piece of work keeps its clips, people and places together; the
       picker lists Simple's projects only (`"simple": true`, or Clips), so a
       clip never lands in a series' script. One take by default.
-- [x] Length: the shot form's lengths (what each suits) or Custom… and any
-      length in seconds (LengthPicker, the shot form's and the wizard's too:
-      their "other…" never opened its box), with what the picked model
-      renders shown: rounded up onto its frame grid, capped at its longest.
+- [x] Length: a box for seconds, always on screen, filled from a menu of the
+      shot form's lengths (what each suits), auto and model among them
+      (LengthPicker: the shot form's and the wizard's too, whose "other…"
+      never opened its box), with what the picked model renders shown:
+      rounded up onto its frame grid, capped at its longest.
 - [x] Size: the project's width × height for the pass on, typed or filled
-      from common sizes (H3's, 480p / 720p / 1080p, vertical, square),
-      written as the project's model takes it, with what the clip's model
-      renders shown. (A size per clip would need a script key.)
+      from a menu of common sizes (H3's, 480p / 720p / 1080p, vertical,
+      square), written as the project's model takes it, with what the clip's
+      model renders shown. (A size per clip would need a script key.) The New
+      take dialog and the inspector's override ask the same way (SizePicker).
 
 ## Step 13 — a character (or a place) from a frame ✅
 

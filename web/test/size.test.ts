@@ -31,3 +31,16 @@ describe("render size", () => {
     expect(sizeChoices(H3, "1600x896")).toContain("1600x896");
   });
 });
+
+describe("the sizes offered to fill the boxes", () => {
+  it("those a refusing grid takes as they are; a snapping one gets them all", async () => {
+    const { offeredSizes } = await import("../src/components/SizePicker");
+    const h3 = offeredSizes(sizeRule({ size_multiple: 32 })).map((o) => o.value);
+    expect(h3).toContain("1344x768");
+    expect(h3).toContain("768x1344");
+    expect(h3).not.toContain("1280x720");                            // 720 isn't on H3's grid
+    const ltx = offeredSizes(sizeRule({ size_multiple: 64, size_fit: "snap" })).map((o) => o.value);
+    expect(ltx).toContain("1280x720");
+    expect(new Set(ltx).size).toBe(ltx.length);                      // each once
+  });
+});

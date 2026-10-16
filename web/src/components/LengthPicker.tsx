@@ -1,14 +1,15 @@
-// A shot's length: the lengths offered (H3's grid, each with what it suits), or
-// any length typed in (Custom…), as SizePicker does a size. With the model's
-// template, what it renders is said under it: rounded up onto its frame grid,
-// capped at its longest. Shared by the shot form and Simple mode.
+// A shot's length: a box for seconds (or auto / model), and beside it the
+// lengths offered (H3's grid, each with what it suits) to fill it from. Under
+// it, what the length suits and, with the model's template, what it renders:
+// rounded up onto its frame grid, capped at its longest. Shared by the shot
+// form, the new episode wizard and Simple mode.
 
-import { useState } from "react";
 import { DURATIONS } from "../lib/shotForm";
 import { snapLength } from "../lib/simple";
 import type { TargetTemplate } from "../types";
+import { PickMenu } from "./PickMenu";
 
-const CUSTOM = "__custom__";
+const EMPTY = "__empty__";
 
 export function LengthPicker(p: {
   value: string;
@@ -17,7 +18,7 @@ export function LengthPicker(p: {
   auto?: boolean;
   /** offer `model` (the video model chooses: LTX-2) */
   model?: boolean;
-  /** an empty choice, so called ("—": the sequence's or the series' default) */
+  /** what an empty box means ("the sequence's"): offered to go back to */
   empty?: string;
   /** the picked model's frame grid, to say what it renders */
   template?: TargetTemplate;
@@ -25,42 +26,34 @@ export function LengthPicker(p: {
   fps?: number;
   /** the model's short name, for "its longest" */
   short?: string;
-  /** just the seconds in the list, not what each suits (a narrow row) */
+  /** no line under it (a narrow row): what it suits goes in the box's tooltip */
   compact?: boolean;
 }) {
   const offered = DURATIONS.filter((d) => (d.value !== "auto" || p.auto) && (d.value !== "model" || p.model));
-  const listed = (v: string) => offered.some((d) => d.value === v) || (v === "" && p.empty !== undefined);
-  const [custom, setCustom] = useState(() => !listed(p.value));
-  const pick = (v: string) => {
-    if (v === CUSTOM) {
-      setCustom(true);
-      const n = Number(p.value);
-      p.onChange(p.value && Number.isFinite(n) && n > 0 ? p.value : "3");
-    } else {
-      setCustom(false);
-      p.onChange(v);
-    }
-  };
-  const snap = p.template ? snapLength(p.value, p.template, p.fps ?? 24) : null;
-  const note = !snap ? "" : snap.capped ? `${snap.seconds} s: ${p.short ?? "the model"}'s longest`
-    : Math.abs(snap.seconds - Number(p.value)) > 0.005 ? `${p.short ?? "the model"} renders ${snap.seconds} s` : "";
+  const v = p.value.trim();
+  const listed = DURATIONS.find((d) => d.value === v);
+  const suits = listed?.label.split(" — ")[1] ?? (v === "auto" ? "as long as the dialogue needs" : "");
+  const bad = v !== "" && !listed && !(Number(v) > 0);
+  const snap = p.template ? snapLength(v, p.template, p.fps ?? 24) : null;
+  const who = p.short ?? "the model";
+  const renders = !snap ? "" : snap.capped ? `${snap.seconds} s: ${who}'s longest`
+    : Math.abs(snap.seconds - Number(v)) > 0.005 ? `${who} renders ${snap.seconds} s` : "";
+  const note = bad ? "seconds, auto or model" : [suits, renders].filter(Boolean).join("; ");
+  const options = [
+    ...(p.empty !== undefined ? [{ value: EMPTY, label: `— ${p.empty}` }] : []),
+    ...offered.map((d) => ({ value: d.value, label: p.compact ? d.label.split(" — ")[0] : d.label })),
+  ];
   return (
     <div className="h3-col" style={{ gap: 2 }}>
-      <div className="h3-row h3-wrap" style={{ gap: 4 }}>
-        <select className="h3-in" value={custom ? CUSTOM : p.value} onChange={(e) => pick(e.target.value)}>
-          {p.empty !== undefined && <option value="">{p.empty}</option>}
-          {offered.map((d) => <option key={d.value} value={d.value}>{p.compact ? d.label.split(" — ")[0] : d.label}</option>)}
-          <option value={CUSTOM}>Custom…</option>
-        </select>
-        {custom && (
-          <span className="h3-row" style={{ gap: 3 }}>
-            <input className="h3-in" style={{ width: 64 }} inputMode="decimal" autoFocus value={p.value}
-              title="Seconds" onChange={(e) => p.onChange(e.target.value.replace(/[^\d.]/g, ""))} />
-            <span className="h3-small h3-muted">s</span>
-          </span>
-        )}
+      <div className="h3-row" style={{ gap: 4 }}>
+        <input className="h3-in" style={{ width: 64 }} value={p.value} placeholder={p.empty !== undefined ? "—" : "3.04"}
+          title={["Seconds" + (p.auto ? ", or auto" : "") + (p.model ? ", or model" : ""), p.compact ? note : ""].filter(Boolean).join(": ")}
+          onChange={(e) => p.onChange(e.target.value)} />
+        <span className="h3-small h3-muted">s</span>
+        <PickMenu label="lengths" options={options} title="A length to start from"
+          onPick={(x) => p.onChange(x === EMPTY ? "" : x)} />
       </div>
-      {note && <span className="h3-small h3-muted">{note}</span>}
+      {!p.compact && note && <span className={`h3-small ${bad ? "h3-err" : "h3-muted"}`}>{note}</span>}
     </div>
   );
 }

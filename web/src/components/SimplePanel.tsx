@@ -23,6 +23,7 @@ import type { TargetTemplate } from "../types";
 import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
 import { LengthPicker } from "./LengthPicker";
+import { PickMenu } from "./PickMenu";
 import { Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions } from "./Targets";
@@ -165,7 +166,6 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
     setBusy(true);
     try { await save(sw, sh); } finally { setBusy(false); }
   }
-  const preset = COMMON_SIZES.find((q) => q.width === nw && q.height === nh);
   const notes = [
     valid && (sw !== nw || sh !== nh) ? `the project's model takes ${sw}×${sh}` : "",
     valid && template && (rw !== sw || rh !== sh) ? `${short} renders ${rw}×${rh}` : "",
@@ -177,14 +177,9 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
           <input className="h3-in" style={{ width: 60 }} inputMode="numeric" value={w} onChange={(e) => setW(e.target.value.replace(/\D/g, ""))} title="Width, pixels" />
           <span className="h3-small">×</span>
           <input className="h3-in" style={{ width: 60 }} inputMode="numeric" value={h} onChange={(e) => setH(e.target.value.replace(/\D/g, ""))} title="Height, pixels" />
-          <select className="h3-in" value={preset ? `${preset.width}x${preset.height}` : ""} title="A common size: fills the boxes"
-            onChange={(e) => {
-              const q = COMMON_SIZES.find((x) => `${x.width}x${x.height}` === e.target.value);
-              if (q) { setW(String(q.width)); setH(String(q.height)); }
-            }}>
-            <option value="" disabled>custom</option>
-            {COMMON_SIZES.map((q) => <option key={q.label} value={`${q.width}x${q.height}`}>{q.label}</option>)}
-          </select>
+          <PickMenu label="sizes" title="A common size to start from"
+            options={COMMON_SIZES.map((q) => ({ value: `${q.width}x${q.height}`, label: q.label }))}
+            onPick={(v) => { const [a, b] = v.split("x"); setW(a); setH(b); }} />
           <button className="h3-btn h3-primary" disabled={busy || !dirty} onClick={() => void set()}
             title={`Every clip of this project renders at it (${pass})`}>Set</button>
         </span>
