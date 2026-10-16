@@ -168,7 +168,7 @@ export function progressTitle(p: PassProgress): string {
 // what the pass still needs (P2)
 // ---------------------------------------------------------------------------
 
-/** Shots with no finished take and nothing queued: what "Render missing" asks for. */
+/** Shots with no finished take and nothing queued: what "Generate missing" asks for. */
 export function missingShots(shots: ShotStatus[] | null | undefined): string[] {
   return (shots ?? [])
     .filter((s) => !s.orphan

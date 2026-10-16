@@ -127,7 +127,7 @@ Under it: the **episode drop-down**, **Rescan the project roots** (after adding 
 folder outside the editor) and **Project folders** (browse, add or remove roots, open an
 episode). Then **Model:**, the episode's video model (below), and the row that works on
 the pass: **proxy / final** (which pass you are looking at and rendering), **Build** (runs
-`build` for both passes from the script and series config), **Render missing**, **Re-render
+`build` for both passes from the script and series config), **Generate missing**, **Re-render
 stale** and, in proxy, **Finals from drafts**.
 
 ### The episode's model
@@ -184,7 +184,7 @@ Two buttons beside Build ask for work in bulk:
 
 | Button | What it queues |
 |---|---|
-| **Render missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
+| **Generate missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
 | **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset or the target changed since it rendered |
 
 **Re-render stale** is the other half of the edit loop: change a line, rebuild, and the takes
@@ -759,7 +759,7 @@ where things are. What it would lose to a restart, it doesn't:
   is found again by its run's id and collected as if nothing happened ("(found again)" in
   Jobs): on your ComfyUI through comfy-api-proxy, on Comfy Cloud, a deployment or Router.
   A job still waiting in seriesmith's queue (your ComfyUI takes one at a time, so after a
-  big **Render missing** most are) had cost nothing: it is queued again by itself, in the
+  big **Generate missing** most are) had cost nothing: it is queued again by itself, in the
   order it was queued, keeping its take number, and nothing is left failed.
 - **A dropped connection.** A run's backend out of reach (the network, the proxy
   restarting, a 5xx) is asked again for up to 15 minutes before the run is given up on;

@@ -150,9 +150,9 @@ function BuildBar() {
           className="h3-btn"
           disabled={!missing.length || renderBusy}
           title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
-          onClick={() => requestRender(missing, false, "Render missing")}
+          onClick={() => requestRender(missing, false, "Generate missing")}
         >
-          <i className="pi pi-play" /> Render missing{missing.length ? ` (${missing.length})` : ""}
+          <i className="pi pi-play" /> Generate missing{missing.length ? ` (${missing.length})` : ""}
         </button>
         <button
           className="h3-btn"

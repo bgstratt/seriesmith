@@ -680,8 +680,8 @@ def requeue_plan(entries: list[dict]) -> list[dict]:
 
 
 # how a job the server lost before it ran is queued again, by kind
-AGAIN = {"render": "Render missing queues it again",
-         "ref": "Generate missing queues it again",
+AGAIN = {"render": "Generate missing (Shots tab) queues it again",
+         "ref": "Generate missing (Refs tab) queues it again",
          "upscale": "Master (or Upscale) runs it again",
          "post": "Master (or Post-process) runs it again",
          "tour": "start the tour again"}
