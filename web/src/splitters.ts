@@ -1,5 +1,5 @@
-// The standalone page's two splitters: the sidebar's right edge and the
-// timeline's top edge can be dragged (double-click puts one back). The sizes
+// The standalone page's two splitters: the sidebar's right edge (its full
+// height) and the timeline's top edge (under the viewer) can be dragged (double-click puts one back). The sizes
 // are this browser's own (localStorage), and the narrow, stacked layout has no
 // splitters: its sizes come from the page's CSS.
 
@@ -67,8 +67,9 @@ export function installSplitters(page: HTMLElement) {
     page.style.gridTemplateRows = t == null ? "" : `${TOP}px minmax(0, 1fr) ${t}px`;
     // the handles sit on the edges as laid out
     const sr = side.getBoundingClientRect(), tr = time.getBoundingClientRect(), pr = page.getBoundingClientRect();
-    Object.assign(col.style, { left: `${sr.right - pr.left - 3}px`, top: `${TOP}px`, width: "6px", height: `${Math.max(0, tr.top - pr.top - TOP)}px` });
-    Object.assign(row.style, { left: "0px", top: `${tr.top - pr.top - 3}px`, width: "100%", height: "6px" });
+    // (the sidebar runs full height; the timeline sits under the viewer, right of it)
+    Object.assign(col.style, { left: `${sr.right - pr.left - 3}px`, top: `${TOP}px`, width: "6px", height: `${Math.max(0, pr.height - TOP)}px` });
+    Object.assign(row.style, { left: `${tr.left - pr.left}px`, top: `${tr.top - pr.top - 3}px`, width: `${tr.width}px`, height: "6px" });
   };
 
   const drag = (h: HTMLElement, move: (e: PointerEvent) => void) => {

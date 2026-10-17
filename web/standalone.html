@@ -41,7 +41,8 @@
         display: grid; height: 100vh;
         grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
         grid-template-rows: 40px minmax(0, 1fr) minmax(160px, 30vh);
-        grid-template-areas: "top top" "side view" "time time";
+        /* the sidebar runs full height, as in ComfyUI; the timeline is under the viewer */
+        grid-template-areas: "top top" "side view" "side time";
       }
       #sm-top {
         grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px;
