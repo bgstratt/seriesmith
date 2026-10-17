@@ -4,10 +4,11 @@
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
-  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
+  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
   openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
+import { useView } from "../lib/viewPref";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
   needLabel,
@@ -71,6 +72,7 @@ function ImageModelBar() {
   const { list } = useTargets();
   const defaults = useRefDefaults();
   const busy = useApp((s) => s.busy);
+  const [open, setOpen] = useState(false);
   const images = imageTargets(list);
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
@@ -105,13 +107,37 @@ function ImageModelBar() {
   };
   const custom = (["refs", "keyframes", "voices"] as RefTargetKind[]).filter((k) => defaultOf(defaults, k).source === "editor");
   const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", voices: "voice samples" };
+  // folded: the three models in a line, and whether one isn't ready
+  const kinds = (["refs", "keyframes", "voices"] as RefTargetKind[])
+    .filter((k) => (k === "voices" ? voices : images).length > 0);
+  const names = kinds.map((k) => targetLabel(list, defaultOf(defaults, k).target));
+  const warns = kinds.map((k) => {
+    const cur = defaultOf(defaults, k).target;
+    return pickWarning(targetLabel(list, cur), findTarget(list, cur)?.readiness);
+  }).filter(Boolean);
   return (
-    <div className="h3-col" style={{ gap: 3 }}>
-      <div className="h3-row h3-wrap" style={{ gap: 8 }}>
-        {row("refs", "Refs render with:")}
-        {row("keyframes", "Keyframes with:")}
-        {row("voices", "Voices with:")}
+    <div className="h3-col" style={{ gap: 6 }}>
+      <div className="h3-row" style={{ gap: 6 }}>
+        <span className="h3-muted h3-small h3-nowrap">Made with</span>
+        <span className="h3-small h3-ell h3-grow" title={kinds.map((k, i) => {
+          const t = findTarget(list, defaultOf(defaults, k).target);
+          return `${WHAT[k]}: ${names[i]}` + (k === "voices" && t ? `\n  ${voiceCapNotes(t).join("\n  ")}` : "");
+        }).join("\n")}>{names.join(" · ")}</span>
+        {warns.length > 0 && !open && (
+          <span className={warns.some((w) => w!.severity === "err") ? "h3-err h3-small" : "h3-warn h3-small"}
+            title={warns.map((w) => w!.text).join("\n")}>{warns.some((w) => w!.severity === "err") ? "not ready" : "degraded"}</span>
+        )}
+        <button className="h3-link h3-small h3-nowrap" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? "Done" : "Change"} <i className={`pi pi-chevron-${open ? "up" : "down"}`} style={{ fontSize: 9 }} />
+        </button>
       </div>
+      {open && (
+        <div className="h3-col" style={{ gap: 6 }}>
+          {row("refs", "Refs render with:")}
+          {row("keyframes", "Keyframes with:")}
+          {row("voices", "Voices with:")}
+        </div>
+      )}
       {custom.map((k) => {
         const id = defaultOf(defaults, k).target;
         return (
@@ -227,12 +253,14 @@ function KeyframeActions({ r }: { r: Ref }) {
 }
 
 /** A ref's live file (the one renders read), or a "missing" placeholder. */
-function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
+function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fill?: string }) {
+  // a board tile: the tile's width, at `fill`'s aspect ratio
+  const box = fill ? { width: "100%", height: "auto", aspectRatio: fill } : { width: size, height: size };
   if (!r.path && isAudioRef(r)) {
     // Phase 9c-B: a character the series config gives no `voice_sample`; a
     // pick writes refs/voices/<id>.wav and that line
     return (
-      <div className="h3-refthumb h3-thumb h3-empty" style={{ width: size, height: size }} title="No voice sample yet: generate one (or take a line from a take) and pick it, and series.json gains the voice_sample line.">
+      <div className="h3-refthumb h3-thumb h3-empty" style={box} title="No voice sample yet: generate one (or take a line from a take) and pick it, and series.json gains the voice_sample line.">
         <i className="pi pi-volume-off" style={{ fontSize: size / 2.6 }} />
         <span className="h3-thumb-label">no sample</span>
       </div>
@@ -241,14 +269,14 @@ function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
   if (!r.path) {
     // the series config names no file for it (a voice-only character has no sheet)
     return (
-      <div className="h3-refthumb h3-thumb h3-empty" style={{ width: size, height: size }} title={NO_FILE}>
+      <div className="h3-refthumb h3-thumb h3-empty" style={box} title={NO_FILE}>
         <span className="h3-thumb-label">no file</span>
       </div>
     );
   }
   if (isAudioRef(r)) {
     return (
-      <div className={`h3-refthumb h3-thumb${r.exists ? "" : " h3-empty h3-missing"}`} style={{ width: size, height: size }} title={r.exists ? r.path : `${r.path} isn't on disk: drop an audio file here, or Upload…`}>
+      <div className={`h3-refthumb h3-thumb${r.exists ? "" : " h3-empty h3-missing"}`} style={box} title={r.exists ? r.path : `${r.path} isn't on disk: drop an audio file here, or Upload…`}>
         <i className="pi pi-volume-up" style={{ fontSize: size / 2.6 }} />
         {!r.exists && <span className="h3-thumb-label">missing</span>}
       </div>
@@ -256,7 +284,7 @@ function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
   }
   if (!r.exists) {
     return (
-      <div className="h3-refthumb h3-thumb h3-empty h3-missing" style={{ width: size, height: size }} title={`${r.path} isn't on disk${hasViews(r) ? "" : ": drop an image here, or Upload…"}`}>
+      <div className="h3-refthumb h3-thumb h3-empty h3-missing" style={box} title={`${r.path} isn't on disk${hasViews(r) ? "" : ": drop an image here, or Upload…"}`}>
         <span>missing</span>
       </div>
     );
@@ -264,7 +292,7 @@ function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
   return (
     <div
       className="h3-refthumb h3-thumb"
-      style={{ width: size, height: size, backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "contain" }}
+      style={{ ...box, backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "contain" }}
       title={r.path}
     />
   );
@@ -1069,6 +1097,47 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
   );
 }
 
+/** A ref on the board: its live picture, its name, how it stands. A click
+ * opens it in the list (its candidates, Generate, Import), as the inspector's
+ * "Refs this shot uses" does. */
+function RefTile({ ep, r, wide, onOpen }: { ep: string; r: Ref; wide: boolean; onOpen: () => void }) {
+  const pass = useApp((s) => s.pass);
+  const st = useStatus();
+  const blocked = blockedShots(r, st, pass);
+  const used = usedBy(r, pass);
+  const all = hasViews(r) ? r.views!.flatMap((v) => v.takes) : r.takes;
+  const queued = all.filter((t) => t.status === "queued").length;
+  const picks = hasViews(r) ? r.views!.filter((v) => v.picked != null).length : null;
+  const kf = isKeyframeRef(r) ? keyframeOf(r) : null;
+  const missing = !r.exists && !!r.path && r.method !== "none";
+  return (
+    <div className="h3-tile" data-ref={r.id} onClick={onOpen}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!isAudioRef(r) && r.exists && r.path) openRefFile(r.id, r.path); }}
+      title={`${kf ? `${kf.shot} ${kf.which} frame` : r.name}: click to open it in the list${r.exists && !isAudioRef(r) ? ", double-click to open the picture" : ""}`}>
+      <LiveThumb ep={ep} r={r} size={0} fill={wide ? "16 / 9" : "1"} />
+      <b className="h3-ell">{kf ? `${kf.which} frame` : r.name}</b>
+      <span className="h3-small h3-muted h3-ell">
+        {[
+          kf ? kf.shot : `${used.length} shot${used.length === 1 ? "" : "s"}`,
+          picks != null ? `${picks}/4 views` : "",
+          queued ? `${queued} on the way` : "",
+        ].filter(Boolean).join(" · ")}
+      </span>
+      {(missing || blocked.length > 0) && (
+        <span className="h3-badges">
+          {missing && <span className="h3-badge h3-b-failed">missing</span>}
+          {blocked.length > 0 && <span className="h3-badge h3-b-missing-refs">blocks {blocked.length}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A group's add button: "+ Character", "+ Place", ... */
+const ADD_LABEL: Partial<Record<string, string>> = {
+  characters: "Character", props: "Prop", locations: "Place", voices: "Voice",
+};
+
 export function RefsTab() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
@@ -1078,6 +1147,7 @@ export function RefsTab() {
   const filter = useApp((s) => s.refsFilter);
   const st = useStatus();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [view, setView] = useView("seriesmith.refsView");
   const { list: targetsList } = useTargets();
 
   useEffect(() => {
@@ -1142,6 +1212,10 @@ export function RefsTab() {
                 {FILTERS.map((f) => (
                   <button key={f.id} className={filter === f.id ? "h3-on" : ""} title={f.title} onClick={() => setRefsFilter(f.id)}>{f.label}</button>
                 ))}
+              </span>
+              <span className="h3-seg" title="Refs as a list (each opens to its candidates) or a board of pictures">
+                <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
+                <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
               </span>
               <span className="h3-grow" />
               <SupplyPicker />
@@ -1210,15 +1284,28 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     {ADD_KIND[g.id] && (
                       <>
                         <span className="h3-grow" />
-                        <button className="h3-btn h3-icon" title={`Add a ${ADD_KIND[g.id]} to the series config`}
+                        <button className="h3-btn h3-add" title={`Add a new ${ADD_KIND[g.id]} to the series config`}
                           onClick={(e) => { e.stopPropagation(); openSubjectCard({ kind: ADD_KIND[g.id]!, id: null }); }}>
-                          <i className="pi pi-plus" />
+                          <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
                         </button>
                       </>
                     )}
                   </div>
-                  {!isCollapsed && g.id !== "keyframes" && g.refs.map((r) => <RefRow key={r.id} ep={ep} r={r} />)}
-                  {!isCollapsed && g.id === "keyframes" && keyframeGroups(g.refs, st).map((kg) => (
+                  {!isCollapsed && view === "board" && (
+                    <div className={`h3-board${g.id === "locations" || g.id === "keyframes" ? "" : " h3-board-sm"}`}>
+                      {g.refs.map((r) => (
+                        <RefTile key={r.id} ep={ep} r={r} wide={g.id === "locations" || g.id === "keyframes"}
+                          onOpen={() => { setView("list"); focusRef(r.id); }} />
+                      ))}
+                      {ADD_KIND[g.id] && (
+                        <button className="h3-add-tile" onClick={() => openSubjectCard({ kind: ADD_KIND[g.id]!, id: null })}>
+                          <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!isCollapsed && view === "list" && g.id !== "keyframes" && g.refs.map((r) => <RefRow key={r.id} ep={ep} r={r} />)}
+                  {!isCollapsed && view === "list" && g.id === "keyframes" && keyframeGroups(g.refs, st).map((kg) => (
                     <div key={kg.shot} className="h3-kf-shot">
                       <div className="h3-kf-shot-head h3-row h3-small">
                         <b>{kg.shot}</b>

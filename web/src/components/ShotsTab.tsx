@@ -14,6 +14,7 @@ import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
 import type { EpisodeSummary, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
 import { ADD_NEW, PanelHead, TitleSelect } from "./ProjectHead";
+import { useView } from "../lib/viewPref";
 import { aspectOf, useStatus } from "./hooks";
 import { useIssueCount } from "./Issues";
 import { MissingRefsSummary } from "./MissingRefs";
@@ -163,20 +164,15 @@ function BuildBar() {
   // Seedance drafts the proxy cut uses: their finals can be made (Finals from drafts)
   const drafted = pass === "proxy"
     ? (st?.shots ?? []).filter((x) => x.takes.find((t) => t.take === x.cut?.take)?.draft).length : 0;
+  const prog = passProgress(st?.shots);
   return (
-    <div className="h3-pad h3-col" style={{ gap: 4, paddingTop: 0 }}>
+    <div className="h3-pad h3-col" style={{ gap: 8, paddingTop: 0 }}>
+      <div className="h3-epcard">
+      <EpisodeTarget />
       <div className="h3-row h3-wrap">
         <PassToggle />
         <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run build for both passes from the script and series config">
           <i className={b.busy ? "pi pi-spin pi-spinner" : "pi pi-cog"} /> {b.busy ? "Building…" : "Build"}
-        </button>
-        <button
-          className="h3-btn"
-          disabled={!missing.length || renderBusy}
-          title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
-          onClick={() => requestRender(missing, false, "Generate missing")}
-        >
-          <i className="pi pi-play" /> Generate missing{missing.length ? ` (${missing.length})` : ""}
         </button>
         <button
           className="h3-btn"
@@ -196,6 +192,21 @@ function BuildBar() {
             <i className="pi pi-forward" /> Finals from drafts ({drafted})…
           </button>
         )}
+      </div>
+      <button
+        className="h3-btn h3-primary h3-wide-btn"
+        disabled={!missing.length || renderBusy}
+        title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
+        onClick={() => requestRender(missing, false, "Generate missing")}
+      >
+        Generate missing{missing.length ? ` (${missing.length})` : ""}
+      </button>
+      {st && prog.total > 0 && (
+        <div className="h3-col" style={{ gap: 3 }} title={progressTitle(prog)}>
+          <span className="h3-small h3-muted">{progressLine(prog)}</span>
+          <div className="h3-meter"><span style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></div>
+        </div>
+      )}
       </div>
       {st && <MissingRefsSummary shots={st.shots} />}
       <TrackLine />
@@ -322,7 +333,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
         >
           {expanded ? "▼" : "▶"}
         </span>
-        <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={28} aspect={aspect} />
+        <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={36} aspect={aspect} />
         <div className="h3-col h3-grow" style={{ gap: 1 }}>
           <div className="h3-row">
             <b>{s.shot}</b>
@@ -367,6 +378,44 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
   );
 }
 
+/** A shot on the board: its cut take's picture (hover scrubs it), its length,
+ * how it stands. Click selects, double-click plays, right-click as a row. */
+function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
+  ep: string; pass: Pass; s: ShotStatus; aspect: number; targets: TargetList | null; seriesDefault: string;
+}) {
+  const selected = useApp((st) => st.shot === s.shot);
+  const running = useApp((st) => st.running);
+  const prompts = useApp((st) => st.prompts);
+  const progress = useApp((st) => st.progress);
+  const rendering = useMemo(() => renderingTakes({ running, prompts }, ep, pass, s.shot), [running, prompts, ep, pass, s.shot]);
+  const ct = cutTake(s);
+  const badges = useMemo(
+    () => [...targetBadges(s, targets, seriesDefault, ct), ...shotBadges(s, rendering)],
+    [s, rendering, targets, seriesDefault, ct],
+  );
+  const runPid = running && prompts[running]?.shot === s.shot && prompts[running]?.pass === pass ? running : null;
+  const prog = runPid ? progress[runPid] : undefined;
+  const newest = s.takes[s.takes.length - 1];
+  const n = s.takes.length;
+  return (
+    <div className={`h3-tile${selected ? " h3-sel" : ""}`} onClick={() => select(s.shot, ct?.take ?? null)}
+      onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY, s.shot, ct?.take ?? null, pass); }}>
+      <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={0} aspect={aspect} fill
+        onDoubleClick={(e) => { e.stopPropagation(); if (ct) openViewer(s.shot, ct.take, null, "single", pass); }}>
+        <span className="h3-tile-len">{lengthEstimated(s) ? "≈" : ""}{fmtSeconds(s.seconds)}</span>
+        {n > 1 && <span className="h3-tile-n">{n} takes</span>}
+      </Thumb>
+      <div className="h3-row" style={{ gap: 5 }}>
+        <span className={`h3-dot ${statusClass(newest?.status ?? "none", rendering.size > 0)}`} />
+        <b>{s.shot}</b>
+        {s.size && <span className="h3-muted h3-small h3-ell">{s.size}</span>}
+      </div>
+      {badges.length > 0 && <Badges badges={badges} />}
+      {prog && <Progress value={prog.value} max={prog.max} />}
+    </div>
+  );
+}
+
 function ShotBin() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
@@ -375,6 +424,7 @@ function ShotBin() {
   const loading = useApp((s) => (s.ep ? !!s.statusLoading[statusKey(s.ep, s.pass)] : false));
   const collapsed = useApp((s) => s.collapsedSeq);
   const [filter, setFilter] = useState("");
+  const [view, setView] = useView("seriesmith.shotsView");
   const groups = useMemo(() => groupBySequence(st?.shots ?? []), [st]);
   const { list: targets, seriesDefault } = useTargets();
   if (!ep) return null;
@@ -408,16 +458,15 @@ function ShotBin() {
   }
   const aspect = aspectOf(st);
   const f = filter.trim().toLowerCase();
-  // P1: how far through the pass, how fast, how much left (lib/progress.ts)
-  const prog = passProgress(st.shots);
   return (
     <>
       <div className="h3-row h3-pad" style={{ paddingTop: 0 }}>
         <input className="h3-in h3-grow" placeholder="Filter shots (id, size, subject)" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <span className="h3-muted h3-small h3-nowrap" title={progressTitle(prog)}>
-          {progressLine(prog)}
-        </span>
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
+        <span className="h3-seg" title="Shots as a list (takes under each) or a board of pictures">
+          <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
+          <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
+        </span>
       </div>
       {err && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
       <div className="h3-scroll h3-sep">
@@ -435,7 +484,11 @@ function ShotBin() {
                 <b>{g.sequence}</b>
                 <span className="h3-muted h3-small">{g.shots.length} shot{g.shots.length > 1 ? "s" : ""} · {fmtSeconds(g.seconds)}</span>
               </div>
-              {!isCollapsed && shots.map((s) => <ShotRow key={s.shot} ep={ep} pass={pass} s={s} aspect={aspect} targets={targets} seriesDefault={seriesDefault} />)}
+              {!isCollapsed && (view === "board" ? (
+                <div className="h3-board">
+                  {shots.map((s) => <ShotTile key={s.shot} ep={ep} pass={pass} s={s} aspect={aspect} targets={targets} seriesDefault={seriesDefault} />)}
+                </div>
+              ) : shots.map((s) => <ShotRow key={s.shot} ep={ep} pass={pass} s={s} aspect={aspect} targets={targets} seriesDefault={seriesDefault} />))}
             </div>
           );
         })}
@@ -490,34 +543,38 @@ function ShotsBody() {
     <div className="h3-surface">
       <EpisodeHead side={(
         <span className="h3-row" style={{ gap: 4 }}>
-          <button className="h3-btn h3-icon" title="Rescan the project roots" onClick={() => void loadEpisodes()}>
+          <button className="h3-btn h3-icon" aria-label="Refresh"
+            title="Refresh: read the episode again from disk, and rescan the project folders (after adding an episode outside the editor)"
+            onClick={() => { void loadEpisodes(); void refreshEpisode(); }}>
             <i className="pi pi-refresh" />
           </button>
           <ModeSwitch />
         </span>
       )} />
       {ep && (
-        <div className="h3-bar">
-          <span className="h3-row h3-wrap" style={{ gap: 3 }}>
-            <button className="h3-btn h3-icon" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
+        <div className="h3-toolbar">
+          <span className="h3-group" title="The shots">
             <button className="h3-btn" title="Add a shot after the selected one (a form: who, size, length, action, dialogue, camera, sound)"
               onClick={() => openShotForm({ shot: null, after: selShot })}><i className="pi pi-plus" /> Shot</button>
-            <button className="h3-btn h3-icon" title="Edit the selected shot as a form" disabled={!selShot}
+            <button className="h3-btn h3-icon" aria-label="Edit the selected shot" title="Edit the selected shot as a form" disabled={!selShot}
               onClick={() => selShot && openShotForm({ shot: selShot, after: null })}><i className="pi pi-pencil" /></button>
-            <button className="h3-btn h3-icon" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
-            <button className="h3-btn h3-icon" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
+            <button className="h3-btn h3-icon" aria-label="Inspect the selected shot" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
+          </span>
+          <span className="h3-group" title="The episode's text">
+            <button className="h3-btn h3-icon" aria-label="Edit the script" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
+            <button className="h3-btn h3-icon" aria-label="Series settings" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
+            <button className="h3-btn h3-icon" aria-label="Edit series.json" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
             <TrackButton />
-            <button className="h3-btn h3-icon" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
-            <button className="h3-btn h3-icon" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
-            <button className="h3-btn h3-icon" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /></button>
+          </span>
+          <span className="h3-group" title="Watching it">
+            <button className="h3-btn h3-icon" aria-label="Play all" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
+            <button className="h3-btn h3-icon" aria-label="Open the timeline" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /></button>
             <IssuesButton />
-            <button className="h3-btn h3-icon" title="Open the Refs tab" onClick={() => host().show("refs")}><i className="h3-ico-images" /></button>
-            <button className="h3-btn h3-icon" title="Refresh the episode" onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
+            <button className="h3-btn h3-icon" aria-label="Open the Refs tab" title="Open the Refs tab" onClick={() => host().show("refs")}><i className="h3-ico-images" /></button>
           </span>
         </div>
       )}
       <EpisodeHeader />
-      <EpisodeTarget />
       <BuildBar />
       <ShotBin />
     </div>

@@ -114,27 +114,32 @@ New series…, Import series…). Beside it on the Shots tab, **Rescan the proje
 (after adding an episode folder outside the editor) and **Simple / Advanced**. The
 timeline keeps a small dropdown of its own, with the same choices.
 
-Under it, the Shots bar, left to right:
+The **refresh** beside the head reads the episode again from disk and rescans the project
+folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 
 | Icon | What it does |
 |---|---|
-| file-edit | **Edit the episode's script** — opens the Script window |
 | **+ Shot** | **Add a shot** after the selected one, as a form (below) |
 | pencil | **Edit the selected shot** as a form |
+| sliders | **Inspect the selected shot** |
+| file-edit | **Edit the episode's script** — opens the Script window |
 | cog | **Series settings** — the series config as a form |
 | book | **Edit the series config** (`series.json`) as text |
 | volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one |
-| sliders | **Inspect the selected shot** |
 | play | **Play all** — the cut, played from its takes, no export needed |
 | film | **Open the timeline** |
 | speech bubble | **Issues** — the pass's notes (below), with how many are open |
 | images | **Open the Refs tab** |
-| refresh | **Refresh** — re-read the episode from disk |
 
-Under it: **Model:**, the episode's video model (below), and the row that works on
-the pass: **proxy / final** (which pass you are looking at and rendering), **Build** (runs
-`build` for both passes from the script and series config), **Generate missing**, **Re-render
-stale** and, in proxy, **Finals from drafts**.
+Under it, the episode's card: **Model:**, the episode's video model (below), the row
+that works on the pass: **proxy / final** (which pass you are looking at and rendering),
+**Build** (runs `build` for both passes from the script and series config), **Re-render
+stale** and, in proxy, **Finals from drafts**; then **Generate missing**, and how far
+through the pass it is (done of total, failed, how long a shot takes, how long is left).
+
+Beside the filter, **List / Board** (remembered in this browser): the list has a row per
+shot, its takes under it; the board shows each sequence as a grid of its shots'
+pictures (hover scrubs one, click selects, double-click plays, right-click as a row).
 
 ### The episode's model
 
@@ -572,11 +577,16 @@ right. Every character view, prop, plate, voice and shot keyframe the series con
 script call for is listed here.
 
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
-  series config, on its card (as a group's **+** does); **Series** opens Series settings.
-- **Refs render with:**, **Keyframes with:** and **Voices with:** pick the models that make
-  each (a choice here is this episode's, kept in `overrides.json`, with the `series.json`
-  line to make it the series default); a ref with its own model keeps it.
-- **this episode / all / missing** filters the list.
+  series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
+  **+ Voice** does); **Series** opens Series settings.
+- **Made with** names the models that make refs, keyframes and voice samples; **Change**
+  opens their pickers: **Refs render with:**, **Keyframes with:** and **Voices with:** (a
+  choice here is this episode's, kept in `overrides.json`, with the `series.json` line to
+  make it the series default); a ref with its own model keeps it.
+- **this episode / all / missing** filters the list; **List / Board** (remembered in this
+  browser) shows the refs as rows that open to their candidates, or as a grid of their
+  pictures, each group ending in an add tile. A click on a picture opens that ref in the
+  list.
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live

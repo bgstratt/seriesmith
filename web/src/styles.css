@@ -125,8 +125,9 @@
 /* badges and pills */
 .h3-badges { display: inline-flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
 .h3-badge {
-  display: inline-block; font-size: 10px; line-height: 14px; padding: 0 5px; border-radius: 7px;
-  border: 1px solid currentColor; white-space: nowrap; color: var(--h3-muted);
+  display: inline-block; font-size: 10.5px; line-height: 15px; padding: 0 7px; border-radius: 9px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent); white-space: nowrap; color: var(--h3-muted);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .h3-b-stale { color: var(--h3-stale); }
 .h3-b-override { color: var(--h3-override); }
@@ -158,12 +159,11 @@
 /* thumbnails */
 .h3-thumb {
   position: relative; flex: 0 0 auto; background-color: #000; background-repeat: no-repeat;
-  background-size: cover; background-position: center; border-radius: 3px; overflow: hidden;
+  background-size: cover; background-position: center; border-radius: 6px; overflow: hidden;
   cursor: pointer;
 }
 .h3-thumb.h3-empty {
-  background: repeating-linear-gradient(45deg, var(--h3-bg2), var(--h3-bg2) 6px,
-    color-mix(in srgb, var(--h3-bg2) 70%, var(--h3-border)) 6px, color-mix(in srgb, var(--h3-bg2) 70%, var(--h3-border)) 12px);
+  background: var(--h3-bg3);
   display: flex; align-items: center; justify-content: center; color: var(--h3-muted); font-size: 10px;
 }
 .h3-thumb.h3-sel { outline: 2px solid var(--h3-accent); outline-offset: -2px; }
@@ -175,11 +175,12 @@
 /* shot bin */
 .h3-seq { border-bottom: 1px solid var(--h3-border); }
 .h3-seq-head {
-  display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; user-select: none;
-  position: sticky; top: 0; z-index: 1; background: var(--h3-bg3);
+  display: flex; align-items: baseline; gap: 8px; padding: 8px 12px 6px; cursor: pointer; user-select: none;
+  position: sticky; top: 0; z-index: 1; background: var(--h3-bg); border-bottom: 1px solid var(--h3-border);
 }
+.h3-seq-head > b { font-family: var(--h3-serif); font-size: 15px; }
 .h3-shot { border-top: 1px solid color-mix(in srgb, var(--h3-border) 50%, transparent); }
-.h3-shot-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 4px; cursor: pointer; min-width: 0; }
+.h3-shot-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; cursor: pointer; min-width: 0; }
 .h3-shot-row:hover { background: var(--h3-hover); }
 .h3-shot.h3-sel > .h3-shot-row { background: color-mix(in srgb, var(--h3-accent) 18%, transparent); }
 .h3-chev { width: 14px; flex: 0 0 14px; text-align: center; color: var(--h3-muted); cursor: pointer; font-size: 10px; }
@@ -301,7 +302,7 @@
 .h3-diff del { background: color-mix(in srgb, var(--h3-failed) 30%, transparent); }
 .h3-note {
   border-left: 3px solid var(--h3-stale); background: color-mix(in srgb, var(--h3-stale) 12%, transparent);
-  padding: 4px 8px; border-radius: 3px;
+  padding: 7px 10px; border-radius: 10px;
 }
 .h3-note.h3-note-err { border-color: var(--h3-failed); background: color-mix(in srgb, var(--h3-failed) 12%, transparent); }
 .h3-note.h3-note-info { border-color: var(--h3-accent); background: color-mix(in srgb, var(--h3-accent) 10%, transparent); }
@@ -772,3 +773,42 @@
 .sm-clip:hover .sm-clip-thumb, .sm-clip:focus-visible .sm-clip-thumb { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
 .sm-clip:focus-visible { outline: none; }
 .sm-clip-label { font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; }
+
+/* Advanced's Shots and Refs tabs, in Simple mode's style: a toolbar of grouped
+   buttons, the episode's work in a card, shots and refs as a list or a board */
+.h3-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; flex: 0 0 auto; }
+.h3-group {
+  display: inline-flex; border: 1px solid var(--h3-border); border-radius: var(--h3-radius); overflow: hidden;
+  background: var(--h3-card); flex: 0 0 auto;
+}
+.h3-root .h3-group > .h3-btn { border: 0; border-radius: 0; background: transparent; min-height: 26px; }
+.h3-root .h3-group > .h3-btn + .h3-btn { border-left: 1px solid var(--h3-border); }
+.h3-root .h3-group > .h3-btn:hover:not(:disabled) { background: var(--h3-hover); }
+.h3-root .h3-group > .h3-btn.h3-on { color: var(--h3-accent); background: var(--h3-chip); }
+.h3-epcard {
+  background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
+}
+.h3-epcard > .h3-pad { padding: 0; }
+.h3-root .h3-btn.h3-wide-btn { justify-content: center; padding: 8px; border-radius: 10px; min-height: 36px; font-size: 13px; }
+.h3-meter { height: 5px; border-radius: 3px; background: var(--h3-bg3); overflow: hidden; }
+.h3-meter > span { display: block; height: 100%; background: var(--h3-primary); transition: width .3s; }
+.h3-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 10px 12px 14px; }
+.h3-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; border-radius: 10px; }
+.h3-tile .h3-thumb { border-radius: 10px; }
+.h3-tile:hover .h3-thumb { outline: 2px solid var(--h3-border); outline-offset: 1px; }
+.h3-tile.h3-sel .h3-thumb { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
+.h3-tile-len, .h3-tile-n {
+  position: absolute; font-size: 10.5px; line-height: 16px; padding: 0 6px; border-radius: 6px; pointer-events: none;
+}
+.h3-tile-len { left: 6px; bottom: 6px; background: rgba(20, 18, 16, 0.75); color: #fff; }
+.h3-tile-n { right: 6px; top: 6px; background: var(--h3-card); color: var(--h3-fg); }
+.h3-board.h3-board-sm { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+/* a group's add button: labelled, so it reads as "add a new one", not "expand" */
+.h3-root .h3-btn.h3-add { color: var(--h3-accent); border-color: color-mix(in srgb, var(--h3-accent) 45%, var(--h3-border)); font-weight: 600; }
+.h3-add-tile {
+  aspect-ratio: 1; border: 1px dashed var(--h3-border); border-radius: 10px; background: transparent; cursor: pointer;
+  color: var(--h3-accent); font: inherit; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.h3-add-tile:hover { background: var(--h3-hover); border-color: var(--h3-accent); }
+.h3-tile .h3-refthumb { border-radius: 10px; background-color: var(--h3-bg3); }
