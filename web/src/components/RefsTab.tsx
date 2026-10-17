@@ -267,7 +267,7 @@ function KeyframeActions({ r }: { r: Ref }) {
 function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | null {
   if (!hasViews(r)) return null;
   // one whole picture of them (`sheet_panels: 1`): that, not a crop of it
-  if (r.panels === 1 && r.exists && r.path) {
+  if (r.panels === 1 && !r.panels_conflict && r.exists && r.path) {
     return { what: "its picture", style: {
       backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "cover", backgroundPosition: "center 15%",
     } };
@@ -287,6 +287,10 @@ function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | nu
   }
   return null;
 }
+
+/** A character marked one whole picture whose picture is a sheet of panels. */
+const PANELS_TITLE = "Its picture is a four-panel sheet, but series.json marks it one whole picture (sheet_panels: 1), "
+  + "so renders send the whole strip as one picture. Open it (the pencil) and set Picture layout to the four-panel sheet.";
 
 /** A ref's live file (the one renders read), or a "missing" placeholder. */
 function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fill?: string }) {
@@ -1158,6 +1162,7 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
               </span>
             )}
             {showMissing && <span className="h3-badge h3-b-failed" title={`${r.path} isn't on disk`}>missing</span>}
+            {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>sheet marked one picture</span>}
             {/* P9: the live file isn't this episode's own pick, and others read it */}
             {note && <span className={`h3-badge ${note.label === "not from here" ? "h3-b-override-stale" : "h3-b-override"}`} title={note.title}>{note.label}</span>}
             {blocked.length > 0 && <span className="h3-badge h3-b-missing-refs" title={`Renders of these shots are skipped until this ref exists:\n${blocked.join(", ")}`}>blocks {blocked.length}</span>}
@@ -1202,9 +1207,10 @@ function RefTile({ ep, r, wide, onOpen }: { ep: string; r: Ref; wide: boolean; o
           queued ? `${queued} on the way` : "",
         ].filter(Boolean).join(" · ")}
       </span>
-      {(missing || blocked.length > 0) && (
+      {(missing || blocked.length > 0 || r.panels_conflict) && (
         <span className="h3-badges">
           {missing && <span className="h3-badge h3-b-failed">missing</span>}
+          {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>marked one picture</span>}
           {blocked.length > 0 && <span className="h3-badge h3-b-missing-refs">blocks {blocked.length}</span>}
         </span>
       )}

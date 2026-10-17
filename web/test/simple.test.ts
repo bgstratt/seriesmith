@@ -77,3 +77,13 @@ describe("simple mode's length and size", () => {
     expect(fitSize(1000, 1000, { sizes: [[1280, 720], [720, 1280], [960, 960]] })).toEqual([960, 960]);
   });
 });
+
+describe("a supplied character picture", () => {
+  it("is one whole picture unless shaped like a sheet of panels", async () => {
+    const { isOnePicture } = await import("../src/components/SubjectCard");
+    expect(isOnePicture(1328, 1760)).toBe(true);      // a portrait (Ballroom's Cindy)
+    expect(isOnePicture(1920, 1080)).toBe(true);      // a wide photo is still one picture
+    expect(isOnePicture(4096, 1024)).toBe(false);     // four panels side by side (Red)
+    expect(isOnePicture(null, null)).toBe(true);      // size unknown: as before
+  });
+});

@@ -4053,6 +4053,17 @@ def sheet_panels(s: Series, ref: Ref) -> int:
         return 4
 
 
+# a picture this much wider than tall is a strip of panels (a four-panel sheet
+# is 4:1), not one picture of a character (a portrait, a full figure)
+STRIP_RATIO = 2.5
+
+
+def is_strip(path: str | None) -> bool:
+    """Whether the image at `path` is shaped like a sheet of panels side by side."""
+    wh = image_size(path) if path else None
+    return bool(wh and wh[1] and wh[0] / wh[1] >= STRIP_RATIO)
+
+
 def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
     """The candidates the episode `owner` (a sibling of `ep`) has for `ref`,
     with a picture or a sample: what wrote the shared live file `ep` reads.
@@ -4163,6 +4174,10 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
     if ref.has_views:
         # a character's sheet is four panels, or one whole picture (`sheet_panels: 1`)
         out["panels"] = sheet_panels(s, ref)
+        # ...and one marked a whole picture whose file is a strip of panels was
+        # marked by mistake: renders send the whole strip as one picture
+        if out["panels"] == 1 and exists and is_strip(live):
+            out["panels_conflict"] = True
     if ref.kind == "keyframe":
         shot, which = ref_shot(ref)
         need = (needs if needs is not None else keyframe_needs(s.ep)).get((shot, which))

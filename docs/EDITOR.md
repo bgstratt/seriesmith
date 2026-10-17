@@ -589,7 +589,10 @@ script call for is listed here.
   list. A character shows its face (its face view's pick, else its three-quarter view's,
   else the sheet's face panel; a one-picture character, `sheet_panels: 1`, its whole
   picture), which tells the cast apart at a glance; the four-panel sheet is in its open
-  row, and double-click opens it.
+  row, and double-click opens it. A character marked one picture whose picture is a
+  four-panel sheet says **sheet marked one picture**: renders send the whole strip, so set
+  its card's Picture layout back to the four-panel sheet. (A card that takes a picture
+  you have marks the character one picture only when the picture isn't a sheet's shape.)
 - A shared ref whose live file another episode picked (the series' `../refs/` layout) says
   so when it's open, and lists that episode's candidates, read-only (each episode keeps its
   own): **From ep01**, the live one first. Double-click one to see it whole.

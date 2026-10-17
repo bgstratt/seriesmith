@@ -6,10 +6,10 @@
 // generate, Add and tour…); an existing one changes only its own entry.
 
 import { useEffect, useMemo, useState } from "react";
-import { loadRefs, openSubjectCard } from "../actions";
+import { afterAuthoredWrite, loadRefs, openSubjectCard } from "../actions";
 import { api, host } from "../host";
 import {
-  CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, refIdOf, refsPrefix, setPath, slug,
+  CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, refIdOf, refsPrefix, serialize, setPath, slug,
   type CardKind, type Raw,
 } from "../lib/seriesForm";
 import { useApp } from "../store";
@@ -28,6 +28,23 @@ function defaultRect(): Rect {
   const H = window.innerHeight || 800;
   const w = Math.max(380, Math.min(620, Math.round(W * 0.4)));
   return { x: Math.max(16, Math.min(420, W - w - 16)), y: 72, w, h: Math.max(360, H - 140) };
+}
+
+/** A supplied picture of a character is one whole picture of them unless it is
+ * shaped like a sheet of panels side by side (refs.STRIP_RATIO: 4:1 is a
+ * four-panel sheet). An unknown size is taken as one picture, as before. */
+export function isOnePicture(width: number | null | undefined, height: number | null | undefined): boolean {
+  return !(width && height && width / height >= 2.5);
+}
+
+/** `sheet_panels: 1` on a character, written to the series config as it is now. */
+async function markOnePicture(ep: string, block: string, id: string) {
+  const cur = await api().source(ep, "series");
+  const raw = JSON.parse(cur.text) as Raw;
+  if (!getPath(raw, [block, id])) return;
+  const r = await api().putSource({ ep, file: "series", text: serialize(setPath(raw, [block, id, "sheet_panels"], 1), cur.text),
+                                    base_hash: cur.hash, rebuild: true });
+  afterAuthoredWrite(r.build);
 }
 
 export function SubjectCardWindow() {
@@ -85,17 +102,18 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
 
   async function save() {
     if (!sc.base || problem || missing || (firstStep && first.missing)) return;
-    // a character's own picture is one whole picture, not a four-panel sheet
-    const f = ownPic && kind === "character" ? { ...form, sheet_panels: "1" } : form;
-    const entry = entryFor(kind, before, f, id, prefix);
+    const entry = entryFor(kind, before, form, id, prefix);
     const next = setPath(sc.base, [block, id], entry);
     if (await sc.save(next, `${label} ${id}`)) {
       if (ownPic) {
         // the picture you have, as its first candidate, made live
         try {
-          await api().refsImport({ ep, ref: refIdOf(kind, id), view: kind === "character" ? "sheet" : null,
-                                   source_path: ownPic, pick: true });
+          const t = await api().refsImport({ ep, ref: refIdOf(kind, id), view: kind === "character" ? "sheet" : null,
+                                             source_path: ownPic, pick: true });
           setOwnPic("");
+          // a character's picture is one whole picture of them (sheet_panels: 1)
+          // unless it is shaped like a sheet of panels side by side
+          if (kind === "character" && !form.sheet_panels && isOnePicture(t.width, t.height)) await markOnePicture(ep, block, id);
         } catch (e) {
           host().toast("error", `${id}: the picture wasn't taken`, (e as Error).message);
         }

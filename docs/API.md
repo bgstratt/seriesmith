@@ -2121,7 +2121,8 @@ show: in Porchlights ep01 **all 110** of its refs are read by the other nine epi
 
 A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
 one whole picture of them), so a list shows the whole picture rather than a face cropped
-from it.
+from it; and **`panels_conflict`** when it says 1 but its picture is a strip of panels
+(2.5:1 or wider, `refs.is_strip`): marked by mistake, and renders send the whole strip.
 
 What touches a shared file, and what doesn't:
 

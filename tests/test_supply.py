@@ -141,6 +141,10 @@ class TestSheetView(SupplyCase):
         s = R.load_series(self.ep)
         self.assertEqual(R.ref_json(s, R.find_ref(s, "subject:ada"))["panels"], 1)
         self.assertNotIn("panels", R.ref_json(s, R.find_ref(s, "location:porch")))
+        # a four-panel strip marked one picture by mistake is said to be one
+        self.assertNotIn("panels_conflict", R.ref_json(s, R.find_ref(s, "subject:ada")))
+        png(R.find_ref(s, "subject:ada").file, size=(256, 64))
+        self.assertTrue(R.ref_json(s, R.find_ref(s, "subject:ada"))["panels_conflict"])
 
     def test_nothing_generates_a_sheet(self):
         with self.assertRaises(R.RefError) as cm:

@@ -1330,6 +1330,8 @@ export interface Ref {
   owner_takes?: (RefTake & { episode: string; picked: boolean })[];
   /** A character: its sheet's panels, 4 (the views) or 1 (one whole picture, `sheet_panels: 1`). */
   panels?: number;
+  /** marked one whole picture (`panels` 1), but its file is a strip of panels (4:1): renders send the whole strip */
+  panels_conflict?: boolean;
   /**
    * P8, a character only: which route wrote the sheet that is live now --
    * "sheet" (one supplied as a take), "views" (stitched from the four picks),
