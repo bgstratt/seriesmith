@@ -154,6 +154,7 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
  "shots": [{
    "shot": "sh020", "orphan": false, "sequence": "sq01", "length": 107,
    "seconds": 4.458, "size": "medium", "subjects": ["dean"], "audio_policy": "generate",
+   "action": "Dean steps into the clearing at dawn.",
    "cut": {"take": 1, "picked": true, "pass": "proxy", "placeholder": false,
            "usable": true, "trim_in": 0, "trim_out": 0, "locked": false, "note": "",
            "in_cut_file": true, "frames": 107, "out": false, "flag": false},
@@ -169,6 +170,8 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
               "save_notes": "…"}]
  }]}
 ```
+- `action`: the first sentence of what happens in the shot, as the script says it (cut
+  at a word past 160 characters), for the board; left out when the script has none.
 - `status` is `queued` | `ok` | `failed`.
 - `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
   `continuous: latent` take whose previous shot in the cut now uses another take, or that

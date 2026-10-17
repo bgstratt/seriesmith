@@ -539,3 +539,53 @@ class ViewOverrideProvenanceTest(ApiTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedRefRoutesTest(ApiTest):
+    """GET /seriesmith/refs/owner-takes, and a server's refs listing answering
+    before its sweep (Context.sweep_later)."""
+
+    def show(self):
+        from seriesmith import source as S
+        show = os.path.join(self.shows, "Shared")
+        os.makedirs(show)
+        ep1 = S.new_episode(show, "ep01")["ep"]
+        s1 = R.load_series(ep1)
+        ada = R.find_ref(s1, "subject:ada")
+        src = os.path.join(self.tmp, "ada_sheet.png")
+        with open(src, "wb") as fh:
+            fh.write(png_bytes(64, 64))
+        t = R.import_take(s1, ada, R.SHEET_VIEW, src)
+        R.pick_take(s1, ada, R.SHEET_VIEW, t.take)
+        ep2 = S.new_episode(show, "ep02")["ep"]
+        return ep1, ep2
+
+    def test_owner_takes_are_the_picking_episodes_candidates(self):
+        ep1, ep2 = self.show()
+        got = self.ok(A.get_refs_owner_takes(self.ctx, {"ep": ep2, "ref": "subject:ada"}))
+        self.assertEqual(got["owner"], "ep01")
+        (t,) = got["takes"]
+        self.assertEqual((t["episode"], t["view"], t["picked"]), ("ep01", R.SHEET_VIEW, True))
+        # the picture it names is one the file route serves to ep02
+        self.ok(A.get_file(self.ctx, {"ep": ep2, "path": t["image"]}))
+        # the owner itself has nothing extra, and an unknown ref is a 404
+        self.assertEqual(self.ok(A.get_refs_owner_takes(self.ctx, {"ep": ep1, "ref": "subject:ada"}))["takes"], [])
+        self.err(A.get_refs_owner_takes(self.ctx, {"ep": ep2, "ref": "subject:nobody"}), 404)
+
+    def test_a_server_lists_refs_before_it_sweeps(self):
+        import threading
+        swept = threading.Event()
+        seen = {}
+
+        def sweep(ctx, s):
+            seen["thread"] = threading.current_thread().name
+            swept.set()
+        with mock.patch.object(A, "sweep_refs", side_effect=sweep):
+            self.ok(A.get_refs(self.ctx, {"ep": self.ep}))
+            self.assertEqual(seen["thread"], threading.current_thread().name)   # a direct caller: first
+            swept.clear()
+            seen.clear()
+            self.ctx.sweep_later = True
+            self.ok(A.get_refs(self.ctx, {"ep": self.ep}))
+            self.assertTrue(swept.wait(5))
+            self.assertEqual(seen["thread"], "seriesmith-sweep-refs")              # a server: after, on a thread

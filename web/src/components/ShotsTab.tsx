@@ -410,6 +410,7 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
         <b>{s.shot}</b>
         {s.size && <span className="h3-muted h3-small h3-ell">{s.size}</span>}
       </div>
+      {s.action && <span className="h3-tile-action" title={s.action}>{s.action}</span>}
       {badges.length > 0 && <Badges badges={badges} />}
       {prog && <Progress value={prog.value} max={prog.max} />}
     </div>

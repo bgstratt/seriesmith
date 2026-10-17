@@ -434,6 +434,27 @@ function CandidateGrid({ ep, r, view, cols }: { ep: string; r: Ref; view: string
 }
 
 /** The selected candidate's actions: pick, compare, discard, details. */
+/** A candidate's prompt: its start, and the whole of it in a box to select
+ * (a click selects it all) or Copy, to run it elsewhere. */
+function PromptText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const short = text.length > 180 ? text.slice(0, 179) + "…" : text;
+  return (
+    <span className="h3-col" style={{ gap: 4, minWidth: 0 }}>
+      <span className="h3-small">
+        {open ? null : short}{" "}
+        <button className="h3-link h3-small" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "hide" : "show all"}</button>
+        {" · "}
+        <button className="h3-link h3-small" onClick={() => void copyText(text, "Prompt")}>copy</button>
+      </span>
+      {open && (
+        <textarea className="h3-in h3-prompt-box" readOnly value={text} rows={Math.min(14, Math.max(4, Math.ceil(text.length / 70)))}
+          aria-label="The prompt" onFocus={(e) => e.currentTarget.select()} />
+      )}
+    </span>
+  );
+}
+
 function Selection({ r }: { r: Ref }) {
   const sel = useApp((s) => (s.refSel && s.refSel.ref === r.id ? s.refSel : null));
   const busy = useApp((s) => !!s.busy[`refpick|${r.id}`]);
@@ -540,7 +561,7 @@ function Selection({ r }: { r: Ref }) {
           {t.model && <><span>file</span><span title={t.model}>{shortName(t.model, 40)}</span></>}
           {t.steps != null && <><span>steps</span><span>{t.steps}{t.cfg != null ? ` · cfg ${t.cfg}` : ""}{t.params && Object.keys(t.params).length ? ` · ${Object.entries(t.params).map(([k, v]) => `${k} ${v}`).join(" · ")}` : ""}{t.width && t.height ? ` · ${t.width}x${t.height}` : ""}</span></>}
           {t.status === "failed" && t.save_notes && <><span>error</span><span className="h3-err">{t.save_notes}</span></>}
-          {t.prompt && <><span>prompt</span><span className="h3-small" title={t.prompt}>{t.prompt.length > 180 ? t.prompt.slice(0, 179) + "…" : t.prompt}</span></>}
+          {t.prompt && <><span>prompt</span><PromptText text={t.prompt} /></>}
         </div>
       )}
       <div className="h3-muted h3-small">Ctrl/⌘-click another candidate to compare the two.</div>
@@ -1228,6 +1249,39 @@ function RefTile({ ep, r, wide, onOpen }: { ep: string; r: Ref; wide: boolean; o
   );
 }
 
+/** The board's head: how many of the refs listed have their picture (a
+ * ring), and chips that show one group at a time. */
+function BoardHead({ groups, only, setOnly, missing, shots }: {
+  groups: { id: string; label: string; refs: Ref[] }[]; only: string; setOnly: (id: string) => void;
+  missing: number; shots: number;
+}) {
+  const all = groups.flatMap((g) => g.refs);
+  const made = all.filter((r) => r.exists).length;
+  const pct = all.length ? Math.round((made / all.length) * 100) : 100;
+  return (
+    <div className="h3-board-head">
+      <div className="h3-row" style={{ gap: 10 }}>
+        <div className="h3-ring" style={{ background: `conic-gradient(var(--h3-primary) 0 ${pct}%, var(--h3-bg3) ${pct}% 100%)` }}
+          role="img" aria-label={`${made} of ${all.length} refs have their picture`}>
+          <span>{made}/{all.length}</span>
+        </div>
+        <div className="h3-col" style={{ gap: 1 }}>
+          <b>{missing ? `${missing} still to make` : "Every picture is made"}</b>
+          {missing > 0 && <span className="h3-small h3-muted">{shots ? `${shots} shot${shots > 1 ? "s" : ""} wait for them` : "no shot of this episode waits for them"}</span>}
+        </div>
+      </div>
+      <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+        <button className={`h3-chip${only ? "" : " h3-on"}`} onClick={() => setOnly("")}>Everything</button>
+        {groups.filter((g) => g.refs.length).map((g) => (
+          <button key={g.id} className={`h3-chip${only === g.id ? " h3-on" : ""}`} onClick={() => setOnly(only === g.id ? "" : g.id)}>
+            {g.label} <span className="h3-muted">{g.refs.length}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** A group's add button: "+ Character", "+ Place", ... */
 const ADD_LABEL: Partial<Record<string, string>> = {
   characters: "Character", props: "Prop", locations: "Place", voices: "Voice",
@@ -1243,6 +1297,8 @@ export function RefsTab() {
   const st = useStatus();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [view, setView] = useView("seriesmith.refsView");
+  // the board: one group at a time ("" every group), and how far along they are
+  const [only, setOnly] = useState("");
   const { list: targetsList } = useTargets();
 
   useEffect(() => {
@@ -1337,7 +1393,7 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               </div>
             )}
 
-            {counts.missing > 0 && (
+            {counts.missing > 0 && view !== "board" && (
               <div className="h3-note">
                 <b>{counts.missing} ref{counts.missing > 1 ? "s" : ""} missing</b>
                 {counts.shots > 0 ? `, blocking ${counts.shots} shot${counts.shots > 1 ? "s" : ""} of this episode (${pass})` : ", none used by this episode"}.
@@ -1368,7 +1424,8 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               </div>
             )}
             {!refs && !err && <div className="h3-empty-state">{loading ? "Loading…" : ""}</div>}
-            {refs && groups.map((g) => {
+            {refs && view === "board" && <BoardHead groups={groups} only={only} setOnly={setOnly} missing={counts.missing} shots={counts.shots} />}
+            {refs && groups.filter((g) => view !== "board" || !only || g.id === only).map((g) => {
               const isCollapsed = !!collapsed[g.id];
               return (
                 <div key={g.id} className="h3-seq">

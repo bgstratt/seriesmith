@@ -351,6 +351,62 @@ def shot_fps(doc: dict, shot: dict | None, fallback: float) -> float:
         else fallback
 
 
+_ACTIONS: dict = {}                       # episode -> (script and config stamps, {shot: action})
+ACTION_CHARS = 160
+
+
+def script_actions(root: str) -> dict[str, str]:
+    """{shot id: the first sentence of what happens in it}, from the script as
+    it is now (a sentence past ACTION_CHARS is cut at a word). Read again when
+    the script or the series config changes; {} when it can't be read."""
+    import json as _json
+    from seriesmith import build as BLD
+    from seriesmith.core.series_config import variant_of
+    try:
+        script, cfg_p = episode_script(root), episode_series_config(root)
+    except OSError:
+        return {}
+    if not script or not cfg_p:
+        return {}
+
+    def stamp(p):
+        try:
+            st = os.stat(p)
+            return (st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+    key = os.path.normcase(os.path.abspath(root))
+    sig = (stamp(script), stamp(cfg_p))
+    hit = _ACTIONS.get(key)
+    if hit and hit[0] == sig:
+        return hit[1]
+    try:
+        with open(cfg_p, encoding="utf-8") as fh:
+            cfg = _json.load(fh)
+        with open(script, encoding="utf-8") as fh:
+            text = fh.read()
+        book = {k: v for k, v in (cfg.get("subjects") or {}).items() if not k.startswith("_") and isinstance(v, dict)}
+        chars = {k for k, v in book.items() if v.get("kind", "character") == "character"}
+        epi = BLD.parse_script(text, set(book), chars, variant_of(cfg))
+    except Exception:                     # a script that won't parse: no lines, not an error
+        return {}
+    out = {}
+    for seq in epi.get("sequences") or []:
+        for sh in seq.get("shots") or []:
+            a = " ".join(str(sh.get("action") or "").split())
+            if not a:
+                continue
+            m = re.search(r"[.!?](\s|$)", a)
+            first = a[:m.end()].strip() if m else a
+            if len(first) > ACTION_CHARS:
+                first = first[:ACTION_CHARS].rsplit(" ", 1)[0] + "…"
+            out[sh.get("id")] = first
+    if len(_ACTIONS) > 64:
+        _ACTIONS.clear()
+    _ACTIONS[key] = (sig, out)
+    return out
+
+
 def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
     """Every shot in cut order with its takes, the take the cut uses, and its
     override. Plain data, ready to serve as JSON. Shots come from every
@@ -358,8 +414,11 @@ def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
     overrides.json may retarget it) and the one the build compiled it for
     (`built_target`). One load (targets.one_load): the targets and the series
     config are read once for it, not once per shot."""
+    from seriesmith import diskcache as DC
     with J.TG.one_load():
-        return _episode_status(root, pass_, folder)
+        out = _episode_status(root, pass_, folder)
+    DC.save()                          # what it learned is kept for the next run
+    return out
 
 
 def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
@@ -373,6 +432,7 @@ def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
     cache: dict = {}
     out = []
     script_idx = {sid: i for i, sid in enumerate(shots)}
+    actions = script_actions(root)
     resolved = T.resolve_cut(cut, pass_, list(shots))
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
     for order, e in enumerate(resolved):
@@ -403,6 +463,8 @@ def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
             "seconds": round(shot["length"] / sfps, 3) if shot else None,
             "size": shot.get("size") if shot else None,
             "subjects": shot.get("subjects", []) if shot else [],
+            # the first sentence of what happens, as the script says it (the board)
+            **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,
             "missing_refs": [{k: r.get(k) for k in ("slot", "kind", "path", "subject",
                                                     "anyway", "why")

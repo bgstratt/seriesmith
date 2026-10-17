@@ -570,6 +570,62 @@ camera words, and the box says which words it follows.
       provider reports is recorded in its own units. `seriesmith stop [--restart]` and
       Settings' Stop / Restart for the standalone server.
 
+## The editor: its look, and loading fast (2026-10-16)
+
+The look Simple mode set (step 12) carried into Advanced, and an episode of a
+big show (Porchlights: 13 episodes on one `../refs`, ~280 shots, ~480 refs
+each) made quick to open.
+
+- [x] One head for the sidebars (ProjectHead): what is open as the panel's
+      title, its series above it, a dropdown over its name whose last choice
+      is **Browse and add new…** (Project folders: New series/project…, New
+      episode…, Import series…). Shots and Refs tabs; the timeline keeps its
+      small dropdown. The sidebar runs full height on the standalone page, as
+      in ComfyUI, the timeline under the viewer.
+- [x] Shots: the toolbar in groups, the episode's work in one card (model,
+      pass, Build, Re-render stale, a wide Generate missing, progress), and
+      **List / Board** (remembered): the board each sequence's shots as
+      pictures, each with its length, status and the first sentence of what
+      happens (`action` in the episode status, from the script).
+- [x] Refs: the models folded to a "Made with" line; each group's add button
+      labelled (+ Character, + Prop, + Place, + Voice); **List / Board**, the
+      board's head a ring of how many are made and chips for one group, each
+      group ending in an add tile. A character shows its face (its face
+      view's pick, else three-quarter, else the sheet's face panel); a
+      one-picture character (`sheet_panels: 1`) its whole picture, and one
+      marked so whose picture is a strip of panels says so (`panels_conflict`:
+      renders send the whole strip; the card no longer marks a supplied sheet
+      one picture).
+- [x] A shared ref whose live file another episode picked lists that
+      episode's candidates, read-only, when its row opens (**From ep01**,
+      `GET /seriesmith/refs/owner-takes`).
+- [x] Readiness asks for the nodes a job sends (seriesmith's loader, saver
+      and chain nodes; an image or voice workflow's own SaveImage / SaveAudio),
+      not h3pipe's, which no render needs; H3 Ref2VA's workflow is on
+      seriesmith's nodes.
+- [x] Loading, measured on Porchlights (refs: 12-23 s the first time, 3-10 s
+      after; now ~1 s the first time after a restart, 0.5-0.8 s after):
+  - [x] targets.one_load(): a load works each target answer out once (a
+        listing had built the image model list 3,185 times); the series
+        config and the refs list too.
+  - [x] A folder resolved once, not each of a show's ~57,000 files (on
+        Windows a realpath is a system call: 9.5 of 11.7 s cold).
+  - [x] diskcache: file sha1s and each sibling's live files kept in the
+        settings folder's cache/ between runs, by the files' own stamps.
+  - [x] Thumbnails (`GET /seriesmith/thumb`): the Refs tab drew full-size
+        pictures (722 MB for one episode); now JPEGs made once (1.15 MB), on
+        two threads of their own, asked for only when near the screen.
+  - [x] Replies over 64 KB gzipped (the refs listing: 2.8 MB, 0.12 MB sent).
+  - [x] The refs listed before the sweep (on a thread after the reply), and
+        asked for as soon as an episode's shots are in.
+- [ ] The rest of Advanced in this look: the inspector, the open ref row,
+      dialogs, the Settings and Jobs windows, the timeline.
+- [ ] The editor inside ComfyUI: the new layout under ComfyUI's own theme,
+      looked at there.
+- [ ] The timeline drawing a long episode in the browser: not measured yet.
+- [ ] A size per clip in Simple mode (a script key; the size is the
+      project's for now, so a clip on a model that refuses it fails to build).
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

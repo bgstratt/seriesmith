@@ -4213,9 +4213,12 @@ def refs_listing(ep: str, view_size=VIEW_SIZE, ready=None) -> dict:
     then the shot keyframes it needs or has (keyframe_refs), "defaults": the
     episode's image-target defaults (image_defaults)}. `ready(target)` says
     whether an image target can render here (target_ready)."""
+    from seriesmith import diskcache as DC
     from seriesmith import targets as TG
     with TG.one_load():
-        return _refs_listing(ep, view_size, ready)
+        out = _refs_listing(ep, view_size, ready)
+    DC.save()                          # what it learned is kept for the next run
+    return out
 
 
 def _refs_listing(ep: str, view_size, ready) -> dict:
@@ -4613,12 +4616,24 @@ def _live_paths(ep: str) -> set[str]:
     hit = _PATHS.get(key)
     if hit and hit[0] == sig:
         return hit[1]
+    # ...and between server runs (diskcache), by the same config stamp
+    from seriesmith import diskcache as DC
+    kept = DC.store("live_paths")
+    with DC.lock():
+        k = kept.get(key)
+    if isinstance(k, dict) and k.get("sig") == list(sig) and isinstance(k.get("paths"), list):
+        out = set(k["paths"])
+        _PATHS[key] = (sig, out)
+        return out
     try:
         s = load_series(ep)
         out = {_real_path(r.file) for r in series_refs(s) if r.file}
     except Exception:                    # a neighbour we can't read says nothing
         out = set()
     _PATHS[key] = (sig, out)
+    with DC.lock():
+        kept[key] = {"sig": list(sig), "paths": sorted(out)}
+    DC.touched("live_paths")
     return out
 
 

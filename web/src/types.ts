@@ -132,6 +132,8 @@ export interface ShotStatus {
   seconds: number | null;
   size: string | null;
   subjects: string[];
+  /** the first sentence of what happens in it, as the script says it (the board) */
+  action?: string;
   audio_policy: string | null;
   cut: CutInfo;
   override: { fields: string[]; stale: boolean };

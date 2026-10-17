@@ -507,6 +507,16 @@ class ReadTest(ApiTest):
         for bad in ("../ep02/renders/x.mp4", "../ep02/series.json", "../ep02/refs/_picks.json"):
             self.assertIn(A.get_file(self.ctx, {"ep": ep, "path": bad})[0], (400, 404))
 
+    def test_status_says_what_happens_in_each_shot(self):
+        """`action`: the first sentence of the shot's action, for the board."""
+        data, shots = self.status()
+        with_action = [s for s in data["shots"] if s.get("action")]
+        self.assertTrue(with_action)
+        for s in with_action:
+            self.assertLessEqual(len(s["action"]), E.ACTION_CHARS + 1)
+            self.assertNotIn("\n", s["action"])
+        self.assertEqual(E.script_actions(os.path.join(self.tmp, "nowhere")), {})
+
     def test_thumb_is_a_small_jpeg_made_once(self):
         """The Refs tab shows reference pictures at a few dozen pixels: /thumb
         serves them small, made once into the settings folder and again when

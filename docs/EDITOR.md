@@ -601,6 +601,9 @@ script call for is listed here.
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
   one, for comparison.
+- **Click a candidate** to see what made it: its model, settings and prompt. **show all**
+  opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
+  on the clipboard, to run it somewhere else.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
