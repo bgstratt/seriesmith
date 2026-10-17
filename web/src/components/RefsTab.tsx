@@ -2,7 +2,7 @@
 // file, its candidates (takes), pick / generate / import / compare, and the
 // ref's prompt and settings override.
 
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
   openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
@@ -252,6 +252,27 @@ function KeyframeActions({ r }: { r: Ref }) {
   );
 }
 
+/** A character's face for its thumbnail: the face view's live pick, else the
+ * three-quarter view's, else the sheet's last panel (the face) cropped. null
+ * for anything else, or a character with no picture yet. */
+function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | null {
+  if (!hasViews(r)) return null;
+  for (const [tag, what] of [["04_face", "its face"], ["01_threequarter", "its three-quarter view"]] as const) {
+    const v = r.views!.find((x) => x.view === tag);
+    const t = v?.picked != null ? v.takes.find((x) => x.take === v.picked) : undefined;
+    const file = t ? takeFile(t) : null;
+    if (file) {
+      return { what, style: { backgroundImage: `url("${api().refFileUrl(ep, file)}")`, backgroundSize: "cover", backgroundPosition: "center 20%" } };
+    }
+  }
+  if (r.exists && r.path) {
+    return { what: "its face, from the sheet", style: {
+      backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "400% auto", backgroundPosition: "100% 25%",
+    } };
+  }
+  return null;
+}
+
 /** A ref's live file (the one renders read), or a "missing" placeholder. */
 function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fill?: string }) {
   // a board tile: the tile's width, at `fill`'s aspect ratio
@@ -280,6 +301,15 @@ function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fi
         <i className="pi pi-volume-up" style={{ fontSize: size / 2.6 }} />
         {!r.exists && <span className="h3-thumb-label">missing</span>}
       </div>
+    );
+  }
+  // a character: its face, which reads at this size where the four-panel sheet
+  // doesn't (the sheet is in the open row, and double-click opens it)
+  const face = faceOf(ep, r);
+  if (face) {
+    return (
+      <div className="h3-refthumb h3-thumb h3-face" style={{ ...box, ...face.style }}
+        title={`${r.name}: ${face.what}${r.exists ? ` (the sheet: ${r.path})` : ""}`} />
     );
   }
   if (!r.exists) {

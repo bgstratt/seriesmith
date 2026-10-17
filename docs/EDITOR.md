@@ -586,7 +586,9 @@ script call for is listed here.
 - **this episode / all / missing** filters the list; **List / Board** (remembered in this
   browser) shows the refs as rows that open to their candidates, or as a grid of their
   pictures, each group ending in an add tile. A click on a picture opens that ref in the
-  list.
+  list. A character shows its face (its face view's pick, else its three-quarter view's,
+  else the sheet's face panel), which tells the cast apart at a glance; the four-panel
+  sheet is in its open row, and double-click opens it.
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
