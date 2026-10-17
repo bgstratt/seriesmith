@@ -97,6 +97,9 @@ class Context:
         self.model_resolve = model_resolve
         self._model_list = model_list
         self._model_cache = None
+        # a server sets it: work that can follow a reply (get_refs' sweep) is
+        # done after it, on a thread; a direct caller (the CLI, tests) waits
+        self.sweep_later = False
 
     @property
     def runner(self):
@@ -3041,8 +3044,16 @@ def image_ready(ctx: Context):
 def get_refs(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     s = _series(ep)
-    sweep_refs(ctx, s)
-    return 200, seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
+    if not ctx.sweep_later:
+        sweep_refs(ctx, s)
+    out = seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
+    if ctx.sweep_later:
+        # a server closes the takes whose job is gone (every take's record
+        # read, ComfyUI asked) after the listing has gone, not before it: what
+        # it changes reaches the page as ref events, which reload it
+        import threading
+        threading.Thread(target=sweep_refs, args=(ctx, s), daemon=True, name="seriesmith-sweep-refs").start()
+    return 200, out
 
 
 @handler

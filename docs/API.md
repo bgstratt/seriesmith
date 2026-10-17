@@ -1250,6 +1250,7 @@ additions to each entry of a character's `views`:
   can import or pick one; a shot in no build is 404.
 - **`seriesmith.ref` status values:** `queued`, `ok`, `failed`, `picked` (after a pick or an auto-pick).
 - **Auto-pick:** `GET /seriesmith/refs` gives a ref with NO live file its first finished candidate (`refs.auto_pick`), per view for a character, stitching the sheet once all four views have one. A ref whose file exists is never replaced without an explicit pick. This is `kreagen`'s rule for a missing file.
+- **After the reply:** a server (`seriesmith serve`, the ComfyUI host) closes the ref takes whose job is gone and auto-picks after it has answered, on a thread, so the listing never waits for it; what that changes reaches the page as `seriesmith.ref` events, which reload the list. A direct caller (the CLI, tests) has it done first.
 - **Ref overrides** have one level: the ref, or a view, not per pass. A character's
   `prompt` override needs a view. The response is `{"override": {...fields, "stale"}}`.
   `base_hash` is the sha1 of the built prompt.

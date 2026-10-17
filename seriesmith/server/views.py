@@ -115,6 +115,7 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
         else:
             arg = dict(request.query)
         ctx = make_context()
+        ctx.sweep_later = True             # a server answers first, then tidies (get_refs)
         loop = asyncio.get_running_loop()
         # a request that queues work is kept with its jobs (runner.ASKED), so
         # one still waiting when the server stops can be asked for again
