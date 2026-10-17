@@ -25,14 +25,14 @@ import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
 import { formFromDetail, isDirty, overrideFields, type OverrideForm, type OverrideSource } from "../lib/overrideForm";
 import { pickWarning, readinessBadge, targetOptionText } from "../lib/readiness";
-import { sharedNote } from "../lib/shared";
+import { ownsLive, sharedNote } from "../lib/shared";
 import {
   SHEET_VIEW, VIEWS, blockedShots, canGenerate, groupRefs, hasViews, missingPlan, isAudioRef, pickedOf, pickedTake, refCounts, takeFile, takeUsable, takesOf,
   unpickedViews, usedBy, viewLabel, viewOf, type RefFilter,
 } from "../lib/refs";
 import { findTarget, targetLabel, targetShort } from "../lib/targets";
 import { store, useApp } from "../store";
-import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type RefTake, type SeedMode, type Target } from "../types";
+import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
 import { sizeRule } from "../lib/size";
 import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSettings";
 import { useStatus } from "./hooks";
@@ -159,7 +159,7 @@ function ImageModelBar() {
  * four views stitched, or (no take at all) a file put in the folder by hand,
  * which is a perfectly good way to supply one and is left alone.
  */
-function SheetLine({ r }: { r: Ref }) {
+function SheetLine({ r, ep }: { r: Ref; ep: string }) {
   if (!r.exists) return null;
   if (r.live_from === SHEET_VIEW) {
     const t = r.picked;
@@ -172,7 +172,7 @@ function SheetLine({ r }: { r: Ref }) {
   if (r.live_from === "views") {
     return <div className="h3-small h3-muted">The live sheet is stitched from the four picked views.</div>;
   }
-  if (r.owner_takes?.length) {
+  if (r.live_owner && !ownsLive(r, ep)) {
     // a shared sheet another episode picked: say so, its candidates are below
     return (
       <div className="h3-small h3-muted">
@@ -957,7 +957,15 @@ function cardOf(r: Ref): { kind: CardKind; id: string } | null {
  * (each episode keeps its own), the picked one first and marked live. A
  * double-click opens one in the viewer. */
 function OwnerTakes({ ep, r }: { ep: string; r: Ref }) {
-  const takes = [...(r.owner_takes ?? [])].sort((a, b) => Number(b.picked) - Number(a.picked));
+  // asked for when the row opens: the listing doesn't read every sibling's
+  const [got, setGot] = useState<OwnerTake[] | null>(null);
+  useEffect(() => {
+    let gone = false;
+    api().refsOwnerTakes(ep, r.id).then((x) => !gone && setGot(x.takes)).catch(() => !gone && setGot([]));
+    return () => { gone = true; };
+  }, [ep, r.id, r.sha1]);
+  if (got && !got.length) return null;
+  const takes = [...(got ?? [])].sort((a, b) => Number(b.picked) - Number(a.picked));
   const label = (v: string | null | undefined) => (v === SHEET_VIEW ? (r.panels === 1 ? "picture" : "sheet") : v ? viewLabel(v) : "");
   return (
     <div className="h3-col" style={{ gap: 4 }}>
@@ -1000,13 +1008,13 @@ export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
       )}
       {used.length > 0 && !blocked.length && <div className="h3-small h3-muted">Used by {used.slice(0, 12).join(", ")}{used.length > 12 ? "…" : ""}</div>}
       {isAudioRef(r) && <VoiceLive ep={ep} r={r} />}
-      {(r.owner_takes?.length ?? 0) > 0 && !hasViews(r) && (
+      {r.live_owner && !ownsLive(r, ep) && !hasViews(r) && (
         <div className="h3-small h3-muted">The live file is {r.live_owner}'s pick, shared with this episode: its candidates are below.</div>
       )}
-      {(r.owner_takes?.length ?? 0) > 0 && <OwnerTakes ep={ep} r={r} />}
+      {r.live_owner && !ownsLive(r, ep) && <OwnerTakes ep={ep} r={r} />}
       {hasViews(r) ? (
         <>
-          <SheetLine r={r} />
+          <SheetLine r={r} ep={ep} />
           {r.takes.length > 0 && (
             <div className="h3-col" style={{ gap: 2 }}>
               <div className="h3-h h3-small">Supplied sheets</div>

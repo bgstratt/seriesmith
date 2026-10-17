@@ -226,7 +226,13 @@ def ref_key(ref_id: str) -> str:
 
 def series_refs(s: Series) -> list[Ref]:
     """Every ref the series config names, subjects first (series config order), then locations,
-    then voices."""
+    then voices. Worked out once per load (targets.one_load: a listing looks
+    each ref up again and again), every time outside one."""
+    from seriesmith import targets as TG
+    return list(TG._scoped(("refs.series_refs", id(s)), lambda: _series_refs(s)))
+
+
+def _series_refs(s: Series) -> list[Ref]:
     out = []
     book = s.series_cfg["subjects"]
     for sid, e in book.items():
@@ -4166,11 +4172,8 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         shared = shared_context(s.ep)
     out["shared_with"] = shared["shared"].get(_real_path(live), []) if live else []
     out["live_owner"] = shared["owner"].get(out["sha1"]) if out["sha1"] else None
-    # another episode's pick wrote the live file: its candidates are that
-    # episode's (refs/_takes is each episode's own), so they are listed here
-    # too, read-only, for this episode to see what it is reading
-    if out["live_owner"] and out["live_owner"] != ep_name(s.ep):
-        out["owner_takes"] = owner_takes(s.ep, ref, out["live_owner"])
+    # (another episode's pick wrote the live file: its candidates are that
+    # episode's, GET /seriesmith/refs/owner-takes, asked for when the row opens)
     if ref.has_views:
         # a character's sheet is four panels, or one whole picture (`sheet_panels: 1`)
         out["panels"] = sheet_panels(s, ref)
@@ -4210,6 +4213,12 @@ def refs_listing(ep: str, view_size=VIEW_SIZE, ready=None) -> dict:
     then the shot keyframes it needs or has (keyframe_refs), "defaults": the
     episode's image-target defaults (image_defaults)}. `ready(target)` says
     whether an image target can render here (target_ready)."""
+    from seriesmith import targets as TG
+    with TG.one_load():
+        return _refs_listing(ep, view_size, ready)
+
+
+def _refs_listing(ep: str, view_size, ready) -> dict:
     s = load_series(ep)
     try:
         defaults = image_defaults(s, ready)
@@ -4613,8 +4622,23 @@ def _live_paths(ep: str) -> set[str]:
     return out
 
 
+_REAL_DIRS: dict[str, str] = {}
+
+
 def _real_path(path: str) -> str:
-    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+    """`path` as one spelling (case, `..`, links in its folders resolved), to
+    tell when two episodes name the same file. The folder is resolved once and
+    kept (a show's thousands of refs sit in a few dozen folders, and on
+    Windows each realpath is a system call); the file's own name is joined to
+    it, so a file that is itself a link isn't followed -- a folder link is."""
+    full = os.path.abspath(path)
+    folder, name = os.path.split(full)
+    real = _REAL_DIRS.get(folder)
+    if real is None:
+        if len(_REAL_DIRS) > 4096:
+            _REAL_DIRS.clear()
+        real = _REAL_DIRS[folder] = os.path.realpath(folder)
+    return os.path.normcase(os.path.join(real, name))
 
 
 def _recorded_sha1s(ep: str) -> set[str]:

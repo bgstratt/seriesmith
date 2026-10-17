@@ -2986,6 +2986,26 @@ def get_refs(ctx: Context, query: dict):
 
 
 @handler
+def get_refs_owner_takes(ctx: Context, query: dict):
+    """A shared ref whose live file another episode picked (its `live_owner`):
+    that episode's candidates for it, read-only (refs.owner_takes). Asked for
+    when its row opens, so the listing doesn't read every sibling's. {"owner",
+    "takes"}; an empty list when this episode is the owner or there is none."""
+    ep = check_ep(ctx, query.get("ep"))
+    s = _series(ep)
+    try:
+        ref = R.find_ref(s, query.get("ref"))
+    except R.UnknownRef as e:
+        raise ApiError(404, str(e))
+    live = ref.file
+    sha = T.file_sha1(live) if live and os.path.isfile(live) else None
+    owner = R.shared_context(ep)["owner"].get(sha) if sha else None
+    if not owner or owner == R.ep_name(ep):
+        return 200, {"owner": owner, "takes": []}
+    return 200, seeds_out({"owner": owner, "takes": R.owner_takes(ep, ref, owner)})
+
+
+@handler
 def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
     episode.refs_target / episode.keyframe_target / episode.voice_target):
@@ -3921,6 +3941,7 @@ ROUTES = [
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),
     ("GET", "/seriesmith/refs", get_refs, "query"),
+    ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),

@@ -1176,6 +1176,10 @@ export interface RefOverrideInfo {
   own?: string[];
 }
 
+/** A candidate of a shared ref from the episode that picked its live file
+ * (GET /seriesmith/refs/owner-takes): read-only, `picked` its pick. */
+export type OwnerTake = RefTake & { episode: string; picked: boolean };
+
 export interface RefView {
   /** 01_threequarter | 02_side | 03_back | 04_face */
   view: string;
@@ -1322,12 +1326,7 @@ export interface Ref {
    * back. See `web/src/lib/shared.ts` for what that changes.
    */
   live_owner?: string | null;
-  /**
-   * When another episode's pick wrote the live file (`live_owner` is not this
-   * episode): that episode's candidates for this ref, read-only here (each
-   * episode keeps its own), `picked` marking the one it picked.
-   */
-  owner_takes?: (RefTake & { episode: string; picked: boolean })[];
+
   /** A character: its sheet's panels, 4 (the views) or 1 (one whole picture, `sheet_panels: 1`). */
   panels?: number;
   /** marked one whole picture (`panels` 1), but its file is a strip of panels (4:1): renders send the whole strip */

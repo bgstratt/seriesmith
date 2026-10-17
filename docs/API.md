@@ -43,7 +43,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -345,7 +345,7 @@ Streams a file inside `ep`, with HTTP Range support (aiohttp `FileResponse`) so
 (`--take N`) keeps its name. A path may climb out of the episode only to what its series
 config names above it: the show's `refs/` and `audio/` (or the whole show folder, when the
 config is there), and a sibling episode's ref candidates (`../<sibling>/refs/_takes/...`,
-what `owner_takes` lists); never a sibling's renders or the show's own files.
+what `/refs/owner-takes` lists); never a sibling's renders or the show's own files.
 
 ## Rendering
 
@@ -2113,11 +2113,14 @@ show: in Porchlights ep01 **all 110** of its refs are read by the other nine epi
 - **`live_owner`**: the episode whose pick recorded the sha1 the live file has **now** — this
   one, a sibling, or `null`. Null means nobody's record matches it: it was put there by hand
   or replaced outside the editor, so no candidate anywhere can put it back.
-- **`owner_takes`** (only when `live_owner` is a sibling): that episode's candidates for the
-  ref, each a take as `takes` lists them plus `episode` and `picked` (its pick), the image
-  paths relative to this episode (`../ep01/refs/_takes/...`). Read-only here: each episode
-  keeps its own `refs/_takes/`, so this is what shows which candidate this episode is
-  reading.
+
+When `live_owner` is a sibling, **`GET /seriesmith/refs/owner-takes?ep=…&ref=…`** gives that
+episode's candidates for the ref: `{"owner", "takes"}`, each a take as `takes` lists them
+plus `episode` and `picked` (its pick), the image paths relative to this episode
+(`../ep01/refs/_takes/...`). Read-only: each episode keeps its own `refs/_takes/`, so this
+is what shows which candidate this episode is reading. The editor asks when the ref's row
+opens, so the listing never reads every sibling's candidates; `takes` is `[]` when this
+episode owns the file, or nothing does.
 
 A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
 one whole picture of them), so a list shows the whole picture rather than a face cropped

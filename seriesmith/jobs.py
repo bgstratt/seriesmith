@@ -1334,7 +1334,12 @@ def target_choice(overrides: dict | None, shot_id: str, built: str,
 
 def series_config(root: str) -> dict | None:
     """The series config beside the episode (or in its parent), parsed
-    (None: none, or unreadable)."""
+    (None: none, or unreadable). Read once per load (targets.one_load: an
+    episode's status asks for it for every shot); not to be changed."""
+    return TG._scoped(("jobs.series_config", root), lambda: _series_config(root))
+
+
+def _series_config(root: str) -> dict | None:
     for d in (root, os.path.dirname(os.path.normpath(root))):
         p = os.path.join(d, "series.json")
         if os.path.isfile(p):

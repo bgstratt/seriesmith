@@ -123,12 +123,14 @@ class TestSheetView(SupplyCase):
         self.supply_sheet()
         ep2 = S.new_episode(os.path.dirname(self.ep), "ep02")["ep"]
         s2 = R.load_series(ep2)
-        j = R.ref_json(s2, R.find_ref(s2, "subject:ada"))
+        ada2 = R.find_ref(s2, "subject:ada")
+        j = R.ref_json(s2, ada2)
         self.assertEqual((j["live_owner"], j["takes"]), ("ep01", []))
-        (t,) = j["owner_takes"]
+        self.assertNotIn("owner_takes", j)          # asked for when its row opens, not listed
+        (t,) = R.owner_takes(ep2, ada2, "ep01")
         self.assertEqual((t["episode"], t["view"], t["take"], t["picked"]), ("ep01", R.SHEET_VIEW, 1, True))
         self.assertEqual(t["image"], "../ep01/refs/_takes/subject__ada/subject__ada_sheet_t01.png")
-        self.assertNotIn("owner_takes", R.ref_json(self.s, self.ada))     # its own pick: nothing extra
+        self.assertEqual(R.owner_takes(ep2, ada2, "ep09"), [])            # no such sibling
 
     def test_the_listing_says_how_many_panels_a_sheet_has(self):
         self.assertEqual(R.ref_json(self.s, self.ada)["panels"], 4)

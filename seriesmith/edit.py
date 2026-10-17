@@ -356,7 +356,13 @@ def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
     override. Plain data, ready to serve as JSON. Shots come from every
     target's shotlist; each says the target its next render uses (`target`:
     overrides.json may retarget it) and the one the build compiled it for
-    (`built_target`)."""
+    (`built_target`). One load (targets.one_load): the targets and the series
+    config are read once for it, not once per shot."""
+    with J.TG.one_load():
+        return _episode_status(root, pass_, folder)
+
+
+def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
     docs = J.load_shotlists(root, pass_)
     doc0 = docs[0]
     fps = episode_fps(root)

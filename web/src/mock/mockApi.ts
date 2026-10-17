@@ -1839,6 +1839,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { videos: [] };
     },
+    async refsOwnerTakes() {
+      await wait(40);
+      return { owner: null, takes: [] };
+    },
     async routerInspect(req) {
       await wait(60);
       return { proposal: { id: "mock_model", label: req.model, router: { model: req.model, inputs: { prompt: "prompt" } } },
