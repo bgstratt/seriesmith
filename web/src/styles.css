@@ -937,3 +937,21 @@
 /* the clip badges: soft chips, as in the Shots tab, readable on any picture */
 .h3-clip-top { --h3-muted: inherit; }
 .h3-clip-top .h3-badge { background: color-mix(in srgb, var(--h3-card) 90%, transparent); }
+
+/* the shot form: the fields as cards on the left, what renders on the right; each
+   field's help on hover (the ⓘ) so the form reads at a glance */
+.sm-shotform { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; padding: 12px; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.sm-shotform-main, .sm-shotform-side { gap: 10px; overflow: auto; min-height: 0; padding-right: 2px; }
+.sm-form { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 9px 10px; align-items: center; }
+.sm-tip { font-size: 12px; color: var(--h3-muted); cursor: help; white-space: nowrap; }
+.sm-tip-i { font-size: 10px; opacity: 0.6; }
+.h3-card-title .sm-tip-i { color: var(--h3-muted); cursor: help; }
+.sm-shotform .h3-in.sm-prompt { width: 100%; }
+.sm-told { flex: 1 1 auto; min-height: 120px; }
+.sm-told-text {
+  background: var(--h3-field); border-radius: 10px; padding: 10px; font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; overflow: auto; user-select: text; min-height: 0; flex: 1 1 auto;
+}
+@media (max-width: 760px) { .sm-shotform { grid-template-columns: minmax(0, 1fr); overflow: auto; } }
+.sm-form > .sm-tip { align-self: start; padding-top: 6px; }
+.sm-shotform .sm-chip { background: var(--h3-chip); color: var(--h3-chip-fg); border-color: transparent; border-radius: 14px; padding: 2px 8px 2px 2px; font-size: 12px; line-height: 22px; }

@@ -295,14 +295,15 @@ Everything you do to a shot lives here:
 
 **+ Shot** in the Shots toolbar adds a shot after the selected one; the pencil (or
 **Edit shot…** in the context menu) opens the selected one. The form is the shot's lines
-in the script as fields:
+in the script as fields, in cards; each field's help is on its label (point at the ⓘ):
 
 - **Shot**: its id, in the script's own numbering (between sh010 and sh020 a new one is
   sh015), and for a new shot the sequence it goes in, or a new sequence with its location.
-- **Who's in it** and **With**: picked from the cast in the series config, in order; **+
-  Character** / **+ Prop** opens a new cast card.
-- **Size**, **Length** (the model's grid, or auto to fit the dialogue), **Background**
-  (another location than the sequence's).
+- **Who** and **With**: picked from the cast in the series config, in order; **+
+  Character** / **+ Prop** opens a new cast card. **Where**: another location than the
+  sequence's.
+- **Framing** (extreme close-up to extreme wide), **Length** (type the seconds or pick from
+  **lengths**: the model's grid, or auto to fit the dialogue).
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
@@ -310,9 +311,10 @@ sheet (a whole body doesn't read that small), a group's or a prop's whole pictur
 location's plate; initials until there is one. **add…** and the location buttons open the
 pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
-  it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
+  it's said, the words), **Camera** (type it, or build it from H3's moves: a move, its
+  amplitude and its speed), **Sound**,
   **Extras**, **On-screen text**.
-- **More** (the arrow): music; **Video model class** (another model for this shot, with
+- **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
   file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
   (**Continues**); first and last frames (the default, generate, import, none, or **a
@@ -325,9 +327,9 @@ pictures to pick from, and pointing at a name shows it larger.
 Beside the fields is what will render on the current pass, compiled as you type: the
 model, size and frames, the dialogue's pace against the shot's length (with how long it
 needs when it's tight), the build's warnings for this shot, and the prompt the model is
-told. **Save** writes only this shot's lines into the script (keeping its comments and
-any line the form doesn't know), with a history copy, and rebuilds. **Save and render**
-then queues a take on the current pass.
+told (**copy** takes it whole). **Save** writes only this shot's lines into the script
+(keeping its comments and any line the form doesn't know), with a history copy, and
+rebuilds. **Save and generate** then queues a take on the current pass.
 
 ### Editing a prompt
 
