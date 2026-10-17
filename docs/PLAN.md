@@ -624,11 +624,11 @@ each) made quick to open.
       row a card, every two- or three-way choice a sliding toggle, the
       timeline's toolbar grouped and its badges soft chips. The clips stay
       square and the sound stays waveforms.
-- [ ] The editor inside ComfyUI: the new layout under ComfyUI's own theme,
-      looked at there.
-- [ ] The timeline drawing a long episode in the browser: not measured yet.
-- [ ] A size per clip in Simple mode (a script key; the size is the
-      project's for now, so a clip on a model that refuses it fails to build).
+- [x] A size per clip in Simple mode (2026-10-17): Generate renders at the
+      boxes; a clip at another size than the project's keeps it as its size
+      override (as Inspect shot saves one); Save as the project's size makes
+      it the default. The editor inside ComfyUI looked at: fine. The timeline's
+      drawing: not a concern (it draws after the shots and renders).
 
 ## Step 15 — models behind other APIs (next)
 
