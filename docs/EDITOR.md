@@ -587,8 +587,12 @@ script call for is listed here.
   browser) shows the refs as rows that open to their candidates, or as a grid of their
   pictures, each group ending in an add tile. A click on a picture opens that ref in the
   list. A character shows its face (its face view's pick, else its three-quarter view's,
-  else the sheet's face panel), which tells the cast apart at a glance; the four-panel
-  sheet is in its open row, and double-click opens it.
+  else the sheet's face panel; a one-picture character, `sheet_panels: 1`, its whole
+  picture), which tells the cast apart at a glance; the four-panel sheet is in its open
+  row, and double-click opens it.
+- A shared ref whose live file another episode picked (the series' `../refs/` layout) says
+  so when it's open, and lists that episode's candidates, read-only (each episode keeps its
+  own): **From ep01**, the live one first. Double-click one to see it whole.
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live

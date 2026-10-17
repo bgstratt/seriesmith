@@ -493,6 +493,19 @@ class ReadTest(ApiTest):
         self.ok(A.get_file(self.ctx, {"ep": ep, "path": "../audio/mix.wav"}))
         for bad in ("../secret.txt", "../ep02/renders/x.mp4", "../../secret.txt"):
             self.err(A.get_file(self.ctx, {"ep": ep, "path": bad}), 400)
+        # a sibling EPISODE's ref candidates are served (a shared ref's live file
+        # can be its pick: refs.owner_takes), and still nothing else of it
+        ep2 = os.path.join(show, "ep02")
+        shutil.copy(os.path.join(self.ep, "series.json"), ep2)
+        with open(os.path.join(ep2, "ep02.md"), "w", encoding="utf-8") as fh:
+            fh.write("= ep02  Two\n")
+        take = os.path.join(ep2, "refs", "_takes", "subject__ada", "subject__ada_sheet_t01.png")
+        os.makedirs(os.path.dirname(take))
+        with open(take, "w") as fh:
+            fh.write("x")
+        self.ok(A.get_file(self.ctx, {"ep": ep, "path": "../ep02/refs/_takes/subject__ada/subject__ada_sheet_t01.png"}))
+        for bad in ("../ep02/renders/x.mp4", "../ep02/series.json", "../ep02/refs/_picks.json"):
+            self.assertIn(A.get_file(self.ctx, {"ep": ep, "path": bad})[0], (400, 404))
 
     def test_file_after_render(self):
         (q,) = self.render("sh010")["queued"]

@@ -984,7 +984,10 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     - the series config lives in the **episode** but names `../refs/...` or
       `../audio/...` (shared assets, per-episode config): only those two
       folders of the parent, so a sibling episode's renders and the show
-      folder's own files stay out of reach.
+      folder's own files stay out of reach. A sibling episode's ref
+      candidates (`../<sibling>/refs/_takes/...`) are served too: a shared
+      ref's live file can be another episode's pick, and its candidates are
+      that episode's (refs.owner_takes).
 
     Either way the file must also be inside a configured root.
     """
@@ -998,7 +1001,10 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     if home != _real(ep):
         return _inside(full, home)
     show = os.path.dirname(os.path.abspath(ep))
-    return any(_inside(full, _real(os.path.join(show, d))) for d in SHARED_DIRS)
+    if any(_inside(full, _real(os.path.join(show, d))) for d in SHARED_DIRS):
+        return True
+    from seriesmith import refs as R
+    return any(_inside(full, _real(os.path.join(sib, "refs", "_takes"))) for sib in R.sibling_episodes(ep))
 
 
 # ---------------------------------------------------------------------------

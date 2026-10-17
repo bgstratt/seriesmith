@@ -172,6 +172,15 @@ function SheetLine({ r }: { r: Ref }) {
   if (r.live_from === "views") {
     return <div className="h3-small h3-muted">The live sheet is stitched from the four picked views.</div>;
   }
+  if (r.owner_takes?.length) {
+    // a shared sheet another episode picked: say so, its candidates are below
+    return (
+      <div className="h3-small h3-muted">
+        The live {r.panels === 1 ? "picture" : "sheet"} is {r.live_owner}'s pick, shared with this episode: its
+        candidates are {r.live_owner}'s, below. A pick here replaces it for every episode that reads it.
+      </div>
+    );
+  }
   return (
     <div className="h3-small h3-muted">
       The live sheet was put there outside the editor — it is used as it is. Drop one here to
@@ -257,6 +266,12 @@ function KeyframeActions({ r }: { r: Ref }) {
  * for anything else, or a character with no picture yet. */
 function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | null {
   if (!hasViews(r)) return null;
+  // one whole picture of them (`sheet_panels: 1`): that, not a crop of it
+  if (r.panels === 1 && r.exists && r.path) {
+    return { what: "its picture", style: {
+      backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "cover", backgroundPosition: "center 15%",
+    } };
+  }
   for (const [tag, what] of [["04_face", "its face"], ["01_threequarter", "its three-quarter view"]] as const) {
     const v = r.views!.find((x) => x.view === tag);
     const t = v?.picked != null ? v.takes.find((x) => x.take === v.picked) : undefined;
@@ -934,6 +949,36 @@ function cardOf(r: Ref): { kind: CardKind; id: string } | null {
   return null;
 }
 
+/** The episode that picked a shared ref's live file: its candidates, read-only
+ * (each episode keeps its own), the picked one first and marked live. A
+ * double-click opens one in the viewer. */
+function OwnerTakes({ ep, r }: { ep: string; r: Ref }) {
+  const takes = [...(r.owner_takes ?? [])].sort((a, b) => Number(b.picked) - Number(a.picked));
+  const label = (v: string | null | undefined) => (v === SHEET_VIEW ? (r.panels === 1 ? "picture" : "sheet") : v ? viewLabel(v) : "");
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <div className="h3-h h3-small">From {r.live_owner}</div>
+      <div className="h3-owner-takes">
+        {takes.map((t) => {
+          const file = takeFile(t);
+          return (
+            <div key={`${t.view}|${t.take}`} className={`h3-cand${t.picked ? " h3-live" : ""}`}
+              title={`${r.live_owner}'s ${label(t.view)} ${tn(t.take)}${t.picked ? " · live" : ""} · ${t.source}\ndouble-click: open in the viewer`}
+              onDoubleClick={() => { if (file && !isAudioRef(r)) openRefFile(r.id, file); }}>
+              {isAudioRef(r) ? (
+                file && <audio controls preload="none" src={api().refFileUrl(ep, file)} style={{ width: "100%" }} />
+              ) : (
+                <div className="h3-cand-img h3-thumb" style={file ? { backgroundImage: `url("${api().refFileUrl(ep, file)}")` } : undefined} />
+              )}
+              <div className="h3-small h3-muted h3-ell">{label(t.view)} {tn(t.take)}{t.picked ? " · live" : ""}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
   const pass = useApp((s) => s.pass);
   const st = useStatus();
@@ -951,6 +996,10 @@ export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
       )}
       {used.length > 0 && !blocked.length && <div className="h3-small h3-muted">Used by {used.slice(0, 12).join(", ")}{used.length > 12 ? "…" : ""}</div>}
       {isAudioRef(r) && <VoiceLive ep={ep} r={r} />}
+      {(r.owner_takes?.length ?? 0) > 0 && !hasViews(r) && (
+        <div className="h3-small h3-muted">The live file is {r.live_owner}'s pick, shared with this episode: its candidates are below.</div>
+      )}
+      {(r.owner_takes?.length ?? 0) > 0 && <OwnerTakes ep={ep} r={r} />}
       {hasViews(r) ? (
         <>
           <SheetLine r={r} />

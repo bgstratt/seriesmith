@@ -1323,6 +1323,14 @@ export interface Ref {
    */
   live_owner?: string | null;
   /**
+   * When another episode's pick wrote the live file (`live_owner` is not this
+   * episode): that episode's candidates for this ref, read-only here (each
+   * episode keeps its own), `picked` marking the one it picked.
+   */
+  owner_takes?: (RefTake & { episode: string; picked: boolean })[];
+  /** A character: its sheet's panels, 4 (the views) or 1 (one whole picture, `sheet_panels: 1`). */
+  panels?: number;
+  /**
    * P8, a character only: which route wrote the sheet that is live now --
    * "sheet" (one supplied as a take), "views" (stitched from the four picks),
    * or null. Null also covers a sheet copied into the folder by hand, which is

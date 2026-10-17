@@ -342,7 +342,10 @@ back**. Addressed issues are left out unless `addressed=1`.
 Streams a file inside `ep`, with HTTP Range support (aiohttp `FileResponse`) so
 `<video>` can seek. The content type comes from the extension. The response carries
 `Cache-Control: no-cache`, because a take re-rendered into the same number
-(`--take N`) keeps its name.
+(`--take N`) keeps its name. A path may climb out of the episode only to what its series
+config names above it: the show's `refs/` and `audio/` (or the whole show folder, when the
+config is there), and a sibling episode's ref candidates (`../<sibling>/refs/_takes/...`,
+what `owner_takes` lists); never a sibling's renders or the show's own files.
 
 ## Rendering
 
@@ -2110,6 +2113,15 @@ show: in Porchlights ep01 **all 110** of its refs are read by the other nine epi
 - **`live_owner`**: the episode whose pick recorded the sha1 the live file has **now** — this
   one, a sibling, or `null`. Null means nobody's record matches it: it was put there by hand
   or replaced outside the editor, so no candidate anywhere can put it back.
+- **`owner_takes`** (only when `live_owner` is a sibling): that episode's candidates for the
+  ref, each a take as `takes` lists them plus `episode` and `picked` (its pick), the image
+  paths relative to this episode (`../ep01/refs/_takes/...`). Read-only here: each episode
+  keeps its own `refs/_takes/`, so this is what shows which candidate this episode is
+  reading.
+
+A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
+one whole picture of them), so a list shows the whole picture rather than a face cropped
+from it.
 
 What touches a shared file, and what doesn't:
 

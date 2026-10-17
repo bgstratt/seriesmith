@@ -4042,6 +4042,36 @@ def edit_refs(s: Series, ref: Ref, target) -> list[dict]:
     return [one(r) for r in reference_images(s, sh, sq, target)]
 
 
+def sheet_panels(s: Series, ref: Ref) -> int:
+    """A character's sheet: 4 panels, or 1 (`sheet_panels: 1`, a picture of
+    them whole); a wardrobe variant follows the subject it is a variant of."""
+    e = ref.entry
+    base = (s.series_cfg.get("subjects") or {}).get(e.get("of") or "", {}) if e.get("of") else {}
+    try:
+        return 1 if int(e.get("sheet_panels") or base.get("sheet_panels") or 4) == 1 else 4
+    except (TypeError, ValueError):
+        return 4
+
+
+def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
+    """The candidates the episode `owner` (a sibling of `ep`) has for `ref`,
+    with a picture or a sample: what wrote the shared live file `ep` reads.
+    Each says its `episode`, and `picked` whether it is that episode's pick."""
+    sib = next((d for d in sibling_episodes(ep) if ep_name(d) == owner), None)
+    if sib is None:
+        return []
+    other = dataclasses.replace(ref, home=sib)
+    picks = load_picks(sib)
+    out = []
+    for view in ([SHEET_VIEW, *VIEW_TAGS] if ref.has_views else [None]):
+        live = picked_take(picks, ref.id, view)
+        for t in list_takes(other, view):
+            j = take_json(ep, other, t)
+            if j["image"] or j["audio"]:
+                out.append(dict(j, episode=owner, picked=t.take == live))
+    return out
+
+
 def ref_json(s: Series, ref: Ref, usage: dict | None = None,
              ov_data: dict | None = None, picks: dict | None = None,
              view_size=VIEW_SIZE, needs: dict | None = None, ready=None,
@@ -4125,6 +4155,14 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         shared = shared_context(s.ep)
     out["shared_with"] = shared["shared"].get(_real_path(live), []) if live else []
     out["live_owner"] = shared["owner"].get(out["sha1"]) if out["sha1"] else None
+    # another episode's pick wrote the live file: its candidates are that
+    # episode's (refs/_takes is each episode's own), so they are listed here
+    # too, read-only, for this episode to see what it is reading
+    if out["live_owner"] and out["live_owner"] != ep_name(s.ep):
+        out["owner_takes"] = owner_takes(s.ep, ref, out["live_owner"])
+    if ref.has_views:
+        # a character's sheet is four panels, or one whole picture (`sheet_panels: 1`)
+        out["panels"] = sheet_panels(s, ref)
     if ref.kind == "keyframe":
         shot, which = ref_shot(ref)
         need = (needs if needs is not None else keyframe_needs(s.ep)).get((shot, which))

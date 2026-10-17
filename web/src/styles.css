@@ -812,3 +812,6 @@
 }
 .h3-add-tile:hover { background: var(--h3-hover); border-color: var(--h3-accent); }
 .h3-tile .h3-refthumb { border-radius: 10px; background-color: var(--h3-bg3); }
+/* a shared ref's candidates, from the episode that picked its live file */
+.h3-owner-takes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.h3-owner-takes .h3-cand-img { background-size: contain; background-position: center; background-repeat: no-repeat; background-color: var(--h3-bg3); border-radius: 6px; }
