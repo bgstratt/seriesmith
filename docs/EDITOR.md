@@ -332,14 +332,16 @@ then queues a take on the current pass.
 ### Editing a prompt
 
 **Inspect shot** is where a shot's prompt, seed, model, LoRAs and steps are edited, per
-pass: its **Video model class** first, then what that model loads (model file, LoRAs as a
-chain, steps), then the prompt and seed. Save, then render it — the Inspector has two
-buttons for that:
+pass. It is a column of cards: the take (its picture, the buttons below), **Model** (the
+shot's target), **Its pictures** (the refs its model reads), **In the cut** (trims, lock,
+sound) and **Render settings** (what that model loads — model file, LoRAs as a chain,
+steps — then the prompt and seed, with the built values folded under them). Save, then
+render it — the take's card has two buttons for that:
 
 | Button | What it does |
 |---|---|
-| **Queue (new seed)** | queues another take immediately: the saved override and a new seed, no dialog ("Render" when the shot has no take yet) |
-| **New take…** | opens the settings dialog first — model, LoRAs, steps, seed, target, note, keep the frames |
+| **Generate (new seed)** | queues another take immediately: the saved override and a new seed, no dialog (**Generate** when the shot has no take yet) |
+| **New take…** | opens the settings dialog first: what changes (from which take, the seed, a note, what to keep), the model, the output's size and pass, the prompt; its foot sums it up beside **Generate proxy take** (or final) |
 
 > **Don't edit while that shot is rendering.** A finishing render refreshes the panel and
 > your unsaved edit goes with it. Let the take finish (or cancel it) first.
@@ -427,7 +429,7 @@ seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show
 
 For a shot that is right but for a frame or two: retouch those PNGs and re-encode the
 sequence yourself. It costs ~2.5 s a shot and a few hundred MB a take, so it is per render
-rather than a setting — the one-click **Queue (new seed)** never keeps frames.
+rather than a setting — the one-click **Generate (new seed)** never keeps frames.
 
 A render is reproducible, so you can also fetch the frames of a take you already like:
 re-render it with **that take's seed** (New take… → seed *same*, or type it) and tick the box.
@@ -839,7 +841,7 @@ The cut as an editable track, along the bottom of the page.
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
 - **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
-  **2x** beside it assembles from the takes' upscales. **Add Titles** assembles the whole
+  **2x** beside it assembles from the takes' upscales. **Titles** assembles the whole
   cut and puts the series intro and outro around it with the episode's title
   (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into `<episode>/publish/`).
   **Play all** watches the cut straight from the takes without assembling anything.

@@ -8,8 +8,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { openJobs, openSettings, setRenderBackend } from "../actions";
-import { host } from "../host";
-import { store, useApp } from "../store";
+import { cutTake } from "../lib/format";
+import { api, host } from "../host";
+import { statusKey, store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 import { SettingsWindow } from "./SettingsWindow";
 
@@ -107,6 +108,29 @@ function elapsed(j: QJob, now: number): string {
   return fmt((j.finished ?? now) - j.started);
 }
 
+/** A shot job's picture: its take's thumbnail when the episode's status is loaded
+ * (the take it makes once it has one, else the one in the cut). */
+function useJobThumb(j: QJob): string | null {
+  const ep = typeof j.info?.ep === "string" ? j.info.ep : null;
+  const shot = typeof j.info?.shot === "string" ? j.info.shot : null;
+  const pass = j.info?.pass === "final" ? "final" : "proxy";
+  const s = useApp((st) => (ep && shot ? st.status[statusKey(ep, pass)]?.shots.find((x) => x.shot === shot) : undefined));
+  if (!ep || !s) return null;
+  const t = s.takes.find((x) => x.take === j.info?.take && x.thumb) ?? cutTake(s);
+  return t?.thumb ? api().thumbUrl(ep, t.thumb, 128) : null;
+}
+
+const ORDINAL = ["1st", "2nd", "3rd"];
+
+function JobThumb({ j, place }: { j: QJob; place: number }) {
+  const url = useJobThumb(j);
+  return (
+    <div className="sm-job-thumb" style={url ? { backgroundImage: `url("${url}")` } : undefined}>
+      {!url && (j.status === "queued" && place >= 0 ? ORDINAL[place] ?? `${place + 1}th` : "")}
+    </div>
+  );
+}
+
 // ---- the top bar -------------------------------------------------------------
 
 /** The jobs button: what is running and waiting, the current job's progress. */
@@ -202,7 +226,12 @@ function JobsBody() {
   const paid = q.paid;
   const head = (
     <>
-      <b className="h3-grow">Jobs</b>
+      <div className="h3-head-text">
+        <span className="h3-win-title">Jobs</span>
+        <span className="h3-small h3-muted">
+          {q.jobs.filter((j) => j.status === "running").length} running · {q.jobs.filter((j) => j.status === "queued").length} waiting
+        </span>
+      </div>
       {paid && (paid.count > 0 || paid.limit != null) && (
         <span className={`h3-small ${paid.limit != null && paid.count >= paid.limit ? "h3-warn" : "h3-muted"}`}
           title="Runs sent to a paid backend (Comfy Cloud, Router, a deployment) since the server started; the limit is in Settings">
@@ -213,15 +242,15 @@ function JobsBody() {
           )}
         </span>
       )}
-      <button className="h3-btn" onClick={() => void refresh()} title="Refresh"><i className="pi pi-refresh" /></button>
-      <button className="h3-btn" onClick={() => openJobs(false)} title="Close"><i className="pi pi-times" /></button>
+      <button className="h3-btn h3-icon" onClick={() => void refresh()} title="Refresh"><i className="pi pi-refresh" /></button>
+      <button className="h3-btn h3-icon" onClick={() => openJobs(false)} title="Close"><i className="pi pi-times" /></button>
     </>
   );
   return (
     <FloatingWindow storageKey="seriesmith.jobs.rect" head={head}
                     defaultRect={() => ({ x: Math.max(0, window.innerWidth - 480), y: 48, w: 460, h: 520 })}>
       <div className="sm-jobs">
-        {!q.jobs.length && <div className="h3-muted h3-small" style={{ padding: 12 }}>No jobs yet. Renders from this page queue here.</div>}
+        {!q.jobs.length && <div className="h3-empty-state">No jobs yet. What you generate from this page waits here.</div>}
         {lanes.map((name) => {
           const lane = q.lanes[name];
           const jobs = q.jobs.filter((j) => j.lane === name);
@@ -233,6 +262,7 @@ function JobsBody() {
                 <span className="h3-muted h3-small">
                   {lane ? (lane.parallel === 1 ? "one at a time" : `${lane.parallel} at once`) : ""}
                   {lane?.paused ? " · paused" : ""}
+                  {waiting.length > 0 ? ` · ${waiting.length} waiting` : ""}
                 </span>
                 <span className="h3-grow" />
                 {lane && (
@@ -243,35 +273,43 @@ function JobsBody() {
               </header>
               {jobs.map((j) => {
                 const w = waiting.indexOf(j.id);
+                const place = w >= 0 ? w + (lane?.running.length ?? 0) : -1;
+                const busy = j.status === "queued" || j.status === "running";
                 return (
                   <div key={j.id} className={`sm-job sm-${j.status}`}>
                     <div className="sm-job-row">
-                      <span className="sm-job-title" title={j.id}>{j.title}</span>
-                      <span className="h3-muted h3-small">
-                        {j.status}{j.status === "running" && j.step && j.steps ? ` · step ${j.step}/${j.steps}` : ""}
+                      <JobThumb j={j} place={place} />
+                      <div className="sm-job-main">
+                        <div className="h3-row" style={{ alignItems: "baseline" }}>
+                          <span className="sm-job-title h3-ell" title={j.id}>{j.title}</span>
+                          <span className="h3-muted h3-small h3-nowrap">
+                            {j.status}{j.status === "running" && j.step && j.steps ? ` · step ${j.step}/${j.steps}` : ""}
+                            {j.started ? ` · ${elapsed(j, now)}` : ""}
+                          </span>
+                        </div>
                         {/* where a backend that runs requests in turn has it (Router) */}
-                        {j.status === "running" && typeof j.info?.remote === "string" ? ` · ${j.info.remote}` : ""}
-                        {j.started ? ` · ${elapsed(j, now)}` : ""}
-                      </span>
-                      <span className="h3-grow" />
+                        {j.status === "running" && typeof j.info?.remote === "string" && (
+                          <span className="h3-small h3-muted">{j.info.remote}</span>
+                        )}
+                        {j.status === "running" && (
+                          <div className="sm-bar wide"><span style={{ width: `${Math.round(j.progress * 100)}%` }} /></div>
+                        )}
+                        {j.error && <div className="h3-small" style={{ color: "var(--h3-failed)" }}>{j.error}</div>}
+                      </div>
                       {j.status === "queued" && w > 0 && (
-                        <button className="h3-btn" title="Earlier" onClick={() => void act("move", { id: j.id, index: w - 1 })}><i className="pi pi-arrow-up" /></button>
+                        <button className="h3-btn h3-icon" title="Earlier" onClick={() => void act("move", { id: j.id, index: w - 1 })}><i className="pi pi-arrow-up" /></button>
                       )}
                       {j.status === "queued" && w >= 0 && w < waiting.length - 1 && (
-                        <button className="h3-btn" title="Later" onClick={() => void act("move", { id: j.id, index: w + 1 })}><i className="pi pi-arrow-down" /></button>
+                        <button className="h3-btn h3-icon" title="Later" onClick={() => void act("move", { id: j.id, index: w + 1 })}><i className="pi pi-arrow-down" /></button>
                       )}
-                      {(j.status === "queued" || j.status === "running") && (
-                        <button className="h3-btn" title="Cancel" onClick={() => void act("cancel", { id: j.id })}><i className="pi pi-times" /></button>
+                      {busy && (
+                        <button className="h3-btn h3-icon" title="Cancel" onClick={() => void act("cancel", { id: j.id })}><i className="pi pi-times" /></button>
                       )}
                       {(j.status === "failed" || j.status === "canceled") && j.can_retry && (
-                        <button className="h3-btn" title="Again, as a new take" onClick={() => void act("retry", { id: j.id })}><i className="pi pi-replay" /></button>
+                        <button className="h3-btn h3-again" title="Again, as a new take" onClick={() => void act("retry", { id: j.id })}>Again</button>
                       )}
-                      <button className="h3-btn" title="Log" onClick={() => setOpenLog(openLog === j.id ? null : j.id)}><i className="pi pi-align-left" /></button>
+                      <button className="h3-link h3-small" title="Its log" onClick={() => setOpenLog(openLog === j.id ? null : j.id)}>log</button>
                     </div>
-                    {j.status === "running" && (
-                      <div className="sm-bar wide"><span style={{ width: `${Math.round(j.progress * 100)}%` }} /></div>
-                    )}
-                    {j.error && <div className="h3-small" style={{ color: "var(--error-text)" }}>{j.error}</div>}
                     {openLog === j.id && (
                       <pre className="sm-log">{j.log.length ? j.log.join("\n") : "(nothing logged)"}</pre>
                     )}

@@ -36,6 +36,18 @@ async function refreshBackends() {
   }
 }
 
+/** Whether the backends of one kind answer, as a dot and a word (null: none set up). */
+function KindStatus({ kinds, ok, none }: { kinds: string[]; ok: string; none?: string }) {
+  const backends = useApp((s) => s.backends);
+  const of = (backends ?? []).filter((b) => kinds.includes(b.kind) || kinds.includes(b.name));
+  if (!backends) return null;
+  if (!of.length) return none ? <span className="h3-status">{none}</span> : null;
+  const down = of.find((b) => b.down);
+  return down
+    ? <span className="h3-status h3-s-failed" title={down.down ?? ""}>{down.name} not answering</span>
+    : <span className="h3-status h3-s-ok">{ok}</span>;
+}
+
 /** `server`: the standalone page, whose own server this is (Stop / Restart);
  * inside ComfyUI the server is ComfyUI's, so it has none. */
 export function SettingsWindow({ server = false }: { server?: boolean }) {
@@ -83,8 +95,11 @@ function ServerSection() {
     setState("gone");
   }
   return (
-    <section className="h3-col" style={{ gap: 6 }}>
-      <span className="h3-h">This server</span>
+    <section className="h3-card">
+      <div className="h3-card-head">
+        <span className="h3-card-title h3-grow">This server</span>
+        <span className="h3-small h3-muted">{location.host}</span>
+      </div>
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
         <button className="h3-btn" disabled={!!state && state !== "gone"}
           title="Stop and start again (under run_seriesmith.bat): new code, settings read afresh. The page reloads."
@@ -154,39 +169,57 @@ function SettingsBody({ server }: { server: boolean }) {
   const video = (targets?.targets ?? []).filter((t) => t.kind === "video" && !t.draft);
   const head = (
     <>
-      <i className="pi pi-cog" />
-      <b className="h3-grow">Settings</b>
+      <div className="h3-head-text">
+        <span className="h3-win-title">Settings</span>
+        <span className="h3-small h3-muted">This computer's: where renders can run. A show's own are in Series settings.</span>
+      </div>
       <button className="h3-btn h3-icon" title="Close" onClick={() => openSettings(false)}><i className="pi pi-times" /></button>
     </>
   );
   const url = (k: "comfyui_url" | "local_url" | "cloud_url", label: string, help: string) => (
-    <div className="h3-col" style={{ gap: 2 }}>
-      <span className="h3-small"><b>{label}</b></span>
-      <input className="h3-in h3-mono" value={urls[k]} disabled={!!env[k]} onChange={(e) => setUrls({ ...urls, [k]: e.target.value })} />
-      <span className="h3-small h3-muted">{env[k] ? `Set by the environment (${env[k]}): change it there.` : help}</span>
-    </div>
+    <>
+      <label htmlFor={`sm-set-${k}`} title={help}>{label}</label>
+      <div className="h3-col" style={{ gap: 2 }}>
+        <input id={`sm-set-${k}`} className="h3-in h3-mono" value={urls[k]} disabled={!!env[k]} onChange={(e) => setUrls({ ...urls, [k]: e.target.value })} />
+        {env[k] && <span className="h3-small h3-muted">Set by the environment ({env[k]}): change it there.</span>}
+      </div>
+    </>
   );
 
   return (
     <FloatingWindow storageKey="seriesmith.settings.rect" head={head}
       defaultRect={() => ({ x: Math.max(16, Math.round((window.innerWidth - 560) / 2)), y: 60, w: 560, h: Math.min(680, window.innerHeight - 100) })}>
-      <div className="h3-col" style={{ padding: 12, gap: 14, overflow: "auto", height: "100%" }}>
-        <div className="h3-small h3-muted">
-          This machine's settings, not the series': where renders can run. Kept in{" "}
-          <span className="h3-mono">{view?.file ?? "…"}</span>.
-        </div>
+      <div className="h3-cards" style={{ overflow: "auto", flex: "1 1 auto", minHeight: 0 }}>
+        <section className="h3-card">
+          <div className="h3-card-head">
+            <span className="h3-card-title h3-grow">This computer</span>
+            <KindStatus kinds={["local"]} ok="ComfyUI answering" />
+          </div>
+          <div className="h3-form">
+            {url("comfyui_url", "ComfyUI", "Your ComfyUI: model lists and node checks come from it.")}
+            {url("local_url", "comfy-api-proxy", "What local renders are sent to: started beside your ComfyUI when it isn't running.")}
+          </div>
+          <span className="h3-small h3-muted">
+            Model lists and node checks come from ComfyUI; local renders go through the proxy, started beside it.
+          </span>
+        </section>
 
-        <section className="h3-col" style={{ gap: 6 }}>
-          <span className="h3-h">Comfy account</span>
-          <div className="h3-col" style={{ gap: 2 }}>
-            <span className="h3-small"><b>API key</b> {view && (
-              <span className={view.settings.api_key ? "h3-ok" : "h3-muted"}>· {view.settings.api_key ? "set" : "not set"}</span>
-            )}</span>
+        <section className="h3-card">
+          <div className="h3-card-head">
+            <span className="h3-card-title h3-grow">Comfy account</span>
+            {view && (
+              <span className={`h3-status${view.settings.api_key ? " h3-s-ok" : ""}`}>
+                {view.settings.api_key ? "key set · Cloud and Router" : "no key"}
+              </span>
+            )}
+          </div>
+          <div className="h3-form">
+            <label htmlFor="sm-set-key">API key</label>
             {env.api_key ? (
               <span className="h3-small h3-muted">Set by the environment ({env.api_key}): change it there.</span>
             ) : (
               <div className="h3-row" style={{ gap: 4 }}>
-                <input className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={key}
+                <input id="sm-set-key" className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={key}
                   placeholder={view?.settings.api_key ? "a new key replaces the one saved" : "comfyui-…"}
                   onChange={(e) => setKey(e.target.value)} />
                 {view?.settings.api_key && (
@@ -196,48 +229,48 @@ function SettingsBody({ server }: { server: boolean }) {
                 )}
               </div>
             )}
-            <span className="h3-small h3-muted">
-              From your Comfy account (platform.comfy.org, API keys). It turns on Comfy Cloud (any graph, on Comfy's GPUs) and
-              Comfy Router (hosted models: Seedance, Krea 2, ...), which uploads its input pictures through Cloud. Paid use is billed to that account.
-            </span>
+            <label htmlFor="sm-set-limit">Paid runs</label>
+            <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+              <input id="sm-set-limit" className="h3-in" type="number" min={0} step={1} style={{ width: 90 }} value={limit}
+                placeholder="no limit" onChange={(e) => setLimit(e.target.value)} />
+              <span className="h3-small h3-muted">a session, then it stops and asks</span>
+            </div>
           </div>
-          {url("cloud_url", "Comfy Cloud address", "Leave it unless Comfy tells you otherwise.")}
-          <div className="h3-col" style={{ gap: 2 }}>
-            <span className="h3-small"><b>Paid runs per session</b></span>
-            <input className="h3-in" type="number" min={0} step={1} style={{ width: 120 }} value={limit}
-              placeholder="no limit" onChange={(e) => setLimit(e.target.value)} />
-            <span className="h3-small h3-muted">
-              The most runs on Comfy Cloud, Router or a deployment the server sends before it stops and asks you to raise
-              this (or reset the count in Jobs). Empty: no limit. A batch of paid renders asks before it goes either way.
-            </span>
-          </div>
-        </section>
-
-        <section className="h3-col" style={{ gap: 6 }}>
-          <span className="h3-h">This computer</span>
-          {url("comfyui_url", "ComfyUI", "Your ComfyUI: model lists and node checks come from it.")}
-          {url("local_url", "comfy-api-proxy", "What local renders are sent to: started beside your ComfyUI when it isn't running.")}
-        </section>
-
-        <section className="h3-col" style={{ gap: 6 }}>
-          <span className="h3-h">Deployments</span>
           <span className="h3-small h3-muted">
-            A model built into a Comfy deployment of its own (its address ends .run.comfy.app). Each shows up in Render on as
-            deployment:&lt;model&gt;; it uses the API key above.
+            From your Comfy account (platform.comfy.org, API keys). It turns on Comfy Cloud (any graph, on Comfy's GPUs) and
+            Comfy Router (hosted models: Seedance, Krea 2, ...), which uploads its input pictures through Cloud. Paid use is billed
+            to that account. The paid-run limit counts runs on Cloud, Router or a deployment; empty: no limit (reset the count in Jobs).
           </span>
+          <details>
+            <summary className="h3-small">Comfy Cloud address (leave it unless told otherwise)</summary>
+            <div className="h3-form" style={{ marginTop: 6 }}>
+              {url("cloud_url", "Address", "Leave it unless Comfy tells you otherwise.")}
+            </div>
+          </details>
+        </section>
+
+        <section className="h3-card">
+          <div className="h3-card-head">
+            <span className="h3-card-title h3-grow">Deployments</span>
+            <KindStatus kinds={["deployment"]} ok="answering" />
+            <button className="h3-btn h3-add" onClick={() => setDeps([...deps, { target: "", url: "" }])}>+ Deployment</button>
+          </div>
           {deps.map((d, i) => (
             <div key={i} className="h3-row" style={{ gap: 4 }}>
-              <select className="h3-in" value={d.target} onChange={(e) => setDeps(deps.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))}>
+              <select className="h3-in" aria-label="The model" value={d.target} onChange={(e) => setDeps(deps.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))}>
                 <option value="">a model…</option>
                 <ModelOptions targets={video} />
                 {d.target && !video.some((t) => t.id === d.target) && <option value={d.target}>{d.target}</option>}
               </select>
-              <input className="h3-in h3-grow h3-mono" value={d.url} placeholder="https://….run.comfy.app"
+              <input className="h3-in h3-grow h3-mono" aria-label="Its address" value={d.url} placeholder="https://….run.comfy.app"
                 onChange={(e) => setDeps(deps.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} />
-              <button className="h3-link" title="Remove" onClick={() => setDeps(deps.filter((_, j) => j !== i))}>×</button>
+              <button className="h3-btn h3-icon" title="Remove" onClick={() => setDeps(deps.filter((_, j) => j !== i))}><i className="pi pi-times" /></button>
             </div>
           ))}
-          <div><button className="h3-btn" onClick={() => setDeps([...deps, { target: "", url: "" }])}>+ Deployment</button></div>
+          <span className="h3-small h3-muted">
+            A model built into a Comfy deployment of its own (its address ends .run.comfy.app). Each shows up in Render on as
+            deployment:&lt;model&gt;; it uses the API key above.
+          </span>
         </section>
 
         {/* only on the PC itself: the server refuses a stop from another device (no password
@@ -245,10 +278,11 @@ function SettingsBody({ server }: { server: boolean }) {
         {server && ["127.0.0.1", "localhost", "[::1]", "::1"].includes(location.hostname) && <ServerSection />}
 
         {error && <div className="h3-err">{error}</div>}
+        <span className="h3-small h3-muted">Kept in <span className="h3-mono">{view?.file ?? "…"}</span>.</span>
       </div>
-      <div className="h3-row" style={{ padding: "6px 10px", borderTop: "1px solid var(--h3-border)" }}>
+      <div className="h3-dialog-foot">
         <span className="h3-small h3-muted h3-grow">{note ?? "Saving applies at once: Render on lists what is set up."}</span>
-        <button className="h3-btn h3-primary" disabled={busy || !view} onClick={() => void save()}>
+        <button className="h3-btn h3-primary h3-big" disabled={busy || !view} onClick={() => void save()}>
           {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-save" />} Save
         </button>
       </div>

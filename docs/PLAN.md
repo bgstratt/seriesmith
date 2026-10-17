@@ -618,8 +618,12 @@ each) made quick to open.
   - [x] Replies over 64 KB gzipped (the refs listing: 2.8 MB, 0.12 MB sent).
   - [x] The refs listed before the sweep (on a thread after the reply), and
         asked for as soon as an episode's shots are in.
-- [ ] The rest of Advanced in this look: the inspector, the open ref row,
-      dialogs, the Settings and Jobs windows, the timeline.
+- [x] The rest of Advanced in this look (2026-10-17): the inspector and New
+      take as cards (Generate, Generate proxy take), Settings with a dot for
+      what answers, Jobs a card per lane with a picture per job, the open ref
+      row a card, every two- or three-way choice a sliding toggle, the
+      timeline's toolbar grouped and its badges soft chips. The clips stay
+      square and the sound stays waveforms.
 - [ ] The editor inside ComfyUI: the new layout under ComfyUI's own theme,
       looked at there.
 - [ ] The timeline drawing a long episode in the browser: not measured yet.
