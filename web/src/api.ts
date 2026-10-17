@@ -20,8 +20,7 @@ import type {
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
-  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult,
-} from "./types";
+  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake } from "./types";
 import { comboChoices } from "./lib/targets";
 
 /** A ref take as the import routes return it. */
@@ -122,10 +121,14 @@ export interface Api {
   refsVideo(ep: string, from: { source_path: string } | { file: Blob; name?: string }, onProgress?: UploadProgress): Promise<KeptVideo>;
   /** The videos kept to take frames from, newest first. */
   refsVideos(ep: string): Promise<{ videos: KeptVideo[] }>;
+  /** A shared ref another episode picked: that episode's candidates for it, read-only. */
+  refsOwnerTakes(ep: string, ref: string): Promise<{ owner: string | null; takes: OwnerTake[] }>;
   /** The Seedance drafts the proxy cut uses: what finals can be made from. */
   drafts(ep: string): Promise<{ drafts: DraftItem[] }>;
   /** Simple mode: the Clips project (made the first time). */
   clipsEnsure(root?: string | null): Promise<{ ep: string; made: boolean }>;
+  /** Simple mode: a project of its own, `<root>/<Name>/<name>/` (default the first root). */
+  clipsNew(title: string, root?: string | null): Promise<{ ep: string }>;
   /** Simple mode: a clip's missing pictures, then its takes. */
   clipQueue(req: { ep: string; shot: string; pass?: Pass; takes?: number; backend?: string | null }): Promise<ClipQueueResult>;
   /** GET /seriesmith/episode/new — what a new episode in `parent` (or its new show folder) starts from. */
@@ -185,6 +188,9 @@ export interface Api {
   /** URL of a ref file (live file or a candidate, `../` beside a parent-folder
    * series config); `version` busts the image cache after a re-pick. */
   refFileUrl(ep: string, path: string, version?: string | null): string;
+  /** A picture made small (GET /seriesmith/thumb): `width` px wide, rounded up to
+   * 128 / 256 / 512 / 1024. For a picture shown small; the file itself for one shown whole. */
+  thumbUrl(ep: string, path: string, width: number, version?: string | null): string;
   refsGenerate(req: RefGenerateRequest): Promise<RefGenerateResult>;
   /** P5: POST /seriesmith/refs/tour, a camera tour of a location (answers once queued) */
   refsTour(req: { ep: string; ref: string; move: string; seconds?: number; count?: number }): Promise<{ queued: { tour: number; comfy_prompt_id: string }[] }>;
@@ -489,8 +495,10 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/refs/video", form, onProgress);
     },
     refsVideos: (ep) => get(`/seriesmith/refs/videos?${qs({ ep })}`),
+    refsOwnerTakes: (ep, ref) => get(`/seriesmith/refs/owner-takes?${qs({ ep, ref })}`),
     drafts: (ep) => get(`/seriesmith/drafts?${qs({ ep })}`),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
+    clipsNew: (title, root) => call("POST", "/seriesmith/clips/new", root ? { title, root } : { title }),
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),
     importSeries: (req) => call("POST", "/seriesmith/import", req),
@@ -556,6 +564,7 @@ export function createHttpApi(t: Transport): Api {
     browse: (path, files) => get(`/seriesmith/browse?${qs({ path: path || undefined, files: files || undefined })}`),
     refs: (ep) => get(`/seriesmith/refs?${qs({ ep })}`),
     refFileUrl: (ep, path, version) => t.url(`/seriesmith/file?${qs({ ep, path, v: version || undefined })}`),
+    thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(req.seed)}`));

@@ -11,12 +11,19 @@ sheets, its place's plate: refs.generate) and then, when they have come out,
 its takes: a follow-up job on seriesmith's queue waits for those pictures,
 makes each live (refs.auto_pick) and asks for the renders.
 
+Simple mode can make more projects than Clips, each a show of its own
+(`<root>/<Name>/<name>/`, its pictures in `<root>/<Name>/refs/`): new_project.
+A project's series config says `"simple": true`, which is how its project
+picker tells them from the episodes Advanced mode makes (is_simple).
+
 Stdlib only.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
+import re
 
 SHOW = "Clips"
 NAME = "clips"
@@ -30,6 +37,7 @@ SERIES = {
     "subjects": {},
     "locations": {},
     "audio": {"mode": "generate"},
+    "simple": True,
 }
 
 
@@ -47,6 +55,43 @@ def ensure_clips(root: str) -> dict:
     S.new_episode(root, NAME, title="Clips", show=SHOW,
                   series=json.dumps(SERIES, indent=2), script=f"= {NAME}  Clips\n")
     return {"ep": ep, "made": True}
+
+
+def project_series(title: str, ident: str) -> dict:
+    """A new Simple project's series config: the Clips one, titled."""
+    cfg = copy.deepcopy(SERIES)
+    cfg["series"].update(id=ident, title=title)
+    return cfg
+
+
+def new_project(root: str, title: str) -> dict:
+    """A Simple project of its own: `<root>/<Name>/<name>/`, Name from the
+    title (`Storm at the lighthouse` -> `Storm_at_the_lighthouse/
+    storm_at_the_lighthouse/`), so its pictures are its show's. Returns
+    {"ep"}; source.SourceError 400 for a title with nothing to name a folder
+    by, 409 when that show folder is already there."""
+    from seriesmith import source as S
+    title = " ".join(str(title or "").split())
+    show = re.sub(r"[^A-Za-z0-9._-]+", "_", title).strip("._-")
+    if not show:
+        raise S.SourceError(400, "name the project: letters or digits")
+    show = S.check_name(show)
+    if os.path.exists(os.path.join(root, show)):
+        raise S.SourceError(409, f"there is already a {show} folder in {root}")
+    name = S.check_name(show.lower())
+    S.new_episode(root, name, title=title, show=show,
+                  series=json.dumps(project_series(title, name), indent=2),
+                  script=f"= {name}  {title}\n")
+    return {"ep": os.path.join(os.path.abspath(root), show, name)}
+
+
+def is_simple(ep: str, series_cfg: dict | None) -> bool:
+    """Whether an episode is one of Simple mode's projects: its series config
+    says so, or it is the Clips project (made before configs did)."""
+    if (series_cfg or {}).get("simple") is True:
+        return True
+    norm = os.path.normcase(os.path.normpath(os.path.abspath(ep)))
+    return norm.endswith(os.path.normcase(os.path.join(os.sep + SHOW, NAME)))
 
 
 def needed_refs(ep: str, pass_: str, shot: str) -> list:

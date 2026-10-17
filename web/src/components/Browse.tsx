@@ -2,9 +2,12 @@
 // episode, and picking a file on the ComfyUI machine to import as a ref.
 
 import { useCallback, useEffect, useState } from "react";
-import { addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, openEpisodeAt, refLabel, removeRoot, useClipAudioFile, usePictureFile } from "../actions";
+import {
+  addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, loadEpisodes, openEpisodeAt, refLabel, removeRoot, selectEpisode,
+  useClipAudioFile, usePictureFile,
+} from "../actions";
 import { errText } from "../api";
-import { api } from "../host";
+import { api, host } from "../host";
 import { AUDIO_EXT, CLIP_AUDIO_EXT, IMAGE_EXT, VIDEO_EXT, crumbs } from "../lib/browse";
 import { insideRoot } from "../lib/newEpisode";
 import { TRACK_EXT } from "../lib/track";
@@ -51,6 +54,10 @@ function BrowseBody({ b }: { b: BrowseState }) {
   // P5: New episode… — the folder it goes in is the show's, not the episode's
   // seriesmith: Import series… — a series config and a stack of scripts
   const [importingSeries, setImportingSeries] = useState(false);
+  // Simple mode: a project of its own (POST /seriesmith/clips/new), named here
+  const simple = useApp((s) => s.simple);
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [busyProject, setBusyProject] = useState(false);
   const [showName, setShowName] = useState("");
   const [seriesFiles, setSeriesFiles] = useState<File[]>([]);
   const busySeries = useApp((s) => !!s.busy.importSeries);
@@ -123,6 +130,21 @@ function BrowseBody({ b }: { b: BrowseState }) {
   // itself an episode (then the folder we're in is the show's)
   const newParent = selDir && !selDir.episode ? selDir.path : here;
   const outsideRoots = !!newParent && !insideRoot(newParent, roots);
+  async function makeProject() {
+    if (!newParent || !projectName?.trim()) return;
+    setBusyProject(true);
+    try {
+      const r = await api().clipsNew(projectName.trim(), newParent);
+      await loadEpisodes();
+      selectEpisode(r.ep);
+      setProjectName(null);
+      closeBrowse();
+    } catch (e) {
+      host().toast("error", "The project wasn't made", errText(e));
+    } finally {
+      setBusyProject(false);
+    }
+  }
 
 
   const title = forKey && b.files === "video"
@@ -176,11 +198,13 @@ function BrowseBody({ b }: { b: BrowseState }) {
               </button>
               <button
                 className="h3-btn"
-                disabled={!newParent || outsideRoots}
-                title={outsideRoots ? `${newParent} isn't inside a project root: add it as one first` : newParent ? `Start a new series in a show folder inside ${newParent}` : "Browse to the folder your shows live in"}
-                onClick={() => { closeBrowse(); openWizard({ parent: newParent, newSeries: true }); }}
+                disabled={!newParent || outsideRoots || projectName !== null}
+                title={outsideRoots ? `${newParent} isn't inside a project root: add it as one first` : !newParent ? "Browse to the folder your shows live in"
+                  : simple ? `A project of its own in ${newParent}: name it, and its clips, people and places stay together`
+                    : `Start a new series in a show folder inside ${newParent}, step by step`}
+                onClick={() => { if (simple) setProjectName(""); else { closeBrowse(); openWizard({ parent: newParent, newSeries: true }); } }}
               >
-                <i className="pi pi-star" /> New series…
+                <i className="pi pi-star" /> New series/project…
               </button>
               <button
                 className="h3-btn"
@@ -284,6 +308,22 @@ function BrowseBody({ b }: { b: BrowseState }) {
           </button>
         )}
       </div>
+      {!importing && projectName !== null && newParent && (
+        <div className="h3-col" style={{ gap: 4 }}>
+          <div className="h3-h">A new project in {newParent}</div>
+          <div className="h3-row">
+            <input className="h3-in h3-grow" autoFocus value={projectName} placeholder="Storm at the lighthouse"
+              aria-label="The new project's name"
+              onChange={(e) => setProjectName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void makeProject(); if (e.key === "Escape") setProjectName(null); }} />
+            <button className="h3-btn h3-primary" disabled={busyProject || !projectName.trim()} onClick={() => void makeProject()}>
+              {busyProject && <i className="pi pi-spin pi-spinner" />} Make
+            </button>
+            <button className="h3-btn" disabled={busyProject} onClick={() => setProjectName(null)}>Cancel</button>
+          </div>
+          <span className="h3-muted h3-small">A folder of its own (its name, then the project inside it), so its clips, people and places stay together.</span>
+        </div>
+      )}
       {!importing && importingSeries && newParent && (
         <div className="h3-col" style={{ gap: 4 }}>
           <div className="h3-h">Import a series into {newParent}</div>

@@ -45,12 +45,15 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
   const canRevert = tsrc ? tsrc === "override" : isRetargeted(src);
   if (!list) {
     // a server without /seriesmith/targets: say what the shot renders on, if it says
-    return src?.target ? <div className="h3-small h3-muted" title={error ?? ""}>target: {src.target}</div> : null;
+    return src?.target ? <div className="h3-small h3-muted" title={error ?? ""}>Model: {src.target}</div> : null;
   }
   return (
-    <div className="h3-col" style={{ gap: 2 }}>
+    <div className="h3-col" style={{ gap: 4 }}>
+      <div className="h3-card-head">
+        <span className="h3-card-title" title="Which model draws this shot (its target)">Model</span>
+        {(srcNote || note) && <span className="h3-small h3-muted h3-grow">{srcNote ?? note}</span>}
+      </div>
       <div className="h3-target-row">
-        <span className="h3-h" title="Which model draws this shot (its target)">Video model class</span>
         <TargetSelect
           value={current}
           list={list}
@@ -66,8 +69,6 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
           </button>
         )}
       </div>
-      {srcNote && <span className="h3-small h3-muted">{srcNote}</span>}
-      {note && !srcNote && <span className="h3-small h3-muted">{note}</span>}
       <TargetReadinessNote id={current} list={list} />
     </div>
   );
@@ -128,14 +129,14 @@ function RefsUsed({ shot, d }: { shot: string; d: ShotDetail | undefined }) {
   const known = new Set((refs ?? []).map((r) => r.id));
   return (
     <div className="h3-col" style={{ gap: 4 }}>
-      <div className="h3-row">
-        <span className="h3-h">Refs this shot uses</span>
+      <div className="h3-card-head">
+        <span className="h3-card-title" title="The refs this shot's model reads: a click opens one in the Refs tab">Its pictures</span>
         {!exact && <span className="h3-small h3-muted" title="This server doesn't send refs_used: read from each ref's used_by">(from the refs list)</span>}
       </div>
       {!tiles.length && <span className="h3-small h3-muted">None: its target reads no reference images.</span>}
       <div className="h3-refs-used">
         {tiles.map((t) => {
-          const url = t.image ? api().refFileUrl(ep, t.image, t.version) : null;
+          const url = t.image ? api().thumbUrl(ep, t.image, 256, t.version) : null;
           const canOpen = !!t.refId && known.has(t.refId);
           const tile = (
             <div
@@ -256,7 +257,7 @@ function Built({ d }: { d: ShotDetail }) {
   ];
   return (
     <details>
-      <summary>Built values (read-only)</summary>
+      <summary>Built values <span className="h3-muted">(read-only)</span></summary>
       <div className="h3-col" style={{ marginTop: 4 }}>
         <div className="h3-kv">
           {rows.filter(([, v]) => v !== undefined && v !== "" && v !== null).map(([k, v]) => [
@@ -359,6 +360,10 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
 
   return (
     <div className="h3-col">
+      <div className="h3-card-head">
+        <span className="h3-card-title">Render settings</span>
+        <span className="h3-small h3-muted h3-grow">{hasOverride ? `this shot's own (${pass})` : "as built"}</span>
+      </div>
       {d.override_stale && !retargeted && (
         <div className="h3-note">
           <b>Override stale.</b> It was written against an older build of this shot; the build now
@@ -488,49 +493,80 @@ export function Inspector() {
   const hasUsable = !!s?.takes.some((t) => t.status === "ok" && t.has_video);
   const missing = s ? missingOf(s) : [];
   const blocked = missing.length && !allowMissing;
+  const shown = selTake ?? ct?.take ?? null;
+  const showTake = s?.takes.find((t) => t.take === shown) ?? ct;
+  const thumb = showTake?.thumb ? api().thumbUrl(ep, showTake.thumb, 256) : null;
   return (
-    <div className="h3-scroll h3-pad h3-col">
+    <div className="h3-scroll h3-cards">
       {s && (
-        <div className="h3-col" style={{ gap: 4 }}>
-          {s.subjects.length > 0 && <div className="h3-small h3-muted">subjects: {s.subjects.join(", ")}</div>}
-          <Badges badges={badges} />
-          <TargetPicker d={d} shot={shot} />
-          {d && <TakeResolved d={d} take={selTake ?? ct?.take ?? null} />}
-          {d && <TakeReference d={d} take={selTake ?? ct?.take ?? null} />}
-          {d && <RenderNotes d={d} />}
-
-          <MissingRefsNote blocked={missing.length ? [{ shot, refs: missing }] : []} allow={allowMissing} setAllow={setAllowMissing} />
-          <RefsUsed shot={shot} d={d} />
-          <div className="h3-row h3-wrap">
-            <button
-              className="h3-btn h3-primary"
-              disabled={renderBusy || !d}
-              title={blocked
-                ? "Missing refs: the server will skip this shot (tick Render anyway to render with stand-ins)"
-                : hasUsable
-                  ? "Queue another take now: the saved override and a new seed, no dialog"
-                  : "Queue the first take"}
-              onClick={() => {
-                if (!hasUsable) void renderShots([shot], false, allowMissing);
-                else void queueRender({ ...baseRender(ep, pass, [shot], allowMissing), redo: true, seed_mode: "new", parent_take: ct?.take ?? null });
-              }}
-            >
-              <i className="pi pi-play" /> {hasUsable ? "Queue (new seed)" : "Render"}{blocked ? " (will skip)" : ""}
-            </button>
-            <button
-              className="h3-btn"
-              disabled={!d}
-              title="Choose the settings first: model, LoRAs, steps, seed, target, whether to keep the frames"
-              onClick={() => openRedo(shot, ct?.take ?? s.takes[s.takes.length - 1]?.take ?? null)}
-            >
-              <i className="pi pi-refresh" /> New take…
-            </button>
-            <button className="h3-btn" disabled={!ct?.mp4} onClick={() => ct && openViewer(shot, ct.take, null, "single")}>
-              <i className="pi pi-eye" /> View {ct ? tn(ct.take) : ""}
-            </button>
+        <>
+          <div className="h3-card">
+            <div className="h3-insp-take">
+              <div
+                className={`h3-thumb${thumb ? "" : " h3-empty"}`}
+                style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
+                title={showTake?.mp4 ? "Open in the viewer" : undefined}
+                onClick={() => showTake?.mp4 && openViewer(shot, showTake.take, null, "single")}
+              >
+                {!thumb && (showTake ? showTake.status : "no take")}
+              </div>
+              <div className="h3-col h3-grow" style={{ gap: 3 }}>
+                <span className="h3-card-title">
+                  {showTake ? `${tn(showTake.take)}${ct && showTake.take === ct.take ? " · in the cut" : ""}` : "No take yet"}
+                </span>
+                <span className="h3-small h3-muted">
+                  {s.takes.length ? `${s.takes.length} take${s.takes.length > 1 ? "s" : ""}` : "not rendered"}
+                  {s.subjects.length > 0 ? ` · ${s.subjects.join(", ")}` : ""}
+                </span>
+                <Badges badges={badges} />
+              </div>
+            </div>
+            <MissingRefsNote blocked={missing.length ? [{ shot, refs: missing }] : []} allow={allowMissing} setAllow={setAllowMissing} />
+            <div className="h3-row h3-wrap">
+              <button
+                className="h3-btn h3-primary h3-gen"
+                disabled={renderBusy || !d}
+                title={blocked
+                  ? "Missing refs: the server will skip this shot (tick Render anyway to render with stand-ins)"
+                  : hasUsable
+                    ? "Queue another take now: the saved settings and a new seed, no dialog"
+                    : "Queue the first take"}
+                onClick={() => {
+                  if (!hasUsable) void renderShots([shot], false, allowMissing);
+                  else void queueRender({ ...baseRender(ep, pass, [shot], allowMissing), redo: true, seed_mode: "new", parent_take: ct?.take ?? null });
+                }}
+              >
+                <i className="pi pi-play" /> {hasUsable ? "Generate (new seed)" : "Generate"}{blocked ? " (will skip)" : ""}
+              </button>
+              <button
+                className="h3-btn h3-big"
+                disabled={!d}
+                title="Choose the settings first: model, LoRAs, steps, seed, target, whether to keep the frames"
+                onClick={() => openRedo(shot, ct?.take ?? s.takes[s.takes.length - 1]?.take ?? null)}
+              >
+                New take…
+              </button>
+              <button className="h3-btn h3-big" disabled={!ct?.mp4} title={ct ? `View ${tn(ct.take)}` : "No take in the cut"} onClick={() => ct && openViewer(shot, ct.take, null, "single")}>
+                <i className="pi pi-eye" /> View
+              </button>
+            </div>
           </div>
-          <CutSection shot={shot} />
-        </div>
+
+          <div className="h3-card">
+            <TargetPicker d={d} shot={shot} />
+            {d && <TakeResolved d={d} take={shown} />}
+            {d && <RenderNotes d={d} />}
+          </div>
+
+          <div className="h3-card">
+            <RefsUsed shot={shot} d={d} />
+            {d && <TakeReference d={d} take={shown} />}
+          </div>
+
+          <div className="h3-card">
+            <CutSection shot={shot} />
+          </div>
+        </>
       )}
       {derr && !d && (
         <div className="h3-note h3-note-err">
@@ -539,11 +575,10 @@ export function Inspector() {
       )}
       {!d && !derr && <div className="h3-muted">Loading…</div>}
       {d && (
-        <>
-          <Built d={d} />
-          <div className="h3-sep" />
+        <div className="h3-card">
           <OverrideEditor key={`${ep}|${pass}|${shot}`} d={d} shot={shot} />
-        </>
+          <Built d={d} />
+        </div>
       )}
     </div>
   );
@@ -558,14 +593,17 @@ export function InspectorWindow() {
   if (!open) return null;
   const head = (
     <>
-      <i className="pi pi-sliders-h h3-muted" />
-      <b>{shot ?? "Inspector"}</b>
-      {s && (
-        <span className="h3-muted h3-small" title={lengthEstimated(s) ? ESTIMATE_TITLE : undefined}>
-          {s.sequence} · {fmtShotSeconds(s, s.seconds)}{s.size ? ` · ${s.size}` : ""}
-        </span>
-      )}
-      <span className="h3-grow" />
+      <div className="h3-head-text">
+        {s && <span className="h3-kicker">{s.sequence}</span>}
+        <div className="h3-row">
+          <span className="h3-win-title">{shot ?? "Inspector"}</span>
+          {s && (
+            <span className="h3-muted h3-small h3-ell" title={lengthEstimated(s) ? ESTIMATE_TITLE : undefined}>
+              {fmtShotSeconds(s, s.seconds)}{s.size ? ` · ${s.size}` : ""}
+            </span>
+          )}
+        </div>
+      </div>
       {ep && <PassToggle />}
       <button className="h3-btn h3-icon" title="Close" onClick={closeInspector}><i className="pi pi-times" /></button>
     </>

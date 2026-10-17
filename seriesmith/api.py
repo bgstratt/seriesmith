@@ -97,6 +97,9 @@ class Context:
         self.model_resolve = model_resolve
         self._model_list = model_list
         self._model_cache = None
+        # a server sets it: work that can follow a reply (get_refs' sweep) is
+        # done after it, on a thread; a direct caller (the CLI, tests) waits
+        self.sweep_later = False
 
     @property
     def runner(self):
@@ -498,6 +501,22 @@ def post_clips_ensure(ctx: Context, body):
     res = CL.ensure_clips(root)
     if res["made"]:
         episode_event(ctx, res["ep"])
+    return 200, res
+
+
+@handler
+def post_clips_new(ctx: Context, body):
+    """A Simple project of its own (clips.new_project): {"title", "root"?}
+    (default the first project root) -> {"ep"}."""
+    from seriesmith import clips as CL
+    body = body_dict(body)
+    roots = load_roots(ctx)
+    root = body.get("root") or (roots[0] if roots else None)
+    if not root:
+        raise ApiError(409, "no project folder yet: add one (Project folders) first")
+    root = check_folder(ctx, root, "root")
+    res = CL.new_project(root, body.get("title"))
+    episode_event(ctx, res["ep"])
     return 200, res
 
 
@@ -930,6 +949,66 @@ def get_file(ctx: Context, query: dict):
     return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
 
 
+THUMB_WIDTHS = (128, 256, 512, 1024)
+THUMB_EXT = (".png", ".jpg", ".jpeg", ".webp")
+
+
+@handler
+def get_thumb(ctx: Context, query: dict):
+    """A picture inside the episode (as GET /seriesmith/file finds it), made
+    small: `w` wide (rounded up to one of THUMB_WIDTHS), a JPEG kept in the
+    settings folder's thumbs/ by the file's path, size and time, so it is made
+    once (a shared ref's for every episode) and again when the file changes.
+    The Refs tab shows hundreds of reference pictures at a few dozen pixels
+    each; the files are full size. A picture Pillow can't shrink is served as
+    it is."""
+    ep = check_ep(ctx, query.get("ep"))
+    full, _ = ep_file(ctx, ep, query.get("path"))
+    try:
+        want = int(query.get("w") or 256)
+    except (TypeError, ValueError):
+        raise ApiError(400, f"w must be a width in pixels, not {query.get('w')!r}")
+    width = next((x for x in THUMB_WIDTHS if x >= want), THUMB_WIDTHS[-1])
+    ext = os.path.splitext(full)[1].lower()
+    small = thumb_file(ctx, full, width) if ext in THUMB_EXT else None
+    if small is None:
+        return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
+    return 200, {"path": small, "content_type": "image/jpeg"}
+
+
+def thumb_file(ctx: Context, full: str, width: int) -> str | None:
+    """The thumbnail of `full` at `width`, made when missing (None: it can't be)."""
+    import hashlib
+    try:
+        st = os.stat(full)
+    except OSError:
+        return None
+    key = hashlib.sha1(f"{os.path.normcase(os.path.abspath(full))}|{st.st_mtime_ns}|{st.st_size}|{width}"
+                       .encode("utf-8")).hexdigest()
+    out = os.path.join(ctx.user_dir, "default", "seriesmith", "thumbs", key[:2], key + ".jpg")
+    if os.path.isfile(out):
+        return out
+    try:
+        from PIL import Image
+        with Image.open(full) as im:
+            im.draft("RGB", (width, width * 4))          # a JPEG decodes small to begin with
+            im.thumbnail((width, width * 4))
+            if im.mode in ("RGBA", "LA", "P"):
+                im = im.convert("RGBA")
+                flat = Image.new("RGB", im.size, (255, 255, 255))
+                flat.paste(im, mask=im.getchannel("A"))
+                im = flat
+            elif im.mode != "RGB":
+                im = im.convert("RGB")
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            tmp = f"{out}.{os.getpid()}.tmp"
+            im.save(tmp, "JPEG", quality=84)
+        os.replace(tmp, out)
+        return out
+    except Exception:                                     # noqa: BLE001 -- the original will do
+        return None
+
+
 def ep_file(ctx: Context, ep: str, rel, escape_status: int = 403) -> tuple[str, str]:
     """(full path, the relative path with forward slashes) of an existing file
     inside the episode (or its parent-folder series config's folder). 400 for
@@ -968,7 +1047,10 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     - the series config lives in the **episode** but names `../refs/...` or
       `../audio/...` (shared assets, per-episode config): only those two
       folders of the parent, so a sibling episode's renders and the show
-      folder's own files stay out of reach.
+      folder's own files stay out of reach. A sibling episode's ref
+      candidates (`../<sibling>/refs/_takes/...`) are served too: a shared
+      ref's live file can be another episode's pick, and its candidates are
+      that episode's (refs.owner_takes).
 
     Either way the file must also be inside a configured root.
     """
@@ -982,7 +1064,10 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     if home != _real(ep):
         return _inside(full, home)
     show = os.path.dirname(os.path.abspath(ep))
-    return any(_inside(full, _real(os.path.join(show, d))) for d in SHARED_DIRS)
+    if any(_inside(full, _real(os.path.join(show, d))) for d in SHARED_DIRS):
+        return True
+    from seriesmith import refs as R
+    return any(_inside(full, _real(os.path.join(sib, "refs", "_takes"))) for sib in R.sibling_episodes(ep))
 
 
 # ---------------------------------------------------------------------------
@@ -2959,8 +3044,36 @@ def image_ready(ctx: Context):
 def get_refs(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     s = _series(ep)
-    sweep_refs(ctx, s)
-    return 200, seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
+    if not ctx.sweep_later:
+        sweep_refs(ctx, s)
+    out = seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
+    if ctx.sweep_later:
+        # a server closes the takes whose job is gone (every take's record
+        # read, ComfyUI asked) after the listing has gone, not before it: what
+        # it changes reaches the page as ref events, which reload it
+        import threading
+        threading.Thread(target=sweep_refs, args=(ctx, s), daemon=True, name="seriesmith-sweep-refs").start()
+    return 200, out
+
+
+@handler
+def get_refs_owner_takes(ctx: Context, query: dict):
+    """A shared ref whose live file another episode picked (its `live_owner`):
+    that episode's candidates for it, read-only (refs.owner_takes). Asked for
+    when its row opens, so the listing doesn't read every sibling's. {"owner",
+    "takes"}; an empty list when this episode is the owner or there is none."""
+    ep = check_ep(ctx, query.get("ep"))
+    s = _series(ep)
+    try:
+        ref = R.find_ref(s, query.get("ref"))
+    except R.UnknownRef as e:
+        raise ApiError(404, str(e))
+    live = ref.file
+    sha = T.file_sha1(live) if live and os.path.isfile(live) else None
+    owner = R.shared_context(ep)["owner"].get(sha) if sha else None
+    if not owner or owner == R.ep_name(ep):
+        return 200, {"owner": owner, "takes": []}
+    return 200, seeds_out({"owner": owner, "takes": R.owner_takes(ep, ref, owner)})
 
 
 @handler
@@ -3853,6 +3966,7 @@ ROUTES = [
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
     ("POST", "/seriesmith/clips/ensure", post_clips_ensure, "body"),
+    ("POST", "/seriesmith/clips/new", post_clips_new, "body"),
     ("POST", "/seriesmith/clip/queue", post_clip_queue, "body"),
     ("POST", "/seriesmith/refs/from-frame", post_refs_from_frame, "body"),
     ("POST", "/seriesmith/refs/video", post_refs_video, "form"),
@@ -3864,6 +3978,7 @@ ROUTES = [
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),
     ("GET", "/seriesmith/issues/export", get_issues_export, "query"),
     ("GET", "/seriesmith/file", get_file, "query"),
+    ("GET", "/seriesmith/thumb", get_thumb, "query"),
     ("POST", "/seriesmith/render", post_render, "body"),
     ("POST", "/seriesmith/cancel", post_cancel, "body"),
     ("POST", "/seriesmith/discard", post_discard, "body"),
@@ -3898,6 +4013,7 @@ ROUTES = [
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),
     ("GET", "/seriesmith/refs", get_refs, "query"),
+    ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),

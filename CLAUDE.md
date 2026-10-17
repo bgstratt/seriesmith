@@ -27,8 +27,8 @@ user's side.
 - `seriesmith/server/` — `seriesmith serve` (`standalone.py`: the editor page, its API, the queue, comfy-api-proxy started, `POST /seriesmith/server/stop` for `seriesmith stop` and Settings' Stop / Restart, exit code 3 to restart), `views.py` (the API on aiohttp), `queue_views.py` (Jobs, backends, Settings: registered by both hosts), `comfyui.py` (the same app on a ComfyUI's own server, loaded by the node pack, its own journal `queue-comfyui.json`); `static/` is the built page
 - `run_seriesmith.bat` / `run_seriesmith_ext.bat` — Windows launchers (this PC / the network, `--host 0.0.0.0`); they start the server again on exit code 3
 - `web/` — the editor (React/Vite); `npm run build:standalone` writes `seriesmith/server/static/`, `npm run build` the ComfyUI page `comfy_nodes/web/seriesmith-editor.js`; commit both
-- `docs/` — DESIGN, PLAN, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN
-- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
+- `docs/` — DESIGN, PLAN, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN; `docs/site/` the Mintlify docs site (docs.seriesmith.com; Mintlify's monorepo path): `docs.json`, `index.mdx` and the logos by hand, every other page generated from INSTALL.md and the user docs (never DESIGN or PLAN). The marketing site (seriesmith.com) is its own repo, `../seriesmith-site`
+- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`), `make_site_docs.py` (docs/site/'s pages from the user docs); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
 
 ## Rules
 
@@ -41,9 +41,10 @@ user's side.
   (`tools/make_models_md.py` reads the shipped targets only).
 - Never hand-edit generated files (`shotlist/`, `refs_todo.*`, `prompts/`, INSTALL.md's
   model block, `seriesmith/server/static/`, `comfy_nodes/web/seriesmith-editor.js`, the
-  Router models' target.json); change the script, the series config, the docs or the
+  Router models' target.json, docs/site/'s generated pages); change the script, the series config, the docs or the
   code and regenerate (`python tools/make_prompts.py`, `python tools/make_models_md.py`,
-  `python tools/make_router_targets.py`, `npm run build:standalone` and `npm run build`).
+  `python tools/make_router_targets.py`, `python tools/make_site_docs.py`, `npm run build:standalone`
+  and `npm run build`).
 - Refactors keep the golden outputs byte-identical (`python -m pytest`) unless the
   change is intended and the goldens are updated in the same commit with the
   reason stated (`python tests/test_golden.py --update`, then review the diff).

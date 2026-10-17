@@ -464,8 +464,10 @@ export function selectEpisode(ep: string | null) {
     trackPanel: null, voiceClip: null, alignRun: null,
   }));
   if (ep) {
-    void openOnTakes(ep);
+    const shots = openOnTakes(ep);
     if (get().refs[ep] || refsWanted) void loadRefs(ep);
+    // and the refs once the shots are in, so the Refs tab is ready when it's opened
+    else void shots.then(() => { if (get().ep === ep && !get().refs[ep]) void loadRefs(ep); });
     // another show may have its own targets
     void loadTargets(true);
   }

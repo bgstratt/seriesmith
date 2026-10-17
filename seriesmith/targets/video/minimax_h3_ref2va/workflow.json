@@ -777,10 +777,10 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## H3 Ref2VA shot-list pipeline\n\nOne shot per queue. Nothing chains, so shots render in any order and a bad\nshot is re-queued alone.\n\n### Run a sequence\n1. Point **Shot List Loader** and **Save Shot** at the same `project_root`.\n2. Set **Shot Index** `control_after_generate` to `increment`.\n3. Set batch count to the shot count shown in Shot Info. Queue once.\n\nRe-render one shot: set the index, `control_after_generate` to `fixed`,\nbump **take** on Save Shot, queue.\n\n### Resolution\n`1344x768` is H3's native canvas and both axes are multiples of 32.\n**1280x720 is not legal** - 720 is not divisible by 32. The loader raises\nrather than letting H3 fail. Crop to 1344x756 and upscale at conform for\ntrue 16:9 delivery.\n\n### Reference sockets\n- `ref_image_0..2` <- the shot's SUBJECTS: characters first, then props and\n  vehicles, in the order the script lists them\n- `ref_image_3` <- the LOCATION plate for this shot, always\nIn the prompt these are `<Picture 1>`..`<Picture 4>` - **1-based in the\nprompt, 0-based on the sockets**.\n\nCharacter sheets are a **horizontal 4-panel strip** (3/4 body, side, back,\nface). `ref_image_size: max` scales the SHORT side to 2048, so a horizontal\nstrip keeps every panel crisp - a square grid would not. Props and vehicles are\na single clean image on a flat background; they are never panel-cropped.\n\nThere is no style reference. Style is carried by every sheet and plate already\n- they are all drawn in it - and stated in the prompt text. Slot 4 goes to the\nbackground, which buys layout, palette, lighting direction and depth for THIS\nshot, and keeps one location looking like one place across every cut.\n\n`panel_mode` controls reference cost:\n- `auto` - full 4-panel strip for a single-character close-up, 3/4+face pair\n  otherwise. **Use this.**\n- `full` / `pair` / `face` - force it.\n\nReference cost scales with strip width. Three characters at full 4-panel is\n~50M pixels of reference encode per shot; the `pair` crop roughly halves it.\n\n### Audio references\n`ref_audio_0..2` carry one clip each. How many are used depends on the policy:\n- `clone` -> ONE TIMBRE SAMPLE PER SPEAKER. A two-hander feeds two. Feeding one\n  would voice the second character from the first one's sample.\n- `dub` / `dub_keep_foley` -> one clip only: the slice of the recorded mix,\n  which already contains every voice in the shot.\n- `generate` -> none.\nUnused sockets receive null. H3 takes at most 3 standalone audio references, so\na clone shot is capped at 3 speakers.\n\n### Audio policy (per shot, from shotlist.json)\n- `generate` - no reference fed. H3 invents ambience and foley, and it is\n  good at it. The mp4 gets H3's audio.\n- `dub` - your recorded line drives lip-sync. The mp4 is written **mute** and\n  H3's mix is kept beside it as `_h3.wav`. Lay the clean vocal in at conform.\n- `dub_keep_foley` - same, plus Demucs strips the vocal from H3's mix and\n  writes `_foley.wav` so you keep the synced foley under your own vocal.\n  Needs `pip install demucs`.\n- `clone` - a voice sample drives timbre and H3 speaks the line written in\n  the prompt's `<d>` tag. No recording session; expect some drift across a\n  long episode. Good for the proxy pass and for incidental characters.\n\n### Sampling\n4 steps / `euler` / `simple` / LoRA 1.0. SLA stays LAST in the model chain,\nwired to both the guider and the scheduler.\n\nIf identity slips, in order: raise `panel_mode` to `full`, then try\n`res_multistep` (roughly doubles time), then drop `sparsity_ratio` to 0.80.\n"
+        "## H3 Ref2VA (seriesmith)\n\nOne shot per queue. Nothing chains, so shots render in any order and a bad\nshot is re-queued alone.\n\n### How it runs\nseriesmith renders this workflow: for each take it fills **Shot Loader** with\nthe shot (its frozen shotlist and its files, uploaded) and **Save Take** with\nthe take, then sends it to the backend. Edits to anything else here (sampler,\nLoRA, attention, VAEs) carry into seriesmith's renders while this copy is\nsaved under this name.\n\n### Resolution\n`1344x768` is H3's native canvas and both axes are multiples of 32.\n**1280x720 is not legal** - 720 is not divisible by 32. The loader raises\nrather than letting H3 fail. Crop to 1344x756 and upscale at conform for\ntrue 16:9 delivery.\n\n### Reference sockets\n- `ref_image_0..2` <- the shot's SUBJECTS: characters first, then props and\n  vehicles, in the order the script lists them\n- `ref_image_3` <- the LOCATION plate for this shot, always\nIn the prompt these are `<Picture 1>`..`<Picture 4>` - **1-based in the\nprompt, 0-based on the sockets**.\n\nCharacter sheets are a **horizontal 4-panel strip** (3/4 body, side, back,\nface). `ref_image_size: max` scales the SHORT side to 2048, so a horizontal\nstrip keeps every panel crisp - a square grid would not. Props and vehicles are\na single clean image on a flat background; they are never panel-cropped.\n\nThere is no style reference. Style is carried by every sheet and plate already\n- they are all drawn in it - and stated in the prompt text. Slot 4 goes to the\nbackground, which buys layout, palette, lighting direction and depth for THIS\nshot, and keeps one location looking like one place across every cut.\n\n`panel_mode` controls reference cost:\n- `auto` - full 4-panel strip for a single-character close-up, 3/4+face pair\n  otherwise. **Use this.**\n- `full` / `pair` / `face` - force it.\n\nReference cost scales with strip width. Three characters at full 4-panel is\n~50M pixels of reference encode per shot; the `pair` crop roughly halves it.\n\n### Audio references\n`ref_audio_0..2` carry one clip each. How many are used depends on the policy:\n- `clone` -> ONE TIMBRE SAMPLE PER SPEAKER. A two-hander feeds two. Feeding one\n  would voice the second character from the first one's sample.\n- `dub` / `dub_keep_foley` -> one clip only: the slice of the recorded mix,\n  which already contains every voice in the shot.\n- `generate` -> none.\nUnused sockets receive null. H3 takes at most 3 standalone audio references, so\na clone shot is capped at 3 speakers.\n\n### Audio policy (per shot, from shotlist.json)\n- `generate` - no reference fed. H3 invents ambience and foley, and it is\n  good at it. The mp4 gets H3's audio.\n- `dub` - your recorded line drives lip-sync. The mp4 is written **mute** and\n  H3's mix is kept beside it as `_h3.wav`. Lay the clean vocal in at conform.\n- `dub_keep_foley` - same, plus Demucs strips the vocal from H3's mix and\n  writes `_foley.wav` so you keep the synced foley under your own vocal.\n  Needs `pip install demucs`.\n- `clone` - a voice sample drives timbre and H3 speaks the line written in\n  the prompt's `<d>` tag. No recording session; expect some drift across a\n  long episode. Good for the proxy pass and for incidental characters.\n\n### Sampling\n4 steps / `euler` / `simple` / LoRA 1.0. SLA stays LAST in the model chain,\nwired to both the guider and the scheduler.\n\nIf identity slips, in order: raise `panel_mode` to `full`, then try\n`res_multistep` (roughly doubles time), then drop `sparsity_ratio` to 0.80.\n"
       ],
       "widgets_values_named": {
-        "text": "## H3 Ref2VA shot-list pipeline\n\nOne shot per queue. Nothing chains, so shots render in any order and a bad\nshot is re-queued alone.\n\n### Run a sequence\n1. Point **Shot List Loader** and **Save Shot** at the same `project_root`.\n2. Set **Shot Index** `control_after_generate` to `increment`.\n3. Set batch count to the shot count shown in Shot Info. Queue once.\n\nRe-render one shot: set the index, `control_after_generate` to `fixed`,\nbump **take** on Save Shot, queue.\n\n### Resolution\n`1344x768` is H3's native canvas and both axes are multiples of 32.\n**1280x720 is not legal** - 720 is not divisible by 32. The loader raises\nrather than letting H3 fail. Crop to 1344x756 and upscale at conform for\ntrue 16:9 delivery.\n\n### Reference sockets\n- `ref_image_0..2` <- the shot's SUBJECTS: characters first, then props and\n  vehicles, in the order the script lists them\n- `ref_image_3` <- the LOCATION plate for this shot, always\nIn the prompt these are `<Picture 1>`..`<Picture 4>` - **1-based in the\nprompt, 0-based on the sockets**.\n\nCharacter sheets are a **horizontal 4-panel strip** (3/4 body, side, back,\nface). `ref_image_size: max` scales the SHORT side to 2048, so a horizontal\nstrip keeps every panel crisp - a square grid would not. Props and vehicles are\na single clean image on a flat background; they are never panel-cropped.\n\nThere is no style reference. Style is carried by every sheet and plate already\n- they are all drawn in it - and stated in the prompt text. Slot 4 goes to the\nbackground, which buys layout, palette, lighting direction and depth for THIS\nshot, and keeps one location looking like one place across every cut.\n\n`panel_mode` controls reference cost:\n- `auto` - full 4-panel strip for a single-character close-up, 3/4+face pair\n  otherwise. **Use this.**\n- `full` / `pair` / `face` - force it.\n\nReference cost scales with strip width. Three characters at full 4-panel is\n~50M pixels of reference encode per shot; the `pair` crop roughly halves it.\n\n### Audio references\n`ref_audio_0..2` carry one clip each. How many are used depends on the policy:\n- `clone` -> ONE TIMBRE SAMPLE PER SPEAKER. A two-hander feeds two. Feeding one\n  would voice the second character from the first one's sample.\n- `dub` / `dub_keep_foley` -> one clip only: the slice of the recorded mix,\n  which already contains every voice in the shot.\n- `generate` -> none.\nUnused sockets receive null. H3 takes at most 3 standalone audio references, so\na clone shot is capped at 3 speakers.\n\n### Audio policy (per shot, from shotlist.json)\n- `generate` - no reference fed. H3 invents ambience and foley, and it is\n  good at it. The mp4 gets H3's audio.\n- `dub` - your recorded line drives lip-sync. The mp4 is written **mute** and\n  H3's mix is kept beside it as `_h3.wav`. Lay the clean vocal in at conform.\n- `dub_keep_foley` - same, plus Demucs strips the vocal from H3's mix and\n  writes `_foley.wav` so you keep the synced foley under your own vocal.\n  Needs `pip install demucs`.\n- `clone` - a voice sample drives timbre and H3 speaks the line written in\n  the prompt's `<d>` tag. No recording session; expect some drift across a\n  long episode. Good for the proxy pass and for incidental characters.\n\n### Sampling\n4 steps / `euler` / `simple` / LoRA 1.0. SLA stays LAST in the model chain,\nwired to both the guider and the scheduler.\n\nIf identity slips, in order: raise `panel_mode` to `full`, then try\n`res_multistep` (roughly doubles time), then drop `sparsity_ratio` to 0.80.\n"
+        "text": "## H3 Ref2VA (seriesmith)\n\nOne shot per queue. Nothing chains, so shots render in any order and a bad\nshot is re-queued alone.\n\n### How it runs\nseriesmith renders this workflow: for each take it fills **Shot Loader** with\nthe shot (its frozen shotlist and its files, uploaded) and **Save Take** with\nthe take, then sends it to the backend. Edits to anything else here (sampler,\nLoRA, attention, VAEs) carry into seriesmith's renders while this copy is\nsaved under this name.\n\n### Resolution\n`1344x768` is H3's native canvas and both axes are multiples of 32.\n**1280x720 is not legal** - 720 is not divisible by 32. The loader raises\nrather than letting H3 fail. Crop to 1344x756 and upscale at conform for\ntrue 16:9 delivery.\n\n### Reference sockets\n- `ref_image_0..2` <- the shot's SUBJECTS: characters first, then props and\n  vehicles, in the order the script lists them\n- `ref_image_3` <- the LOCATION plate for this shot, always\nIn the prompt these are `<Picture 1>`..`<Picture 4>` - **1-based in the\nprompt, 0-based on the sockets**.\n\nCharacter sheets are a **horizontal 4-panel strip** (3/4 body, side, back,\nface). `ref_image_size: max` scales the SHORT side to 2048, so a horizontal\nstrip keeps every panel crisp - a square grid would not. Props and vehicles are\na single clean image on a flat background; they are never panel-cropped.\n\nThere is no style reference. Style is carried by every sheet and plate already\n- they are all drawn in it - and stated in the prompt text. Slot 4 goes to the\nbackground, which buys layout, palette, lighting direction and depth for THIS\nshot, and keeps one location looking like one place across every cut.\n\n`panel_mode` controls reference cost:\n- `auto` - full 4-panel strip for a single-character close-up, 3/4+face pair\n  otherwise. **Use this.**\n- `full` / `pair` / `face` - force it.\n\nReference cost scales with strip width. Three characters at full 4-panel is\n~50M pixels of reference encode per shot; the `pair` crop roughly halves it.\n\n### Audio references\n`ref_audio_0..2` carry one clip each. How many are used depends on the policy:\n- `clone` -> ONE TIMBRE SAMPLE PER SPEAKER. A two-hander feeds two. Feeding one\n  would voice the second character from the first one's sample.\n- `dub` / `dub_keep_foley` -> one clip only: the slice of the recorded mix,\n  which already contains every voice in the shot.\n- `generate` -> none.\nUnused sockets receive null. H3 takes at most 3 standalone audio references, so\na clone shot is capped at 3 speakers.\n\n### Audio policy (per shot, from shotlist.json)\n- `generate` - no reference fed. H3 invents ambience and foley, and it is\n  good at it. The mp4 gets H3's audio.\n- `dub` - your recorded line drives lip-sync. The mp4 is written **mute** and\n  H3's mix is kept beside it as `_h3.wav`. Lay the clean vocal in at conform.\n- `dub_keep_foley` - same, plus Demucs strips the vocal from H3's mix and\n  writes `_foley.wav` so you keep the synced foley under your own vocal.\n  Needs `pip install demucs`.\n- `clone` - a voice sample drives timbre and H3 speaks the line written in\n  the prompt's `<d>` tag. No recording session; expect some drift across a\n  long episode. Good for the proxy pass and for incidental characters.\n\n### Sampling\n4 steps / `euler` / `simple` / LoRA 1.0. SLA stays LAST in the model chain,\nwired to both the guider and the scheduler.\n\nIf identity slips, in order: raise `panel_mode` to `full`, then try\n`res_multistep` (roughly doubles time), then drop `sparsity_ratio` to 0.80.\n"
       },
       "color": "#432",
       "bgcolor": "#653"
@@ -808,76 +808,44 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## Frames are available\n\n`VAEDecode` emits the whole frame batch as IMAGE **before** anything muxes it\ninto a video. Save Shot writes them as a PNG sequence when `save_frames` is\non, and always writes H3's audio separately as `_h3.wav`.\n\n**There is no alpha channel.** H3 outputs opaque RGB with no matte, so\ncompositing here means grading, effects and titles - not lifting a character\noff a background.\n\nBudget ~16-50 GB of PNG per 12-minute episode at 1344x768. Leave\n`save_frames` off for shots that need no finishing work.\n"
+        "## Frames are available\n\n`VAEDecode` emits the whole frame batch as IMAGE **before** anything muxes it\ninto a video. Save Take writes them as a PNG sequence when `save_frames` is\non, and always writes H3's audio separately as `_h3.wav`.\n\n**There is no alpha channel.** H3 outputs opaque RGB with no matte, so\ncompositing here means grading, effects and titles - not lifting a character\noff a background.\n\nBudget ~16-50 GB of PNG per 12-minute episode at 1344x768. Leave\n`save_frames` off for shots that need no finishing work.\n"
       ],
       "widgets_values_named": {
-        "text": "## Frames are available\n\n`VAEDecode` emits the whole frame batch as IMAGE **before** anything muxes it\ninto a video. Save Shot writes them as a PNG sequence when `save_frames` is\non, and always writes H3's audio separately as `_h3.wav`.\n\n**There is no alpha channel.** H3 outputs opaque RGB with no matte, so\ncompositing here means grading, effects and titles - not lifting a character\noff a background.\n\nBudget ~16-50 GB of PNG per 12-minute episode at 1344x768. Leave\n`save_frames` off for shots that need no finishing work.\n"
+        "text": "## Frames are available\n\n`VAEDecode` emits the whole frame batch as IMAGE **before** anything muxes it\ninto a video. Save Take writes them as a PNG sequence when `save_frames` is\non, and always writes H3's audio separately as `_h3.wav`.\n\n**There is no alpha channel.** H3 outputs opaque RGB with no matte, so\ncompositing here means grading, effects and titles - not lifting a character\noff a background.\n\nBudget ~16-50 GB of PNG per 12-minute episode at 1344x768. Leave\n`save_frames` off for shots that need no finishing work.\n"
       },
       "color": "#432",
       "bgcolor": "#653"
     },
     {
-      "id": 12,
-      "type": "H3ShotInfo",
-      "pos": [
-        -1524.2823769661402,
-        982.6652647294034
-      ],
-      "size": [
-        400,
-        260
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "info",
-          "name": "info",
-          "type": "STRING",
-          "link": 5
-        }
-      ],
-      "outputs": [],
-      "title": "Shot Info (readout)",
-      "properties": {
-        "Node name for S&R": "H3ShotInfo",
-        "cnr_id": null,
-        "ver": "0.30.0"
-      },
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
       "id": 11,
-      "type": "H3ShotListLoader",
+      "type": "SeriesmithShotLoader",
       "pos": [
         -1963.9930000000004,
         432.6619999999999
       ],
       "size": [
         400,
-        498
+        1180
       ],
       "flags": {},
       "order": 8,
       "mode": 0,
       "inputs": [
         {
-          "localized_name": "project_root",
-          "name": "project_root",
+          "localized_name": "shotlist",
+          "name": "shotlist",
           "type": "STRING",
           "widget": {
-            "name": "project_root"
+            "name": "shotlist"
           },
           "link": null
         },
         {
-          "localized_name": "shotlist_file",
-          "name": "shotlist_file",
+          "localized_name": "files",
+          "name": "files",
           "type": "STRING",
           "widget": {
-            "name": "shotlist_file"
+            "name": "files"
           },
           "link": null
         },
@@ -911,12 +879,252 @@
         {
           "localized_name": "resolution_override",
           "name": "resolution_override",
-          "shape": 7,
           "type": "STRING",
           "widget": {
             "name": "resolution_override"
           },
-          "link": null
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_00",
+          "name": "file_00",
+          "type": "STRING",
+          "widget": {
+            "name": "file_00"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_01",
+          "name": "file_01",
+          "type": "STRING",
+          "widget": {
+            "name": "file_01"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_02",
+          "name": "file_02",
+          "type": "STRING",
+          "widget": {
+            "name": "file_02"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_03",
+          "name": "file_03",
+          "type": "STRING",
+          "widget": {
+            "name": "file_03"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_04",
+          "name": "file_04",
+          "type": "STRING",
+          "widget": {
+            "name": "file_04"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_05",
+          "name": "file_05",
+          "type": "STRING",
+          "widget": {
+            "name": "file_05"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_06",
+          "name": "file_06",
+          "type": "STRING",
+          "widget": {
+            "name": "file_06"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_07",
+          "name": "file_07",
+          "type": "STRING",
+          "widget": {
+            "name": "file_07"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_08",
+          "name": "file_08",
+          "type": "STRING",
+          "widget": {
+            "name": "file_08"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_09",
+          "name": "file_09",
+          "type": "STRING",
+          "widget": {
+            "name": "file_09"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_10",
+          "name": "file_10",
+          "type": "STRING",
+          "widget": {
+            "name": "file_10"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_11",
+          "name": "file_11",
+          "type": "STRING",
+          "widget": {
+            "name": "file_11"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_12",
+          "name": "file_12",
+          "type": "STRING",
+          "widget": {
+            "name": "file_12"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_13",
+          "name": "file_13",
+          "type": "STRING",
+          "widget": {
+            "name": "file_13"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_14",
+          "name": "file_14",
+          "type": "STRING",
+          "widget": {
+            "name": "file_14"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_15",
+          "name": "file_15",
+          "type": "STRING",
+          "widget": {
+            "name": "file_15"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_16",
+          "name": "file_16",
+          "type": "STRING",
+          "widget": {
+            "name": "file_16"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_17",
+          "name": "file_17",
+          "type": "STRING",
+          "widget": {
+            "name": "file_17"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_18",
+          "name": "file_18",
+          "type": "STRING",
+          "widget": {
+            "name": "file_18"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_19",
+          "name": "file_19",
+          "type": "STRING",
+          "widget": {
+            "name": "file_19"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_20",
+          "name": "file_20",
+          "type": "STRING",
+          "widget": {
+            "name": "file_20"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_21",
+          "name": "file_21",
+          "type": "STRING",
+          "widget": {
+            "name": "file_21"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_22",
+          "name": "file_22",
+          "type": "STRING",
+          "widget": {
+            "name": "file_22"
+          },
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "file_23",
+          "name": "file_23",
+          "type": "STRING",
+          "widget": {
+            "name": "file_23"
+          },
+          "link": null,
+          "shape": 7
         }
       ],
       "outputs": [
@@ -1044,9 +1252,7 @@
           "localized_name": "info",
           "name": "info",
           "type": "STRING",
-          "links": [
-            5
-          ]
+          "links": []
         },
         {
           "localized_name": "shot_count",
@@ -1055,34 +1261,82 @@
           "links": []
         }
       ],
-      "title": "Shot List Loader",
+      "title": "Shot Loader (seriesmith)",
       "properties": {
-        "Node name for S&R": "H3ShotListLoader",
+        "Node name for S&R": "SeriesmithShotLoader",
         "cnr_id": null,
         "ver": "0.30.0"
       },
       "widgets_values": [
-        "path/to/project/ep01",
-        "shotlist/shotlist_proxy.json",
+        "{}",
+        "[]",
         0,
         "auto",
         24,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         ""
       ],
       "widgets_values_named": {
-        "project_root": "path/to/project/ep01",
-        "shotlist_file": "shotlist/shotlist_proxy.json",
+        "shotlist": "{}",
+        "files": "[]",
         "index": 0,
         "panel_mode": "auto",
         "fps": 24,
-        "resolution_override": ""
+        "resolution_override": "",
+        "file_00": "",
+        "file_01": "",
+        "file_02": "",
+        "file_03": "",
+        "file_04": "",
+        "file_05": "",
+        "file_06": "",
+        "file_07": "",
+        "file_08": "",
+        "file_09": "",
+        "file_10": "",
+        "file_11": "",
+        "file_12": "",
+        "file_13": "",
+        "file_14": "",
+        "file_15": "",
+        "file_16": "",
+        "file_17": "",
+        "file_18": "",
+        "file_19": "",
+        "file_20": "",
+        "file_21": "",
+        "file_22": "",
+        "file_23": ""
       },
       "color": "#223",
       "bgcolor": "#335"
     },
     {
       "id": 42,
-      "type": "H3SaveShot",
+      "type": "SeriesmithSaveTake",
       "pos": [
         -108.021,
         309.31700000000006
@@ -1116,25 +1370,37 @@
         {
           "localized_name": "audio",
           "name": "audio",
-          "shape": 7,
           "type": "AUDIO",
-          "link": 36
+          "link": 36,
+          "shape": 7
         },
         {
-          "localized_name": "project_root",
-          "name": "project_root",
-          "type": "STRING",
-          "widget": {
-            "name": "project_root"
-          },
-          "link": null
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "LATENT",
+          "link": null,
+          "shape": 7
         },
         {
-          "localized_name": "subfolder",
-          "name": "subfolder",
+          "localized_name": "ref_info",
+          "name": "ref_info",
+          "type": "STRING",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "chain",
+          "name": "chain",
+          "type": "STRING",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "localized_name": "run",
+          "name": "run",
           "type": "STRING",
           "widget": {
-            "name": "subfolder"
+            "name": "run"
           },
           "link": null
         },
@@ -1180,22 +1446,20 @@
           "links": []
         }
       ],
-      "title": "Save Shot (frames / wav / mp4)",
+      "title": "Save Take (seriesmith)",
       "properties": {
-        "Node name for S&R": "H3SaveShot",
+        "Node name for S&R": "SeriesmithSaveTake",
         "cnr_id": null,
         "ver": "0.30.0"
       },
       "widgets_values": [
-        "path/to/project/ep01",
-        "renders",
+        "take",
         1,
         24,
         false
       ],
       "widgets_values_named": {
-        "project_root": "path/to/project/ep01",
-        "subfolder": "renders",
+        "run": "take",
         "take": 1,
         "fps": 24,
         "save_frames": false
@@ -1603,14 +1867,6 @@
       11,
       2,
       "INT"
-    ],
-    [
-      5,
-      11,
-      15,
-      12,
-      0,
-      "STRING"
     ],
     [
       6,

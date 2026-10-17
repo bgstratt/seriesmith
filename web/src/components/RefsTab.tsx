@@ -2,12 +2,14 @@
 // file, its candidates (takes), pick / generate / import / compare, and the
 // ref's prompt and settings override.
 
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import {
-  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
+  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
   openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
+import { useView } from "../lib/viewPref";
+import { LazyBg } from "./LazyBg";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
   needLabel,
@@ -24,20 +26,20 @@ import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
 import { formFromDetail, isDirty, overrideFields, type OverrideForm, type OverrideSource } from "../lib/overrideForm";
 import { pickWarning, readinessBadge, targetOptionText } from "../lib/readiness";
-import { sharedNote } from "../lib/shared";
+import { ownsLive, sharedNote } from "../lib/shared";
 import {
   SHEET_VIEW, VIEWS, blockedShots, canGenerate, groupRefs, hasViews, missingPlan, isAudioRef, pickedOf, pickedTake, refCounts, takeFile, takeUsable, takesOf,
   unpickedViews, usedBy, viewLabel, viewOf, type RefFilter,
 } from "../lib/refs";
 import { findTarget, targetLabel, targetShort } from "../lib/targets";
 import { store, useApp } from "../store";
-import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type RefTake, type SeedMode, type Target } from "../types";
+import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
 import { sizeRule } from "../lib/size";
 import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSettings";
 import { useStatus } from "./hooks";
 import { ModelOptions, ModelsButton, useTargets } from "./Targets";
 import { OverrideFields } from "./OverrideFields";
-import { EpisodeSelect, PassToggle } from "./ShotsTab";
+import { EpisodeHead, PassToggle } from "./ShotsTab";
 import { Progress } from "./Thumb";
 import { DropSlot, SupplyPicker, UploadButton } from "./Upload";
 import { EditForm, editSourceText } from "./RefEdit";
@@ -71,6 +73,7 @@ function ImageModelBar() {
   const { list } = useTargets();
   const defaults = useRefDefaults();
   const busy = useApp((s) => s.busy);
+  const [open, setOpen] = useState(false);
   const images = imageTargets(list);
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
@@ -105,13 +108,37 @@ function ImageModelBar() {
   };
   const custom = (["refs", "keyframes", "voices"] as RefTargetKind[]).filter((k) => defaultOf(defaults, k).source === "editor");
   const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", voices: "voice samples" };
+  // folded: the three models in a line, and whether one isn't ready
+  const kinds = (["refs", "keyframes", "voices"] as RefTargetKind[])
+    .filter((k) => (k === "voices" ? voices : images).length > 0);
+  const names = kinds.map((k) => targetLabel(list, defaultOf(defaults, k).target));
+  const warns = kinds.map((k) => {
+    const cur = defaultOf(defaults, k).target;
+    return pickWarning(targetLabel(list, cur), findTarget(list, cur)?.readiness);
+  }).filter(Boolean);
   return (
-    <div className="h3-col" style={{ gap: 3 }}>
-      <div className="h3-row h3-wrap" style={{ gap: 8 }}>
-        {row("refs", "Refs render with:")}
-        {row("keyframes", "Keyframes with:")}
-        {row("voices", "Voices with:")}
+    <div className="h3-col" style={{ gap: 6 }}>
+      <div className="h3-row" style={{ gap: 6 }}>
+        <span className="h3-muted h3-small h3-nowrap">Made with</span>
+        <span className="h3-small h3-ell h3-grow" title={kinds.map((k, i) => {
+          const t = findTarget(list, defaultOf(defaults, k).target);
+          return `${WHAT[k]}: ${names[i]}` + (k === "voices" && t ? `\n  ${voiceCapNotes(t).join("\n  ")}` : "");
+        }).join("\n")}>{names.join(" · ")}</span>
+        {warns.length > 0 && !open && (
+          <span className={warns.some((w) => w!.severity === "err") ? "h3-err h3-small" : "h3-warn h3-small"}
+            title={warns.map((w) => w!.text).join("\n")}>{warns.some((w) => w!.severity === "err") ? "not ready" : "degraded"}</span>
+        )}
+        <button className="h3-link h3-small h3-nowrap" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? "Done" : "Change"} <i className={`pi pi-chevron-${open ? "up" : "down"}`} style={{ fontSize: 9 }} />
+        </button>
       </div>
+      {open && (
+        <div className="h3-col" style={{ gap: 6 }}>
+          {row("refs", "Refs render with:")}
+          {row("keyframes", "Keyframes with:")}
+          {row("voices", "Voices with:")}
+        </div>
+      )}
       {custom.map((k) => {
         const id = defaultOf(defaults, k).target;
         return (
@@ -133,7 +160,7 @@ function ImageModelBar() {
  * four views stitched, or (no take at all) a file put in the folder by hand,
  * which is a perfectly good way to supply one and is left alone.
  */
-function SheetLine({ r }: { r: Ref }) {
+function SheetLine({ r, ep }: { r: Ref; ep: string }) {
   if (!r.exists) return null;
   if (r.live_from === SHEET_VIEW) {
     const t = r.picked;
@@ -145,6 +172,15 @@ function SheetLine({ r }: { r: Ref }) {
   }
   if (r.live_from === "views") {
     return <div className="h3-small h3-muted">The live sheet is stitched from the four picked views.</div>;
+  }
+  if (r.live_owner && !ownsLive(r, ep)) {
+    // a shared sheet another episode picked: say so, its candidates are below
+    return (
+      <div className="h3-small h3-muted">
+        The live {r.panels === 1 ? "picture" : "sheet"} is {r.live_owner}'s pick, shared with this episode: its
+        candidates are {r.live_owner}'s, below. A pick here replaces it for every episode that reads it.
+      </div>
+    );
   }
   return (
     <div className="h3-small h3-muted">
@@ -226,13 +262,46 @@ function KeyframeActions({ r }: { r: Ref }) {
   );
 }
 
+/** A character's face for its thumbnail: the face view's live pick, else the
+ * three-quarter view's, else the sheet's last panel (the face) cropped. null
+ * for anything else, or a character with no picture yet. */
+function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | null {
+  if (!hasViews(r)) return null;
+  // one whole picture of them (`sheet_panels: 1`): that, not a crop of it
+  if (r.panels === 1 && !r.panels_conflict && r.exists && r.path) {
+    return { what: "its picture", style: {
+      backgroundImage: `url("${api().thumbUrl(ep, r.path, 512, r.sha1)}")`, backgroundSize: "cover", backgroundPosition: "center 15%",
+    } };
+  }
+  for (const [tag, what] of [["04_face", "its face"], ["01_threequarter", "its three-quarter view"]] as const) {
+    const v = r.views!.find((x) => x.view === tag);
+    const t = v?.picked != null ? v.takes.find((x) => x.take === v.picked) : undefined;
+    const file = t ? takeFile(t) : null;
+    if (file) {
+      return { what, style: { backgroundImage: `url("${api().thumbUrl(ep, file, 512)}")`, backgroundSize: "cover", backgroundPosition: "center 20%" } };
+    }
+  }
+  if (r.exists && r.path) {
+    return { what: "its face, from the sheet", style: {
+      backgroundImage: `url("${api().thumbUrl(ep, r.path, 1024, r.sha1)}")`, backgroundSize: "400% auto", backgroundPosition: "100% 25%",
+    } };
+  }
+  return null;
+}
+
+/** A character marked one whole picture whose picture is a sheet of panels. */
+const PANELS_TITLE = "Its picture is a four-panel sheet, but series.json marks it one whole picture (sheet_panels: 1), "
+  + "so renders send the whole strip as one picture. Open it (the pencil) and set Picture layout to the four-panel sheet.";
+
 /** A ref's live file (the one renders read), or a "missing" placeholder. */
-function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
+function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fill?: string }) {
+  // a board tile: the tile's width, at `fill`'s aspect ratio
+  const box = fill ? { width: "100%", height: "auto", aspectRatio: fill } : { width: size, height: size };
   if (!r.path && isAudioRef(r)) {
     // Phase 9c-B: a character the series config gives no `voice_sample`; a
     // pick writes refs/voices/<id>.wav and that line
     return (
-      <div className="h3-refthumb h3-thumb h3-empty" style={{ width: size, height: size }} title="No voice sample yet: generate one (or take a line from a take) and pick it, and series.json gains the voice_sample line.">
+      <div className="h3-refthumb h3-thumb h3-empty" style={box} title="No voice sample yet: generate one (or take a line from a take) and pick it, and series.json gains the voice_sample line.">
         <i className="pi pi-volume-off" style={{ fontSize: size / 2.6 }} />
         <span className="h3-thumb-label">no sample</span>
       </div>
@@ -241,30 +310,39 @@ function LiveThumb({ ep, r, size }: { ep: string; r: Ref; size: number }) {
   if (!r.path) {
     // the series config names no file for it (a voice-only character has no sheet)
     return (
-      <div className="h3-refthumb h3-thumb h3-empty" style={{ width: size, height: size }} title={NO_FILE}>
+      <div className="h3-refthumb h3-thumb h3-empty" style={box} title={NO_FILE}>
         <span className="h3-thumb-label">no file</span>
       </div>
     );
   }
   if (isAudioRef(r)) {
     return (
-      <div className={`h3-refthumb h3-thumb${r.exists ? "" : " h3-empty h3-missing"}`} style={{ width: size, height: size }} title={r.exists ? r.path : `${r.path} isn't on disk: drop an audio file here, or Upload…`}>
+      <div className={`h3-refthumb h3-thumb${r.exists ? "" : " h3-empty h3-missing"}`} style={box} title={r.exists ? r.path : `${r.path} isn't on disk: drop an audio file here, or Upload…`}>
         <i className="pi pi-volume-up" style={{ fontSize: size / 2.6 }} />
         {!r.exists && <span className="h3-thumb-label">missing</span>}
       </div>
     );
   }
+  // a character: its face, which reads at this size where the four-panel sheet
+  // doesn't (the sheet is in the open row, and double-click opens it)
+  const face = faceOf(ep, r);
+  if (face) {
+    return (
+      <LazyBg className="h3-refthumb h3-thumb h3-face" style={{ ...box, ...face.style }}
+        title={`${r.name}: ${face.what}${r.exists ? ` (the sheet: ${r.path})` : ""}`} />
+    );
+  }
   if (!r.exists) {
     return (
-      <div className="h3-refthumb h3-thumb h3-empty h3-missing" style={{ width: size, height: size }} title={`${r.path} isn't on disk${hasViews(r) ? "" : ": drop an image here, or Upload…"}`}>
+      <div className="h3-refthumb h3-thumb h3-empty h3-missing" style={box} title={`${r.path} isn't on disk${hasViews(r) ? "" : ": drop an image here, or Upload…"}`}>
         <span>missing</span>
       </div>
     );
   }
   return (
-    <div
+    <LazyBg
       className="h3-refthumb h3-thumb"
-      style={{ width: size, height: size, backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "contain" }}
+      style={{ ...box, backgroundImage: `url("${api().thumbUrl(ep, r.path, fill ? 512 : 128, r.sha1)}")`, backgroundSize: "contain" }}
       title={r.path}
     />
   );
@@ -287,7 +365,8 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
   const prog = useCandidateProgress(r.id, view, t.take);
   // a voice's candidate is `audio` (its `image` is null)
   const file = takeFile(t);
-  const url = file ? api().refFileUrl(ep, file) : null;
+  // a voice's is played whole; a picture's shown small (the viewer opens it whole)
+  const url = file ? (isAudioRef(r) ? api().refFileUrl(ep, file) : api().thumbUrl(ep, file, 256)) : null;
   const click = (e: MouseEvent) => {
     // read at click time, so candidates don't all re-render on every selection
     const sel = store.get().refSel;
@@ -314,7 +393,7 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
       onDoubleClick={() => openImageCompare(r.id, view, t.take, live ? null : pickedOf(r, view))}
       title={title}
     >
-      <div
+      <LazyBg
         className={`h3-cand-img h3-thumb${url && t.status === "ok" ? "" : " h3-empty"}`}
         style={{
           ...(url && t.status === "ok" ? { backgroundImage: `url("${url}")` } : {}),
@@ -326,7 +405,7 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
         {!(url && t.status === "ok") && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
         <span className="h3-thumb-label">{tn(t.take)}{t.source === "imported" ? " ⤓" : t.source === "edited" ? ` ✎${t.edit?.take != null ? ` ← ${tn(t.edit.take)}` : ""}` : t.source === "frame" && t.from ? ` ← ${t.from.shot}` : ""}</span>
         {live && <span className="h3-cand-live">live</span>}
-      </div>
+      </LazyBg>
       {prog && <Progress value={prog.value} max={prog.max} />}
     </div>
   );
@@ -355,6 +434,27 @@ function CandidateGrid({ ep, r, view, cols }: { ep: string; r: Ref; view: string
 }
 
 /** The selected candidate's actions: pick, compare, discard, details. */
+/** A candidate's prompt: its start, and the whole of it in a box to select
+ * (a click selects it all) or Copy, to run it elsewhere. */
+function PromptText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const short = text.length > 180 ? text.slice(0, 179) + "…" : text;
+  return (
+    <span className="h3-col" style={{ gap: 4, minWidth: 0 }}>
+      <span className="h3-small">
+        {open ? null : short}{" "}
+        <button className="h3-link h3-small" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "hide" : "show all"}</button>
+        {" · "}
+        <button className="h3-link h3-small" onClick={() => void copyText(text, "Prompt")}>copy</button>
+      </span>
+      {open && (
+        <textarea className="h3-in h3-prompt-box" readOnly value={text} rows={Math.min(14, Math.max(4, Math.ceil(text.length / 70)))}
+          aria-label="The prompt" onFocus={(e) => e.currentTarget.select()} />
+      )}
+    </span>
+  );
+}
+
 function Selection({ r }: { r: Ref }) {
   const sel = useApp((s) => (s.refSel && s.refSel.ref === r.id ? s.refSel : null));
   const busy = useApp((s) => !!s.busy[`refpick|${r.id}`]);
@@ -461,7 +561,7 @@ function Selection({ r }: { r: Ref }) {
           {t.model && <><span>file</span><span title={t.model}>{shortName(t.model, 40)}</span></>}
           {t.steps != null && <><span>steps</span><span>{t.steps}{t.cfg != null ? ` · cfg ${t.cfg}` : ""}{t.params && Object.keys(t.params).length ? ` · ${Object.entries(t.params).map(([k, v]) => `${k} ${v}`).join(" · ")}` : ""}{t.width && t.height ? ` · ${t.width}x${t.height}` : ""}</span></>}
           {t.status === "failed" && t.save_notes && <><span>error</span><span className="h3-err">{t.save_notes}</span></>}
-          {t.prompt && <><span>prompt</span><span className="h3-small" title={t.prompt}>{t.prompt.length > 180 ? t.prompt.slice(0, 179) + "…" : t.prompt}</span></>}
+          {t.prompt && <><span>prompt</span><PromptText text={t.prompt} /></>}
         </div>
       )}
       <div className="h3-muted h3-small">Ctrl/⌘-click another candidate to compare the two.</div>
@@ -876,6 +976,44 @@ function cardOf(r: Ref): { kind: CardKind; id: string } | null {
   return null;
 }
 
+/** The episode that picked a shared ref's live file: its candidates, read-only
+ * (each episode keeps its own), the picked one first and marked live. A
+ * double-click opens one in the viewer. */
+function OwnerTakes({ ep, r }: { ep: string; r: Ref }) {
+  // asked for when the row opens: the listing doesn't read every sibling's
+  const [got, setGot] = useState<OwnerTake[] | null>(null);
+  useEffect(() => {
+    let gone = false;
+    api().refsOwnerTakes(ep, r.id).then((x) => !gone && setGot(x.takes)).catch(() => !gone && setGot([]));
+    return () => { gone = true; };
+  }, [ep, r.id, r.sha1]);
+  if (got && !got.length) return null;
+  const takes = [...(got ?? [])].sort((a, b) => Number(b.picked) - Number(a.picked));
+  const label = (v: string | null | undefined) => (v === SHEET_VIEW ? (r.panels === 1 ? "picture" : "sheet") : v ? viewLabel(v) : "");
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <div className="h3-h h3-small">From {r.live_owner}</div>
+      <div className="h3-owner-takes">
+        {takes.map((t) => {
+          const file = takeFile(t);
+          return (
+            <div key={`${t.view}|${t.take}`} className={`h3-cand${t.picked ? " h3-live" : ""}`}
+              title={`${r.live_owner}'s ${label(t.view)} ${tn(t.take)}${t.picked ? " · live" : ""} · ${t.source}\ndouble-click: open in the viewer`}
+              onDoubleClick={() => { if (file && !isAudioRef(r)) openRefFile(r.id, file); }}>
+              {isAudioRef(r) ? (
+                file && <audio controls preload="none" src={api().refFileUrl(ep, file)} style={{ width: "100%" }} />
+              ) : (
+                <LazyBg className="h3-cand-img h3-thumb" style={file ? { backgroundImage: `url("${api().thumbUrl(ep, file, 256)}")` } : undefined} />
+              )}
+              <div className="h3-small h3-muted h3-ell">{label(t.view)} {tn(t.take)}{t.picked ? " · live" : ""}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
   const pass = useApp((s) => s.pass);
   const st = useStatus();
@@ -893,9 +1031,13 @@ export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
       )}
       {used.length > 0 && !blocked.length && <div className="h3-small h3-muted">Used by {used.slice(0, 12).join(", ")}{used.length > 12 ? "…" : ""}</div>}
       {isAudioRef(r) && <VoiceLive ep={ep} r={r} />}
+      {r.live_owner && !ownsLive(r, ep) && !hasViews(r) && (
+        <div className="h3-small h3-muted">The live file is {r.live_owner}'s pick, shared with this episode: its candidates are below.</div>
+      )}
+      {r.live_owner && !ownsLive(r, ep) && <OwnerTakes ep={ep} r={r} />}
       {hasViews(r) ? (
         <>
-          <SheetLine r={r} />
+          <SheetLine r={r} ep={ep} />
           {r.takes.length > 0 && (
             <div className="h3-col" style={{ gap: 2 }}>
               <div className="h3-h h3-small">Supplied sheets</div>
@@ -1051,6 +1193,7 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
               </span>
             )}
             {showMissing && <span className="h3-badge h3-b-failed" title={`${r.path} isn't on disk`}>missing</span>}
+            {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>sheet marked one picture</span>}
             {/* P9: the live file isn't this episode's own pick, and others read it */}
             {note && <span className={`h3-badge ${note.label === "not from here" ? "h3-b-override-stale" : "h3-b-override"}`} title={note.title}>{note.label}</span>}
             {blocked.length > 0 && <span className="h3-badge h3-b-missing-refs" title={`Renders of these shots are skipped until this ref exists:\n${blocked.join(", ")}`}>blocks {blocked.length}</span>}
@@ -1069,6 +1212,81 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
   );
 }
 
+/** A ref on the board: its live picture, its name, how it stands. A click
+ * opens it in the list (its candidates, Generate, Import), as the inspector's
+ * "Refs this shot uses" does. */
+function RefTile({ ep, r, wide, onOpen }: { ep: string; r: Ref; wide: boolean; onOpen: () => void }) {
+  const pass = useApp((s) => s.pass);
+  const st = useStatus();
+  const blocked = blockedShots(r, st, pass);
+  const used = usedBy(r, pass);
+  const all = hasViews(r) ? r.views!.flatMap((v) => v.takes) : r.takes;
+  const queued = all.filter((t) => t.status === "queued").length;
+  const picks = hasViews(r) ? r.views!.filter((v) => v.picked != null).length : null;
+  const kf = isKeyframeRef(r) ? keyframeOf(r) : null;
+  const missing = !r.exists && !!r.path && r.method !== "none";
+  return (
+    <div className="h3-tile" data-ref={r.id} onClick={onOpen}
+      onDoubleClick={(e) => { e.stopPropagation(); if (!isAudioRef(r) && r.exists && r.path) openRefFile(r.id, r.path); }}
+      title={`${kf ? `${kf.shot} ${kf.which} frame` : r.name}: click to open it in the list${r.exists && !isAudioRef(r) ? ", double-click to open the picture" : ""}`}>
+      <LiveThumb ep={ep} r={r} size={0} fill={wide ? "16 / 9" : "1"} />
+      <b className="h3-ell">{kf ? `${kf.which} frame` : r.name}</b>
+      <span className="h3-small h3-muted h3-ell">
+        {[
+          kf ? kf.shot : `${used.length} shot${used.length === 1 ? "" : "s"}`,
+          picks != null ? `${picks}/4 views` : "",
+          queued ? `${queued} on the way` : "",
+        ].filter(Boolean).join(" · ")}
+      </span>
+      {(missing || blocked.length > 0 || r.panels_conflict) && (
+        <span className="h3-badges">
+          {missing && <span className="h3-badge h3-b-failed">missing</span>}
+          {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>marked one picture</span>}
+          {blocked.length > 0 && <span className="h3-badge h3-b-missing-refs">blocks {blocked.length}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The board's head: how many of the refs listed have their picture (a
+ * ring), and chips that show one group at a time. */
+function BoardHead({ groups, only, setOnly, missing, shots }: {
+  groups: { id: string; label: string; refs: Ref[] }[]; only: string; setOnly: (id: string) => void;
+  missing: number; shots: number;
+}) {
+  const all = groups.flatMap((g) => g.refs);
+  const made = all.filter((r) => r.exists).length;
+  const pct = all.length ? Math.round((made / all.length) * 100) : 100;
+  return (
+    <div className="h3-board-head">
+      <div className="h3-row" style={{ gap: 10 }}>
+        <div className="h3-ring" style={{ background: `conic-gradient(var(--h3-primary) 0 ${pct}%, var(--h3-bg3) ${pct}% 100%)` }}
+          role="img" aria-label={`${made} of ${all.length} refs have their picture`}>
+          <span>{made}/{all.length}</span>
+        </div>
+        <div className="h3-col" style={{ gap: 1 }}>
+          <b>{missing ? `${missing} still to make` : "Every picture is made"}</b>
+          {missing > 0 && <span className="h3-small h3-muted">{shots ? `${shots} shot${shots > 1 ? "s" : ""} wait for them` : "no shot of this episode waits for them"}</span>}
+        </div>
+      </div>
+      <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+        <button className={`h3-chip${only ? "" : " h3-on"}`} onClick={() => setOnly("")}>Everything</button>
+        {groups.filter((g) => g.refs.length).map((g) => (
+          <button key={g.id} className={`h3-chip${only === g.id ? " h3-on" : ""}`} onClick={() => setOnly(only === g.id ? "" : g.id)}>
+            {g.label} <span className="h3-muted">{g.refs.length}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A group's add button: "+ Character", "+ Place", ... */
+const ADD_LABEL: Partial<Record<string, string>> = {
+  characters: "Character", props: "Prop", locations: "Place", voices: "Voice",
+};
+
 export function RefsTab() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
@@ -1078,6 +1296,9 @@ export function RefsTab() {
   const filter = useApp((s) => s.refsFilter);
   const st = useStatus();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [view, setView] = useView("seriesmith.refsView");
+  // the board: one group at a time ("" every group), and how far along they are
+  const [only, setOnly] = useState("");
   const { list: targetsList } = useTargets();
 
   useEffect(() => {
@@ -1121,9 +1342,8 @@ export function RefsTab() {
 
   return (
     <div className="h3-surface">
+      <EpisodeHead />
       <div className="h3-bar">
-        <span className="h3-title">Refs</span>
-        <EpisodeSelect compact />
         {refs && <span className="h3-muted h3-small h3-nowrap">{refs.length} refs</span>}
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
@@ -1143,6 +1363,10 @@ export function RefsTab() {
                 {FILTERS.map((f) => (
                   <button key={f.id} className={filter === f.id ? "h3-on" : ""} title={f.title} onClick={() => setRefsFilter(f.id)}>{f.label}</button>
                 ))}
+              </span>
+              <span className="h3-seg" title="Refs as a list (each opens to its candidates) or a board of pictures">
+                <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
+                <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
               </span>
               <span className="h3-grow" />
               <SupplyPicker />
@@ -1169,7 +1393,7 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               </div>
             )}
 
-            {counts.missing > 0 && (
+            {counts.missing > 0 && view !== "board" && (
               <div className="h3-note">
                 <b>{counts.missing} ref{counts.missing > 1 ? "s" : ""} missing</b>
                 {counts.shots > 0 ? `, blocking ${counts.shots} shot${counts.shots > 1 ? "s" : ""} of this episode (${pass})` : ", none used by this episode"}.
@@ -1200,7 +1424,8 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               </div>
             )}
             {!refs && !err && <div className="h3-empty-state">{loading ? "Loading…" : ""}</div>}
-            {refs && groups.map((g) => {
+            {refs && view === "board" && <BoardHead groups={groups} only={only} setOnly={setOnly} missing={counts.missing} shots={counts.shots} />}
+            {refs && groups.filter((g) => view !== "board" || !only || g.id === only).map((g) => {
               const isCollapsed = !!collapsed[g.id];
               return (
                 <div key={g.id} className="h3-seq">
@@ -1211,15 +1436,28 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     {ADD_KIND[g.id] && (
                       <>
                         <span className="h3-grow" />
-                        <button className="h3-btn h3-icon" title={`Add a ${ADD_KIND[g.id]} to the series config`}
+                        <button className="h3-btn h3-add" title={`Add a new ${ADD_KIND[g.id]} to the series config`}
                           onClick={(e) => { e.stopPropagation(); openSubjectCard({ kind: ADD_KIND[g.id]!, id: null }); }}>
-                          <i className="pi pi-plus" />
+                          <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
                         </button>
                       </>
                     )}
                   </div>
-                  {!isCollapsed && g.id !== "keyframes" && g.refs.map((r) => <RefRow key={r.id} ep={ep} r={r} />)}
-                  {!isCollapsed && g.id === "keyframes" && keyframeGroups(g.refs, st).map((kg) => (
+                  {!isCollapsed && view === "board" && (
+                    <div className={`h3-board${g.id === "locations" || g.id === "keyframes" ? "" : " h3-board-sm"}`}>
+                      {g.refs.map((r) => (
+                        <RefTile key={r.id} ep={ep} r={r} wide={g.id === "locations" || g.id === "keyframes"}
+                          onOpen={() => { setView("list"); focusRef(r.id); }} />
+                      ))}
+                      {ADD_KIND[g.id] && (
+                        <button className="h3-add-tile" onClick={() => openSubjectCard({ kind: ADD_KIND[g.id]!, id: null })}>
+                          <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!isCollapsed && view === "list" && g.id !== "keyframes" && g.refs.map((r) => <RefRow key={r.id} ep={ep} r={r} />)}
+                  {!isCollapsed && view === "list" && g.id === "keyframes" && keyframeGroups(g.refs, st).map((kg) => (
                     <div key={kg.shot} className="h3-kf-shot">
                       <div className="h3-kf-shot-head h3-row h3-small">
                         <b>{kg.shot}</b>

@@ -12,6 +12,9 @@ The generated documentation stays in step with the code.
     describing the old format (`python tools/make_prompts.py`). The committed
     copies are the skill's text (SKILL.md) and the same guide as assistant
     instructions; build/skill/ is gitignored and rebuilt from the same source.
+  - docs/site/ (the Mintlify site, docs.seriesmith.com) is what
+    tools/make_site_docs.py emits from INSTALL.md and the user docs today, and
+    names no internal document (`python tools/make_site_docs.py`).
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import make_models_md as M  # noqa: E402
 import make_prompts as P  # noqa: E402
+import make_site_docs as S  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 
 
@@ -51,6 +55,31 @@ class TestScriptSkill(unittest.TestCase):
                     got.replace("\r\n", "\n"), want.replace("\r\n", "\n"),
                     f"{rel} is out of date -- run `python tools/make_prompts.py` "
                     f"and commit the result")
+
+
+class TestSiteDocs(unittest.TestCase):
+    """The docs site's pages are the user docs."""
+
+    def test_up_to_date(self):
+        for src, name, desc in S.PAGES:
+            with self.subTest(page=name):
+                path = os.path.join(S.SITE, name + ".mdx")
+                self.assertTrue(os.path.isfile(path), path)
+                with open(path, encoding="utf-8") as fh:
+                    got = fh.read().replace("\r\n", "\n")
+                self.assertEqual(got, S.page(src, desc),
+                                 f"docs/site/{name}.mdx is out of date -- run "
+                                 "`python tools/make_site_docs.py` and commit the result")
+
+    def test_every_page_is_in_the_navigation(self):
+        import json
+        with open(os.path.join(S.SITE, "docs.json"), encoding="utf-8") as fh:
+            nav = [p for g in json.load(fh)["navigation"]["groups"] for p in g["pages"]]
+        self.assertEqual(sorted(nav), sorted(["index"] + [name for _, name, _ in S.PAGES]))
+
+    def test_no_internal_document(self):
+        sources = {src for src, _, _ in S.PAGES}
+        self.assertFalse(sources & {"docs/DESIGN.md", "docs/PLAN.md"})
 
 
 class TestModelsBlock(unittest.TestCase):

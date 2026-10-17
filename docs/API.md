@@ -33,7 +33,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
-| `GET /seriesmith/file` | Files |
+| `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
@@ -43,9 +43,9 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
-| `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure` | References (Phase 5): step 12, simple mode |
+| `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
 | `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
 | `POST /seriesmith/refs/keyframe` | Continuity keyframes |
@@ -132,8 +132,10 @@ optional and keeps its stored value when the body leaves it out. Returns the new
 `edit.find_episodes(roots)`:
 ```json
 [{"ep": "C:\\...\\DeanStories\\ep05", "name": "ep05", "series": "…", "title": "…",
-  "built": {"final": true, "proxy": true}, "shots": 49, "script": "ep05.md"}]
+  "built": {"final": true, "proxy": true}, "shots": 49, "script": "ep05.md", "simple": false}]
 ```
+`simple`: one of Simple mode's projects, which its project picker lists (`clips.is_simple`:
+its series config says `"simple": true`, or it is `Clips/clips/`).
 Every folder up to two levels below a root with a series config and a script. The config
 is the folder's own or — as `episode_series_config` has always allowed, and as of
 2026-09-23 the listing too — the one in its parent, a series folder shared by the
@@ -152,6 +154,7 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
  "shots": [{
    "shot": "sh020", "orphan": false, "sequence": "sq01", "length": 107,
    "seconds": 4.458, "size": "medium", "subjects": ["dean"], "audio_policy": "generate",
+   "action": "Dean steps into the clearing at dawn.",
    "cut": {"take": 1, "picked": true, "pass": "proxy", "placeholder": false,
            "usable": true, "trim_in": 0, "trim_out": 0, "locked": false, "note": "",
            "in_cut_file": true, "frames": 107, "out": false, "flag": false},
@@ -167,6 +170,8 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
               "save_notes": "…"}]
  }]}
 ```
+- `action`: the first sentence of what happens in the shot, as the script says it (cut
+  at a word past 160 characters), for the board; left out when the script has none.
 - `status` is `queued` | `ok` | `failed`.
 - `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
   `continuous: latent` take whose previous shot in the cut now uses another take, or that
@@ -340,7 +345,23 @@ back**. Addressed issues are left out unless `addressed=1`.
 Streams a file inside `ep`, with HTTP Range support (aiohttp `FileResponse`) so
 `<video>` can seek. The content type comes from the extension. The response carries
 `Cache-Control: no-cache`, because a take re-rendered into the same number
-(`--take N`) keeps its name.
+(`--take N`) keeps its name. A path may climb out of the episode only to what its series
+config names above it: the show's `refs/` and `audio/` (or the whole show folder, when the
+config is there), and a sibling episode's ref candidates (`../<sibling>/refs/_takes/...`,
+what `/refs/owner-takes` lists); never a sibling's renders or the show's own files.
+
+### `GET /seriesmith/thumb?ep=…&path=…&w=256`
+The same picture as `/file` finds it, made small for a picture shown small (the Refs tab
+draws hundreds of reference pictures at a few dozen pixels; the files are full size, 722 MB
+for one Porchlights episode's): `w` wide, rounded up to 128, 256, 512 or 1024, a JPEG on a
+white ground. Made once, kept in the settings folder's `thumbs/` by the file's path, size
+and time (so a shared ref's is made once for every episode, and again when the file
+changes). A file Pillow can't shrink (not a picture, or unreadable) is served as it is.
+Thumbnails run on two threads of their own, so a page asking for hundreds never holds up
+the other requests; the editor asks for one only when its picture comes near the screen.
+
+JSON replies over 64 KB are gzipped when the browser accepts it (the refs listing: 2.8 MB,
+0.12 MB sent).
 
 ## Rendering
 
@@ -1161,6 +1182,15 @@ Body `{"root"?}`. Simple mode's **Clips** project (`clips.ensure_clips`): `Clips
 in `root` (default the first project root), made the first time. Returns `{"ep", "made"}`
 and, when it was made, emits `seriesmith.episode`. 409 when there is no project root yet.
 
+### `POST /seriesmith/clips/new` (step 12)
+Body `{"title", "root"?}`. A Simple project of its own (`clips.new_project`), a show
+folder named from the title: `Storm at the lighthouse` makes
+`Storm_at_the_lighthouse/storm_at_the_lighthouse/` in `root` (default the first project
+root), its pictures in the show's `refs/`, its series config the Clips one, titled and
+saying `"simple": true`. Returns `{"ep"}` and emits `seriesmith.episode`. 400 for a title
+with no letters or digits, 409 when that show folder is already there or there is no
+project root yet.
+
 ### `PUT /seriesmith/refs/pick`
 Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the
 sheet when all four views are picked. Returns the ref as `/refs` lists it. 409 if the
@@ -1223,6 +1253,7 @@ additions to each entry of a character's `views`:
   can import or pick one; a shot in no build is 404.
 - **`seriesmith.ref` status values:** `queued`, `ok`, `failed`, `picked` (after a pick or an auto-pick).
 - **Auto-pick:** `GET /seriesmith/refs` gives a ref with NO live file its first finished candidate (`refs.auto_pick`), per view for a character, stitching the sheet once all four views have one. A ref whose file exists is never replaced without an explicit pick. This is `kreagen`'s rule for a missing file.
+- **After the reply:** a server (`seriesmith serve`, the ComfyUI host) closes the ref takes whose job is gone and auto-picks after it has answered, on a thread, so the listing never waits for it; what that changes reaches the page as `seriesmith.ref` events, which reload the list. A direct caller (the CLI, tests) has it done first.
 - **Ref overrides** have one level: the ref, or a view, not per pass. A character's
   `prompt` override needs a view. The response is `{"override": {...fields, "stale"}}`.
   `base_hash` is the sha1 of the built prompt.
@@ -2099,6 +2130,19 @@ show: in Porchlights ep01 **all 110** of its refs are read by the other nine epi
 - **`live_owner`**: the episode whose pick recorded the sha1 the live file has **now** — this
   one, a sibling, or `null`. Null means nobody's record matches it: it was put there by hand
   or replaced outside the editor, so no candidate anywhere can put it back.
+
+When `live_owner` is a sibling, **`GET /seriesmith/refs/owner-takes?ep=…&ref=…`** gives that
+episode's candidates for the ref: `{"owner", "takes"}`, each a take as `takes` lists them
+plus `episode` and `picked` (its pick), the image paths relative to this episode
+(`../ep01/refs/_takes/...`). Read-only: each episode keeps its own `refs/_takes/`, so this
+is what shows which candidate this episode is reading. The editor asks when the ref's row
+opens, so the listing never reads every sibling's candidates; `takes` is `[]` when this
+episode owns the file, or nothing does.
+
+A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
+one whole picture of them), so a list shows the whole picture rather than a face cropped
+from it; and **`panels_conflict`** when it says 1 but its picture is a strip of panels
+(2.5:1 or wider, `refs.is_strip`): marked by mistake, and renders send the whole strip.
 
 What touches a shared file, and what doesn't:
 

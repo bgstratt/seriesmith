@@ -427,7 +427,8 @@ seriesmith stop                        # stop that server cleanly (--restart: st
 - `backends` reads this machine's settings and `COMFY_API_KEY` ([SETUP.md](SETUP.md)):
   `local` always, `cloud` and `router` with a key, a `deployment:<target>` per deployment.
 - `serve` starts comfy-api-proxy for the local backend and picks up the jobs the last run
-  left. `--port` (default 8190), `--host`, `--root` (repeatable).
+  left. `--port` (default 8190), `--host`, `--root` (repeatable), `--auto-launch` (open the
+  editor in the browser once it is listening, as the .bat launchers do).
 - `stop` asks the server on this machine to stop (`--port`); `--restart` restarts it when
   it runs under `run_seriesmith.bat` / `run_seriesmith_ext.bat` (a bare `seriesmith serve`
   just stops). Jobs still running on a backend are picked up on the next start.

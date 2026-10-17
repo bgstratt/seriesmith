@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { closeRedo, closeSidecar, copyText, loadDetail, runRedo, takePrompt, type RedoSeed } from "../actions";
 import { errText, parseSeed } from "../api";
+import { api } from "../host";
 import { absPath, shortName, tn } from "../lib/format";
 import { missingOf } from "../lib/missingRefs";
 import { loraRow, parseLoras, parseSteps, type LoraRow } from "../lib/overrideForm";
@@ -15,7 +16,12 @@ import { MissingRefsNote } from "./MissingRefs";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
 import { ModelsButton, TargetSelect, useTargetPickers, useTargets } from "./Targets";
 
-export function Dialog({ title, onClose, children, footer, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+/** `sub`: a line under the title; `lead`: a picture before it; `bare`: the children
+ * bring their own body and foot (.h3-dialog-body, .h3-dialog-foot). */
+export function Dialog({ title, onClose, children, footer, wide, sub, lead, bare }: {
+  title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean;
+  sub?: ReactNode; lead?: ReactNode; bare?: boolean;
+}) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
@@ -25,10 +31,14 @@ export function Dialog({ title, onClose, children, footer, wide }: { title: Reac
     <div className="h3-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="h3-dialog" style={wide ? { width: "min(760px, 100%)" } : undefined} role="dialog">
         <div className="h3-dialog-head">
-          <span className="h3-title h3-grow">{title}</span>
+          {lead}
+          <div className="h3-head-text">
+            <span className="h3-title">{title}</span>
+            {sub && <span className="h3-small h3-muted">{sub}</span>}
+          </div>
           <button className="h3-btn h3-icon" title="Close" onClick={onClose}><i className="pi pi-times" /></button>
         </div>
-        <div className="h3-dialog-body">{children}</div>
+        {bare ? children : <div className="h3-dialog-body">{children}</div>}
         {footer && <div className="h3-dialog-foot">{footer}</div>}
       </div>
     </div>
@@ -117,10 +127,20 @@ export function RedoDialog() {
   const d = useDetail(r?.shot, r?.pass);
   const derr = useDetailError(r?.shot, r?.pass);
   if (!r || !ep) return null;
+  const from = d?.takes.find((t) => t.take === r.parent);
+  const thumb = from?.files.thumb ? api().thumbUrl(ep, from.files.thumb, 256) : null;
+  const seed = from?.sidecar?.seed;
   return (
-    <Dialog title={<>New take of {r.shot}{r.parent != null ? ` (like ${tn(r.parent)})` : ""}</>} onClose={closeRedo} wide>
-      {!d && !derr && <div className="h3-muted">Loading {r.shot}…</div>}
-      {derr && !d && <div className="h3-note h3-note-err">{derr}</div>}
+    <Dialog
+      title={<>New take of {r.shot}</>}
+      sub={r.parent != null ? <>starting from {tn(r.parent)}{seed ? <> · seed <span className="h3-mono">{seed}</span></> : null}</> : "from the shot's current settings"}
+      lead={<div className="h3-dialog-thumb" style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined} />}
+      onClose={closeRedo}
+      wide
+      bare
+    >
+      {!d && !derr && <div className="h3-dialog-body h3-muted">Loading {r.shot}…</div>}
+      {derr && !d && <div className="h3-dialog-body"><div className="h3-note h3-note-err">{derr}</div></div>}
       {d && <RedoBody key={`${r.shot}|${r.pass}|${r.parent}`} d={d} shot={r.shot} openPass={r.pass} parent={r.parent} />}
     </Dialog>
   );
@@ -245,167 +265,205 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
   const effSize = oneOff ? "" : sizeText((targetD ?? d).effective.width, (targetD ?? d).effective.height);
   const rule = sizeRule(findTarget(list, runTarget)?.template);
   const runLabel = targetLabel(list, runTarget);
+  const seedText = f.seedChoice === "new" ? "new seed" : f.seedChoice === "same" ? `seed ${parentSeed}` : `seed ${f.typedSeed || "?"}`;
+  const sizeShown = f.size || effSize;
   return (
     <>
-      <div className="h3-field" style={{ gridTemplateColumns: "76px minmax(0,1fr)" }}>
-        {list && current && (
-          <>
-            <label title="Which model draws this run (its target)">Model class</label>
-            <div className="h3-col" style={{ gap: 2 }}>
-              <div className="h3-row" style={{ gap: 4 }}>
-                <TargetSelect
-                  value={runTarget}
-                  list={list}
-                  video={video}
-                  title="Target for this run only (sent with the render). The shot's own target is changed in the inspector."
-                  onChange={chooseTarget}
-                />
-                <ModelsButton />
+      <div className="h3-dialog-body">
+        <div className="h3-card-grid">
+          <div className="h3-card">
+            <span className="h3-card-title">What changes</span>
+            <div className="h3-field" style={{ gridTemplateColumns: "64px minmax(0,1fr)" }}>
+              <label>From take</label>
+              <select className="h3-in" value={f.parent ?? ""} onChange={(e) => chooseParent(e.target.value === "" ? null : Number(e.target.value))}>
+                <option value="">(none: the shot's current settings)</option>
+                {d.takes.map((t) => (
+                  <option key={t.take} value={t.take}>
+                    {tn(t.take)} · {t.status}{t.sidecar?.seed ? ` · seed ${t.sidecar.seed}` : " · no sidecar"}{typeof t.sidecar?.target === "string" && current && t.sidecar.target !== current ? ` · on ${targetLabel(list, t.sidecar.target)}` : ""}
+                  </option>
+                ))}
+              </select>
+              <label>Seed</label>
+              <div className="h3-col" style={{ gap: 3 }}>
+                <span className="h3-seg">
+                  <button className={f.seedChoice === "new" ? "h3-on" : ""} onClick={() => set({ seedChoice: "new" })}>new</button>
+                  <button
+                    className={f.seedChoice === "same" ? "h3-on" : ""}
+                    disabled={!parentSeed}
+                    title={parentSeed ? `seed ${parentSeed}` : "The parent take has no recorded seed"}
+                    onClick={() => set({ seedChoice: "same" })}
+                  >
+                    same as {pt ? tn(pt.take) : "parent"}
+                  </button>
+                  <button className={f.seedChoice === "typed" ? "h3-on" : ""} onClick={() => set({ seedChoice: "typed" })}>typed</button>
+                </span>
+                {f.seedChoice === "same" && parentSeed && <span className="h3-mono h3-muted">{parentSeed}</span>}
+                {f.seedChoice === "typed" && (
+                  <input className="h3-in h3-mono" inputMode="numeric" aria-label="Seed" value={f.typedSeed} onChange={(e) => set({ typedSeed: e.target.value.replace(/[^\d]/g, "") })} />
+                )}
               </div>
-              <span className="h3-small h3-muted">
-                for this run{oneOff ? ` (the shot stays on ${targetLabel(list, current)})` : ""} · {size.text}
-              </span>
-              <TargetReadinessNote id={runTarget} list={list} />
+              <label>Note</label>
+              <input className="h3-in" placeholder="what this take tries" value={f.note} onChange={(e) => set({ note: e.target.value })} />
             </div>
-          </>
-        )}
-        <label>From take</label>
-        <select className="h3-in" value={f.parent ?? ""} onChange={(e) => chooseParent(e.target.value === "" ? null : Number(e.target.value))}>
-          <option value="">(none: the shot's current settings)</option>
-          {d.takes.map((t) => (
-            <option key={t.take} value={t.take}>
-              {tn(t.take)} · {t.status}{t.sidecar?.seed ? ` · seed ${t.sidecar.seed}` : " · no sidecar"}{typeof t.sidecar?.target === "string" && current && t.sidecar.target !== current ? ` · on ${targetLabel(list, t.sidecar.target)}` : ""}
-            </option>
-          ))}
-        </select>
-        <label>Seed</label>
-        <div className="h3-col" style={{ gap: 3 }}>
-          <div className="h3-row h3-wrap">
-            <label className="h3-check"><input type="radio" checked={f.seedChoice === "new"} onChange={() => set({ seedChoice: "new" })} /> new</label>
-            <label className="h3-check" title={parentSeed ? `seed ${parentSeed}` : "The parent take has no recorded seed"}>
-              <input type="radio" disabled={!parentSeed} checked={f.seedChoice === "same"} onChange={() => set({ seedChoice: "same" })} />
-              same as {pt ? tn(pt.take) : "parent"}
-            </label>
-            <label className="h3-check"><input type="radio" checked={f.seedChoice === "typed"} onChange={() => set({ seedChoice: "typed" })} /> typed</label>
-          </div>
-          {f.seedChoice === "same" && parentSeed && <span className="h3-mono h3-muted">{parentSeed}</span>}
-          {f.seedChoice === "typed" && (
-            <input className="h3-in h3-mono" inputMode="numeric" value={f.typedSeed} onChange={(e) => set({ typedSeed: e.target.value.replace(/[^\d]/g, "") })} />
-          )}
-        </div>
-        {!pickers.hosted && <label>Model</label>}
-        {pickers.hosted ? null : pickers.models === null ? (
-          <span className="h3-muted h3-small">set by the target (it has no model widget)</span>
-        ) : (
-          <ModelSelect value={f.model} onChange={(model) => set({ model })} placeholder="(the workflow's model)" choices={pickers.models} grouped={pickers.modelFiles} />
-        )}
-        {pickers.loras !== null && (
-          <>
-            <label>LoRAs</label>
-            <div className="h3-col" style={{ gap: 3 }}>
-              <label className="h3-check h3-small">
-                <input type="checkbox" checked={f.lorasOn} onChange={(e) => set({ lorasOn: e.target.checked })} />
-                set LoRAs {f.lorasOn ? "" : "(off: the workflow's own LoRA)"}
+            <div className="h3-col" style={{ gap: 5 }}>
+              <label
+                className="h3-check"
+                title={oneOff
+                  ? `A run on another target isn't saved: the override belongs to ${targetLabel(list, current)}. To keep ${runLabel}, change the shot's target in the inspector.`
+                  : "Writes the prompt, model, LoRAs, steps (and a typed/same seed) to overrides.json first, so later renders keep them"}
+              >
+                <input type="checkbox" disabled={oneOff} checked={f.save && !oneOff} onChange={(e) => set({ save: e.target.checked })} />
+                Save these as the shot's {f.pass} override{oneOff ? " (not for a one-off target)" : ""}
               </label>
-              {f.lorasOn && <LoraEditor rows={f.loras} onChange={(loras) => set({ loras })} choices={pickers.loras} />}
+              <label
+                className="h3-check"
+                title={"Also writes this take's frames as PNGs in its frames/ folder, so a shot that is "
+                  + "right but for a frame or two can be retouched and re-encoded. Costs a couple of "
+                  + "seconds and a few hundred MB a take."}
+              >
+                <input type="checkbox" checked={f.frames} onChange={(e) => set({ frames: e.target.checked })} />
+                Keep the frames (PNG sequence)
+              </label>
+              <label
+                className="h3-check"
+                title={"Also writes the take's latent beside it (a few MB), so the take can be upscaled "
+                  + "later without going back through the VAE. On for the final pass unless the series "
+                  + "config's upscale.save_latents says otherwise."}
+              >
+                <input type="checkbox" checked={f.latent ?? f.pass === "final"} onChange={(e) => set({ latent: e.target.checked })} />
+                Keep the latent (for an upscale)
+              </label>
             </div>
-          </>
-        )}
-        <label>Steps</label>
-        {noSteps ? (
-          <span className="h3-small h3-muted" title="This model has no steps setting: the provider decides">none (the provider's)</span>
-        ) : (
-          <input className="h3-in" style={{ width: 80 }} inputMode="numeric" value={f.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />
-        )}
-        <label title="The size this take renders at. For this run only: set it on the shot's override (inspector) to keep it. A master re-samples each take by its own size.">Size</label>
-        <div className="h3-col" style={{ gap: 2 }}>
-          <SizePicker value={f.size} onChange={(size) => set({ size })} own={effSize} ownLabel="the shot's" rule={rule} />
-          {f.size && <span className="h3-small h3-muted">this take only</span>}
-        </div>
-        <label>Pass</label>
-        <span className="h3-seg">
-          {(["proxy", "final"] as Pass[]).map((p) => (
-            <button key={p} className={f.pass === p ? "h3-on" : ""} onClick={() => set({ pass: p, ...(oneOff ? presetForm(list, f.target, p) : {}) })}>{p}</button>
-          ))}
-        </span>
-        <label>Note</label>
-        <input className="h3-in" placeholder="what this take tries (kept in its sidecar)" value={f.note} onChange={(e) => set({ note: e.target.value })} />
-        <label>Prompt</label>
-        {lockPrompt ? (
-          <div className="h3-col" style={{ gap: 3 }}>
-            <div className="h3-note h3-note-info h3-small">
-              {oneOff
-                ? <>{runLabel} writes its own prompt for this shot when the run is queued; a prompt written for {targetLabel(list, current)} doesn't apply.</>
-                : <>This shot is retargeted to {runLabel}: per-pass prompt overrides are ignored, and this is the prompt {runLabel} writes for it (read-only).</>}
+          </div>
+
+          <div className="h3-card">
+            <span className="h3-card-title">Model</span>
+            {list && current && (
+              <div className="h3-col" style={{ gap: 2 }}>
+                <div className="h3-row" style={{ gap: 4 }}>
+                  <TargetSelect
+                    value={runTarget}
+                    list={list}
+                    video={video}
+                    title="Target for this run only (sent with the render). The shot's own target is changed in the inspector."
+                    onChange={chooseTarget}
+                  />
+                  <ModelsButton />
+                </div>
+                <span className="h3-small h3-muted">
+                  for this run{oneOff ? ` (the shot stays on ${targetLabel(list, current)})` : ""} · {size.text}
+                </span>
+                <TargetReadinessNote id={runTarget} list={list} />
+              </div>
+            )}
+            <div className="h3-field" style={{ gridTemplateColumns: "48px minmax(0,1fr)" }}>
+              {!pickers.hosted && <label>File</label>}
+              {pickers.hosted ? null : pickers.models === null ? (
+                <span className="h3-muted h3-small">set by the target (it has no model widget)</span>
+              ) : (
+                <ModelSelect value={f.model} onChange={(model) => set({ model })} placeholder="(the workflow's model)" choices={pickers.models} grouped={pickers.modelFiles} />
+              )}
+              {pickers.loras !== null && (
+                <>
+                  <label>LoRAs</label>
+                  <div className="h3-col" style={{ gap: 3 }}>
+                    <label className="h3-check h3-small">
+                      <input type="checkbox" checked={f.lorasOn} onChange={(e) => set({ lorasOn: e.target.checked })} />
+                      set LoRAs {f.lorasOn ? "" : "(off: the workflow's own LoRA)"}
+                    </label>
+                    {f.lorasOn && <LoraEditor rows={f.loras} onChange={(loras) => set({ loras })} choices={pickers.loras} />}
+                  </div>
+                </>
+              )}
+              <label>Steps</label>
+              {noSteps ? (
+                <span className="h3-small h3-muted" title="This model has no steps setting: the provider decides">none (the provider's)</span>
+              ) : (
+                <input className="h3-in" aria-label="Steps" style={{ width: 80 }} inputMode="numeric" value={f.steps} onChange={(e) => set({ steps: e.target.value.replace(/[^\d]/g, "") })} />
+              )}
             </div>
-            {!oneOff && <pre className="h3-pre" style={{ maxHeight: 220 }}>{(targetD ?? d).effective.prompt}</pre>}
           </div>
-        ) : (
-        <div className="h3-col" style={{ gap: 3 }}>
-          <div className="h3-row h3-wrap">
-            <label className="h3-check">
-              <input type="radio" checked={f.source === "current"} onChange={() => set({ source: "current", prompt: (targetD ?? d).effective.prompt })} />
-              current {(targetD ?? d).override.prompt != null ? "override" : "build"}
-            </label>
-            <label className="h3-check" title={pt?.files.shotlist ? "From the take's frozen shotlist" : "That take has no frozen shotlist"}>
-              <input type="radio" disabled={!pt?.files.shotlist} checked={f.source === "parent"} onChange={() => set({ source: "parent" })} />
-              {pt ? tn(pt.take) : "parent take"}'s prompt
-            </label>
-            <span className="h3-grow" />
-            <label className="h3-check h3-small"><input type="checkbox" checked={showDiff} onChange={(e) => setShowDiff(e.target.checked)} /> diff vs built</label>
+
+          <div className="h3-card h3-card-wide">
+            <div className="h3-card-head">
+              <span className="h3-card-title">Output</span>
+              <span title="The size this take renders at. For this run only: set it on the shot's override (inspector) to keep it. A master re-samples each take by its own size.">
+                <SizePicker value={f.size} onChange={(size) => set({ size })} own={effSize} ownLabel="the shot's" rule={rule} />
+              </span>
+              {f.size && <span className="h3-small h3-muted">this take only</span>}
+              <span className="h3-grow" />
+              <span className="h3-seg" title="Which pass this take is for">
+                {(["proxy", "final"] as Pass[]).map((p) => (
+                  <button key={p} className={f.pass === p ? "h3-on" : ""} onClick={() => set({ pass: p, ...(oneOff ? presetForm(list, f.target, p) : {}) })}>{p}</button>
+                ))}
+              </span>
+            </div>
           </div>
-          {f.source === "parent" && parentPrompt?.error && <div className="h3-note h3-note-err">{parentPrompt.error}</div>}
-          {f.source === "parent" && f.parent != null && parentPrompt?.take !== f.parent && <div className="h3-muted">Loading {tn(f.parent)}'s prompt…</div>}
-          {showDiff ? (
-            <DiffView oldText={builtPrompt} newText={f.prompt} />
-          ) : (
-            <textarea className="h3-in" rows={10} value={f.prompt} spellCheck={false} onChange={(e) => set({ prompt: e.target.value })} />
-          )}
+
+          <div className="h3-card h3-card-wide">
+            <div className="h3-card-head">
+              <span className="h3-card-title h3-grow">Prompt</span>
+              {!lockPrompt && (
+                <>
+                  <span className="h3-seg">
+                    <button className={f.source === "current" ? "h3-on" : ""} onClick={() => set({ source: "current", prompt: (targetD ?? d).effective.prompt })}>
+                      {(targetD ?? d).override.prompt != null ? "the override" : "as built now"}
+                    </button>
+                    <button
+                      className={f.source === "parent" ? "h3-on" : ""}
+                      disabled={!pt?.files.shotlist}
+                      title={pt?.files.shotlist ? "From the take's frozen shotlist" : "That take has no frozen shotlist"}
+                      onClick={() => set({ source: "parent" })}
+                    >
+                      {pt ? tn(pt.take) : "parent take"}'s
+                    </button>
+                  </span>
+                  <label className="h3-check h3-small"><input type="checkbox" checked={showDiff} onChange={(e) => setShowDiff(e.target.checked)} /> diff vs built</label>
+                </>
+              )}
+            </div>
+            {lockPrompt ? (
+              <div className="h3-col" style={{ gap: 3 }}>
+                <div className="h3-note h3-note-info h3-small">
+                  {oneOff
+                    ? <>{runLabel} writes its own prompt for this shot when the run is queued; a prompt written for {targetLabel(list, current)} doesn't apply.</>
+                    : <>This shot is retargeted to {runLabel}: per-pass prompt overrides are ignored, and this is the prompt {runLabel} writes for it (read-only).</>}
+                </div>
+                {!oneOff && <pre className="h3-pre" style={{ maxHeight: 220 }}>{(targetD ?? d).effective.prompt}</pre>}
+              </div>
+            ) : (
+              <>
+                {f.source === "parent" && parentPrompt?.error && <div className="h3-note h3-note-err">{parentPrompt.error}</div>}
+                {f.source === "parent" && f.parent != null && parentPrompt?.take !== f.parent && <div className="h3-muted">Loading {tn(f.parent)}'s prompt…</div>}
+                {showDiff ? (
+                  <DiffView oldText={builtPrompt} newText={f.prompt} />
+                ) : (
+                  <textarea className="h3-in h3-prompt-box" aria-label="The prompt" rows={8} value={f.prompt} spellCheck={false} onChange={(e) => set({ prompt: e.target.value })} />
+                )}
+              </>
+            )}
+          </div>
         </div>
+        <MissingRefsNote blocked={missing.length ? [{ shot, refs: missing }] : []} allow={allowMissing} setAllow={setAllowMissing} />
+        {mismatch && (
+          <label className="h3-check" title={modelWarning(pickers.modelFiles, runModel) ?? ""}>
+            <input type="checkbox" checked={allowMismatch} onChange={(e) => setAllowMismatch(e.target.checked)} />
+            {MODEL_MISMATCH_LABEL}
+          </label>
         )}
+        {err && <div className="h3-note h3-note-err">{err}</div>}
       </div>
-      <label
-        className="h3-check"
-        title={oneOff
-          ? `A run on another target isn't saved: the override belongs to ${targetLabel(list, current)}. To keep ${runLabel}, change the shot's target in the inspector.`
-          : "Writes the prompt, model, LoRAs, steps (and a typed/same seed) to overrides.json first, so later renders keep them"}
-      >
-        <input type="checkbox" disabled={oneOff} checked={f.save && !oneOff} onChange={(e) => set({ save: e.target.checked })} />
-        Save these as the shot's {f.pass} override{oneOff ? " (not for a one-off target)" : ""}
-      </label>
-      <label
-        className="h3-check"
-        title={"Also writes this take's frames as PNGs in its frames/ folder, so a shot that is "
-          + "right but for a frame or two can be retouched and re-encoded. Costs a couple of "
-          + "seconds and a few hundred MB a take."}
-      >
-        <input type="checkbox" checked={f.frames} onChange={(e) => set({ frames: e.target.checked })} />
-        Keep the frames (PNG sequence)
-      </label>
-      <label
-        className="h3-check"
-        title={"Also writes the take's latent beside it (a few MB), so the take can be upscaled "
-          + "later without going back through the VAE. On for the final pass unless the series "
-          + "config's upscale.save_latents says otherwise."}
-      >
-        <input type="checkbox" checked={f.latent ?? f.pass === "final"} onChange={(e) => set({ latent: e.target.checked })} />
-        Keep the latent (for an upscale)
-      </label>
-      <MissingRefsNote blocked={missing.length ? [{ shot, refs: missing }] : []} allow={allowMissing} setAllow={setAllowMissing} />
-      {mismatch && (
-        <label className="h3-check" title={modelWarning(pickers.modelFiles, runModel) ?? ""}>
-          <input type="checkbox" checked={allowMismatch} onChange={(e) => setAllowMismatch(e.target.checked)} />
-          {MODEL_MISMATCH_LABEL}
-        </label>
-      )}
-      {err && <div className="h3-note h3-note-err">{err}</div>}
-      <div className="h3-row" style={{ justifyContent: "flex-end" }}>
-        <span className="h3-muted h3-small h3-grow">
-          {runLabel ? `${runLabel} · ` : ""}{f.model ? shortName(f.model, 40) : ""} · {noSteps ? "provider's steps" : `${f.steps} steps`} · seed {f.seedChoice === "new" ? "new" : f.seedChoice === "same" ? parentSeed : f.typedSeed || "?"}
+      <div className="h3-dialog-foot">
+        <span className="h3-chips h3-grow">
+          {runLabel && <span className="h3-sum">{runLabel}</span>}
+          {f.model && <span className="h3-sum" title={f.model}>{shortName(f.model, 32)}</span>}
+          <span className="h3-sum">{noSteps ? "provider's steps" : `${f.steps} steps`}</span>
+          <span className="h3-sum">{seedText}</span>
+          {sizeShown && <span className="h3-sum">{sizeShown}</span>}
         </span>
-        <button className="h3-btn" onClick={closeRedo}>Cancel</button>
-        <button className="h3-btn h3-primary" disabled={busy} onClick={() => void submit()}>
-          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-refresh"} /> Queue new {f.pass} take
+        <button className="h3-btn h3-big" onClick={closeRedo}>Cancel</button>
+        <button className="h3-btn h3-primary h3-big" disabled={busy} onClick={() => void submit()}>
+          <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-play"} /> Generate {f.pass} take
         </button>
       </div>
     </>

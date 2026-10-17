@@ -6,12 +6,12 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, copyText, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
 import {
-  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, DURATIONS, SIZES, cameraLine, insertAfter, listOf, newShot,
+  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, newShot,
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
 import { conflictOf } from "../lib/sourceSession";
@@ -20,6 +20,7 @@ import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { LengthPicker } from "./LengthPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
@@ -189,11 +190,17 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const hosted = !!renderT && isHosted(renderT);
 
 
+  const after0 = isNew ? after : null;
   const head = (
     <>
-      <i className="pi pi-video" />
-      <span className="h3-grow">{isNew ? `New shot ${form?.id ?? ""}` : `Shot ${shot}`}{dirty ? " •" : ""}</span>
-      {!isNew && <button className="h3-btn h3-icon" title="Show this shot in the Script window" onClick={() => showInScript(shot!)}><i className="pi pi-file-edit" /></button>}
+      <div className="h3-head-text">
+        <span className="h3-kicker">{isNew ? `New shot${after0 ? ` · after ${after0}` : ""}` : "Shot"}</span>
+        <div className="h3-row">
+          <span className="h3-win-title">{form?.id ?? shot ?? ""}</span>
+          {dirty && <span className="h3-small h3-muted">not saved</span>}
+        </div>
+      </div>
+      {!isNew && <button className="h3-btn" title="Show this shot in the Script window" onClick={() => showInScript(shot!)}><i className="pi pi-file-edit" /> Show in script</button>}
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (dirty && !window.confirm("Close without saving this shot?")) return;
         openShotForm(null);
@@ -203,96 +210,99 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={420} minH={320}>
-      <div className="sm-shotform" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)", gap: 12, padding: 10, height: "100%", overflow: "hidden" }}>
-        <div className="h3-col" style={{ gap: 9, overflow: "auto", paddingRight: 4 }}>
-          {error && <div className="h3-err">{error} <button className="h3-btn" onClick={() => void load()}>Reload</button></div>}
+      <div className="sm-shotform">
+        <div className="h3-col sm-shotform-main">
+          {error && <div className="h3-note h3-note-err">{error} <button className="h3-btn" onClick={() => void load()}>Reload</button></div>}
           {!form && !error && <div className="h3-muted">Loading…</div>}
           {form && (
             <>
-              <Row label="Shot" help={isNew ? "Its id: in the script's own numbering, between the shots around it." : "Its id stays: takes, the cut and notes name it."}>
-                <div className="h3-row h3-wrap">
-                  <input className="h3-in" style={{ width: 110 }} value={form.id} disabled={!isNew}
-                    onChange={(e) => setForm({ ...form, id: e.target.value.trim() })} />
-                  {isNew && (
-                    <select className="h3-in" value={seq} onChange={(e) => setSeq(e.target.value)} title="The sequence it goes in">
-                      {seqs.map((s) => <option key={s.id} value={s.id}>{s.id}{s.location ? ` · ${s.location}` : ""}</option>)}
-                      <option value="+">+ a new sequence</option>
-                    </select>
-                  )}
-                  {isNew && seq === "+" && (
-                    <>
-                      <input className="h3-in" style={{ width: 80 }} placeholder={`sq${String(seqs.length + 1).padStart(2, "0")}`}
-                        value={newSeq.id} onChange={(e) => setNewSeq({ ...newSeq, id: e.target.value.trim() })} />
-                      <PlacePick ep={ep} value={newSeq.location} places={cast.places} empty="its location…"
-                        onChange={(v) => setNewSeq({ ...newSeq, location: v })} />
-                      <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Location</button>
-                    </>
-                  )}
-                </div>
-              </Row>
-
-              <Row label="Who's in it" help="The characters on screen, in this order (on H3 they are the shot's pictures 1 to 3). Someone who only speaks off screen isn't here: give their line V.O. or O.S.">
-                <Chips ep={ep} value={listOf(form.keys.who)} options={cast.chars.filter((c) => c.onScreen)}
-                  onChange={(v) => set("who", v.join(", "))} add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Character" />
-              </Row>
-              <Row label="With" help="Props and vehicles whose exact look matters and recurs (each takes a picture slot). A generic mug is better in the action.">
-                <Chips ep={ep} value={listOf(form.keys.with)} options={cast.things}
-                  onChange={(v) => set("with", v.join(", "))} add={() => openSubjectCard({ kind: "prop", id: null })} addLabel="+ Prop" />
-              </Row>
-
-              <div className="h3-row h3-wrap" style={{ gap: 10, alignItems: "flex-start" }}>
-                <Row label="Size" help="How much of them the frame holds; the prompt opens with it.">
-                  <select className="h3-in" value={form.keys.size ?? ""} onChange={(e) => set("size", e.target.value)}>
-                    <option value="">—</option>
-                    {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    {form.keys.size && !SIZES.some((s) => s.value === form.keys.size) && <option value={form.keys.size}>{form.keys.size}</option>}
-                  </select>
-                </Row>
-                <Row label="Length" help="Seconds on H3's grid (other lengths round up and cost frames); auto fits the dialogue.">
-                  <div className="h3-row">
-                    <select className="h3-in" value={DURATIONS.some((d) => d.value === form.keys.dur) ? form.keys.dur : form.keys.dur ? "__other" : ""}
-                      onChange={(e) => set("dur", e.target.value === "__other" ? (form.keys.dur || "3") : e.target.value)}>
-                      <option value="">—</option>
-                      {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                      <option value="__other">other…</option>
-                    </select>
-                    {form.keys.dur && !DURATIONS.some((d) => d.value === form.keys.dur) && (
-                      <input className="h3-in" style={{ width: 80 }} value={form.keys.dur} onChange={(e) => set("dur", e.target.value)} />
-                    )}
+              {isNew && (
+                <div className="h3-card">
+                  <div className="sm-form">
+                    <Tip label="Shot" help="Its id: in the script's own numbering, between the shots around it." />
+                    <div className="h3-row h3-wrap">
+                      <input className="h3-in" aria-label="Shot id" style={{ width: 110 }} value={form.id}
+                        onChange={(e) => setForm({ ...form, id: e.target.value.trim() })} />
+                      <select className="h3-in" aria-label="Sequence" value={seq} onChange={(e) => setSeq(e.target.value)} title="The sequence it goes in">
+                        {seqs.map((s) => <option key={s.id} value={s.id}>{s.id}{s.location ? ` · ${s.location}` : ""}</option>)}
+                        <option value="+">+ a new sequence</option>
+                      </select>
+                      {seq === "+" && (
+                        <>
+                          <input className="h3-in" aria-label="New sequence id" style={{ width: 80 }} placeholder={`sq${String(seqs.length + 1).padStart(2, "0")}`}
+                            value={newSeq.id} onChange={(e) => setNewSeq({ ...newSeq, id: e.target.value.trim() })} />
+                          <PlacePick ep={ep} value={newSeq.location} places={cast.places} empty="its location…"
+                            onChange={(v) => setNewSeq({ ...newSeq, location: v })} />
+                          <button className="h3-btn h3-add" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Location</button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </Row>
-                <Row label="Background" help="The location behind this shot. Empty: the sequence's location.">
+                </div>
+              )}
+
+              <div className="h3-card">
+                <div className="sm-form">
+                  <Tip label="Who" help="The characters on screen, in this order (on H3 they are the shot's pictures 1 to 3). Someone who only speaks off screen isn't here: give their line V.O. or O.S." />
+                  <Chips ep={ep} value={listOf(form.keys.who)} options={cast.chars.filter((c) => c.onScreen)}
+                    onChange={(v) => set("who", v.join(", "))} add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Character" />
+                  <Tip label="With" help="Props and vehicles whose exact look matters and recurs (each takes a picture slot). A generic mug is better in the action." />
+                  <Chips ep={ep} value={listOf(form.keys.with)} options={cast.things}
+                    onChange={(v) => set("with", v.join(", "))} add={() => openSubjectCard({ kind: "prop", id: null })} addLabel="+ Prop" />
+                  <Tip label="Where" help="The location behind this shot. Empty: the sequence's location." />
                   <PlacePick ep={ep} value={form.keys.plate ?? ""} places={cast.places} empty="the sequence's location"
                     onChange={(v) => set("plate", v)} />
-                </Row>
+                </div>
               </div>
 
-              <Row label="What happens" help="What is visibly happening, present tense, concrete and physical. This shot only: the model remembers nothing of the shot before, so say it fresh. Not how anyone feels.">
-                <textarea className="h3-in" rows={4} style={{ fontFamily: "inherit", resize: "vertical" }} value={form.action}
-                  placeholder="Ada steps out onto the wet porch and stops, looking at the mist on the lawn."
-                  onChange={(e) => setForm({ ...form, action: e.target.value })} />
-              </Row>
+              <div className="h3-card">
+                <div className="h3-row h3-wrap" style={{ gap: 14 }}>
+                  <span className="h3-row" style={{ gap: 6 }}>
+                    <Tip label="Framing" help="How much of them the frame holds; the prompt opens with it." htmlFor="sm-sf-framing" />
+                    <select id="sm-sf-framing" className="h3-in" value={form.keys.size ?? ""} onChange={(e) => set("size", e.target.value)}>
+                      <option value="">—</option>
+                      {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      {form.keys.size && !SIZES.some((s) => s.value === form.keys.size) && <option value={form.keys.size}>{form.keys.size}</option>}
+                    </select>
+                  </span>
+                  <span className="h3-row" style={{ gap: 6 }}>
+                    <Tip label="Length" help="Seconds on H3's grid (other lengths round up onto the model's own; the preview says what renders); auto fits the dialogue." />
+                    <LengthPicker value={form.keys.dur ?? ""} onChange={(v) => set("dur", v)} empty="—" auto model />
+                  </span>
+                </div>
+                <div className="h3-col" style={{ gap: 4 }}>
+                  <span className="h3-card-title" title="What is visibly happening, present tense, concrete and physical. This shot only: the model remembers nothing of the shot before, so say it fresh. Not how anyone feels.">
+                    What happens <i className="pi pi-info-circle sm-tip-i" />
+                  </span>
+                  <textarea className="h3-in sm-prompt" aria-label="What happens" rows={4} value={form.action}
+                    placeholder="Ada steps out onto the wet porch and stops, looking at the mist on the lawn."
+                    onChange={(e) => setForm({ ...form, action: e.target.value })} />
+                </div>
+              </div>
 
-              <Row label="Dialogue" help="Each line as spoken, under the speaker. A note (breathless, flat) is how it's said, never spoken. V.O. is a voice not in the scene (narration, a phone); O.S. is someone in the space, out of frame.">
+              <div className="h3-card">
+                <span className="h3-card-title" title="Each line as spoken, under the speaker. A note (breathless, flat) is how it's said, never spoken. V.O. is a voice not in the scene (narration, a phone); O.S. is someone in the space, out of frame.">
+                  Dialogue <i className="pi pi-info-circle sm-tip-i" />
+                </span>
                 <DialogueRows rows={form.dialogue} speakers={cast.chars} onChange={setDialogue} />
-              </Row>
+              </div>
 
-              <Row label="Camera" help="The move only, in H3's words: a motion, then how far and how fast. Empty: it holds still.">
-                <CameraField value={form.keys.camera ?? ""} onChange={(v) => set("camera", v)} />
-              </Row>
-              <Row label="Sound" help="Ambience and the sounds of the action: footsteps, doors, wind. Not dialogue, not music.">
-                <input className="h3-in" value={form.keys.sound ?? ""} placeholder="dawn birdsong, dripping water, a faint breeze" onChange={(e) => set("sound", e.target.value)} />
-              </Row>
-              <Row label="Extras" help="Other people in frame, described (they're invented fresh each shot; for the same people every shot, make a group).">
-                <input className="h3-in" value={form.keys.extras ?? ""} placeholder="two nurses chatting at the far end of the corridor" onChange={(e) => set("extras", e.target.value)} />
-              </Row>
-              <Row label="On-screen text" help="Words the picture must show: a sign, a note, a screen. Never titles or credits.">
-                <input className="h3-in" value={form.keys.text ?? ""} placeholder="OPEN 24 HOURS" onChange={(e) => set("text", e.target.value)} />
-              </Row>
+              <div className="h3-card">
+                <div className="sm-form">
+                  <Tip label="Camera" help="The move only, in H3's words: a motion, then how far and how fast (build one from the three lists). Empty: it holds still." />
+                  <CameraField value={form.keys.camera ?? ""} onChange={(v) => set("camera", v)} />
+                  <Tip label="Sound" help="Ambience and the sounds of the action: footsteps, doors, wind. Not dialogue, not music." htmlFor="sm-sf-sound" />
+                  <input id="sm-sf-sound" className="h3-in" value={form.keys.sound ?? ""} placeholder="dawn birdsong, dripping water, a faint breeze" onChange={(e) => set("sound", e.target.value)} />
+                  <Tip label="Extras" help="Other people in frame, described (they're invented fresh each shot; for the same people every shot, make a group)." htmlFor="sm-sf-extras" />
+                  <input id="sm-sf-extras" className="h3-in" value={form.keys.extras ?? ""} placeholder="two nurses chatting at the far end of the corridor" onChange={(e) => set("extras", e.target.value)} />
+                  <Tip label="On-screen text" help="Words the picture must show: a sign, a note, a screen. Never titles or credits." htmlFor="sm-sf-text" />
+                  <input id="sm-sf-text" className="h3-in" value={form.keys.text ?? ""} placeholder="OPEN 24 HOURS" onChange={(e) => set("text", e.target.value)} />
+                </div>
+              </div>
 
               <MoreToggle open={more} onToggle={setMore} label="More: music, the model, keyframes, continuity, audio, render settings" />
               {more && (
-                <div className="h3-col" style={{ gap: 8 }}>
+                <div className="h3-card" style={{ gap: 8 }}>
                   <Row label="Music" help="Audience-only score; usually left out and decided in the edit.">
                     <input className="h3-in" value={form.keys.music ?? ""} onChange={(e) => set("music", e.target.value)} />
                   </Row>
@@ -350,18 +360,22 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
             </>
           )}
         </div>
-        <Preview p={preview} pass={pass} show={showPrompt} setShow={setShowPrompt} />
+        <div className="h3-col sm-shotform-side">
+          <Preview p={preview} pass={pass} show={showPrompt} setShow={setShowPrompt} />
+        </div>
       </div>
-      <div className="h3-row" style={{ padding: "6px 10px", borderTop: "1px solid var(--h3-border)" }}>
-        <span className="h3-small h3-muted h3-grow">{dirty ? "Unsaved changes" : "Saved"}</span>
-        <button className="h3-btn" disabled={!dirty || busy} onClick={() => void load()}>Revert</button>
-        <button className="h3-btn" disabled={!form || busy || (!dirty && !isNew)} onClick={() => void save(false)}
+      <div className="h3-dialog-foot">
+        <span className="h3-small h3-muted h3-grow">
+          {dirty || isNew ? "Not saved yet: Save writes only this shot's lines into the script and rebuilds." : "Saved"}
+        </span>
+        <button className="h3-btn h3-big" disabled={!dirty || busy} onClick={() => void load()}>Revert</button>
+        <button className="h3-btn h3-big" disabled={!form || busy || (!dirty && !isNew)} onClick={() => void save(false)}
           title="Write this shot into the script and rebuild">
-          {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-save" />} Save
+          {busy && <i className="pi pi-spin pi-spinner" />} Save
         </button>
-        <button className="h3-btn h3-primary" disabled={!form || busy || preview?.ok === false} onClick={() => void save(true)}
+        <button className="h3-btn h3-primary h3-big" disabled={!form || busy || preview?.ok === false} onClick={() => void save(true)}
           title={`Save, then render a new ${pass} take of it`}>
-          <i className="pi pi-play" /> Save and render {pass}
+          <i className="pi pi-play" /> Save and generate {pass}
         </button>
       </div>
     </FloatingWindow>
@@ -375,6 +389,15 @@ export function Row({ label, help, children }: { label: string; help: string; ch
       {children}
       <span className="h3-small h3-muted">{help}</span>
     </div>
+  );
+}
+
+/** A field's label, its help on hover (the shot form keeps its fields to one line each). */
+function Tip({ label, help, htmlFor }: { label: string; help: string; htmlFor?: string }) {
+  return (
+    <label className="sm-tip" title={help} htmlFor={htmlFor}>
+      {label} <i className="pi pi-info-circle sm-tip-i" />
+    </label>
   );
 }
 
@@ -521,43 +544,55 @@ export function CameraField({ value, onChange }: { value: string; onChange: (v: 
 }
 
 function Preview({ p, pass, show, setShow }: { p: ShotPreview | null; pass: string; show: boolean; setShow: (b: boolean) => void }) {
-  if (!p) return <div className="h3-muted h3-small">The preview appears as you fill it in.</div>;
+  if (!p) return <div className="h3-card"><span className="h3-muted h3-small">What renders appears as you fill it in.</span></div>;
   if (!p.ok) {
     return (
-      <div className="h3-col" style={{ gap: 6 }}>
-        <div className="h3-h">Won't build yet</div>
-        <div className="h3-err">{p.error}</div>
+      <div className="h3-card">
+        <span className="h3-card-title">Won't build yet</span>
+        <div className="h3-note h3-note-err h3-small">{p.error}</div>
       </div>
     );
   }
   const pc = p.pacing;
   const pct = pc ? Math.min(100, Math.round((pc.rate / pc.ceiling) * 100)) : 0;
+  const tone = pc ? (pc.verdict === "ok" ? "var(--h3-ok)" : pc.verdict === "tight" ? "var(--h3-queued)" : "var(--h3-error)") : "";
   return (
-    <div className="h3-col" style={{ gap: 8, overflow: "auto" }}>
-      <div className="h3-h">What renders ({pass})</div>
-      <div className="h3-small">
-        <b>{p.target_label}</b> · {p.width}×{p.height} · {p.frames} frames ({p.seconds} s) · audio {p.audio_policy ?? "—"}
-      </div>
-      {pc && (
-        <div className="h3-col" style={{ gap: 2 }}>
-          <div className="h3-small">
-            Dialogue: {pc.syllables} syllables in {pc.held.toFixed(2)} s = <b>{pc.rate.toFixed(1)}</b>/s
-            {" "}({pc.pace} is {pc.pace_rate}/s) — <span className={pc.verdict === "ok" ? "h3-ok" : pc.verdict === "tight" ? "h3-warn" : "h3-err"}>{pc.verdict.toLowerCase()}</span>
-          </div>
-          <div style={{ height: 6, background: "var(--h3-border)", borderRadius: 3 }}>
-            <div style={{ width: `${pct}%`, height: 6, borderRadius: 3, background: pc.verdict === "ok" ? "var(--h3-ok)" : pc.verdict === "tight" ? "var(--h3-queued)" : "var(--h3-error)" }} />
-          </div>
-          {pc.verdict !== "ok" && <span className="h3-small h3-muted">It needs {pc.fits.toFixed(2)} s at this pace: lengthen it (or auto), cut words, or split the shot.</span>}
+    <>
+      <div className="h3-card">
+        <div className="h3-card-head">
+          <span className="h3-card-title h3-grow">What renders</span>
+          <span className="h3-small h3-muted">{pass}</span>
         </div>
-      )}
-      {(p.warnings ?? []).map((w, i) => <div key={i} className="h3-small h3-warn">! {w}</div>)}
-      <div className="h3-row">
-        <span className="h3-h h3-grow">What the model is told</span>
-        <button className="h3-link" onClick={() => setShow(!show)}>{show ? "hide" : "show"}</button>
+        <div className="h3-chips">
+          <span className="h3-sum">{p.target_label}</span>
+          <span className="h3-sum">{p.width}×{p.height}</span>
+          <span className="h3-sum">{p.seconds} s · {p.frames} frames</span>
+          <span className="h3-sum">audio: {p.audio_policy ?? "—"}</span>
+        </div>
+        {pc && (
+          <div className="h3-col" style={{ gap: 3 }}>
+            <div className="h3-row h3-small">
+              <span className="h3-grow">Dialogue pace · {pc.syllables} syllables in {pc.held.toFixed(2)} s</span>
+              <b style={{ color: tone }}>{pc.verdict === "ok" ? "fits" : pc.verdict.toLowerCase()}</b>
+            </div>
+            <div className="h3-meter"><span style={{ width: `${pct}%`, background: tone }} /></div>
+            <span className="h3-small h3-muted">
+              {pc.rate.toFixed(1)} syllables a second; {pc.pace} pace is {pc.pace_rate}
+              {pc.verdict !== "ok" ? `. It needs ${pc.fits.toFixed(2)} s at this pace: lengthen it (or auto), cut words, or split the shot.` : ""}
+            </span>
+          </div>
+        )}
+        {(p.warnings ?? []).map((w, i) => <div key={i} className="h3-note h3-small">{w}</div>)}
       </div>
-      {show && (
-        <pre className="h3-small" style={{ whiteSpace: "pre-wrap", margin: 0, padding: 8, background: "var(--h3-bg-2, rgba(127,127,127,0.08))", borderRadius: 4 }}>{p.prompt}</pre>
-      )}
-    </div>
+      <div className="h3-card sm-told">
+        <div className="h3-card-head">
+          <span className="h3-card-title h3-grow">What the model is told</span>
+          <button className="h3-link h3-small" onClick={() => void copyText(p.prompt ?? "", "Prompt")}>copy</button>
+          <span className="h3-muted">·</span>
+          <button className="h3-link h3-small" onClick={() => setShow(!show)}>{show ? "hide" : "show"}</button>
+        </div>
+        {show && <div className="sm-told-text">{p.prompt}</div>}
+      </div>
+    </>
   );
 }

@@ -29,14 +29,14 @@ you to write into:
    or set up a cloud backend ([SETUP.md](SETUP.md)).
 2. **Run `seriesmith serve`** (`--root C:\Shows` names your project folders) and open
    http://127.0.0.1:8190. It starts comfy-api-proxy in front of your ComfyUI if it isn't
-   running. `run_seriesmith.bat` does the same (`run_seriesmith_ext.bat` opens it to your
-   network). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
+   running. `run_seriesmith.bat` does the same and opens the page in your browser
+   (`run_seriesmith_ext.bat` opens it to your network too). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop
    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.
-3. **Open Shots → the folder button** (beside the episode drop-down) and add the folder
-   that *contains* your episode folders (the root), then pick the episode from the
-   drop-down.
+3. **Open Shots → the episode's name at the top → Browse and add new…** and add the
+   folder that *contains* your episode folders (the root), then pick the episode from the
+   same dropdown.
 4. **No episode yet? New episode…** in that same window writes the two files for you — see
    below. Otherwise write them yourself: `Shows\ep01\series.json` and `Shows\ep01\ep01.md`
    ([AUTHORING.md](AUTHORING.md) opens with a complete pair to copy).
@@ -60,55 +60,89 @@ below).
 setting up a series: the sidebar becomes one **Make** panel and the Refs tab, the
 settings and the text windows wait in Advanced. It is remembered in this browser.
 
+- **Project**, the panel's title: its name is a dropdown of Simple's projects (a series'
+  episodes open in Advanced), cut off at the edge when it's long. Its last choice, **Browse
+  and add new…**, opens **Project folders**, where **New series/project…** makes one, a folder of
+  its own (`<Name>/<name>/` in the folder you are in), so its clips, people and places stay
+  together. An episode of a series opened from there switches to Advanced.
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
-- **Model**: the video model, with a line on what each is good at (H3 by default); for a
-  picture, the image model (Krea 2 by default; an edit model draws the people and the place
-  from their pictures, a text-to-image one from their words).
-- **What happens**: the prompt, as you'd describe the shot to a camera crew.
-- **Who's in it**: pick people by their picture, or **+ Someone**: a name, a description
-  and, if you have one, a picture of them (it is taken in and used as it is; without one
-  it is made from the description).
-- **Where**: pick a place by its picture, **+ Place**, or just say it in words (empty: the
-  prompt is the place). A place said in words gets a picture of its own.
-- **What's said**, **Framing**, **Length**, **Takes**, then **Queue**. A picture asks how
-  many pictures; several shots has a row per shot (what we see, framing, length), in order,
-  sharing the people and the place, each queued with that many takes.
+- **What happens?**: the prompt, as you'd describe the shot to a camera crew, and in the
+  same card:
+  - **Who**: pick people by their picture, or **+ Someone**: a name, a description and,
+    if you have one, a picture of them (it is taken in and used as it is; without one it
+    is made from the description).
+  - **Where**: pick a place by its picture, **+ Place**, or say a new one in words (empty:
+    the prompt is the place). **Make a picture of it first (so it looks the same each
+    time)** makes its picture before the clip renders, and the place is then there to pick
+    for the next clip; left off, each clip imagines it its own way.
+  - **Said** (a clip with people in it): the lines, under who says them.
+- The settings: **Model** (the video model, what each is good at in its tooltip, H3 by
+  default; for a picture, the image model, Krea 2 by default: an edit model draws the
+  people and the place from their pictures, a text-to-image one from their words),
+  **Framing**, **Length** and **Size**. Several shots has a row per shot instead (what we
+  see, framing, length), in order, sharing the people and the place.
+- **Generate** (**Generate N shots** for several) queues one take, or one picture; another
+  click, another.
+- **Length**: a box for seconds, and beside it **lengths**, the ones the shot form offers
+  (each with what it suits), to fill it from; `auto` fits the dialogue, and LTX-2 can
+  choose its own (`model`). The shot form and the new episode wizard ask the same way. Each model renders on its own frame grid, so under it is what the model picked
+  makes of it: rounded up (1.62 s is 4 s on Seedance), and past the model's longest, its
+  longest.
+- **Size** is the clip's picture size for the pass you're on (proxy or final): width ×
+  height in pixels, typed or filled from **sizes** beside them (H3's 1344×768, 480p, 720p,
+  1080p, their vertical sizes, square), starting at the project's. **Generate** renders at
+  what the boxes say, as the model takes it (H3 needs multiples of 32: 1280×720 is
+  1280×704): a clip at another size than the project's keeps it as its own size override,
+  the one Inspect shot shows and saves. **Save as the project's size** (there when the boxes
+  differ) makes it every later clip's. Under it, what another model picked for the clip
+  makes of it. The New take dialog and the inspector's override ask for a size the same
+  way, their boxes empty for the shot's own.
 
 Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
 the same queue, and the takes once they are made; **Your clips** lists them, newest
 first: a clip plays its newest take, several shots play cut together, a picture opens
-its pictures. Underneath it is an ordinary project, **Clips**
-(`Clips/clips/` in your first project folder): each clip is a shot of it, so everything
-in Advanced works on it too, and a clip can later go into a real series. **A series…**
+its pictures. Underneath each project is an ordinary episode, **Clips**
+(`Clips/clips/` in your first project folder) or one of your own: each clip is a shot of
+it, so everything in Advanced works on it too, and a clip can later go into a real series. **A series…**
 starts the series wizard.
 
 ## Shots
 
 ### The toolbar
 
-Along the Shots bar, after **Simple / Advanced**, left to right:
+The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
+series above it), its name a dropdown of every episode, whose last choice, **Browse and
+add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
+New series/project…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
+(after adding an episode folder outside the editor) and **Simple / Advanced**. The
+timeline keeps a small dropdown of its own, with the same choices.
+
+The **refresh** beside the head reads the episode again from disk and rescans the project
+folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 
 | Icon | What it does |
 |---|---|
-| file-edit | **Edit the episode's script** — opens the Script window |
 | **+ Shot** | **Add a shot** after the selected one, as a form (below) |
 | pencil | **Edit the selected shot** as a form |
+| sliders | **Inspect the selected shot** |
+| file-edit | **Edit the episode's script** — opens the Script window |
 | cog | **Series settings** — the series config as a form |
 | book | **Edit the series config** (`series.json`) as text |
 | volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one |
-| sliders | **Inspect the selected shot** |
 | play | **Play all** — the cut, played from its takes, no export needed |
 | film | **Open the timeline** |
 | speech bubble | **Issues** — the pass's notes (below), with how many are open |
 | images | **Open the Refs tab** |
-| refresh | **Refresh** — re-read the episode from disk |
 
-Under it: the **episode drop-down**, **Rescan the project roots** (after adding an episode
-folder outside the editor) and **Project folders** (browse, add or remove roots, open an
-episode). Then **Model:**, the episode's video model (below), and the row that works on
-the pass: **proxy / final** (which pass you are looking at and rendering), **Build** (runs
-`build` for both passes from the script and series config), **Render missing**, **Re-render
-stale** and, in proxy, **Finals from drafts**.
+Under it, the episode's card: **Model:**, the episode's video model (below), the row
+that works on the pass: **proxy / final** (which pass you are looking at and rendering),
+**Build** (runs `build` for both passes from the script and series config), **Re-render
+stale** and, in proxy, **Finals from drafts**; then **Generate missing**, and how far
+through the pass it is (done of total, failed, how long a shot takes, how long is left).
+
+Beside the filter, **List / Board** (remembered in this browser): the list has a row per
+shot, its takes under it; the board shows each sequence as a grid of its shots'
+pictures (hover scrubs one, click selects, double-click plays, right-click as a row).
 
 ### The episode's model
 
@@ -122,8 +156,9 @@ models…** at the foot of the list opens the Models window (below).
 
 ### New series, new episode
 
-In **Project folders** (the folder button beside the episode drop-down), browse to a
-folder and press **New series…** (a show of its own, in a folder made inside this one) or
+In **Project folders** (**Browse and add new…** in the episode dropdown), browse to a
+folder and press **New series/project…** (a show of its own, in a folder made inside this one; in
+Simple mode it asks only for a name and makes a Simple project) or
 **New episode…** (in this folder: the show's folder, not an episode's). Either opens a
 short wizard:
 
@@ -164,7 +199,7 @@ Two buttons beside Build ask for work in bulk:
 
 | Button | What it queues |
 |---|---|
-| **Render missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
+| **Generate missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
 | **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset or the target changed since it rendered |
 
 **Re-render stale** is the other half of the edit loop: change a line, rebuild, and the takes
@@ -263,14 +298,15 @@ Everything you do to a shot lives here:
 
 **+ Shot** in the Shots toolbar adds a shot after the selected one; the pencil (or
 **Edit shot…** in the context menu) opens the selected one. The form is the shot's lines
-in the script as fields:
+in the script as fields, in cards; each field's help is on its label (point at the ⓘ):
 
 - **Shot**: its id, in the script's own numbering (between sh010 and sh020 a new one is
   sh015), and for a new shot the sequence it goes in, or a new sequence with its location.
-- **Who's in it** and **With**: picked from the cast in the series config, in order; **+
-  Character** / **+ Prop** opens a new cast card.
-- **Size**, **Length** (the model's grid, or auto to fit the dialogue), **Background**
-  (another location than the sequence's).
+- **Who** and **With**: picked from the cast in the series config, in order; **+
+  Character** / **+ Prop** opens a new cast card. **Where**: another location than the
+  sequence's.
+- **Framing** (extreme close-up to extreme wide), **Length** (type the seconds or pick from
+  **lengths**: the model's grid, or auto to fit the dialogue).
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
@@ -278,9 +314,10 @@ sheet (a whole body doesn't read that small), a group's or a prop's whole pictur
 location's plate; initials until there is one. **add…** and the location buttons open the
 pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
-  it's said, the words), **Camera** (type it, or build it from H3's moves), **Sound**,
+  it's said, the words), **Camera** (type it, or build it from H3's moves: a move, its
+  amplitude and its speed), **Sound**,
   **Extras**, **On-screen text**.
-- **More** (the arrow): music; **Video model class** (another model for this shot, with
+- **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
   file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
   (**Continues**); first and last frames (the default, generate, import, none, or **a
@@ -293,21 +330,23 @@ pictures to pick from, and pointing at a name shows it larger.
 Beside the fields is what will render on the current pass, compiled as you type: the
 model, size and frames, the dialogue's pace against the shot's length (with how long it
 needs when it's tight), the build's warnings for this shot, and the prompt the model is
-told. **Save** writes only this shot's lines into the script (keeping its comments and
-any line the form doesn't know), with a history copy, and rebuilds. **Save and render**
-then queues a take on the current pass.
+told (**copy** takes it whole). **Save** writes only this shot's lines into the script
+(keeping its comments and any line the form doesn't know), with a history copy, and
+rebuilds. **Save and generate** then queues a take on the current pass.
 
 ### Editing a prompt
 
 **Inspect shot** is where a shot's prompt, seed, model, LoRAs and steps are edited, per
-pass: its **Video model class** first, then what that model loads (model file, LoRAs as a
-chain, steps), then the prompt and seed. Save, then render it — the Inspector has two
-buttons for that:
+pass. It is a column of cards: the take (its picture, the buttons below), **Model** (the
+shot's target), **Its pictures** (the refs its model reads), **In the cut** (trims, lock,
+sound) and **Render settings** (what that model loads — model file, LoRAs as a chain,
+steps — then the prompt and seed, with the built values folded under them). Save, then
+render it — the take's card has two buttons for that:
 
 | Button | What it does |
 |---|---|
-| **Queue (new seed)** | queues another take immediately: the saved override and a new seed, no dialog ("Render" when the shot has no take yet) |
-| **New take…** | opens the settings dialog first — model, LoRAs, steps, seed, target, note, keep the frames |
+| **Generate (new seed)** | queues another take immediately: the saved override and a new seed, no dialog (**Generate** when the shot has no take yet) |
+| **New take…** | opens the settings dialog first: what changes (from which take, the seed, a note, what to keep), the model, the output's size and pass, the prompt; its foot sums it up beside **Generate proxy take** (or final) |
 
 > **Don't edit while that shot is rendering.** A finishing render refreshes the panel and
 > your unsaved edit goes with it. Let the take finish (or cancel it) first.
@@ -395,7 +434,7 @@ seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show
 
 For a shot that is right but for a frame or two: retouch those PNGs and re-encode the
 sequence yourself. It costs ~2.5 s a shot and a few hundred MB a take, so it is per render
-rather than a setting — the one-click **Queue (new seed)** never keeps frames.
+rather than a setting — the one-click **Generate (new seed)** never keeps frames.
 
 A render is reproducible, so you can also fetch the frames of a take you already like:
 re-render it with **that take's seed** (New take… → seed *same*, or type it) and tick the box.
@@ -546,15 +585,32 @@ right. Every character view, prop, plate, voice and shot keyframe the series con
 script call for is listed here.
 
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
-  series config, on its card (as a group's **+** does); **Series** opens Series settings.
-- **Refs render with:**, **Keyframes with:** and **Voices with:** pick the models that make
-  each (a choice here is this episode's, kept in `overrides.json`, with the `series.json`
-  line to make it the series default); a ref with its own model keeps it.
-- **this episode / all / missing** filters the list.
+  series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
+  **+ Voice** does); **Series** opens Series settings.
+- **Made with** names the models that make refs, keyframes and voice samples; **Change**
+  opens their pickers: **Refs render with:**, **Keyframes with:** and **Voices with:** (a
+  choice here is this episode's, kept in `overrides.json`, with the `series.json` line to
+  make it the series default); a ref with its own model keeps it.
+- **this episode / all / missing** filters the list; **List / Board** (remembered in this
+  browser) shows the refs as rows that open to their candidates, or as a grid of their
+  pictures, each group ending in an add tile. A click on a picture opens that ref in the
+  list. A character shows its face (its face view's pick, else its three-quarter view's,
+  else the sheet's face panel; a one-picture character, `sheet_panels: 1`, its whole
+  picture), which tells the cast apart at a glance; the four-panel sheet is in its open
+  row, and double-click opens it. A character marked one picture whose picture is a
+  four-panel sheet says **sheet marked one picture**: renders send the whole strip, so set
+  its card's Picture layout back to the four-panel sheet. (A card that takes a picture
+  you have marks the character one picture only when the picture isn't a sheet's shape.)
+- A shared ref whose live file another episode picked (the series' `../refs/` layout) says
+  so when it's open, and lists that episode's candidates, read-only (each episode keeps its
+  own): **From ep01**, the live one first. Double-click one to see it whole.
 - **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
   character's stitched sheet, a prop, a plate — in the viewer.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
   one, for comparison.
+- **Click a candidate** to see what made it: its model, settings and prompt. **show all**
+  opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
+  on the clipboard, to run it somewhere else.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
@@ -691,7 +747,7 @@ prompt alone`.
 
 ## Importing a series
 
-**Import series…** (in **Project folders**, beside New series… and New episode…) brings a
+**Import series…** (in **Project folders**, beside New series/project… and New episode…) brings a
 whole season in at once:
 pick the scripts (`Files…`) or a folder of them (`Folder…`), with one series config for the
 lot or one per episode (a `series.json` beside a script, or named after it). Each script
@@ -739,7 +795,7 @@ where things are. What it would lose to a restart, it doesn't:
   is found again by its run's id and collected as if nothing happened ("(found again)" in
   Jobs): on your ComfyUI through comfy-api-proxy, on Comfy Cloud, a deployment or Router.
   A job still waiting in seriesmith's queue (your ComfyUI takes one at a time, so after a
-  big **Render missing** most are) had cost nothing: it is queued again by itself, in the
+  big **Generate missing** most are) had cost nothing: it is queued again by itself, in the
   order it was queued, keeping its take number, and nothing is left failed.
 - **A dropped connection.** A run's backend out of reach (the network, the proxy
   restarting, a 5xx) is asked again for up to 15 minutes before the run is given up on;
@@ -790,7 +846,7 @@ The cut as an editable track, along the bottom of the page.
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
 - **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
-  **2x** beside it assembles from the takes' upscales. **Add Titles** assembles the whole
+  **2x** beside it assembles from the takes' upscales. **Titles** assembles the whole
   cut and puts the series intro and outro around it with the episode's title
   (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into `<episode>/publish/`).
   **Play all** watches the cut straight from the takes without assembling anything.

@@ -149,7 +149,7 @@ export function OverrideFields(p: OverrideFieldsProps) {
         {p.size && (
           <>
             <label title="The size every take of this pass renders at. A master re-samples each take by its own size.">Size</label>
-            <SizePicker value={form.size} onChange={(size) => set({ size })} own={p.size.built} ownLabel={built} rule={p.size.rule} width={170} />
+            <SizePicker value={form.size} onChange={(size) => set({ size })} own={p.size.built} ownLabel={built} rule={p.size.rule} />
           </>
         )}
         {p.negative && (

@@ -116,6 +116,38 @@ class TestSheetView(SupplyCase):
         # the four views are untouched by a supplied sheet
         self.assertEqual([len(v["takes"]) for v in j["views"]], [0, 0, 0, 0])
 
+    def test_another_episode_lists_the_candidates_behind_a_shared_sheet(self):
+        """ep01 supplies ada's sheet into the show's shared refs/; ep02 reads the
+        same file, owned by ep01, and lists ep01's candidates for it (read-only:
+        each episode keeps its own _takes)."""
+        self.supply_sheet()
+        ep2 = S.new_episode(os.path.dirname(self.ep), "ep02")["ep"]
+        s2 = R.load_series(ep2)
+        ada2 = R.find_ref(s2, "subject:ada")
+        j = R.ref_json(s2, ada2)
+        self.assertEqual((j["live_owner"], j["takes"]), ("ep01", []))
+        self.assertNotIn("owner_takes", j)          # asked for when its row opens, not listed
+        (t,) = R.owner_takes(ep2, ada2, "ep01")
+        self.assertEqual((t["episode"], t["view"], t["take"], t["picked"]), ("ep01", R.SHEET_VIEW, 1, True))
+        self.assertEqual(t["image"], "../ep01/refs/_takes/subject__ada/subject__ada_sheet_t01.png")
+        self.assertEqual(R.owner_takes(ep2, ada2, "ep09"), [])            # no such sibling
+
+    def test_the_listing_says_how_many_panels_a_sheet_has(self):
+        self.assertEqual(R.ref_json(self.s, self.ada)["panels"], 4)
+        cfg = os.path.join(self.ep, "series.json")
+        with io.open(cfg, encoding="utf-8") as fh:
+            data = json.load(fh)
+        data["subjects"]["ada"]["sheet_panels"] = 1                      # one whole picture of her
+        with io.open(cfg, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        s = R.load_series(self.ep)
+        self.assertEqual(R.ref_json(s, R.find_ref(s, "subject:ada"))["panels"], 1)
+        self.assertNotIn("panels", R.ref_json(s, R.find_ref(s, "location:porch")))
+        # a four-panel strip marked one picture by mistake is said to be one
+        self.assertNotIn("panels_conflict", R.ref_json(s, R.find_ref(s, "subject:ada")))
+        png(R.find_ref(s, "subject:ada").file, size=(256, 64))
+        self.assertTrue(R.ref_json(s, R.find_ref(s, "subject:ada"))["panels_conflict"])
+
     def test_nothing_generates_a_sheet(self):
         with self.assertRaises(R.RefError) as cm:
             R.check_view(self.ada, R.SHEET_VIEW)

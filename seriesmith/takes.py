@@ -278,6 +278,14 @@ def file_sha1(path: str) -> str | None:
     hit = _SHA1_CACHE.get(key)
     if hit and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
         return hit[2]
+    # ...and between server runs (diskcache: the settings folder's cache/)
+    from seriesmith import diskcache as DC
+    kept = DC.store("sha1")
+    with DC.lock():
+        hit = kept.get(key)
+    if isinstance(hit, list) and len(hit) == 3 and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
+        _SHA1_CACHE[key] = (st.st_size, st.st_mtime_ns, hit[2])
+        return hit[2]
     try:
         h = hashlib.sha1()
         with open(path, "rb") as fh:
@@ -290,6 +298,9 @@ def file_sha1(path: str) -> str | None:
         if len(_SHA1_CACHE) >= _SHA1_CACHE_MAX:
             _SHA1_CACHE.clear()
         _SHA1_CACHE[key] = (st.st_size, st.st_mtime_ns, sha)
+        with DC.lock():
+            kept[key] = [st.st_size, st.st_mtime_ns, sha]
+        DC.touched("sha1")
     return sha
 
 

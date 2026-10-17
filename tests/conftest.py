@@ -15,9 +15,14 @@ os.environ["SERIESMITH_LOCAL_URL"] = _NOWHERE
 os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE
 os.environ["SERIESMITH_CLOUD_URL"] = _NOWHERE
 os.environ.pop("COMFY_API_KEY", None)
+# the caches kept between runs (seriesmith/diskcache.py) go to a scratch folder,
+# never beside the settings file above (tests/)
+import tempfile  # noqa: E402
+os.environ["SERIESMITH_CACHE_DIR"] = tempfile.mkdtemp(prefix="seriesmith-test-cache-")
 
 _PINNED = {k: os.environ[k] for k in ("SERIESMITH_SETTINGS", "SERIESMITH_LOCAL_URL",
-                                      "SERIESMITH_COMFYUI_URL", "SERIESMITH_CLOUD_URL")}
+                                      "SERIESMITH_COMFYUI_URL", "SERIESMITH_CLOUD_URL",
+                                      "SERIESMITH_CACHE_DIR")}
 
 try:
     import pytest

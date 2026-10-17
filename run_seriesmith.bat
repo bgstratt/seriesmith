@@ -24,12 +24,15 @@ echo  or Ctrl+C here.
 echo ==========================================================
 echo.
 
+REM the browser opens on the first start only, not after a Restart
+set "SM_OPEN=--auto-launch"
 :run
-"%SM%" serve --port %SM_PORT%
+"%SM%" serve --port %SM_PORT% %SM_OPEN%
 REM 3: the editor's Restart (or `seriesmith stop --restart`) - start it again
 if errorlevel 3 if not errorlevel 4 (
   echo.
   echo  seriesmith is restarting...
+  set "SM_OPEN="
   goto run
 )
 REM 0: stopped on purpose (the editor's Stop, `seriesmith stop`, Ctrl+C / Ctrl+Break)

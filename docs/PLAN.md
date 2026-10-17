@@ -464,6 +464,28 @@ multi-shot clip, or a series with episodes.
       `c007b`, ...), each shot queued, played cut together (Play all limited
       to those shots). Checked live (the lane paused): two Krea 2 pictures;
       two shots of two takes each.
+- [x] Projects (2026-10-16): **+ New project** makes a Simple project of its
+      own, a show folder (`<Name>/<name>/`, its pictures in `<Name>/refs/`),
+      so a piece of work keeps its clips, people and places together; the
+      picker lists Simple's projects only (`"simple": true`, or Clips), so a
+      clip never lands in a series' script. One take by default.
+- [x] Length: a box for seconds, always on screen, filled from a menu of the
+      shot form's lengths (what each suits), auto and model among them
+      (LengthPicker: the shot form's and the wizard's too, whose "other…"
+      never opened its box), with what the picked model renders shown:
+      rounded up onto its frame grid, capped at its longest.
+- [x] Size: the project's width × height for the pass on, typed or filled
+      from a menu of common sizes (H3's, 480p / 720p / 1080p, vertical,
+      square), written as the project's model takes it, with what the clip's
+      model renders shown. (A size per clip would need a script key.) The New
+      take dialog and the inspector's override ask the same way (SizePicker).
+- [x] A look of its own (2026-10-16): warm paper, light and dark (the
+      standalone page's palette; inside ComfyUI, its theme), DM Sans with
+      Newsreader for titles, cards, rounder controls and windows. Simple mode
+      as the mockups chose: the project as the panel's title (a dropdown over
+      its name, cut off rather than wrapped), who and where inside the What
+      happens card, a settings card, one Generate button (one take a click:
+      no Takes), the clips as a thumbnail grid.
 
 ## Step 13 — a character (or a place) from a frame ✅
 
@@ -547,6 +569,66 @@ camera words, and the box says which words it follows.
 - [x] Jobs say where Router has a take (waiting, its place in line, running); a cost the
       provider reports is recorded in its own units. `seriesmith stop [--restart]` and
       Settings' Stop / Restart for the standalone server.
+
+## The editor: its look, and loading fast (2026-10-16)
+
+The look Simple mode set (step 12) carried into Advanced, and an episode of a
+big show (Porchlights: 13 episodes on one `../refs`, ~280 shots, ~480 refs
+each) made quick to open.
+
+- [x] One head for the sidebars (ProjectHead): what is open as the panel's
+      title, its series above it, a dropdown over its name whose last choice
+      is **Browse and add new…** (Project folders: New series/project…, New
+      episode…, Import series…). Shots and Refs tabs; the timeline keeps its
+      small dropdown. The sidebar runs full height on the standalone page, as
+      in ComfyUI, the timeline under the viewer.
+- [x] Shots: the toolbar in groups, the episode's work in one card (model,
+      pass, Build, Re-render stale, a wide Generate missing, progress), and
+      **List / Board** (remembered): the board each sequence's shots as
+      pictures, each with its length, status and the first sentence of what
+      happens (`action` in the episode status, from the script).
+- [x] Refs: the models folded to a "Made with" line; each group's add button
+      labelled (+ Character, + Prop, + Place, + Voice); **List / Board**, the
+      board's head a ring of how many are made and chips for one group, each
+      group ending in an add tile. A character shows its face (its face
+      view's pick, else three-quarter, else the sheet's face panel); a
+      one-picture character (`sheet_panels: 1`) its whole picture, and one
+      marked so whose picture is a strip of panels says so (`panels_conflict`:
+      renders send the whole strip; the card no longer marks a supplied sheet
+      one picture).
+- [x] A shared ref whose live file another episode picked lists that
+      episode's candidates, read-only, when its row opens (**From ep01**,
+      `GET /seriesmith/refs/owner-takes`).
+- [x] Readiness asks for the nodes a job sends (seriesmith's loader, saver
+      and chain nodes; an image or voice workflow's own SaveImage / SaveAudio),
+      not h3pipe's, which no render needs; H3 Ref2VA's workflow is on
+      seriesmith's nodes.
+- [x] Loading, measured on Porchlights (refs: 12-23 s the first time, 3-10 s
+      after; now ~1 s the first time after a restart, 0.5-0.8 s after):
+  - [x] targets.one_load(): a load works each target answer out once (a
+        listing had built the image model list 3,185 times); the series
+        config and the refs list too.
+  - [x] A folder resolved once, not each of a show's ~57,000 files (on
+        Windows a realpath is a system call: 9.5 of 11.7 s cold).
+  - [x] diskcache: file sha1s and each sibling's live files kept in the
+        settings folder's cache/ between runs, by the files' own stamps.
+  - [x] Thumbnails (`GET /seriesmith/thumb`): the Refs tab drew full-size
+        pictures (722 MB for one episode); now JPEGs made once (1.15 MB), on
+        two threads of their own, asked for only when near the screen.
+  - [x] Replies over 64 KB gzipped (the refs listing: 2.8 MB, 0.12 MB sent).
+  - [x] The refs listed before the sweep (on a thread after the reply), and
+        asked for as soon as an episode's shots are in.
+- [x] The rest of Advanced in this look (2026-10-17): the inspector and New
+      take as cards (Generate, Generate proxy take), Settings with a dot for
+      what answers, Jobs a card per lane with a picture per job, the open ref
+      row a card, every two- or three-way choice a sliding toggle, the
+      timeline's toolbar grouped and its badges soft chips. The clips stay
+      square and the sound stays waveforms.
+- [x] A size per clip in Simple mode (2026-10-17): Generate renders at the
+      boxes; a clip at another size than the project's keeps it as its size
+      override (as Inspect shot saves one); Save as the project's size makes
+      it the default. The editor inside ComfyUI looked at: fine. The timeline's
+      drawing: not a concern (it draws after the shots and renders).
 
 ## Step 15 — models behind other APIs (next)
 

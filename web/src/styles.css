@@ -22,6 +22,17 @@
   --h3-target: #1fa5a0;
   --h3-flag: #ec4899;
   --h3-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  /* seriesmith's own (the standalone page sets them; inside ComfyUI, its theme's) */
+  --h3-serif: var(--sm-serif, inherit);
+  --h3-card: var(--sm-card, var(--h3-bg2));
+  --h3-card-border: var(--sm-card-border, var(--h3-border));
+  --h3-shadow: var(--sm-shadow, none);
+  --h3-field: var(--sm-field, var(--h3-bg2));
+  --h3-chip: var(--sm-chip, color-mix(in srgb, var(--h3-accent) 18%, transparent));
+  --h3-chip-fg: var(--sm-chip-fg, var(--h3-fg));
+  --h3-primary: var(--sm-primary, var(--h3-accent));
+  --h3-primary-fg: var(--sm-primary-fg, var(--h3-accent-fg));
+  --h3-radius: 6px;
 
   color: var(--h3-fg);
   font-size: 12px;
@@ -51,7 +62,7 @@
 .h3-small { font-size: 11px; }
 .h3-err { color: var(--h3-error); white-space: pre-wrap; word-break: break-word; }
 .h3-sep { border-top: 1px solid var(--h3-border); }
-.h3-title { font-weight: 600; font-size: 13px; }
+.h3-title { font-family: var(--h3-serif); font-weight: 600; font-size: 15px; }
 .h3-h { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--h3-muted); }
 
 .h3-bar {
@@ -62,21 +73,21 @@
 /* controls */
 .h3-root button.h3-btn, .h3-root .h3-btn {
   font: inherit; color: var(--h3-fg); background: var(--h3-bg2);
-  border: 1px solid var(--h3-border); border-radius: 4px; padding: 2px 8px;
-  min-height: 22px; cursor: pointer; white-space: nowrap; display: inline-flex;
+  border: 1px solid var(--h3-border); border-radius: var(--h3-radius); padding: 2px 9px;
+  min-height: 24px; cursor: pointer; white-space: nowrap; display: inline-flex;
   align-items: center; gap: 4px;
 }
 .h3-root .h3-btn:hover:not(:disabled) { background: var(--h3-hover); }
 .h3-root .h3-btn:disabled { opacity: 0.5; cursor: default; }
-.h3-root .h3-btn.h3-primary { background: var(--h3-accent); border-color: var(--h3-accent); color: var(--h3-accent-fg); }
-.h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-accent); }
+.h3-root .h3-btn.h3-primary { background: var(--h3-primary); border-color: var(--h3-primary); color: var(--h3-primary-fg); font-weight: 600; }
+.h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-primary); }
 .h3-root .h3-btn.h3-danger { color: var(--h3-failed); }
 .h3-root .h3-btn.h3-icon { padding: 2px 5px; min-width: 22px; justify-content: center; }
 .h3-root .h3-btn.h3-on { border-color: var(--h3-accent); color: var(--h3-accent); }
-.h3-root .h3-btn.h3-primary.h3-on { color: var(--h3-accent-fg); }
+.h3-root .h3-btn.h3-primary.h3-on { color: var(--h3-primary-fg); }
 .h3-root .h3-link { background: none; border: 0; padding: 0; color: var(--h3-accent); cursor: pointer; font: inherit; }
 
-.h3-seg { display: inline-flex; border: 1px solid var(--h3-border); border-radius: 4px; overflow: hidden; flex: 0 0 auto; }
+.h3-seg { display: inline-flex; border: 1px solid var(--h3-border); border-radius: var(--h3-radius); overflow: hidden; flex: 0 0 auto; }
 .h3-seg button {
   font: inherit; background: var(--h3-bg2); color: var(--h3-muted); border: 0; padding: 2px 8px;
   min-height: 20px; cursor: pointer;
@@ -88,11 +99,11 @@
 .h3-seg.h3-seg-act button {
   color: var(--h3-fg); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
 }
-.h3-seg button.h3-on, .h3-seg button.h3-on:hover { background: var(--h3-accent); color: var(--h3-accent-fg); }
+.h3-seg button.h3-on, .h3-seg button.h3-on:hover { background: var(--h3-primary); color: var(--h3-primary-fg); }
 
 .h3-root input.h3-in, .h3-root select.h3-in, .h3-root textarea.h3-in {
   font: inherit; color: var(--h3-fg); background: var(--h3-bg2);
-  border: 1px solid var(--h3-border); border-radius: 4px; padding: 2px 6px; min-height: 22px;
+  border: 1px solid var(--h3-border); border-radius: var(--h3-radius); padding: 3px 7px; min-height: 24px;
   min-width: 0; max-width: 100%;
 }
 .h3-root input.h3-in:focus, .h3-root select.h3-in:focus, .h3-root textarea.h3-in:focus {
@@ -114,8 +125,9 @@
 /* badges and pills */
 .h3-badges { display: inline-flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
 .h3-badge {
-  display: inline-block; font-size: 10px; line-height: 14px; padding: 0 5px; border-radius: 7px;
-  border: 1px solid currentColor; white-space: nowrap; color: var(--h3-muted);
+  display: inline-block; font-size: 10.5px; line-height: 15px; padding: 0 7px; border-radius: 9px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent); white-space: nowrap; color: var(--h3-muted);
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .h3-b-stale { color: var(--h3-stale); }
 .h3-b-override { color: var(--h3-override); }
@@ -147,12 +159,11 @@
 /* thumbnails */
 .h3-thumb {
   position: relative; flex: 0 0 auto; background-color: #000; background-repeat: no-repeat;
-  background-size: cover; background-position: center; border-radius: 3px; overflow: hidden;
+  background-size: cover; background-position: center; border-radius: 6px; overflow: hidden;
   cursor: pointer;
 }
 .h3-thumb.h3-empty {
-  background: repeating-linear-gradient(45deg, var(--h3-bg2), var(--h3-bg2) 6px,
-    color-mix(in srgb, var(--h3-bg2) 70%, var(--h3-border)) 6px, color-mix(in srgb, var(--h3-bg2) 70%, var(--h3-border)) 12px);
+  background: var(--h3-bg3);
   display: flex; align-items: center; justify-content: center; color: var(--h3-muted); font-size: 10px;
 }
 .h3-thumb.h3-sel { outline: 2px solid var(--h3-accent); outline-offset: -2px; }
@@ -164,11 +175,12 @@
 /* shot bin */
 .h3-seq { border-bottom: 1px solid var(--h3-border); }
 .h3-seq-head {
-  display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; user-select: none;
-  position: sticky; top: 0; z-index: 1; background: var(--h3-bg3);
+  display: flex; align-items: baseline; gap: 8px; padding: 8px 12px 6px; cursor: pointer; user-select: none;
+  position: sticky; top: 0; z-index: 1; background: var(--h3-bg); border-bottom: 1px solid var(--h3-border);
 }
+.h3-seq-head > b { font-family: var(--h3-serif); font-size: 15px; }
 .h3-shot { border-top: 1px solid color-mix(in srgb, var(--h3-border) 50%, transparent); }
-.h3-shot-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px 3px 4px; cursor: pointer; min-width: 0; }
+.h3-shot-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; cursor: pointer; min-width: 0; }
 .h3-shot-row:hover { background: var(--h3-hover); }
 .h3-shot.h3-sel > .h3-shot-row { background: color-mix(in srgb, var(--h3-accent) 18%, transparent); }
 .h3-chev { width: 14px; flex: 0 0 14px; text-align: center; color: var(--h3-muted); cursor: pointer; font-size: 10px; }
@@ -220,7 +232,7 @@
 .h3-overlay > * { pointer-events: auto; }
 .h3-menu {
   position: fixed; min-width: 180px; background: var(--h3-bg); border: 1px solid var(--h3-border);
-  border-radius: 6px; padding: 4px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); z-index: 2100;
+  border-radius: 10px; padding: 4px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28); z-index: 2100;
 }
 .h3-menu-head { padding: 3px 8px 4px; color: var(--h3-muted); font-size: 11px; border-bottom: 1px solid var(--h3-border); margin-bottom: 3px; }
 .h3-menu button {
@@ -232,8 +244,8 @@
 .h3-menu i { width: 14px; color: var(--h3-muted); font-size: 12px; }
 
 .h3-window {
-  position: fixed; background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; overflow: hidden;
+  position: fixed; background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.32); display: flex; flex-direction: column; overflow: hidden;
   resize: both; min-width: 320px; min-height: 260px; max-width: 100vw; max-height: 100vh; z-index: 2050;
 }
 /* a docked window (the standalone page's viewer): fills its place in the page */
@@ -274,12 +286,12 @@
 
 .h3-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); z-index: 2200; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .h3-dialog {
-  background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.36);
   width: min(560px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden;
 }
-.h3-dialog-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--h3-border); }
-.h3-dialog-body { padding: 8px 10px; overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.h3-dialog-foot { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--h3-border); justify-content: flex-end; flex-wrap: wrap; }
+.h3-dialog-head { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--h3-border); }
+.h3-dialog-body { padding: 10px 14px; overflow: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.h3-dialog-foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--h3-border); justify-content: flex-end; flex-wrap: wrap; }
 .h3-pre {
   font-family: var(--h3-mono); font-size: 11px; white-space: pre-wrap; word-break: break-word;
   background: var(--h3-bg2); border: 1px solid var(--h3-border); border-radius: 4px; padding: 6px; margin: 0;
@@ -290,13 +302,13 @@
 .h3-diff del { background: color-mix(in srgb, var(--h3-failed) 30%, transparent); }
 .h3-note {
   border-left: 3px solid var(--h3-stale); background: color-mix(in srgb, var(--h3-stale) 12%, transparent);
-  padding: 4px 8px; border-radius: 3px;
+  padding: 7px 10px; border-radius: 10px;
 }
 .h3-note.h3-note-err { border-color: var(--h3-failed); background: color-mix(in srgb, var(--h3-failed) 12%, transparent); }
 .h3-note.h3-note-info { border-color: var(--h3-accent); background: color-mix(in srgb, var(--h3-accent) 10%, transparent); }
 
 .h3-toasts { position: fixed; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 2300; max-width: 360px; }
-.h3-toast { background: var(--h3-bg); border: 1px solid var(--h3-border); border-left: 4px solid var(--h3-accent); border-radius: 6px; padding: 6px 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); cursor: pointer; }
+.h3-toast { background: var(--h3-bg); border: 1px solid var(--h3-border); border-left: 4px solid var(--h3-accent); border-radius: 10px; padding: 6px 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); cursor: pointer; }
 .h3-toast.h3-t-error { border-left-color: var(--h3-failed); }
 .h3-toast.h3-t-success { border-left-color: var(--h3-ok); }
 .h3-toast.h3-t-warn { border-left-color: var(--h3-stale); }
@@ -417,7 +429,7 @@
 .h3-eptarget-btn b { min-width: 0; }
 .h3-pop {
   position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 50; background: var(--h3-bg);
-  border: 1px solid var(--h3-border); border-radius: 6px; padding: 4px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--h3-border); border-radius: 10px; padding: 4px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
   max-height: 70vh; overflow-y: auto;
 }
 .h3-pop-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; min-width: 0; }
@@ -684,3 +696,262 @@
 .h3-pick-row { width: 100%; background: none; border: 0; border-radius: 3px; padding: 2px 6px;
   color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .h3-pick-row:hover, .h3-pick-row:focus-visible { background: var(--h3-hover, rgba(255, 255, 255, 0.08)); outline: none; }
+
+/* Simple mode (SimplePanel): the project as the panel's title, cards, a big
+   Make button, the clips as a grid. Paper in the standalone page's palette. */
+.sm-simple { font-size: 13px; }
+.h3-root .sm-head {
+  display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; flex: 0 0 auto; min-width: 0;
+}
+.sm-head-main { flex: 1 1 auto; min-width: 0; }
+.sm-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+.sm-kicker { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--h3-muted); }
+/* the project's name, a dropdown over it: one line, cut off at the edge (no ellipsis) */
+.sm-project { position: relative; display: flex; align-items: center; gap: 6px; max-width: 100%; cursor: pointer; border-radius: var(--h3-radius); }
+.sm-project:focus-within { outline: 2px solid var(--h3-accent); outline-offset: 2px; }
+.sm-project-name {
+  font-family: var(--h3-serif); font-size: 22px; font-weight: 600; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: clip; min-width: 0;
+}
+.sm-caret { flex: none; font-size: 11px; color: var(--h3-muted); }
+.sm-project-select { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 14px; }
+
+.sm-body { display: flex; flex-direction: column; gap: 14px; padding: 0 14px 16px; overflow: auto; min-height: 0; flex: 1 1 auto; }
+.sm-modes { display: flex; gap: 16px; border-bottom: 1px solid var(--h3-border); flex-wrap: wrap; }
+.sm-modes button {
+  background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 4px 0 8px;
+  font: inherit; font-size: 13px; color: var(--h3-muted); cursor: pointer;
+}
+.sm-modes button:hover:not(:disabled) { color: var(--h3-fg); }
+.sm-modes button.sm-on { color: var(--h3-fg); font-weight: 600; border-bottom-color: var(--h3-accent); }
+.sm-modes button:disabled { opacity: .5; cursor: default; }
+
+.sm-card {
+  background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.sm-card-title { font-family: var(--h3-serif); font-size: 17px; font-weight: 600; }
+.sm-note { font-size: 11.5px; color: var(--h3-muted); line-height: 1.4; }
+.sm-label { font-size: 12px; color: var(--h3-muted); }
+.h3-root textarea.h3-in.sm-prompt {
+  font-family: inherit; font-size: 13.5px; line-height: 1.55; background: var(--h3-field); border-color: transparent;
+  border-radius: 10px; padding: 9px 10px; resize: vertical;
+}
+.sm-shot { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--h3-border); }
+.sm-shot-n { font-family: var(--h3-serif); font-size: 15px; min-width: 14px; }
+
+/* who and where: their own rows, inside the What happens card */
+.sm-cast {
+  display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px 8px; align-items: start;
+  border-top: 1px solid var(--h3-border); padding-top: 10px;
+}
+.sm-cast > .sm-label { padding-top: 5px; }
+.sm-simple .sm-chip { background: var(--h3-chip); color: var(--h3-chip-fg); border-color: transparent; border-radius: 14px; padding: 2px 8px 2px 2px; font-size: 12px; line-height: 22px; }
+.sm-check { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.35; cursor: pointer; }
+.sm-check input { margin-top: 2px !important; }
+
+.sm-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.sm-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sm-field.sm-wide { grid-column: 1 / -1; }
+.sm-field select.h3-in { width: 100%; }
+.sm-settings .h3-in { min-height: 28px; }
+
+.h3-root .h3-btn.sm-make { justify-content: center; padding: 11px; font-size: 15px; border-radius: 12px; min-height: 44px; }
+
+.sm-clips { display: flex; flex-direction: column; gap: 8px; }
+.sm-clips-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sm-clip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.sm-clip {
+  display: flex; flex-direction: column; gap: 2px; align-items: stretch; text-align: left; min-width: 0;
+  background: none; border: 0; padding: 0; font: inherit; color: var(--h3-fg); cursor: pointer;
+}
+.sm-clip-thumb {
+  aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: var(--h3-bg3);
+  display: flex; align-items: center; justify-content: center;
+}
+.sm-clip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sm-clip:hover .sm-clip-thumb, .sm-clip:focus-visible .sm-clip-thumb { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
+.sm-clip:focus-visible { outline: none; }
+.sm-clip-label { font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; }
+
+/* Advanced's Shots and Refs tabs, in Simple mode's style: a toolbar of grouped
+   buttons, the episode's work in a card, shots and refs as a list or a board */
+.h3-toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; flex: 0 0 auto; }
+.h3-group {
+  display: inline-flex; border: 1px solid var(--h3-border); border-radius: var(--h3-radius); overflow: hidden;
+  background: var(--h3-card); flex: 0 0 auto;
+}
+.h3-root .h3-group > .h3-btn { border: 0; border-radius: 0; background: transparent; min-height: 26px; }
+.h3-root .h3-group > .h3-btn + .h3-btn { border-left: 1px solid var(--h3-border); }
+.h3-root .h3-group > .h3-btn:hover:not(:disabled) { background: var(--h3-hover); }
+.h3-root .h3-group > .h3-btn.h3-on { color: var(--h3-accent); background: var(--h3-chip); }
+.h3-epcard {
+  background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; min-width: 0;
+}
+.h3-epcard > .h3-pad { padding: 0; }
+.h3-root .h3-btn.h3-wide-btn { justify-content: center; padding: 8px; border-radius: 10px; min-height: 36px; font-size: 13px; }
+.h3-meter { height: 5px; border-radius: 3px; background: var(--h3-bg3); overflow: hidden; }
+.h3-meter > span { display: block; height: 100%; background: var(--h3-primary); transition: width .3s; }
+.h3-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 10px 12px 14px; }
+.h3-tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; border-radius: 10px; }
+.h3-tile .h3-thumb { border-radius: 10px; }
+.h3-tile:hover .h3-thumb { outline: 2px solid var(--h3-border); outline-offset: 1px; }
+.h3-tile.h3-sel .h3-thumb { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
+.h3-tile-len, .h3-tile-n {
+  position: absolute; font-size: 10.5px; line-height: 16px; padding: 0 6px; border-radius: 6px; pointer-events: none;
+}
+.h3-tile-len { left: 6px; bottom: 6px; background: rgba(20, 18, 16, 0.75); color: #fff; }
+.h3-tile-n { right: 6px; top: 6px; background: var(--h3-card); color: var(--h3-fg); }
+.h3-board.h3-board-sm { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+/* a group's add button: labelled, so it reads as "add a new one", not "expand" */
+.h3-root .h3-btn.h3-add { color: var(--h3-accent); border-color: color-mix(in srgb, var(--h3-accent) 45%, var(--h3-border)); font-weight: 600; }
+.h3-add-tile {
+  aspect-ratio: 1; border: 1px dashed var(--h3-border); border-radius: 10px; background: transparent; cursor: pointer;
+  color: var(--h3-accent); font: inherit; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;
+}
+.h3-add-tile:hover { background: var(--h3-hover); border-color: var(--h3-accent); }
+.h3-tile .h3-refthumb { border-radius: 10px; background-color: var(--h3-bg3); }
+/* a shared ref's candidates, from the episode that picked its live file */
+.h3-owner-takes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.h3-owner-takes .h3-cand-img { background-size: contain; background-position: center; background-repeat: no-repeat; background-color: var(--h3-bg3); border-radius: 6px; }
+/* the shot board: what happens, two lines at most */
+.h3-tile-action {
+  font-size: 11.5px; line-height: 1.35; color: var(--h3-muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* the refs board's head: a ring of how many are made, chips for one group */
+.h3-board-head { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--h3-border); }
+.h3-ring { width: 44px; height: 44px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; }
+.h3-ring > span {
+  width: 34px; height: 34px; border-radius: 50%; background: var(--h3-bg); display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 600;
+}
+.h3-root .h3-chip {
+  font: inherit; font-size: 12px; border: 0; border-radius: 14px; padding: 3px 10px; cursor: pointer;
+  background: var(--h3-bg3); color: var(--h3-fg);
+}
+.h3-root .h3-chip:hover { background: var(--h3-hover); }
+.h3-root .h3-chip.h3-on { background: var(--h3-fg); color: var(--h3-bg); }
+.h3-root .h3-chip.h3-on .h3-muted { color: inherit; opacity: 0.7; }
+/* a candidate's whole prompt, to select or copy */
+.h3-root textarea.h3-in.h3-prompt-box { font-family: inherit; font-size: 12px; line-height: 1.45; resize: vertical; width: 100%; cursor: text; }
+
+/* The rest of Advanced in the same style: windows and dialogs on the paper, their
+   parts as cards (the inspector, New take, Settings, Jobs, an open ref). The
+   timeline's clips stay square and its sound stays waveforms. */
+.h3-card {
+  background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow);
+  padding: 11px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.h3-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.h3-card-title { font-family: var(--h3-serif); font-size: 15px; font-weight: 600; }
+.h3-card .h3-card-title + .h3-muted { font-size: 11.5px; }
+.h3-cards { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+.h3-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; align-items: start; }
+.h3-card-grid > .h3-card-wide { grid-column: 1 / -1; }
+.h3-kicker { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--h3-muted); }
+.h3-win-title { font-family: var(--h3-serif); font-size: 18px; font-weight: 600; line-height: 1.2; }
+.h3-head-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.h3-head-text > .h3-row { align-items: baseline; gap: 8px; }
+
+/* windows and dialogs: the paper behind the cards, a quiet head */
+.h3-window, .h3-dialog { border-radius: 14px; }
+.h3-window:not(.h3-docked) > .h3-window-head { background: transparent; padding: 9px 8px 9px 14px; }
+.h3-dialog-head { padding: 14px 18px 12px; gap: 12px; }
+.h3-dialog-head .h3-title { font-size: 20px; }
+.h3-dialog-body { padding: 14px 18px; gap: 12px; }
+.h3-dialog-foot { background: var(--h3-card); padding: 12px 18px; }
+.h3-dialog-thumb { width: 72px; height: 40px; border-radius: 8px; flex: none; background-size: cover; background-position: center; background-color: var(--h3-bg3); }
+.h3-root .h3-btn.h3-big { padding: 7px 16px; border-radius: 10px; min-height: 34px; font-size: 13px; }
+.h3-chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.h3-sum { font-size: 11.5px; background: var(--h3-bg3); border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
+
+/* a two- or three-way choice as a sliding toggle (the seed, the prompt's source, a pass) */
+.h3-root .h3-seg { border: 0; background: var(--h3-bg3); border-radius: 8px; padding: 2px; gap: 2px; }
+.h3-root .h3-seg button { background: transparent; border-radius: 6px; padding: 2px 9px; }
+.h3-root .h3-seg button + button { border-left: 0; }
+.h3-root .h3-seg button.h3-on, .h3-root .h3-seg button.h3-on:hover {
+  background: var(--h3-card); color: var(--h3-fg); font-weight: 600; box-shadow: 0 1px 2px #0000001a;
+}
+.h3-root .h3-seg.h3-seg-act { background: var(--h3-card); border: 1px solid var(--h3-border); padding: 0; gap: 0; }
+.h3-root .h3-seg.h3-seg-act button { border-radius: 0; padding: 2px 9px; }
+.h3-root .h3-seg.h3-seg-act button + button { border-left: 1px solid var(--h3-border); }
+
+/* the inspector */
+.h3-window.h3-inspector > .h3-scroll { padding: 0; }
+.h3-insp-take { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.h3-insp-take .h3-thumb { width: 96px; height: 54px; border-radius: 8px; }
+.h3-root .h3-btn.h3-gen { flex: 1 1 auto; justify-content: center; padding: 7px 12px; border-radius: 10px; min-height: 34px; font-size: 13px; }
+.h3-card .h3-refs-used { gap: 8px; }
+.h3-card .h3-ru .h3-thumb { border-radius: 8px; }
+
+/* Jobs: a card per lane, a row per job */
+.sm-jobs { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.sm-lane { background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow); overflow: hidden; }
+.sm-lane > header { position: static; background: transparent; border-bottom: 1px solid var(--h3-border); padding: 9px 12px; }
+.sm-lane > header > b { font-family: var(--h3-serif); font-size: 15px; }
+.sm-job { padding: 8px 12px; border-bottom: 1px solid color-mix(in srgb, var(--h3-border) 60%, transparent); }
+.sm-job:last-child { border-bottom: 0; }
+.sm-job-row { gap: 10px; }
+.sm-job-thumb {
+  width: 64px; height: 36px; border-radius: 6px; flex: none; background-color: var(--h3-bg3); background-size: cover;
+  background-position: center; display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--h3-muted);
+}
+.sm-job-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sm-job-main .sm-bar.wide { margin-top: 2px; height: 5px; background: var(--h3-bg3); }
+.sm-job-main .sm-bar.wide > span { background: var(--h3-primary); }
+.sm-job.sm-failed { background: color-mix(in srgb, var(--h3-failed) 7%, transparent); }
+.sm-job .h3-btn { background: transparent; border-color: transparent; }
+.sm-job .h3-btn.h3-again { border-color: var(--h3-border); background: var(--h3-card); }
+
+/* Settings: a card a part, a dot for whether it answers */
+.h3-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--h3-muted); }
+.h3-status.h3-s-ok { color: var(--h3-ok); }
+.h3-status.h3-s-failed { color: var(--h3-failed); }
+.h3-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.h3-form { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px 10px; align-items: center; }
+.h3-form > label { font-size: 12px; color: var(--h3-muted); }
+.h3-form > .h3-full { grid-column: 1 / -1; }
+
+/* an open ref: a card in the list, its views as cards */
+.h3-ref.h3-open { margin: 8px; border: 1px solid var(--h3-card-border); border-radius: 14px; background: var(--h3-card); box-shadow: var(--h3-shadow); overflow: hidden; }
+.h3-ref.h3-open + .h3-ref { border-top: 0; }
+.h3-ref.h3-open > .h3-ref-row { background: transparent; padding: 8px 10px; }
+.h3-ref.h3-open .h3-ref-detail { padding: 2px 12px 12px; gap: 10px; }
+.h3-ref.h3-open .h3-view-col { border: 1px solid var(--h3-card-border); border-radius: 10px; padding: 7px; gap: 5px; }
+.h3-ref.h3-open .h3-cand-img { border-radius: 8px; }
+.h3-ref.h3-open .h3-ref-sel, .h3-ref.h3-open .h3-genbar { background: var(--h3-field); border: 0; border-radius: 10px; padding: 9px 10px; }
+
+/* the timeline: the toolbar grouped like the Shots tab, a serif sequence label;
+   the clips stay square */
+.h3-timeline > .h3-bar { gap: 6px; padding: 6px 10px; }
+.h3-timeline .h3-tl-seq-label { font-family: var(--h3-serif); font-size: 12px; font-weight: 600; color: var(--h3-fg); }
+.h3-timeline .h3-tl-seq-label > span { font-family: var(--sm-sans, inherit); font-weight: 400; font-size: 10.5px; color: var(--h3-muted); margin-left: 6px; }
+.h3-timeline .h3-group > .h3-btn { min-height: 24px; }
+.h3-ref.h3-open > .h3-ref-row b { font-family: var(--h3-serif); font-size: 16px; }
+.h3-ref.h3-open .h3-genbar .h3-btn.h3-primary { padding: 5px 14px; border-radius: 10px; min-height: 30px; }
+.h3-dialog-foot > .h3-chips { flex: 1 1 0; }
+/* the episode picker kept small, so the toolbar is one row */
+.h3-timeline > .h3-bar select.h3-in { max-width: 170px !important; }
+/* the clip badges: soft chips, as in the Shots tab, readable on any picture */
+.h3-clip-top { --h3-muted: inherit; }
+.h3-clip-top .h3-badge { background: color-mix(in srgb, var(--h3-card) 90%, transparent); }
+
+/* the shot form: the fields as cards on the left, what renders on the right; each
+   field's help on hover (the ⓘ) so the form reads at a glance */
+.sm-shotform { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; padding: 12px; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.sm-shotform-main, .sm-shotform-side { gap: 10px; overflow: auto; min-height: 0; padding-right: 2px; }
+.sm-form { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 9px 10px; align-items: center; }
+.sm-tip { font-size: 12px; color: var(--h3-muted); cursor: help; white-space: nowrap; }
+.sm-tip-i { font-size: 10px; opacity: 0.6; }
+.h3-card-title .sm-tip-i { color: var(--h3-muted); cursor: help; }
+.sm-shotform .h3-in.sm-prompt { width: 100%; }
+.sm-told { flex: 1 1 auto; min-height: 120px; }
+.sm-told-text {
+  background: var(--h3-field); border-radius: 10px; padding: 10px; font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; overflow: auto; user-select: text; min-height: 0; flex: 1 1 auto;
+}
+@media (max-width: 760px) { .sm-shotform { grid-template-columns: minmax(0, 1fr); overflow: auto; } }
+.sm-form > .sm-tip { align-self: start; padding-top: 6px; }
+.sm-shotform .sm-chip { background: var(--h3-chip); color: var(--h3-chip-fg); border-color: transparent; border-radius: 14px; padding: 2px 8px 2px 2px; font-size: 12px; line-height: 22px; }

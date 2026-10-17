@@ -138,7 +138,8 @@ mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\co
 (`ln -s` on Linux/macOS.) Restart ComfyUI so it loads seriesmith's nodes, then
 `seriesmith serve` opens the editor at http://127.0.0.1:8190 and starts the proxy
 in front of your ComfyUI. On Windows, `run_seriesmith.bat` (this PC) or
-`run_seriesmith_ext.bat` (your home network too) does the same and starts it again
+`run_seriesmith_ext.bat` (your home network too) does the same, opens the editor in
+your browser, and starts it again
 after the editor's **Restart**; `seriesmith stop [--restart]` stops it from a
 terminal. With the seriesmith package installed in ComfyUI's own Python, the node
 pack also puts the editor inside ComfyUI (INSTALL.md, "The editor inside ComfyUI").

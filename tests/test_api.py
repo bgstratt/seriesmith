@@ -493,6 +493,52 @@ class ReadTest(ApiTest):
         self.ok(A.get_file(self.ctx, {"ep": ep, "path": "../audio/mix.wav"}))
         for bad in ("../secret.txt", "../ep02/renders/x.mp4", "../../secret.txt"):
             self.err(A.get_file(self.ctx, {"ep": ep, "path": bad}), 400)
+        # a sibling EPISODE's ref candidates are served (a shared ref's live file
+        # can be its pick: refs.owner_takes), and still nothing else of it
+        ep2 = os.path.join(show, "ep02")
+        shutil.copy(os.path.join(self.ep, "series.json"), ep2)
+        with open(os.path.join(ep2, "ep02.md"), "w", encoding="utf-8") as fh:
+            fh.write("= ep02  Two\n")
+        take = os.path.join(ep2, "refs", "_takes", "subject__ada", "subject__ada_sheet_t01.png")
+        os.makedirs(os.path.dirname(take))
+        with open(take, "w") as fh:
+            fh.write("x")
+        self.ok(A.get_file(self.ctx, {"ep": ep, "path": "../ep02/refs/_takes/subject__ada/subject__ada_sheet_t01.png"}))
+        for bad in ("../ep02/renders/x.mp4", "../ep02/series.json", "../ep02/refs/_picks.json"):
+            self.assertIn(A.get_file(self.ctx, {"ep": ep, "path": bad})[0], (400, 404))
+
+    def test_status_says_what_happens_in_each_shot(self):
+        """`action`: the first sentence of the shot's action, for the board."""
+        data, shots = self.status()
+        with_action = [s for s in data["shots"] if s.get("action")]
+        self.assertTrue(with_action)
+        for s in with_action:
+            self.assertLessEqual(len(s["action"]), E.ACTION_CHARS + 1)
+            self.assertNotIn("\n", s["action"])
+        self.assertEqual(E.script_actions(os.path.join(self.tmp, "nowhere")), {})
+
+    def test_thumb_is_a_small_jpeg_made_once(self):
+        """The Refs tab shows reference pictures at a few dozen pixels: /thumb
+        serves them small, made once into the settings folder and again when
+        the file changes; anything it can't shrink is served as it is."""
+        from PIL import Image
+        pic = os.path.join(self.ep, "refs", "big.png")
+        os.makedirs(os.path.dirname(pic), exist_ok=True)
+        Image.new("RGBA", (2048, 512), (200, 40, 40, 255)).save(pic)
+        code, d = A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})
+        self.assertEqual((code, d["content_type"]), (200, "image/jpeg"))
+        self.assertTrue(d["path"].startswith(os.path.join(self.ctx.user_dir, "default", "seriesmith", "thumbs")))
+        with Image.open(d["path"]) as im:
+            self.assertEqual(im.size, (256, 64))                    # 200 rounds up to 256
+        self.assertEqual(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})[1]["path"], d["path"])
+        Image.new("RGB", (1024, 1024), (0, 0, 0)).save(pic)          # changed: made again
+        self.assertNotEqual(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})[1]["path"], d["path"])
+        with open(os.path.join(self.ep, "refs", "notes.txt"), "w") as fh:
+            fh.write("x")
+        self.assertEqual(self.ok(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/notes.txt"}))["path"],
+                         os.path.join(self.ep, "refs", "notes.txt"))
+        self.err(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "big"}), 400)
+        self.err(A.get_thumb(self.ctx, {"ep": self.ep, "path": "../../secret.png"}), 400)
 
     def test_file_after_render(self):
         (q,) = self.render("sh010")["queued"]

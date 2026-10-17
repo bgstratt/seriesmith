@@ -12,7 +12,7 @@ import {
   DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardFields, getPath, parsed, refsPrefix, serialize, setPath, setSize,
   shapeNote, shown, sizeOf, slug, type Field, type Raw,
 } from "../lib/seriesForm";
-import { DURATIONS, SIZES, listOf, newShot, type ShotForm as Shot } from "../lib/shotForm";
+import { SIZES, listOf, newShot, type ShotForm as Shot } from "../lib/shotForm";
 import { pictureOf } from "../lib/pictures";
 import { sizeRule } from "../lib/size";
 import {
@@ -21,6 +21,7 @@ import {
 import { useApp } from "../store";
 import type { EpisodeTemplate } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { LengthPicker } from "./LengthPicker";
 import { FieldRow, SizeField } from "./SeriesForm";
 import { Hover, Thumb, type Named } from "./Picture";
 import { CameraField, Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
@@ -331,9 +332,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
                 </select>
               </Row>
               <Row label="Length" help="Seconds on H3's grid; auto fits the dialogue.">
-                <select className="h3-in" value={shot.keys.dur ?? ""} onChange={(e) => setKey("dur", e.target.value)}>
-                  {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
+                <LengthPicker value={shot.keys.dur ?? ""} onChange={(v) => setKey("dur", v)} auto model />
               </Row>
             </div>
             <Row label="What happens" help="What is visibly happening, present tense, concrete and physical.">

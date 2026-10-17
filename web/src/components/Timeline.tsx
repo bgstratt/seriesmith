@@ -493,24 +493,26 @@ export function Timeline() {
             {progressLine(prog)}
           </span>
         )}
-        <button
-          className={`h3-btn${playing ? " h3-on" : ""}`}
-          disabled={!st?.shots.length}
-          title="Play all: the cut in order from its takes, in the viewer (space: play / pause · J / K / L: back / stop / forward · click a clip to jump · click the ruler to seek)"
-          onClick={() => (playerOpen ? toggleCutPlay() : playAll())}
-        >
-          <i className={playing ? "pi pi-pause" : "pi pi-play"} /> {playing ? "Pause" : playerOpen ? "Play" : "Play all"}
-        </button>
+        <span className="h3-group">
+          <button
+            className={`h3-btn${playing ? " h3-on" : ""}`}
+            disabled={!st?.shots.length}
+            title="Play all: the cut in order from its takes, in the viewer (space: play / pause · J / K / L: back / stop / forward · click a clip to jump · click the ruler to seek)"
+            onClick={() => (playerOpen ? toggleCutPlay() : playAll())}
+          >
+            <i className={playing ? "pi pi-pause" : "pi pi-play"} /> {playing ? "Pause" : playerOpen ? "Play" : "Play all"}
+          </button>
+          <button className={`h3-btn h3-icon${waves ? " h3-on" : ""}`} aria-label="Waveforms" title={waves ? "Hide the waveforms" : "Show each clip's waveform (or the recording's, with Play all's audio on the recording)"} onClick={() => toggleWaves()}>
+            <i className="pi pi-wave-pulse" />
+          </button>
+        </span>
         {pos != null && <span className="h3-mono h3-muted">{fmtClock(pos)}</span>}
         <PassToggle />
-        <CutMenuButton />
-        <span className="h3-seg">
-          <button disabled={!undo?.undo} title={undo?.undo ? `Undo: ${undo.undo} (Ctrl+Z)` : "Nothing to undo (Ctrl+Z)"} onClick={() => void undoCut()}><i className="pi pi-undo" /></button>
-          <button disabled={!undo?.redo} title={undo?.redo ? `Redo: ${undo.redo} (Ctrl+Shift+Z)` : "Nothing to redo (Ctrl+Shift+Z)"} onClick={() => void redoCut()}><i className="pi pi-refresh" style={{ transform: "scaleX(-1)" }} /></button>
+        <span className="h3-group">
+          <CutMenuButton />
+          <button className="h3-btn h3-icon" aria-label="Undo" disabled={!undo?.undo} title={undo?.undo ? `Undo: ${undo.undo} (Ctrl+Z)` : "Nothing to undo (Ctrl+Z)"} onClick={() => void undoCut()}><i className="pi pi-undo" /></button>
+          <button className="h3-btn h3-icon" aria-label="Redo" disabled={!undo?.redo} title={undo?.redo ? `Redo: ${undo.redo} (Ctrl+Shift+Z)` : "Nothing to redo (Ctrl+Shift+Z)"} onClick={() => void redoCut()}><i className="pi pi-refresh" style={{ transform: "scaleX(-1)" }} /></button>
         </span>
-        <button className={`h3-btn h3-icon${waves ? " h3-on" : ""}`} title={waves ? "Hide the waveforms" : "Show each clip's waveform (or the recording's, with Play all's audio on the recording)"} onClick={() => toggleWaves()}>
-          <i className="pi pi-wave-pulse" />
-        </button>
         {flagged.length > 0 && (
           <button
             className="h3-badge h3-b-flag h3-badge-btn"
@@ -530,12 +532,12 @@ export function Timeline() {
             {missing.shots.length} missing refs
           </button>
         )}
+        <span className="h3-grow" />
         <span className="h3-row" title="Zoom (ctrl + wheel over the track)">
           <i className="pi pi-search-minus h3-muted" />
-          <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 90 }} />
+          <input type="range" aria-label="Zoom" min={ZOOM_MIN} max={ZOOM_MAX} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 90 }} />
           <i className="pi pi-search-plus h3-muted" />
         </span>
-        <span className="h3-grow" />
         <span className="h3-seg h3-seg-act">
           <button disabled={!ep || asm.busy} title={`Export: assemble the ${pass} review cut into one mp4 with ffmpeg (missing shots are skipped). Not needed to watch the cut: use Play all.`} onClick={() => void assemble(true)}>
             <i className={asm.busy && !asm.publish ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {asm.busy && !asm.publish ? "Assembling…" : "Export"}
@@ -546,18 +548,22 @@ export function Timeline() {
         </span>
         <span className="h3-seg h3-seg-act">
           <button disabled={!ep || asm.busy} title={`Add Titles: assemble the whole ${pass} cut (fails if a shot is missing), then put the series intro and outro around it with the episode's title (_titles/INTRO.mp4 and OUTRO.mp4 in the show folder). Writes <episode>/publish/`} onClick={() => void assemble(false, { publish: true })}>
-            <i className={asm.busy && asm.publish ? "pi pi-spin pi-spinner" : "pi pi-bookmark"} /> {asm.busy && asm.publish ? "Adding titles…" : "Add Titles"}
+            <i className={asm.busy && asm.publish ? "pi pi-spin pi-spinner" : "pi pi-bookmark"} /> {asm.busy && asm.publish ? "Adding titles…" : "Titles"}
           </button>
           <button disabled={!ep || asm.busy} title={`Add Titles to the cut from its upscales (2x), as Export 2x assembles it`} onClick={() => void assemble(false, { upscaled: true, publish: true })}>
             2x
           </button>
         </span>
+        <span className="h3-group">
         <button className="h3-btn" disabled={!ep} title={`Master: the series recipe (upscale.master) on every shot of the ${pass} cut, then the master assembled into the episode's master folder, with the intro and outro when the show's _titles has them`} onClick={() => masterCut()}>
           <i className="pi pi-video" /> Master
         </button>
-        <button className="h3-btn h3-icon" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
-        <button className="h3-btn h3-icon" title="Open the Shots tab" onClick={() => host().show("shots")}><i className="pi pi-list" /></button>
-        <button className="h3-btn h3-icon" title="Refresh" disabled={!ep} onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
+        </span>
+        <span className="h3-group">
+          <button className="h3-btn h3-icon" aria-label="Inspect" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
+          <button className="h3-btn h3-icon" aria-label="Shots tab" title="Open the Shots tab" onClick={() => host().show("shots")}><i className="pi pi-list" /></button>
+          <button className="h3-btn h3-icon" aria-label="Refresh" title="Refresh" disabled={!ep} onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
+        </span>
       </div>
       <div className="h3-track-wrap" ref={wrapRef}>
         <div ref={trackRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />

@@ -1,11 +1,12 @@
 // Simple mode (docs/PLAN.md, step 12): the sidebar as one panel for making a
 // clip -- pick the model, write what happens, pick who and where by picture
 // (or add them), queue some takes -- and the clips so far. A clip is a shot
-// of the Clips project (seriesmith/clips.py), written by lib/simple.ts; its
-// missing pictures are made first (POST /seriesmith/clip/queue). Everything
-// else (settings, the text windows, the Refs tab) waits in Advanced.
+// of a Simple project (seriesmith/clips.py: Clips, made first, or one of its
+// own from + New project), written by lib/simple.ts; its missing pictures are
+// made first (POST /seriesmith/clip/queue). Everything else (settings, the
+// text windows, the Refs tab) waits in Advanced.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   afterAuthoredWrite, isPaidBackend, loadEpisodes, loadRefs, loadTargets, openBrowse, openImageCompare, openSubjectCard,
   openViewer, openWizard, playAll, select, selectEpisode, setSimple,
@@ -13,11 +14,18 @@ import {
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
-import { DURATIONS, SIZES, type DialogueLine } from "../lib/shotForm";
-import { IMAGE_NOTES, MODEL_NOTES, clipBlock, nextClipIds, pictureModel, placeFor, shotsBlock, withClip } from "../lib/simple";
+import { SIZES, type DialogueLine } from "../lib/shotForm";
+import {
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
+} from "../lib/simple";
+import { COMMON_SIZES, fitSize } from "../lib/size";
+import type { TargetTemplate } from "../types";
 import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
-import { Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
+import { LengthPicker } from "./LengthPicker";
+import { PickMenu } from "./PickMenu";
+import { ADD_NEW, PanelHead, TitleSelect } from "./ProjectHead";
+import { Chips, DialogueRows, PlacePick, type Cast } from "./ShotForm";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions } from "./Targets";
 
@@ -35,48 +43,138 @@ export function ModeSwitch() {
 export function SimplePanel() {
   const ep = useApp((s) => s.ep);
   const config = useApp((s) => s.config);
+  const episodes = useApp((s) => s.episodes);
   const [clipsEp, setClipsEp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isSimple = (e: string | null) => !!e && (e === clipsEp || !!episodes?.some((x) => x.ep === e && x.simple));
 
-  // the Clips project, made the first time, and opened
+  // the Clips project, made the first time; opened unless a Simple project is
   useEffect(() => {
     let gone = false;
     api().clipsEnsure()
       .then(async (r) => {
         if (gone) return;
         setClipsEp(r.ep);
-        if (r.made) await loadEpisodes();
-        if (store.get().ep !== r.ep) selectEpisode(r.ep);
+        if (r.made || !store.get().episodes) await loadEpisodes();
+        const cur = store.get().ep;
+        const keep = cur && (cur === r.ep || (store.get().episodes ?? []).some((x) => x.ep === cur && x.simple));
+        if (!keep) selectEpisode(r.ep);
       })
       .catch((e) => !gone && setError((e as Error).message));
     return () => { gone = true; };
   }, [config?.roots?.join("|")]);
+  // once Simple is showing a project: an episode of a series opened meanwhile
+  // (Project folders, the Refs tab's dropdown) is Advanced's, so switch to it
+  const settled = useRef(false);
+  useEffect(() => {
+    if (!clipsEp || !episodes || !ep) return;
+    if (isSimple(ep)) settled.current = true;
+    else if (settled.current) setSimple(false);
+  }, [ep, clipsEp, episodes]);
 
-  const head = (
-    <div className="h3-bar" style={{ justifyContent: "space-between" }}>
-      <span className="h3-title">Make</span>
-      <ModeSwitch />
-    </div>
-  );
-  if (error) {
-    return (
-      <div className="h3-surface">
-        {head}
-        <div className="h3-pad h3-col" style={{ gap: 8 }}>
+  const ready = !error && !!clipsEp && !!ep && isSimple(ep);
+  const root = config?.roots?.[0] ?? null;
+  return (
+    <div className="h3-surface sm-simple">
+      {ready ? <ProjectHead ep={ep!} /> : (
+        <PanelHead side={<ModeSwitch />}><span className="sm-project-name">Make</span></PanelHead>
+      )}
+      {error ? (
+        <div className="sm-body">
           <div className="h3-note h3-small">{error}</div>
           <div><button className="h3-btn" onClick={() => openBrowse({ purpose: "roots" })}>Project folders…</button></div>
         </div>
-      </div>
-    );
-  }
-  if (!clipsEp || ep !== clipsEp) {
-    return <div className="h3-surface">{head}<div className="h3-pad h3-muted h3-small">Opening your clips…</div></div>;
-  }
-  return (
-    <div className="h3-surface">
-      {head}
-      <ClipMaker ep={clipsEp} root={config?.roots?.[0] ?? null} />
+      ) : !ready ? (
+        <div className="sm-body h3-muted">Opening your clips…</div>
+      ) : (
+        <ClipMaker key={ep} ep={ep!} root={root} />
+      )}
     </div>
+  );
+}
+
+/** The panel's head: the project as its title, a dropdown of Simple's
+ * projects over it, Simple / Advanced. "Browse and add new…" opens Project
+ * folders, where a project is made (New project…), opened or added. */
+function ProjectHead({ ep }: { ep: string }) {
+  const episodes = useApp((s) => s.episodes);
+  const mine = (episodes ?? []).filter((e) => e.simple || e.ep === ep);
+  const label = (e: (typeof mine)[number]) => e.series || e.title || e.name;
+  const cur = mine.find((e) => e.ep === ep);
+  return (
+    <PanelHead side={<ModeSwitch />}>
+      <TitleSelect kicker="Project" label="Project" name={cur ? label(cur) : "Clips"} value={ep}
+        options={mine.map((e) => ({ value: e.ep, label: label(e), title: e.ep }))}
+        onPick={(v) => (v === ADD_NEW ? openBrowse({ purpose: "roots" }) : selectEpisode(v))} />
+    </PanelHead>
+  );
+}
+
+/** A labelled field of the settings card; `wide` spans both columns. */
+function Field({ label, note, wide, htmlFor, children }: {
+  label: string; note?: string; wide?: boolean; htmlFor?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className={`sm-field${wide ? " sm-wide" : ""}`}>
+      <label className="sm-label" htmlFor={htmlFor}>{label}</label>
+      {children}
+      {note && <span className="sm-note">{note}</span>}
+    </div>
+  );
+}
+
+/** The project's saved picture size for the pass on (`series` for final, `proxy`
+ * for proxy, in its series config); 0 when it says none. */
+function projectSize(raw: Raw | null, pass: string, status: { width: number | null; height: number | null } | null | undefined): [number, number] {
+  const block = pass === "final" ? "series" : "proxy";
+  return [
+    Number(raw && getPath(raw, [block, "width"])) || status?.width || 0,
+    Number(raw && getPath(raw, [block, "height"])) || status?.height || 0,
+  ];
+}
+
+/** The clip's picture size: width and height, typed or filled from a common size.
+ * Generate renders at it (a clip at another size than the project's keeps it as
+ * its own size override, as Inspect shot does); **Save as the project's size**
+ * makes it every later clip's. Under it, what the clip's model renders when that
+ * differs. */
+function SizeRow({ w, h, setW, setH, pass, project, seriesTemplate, template, short, save }: {
+  w: string; h: string; setW: (v: string) => void; setH: (v: string) => void; pass: string;
+  project: [number, number]; seriesTemplate: TargetTemplate | undefined; template: TargetTemplate | undefined; short: string;
+  save: (w: number, h: number) => Promise<boolean>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const nw = Math.round(Number(w)), nh = Math.round(Number(h));
+  const valid = nw >= 64 && nh >= 64 && nw <= 8192 && nh <= 8192;
+  const [sw, sh] = valid ? fitSize(nw, nh, seriesTemplate) : [0, 0];
+  const [rw, rh] = valid ? fitSize(sw, sh, template) : [0, 0];
+  const dirty = valid && (sw !== project[0] || sh !== project[1]);
+  async function set() {
+    setBusy(true);
+    try { await save(sw, sh); } finally { setBusy(false); }
+  }
+  const notes = [
+    valid && (sw !== nw || sh !== nh) ? `the project's model takes ${sw}×${sh}` : "",
+    valid && template && (rw !== sw || rh !== sh) ? `${short} renders ${rw}×${rh}` : "",
+    dirty && project[0] ? `the project's is ${project[0]}×${project[1]}: this clip keeps its own` : "",
+  ].filter(Boolean);
+  return (
+    <Field label={`Size (${pass})`} wide note={notes.join("; ")} htmlFor="sm-size-w">
+      <span className="h3-row h3-wrap" style={{ gap: 6 }}>
+        <input id="sm-size-w" className="h3-in" style={{ width: 64 }} inputMode="numeric" value={w} onChange={(e) => setW(e.target.value.replace(/\D/g, ""))} title="Width, pixels" />
+        <span className="h3-muted">×</span>
+        <input className="h3-in" style={{ width: 64 }} inputMode="numeric" value={h} aria-label="Height, pixels" onChange={(e) => setH(e.target.value.replace(/\D/g, ""))} title="Height, pixels" />
+        <PickMenu label="sizes" title="A common size to start from"
+          options={COMMON_SIZES.map((q) => ({ value: `${q.width}x${q.height}`, label: q.label }))}
+          onPick={(v) => { const [a, b] = v.split("x"); setW(a); setH(b); }} />
+        {dirty && (
+          <button className="h3-btn" disabled={busy} onClick={() => void set()}
+            title={`Make it the project's size: every later clip renders at it (${pass}). Generate uses the boxes either way.`}>
+            Save as the project's size
+          </button>
+        )}
+      </span>
+    </Field>
   );
 }
 
@@ -116,11 +214,20 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
-  const [takes, setTakes] = useState(2);
   const [busy, setBusy] = useState(false);
   const target = model || seriesTarget;
   const imageTarget = imageModel || imageDefault;
   const picture = mode === "picture";
+  const status = useApp((s) => s.status[statusKey(ep, s.pass)]);
+  const fps = Number(raw && getPath(raw, ["series", "fps"])) || 24;
+  const all = targets?.targets ?? [];
+  const tpl = all.find((x) => x.id === target)?.template;
+  const seriesTpl = all.find((x) => x.id === seriesTarget)?.template;
+  // the size boxes: the project's until typed over (another project or pass: its own again)
+  const [pw, ph] = projectSize(raw, pass, status);
+  const [sizeW, setSizeW] = useState(pw ? String(pw) : "");
+  const [sizeH, setSizeH] = useState(ph ? String(ph) : "");
+  useEffect(() => { setSizeW(pw ? String(pw) : ""); setSizeH(ph ? String(ph) : ""); }, [pw, ph, ep]);
 
   const cast = useMemo(() => {
     const subj = (getPath(raw ?? {}, ["subjects"]) ?? {}) as Record<string, Raw>;
@@ -136,7 +243,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
 
   const filled = mode === "shots" ? rows.filter((r) => r.prompt.trim()) : [];
   const ready = mode === "shots" ? filled.length > 0 : !!prompt.trim();
-  const runs = mode === "shots" ? filled.length * takes : takes;
+  // one take (or picture) a click; another is another click
+  const runs = mode === "shots" ? filled.length : 1;
   const paid = isPaidBackend(backend) || (picture ? imageTarget === "krea_2_router" : target === "seedance_2_5");
 
   async function queue() {
@@ -149,8 +257,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       const { seq, shot } = nextClipIds(script.text);
       const base = { who, where, placeText, target, dialogue: mode === "clip" ? dialogue : [] };
       const specs = mode === "shots"
-        ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: r.dur }))
-        : [{ ...base, prompt, size, dur, still: picture }];
+        ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: durFor(r.dur, tpl, fps) }))
+        : [{ ...base, prompt, size, dur: durFor(dur, tpl, fps), still: picture }];
       let location = where;
       if (!location) {
         // a place of the clip's own: words only, or its plate made first
@@ -171,9 +279,12 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         host().toast("error", `${shot} was written, but it won't build`, bad.message);
         return;
       }
+      // a size of its own: the shot's size override (this pass), as Inspect shot saves one
+      const own = picture ? null : clipOwnSize(sizeW, sizeH, [pw, ph], seriesTpl, tpl);
+      if (own) for (const id of ids) await api().putOverride({ ep, pass, shot: id, both: false, fields: { size: own } });
       let first = true;
       for (const id of ids) {
-        const q = await api().clipQueue({ ep, shot: id, pass, takes, backend: backend || null,
+        const q = await api().clipQueue({ ep, shot: id, pass, takes: 1, backend: backend || null,
                                           ...(picture ? { still: true, image_target: imageTarget } : {}) });
         if (first && q.step) {
           host().toast("success", `${shot} queued`, `Its picture${q.refs.length === 1 ? " is" : "s are"} made first, then the rest.`);
@@ -181,7 +292,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         }
       }
       if (first) host().toast("success", `${shot} queued`, picture
-        ? `${takes} picture${takes > 1 ? "s" : ""} on the way.`
+        ? "Its picture is on the way."
         : `${runs} take${runs > 1 ? "s" : ""} on the way.`);
       select(ids[0], null);
       void loadRefs(ep);                           // a picture's keyframe, for the list
@@ -198,130 +309,144 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
 
   const t = video.find((x) => x.id === target);
   const it = images.find((x) => x.id === imageTarget);
-  const what = picture ? "picture" : "take";
+  const make = mode === "shots" && runs > 1 ? `Generate ${runs} shots` : "Generate";
+  const tabs: { id: Mode; label: string; title?: string }[] = [
+    { id: "clip", label: "A clip" },
+    { id: "picture", label: "A picture" },
+    { id: "shots", label: "Several shots", title: "A few shots, cut together and played as one clip" },
+  ];
   return (
-    <div className="h3-col" style={{ gap: 10, padding: 10, overflow: "auto", minHeight: 0, flex: 1 }}>
-      <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-        <span className="h3-seg" title="What you're making">
-          <button className={mode === "clip" ? "h3-on" : ""} onClick={() => setMode("clip")}>A clip</button>
-          <button className={picture ? "h3-on" : ""} onClick={() => setMode("picture")}>A picture</button>
-          <button className={mode === "shots" ? "h3-on" : ""} onClick={() => setMode("shots")} title="A few shots, cut together and played as one clip">Several shots</button>
-          <button title="A series with episodes: the step-by-step wizard (then Advanced)" disabled={!root}
-            onClick={() => { if (root) { setSimple(false); openWizard({ parent: root, newSeries: true }); } }}>A series…</button>
-        </span>
-      </div>
+    <div className="sm-body">
+      <nav className="sm-modes" aria-label="What you're making">
+        {tabs.map((x) => (
+          <button key={x.id} className={mode === x.id ? "sm-on" : ""} title={x.title} onClick={() => setMode(x.id)}>{x.label}</button>
+        ))}
+        <button title="A series with episodes: the step-by-step wizard (then Advanced)" disabled={!root}
+          onClick={() => { if (root) { setSimple(false); openWizard({ parent: root, newSeries: true }); } }}>A series…</button>
+      </nav>
 
-      {picture ? (
-        <Row label="Model" help={(IMAGE_NOTES[imageTarget] ?? it?.label ?? "") + (it?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
-          <select className="h3-in" value={imageTarget} onChange={(e) => setImageModel(e.target.value === imageDefault ? "" : e.target.value)}>
-            <ModelOptions targets={images} text={(v) => `${v.label}${v.id === imageDefault ? " (default)" : ""}`} />
-          </select>
-        </Row>
-      ) : (
-        <Row label="Model" help={(MODEL_NOTES[target] ?? t?.label ?? "") + (t?.readiness?.status === "not_ready" ? " (its files aren't all installed)" : "")}>
-          <select className="h3-in" value={target} onChange={(e) => setModel(e.target.value === seriesTarget ? "" : e.target.value)}>
-            <ModelOptions targets={video} text={(v) => `${v.label}${v.id === seriesTarget ? " (default)" : ""}`} />
-          </select>
-        </Row>
-      )}
-
-      {mode === "shots" ? (
-        <Row label="The shots" help="In order: each is a cut. Say what we see in each; the people and the place are below, for all of them.">
-          <div className="h3-col" style={{ gap: 6 }}>
+      <section className="sm-card">
+        {mode === "shots" ? (
+          <>
+            <span className="sm-card-title">The shots</span>
+            <span className="sm-note">In order: each is a cut. Say what we see in each; the people and the place below are for all of them.</span>
             {rows.map((r, i) => (
-              <div key={i} className="h3-col" style={{ gap: 3, borderLeft: "2px solid var(--h3-border)", paddingLeft: 6 }}>
-                <div className="h3-row" style={{ gap: 4 }}>
-                  <b className="h3-small">{i + 1}</b>
-                  <select className="h3-in" value={r.size} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, size: e.target.value } : x)))}>
+              <div key={i} className="sm-shot">
+                <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+                  <b className="sm-shot-n">{i + 1}</b>
+                  <select className="h3-in" aria-label={`Shot ${i + 1}'s framing`} value={r.size}
+                    onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, size: e.target.value } : x)))}>
                     {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label.split(" — ")[0]}</option>)}
                   </select>
-                  <select className="h3-in" value={r.dur} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, dur: e.target.value } : x)))}>
-                    {DURATIONS.filter((d) => d.value !== "model" && d.value !== "auto").map((d) => <option key={d.value} value={d.value}>{d.label.split(" — ")[0]}</option>)}
-                  </select>
+                  <LengthPicker value={r.dur} template={tpl} fps={fps} short={t?.short} compact
+                    onChange={(v) => setRows(rows.map((x, j) => (j === i ? { ...x, dur: v } : x)))} />
                   <span className="h3-grow" />
-                  {rows.length > 1 && <button className="h3-link" title="Remove this shot" onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</button>}
+                  {rows.length > 1 && (
+                    <button className="h3-link" aria-label={`Remove shot ${i + 1}`} title="Remove this shot"
+                      onClick={() => setRows(rows.filter((_, j) => j !== i))}>×</button>
+                  )}
                 </div>
-                <textarea className="h3-in" rows={2} style={{ fontFamily: "inherit", resize: "vertical" }} value={r.prompt}
+                <textarea className="h3-in sm-prompt" rows={2} aria-label={`Shot ${i + 1}: what we see`} value={r.prompt}
                   placeholder={i === 0 ? "Wide: the keeper climbs the cliff path toward the lighthouse." : "Close: his hand on the cold iron door."}
                   onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, prompt: e.target.value } : x)))} />
               </div>
             ))}
-            {rows.length < 8 && <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3.04" }])}>+ Shot</button></div>}
-          </div>
-        </Row>
-      ) : (
-        <Row label={picture ? "What's in it" : "What happens"} help={picture
-          ? "The picture, as you'd describe it to a photographer: who, where, the light."
-          : "What we see, as you'd describe it to a camera crew: who does what, where, in what light."}>
-          <textarea className="h3-in" rows={4} style={{ fontFamily: "inherit", resize: "vertical" }} value={prompt}
-            placeholder={picture ? "A lighthouse keeper at the top of the stairs, lantern raised, storm clouds through the window."
-              : "A lighthouse keeper climbs the spiral stairs with a lantern as the storm comes in."}
-            onChange={(e) => setPrompt(e.target.value)} />
-        </Row>
-      )}
-
-      <Row label="Who's in it" help={picture && it?.capabilities?.mode !== "edit"
-        ? "Optional. This model works from words: they're described, not drawn from their pictures (an edit model draws from those)."
-        : "Optional. Add someone with a picture you have, or a description to draw them from."}>
-        <Chips ep={ep} value={who} options={cast.chars} onChange={setWho}
-          add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Someone" />
-      </Row>
-
-      <Row label="Where" help={where ? "That place's picture is the background." : placePicture
-        ? "Said in words (empty: from what happens); a picture of it is made first, and the clip renders after."
-        : "Said in words (empty: from what happens). With no picture, each clip imagines it its own way."}>
-        <div className="h3-col" style={{ gap: 4 }}>
-          <span className="h3-row h3-wrap" style={{ gap: 4 }}>
-            <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
-            {where && (
-              <button className="h3-btn" title="Its pictures: make it again, edit it, or take a Tour through it for new angles"
-                onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
+            {rows.length < 8 && (
+              <div><button className="h3-btn" onClick={() => setRows([...rows, { prompt: "", size: "medium", dur: "3.04" }])}>+ Shot</button></div>
             )}
-            <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
-          </span>
-          {!where && (
+          </>
+        ) : (
+          <>
+            <label className="sm-card-title" htmlFor="sm-prompt">{picture ? "What's in it?" : "What happens?"}</label>
+            <textarea id="sm-prompt" className="h3-in sm-prompt" rows={4} value={prompt}
+              placeholder={picture ? "A lighthouse keeper at the top of the stairs, lantern raised, storm clouds through the window."
+                : "A lighthouse keeper climbs the spiral stairs with a lantern as the storm comes in."}
+              onChange={(e) => setPrompt(e.target.value)} />
+          </>
+        )}
+
+        <div className="sm-cast">
+          <span className="sm-label">Who</span>
+          <div className="h3-col" style={{ gap: 4 }}>
+            <Chips ep={ep} value={who} options={cast.chars} onChange={setWho}
+              add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Someone" />
+            {picture && it?.capabilities?.mode !== "edit" && who.length > 0 && (
+              <span className="sm-note">This model works from words: they're described, not drawn from their pictures.</span>
+            )}
+          </div>
+
+          <span className="sm-label">Where</span>
+          <div className="h3-col" style={{ gap: 6 }}>
+            <span className="h3-row h3-wrap" style={{ gap: 6 }}>
+              <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
+              {where && (
+                <button className="h3-btn" title="Its pictures: make it again, edit it, or take a Tour through it for new angles"
+                  onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
+              )}
+              <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
+            </span>
+            {!where && (
+              <>
+                <input className="h3-in" aria-label="The new place, in words" value={placeText}
+                  placeholder="a stone lighthouse on a cliff at dusk, storm clouds (empty: from what happens)"
+                  onChange={(e) => setPlaceText(e.target.value)} />
+                <label className="sm-check" title="Slower to start, but the place then looks the same in every clip that picks it">
+                  <input type="checkbox" checked={placePicture} onChange={(e) => setPlacePicture(e.target.checked)} />
+                  <span>Make a picture of it first (so it looks the same each time)</span>
+                </label>
+              </>
+            )}
+          </div>
+
+          {mode === "clip" && who.length > 0 && (
             <>
-              <input className="h3-in" value={placeText} placeholder="a stone lighthouse on a cliff at dusk, storm clouds"
-                onChange={(e) => setPlaceText(e.target.value)} />
-              <label className="h3-row h3-small" title="Slower to start, but the place then looks the same in every clip that picks it">
-                <input type="checkbox" checked={placePicture} onChange={(e) => setPlacePicture(e.target.checked)} />
-                Make a picture of it first (so it looks the same each time)
-              </label>
+              <span className="sm-label">Said</span>
+              <DialogueRows rows={dialogue} speakers={cast.chars.filter((c) => who.includes(c.id))} onChange={setDialogue} />
             </>
           )}
         </div>
-      </Row>
+      </section>
 
-      {mode === "clip" && who.length > 0 && (
-        <Row label="What's said" help="Optional: a line, under who says it.">
-          <DialogueRows rows={dialogue} speakers={cast.chars.filter((c) => who.includes(c.id))} onChange={setDialogue} />
-        </Row>
-      )}
-
-      <div className="h3-row h3-wrap" style={{ gap: 10 }}>
+      <section className="sm-card sm-settings">
+        {picture ? (
+          <Field label="Model" htmlFor="sm-model"
+            note={it?.readiness?.status === "not_ready" ? "Its files aren't all installed." : undefined}>
+            <select id="sm-model" className="h3-in" title={IMAGE_NOTES[imageTarget] ?? it?.label} value={imageTarget} onChange={(e) => setImageModel(e.target.value === imageDefault ? "" : e.target.value)}>
+              <ModelOptions targets={images} text={(v) => `${v.label}${v.id === imageDefault ? " (default)" : ""}`} />
+            </select>
+          </Field>
+        ) : (
+          <Field label="Model" htmlFor="sm-model" wide={mode === "shots"}
+            note={t?.readiness?.status === "not_ready" ? "Its files aren't all installed." : undefined}>
+            <select id="sm-model" className="h3-in" title={MODEL_NOTES[target] ?? t?.label} value={target} onChange={(e) => setModel(e.target.value === seriesTarget ? "" : e.target.value)}>
+              <ModelOptions targets={video} text={(v) => `${v.label}${v.id === seriesTarget ? " (default)" : ""}`} />
+            </select>
+          </Field>
+        )}
         {mode !== "shots" && (
-          <Row label="Framing" help="">
-            <select className="h3-in" value={size} onChange={(e) => setSize(e.target.value)}>
+          <Field label="Framing" htmlFor="sm-framing">
+            <select id="sm-framing" className="h3-in" value={size} onChange={(e) => setSize(e.target.value)}>
               {SIZES.map((s) => <option key={s.value} value={s.value}>{s.label.split(" — ")[0]}</option>)}
             </select>
-          </Row>
+          </Field>
         )}
         {mode === "clip" && (
-          <Row label="Length" help="">
-            <select className="h3-in" value={dur} onChange={(e) => setDur(e.target.value)}>
-              {DURATIONS.filter((d) => d.value !== "model" || target.startsWith("ltx2")).map((d) => <option key={d.value} value={d.value}>{d.label.split(" — ")[0]}</option>)}
-            </select>
-          </Row>
+          <Field label="Length" wide>
+            <LengthPicker value={dur} onChange={setDur} template={tpl} fps={fps} short={t?.short} auto model={target.startsWith("ltx2")} />
+          </Field>
         )}
-        <Row label={picture ? "Pictures" : mode === "shots" ? "Takes of each" : "Takes"} help="">
-          <select className="h3-in" value={takes} onChange={(e) => setTakes(Number(e.target.value))}>
-            {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </Row>
-      </div>
+        {raw && (
+          <SizeRow w={sizeW} h={sizeH} setW={setSizeW} setH={setSizeH} pass={pass} project={[pw, ph]}
+            seriesTemplate={seriesTpl} template={picture ? undefined : tpl} short={t?.short ?? target}
+            save={(w, h) => {
+              const block = pass === "final" ? "series" : "proxy";
+              return sc.save(setPath(setPath(raw, [block, "width"], w), [block, "height"], h), "the size");
+            }} />
+        )}
+      </section>
 
-      <button className="h3-btn h3-primary" style={{ alignSelf: "flex-start" }} disabled={busy || !ready || !raw} onClick={() => void queue()}>
-        {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-play" />} Queue {runs} {what}{runs > 1 ? "s" : ""}
+      <button className="h3-btn h3-primary sm-make" disabled={busy || !ready || !raw} onClick={() => void queue()}>
+        {busy && <i className="pi pi-spin pi-spinner" />} {make}
       </button>
 
       <ClipList ep={ep} pass={pass} />
@@ -335,7 +460,13 @@ function ClipList({ ep, pass }: { ep: string; pass: string }) {
   const st = useApp((s) => s.status[statusKey(ep, s.pass)]);
   const refs = useApp((s) => s.refs[ep]);
   const shots = (st?.shots ?? []).filter((s) => !s.orphan);
-  if (!shots.length) return <div className="h3-small h3-muted">Your clips appear here.</div>;
+  const head = (
+    <div className="sm-clips-head">
+      <span className="sm-card-title">Your clips</span>
+      <span className="sm-note">{pass} · newest first</span>
+    </div>
+  );
+  if (!shots.length) return <div className="sm-clips">{head}<span className="sm-note">Your clips appear here.</span></div>;
   // one entry per clip (its sequence), newest first
   const groups: { seq: string; shots: typeof shots }[] = [];
   for (const s of shots) {
@@ -346,8 +477,9 @@ function ClipList({ ep, pass }: { ep: string; pass: string }) {
   }
   groups.reverse();
   return (
-    <div className="h3-col" style={{ gap: 6 }}>
-      <span className="h3-small"><b>Your clips</b> <span className="h3-muted">{pass}</span></span>
+    <div className="sm-clips">
+      {head}
+      <div className="sm-clip-grid">
       {groups.map((g) => {
         const first = g.shots[0];
         const ts = g.shots.flatMap((s) => s.takes ?? []);
@@ -373,23 +505,28 @@ function ClipList({ ep, pass }: { ep: string; pass: string }) {
           if (lastVideo && lastVideo.status === "ok") openViewer(first.shot, lastVideo.take, null, "single");
         };
         return (
-          <button key={g.seq} className="h3-btn" style={{ justifyContent: "flex-start", gap: 8, height: "auto", padding: 4 }}
+          <button key={g.seq} className="sm-clip"
             title={isPicture ? "Open its pictures" : g.shots.length > 1 ? "Play its shots, cut together" : "Play its newest take"}
             onClick={play}>
-            <span style={{ width: 72, height: 40, flex: "none", background: "var(--h3-bg3)", borderRadius: 3, overflow: "hidden" }}>
-              {thumb && <img src={api().fileUrl(ep, thumb)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+            <span className="sm-clip-thumb">
+              {thumb ? <img src={isPicture ? api().thumbUrl(ep, thumb, 512) : api().fileUrl(ep, thumb)} alt="" />
+                : <span className="sm-note">{busy ? "on the way…" : "nothing yet"}</span>}
             </span>
-            <span className="h3-col" style={{ alignItems: "flex-start", gap: 1 }}>
-              <b className="h3-small">{label}{isPicture ? <span className="h3-muted"> · picture</span> : null}</b>
-              <span className="h3-small h3-muted">
-                {ready ? `${ready} ${isPicture ? "picture" : "take"}${ready > 1 ? "s" : ""}` : "nothing yet"}{busy ? ` · ${busy} on the way` : ""}
-                {!ts.length && !isPicture && (first.missing_refs?.length ?? 0) > 0 ? " · pictures first" : ""}
-                {ts.some((x) => x.status === "failed") ? " · some failed" : ""}
-              </span>
+            <span className="sm-clip-label">
+              <b>{label}</b>{isPicture ? " · picture" : ""}
+            </span>
+            <span className="sm-note">
+              {[
+                ready ? `${ready} ${isPicture ? "picture" : "take"}${ready > 1 ? "s" : ""}` : "",
+                busy ? `${busy} on the way` : "",
+                !ts.length && !isPicture && (first.missing_refs?.length ?? 0) > 0 ? "pictures first" : "",
+                ts.some((x) => x.status === "failed") ? "some failed" : "",
+              ].filter(Boolean).join(" · ")}
             </span>
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

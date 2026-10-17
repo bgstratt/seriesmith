@@ -70,7 +70,9 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import contextvars
 import copy
+import functools
 import importlib
 import json
 import math
@@ -1022,8 +1024,42 @@ def _scan_folders(root: str | None) -> list[tuple[str, str, str]]:
 
 _SETTINGS: dict = {}                                      # path -> (mtime, Settings | None)
 
+# One load (a listing, an episode's status) asks for the same targets thousands
+# of times: inside one_load() each answer is worked out once and kept until the
+# load ends, so the settings file and every target.json are checked once, not
+# once per ref or shot. Outside it nothing changes.
+_SCOPE: contextvars.ContextVar[dict | None] = contextvars.ContextVar("targets_one_load", default=None)
+
+
+class one_load:
+    """`with one_load():` the targets as they are when it starts, for its length
+    (nested: the outer one's)."""
+
+    def __enter__(self):
+        self._token = _SCOPE.set({}) if _SCOPE.get() is None else None
+        return self
+
+    def __exit__(self, *exc):
+        if self._token is not None:
+            _SCOPE.reset(self._token)
+        return False
+
+
+def _scoped(key: tuple, make):
+    """`make()` once per one_load (every time outside one)."""
+    scope = _SCOPE.get()
+    if scope is None:
+        return make()
+    if key not in scope:
+        scope[key] = make()
+    return scope[key]
+
 
 def _settings() -> tuple:
+    return _scoped(("settings",), _read_settings)
+
+
+def _read_settings() -> tuple:
     """(the settings file's mtime or None, its Settings or None), read again
     when the file changes: the targets' part of the settings (enabled_drafts,
     target_limits) is asked for on every listing."""
@@ -1058,6 +1094,7 @@ def limit_overrides() -> dict[str, dict]:
     return dict(s.target_limits) if s else {}
 
 
+@functools.lru_cache(maxsize=4096)
 def is_custom(folder: str) -> bool:
     """A target outside this repo: a show's own (it ships no Python)."""
     here = os.path.normcase(os.path.abspath(HERE))
@@ -1070,6 +1107,10 @@ def load_target(target_id: str, kind: str | None = None, root: str | None = None
 
     Cached per folder, so two shows may have a custom target of the same name.
     """
+    return _scoped(("load", target_id, kind, root, thread_roots()), lambda: _load_target(target_id, kind, root))
+
+
+def _load_target(target_id: str, kind: str | None, root: str | None) -> Target:
     folders = _folders(root)
     repo_ids = {(k, n) for k, n, f in folders if not is_custom(f)}
     for k, name, folder in folders:
@@ -1128,6 +1169,10 @@ def list_targets(kind: str | None = None, root: str | None = None) -> list[Targe
     of the shows this thread has open. A custom target that takes a built-in's
     name is left out — the built-in is what renders — and one whose target.json
     can't be read is skipped here; load_target names both."""
+    return list(_scoped(("list", kind, root, thread_roots()), lambda: _list_targets(kind, root)))
+
+
+def _list_targets(kind: str | None, root: str | None) -> list[Target]:
     folders = _folders(root)
     repo_ids = {(k, n) for k, n, f in folders if not is_custom(f)}
     out = []

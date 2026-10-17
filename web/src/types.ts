@@ -21,6 +21,21 @@ export interface EpisodeSummary {
   built: Record<Pass, boolean>;
   shots: number;
   script: string;
+  /** one of Simple mode's projects (its series config says `"simple": true`, or it is Clips) */
+  simple?: boolean;
+}
+
+/** A target's frame grid and size rules (GET /seriesmith/targets, `template`). */
+export interface TargetTemplate {
+  /** a number, or "series": the series config's fps */
+  fps?: number | "series";
+  frames?: { step?: number; base?: number; max?: number };
+  size_multiple?: number;
+  /** "snap": an off-grid size is rounded down; otherwise it is refused */
+  size_fit?: string;
+  max_size?: { long_side?: number; pixels?: number };
+  /** the only sizes the model takes */
+  sizes?: [number, number][];
 }
 
 export type TakeStatus = "queued" | "ok" | "failed";
@@ -117,6 +132,8 @@ export interface ShotStatus {
   seconds: number | null;
   size: string | null;
   subjects: string[];
+  /** the first sentence of what happens in it, as the script says it (the board) */
+  action?: string;
   audio_policy: string | null;
   cut: CutInfo;
   override: { fields: string[]; stale: boolean };
@@ -1161,6 +1178,10 @@ export interface RefOverrideInfo {
   own?: string[];
 }
 
+/** A candidate of a shared ref from the episode that picked its live file
+ * (GET /seriesmith/refs/owner-takes): read-only, `picked` its pick. */
+export type OwnerTake = RefTake & { episode: string; picked: boolean };
+
 export interface RefView {
   /** 01_threequarter | 02_side | 03_back | 04_face */
   view: string;
@@ -1307,6 +1328,11 @@ export interface Ref {
    * back. See `web/src/lib/shared.ts` for what that changes.
    */
   live_owner?: string | null;
+
+  /** A character: its sheet's panels, 4 (the views) or 1 (one whole picture, `sheet_panels: 1`). */
+  panels?: number;
+  /** marked one whole picture (`panels` 1), but its file is a strip of panels (4:1): renders send the whole strip */
+  panels_conflict?: boolean;
   /**
    * P8, a character only: which route wrote the sheet that is live now --
    * "sheet" (one supplied as a take), "views" (stitched from the four picks),
@@ -1673,7 +1699,7 @@ export interface Target {
     max_seconds?: number;
     [key: string]: unknown;
   };
-  template?: { fps?: number; frames?: { step?: number; base?: number; max?: number }; size_multiple?: number; size_fit?: string };
+  template?: TargetTemplate;
   /** The family each model param must be (target.json `models`), by param. */
   models?: Record<string, { family: string; label?: string; patterns?: string[]; folder?: string | null; tier?: RequirementTier }>;
   /** Only with `?ready=1`: what's installed, what's missing and where to get it. */

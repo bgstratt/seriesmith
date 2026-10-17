@@ -179,7 +179,8 @@ on Linux/macOS), else read from `SERIESMITH_ROOTS` (`;`-separated, `:` on Linux/
 On Windows the repo has two launchers, like ComfyUI's: **`run_seriesmith.bat`** (this PC
 only) and **`run_seriesmith_ext.bat`** (other devices on your network too: it listens on
 every interface, `--host 0.0.0.0`, and prints the address to open on a laptop or phone).
-Double-click one, or make a desktop shortcut to it. Each starts seriesmith again when the
+Double-click one, or make a desktop shortcut to it: it opens the editor in your browser
+(`--auto-launch`) once the server is up, as ComfyUI's do. Each starts seriesmith again when the
 editor's **Settings → This server → Restart** (or `seriesmith stop --restart`) asks it
 to, and closes when it is stopped (**Stop**, `seriesmith stop`, or Ctrl+C, without cmd's
 "Terminate batch job" question). Stop and Restart are offered only on the PC that runs

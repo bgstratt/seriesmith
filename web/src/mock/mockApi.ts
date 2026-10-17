@@ -94,7 +94,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   const issues: Issue[] = [];
   // P5: episodes made through newEpisode. The mock has one real episode; a new
   // one is listed and opens as what it is on disk — unbuilt and empty.
-  const made: { ep: string; name: string; title: string }[] = [];
+  const made: { ep: string; name: string; title: string; simple?: boolean }[] = [];
   const status: Partial<Record<Pass, EpisodeStatus>> = clone(fx.status);
   const detail: Partial<Record<Pass, Record<string, ShotDetail>>> = clone(fx.detail);
   const cut: Record<Pass, CutEntry[]> = { final: [], proxy: [] };
@@ -249,10 +249,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     return sh.takes.some((t) => t.take > (x.take ?? 0) && t.status === "ok");
   }
 
-  function madeSummary(m: { ep: string; name: string; title: string }): EpisodeSummary {
+  function madeSummary(m: { ep: string; name: string; title: string; simple?: boolean }): EpisodeSummary {
     return {
       ep: m.ep, name: m.name, series: fx.summary.series, title: m.title,
       built: { final: false, proxy: false }, shots: 0, script: `${m.name}.md`,
+      ...(m.simple ? { simple: true } : {}),
     };
   }
 
@@ -801,7 +802,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async episodes() {
       await wait();
       return [
-        ...(reachable(EP, roots) ? [clone(fx.summary)] : []),
+        // the fixture episode is the mock's Clips project too (clipsEnsure)
+        ...(reachable(EP, roots) ? [{ ...clone(fx.summary), simple: true }] : []),
         ...made.filter((m) => reachable(m.ep, roots)).map(madeSummary),
       ];
     },
@@ -1590,6 +1592,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     refFileUrl(_ep, path) {
       return refs.image(path) ?? refs.audio(path) ?? media + path.split("/").pop();
     },
+    thumbUrl(_ep, path) {
+      // the mock has no small copies: the picture itself, as refFileUrl finds it
+      return refs.image(path) ?? media + path.split("/").pop();
+    },
     async refsGenerate(req) {
       await wait();
       need(req.ep);
@@ -1837,6 +1843,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { videos: [] };
     },
+    async refsOwnerTakes() {
+      await wait(40);
+      return { owner: null, takes: [] };
+    },
     async routerInspect(req) {
       await wait(60);
       return { proposal: { id: "mock_model", label: req.model, router: { model: req.model, inputs: { prompt: "prompt" } } },
@@ -1868,6 +1878,20 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async clipsEnsure() {
       await wait(60);
       return { ep: EP, made: false };
+    },
+    async clipsNew(title, root) {
+      await wait(200);
+      const at = root ?? roots[0];
+      if (!at) throw new MockError("no project folder yet: add one (Project folders) first", 409);
+      const show = title.trim().split(/\s+/).join(" ").replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+      if (!show) throw new MockError("name the project: letters or digits", 400);
+      const sep = at.includes("\\") ? "\\" : "/";
+      const name = show.toLowerCase();
+      const ep = `${at.replace(/[\\/]+$/, "")}${sep}${show}${sep}${name}`;
+      if (made.some((m) => m.ep === ep)) throw new MockError(`there is already a ${show} folder in ${at}`, 409);
+      made.push({ ep, name, title: title.trim(), simple: true });
+      emit("seriesmith.episode", { ep });
+      return { ep };
     },
     async clipQueue(req) {
       await wait(120);
@@ -2028,7 +2052,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   // Errors from the mock look like the real client's ApiError (status + message)
   const wrapped = {} as Api;
   for (const [k, fn] of Object.entries(api) as [keyof Api, (...a: unknown[]) => unknown][]) {
-    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" ? fn : async (...a: unknown[]) => {
+    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" ? fn : async (...a: unknown[]) => {
       try {
         return await fn(...a);
       } catch (e) {

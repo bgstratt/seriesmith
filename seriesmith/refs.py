@@ -226,7 +226,13 @@ def ref_key(ref_id: str) -> str:
 
 def series_refs(s: Series) -> list[Ref]:
     """Every ref the series config names, subjects first (series config order), then locations,
-    then voices."""
+    then voices. Worked out once per load (targets.one_load: a listing looks
+    each ref up again and again), every time outside one."""
+    from seriesmith import targets as TG
+    return list(TG._scoped(("refs.series_refs", id(s)), lambda: _series_refs(s)))
+
+
+def _series_refs(s: Series) -> list[Ref]:
     out = []
     book = s.series_cfg["subjects"]
     for sid, e in book.items():
@@ -4042,6 +4048,47 @@ def edit_refs(s: Series, ref: Ref, target) -> list[dict]:
     return [one(r) for r in reference_images(s, sh, sq, target)]
 
 
+def sheet_panels(s: Series, ref: Ref) -> int:
+    """A character's sheet: 4 panels, or 1 (`sheet_panels: 1`, a picture of
+    them whole); a wardrobe variant follows the subject it is a variant of."""
+    e = ref.entry
+    base = (s.series_cfg.get("subjects") or {}).get(e.get("of") or "", {}) if e.get("of") else {}
+    try:
+        return 1 if int(e.get("sheet_panels") or base.get("sheet_panels") or 4) == 1 else 4
+    except (TypeError, ValueError):
+        return 4
+
+
+# a picture this much wider than tall is a strip of panels (a four-panel sheet
+# is 4:1), not one picture of a character (a portrait, a full figure)
+STRIP_RATIO = 2.5
+
+
+def is_strip(path: str | None) -> bool:
+    """Whether the image at `path` is shaped like a sheet of panels side by side."""
+    wh = image_size(path) if path else None
+    return bool(wh and wh[1] and wh[0] / wh[1] >= STRIP_RATIO)
+
+
+def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
+    """The candidates the episode `owner` (a sibling of `ep`) has for `ref`,
+    with a picture or a sample: what wrote the shared live file `ep` reads.
+    Each says its `episode`, and `picked` whether it is that episode's pick."""
+    sib = next((d for d in sibling_episodes(ep) if ep_name(d) == owner), None)
+    if sib is None:
+        return []
+    other = dataclasses.replace(ref, home=sib)
+    picks = load_picks(sib)
+    out = []
+    for view in ([SHEET_VIEW, *VIEW_TAGS] if ref.has_views else [None]):
+        live = picked_take(picks, ref.id, view)
+        for t in list_takes(other, view):
+            j = take_json(ep, other, t)
+            if j["image"] or j["audio"]:
+                out.append(dict(j, episode=owner, picked=t.take == live))
+    return out
+
+
 def ref_json(s: Series, ref: Ref, usage: dict | None = None,
              ov_data: dict | None = None, picks: dict | None = None,
              view_size=VIEW_SIZE, needs: dict | None = None, ready=None,
@@ -4125,6 +4172,15 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         shared = shared_context(s.ep)
     out["shared_with"] = shared["shared"].get(_real_path(live), []) if live else []
     out["live_owner"] = shared["owner"].get(out["sha1"]) if out["sha1"] else None
+    # (another episode's pick wrote the live file: its candidates are that
+    # episode's, GET /seriesmith/refs/owner-takes, asked for when the row opens)
+    if ref.has_views:
+        # a character's sheet is four panels, or one whole picture (`sheet_panels: 1`)
+        out["panels"] = sheet_panels(s, ref)
+        # ...and one marked a whole picture whose file is a strip of panels was
+        # marked by mistake: renders send the whole strip as one picture
+        if out["panels"] == 1 and exists and is_strip(live):
+            out["panels_conflict"] = True
     if ref.kind == "keyframe":
         shot, which = ref_shot(ref)
         need = (needs if needs is not None else keyframe_needs(s.ep)).get((shot, which))
@@ -4157,6 +4213,15 @@ def refs_listing(ep: str, view_size=VIEW_SIZE, ready=None) -> dict:
     then the shot keyframes it needs or has (keyframe_refs), "defaults": the
     episode's image-target defaults (image_defaults)}. `ready(target)` says
     whether an image target can render here (target_ready)."""
+    from seriesmith import diskcache as DC
+    from seriesmith import targets as TG
+    with TG.one_load():
+        out = _refs_listing(ep, view_size, ready)
+    DC.save()                          # what it learned is kept for the next run
+    return out
+
+
+def _refs_listing(ep: str, view_size, ready) -> dict:
     s = load_series(ep)
     try:
         defaults = image_defaults(s, ready)
@@ -4551,17 +4616,44 @@ def _live_paths(ep: str) -> set[str]:
     hit = _PATHS.get(key)
     if hit and hit[0] == sig:
         return hit[1]
+    # ...and between server runs (diskcache), by the same config stamp
+    from seriesmith import diskcache as DC
+    kept = DC.store("live_paths")
+    with DC.lock():
+        k = kept.get(key)
+    if isinstance(k, dict) and k.get("sig") == list(sig) and isinstance(k.get("paths"), list):
+        out = set(k["paths"])
+        _PATHS[key] = (sig, out)
+        return out
     try:
         s = load_series(ep)
         out = {_real_path(r.file) for r in series_refs(s) if r.file}
     except Exception:                    # a neighbour we can't read says nothing
         out = set()
     _PATHS[key] = (sig, out)
+    with DC.lock():
+        kept[key] = {"sig": list(sig), "paths": sorted(out)}
+    DC.touched("live_paths")
     return out
 
 
+_REAL_DIRS: dict[str, str] = {}
+
+
 def _real_path(path: str) -> str:
-    return os.path.normcase(os.path.realpath(os.path.abspath(path)))
+    """`path` as one spelling (case, `..`, links in its folders resolved), to
+    tell when two episodes name the same file. The folder is resolved once and
+    kept (a show's thousands of refs sit in a few dozen folders, and on
+    Windows each realpath is a system call); the file's own name is joined to
+    it, so a file that is itself a link isn't followed -- a folder link is."""
+    full = os.path.abspath(path)
+    folder, name = os.path.split(full)
+    real = _REAL_DIRS.get(folder)
+    if real is None:
+        if len(_REAL_DIRS) > 4096:
+            _REAL_DIRS.clear()
+        real = _REAL_DIRS[folder] = os.path.realpath(folder)
+    return os.path.normcase(os.path.join(real, name))
 
 
 def _recorded_sha1s(ep: str) -> set[str]:

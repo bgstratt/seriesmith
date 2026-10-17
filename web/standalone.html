@@ -8,37 +8,51 @@
     <script>
       try { if (localStorage.getItem("seriesmith.theme") === "light") document.documentElement.classList.add("light"); } catch (e) {}
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet" />
     <style>
-      /* the theme variables the editor reads (ComfyUI's names, which it uses inside ComfyUI) */
+      /* the theme variables the editor reads: ComfyUI's names (which it uses inside
+         ComfyUI) and seriesmith's own (--sm-*: cards, chips, the primary button, the
+         serif), which fall back to ComfyUI's inside it. Warm paper, light and dark. */
       :root {
-        --comfy-menu-bg: #2b2b2e; --comfy-menu-secondary-bg: #222225; --comfy-input-bg: #1c1c1f;
-        --fg-color: #ececec; --descrip-text: #9a9aa0; --border-color: #3c3c42; --p-primary-color: #34d399;
-        --p-primary-contrast-color: #111; --content-hover-bg: #ffffff14; --error-text: #ff5a5a;
+        --comfy-menu-bg: #1b1a18; --comfy-menu-secondary-bg: #161513; --comfy-input-bg: #1f1d1b;
+        --fg-color: #ece6dc; --descrip-text: #a39b8f; --border-color: #38342f; --p-primary-color: #6cc7bc;
+        --p-primary-contrast-color: #10201e; --content-hover-bg: #ffffff12; --error-text: #ff7a6e;
+        --sm-card: #24221f; --sm-card-border: #2f2c28; --sm-shadow: none;
+        --sm-field: #1c1b19; --sm-chip: #1d3936; --sm-chip-fg: #a8e2da;
+        --sm-primary: #237a73; --sm-primary-fg: #fff;
+        --sm-sans: "DM Sans", system-ui, sans-serif; --sm-serif: "Newsreader", Georgia, serif;
+        --sm-page: #141311;
         color-scheme: dark;
       }
       :root.light {
-        --comfy-menu-bg: #e9e9ec; --comfy-menu-secondary-bg: #dcdce0; --comfy-input-bg: #fff;
-        --fg-color: #1d1d20; --descrip-text: #55555c; --border-color: #b9b9c0; --p-primary-color: #0f9f6e;
-        --p-primary-contrast-color: #fff; --content-hover-bg: #00000010; --error-text: #c41a1a;
+        --comfy-menu-bg: #f6f3ee; --comfy-menu-secondary-bg: #ece7df; --comfy-input-bg: #fff;
+        --fg-color: #23211e; --descrip-text: #6e675d; --border-color: #e2dcd2; --p-primary-color: #1f6f6a;
+        --p-primary-contrast-color: #fff; --content-hover-bg: #0000000d; --error-text: #b42318;
+        --sm-card: #fff; --sm-card-border: #ebe5dc; --sm-shadow: 0 1px 3px #00000014;
+        --sm-field: #faf8f4; --sm-chip: #e6f1ef; --sm-chip-fg: #15504c;
+        --sm-primary: #1f6f6a; --sm-primary-fg: #fff;
+        --sm-page: #ece7df;
         color-scheme: light;
       }
-      html, body { margin: 0; height: 100%; font-family: Inter, system-ui, sans-serif; background: #141416; color: var(--fg-color); }
-      :root.light body { background: #f2f2f4; }
+      html, body { margin: 0; height: 100%; font-family: var(--sm-sans); background: var(--sm-page); color: var(--fg-color); }
       #sm {
         display: grid; height: 100vh;
         grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
         grid-template-rows: 40px minmax(0, 1fr) minmax(160px, 30vh);
-        grid-template-areas: "top top" "side view" "time time";
+        /* the sidebar runs full height, as in ComfyUI; the timeline is under the viewer */
+        grid-template-areas: "top top" "side view" "side time";
       }
       #sm-top {
         grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px;
         background: var(--comfy-menu-bg); border-bottom: 1px solid var(--border-color);
       }
-      #sm-top b { font-size: 14px; letter-spacing: .02em; }
+      #sm-top b { font-family: var(--sm-serif); font-size: 18px; font-weight: 600; letter-spacing: .01em; }
       #sm-top .spacer { flex: 1 1 auto; }
       #sm-top button {
         background: transparent; color: var(--fg-color); border: 1px solid var(--border-color);
-        border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: 12px;
+        border-radius: 8px; padding: 4px 12px; cursor: pointer; font: inherit; font-size: 12px;
       }
       #sm-conn { width: 8px; height: 8px; border-radius: 50%; background: #888; }
       #sm-conn[data-state="on"] { background: var(--p-primary-color); }
@@ -50,14 +64,14 @@
       #sm-tabs { display: flex; border-bottom: 1px solid var(--border-color); flex: 0 0 auto; }
       #sm-tabs button {
         flex: 1 1 0; background: transparent; color: var(--descrip-text); border: 0; padding: 8px 0;
-        font: inherit; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+        font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent;
       }
       #sm-tabs button.on { color: var(--fg-color); border-bottom-color: var(--p-primary-color); }
       #sm-shots, #sm-refs { flex: 1 1 auto; min-height: 0; }
-      #sm-view { grid-area: view; position: relative; min-width: 0; min-height: 0; background: #000; }
+      #sm-view { grid-area: view; position: relative; min-width: 0; min-height: 0; background: #0d0c0b; }
       #sm-view .empty {
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-        color: #777; font-size: 13px; text-align: center; padding: 20px;
+        color: #8a8276; font-size: 14px; line-height: 1.6; text-align: center; padding: 20px;
       }
       #sm-viewer { position: absolute; inset: 0; z-index: 1; }
       /* the splitters (src/splitters.ts): a line on hover and while dragging */

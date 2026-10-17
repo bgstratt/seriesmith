@@ -81,7 +81,7 @@ export function CutSection({ shot }: { shot: string }) {
   return (
     <div className="h3-col h3-cut-sec" style={{ gap: 4 }}>
       <div className="h3-row h3-wrap">
-        <span className="h3-h">Cut</span>
+        <span className="h3-card-title">In the cut</span>
         <span className="h3-small h3-muted">
           {s.orphan ? "orphan (no longer in the script)" : `#${idx + 1} of ${st.shots.length}`}
           {moved ? " · moved (out of script order)" : ""}

@@ -241,7 +241,7 @@ class RestartTest(EpisodeCase):
         self.assertIsNone(runner.reattach("old-job", entry))
         sc = T.read_sidecar(take.paths.sidecar)
         self.assertEqual(sc["status"], "failed")
-        self.assertIn("Render missing", sc["save_notes"])
+        self.assertIn("Generate missing (Shots tab)", sc["save_notes"])
         # a record another job owns now, or one already done, is left alone
         T.update_sidecar(take.paths.sidecar, status="queued", comfy_prompt_id="newer")
         self.assertIsNone(runner.reattach("old-job", entry))

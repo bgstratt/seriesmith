@@ -607,7 +607,8 @@ describe("the Phase 9c surfaces render", () => {
   it("the Refs tab draws a voice row with its candidates and the voice target", () => {
     store.set({ refsFilter: "all", refOpen: Object.fromEntries((store.get().refs[EP] ?? []).map((r) => [r.id, true])) });
     const html = renderToString(createElement(RefsTab));
-    expect(html).toContain("Voices with:");
+    // the models, folded to one line (Change opens their pickers)
+    expect(html).toContain("Made with");
     expect(html).toContain("LTX-2.5 audio-only");
     expect(html).toContain("can&#x27;t copy an existing voice");
     expect(html).toContain("Use a line from a take");

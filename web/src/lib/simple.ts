@@ -5,8 +5,10 @@
 // imagined its own way), or with a plate made before it renders, so the place
 // looks the same in every clip that uses it (POST /seriesmith/clip/queue).
 
+import type { TargetTemplate } from "../types";
 import { picturePath, type Raw } from "./seriesForm";
 import { writeShot, type DialogueLine } from "./shotForm";
+import { fitSize } from "./size";
 
 /** What each video model is good at, in a line, for the model picker. */
 export const MODEL_NOTES: Record<string, string> = {
@@ -102,4 +104,48 @@ export function shotsBlock(seq: string, shot: string, location: string, specs: C
 export function withClip(script: string, block: string[]): string {
   const body = script.replace(/\s+$/, "");
   return `${body}\n\n${block.join("\n")}\n`;
+}
+
+/** A typed length as `template`'s model renders it (targets.Template.snap):
+ * rounded UP onto its frame grid, at least its shortest, and capped at its
+ * longest (`capped`: the length typed was past it). null when the text isn't
+ * a length in seconds. */
+export function snapLength(text: string, template: TargetTemplate | null | undefined, seriesFps = 24):
+    { seconds: number; frames: number; capped: boolean } | null {
+  const s = Number(String(text).trim());
+  if (!String(text).trim() || !Number.isFinite(s) || s <= 0) return null;
+  const fps = typeof template?.fps === "number" ? template.fps : seriesFps;
+  const step = Math.max(1, template?.frames?.step ?? 1), base = Math.max(1, template?.frames?.base ?? 1);
+  const max = template?.frames?.max ?? Number.MAX_SAFE_INTEGER;
+  const want = Math.max(1, Math.round(s * fps));
+  let frames = want <= base ? base : step * Math.ceil((want - base) / step) + base;
+  let capped = false;
+  if (frames > max) {
+    frames = base + Math.floor((max - base) / step) * step;
+    capped = true;
+  }
+  return { seconds: Math.round((frames / fps) * 100) / 100, frames, capped };
+}
+
+/** What a script's `dur:` should say for a typed length: as typed, or the
+ * model's longest when it's past that (the build refuses a longer one). */
+export function durFor(text: string, template: TargetTemplate | null | undefined, seriesFps = 24): string {
+  const t = String(text).trim();
+  const snap = snapLength(t, template, seriesFps);
+  return snap?.capped ? String(snap.seconds) : t;
+}
+
+/** A clip's own size ("WxH", as its model renders it) when the typed width and
+ * height differ from the project's saved size once both are fitted (to the
+ * project's model, then the clip's); null when it renders at the project's, or
+ * the boxes don't hold a size. Saved as the clip's size override. */
+export function clipOwnSize(w: string, h: string, project: [number, number],
+                            seriesTemplate: TargetTemplate | null | undefined,
+                            template: TargetTemplate | null | undefined): string | null {
+  const nw = Math.round(Number(w)), nh = Math.round(Number(h));
+  if (!(nw >= 64 && nh >= 64 && nw <= 8192 && nh <= 8192)) return null;
+  const [rw, rh] = fitSize(...fitSize(nw, nh, seriesTemplate ?? undefined), template ?? undefined);
+  const [pw, ph] = project;
+  const [dw, dh] = pw && ph ? fitSize(...fitSize(pw, ph, seriesTemplate ?? undefined), template ?? undefined) : [0, 0];
+  return rw === dw && rh === dh ? null : `${rw}x${rh}`;
 }

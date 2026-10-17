@@ -38,6 +38,8 @@ interface ThumbProps {
   height: number;
   aspect: number;
   selected?: boolean;
+  /** fill its box's width at `aspect` (a board tile) instead of `height` tall */
+  fill?: boolean;
   label?: string | null;
   className?: string;
   onClick?: (e: MouseEvent) => void;
@@ -50,7 +52,9 @@ export function Thumb(p: ThumbProps) {
   const [cell, scrub] = useScrub();
   const t = p.take;
   const has = !!(t && (t.thumb || t.strip));
-  const style: CSSProperties = { height: p.height, width: Math.round(p.height * p.aspect), ...mediaStyle(p.ep, t, cell) };
+  const size: CSSProperties = p.fill ? { width: "100%", aspectRatio: String(p.aspect) }
+    : { height: p.height, width: Math.round(p.height * p.aspect) };
+  const style: CSSProperties = { ...size, ...mediaStyle(p.ep, t, cell) };
   const onContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

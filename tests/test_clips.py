@@ -47,6 +47,28 @@ class ClipsTest(ApiTest):
         # an empty one builds (nothing in it yet)
         self.assertTrue(self.ok(A.post_build(self.ctx, {"ep": first["ep"]}))["ok"])
 
+    def test_a_project_of_its_own(self):
+        """+ New project: a show of its own, marked simple, which builds; the
+        episode list says which episodes are Simple's (Clips is, by its path)."""
+        res = self.ok(A.post_clips_new(self.ctx, {"title": "Storm at the lighthouse"}))
+        ep = os.path.join(self.shows, "Storm_at_the_lighthouse", "storm_at_the_lighthouse")
+        self.assertEqual(res["ep"], ep)
+        cfg = json.load(open(os.path.join(ep, "series.json"), encoding="utf-8"))
+        self.assertIs(cfg["simple"], True)
+        self.assertEqual(cfg["series"]["title"], "Storm at the lighthouse")
+        self.assertTrue(self.ok(A.post_build(self.ctx, {"ep": ep}))["ok"])
+        self.assertEqual(A.post_clips_new(self.ctx, {"title": "Storm at the lighthouse"})[0], 409)
+        self.assertEqual(A.post_clips_new(self.ctx, {"title": "  ?? "})[0], 400)
+        clips = self.clips()
+        cfg = os.path.join(clips, "series.json")
+        old = json.load(open(cfg, encoding="utf-8"))
+        old.pop("simple")                                  # a Clips made before the marker
+        with open(cfg, "w", encoding="utf-8") as fh:
+            json.dump(old, fh)
+        simple = {e["ep"]: e["simple"] for e in self.ok(A.get_episodes(self.ctx, {}))}
+        self.assertTrue(simple[ep] and simple[clips])
+        self.assertFalse(any(v for k, v in simple.items() if k not in (ep, clips)))
+
     def test_a_clip_makes_its_picture_first_then_its_takes(self):
         ep = self.clips()
         p = os.path.join(ep, "series.json")
