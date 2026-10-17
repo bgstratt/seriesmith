@@ -16,7 +16,7 @@ import { pictureOf } from "../lib/pictures";
 import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, clipBlock, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
 } from "../lib/simple";
 import { COMMON_SIZES, fitSize } from "../lib/size";
 import type { TargetTemplate } from "../types";
@@ -123,27 +123,32 @@ function Field({ label, note, wide, htmlFor, children }: {
   );
 }
 
-/** The project's picture size for the pass on (`series` for final, `proxy`
- * for proxy, in its series config): width and height, typed or filled from a
- * common size. Set writes it as the project's model takes it; under it, what
- * the clip's model renders when that differs. */
-function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
-  raw: Raw; pass: string; status: { width: number | null; height: number | null } | null;
-  seriesTemplate: TargetTemplate | undefined; template: TargetTemplate | undefined; short: string;
+/** The project's saved picture size for the pass on (`series` for final, `proxy`
+ * for proxy, in its series config); 0 when it says none. */
+function projectSize(raw: Raw | null, pass: string, status: { width: number | null; height: number | null } | null | undefined): [number, number] {
+  const block = pass === "final" ? "series" : "proxy";
+  return [
+    Number(raw && getPath(raw, [block, "width"])) || status?.width || 0,
+    Number(raw && getPath(raw, [block, "height"])) || status?.height || 0,
+  ];
+}
+
+/** The clip's picture size: width and height, typed or filled from a common size.
+ * Generate renders at it (a clip at another size than the project's keeps it as
+ * its own size override, as Inspect shot does); **Save as the project's size**
+ * makes it every later clip's. Under it, what the clip's model renders when that
+ * differs. */
+function SizeRow({ w, h, setW, setH, pass, project, seriesTemplate, template, short, save }: {
+  w: string; h: string; setW: (v: string) => void; setH: (v: string) => void; pass: string;
+  project: [number, number]; seriesTemplate: TargetTemplate | undefined; template: TargetTemplate | undefined; short: string;
   save: (w: number, h: number) => Promise<boolean>;
 }) {
-  const block = pass === "final" ? "series" : "proxy";
-  const cw = Number(getPath(raw, [block, "width"])) || status?.width || 0;
-  const ch = Number(getPath(raw, [block, "height"])) || status?.height || 0;
-  const [w, setW] = useState(cw ? String(cw) : "");
-  const [h, setH] = useState(ch ? String(ch) : "");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setW(cw ? String(cw) : ""); setH(ch ? String(ch) : ""); }, [cw, ch]);
   const nw = Math.round(Number(w)), nh = Math.round(Number(h));
   const valid = nw >= 64 && nh >= 64 && nw <= 8192 && nh <= 8192;
   const [sw, sh] = valid ? fitSize(nw, nh, seriesTemplate) : [0, 0];
   const [rw, rh] = valid ? fitSize(sw, sh, template) : [0, 0];
-  const dirty = valid && (sw !== cw || sh !== ch);
+  const dirty = valid && (sw !== project[0] || sh !== project[1]);
   async function set() {
     setBusy(true);
     try { await save(sw, sh); } finally { setBusy(false); }
@@ -151,6 +156,7 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
   const notes = [
     valid && (sw !== nw || sh !== nh) ? `the project's model takes ${sw}×${sh}` : "",
     valid && template && (rw !== sw || rh !== sh) ? `${short} renders ${rw}×${rh}` : "",
+    dirty && project[0] ? `the project's is ${project[0]}×${project[1]}: this clip keeps its own` : "",
   ].filter(Boolean);
   return (
     <Field label={`Size (${pass})`} wide note={notes.join("; ")} htmlFor="sm-size-w">
@@ -161,8 +167,12 @@ function SizeRow({ raw, pass, status, seriesTemplate, template, short, save }: {
         <PickMenu label="sizes" title="A common size to start from"
           options={COMMON_SIZES.map((q) => ({ value: `${q.width}x${q.height}`, label: q.label }))}
           onPick={(v) => { const [a, b] = v.split("x"); setW(a); setH(b); }} />
-        <button className="h3-btn" disabled={busy || !dirty} onClick={() => void set()}
-          title={`Every clip of this project renders at it (${pass})`}>Set</button>
+        {dirty && (
+          <button className="h3-btn" disabled={busy} onClick={() => void set()}
+            title={`Make it the project's size: every later clip renders at it (${pass}). Generate uses the boxes either way.`}>
+            Save as the project's size
+          </button>
+        )}
       </span>
     </Field>
   );
@@ -213,6 +223,11 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const all = targets?.targets ?? [];
   const tpl = all.find((x) => x.id === target)?.template;
   const seriesTpl = all.find((x) => x.id === seriesTarget)?.template;
+  // the size boxes: the project's until typed over (another project or pass: its own again)
+  const [pw, ph] = projectSize(raw, pass, status);
+  const [sizeW, setSizeW] = useState(pw ? String(pw) : "");
+  const [sizeH, setSizeH] = useState(ph ? String(ph) : "");
+  useEffect(() => { setSizeW(pw ? String(pw) : ""); setSizeH(ph ? String(ph) : ""); }, [pw, ph, ep]);
 
   const cast = useMemo(() => {
     const subj = (getPath(raw ?? {}, ["subjects"]) ?? {}) as Record<string, Raw>;
@@ -264,6 +279,9 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         host().toast("error", `${shot} was written, but it won't build`, bad.message);
         return;
       }
+      // a size of its own: the shot's size override (this pass), as Inspect shot saves one
+      const own = picture ? null : clipOwnSize(sizeW, sizeH, [pw, ph], seriesTpl, tpl);
+      if (own) for (const id of ids) await api().putOverride({ ep, pass, shot: id, both: false, fields: { size: own } });
       let first = true;
       for (const id of ids) {
         const q = await api().clipQueue({ ep, shot: id, pass, takes: 1, backend: backend || null,
@@ -418,7 +436,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           </Field>
         )}
         {raw && (
-          <SizeRow raw={raw} pass={pass} status={status ? { width: status.width, height: status.height } : null}
+          <SizeRow w={sizeW} h={sizeH} setW={setSizeW} setH={setSizeH} pass={pass} project={[pw, ph]}
             seriesTemplate={seriesTpl} template={picture ? undefined : tpl} short={t?.short ?? target}
             save={(w, h) => {
               const block = pass === "final" ? "series" : "proxy";

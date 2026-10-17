@@ -8,6 +8,7 @@
 import type { TargetTemplate } from "../types";
 import { picturePath, type Raw } from "./seriesForm";
 import { writeShot, type DialogueLine } from "./shotForm";
+import { fitSize } from "./size";
 
 /** What each video model is good at, in a line, for the model picker. */
 export const MODEL_NOTES: Record<string, string> = {
@@ -132,4 +133,19 @@ export function durFor(text: string, template: TargetTemplate | null | undefined
   const t = String(text).trim();
   const snap = snapLength(t, template, seriesFps);
   return snap?.capped ? String(snap.seconds) : t;
+}
+
+/** A clip's own size ("WxH", as its model renders it) when the typed width and
+ * height differ from the project's saved size once both are fitted (to the
+ * project's model, then the clip's); null when it renders at the project's, or
+ * the boxes don't hold a size. Saved as the clip's size override. */
+export function clipOwnSize(w: string, h: string, project: [number, number],
+                            seriesTemplate: TargetTemplate | null | undefined,
+                            template: TargetTemplate | null | undefined): string | null {
+  const nw = Math.round(Number(w)), nh = Math.round(Number(h));
+  if (!(nw >= 64 && nh >= 64 && nw <= 8192 && nh <= 8192)) return null;
+  const [rw, rh] = fitSize(...fitSize(nw, nh, seriesTemplate ?? undefined), template ?? undefined);
+  const [pw, ph] = project;
+  const [dw, dh] = pw && ph ? fitSize(...fitSize(pw, ph, seriesTemplate ?? undefined), template ?? undefined) : [0, 0];
+  return rw === dw && rh === dh ? null : `${rw}x${rh}`;
 }

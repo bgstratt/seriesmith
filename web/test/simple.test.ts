@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, type ClipSpec } from "../src/lib/simple";
 import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
@@ -85,5 +85,23 @@ describe("a supplied character picture", () => {
     expect(isOnePicture(1920, 1080)).toBe(true);      // a wide photo is still one picture
     expect(isOnePicture(4096, 1024)).toBe(false);     // four panels side by side (Red)
     expect(isOnePicture(null, null)).toBe(true);      // size unknown: as before
+  });
+});
+
+describe("a clip's own size", () => {
+  it("is none when the boxes hold the project's size", () => {
+    expect(clipOwnSize("864", "480", [864, 480], undefined, undefined)).toBeNull();
+  });
+  it("is the typed size when it differs", () => {
+    expect(clipOwnSize("1280", "704", [864, 480], undefined, undefined)).toBe("1280x704");
+  });
+  it("is none for boxes that don't hold a size", () => {
+    expect(clipOwnSize("", "480", [864, 480], undefined, undefined)).toBeNull();
+    expect(clipOwnSize("20", "20", [864, 480], undefined, undefined)).toBeNull();
+  });
+  it("compares the sizes once fitted, so one the model rounds to the project's is none", () => {
+    const grid = { size_multiple: 32, size_fit: "snap" };
+    expect(clipOwnSize("870", "482", [864, 480], grid, grid)).toBeNull();      // both 864x480 on a 32 grid
+    expect(clipOwnSize("1290", "730", [864, 480], grid, grid)).toBe("1280x704");
   });
 });

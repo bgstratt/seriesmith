@@ -88,12 +88,15 @@ settings and the text windows wait in Advanced. It is remembered in this browser
   choose its own (`model`). The shot form and the new episode wizard ask the same way. Each model renders on its own frame grid, so under it is what the model picked
   makes of it: rounded up (1.62 s is 4 s on Seedance), and past the model's longest, its
   longest.
-- **Size** is the project's picture size for the pass you're on (proxy or final): width ×
+- **Size** is the clip's picture size for the pass you're on (proxy or final): width ×
   height in pixels, typed or filled from **sizes** beside them (H3's 1344×768, 480p, 720p,
-  1080p, their vertical sizes, square). The New take dialog and the inspector's override
-  ask for a size the same way, their boxes empty for the shot's own. **Set** writes it as the project's model takes it
-  (H3 needs multiples of 32: 1280×720 is 1280×704), and every clip of the project renders
-  at it; under it, what another model picked for the clip makes of it.
+  1080p, their vertical sizes, square), starting at the project's. **Generate** renders at
+  what the boxes say, as the model takes it (H3 needs multiples of 32: 1280×720 is
+  1280×704): a clip at another size than the project's keeps it as its own size override,
+  the one Inspect shot shows and saves. **Save as the project's size** (there when the boxes
+  differ) makes it every later clip's. Under it, what another model picked for the clip
+  makes of it. The New take dialog and the inspector's override ask for a size the same
+  way, their boxes empty for the shot's own.
 
 Queuing makes whatever pictures the clip still needs first (a person's, the place's), on
 the same queue, and the takes once they are made; **Your clips** lists them, newest
