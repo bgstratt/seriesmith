@@ -188,6 +188,9 @@ export interface Api {
   /** URL of a ref file (live file or a candidate, `../` beside a parent-folder
    * series config); `version` busts the image cache after a re-pick. */
   refFileUrl(ep: string, path: string, version?: string | null): string;
+  /** A picture made small (GET /seriesmith/thumb): `width` px wide, rounded up to
+   * 128 / 256 / 512 / 1024. For a picture shown small; the file itself for one shown whole. */
+  thumbUrl(ep: string, path: string, width: number, version?: string | null): string;
   refsGenerate(req: RefGenerateRequest): Promise<RefGenerateResult>;
   /** P5: POST /seriesmith/refs/tour, a camera tour of a location (answers once queued) */
   refsTour(req: { ep: string; ref: string; move: string; seconds?: number; count?: number }): Promise<{ queued: { tour: number; comfy_prompt_id: string }[] }>;
@@ -561,6 +564,7 @@ export function createHttpApi(t: Transport): Api {
     browse: (path, files) => get(`/seriesmith/browse?${qs({ path: path || undefined, files: files || undefined })}`),
     refs: (ep) => get(`/seriesmith/refs?${qs({ ep })}`),
     refFileUrl: (ep, path, version) => t.url(`/seriesmith/file?${qs({ ep, path, v: version || undefined })}`),
+    thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {
         return Promise.reject(new Error(`Seed must be a string of digits, got ${String(req.seed)}`));

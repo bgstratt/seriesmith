@@ -946,6 +946,66 @@ def get_file(ctx: Context, query: dict):
     return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
 
 
+THUMB_WIDTHS = (128, 256, 512, 1024)
+THUMB_EXT = (".png", ".jpg", ".jpeg", ".webp")
+
+
+@handler
+def get_thumb(ctx: Context, query: dict):
+    """A picture inside the episode (as GET /seriesmith/file finds it), made
+    small: `w` wide (rounded up to one of THUMB_WIDTHS), a JPEG kept in the
+    settings folder's thumbs/ by the file's path, size and time, so it is made
+    once (a shared ref's for every episode) and again when the file changes.
+    The Refs tab shows hundreds of reference pictures at a few dozen pixels
+    each; the files are full size. A picture Pillow can't shrink is served as
+    it is."""
+    ep = check_ep(ctx, query.get("ep"))
+    full, _ = ep_file(ctx, ep, query.get("path"))
+    try:
+        want = int(query.get("w") or 256)
+    except (TypeError, ValueError):
+        raise ApiError(400, f"w must be a width in pixels, not {query.get('w')!r}")
+    width = next((x for x in THUMB_WIDTHS if x >= want), THUMB_WIDTHS[-1])
+    ext = os.path.splitext(full)[1].lower()
+    small = thumb_file(ctx, full, width) if ext in THUMB_EXT else None
+    if small is None:
+        return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
+    return 200, {"path": small, "content_type": "image/jpeg"}
+
+
+def thumb_file(ctx: Context, full: str, width: int) -> str | None:
+    """The thumbnail of `full` at `width`, made when missing (None: it can't be)."""
+    import hashlib
+    try:
+        st = os.stat(full)
+    except OSError:
+        return None
+    key = hashlib.sha1(f"{os.path.normcase(os.path.abspath(full))}|{st.st_mtime_ns}|{st.st_size}|{width}"
+                       .encode("utf-8")).hexdigest()
+    out = os.path.join(ctx.user_dir, "default", "seriesmith", "thumbs", key[:2], key + ".jpg")
+    if os.path.isfile(out):
+        return out
+    try:
+        from PIL import Image
+        with Image.open(full) as im:
+            im.draft("RGB", (width, width * 4))          # a JPEG decodes small to begin with
+            im.thumbnail((width, width * 4))
+            if im.mode in ("RGBA", "LA", "P"):
+                im = im.convert("RGBA")
+                flat = Image.new("RGB", im.size, (255, 255, 255))
+                flat.paste(im, mask=im.getchannel("A"))
+                im = flat
+            elif im.mode != "RGB":
+                im = im.convert("RGB")
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            tmp = f"{out}.{os.getpid()}.tmp"
+            im.save(tmp, "JPEG", quality=84)
+        os.replace(tmp, out)
+        return out
+    except Exception:                                     # noqa: BLE001 -- the original will do
+        return None
+
+
 def ep_file(ctx: Context, ep: str, rel, escape_status: int = 403) -> tuple[str, str]:
     """(full path, the relative path with forward slashes) of an existing file
     inside the episode (or its parent-folder series config's folder). 400 for
@@ -3907,6 +3967,7 @@ ROUTES = [
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),
     ("GET", "/seriesmith/issues/export", get_issues_export, "query"),
     ("GET", "/seriesmith/file", get_file, "query"),
+    ("GET", "/seriesmith/thumb", get_thumb, "query"),
     ("POST", "/seriesmith/render", post_render, "body"),
     ("POST", "/seriesmith/cancel", post_cancel, "body"),
     ("POST", "/seriesmith/discard", post_discard, "body"),

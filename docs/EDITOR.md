@@ -62,9 +62,9 @@ settings and the text windows wait in Advanced. It is remembered in this browser
 
 - **Project**, the panel's title: its name is a dropdown of Simple's projects (a series'
   episodes open in Advanced), cut off at the edge when it's long. Its last choice, **Browse
-  and add new…**, names a new project, a folder of its own (`<Name>/<name>/` in your first
-  project folder), so its clips, people and places stay together (or opens Project
-  folders).
+  and add new…**, opens **Project folders**, where **New series/project…** makes one, a folder of
+  its own (`<Name>/<name>/` in the folder you are in), so its clips, people and places stay
+  together. An episode of a series opened from there switches to Advanced.
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
 - **What happens?**: the prompt, as you'd describe the shot to a camera crew, and in the
   same card:
@@ -110,7 +110,7 @@ starts the series wizard.
 The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
 series above it), its name a dropdown of every episode, whose last choice, **Browse and
 add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
-New series…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
+New series/project…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
 (after adding an episode folder outside the editor) and **Simple / Advanced**. The
 timeline keeps a small dropdown of its own, with the same choices.
 
@@ -154,7 +154,8 @@ models…** at the foot of the list opens the Models window (below).
 ### New series, new episode
 
 In **Project folders** (**Browse and add new…** in the episode dropdown), browse to a
-folder and press **New series…** (a show of its own, in a folder made inside this one) or
+folder and press **New series/project…** (a show of its own, in a folder made inside this one; in
+Simple mode it asks only for a name and makes a Simple project) or
 **New episode…** (in this folder: the show's folder, not an episode's). Either opens a
 short wizard:
 
@@ -736,7 +737,7 @@ prompt alone`.
 
 ## Importing a series
 
-**Import series…** (in **Project folders**, beside New series… and New episode…) brings a
+**Import series…** (in **Project folders**, beside New series/project… and New episode…) brings a
 whole season in at once:
 pick the scripts (`Files…`) or a folder of them (`Folder…`), with one series config for the
 lot or one per episode (a `series.json` beside a script, or named after it). Each script

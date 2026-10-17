@@ -6,7 +6,7 @@
 // made first (POST /seriesmith/clip/queue). Everything else (settings, the
 // text windows, the Refs tab) waits in Advanced.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   afterAuthoredWrite, isPaidBackend, loadEpisodes, loadRefs, loadTargets, openBrowse, openImageCompare, openSubjectCard,
   openViewer, openWizard, playAll, select, selectEpisode, setSimple,
@@ -63,16 +63,20 @@ export function SimplePanel() {
       .catch((e) => !gone && setError((e as Error).message));
     return () => { gone = true; };
   }, [config?.roots?.join("|")]);
-  // an episode of Advanced's opened meanwhile: back to Clips
+  // once Simple is showing a project: an episode of a series opened meanwhile
+  // (Project folders, the Refs tab's dropdown) is Advanced's, so switch to it
+  const settled = useRef(false);
   useEffect(() => {
-    if (clipsEp && episodes && ep && !isSimple(ep)) selectEpisode(clipsEp);
+    if (!clipsEp || !episodes || !ep) return;
+    if (isSimple(ep)) settled.current = true;
+    else if (settled.current) setSimple(false);
   }, [ep, clipsEp, episodes]);
 
   const ready = !error && !!clipsEp && !!ep && isSimple(ep);
   const root = config?.roots?.[0] ?? null;
   return (
     <div className="h3-surface sm-simple">
-      {ready ? <ProjectHead ep={ep!} root={root} /> : (
+      {ready ? <ProjectHead ep={ep!} /> : (
         <PanelHead side={<ModeSwitch />}><span className="sm-project-name">Make</span></PanelHead>
       )}
       {error ? (
@@ -90,50 +94,18 @@ export function SimplePanel() {
 }
 
 /** The panel's head: the project as its title, a dropdown of Simple's
- * projects over it ("Browse and add new…" names a new one), Simple / Advanced. */
-function ProjectHead({ ep, root }: { ep: string; root: string | null }) {
+ * projects over it, Simple / Advanced. "Browse and add new…" opens Project
+ * folders, where a project is made (New project…), opened or added. */
+function ProjectHead({ ep }: { ep: string }) {
   const episodes = useApp((s) => s.episodes);
-  const [name, setName] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const mine = (episodes ?? []).filter((e) => e.simple || e.ep === ep);
   const label = (e: (typeof mine)[number]) => e.series || e.title || e.name;
   const cur = mine.find((e) => e.ep === ep);
-  async function make() {
-    if (!name?.trim()) return;
-    setBusy(true);
-    try {
-      const r = await api().clipsNew(name.trim(), root);
-      await loadEpisodes();
-      selectEpisode(r.ep);
-      setName(null);
-    } catch (e) {
-      host().toast("error", "The project wasn't made", (e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <PanelHead side={<ModeSwitch />}>
-      {name === null ? (
-        <TitleSelect kicker="Project" label="Project" name={cur ? label(cur) : "Clips"} value={ep}
-          options={mine.map((e) => ({ value: e.ep, label: label(e), title: e.ep }))}
-          onPick={(v) => (v === ADD_NEW ? (root ? setName("") : openBrowse({ purpose: "roots" })) : selectEpisode(v))} />
-      ) : (
-        <>
-          <div className="sm-kicker">New project</div>
-          <span className="h3-row" style={{ gap: 4, marginTop: 2 }}>
-            <input className="h3-in h3-grow" autoFocus value={name} placeholder="Storm at the lighthouse" aria-label="The new project's name"
-              title="A folder of its own: its clips, people and places kept together"
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void make(); if (e.key === "Escape") setName(null); }} />
-            <button className="h3-btn h3-primary" disabled={busy || !name.trim()} onClick={() => void make()}>Make</button>
-            <button className="h3-btn" disabled={busy} onClick={() => setName(null)}>Cancel</button>
-          </span>
-          <button className="h3-link sm-note" style={{ marginTop: 4 }} onClick={() => { setName(null); openBrowse({ purpose: "roots" }); }}>
-            or browse your project folders…
-          </button>
-        </>
-      )}
+      <TitleSelect kicker="Project" label="Project" name={cur ? label(cur) : "Clips"} value={ep}
+        options={mine.map((e) => ({ value: e.ep, label: label(e), title: e.ep }))}
+        onPick={(v) => (v === ADD_NEW ? openBrowse({ purpose: "roots" }) : selectEpisode(v))} />
     </PanelHead>
   );
 }
@@ -519,7 +491,7 @@ function ClipList({ ep, pass }: { ep: string; pass: string }) {
             title={isPicture ? "Open its pictures" : g.shots.length > 1 ? "Play its shots, cut together" : "Play its newest take"}
             onClick={play}>
             <span className="sm-clip-thumb">
-              {thumb ? <img src={api().fileUrl(ep, thumb)} alt="" />
+              {thumb ? <img src={isPicture ? api().thumbUrl(ep, thumb, 512) : api().fileUrl(ep, thumb)} alt="" />
                 : <span className="sm-note">{busy ? "on the way…" : "nothing yet"}</span>}
             </span>
             <span className="sm-clip-label">

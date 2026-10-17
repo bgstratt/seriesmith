@@ -9,6 +9,7 @@ import {
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import { useView } from "../lib/viewPref";
+import { LazyBg } from "./LazyBg";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
   needLabel,
@@ -269,7 +270,7 @@ function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | nu
   // one whole picture of them (`sheet_panels: 1`): that, not a crop of it
   if (r.panels === 1 && !r.panels_conflict && r.exists && r.path) {
     return { what: "its picture", style: {
-      backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "cover", backgroundPosition: "center 15%",
+      backgroundImage: `url("${api().thumbUrl(ep, r.path, 512, r.sha1)}")`, backgroundSize: "cover", backgroundPosition: "center 15%",
     } };
   }
   for (const [tag, what] of [["04_face", "its face"], ["01_threequarter", "its three-quarter view"]] as const) {
@@ -277,12 +278,12 @@ function faceOf(ep: string, r: Ref): { style: CSSProperties; what: string } | nu
     const t = v?.picked != null ? v.takes.find((x) => x.take === v.picked) : undefined;
     const file = t ? takeFile(t) : null;
     if (file) {
-      return { what, style: { backgroundImage: `url("${api().refFileUrl(ep, file)}")`, backgroundSize: "cover", backgroundPosition: "center 20%" } };
+      return { what, style: { backgroundImage: `url("${api().thumbUrl(ep, file, 512)}")`, backgroundSize: "cover", backgroundPosition: "center 20%" } };
     }
   }
   if (r.exists && r.path) {
     return { what: "its face, from the sheet", style: {
-      backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "400% auto", backgroundPosition: "100% 25%",
+      backgroundImage: `url("${api().thumbUrl(ep, r.path, 1024, r.sha1)}")`, backgroundSize: "400% auto", backgroundPosition: "100% 25%",
     } };
   }
   return null;
@@ -327,7 +328,7 @@ function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fi
   const face = faceOf(ep, r);
   if (face) {
     return (
-      <div className="h3-refthumb h3-thumb h3-face" style={{ ...box, ...face.style }}
+      <LazyBg className="h3-refthumb h3-thumb h3-face" style={{ ...box, ...face.style }}
         title={`${r.name}: ${face.what}${r.exists ? ` (the sheet: ${r.path})` : ""}`} />
     );
   }
@@ -339,9 +340,9 @@ function LiveThumb({ ep, r, size, fill }: { ep: string; r: Ref; size: number; fi
     );
   }
   return (
-    <div
+    <LazyBg
       className="h3-refthumb h3-thumb"
-      style={{ ...box, backgroundImage: `url("${api().refFileUrl(ep, r.path, r.sha1)}")`, backgroundSize: "contain" }}
+      style={{ ...box, backgroundImage: `url("${api().thumbUrl(ep, r.path, fill ? 512 : 128, r.sha1)}")`, backgroundSize: "contain" }}
       title={r.path}
     />
   );
@@ -364,7 +365,8 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
   const prog = useCandidateProgress(r.id, view, t.take);
   // a voice's candidate is `audio` (its `image` is null)
   const file = takeFile(t);
-  const url = file ? api().refFileUrl(ep, file) : null;
+  // a voice's is played whole; a picture's shown small (the viewer opens it whole)
+  const url = file ? (isAudioRef(r) ? api().refFileUrl(ep, file) : api().thumbUrl(ep, file, 256)) : null;
   const click = (e: MouseEvent) => {
     // read at click time, so candidates don't all re-render on every selection
     const sel = store.get().refSel;
@@ -391,7 +393,7 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
       onDoubleClick={() => openImageCompare(r.id, view, t.take, live ? null : pickedOf(r, view))}
       title={title}
     >
-      <div
+      <LazyBg
         className={`h3-cand-img h3-thumb${url && t.status === "ok" ? "" : " h3-empty"}`}
         style={{
           ...(url && t.status === "ok" ? { backgroundImage: `url("${url}")` } : {}),
@@ -403,7 +405,7 @@ const Candidate = memo(function Candidate({ ep, r, view, t, live, selected }: {
         {!(url && t.status === "ok") && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
         <span className="h3-thumb-label">{tn(t.take)}{t.source === "imported" ? " ⤓" : t.source === "edited" ? ` ✎${t.edit?.take != null ? ` ← ${tn(t.edit.take)}` : ""}` : t.source === "frame" && t.from ? ` ← ${t.from.shot}` : ""}</span>
         {live && <span className="h3-cand-live">live</span>}
-      </div>
+      </LazyBg>
       {prog && <Progress value={prog.value} max={prog.max} />}
     </div>
   );
@@ -980,7 +982,7 @@ function OwnerTakes({ ep, r }: { ep: string; r: Ref }) {
               {isAudioRef(r) ? (
                 file && <audio controls preload="none" src={api().refFileUrl(ep, file)} style={{ width: "100%" }} />
               ) : (
-                <div className="h3-cand-img h3-thumb" style={file ? { backgroundImage: `url("${api().refFileUrl(ep, file)}")` } : undefined} />
+                <LazyBg className="h3-cand-img h3-thumb" style={file ? { backgroundImage: `url("${api().thumbUrl(ep, file, 256)}")` } : undefined} />
               )}
               <div className="h3-small h3-muted h3-ell">{label(t.view)} {tn(t.take)}{t.picked ? " · live" : ""}</div>
             </div>

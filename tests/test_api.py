@@ -507,6 +507,29 @@ class ReadTest(ApiTest):
         for bad in ("../ep02/renders/x.mp4", "../ep02/series.json", "../ep02/refs/_picks.json"):
             self.assertIn(A.get_file(self.ctx, {"ep": ep, "path": bad})[0], (400, 404))
 
+    def test_thumb_is_a_small_jpeg_made_once(self):
+        """The Refs tab shows reference pictures at a few dozen pixels: /thumb
+        serves them small, made once into the settings folder and again when
+        the file changes; anything it can't shrink is served as it is."""
+        from PIL import Image
+        pic = os.path.join(self.ep, "refs", "big.png")
+        os.makedirs(os.path.dirname(pic), exist_ok=True)
+        Image.new("RGBA", (2048, 512), (200, 40, 40, 255)).save(pic)
+        code, d = A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})
+        self.assertEqual((code, d["content_type"]), (200, "image/jpeg"))
+        self.assertTrue(d["path"].startswith(os.path.join(self.ctx.user_dir, "default", "seriesmith", "thumbs")))
+        with Image.open(d["path"]) as im:
+            self.assertEqual(im.size, (256, 64))                    # 200 rounds up to 256
+        self.assertEqual(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})[1]["path"], d["path"])
+        Image.new("RGB", (1024, 1024), (0, 0, 0)).save(pic)          # changed: made again
+        self.assertNotEqual(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "200"})[1]["path"], d["path"])
+        with open(os.path.join(self.ep, "refs", "notes.txt"), "w") as fh:
+            fh.write("x")
+        self.assertEqual(self.ok(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/notes.txt"}))["path"],
+                         os.path.join(self.ep, "refs", "notes.txt"))
+        self.err(A.get_thumb(self.ctx, {"ep": self.ep, "path": "refs/big.png", "w": "big"}), 400)
+        self.err(A.get_thumb(self.ctx, {"ep": self.ep, "path": "../../secret.png"}), 400)
+
     def test_file_after_render(self):
         (q,) = self.render("sh010")["queued"]
         data, shots = self.status()

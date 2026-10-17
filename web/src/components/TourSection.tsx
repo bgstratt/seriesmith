@@ -124,7 +124,7 @@ export function TourSection({ ep, r }: { ep: string; r: Ref }) {
               style={{
                 width: 112, height: 64, padding: 0,
                 border: sel === t.take ? "2px solid var(--h3-accent, #4af)" : "1px solid var(--h3-border, #444)",
-                background: t.image && t.status === "ok" ? `center / cover url("${api().fileUrl(ep, t.image)}")` : undefined,
+                background: t.image && t.status === "ok" ? `center / cover url("${api().thumbUrl(ep, t.image, 256)}")` : undefined,
               }}
             >
               <span className="h3-thumb-label">{tn(t.take)}</span>

@@ -135,7 +135,7 @@ function RefsUsed({ shot, d }: { shot: string; d: ShotDetail | undefined }) {
       {!tiles.length && <span className="h3-small h3-muted">None: its target reads no reference images.</span>}
       <div className="h3-refs-used">
         {tiles.map((t) => {
-          const url = t.image ? api().refFileUrl(ep, t.image, t.version) : null;
+          const url = t.image ? api().thumbUrl(ep, t.image, 256, t.version) : null;
           const canOpen = !!t.refId && known.has(t.refId);
           const tile = (
             <div

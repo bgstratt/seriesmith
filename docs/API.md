@@ -33,7 +33,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
-| `GET /seriesmith/file` | Files |
+| `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
@@ -346,6 +346,19 @@ Streams a file inside `ep`, with HTTP Range support (aiohttp `FileResponse`) so
 config names above it: the show's `refs/` and `audio/` (or the whole show folder, when the
 config is there), and a sibling episode's ref candidates (`../<sibling>/refs/_takes/...`,
 what `/refs/owner-takes` lists); never a sibling's renders or the show's own files.
+
+### `GET /seriesmith/thumb?ep=…&path=…&w=256`
+The same picture as `/file` finds it, made small for a picture shown small (the Refs tab
+draws hundreds of reference pictures at a few dozen pixels; the files are full size, 722 MB
+for one Porchlights episode's): `w` wide, rounded up to 128, 256, 512 or 1024, a JPEG on a
+white ground. Made once, kept in the settings folder's `thumbs/` by the file's path, size
+and time (so a shared ref's is made once for every episode, and again when the file
+changes). A file Pillow can't shrink (not a picture, or unreadable) is served as it is.
+Thumbnails run on two threads of their own, so a page asking for hundreds never holds up
+the other requests; the editor asks for one only when its picture comes near the screen.
+
+JSON replies over 64 KB are gzipped when the browser accepts it (the refs listing: 2.8 MB,
+0.12 MB sent).
 
 ## Rendering
 

@@ -18,9 +18,10 @@ export interface Named {
   pic: Picture | null;
 }
 
-function urlOf(ep: string, pic: Picture): string {
-  const u = api().fileUrl(ep, pic.path);
-  return pic.version && u.includes("?") ? `${u}&v=${pic.version.slice(0, 10)}` : u;
+/** The picture made small enough for `size` px (the face is a quarter of a
+ * sheet, so its sheet is fetched four times as wide), sharp on a 2x screen. */
+function urlOf(ep: string, pic: Picture, size: number): string {
+  return api().thumbUrl(ep, pic.path, size * (pic.face ? 4 : 1) * 2, pic.version ? pic.version.slice(0, 10) : null);
 }
 
 /** A picture at `size` px: the face panel for a character's sheet, the whole
@@ -29,7 +30,7 @@ export function Thumb({ ep, pic, name, size = 24, round = false }: {
   ep: string | null; pic: Picture | null; name: string; size?: number; round?: boolean;
 }) {
   const [broken, setBroken] = useState(false);
-  const url = ep && pic ? urlOf(ep, pic) : null;
+  const url = ep && pic ? urlOf(ep, pic, size) : null;
   useEffect(() => setBroken(false), [url]);
   const box = {
     width: size, height: size, flex: "none", borderRadius: round ? "50%" : 3, overflow: "hidden",

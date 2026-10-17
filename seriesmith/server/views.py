@@ -21,9 +21,27 @@ from seriesmith import api as A
 log = logging.getLogger("seriesmith")
 
 
+_THUMBS = None
+
+
+def _thumb_pool():
+    """The thumbnails' own two threads (GET /seriesmith/thumb)."""
+    global _THUMBS
+    if _THUMBS is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _THUMBS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seriesmith-thumb")
+    return _THUMBS
+
+
+COMPRESS_OVER = 64 * 1024        # a reply this big goes gzipped (the refs listing: megabytes)
+
+
 def _json(status: int, data) -> web.Response:
-    return web.json_response(data, status=status,
+    resp = web.json_response(data, status=status,
                              dumps=lambda o: json.dumps(o, ensure_ascii=False))
+    if resp.body is not None and len(resp.body) > COMPRESS_OVER:
+        resp.enable_compression()          # when the browser accepts it, as they all do
+    return resp
 
 
 class TooLarge(Exception):
@@ -111,7 +129,10 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
             finally:
                 ASKED.req = None
         try:
-            status, data = await loop.run_in_executor(None, call, ctx, arg)
+            # a thumbnail (shrinking a picture: CPU) on a pool of its own, so a
+            # Refs tab asking for hundreds never holds up the other requests
+            pool = _thumb_pool() if fn is A.get_thumb else None
+            status, data = await loop.run_in_executor(pool, call, ctx, arg)
         except Exception as e:                            # handler() already catches; belt
             log.exception("seriesmith: %s failed", request.path)
             return _json(500, {"error": f"{e.__class__.__name__}: {e}"})
@@ -127,5 +148,5 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
 
 def routes(make_context: Callable[[], "A.Context"]) -> list[tuple[str, str, Callable]]:
     """(method, path, view) for every route of the editor's API."""
-    return [(method, path, make_view(make_context, fn, takes, is_file=fn is A.get_file))
+    return [(method, path, make_view(make_context, fn, takes, is_file=fn in (A.get_file, A.get_thumb)))
             for method, path, fn, takes in A.ROUTES]

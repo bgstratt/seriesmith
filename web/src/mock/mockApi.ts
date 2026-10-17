@@ -1592,6 +1592,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     refFileUrl(_ep, path) {
       return refs.image(path) ?? refs.audio(path) ?? media + path.split("/").pop();
     },
+    thumbUrl(_ep, path) {
+      // the mock has no small copies: the picture itself, as refFileUrl finds it
+      return refs.image(path) ?? media + path.split("/").pop();
+    },
     async refsGenerate(req) {
       await wait();
       need(req.ep);
@@ -2048,7 +2052,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   // Errors from the mock look like the real client's ApiError (status + message)
   const wrapped = {} as Api;
   for (const [k, fn] of Object.entries(api) as [keyof Api, (...a: unknown[]) => unknown][]) {
-    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" ? fn : async (...a: unknown[]) => {
+    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" ? fn : async (...a: unknown[]) => {
       try {
         return await fn(...a);
       } catch (e) {
