@@ -24,6 +24,7 @@ import { statusKey, store, useApp } from "../store";
 import type { Named } from "./Picture";
 import { LengthPicker } from "./LengthPicker";
 import { PickMenu } from "./PickMenu";
+import { ADD_NEW, PanelHead, TitleSelect } from "./ProjectHead";
 import { Chips, DialogueRows, PlacePick, type Cast } from "./ShotForm";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions } from "./Targets";
@@ -72,10 +73,7 @@ export function SimplePanel() {
   return (
     <div className="h3-surface sm-simple">
       {ready ? <ProjectHead ep={ep!} root={root} /> : (
-        <div className="sm-head">
-          <div className="sm-head-main"><span className="sm-project-name">Make</span></div>
-          <div className="sm-head-side"><ModeSwitch /></div>
-        </div>
+        <PanelHead side={<ModeSwitch />}><span className="sm-project-name">Make</span></PanelHead>
       )}
       {error ? (
         <div className="sm-body">
@@ -91,8 +89,8 @@ export function SimplePanel() {
   );
 }
 
-/** The panel's head: the project (its name, a dropdown of Simple's projects
- * over it; cut off at the edge, never wrapped), + New project, Simple / Advanced. */
+/** The panel's head: the project as its title, a dropdown of Simple's
+ * projects over it ("Browse and add new…" names a new one), Simple / Advanced. */
 function ProjectHead({ ep, root }: { ep: string; root: string | null }) {
   const episodes = useApp((s) => s.episodes);
   const [name, setName] = useState<string | null>(null);
@@ -115,35 +113,28 @@ function ProjectHead({ ep, root }: { ep: string; root: string | null }) {
     }
   }
   return (
-    <div className="sm-head">
-      <div className="sm-head-main">
-        <div className="sm-kicker">{name === null ? "Project" : "New project"}</div>
-        {name === null ? (
-          <span className="sm-project" title={cur ? label(cur) : undefined}>
-            <span className="sm-project-name">{cur ? label(cur) : "Clips"}</span>
-            <i className="pi pi-chevron-down sm-caret" />
-            <select aria-label="Project" className="sm-project-select" value={ep} onChange={(e) => selectEpisode(e.target.value)}>
-              {mine.map((e) => <option key={e.ep} value={e.ep}>{label(e)}</option>)}
-            </select>
-          </span>
-        ) : (
+    <PanelHead side={<ModeSwitch />}>
+      {name === null ? (
+        <TitleSelect kicker="Project" label="Project" name={cur ? label(cur) : "Clips"} value={ep}
+          options={mine.map((e) => ({ value: e.ep, label: label(e), title: e.ep }))}
+          onPick={(v) => (v === ADD_NEW ? (root ? setName("") : openBrowse({ purpose: "roots" })) : selectEpisode(v))} />
+      ) : (
+        <>
+          <div className="sm-kicker">New project</div>
           <span className="h3-row" style={{ gap: 4, marginTop: 2 }}>
             <input className="h3-in h3-grow" autoFocus value={name} placeholder="Storm at the lighthouse" aria-label="The new project's name"
+              title="A folder of its own: its clips, people and places kept together"
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void make(); if (e.key === "Escape") setName(null); }} />
             <button className="h3-btn h3-primary" disabled={busy || !name.trim()} onClick={() => void make()}>Make</button>
             <button className="h3-btn" disabled={busy} onClick={() => setName(null)}>Cancel</button>
           </span>
-        )}
-      </div>
-      <div className="sm-head-side">
-        <ModeSwitch />
-        {name === null && (
-          <button className="h3-btn" disabled={!root} title="A project of its own: its clips, people and places kept together"
-            onClick={() => setName("")}>+ New project</button>
-        )}
-      </div>
-    </div>
+          <button className="h3-link sm-note" style={{ marginTop: 4 }} onClick={() => { setName(null); openBrowse({ purpose: "roots" }); }}>
+            or browse your project folders…
+          </button>
+        </>
+      )}
+    </PanelHead>
   );
 }
 

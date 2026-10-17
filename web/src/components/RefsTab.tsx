@@ -37,7 +37,7 @@ import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSetting
 import { useStatus } from "./hooks";
 import { ModelOptions, ModelsButton, useTargets } from "./Targets";
 import { OverrideFields } from "./OverrideFields";
-import { EpisodeSelect, PassToggle } from "./ShotsTab";
+import { EpisodeHead, PassToggle } from "./ShotsTab";
 import { Progress } from "./Thumb";
 import { DropSlot, SupplyPicker, UploadButton } from "./Upload";
 import { EditForm, editSourceText } from "./RefEdit";
@@ -1121,9 +1121,8 @@ export function RefsTab() {
 
   return (
     <div className="h3-surface">
+      <EpisodeHead />
       <div className="h3-bar">
-        <span className="h3-title">Refs</span>
-        <EpisodeSelect compact />
         {refs && <span className="h3-muted h3-small h3-nowrap">{refs.length} refs</span>}
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}

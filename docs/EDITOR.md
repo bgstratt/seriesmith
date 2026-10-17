@@ -34,9 +34,9 @@ you to write into:
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop
    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.
-3. **Open Shots → the folder button** (beside the episode drop-down) and add the folder
-   that *contains* your episode folders (the root), then pick the episode from the
-   drop-down.
+3. **Open Shots → the episode's name at the top → Browse and add new…** and add the
+   folder that *contains* your episode folders (the root), then pick the episode from the
+   same dropdown.
 4. **No episode yet? New episode…** in that same window writes the two files for you — see
    below. Otherwise write them yourself: `Shows\ep01\series.json` and `Shows\ep01\ep01.md`
    ([AUTHORING.md](AUTHORING.md) opens with a complete pair to copy).
@@ -61,9 +61,10 @@ setting up a series: the sidebar becomes one **Make** panel and the Refs tab, th
 settings and the text windows wait in Advanced. It is remembered in this browser.
 
 - **Project**, the panel's title: its name is a dropdown of Simple's projects (a series'
-  episodes open in Advanced), cut off at the edge when it's long. **+ New project** makes a
-  folder of its own (`<Name>/<name>/` in your first project folder), so its clips, people
-  and places stay together.
+  episodes open in Advanced), cut off at the edge when it's long. Its last choice, **Browse
+  and add new…**, names a new project, a folder of its own (`<Name>/<name>/` in your first
+  project folder), so its clips, people and places stay together (or opens Project
+  folders).
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
 - **What happens?**: the prompt, as you'd describe the shot to a camera crew, and in the
   same card:
@@ -106,7 +107,14 @@ starts the series wizard.
 
 ### The toolbar
 
-Along the Shots bar, after **Simple / Advanced**, left to right:
+The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
+series above it), its name a dropdown of every episode, whose last choice, **Browse and
+add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
+New series…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
+(after adding an episode folder outside the editor) and **Simple / Advanced**. The
+timeline keeps a small dropdown of its own, with the same choices.
+
+Under it, the Shots bar, left to right:
 
 | Icon | What it does |
 |---|---|
@@ -123,9 +131,7 @@ Along the Shots bar, after **Simple / Advanced**, left to right:
 | images | **Open the Refs tab** |
 | refresh | **Refresh** — re-read the episode from disk |
 
-Under it: the **episode drop-down**, **Rescan the project roots** (after adding an episode
-folder outside the editor) and **Project folders** (browse, add or remove roots, open an
-episode). Then **Model:**, the episode's video model (below), and the row that works on
+Under it: **Model:**, the episode's video model (below), and the row that works on
 the pass: **proxy / final** (which pass you are looking at and rendering), **Build** (runs
 `build` for both passes from the script and series config), **Generate missing**, **Re-render
 stale** and, in proxy, **Finals from drafts**.
@@ -142,7 +148,7 @@ models…** at the foot of the list opens the Models window (below).
 
 ### New series, new episode
 
-In **Project folders** (the folder button beside the episode drop-down), browse to a
+In **Project folders** (**Browse and add new…** in the episode dropdown), browse to a
 folder and press **New series…** (a show of its own, in a folder made inside this one) or
 **New episode…** (in this folder: the show's folder, not an episode's). Either opens a
 short wizard:

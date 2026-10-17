@@ -12,7 +12,8 @@ import { missingShots, passProgress, progressLine, progressTitle, staleReasons, 
 import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
-import type { Pass, ShotStatus, TakeSummary, TargetList } from "../types";
+import type { EpisodeSummary, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
+import { ADD_NEW, PanelHead, TitleSelect } from "./ProjectHead";
 import { aspectOf, useStatus } from "./hooks";
 import { useIssueCount } from "./Issues";
 import { MissingRefsSummary } from "./MissingRefs";
@@ -66,8 +67,40 @@ Switch episode (the Shots tab, Refs and the timeline follow it)` : "Pick an epis
           {!e.built.proxy && !e.built.final ? " (not built)" : ""}
         </option>
       ))}
-      <option value={BROWSE}>Browse…</option>
+      <option value={BROWSE}>Browse and add new…</option>
     </select>
+  );
+}
+
+/** An episode as its dropdown lists it. */
+function episodeLabel(e: EpisodeSummary): string {
+  return `${e.series ? `${e.series} · ` : ""}${e.name}${e.title && e.title !== e.series ? ` — ${e.title}` : ""}`
+    + (!e.built.proxy && !e.built.final ? " (not built)" : "");
+}
+
+/**
+ * The Shots and Refs tabs' head, as Simple mode's: the open episode as the
+ * panel's title (its series above it), every episode in a dropdown over it,
+ * and Browse and add new… (the project folders: open, New episode, New series).
+ */
+export function EpisodeHead({ side }: { side?: React.ReactNode }) {
+  const episodes = useApp((s) => s.episodes);
+  const episodesError = useApp((s) => s.episodesError);
+  const ep = useApp((s) => s.ep);
+  useEffect(() => {
+    if (episodes == null && !episodesError) void loadEpisodes();
+  }, [episodes, episodesError]);
+  const cur = episodes?.find((e) => e.ep === ep);
+  const name = cur ? `${cur.name}${cur.title && cur.title !== cur.series ? ` — ${cur.title}` : ""}`
+    : episodes?.length ? "Pick an episode" : episodes ? "No episodes yet" : "Loading…";
+  return (
+    <PanelHead side={side}>
+      <TitleSelect kicker={cur?.series || "Episode"} label="Episode" name={name} value={ep ?? ""}
+        title={ep ? `${ep}
+Switch episode (the Shots tab, Refs and the timeline follow it)` : undefined}
+        options={(episodes ?? []).map((e) => ({ value: e.ep, label: episodeLabel(e), title: e.ep }))}
+        onPick={(v) => (v === ADD_NEW ? openBrowse({ purpose: "roots" }) : selectEpisode(v || null))} />
+    </PanelHead>
   );
 }
 
@@ -103,23 +136,14 @@ function EpisodeHeader() {
     );
   }
   return (
-    <div className="h3-pad h3-col" style={{ gap: 4 }}>
-      <div className="h3-row">
-        <EpisodeSelect />
-        <button className="h3-btn h3-icon" title="Rescan the project roots" onClick={() => void loadEpisodes()}>
-          <i className="pi pi-refresh" />
-        </button>
-        <button className="h3-btn h3-icon" title="Project folders: browse, add or remove roots, open an episode" onClick={() => openBrowse({ purpose: "roots" })}>
-          <i className="pi pi-folder" />
-        </button>
-      </div>
+    (episodesError || (episodes && !episodes.length)) ? <div className="h3-pad h3-col" style={{ gap: 4 }}>
       {episodesError && <div className="h3-note h3-note-err">{episodesError}</div>}
       {episodes && !episodes.length && (
         <div className="h3-muted h3-small">
           No episode folders under {config?.roots.join(", ")}. An episode needs a series.json (here or in its parent) and a script.
         </div>
       )}
-    </div>
+    </div> : null
   );
 }
 
@@ -464,11 +488,17 @@ function ShotsBody() {
   if (simple) return <SimplePanel />;
   return (
     <div className="h3-surface">
-      <div className="h3-bar" style={{ justifyContent: "space-between" }}>
-        <span className="h3-title">Shots</span>
-        <ModeSwitch />
-        {ep && (
-          <span className="h3-row">
+      <EpisodeHead side={(
+        <span className="h3-row" style={{ gap: 4 }}>
+          <button className="h3-btn h3-icon" title="Rescan the project roots" onClick={() => void loadEpisodes()}>
+            <i className="pi pi-refresh" />
+          </button>
+          <ModeSwitch />
+        </span>
+      )} />
+      {ep && (
+        <div className="h3-bar">
+          <span className="h3-row h3-wrap" style={{ gap: 3 }}>
             <button className="h3-btn h3-icon" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
             <button className="h3-btn" title="Add a shot after the selected one (a form: who, size, length, action, dialogue, camera, sound)"
               onClick={() => openShotForm({ shot: null, after: selShot })}><i className="pi pi-plus" /> Shot</button>
@@ -482,10 +512,10 @@ function ShotsBody() {
             <button className="h3-btn h3-icon" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /></button>
             <IssuesButton />
             <button className="h3-btn h3-icon" title="Open the Refs tab" onClick={() => host().show("refs")}><i className="h3-ico-images" /></button>
-            <button className="h3-btn h3-icon" title="Refresh" onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
+            <button className="h3-btn h3-icon" title="Refresh the episode" onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
           </span>
-        )}
-      </div>
+        </div>
+      )}
       <EpisodeHeader />
       <EpisodeTarget />
       <BuildBar />

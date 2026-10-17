@@ -699,7 +699,7 @@
 /* Simple mode (SimplePanel): the project as the panel's title, cards, a big
    Make button, the clips as a grid. Paper in the standalone page's palette. */
 .sm-simple { font-size: 13px; }
-.sm-simple .sm-head {
+.h3-root .sm-head {
   display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; flex: 0 0 auto; min-width: 0;
 }
 .sm-head-main { flex: 1 1 auto; min-width: 0; }
