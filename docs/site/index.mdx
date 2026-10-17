@@ -1,0 +1,50 @@
+---
+title: "seriesmith"
+description: "A series config and episode scripts in, finished episodes out: any shot on any model, on your own GPU or in the cloud."
+---
+
+You describe a show once in `series.json`: the cast, the places, the voices, the look. Then
+you write each episode as a screenplay-flavoured markdown script (`epNN.md`). seriesmith
+turns the script into shots, makes the reference pictures, keyframes and voices they need,
+renders every shot on the model and machine you choose, and cuts the takes together through
+upscale, post and master.
+
+You drive it from the **editor**, a page in your browser (shots, takes, refs, the cut and the
+queue), or from one command, `seriesmith`. Every shot is its own job, so a bad shot is
+rendered again alone and the rest of the episode is untouched. Every take is kept with the
+exact settings that made it.
+
+<CardGroup cols={2}>
+  <Card title="Install" icon="download" href="/install">
+    From nothing to a rendered proxy episode.
+  </Card>
+  <Card title="Where shots render" icon="server" href="/setup">
+    Your own ComfyUI, Comfy Cloud, a deployment, or hosted models through Comfy Router.
+  </Card>
+  <Card title="The editor" icon="clapperboard" href="/editor">
+    Simple mode for a clip at a time; Advanced for whole episodes.
+  </Card>
+  <Card title="Writing an episode" icon="pen-nib" href="/authoring">
+    The script and series config format, starting from a first episode to copy.
+  </Card>
+</CardGroup>
+
+## How it fits together
+
+<Steps>
+  <Step title="Describe the show">
+    `series.json` holds the cast, places, props and voices, and which models draw them.
+  </Step>
+  <Step title="Write the episode">
+    Each shot is a few lines: who is in it, the framing and length, what happens, what is said,
+    the camera and the sound.
+  </Step>
+  <Step title="Make the pictures">
+    Character sheets, location plates and keyframes, generated on an image model or supplied by you.
+  </Step>
+  <Step title="Render and cut">
+    Proxies first to judge the cut, then finals; pick takes, trim, and master with titles.
+  </Step>
+</Steps>
+
+seriesmith is open source under the MIT licence: [github.com/bgstratt/seriesmith](https://github.com/bgstratt/seriesmith).

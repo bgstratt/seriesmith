@@ -1,0 +1,40 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "seriesmith",
+  "description": "A series config and episode scripts in, finished episodes out: any shot on any model, on your own GPU or in the cloud.",
+  "colors": {
+    "primary": "#1f6f6a",
+    "light": "#5fb8ae",
+    "dark": "#15504c"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://seriesmith.com"
+  },
+  "fonts": {
+    "heading": { "family": "Newsreader", "weight": 600 },
+    "body": { "family": "DM Sans" }
+  },
+  "navigation": {
+    "groups": [
+      { "group": "Get started", "pages": ["index", "install", "setup"] },
+      { "group": "Using seriesmith", "pages": ["editor", "commands"] },
+      { "group": "Writing episodes", "pages": ["authoring", "script-conversion"] },
+      {
+        "group": "Guides",
+        "pages": ["continuous", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]
+      },
+      { "group": "Reference", "pages": ["api"] }
+    ]
+  },
+  "navbar": {
+    "links": [{ "label": "GitHub", "href": "https://github.com/bgstratt/seriesmith" }],
+    "primary": { "type": "button", "label": "seriesmith.com", "href": "https://seriesmith.com" }
+  },
+  "footer": {
+    "socials": { "github": "https://github.com/bgstratt/seriesmith" }
+  }
+}
