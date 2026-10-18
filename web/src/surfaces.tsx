@@ -2,7 +2,7 @@
 // store. Host-agnostic: comfy.ts calls these from ComfyUI's tab `render(el)`
 // hooks, and the dev page calls them for its side-by-side layout.
 
-import { StrictMode, type ComponentType } from "react";
+import { StrictMode, type ComponentType, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { dismissToast } from "./actions";
 import { ContextMenu } from "./components/ContextMenu";
@@ -186,7 +186,9 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Toasts", Toasts],
 ];
 
-export function Overlay() {
+/** `extra`: a host's own windows, in the same layer (the standalone page's
+ * Jobs and Settings), so the one last opened or clicked is on top. */
+export function Overlay({ extra }: { extra?: ReactNode }) {
   return (
     <>
       {OVERLAY_WINDOWS.map(([name, C]) => (
@@ -197,6 +199,7 @@ export function Overlay() {
       <Boundary name="Jobs">
         <PanelQueueWindows />
       </Boundary>
+      {extra}
     </>
   );
 }
@@ -209,7 +212,7 @@ let overlayRoot: Root | null = null;
  * the dev page, and in ComfyUI only those with a button (the rest use
  * ComfyUI's toasts).
  */
-export function mountOverlay() {
+export function mountOverlay(extra?: ReactNode) {
   if (overlayRoot) return;
   injectStyles();
   const el = document.createElement("div");
@@ -219,7 +222,7 @@ export function mountOverlay() {
   overlayRoot = createRoot(el);
   overlayRoot.render(
     <StrictMode>
-      <Overlay />
+      <Overlay extra={extra} />
     </StrictMode>,
   );
 }

@@ -116,26 +116,24 @@ mountSurface("refs", document.getElementById("sm-refs")!);
 mountSurface("timeline", document.getElementById("sm-timeline")!);
 dockWindow(VIEWER_RECT_KEY, document.getElementById("sm-viewer"));
 installSplitters(document.getElementById("sm")!);
-mountOverlay();
+// the floating layer, with the page's own Jobs and Settings in it: every
+// floating window in one layer, so the one last opened or clicked is on top
+// (Features over Settings), and the context menu, dialogs and toasts above them
+mountOverlay(
+  <Boundary name="Jobs">
+    <JobsWindow />
+    <SettingsWindow server />
+  </Boundary>,
+);
 
-// the top bar's queue controls, and the Jobs window over the page
+// the top bar's queue controls (their Jobs and Settings windows are in the
+// floating layer, above)
 injectStyles();
 createRoot(document.getElementById("sm-queue")!).render(
   <StrictMode>
     <Boundary name="Queue">
       <BackendChoice />
       <JobsButton />
-    </Boundary>
-  </StrictMode>,
-);
-const jobsEl = document.createElement("div");
-jobsEl.className = "h3-root";
-document.body.appendChild(jobsEl);
-createRoot(jobsEl).render(
-  <StrictMode>
-    <Boundary name="Jobs">
-      <JobsWindow />
-      <SettingsWindow server />
     </Boundary>
   </StrictMode>,
 );
