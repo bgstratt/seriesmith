@@ -1,0 +1,122 @@
+{
+  "series": {
+    "id": "last_light",
+    "title": "Last Light",
+    "fps": 24,
+    "width": 1344,
+    "height": 768
+  },
+  "proxy": { "width": 864, "height": 480 },
+  "style": {
+    "look": "a live-action neo-noir thriller shot at night on 35mm anamorphic lenses: heavy rain catching the light, shallow depth of field with distant neon falling into soft bokeh, hard magenta and cyan neon practicals against deep black shadows, wet reflective surfaces, high contrast and fine film grain"
+  },
+  "speech": { "pace": "normal" },
+  "subjects": {
+    "mara": {
+      "kind": "character",
+      "name": "Mara",
+      "design": "a lean woman in her twenties with dark brown skin and long black box braids worn loose, a cropped bright-yellow rain jacket with the hood down, a fitted black top, black cargo pants and scuffed black combat boots",
+      "sheet": "refs/mara/mara_sheet_4panel.png",
+      "voice": "a young woman, low and quick, a little breathless, dry and wry"
+    },
+    "voss": {
+      "kind": "character",
+      "name": "Voss",
+      "design": "a tall, pale man in his forties with close-cropped grey hair and a clean-shaven hard jaw, a long charcoal-grey longcoat with the collar turned up, black leather gloves, and a wraparound mirrored silver visor covering his eyes",
+      "sheet": "refs/voss/voss_sheet_4panel.png",
+      "voice": "a man in his forties, deep, calm and quiet, never raised"
+    },
+    "case": {
+      "kind": "prop",
+      "name": "the case",
+      "design": "a battered brushed-steel briefcase with dented corners and a black canvas shoulder strap, a thin seam of pulsing blue light running all the way around the edge of its closed lid",
+      "sheet": "refs/props/case.png"
+    },
+    "case_open": {
+      "of": "case",
+      "design": "a battered brushed-steel briefcase lying open with its lid raised, grey foam inside cradling a single small seedling sealed in a clear glass bulb, the seedling's leaves glowing a soft blue that lights the foam around it",
+      "sheet": "refs/props/case_open.png"
+    },
+    "drone": {
+      "kind": "vehicle",
+      "name": "the drone",
+      "design": "a matte-black quadcopter drone about the size of a car tyre, four rotors on short angular arms, a single round glowing red eye-lens under its nose",
+      "sheet": "refs/props/drone.png"
+    }
+  },
+  "locations": {
+    "skyline_night": {
+      "description": "a vast city skyline at night in heavy rain seen from high above, a canyon of glass towers lit by magenta and cyan neon signs, the streets far below glowing with slow red and white streams of car lights, low clouds lit orange from beneath",
+      "plate": "refs/_bg/skyline_night.png"
+    },
+    "water_towers": {
+      "description": "a flat tar rooftop at night in heavy rain, rows of rusted cylindrical water towers on steel legs, puddles reflecting the magenta glow of a giant neon sign on the next tower to the left, a caged yellow bulb over a stairwell door in a brick bulkhead at the far end",
+      "plate": "refs/_bg/water_towers.png"
+    },
+    "water_towers_door": {
+      "of": "water_towers",
+      "description": "the same tar rooftop looking toward its stairwell: a rusted steel door in a brick bulkhead under a caged yellow bulb, rusted water towers on steel legs to either side, rain slanting through the bulb's light, magenta neon glow from the left",
+      "plate": "refs/_bg/water_towers_door.png"
+    },
+    "water_towers_run": {
+      "of": "water_towers",
+      "description": "the same tar rooftop seen down a long aisle between two rows of rusted water towers on steel legs, the brick stairwell bulkhead and its caged yellow bulb small at the far end of the aisle, puddles reflecting magenta neon, rain",
+      "plate": "refs/_bg/water_towers_run.png"
+    },
+    "roof_edge": {
+      "description": "the end of a tar rooftop at night in heavy rain seen from behind, a low concrete ledge, then a ten-foot gap over a sheer sixty-storey drop to a neon-lit street, and across the gap a neighbouring flat roof crowded with grey satellite dishes, cyan neon signs on the towers around it",
+      "plate": "refs/_bg/roof_edge.png"
+    },
+    "roof_edge_side": {
+      "of": "roof_edge",
+      "description": "the ten-foot gap between two rooftops seen side-on at night in heavy rain: the low concrete ledge of the tar roof on the left, the satellite-dish roof on the right, the sheer drop between them falling to a neon street far below, cyan and magenta neon on the towers beyond",
+      "plate": "refs/_bg/roof_edge_side.png"
+    },
+    "roof_edge_back": {
+      "of": "roof_edge",
+      "description": "the same low concrete ledge seen from out over the gap, looking back at the tar rooftop: rusted water towers on steel legs behind the ledge, the stairwell's caged yellow bulb far back, rain lit magenta by the neon sign to the right",
+      "plate": "refs/_bg/roof_edge_back.png"
+    },
+    "dish_roof": {
+      "description": "a flat gravel rooftop at night in heavy rain crowded with grey satellite dishes on steel mounts tilted at every angle, cyan neon from the surrounding towers glinting on the wet dishes, a red aircraft-warning light blinking on a mast at the centre",
+      "plate": "refs/_bg/dish_roof.png"
+    },
+    "dish_roof_landing": {
+      "of": "dish_roof",
+      "description": "the edge of the satellite-dish roof seen from among the dishes, looking back toward the ten-foot gap and the low concrete ledge of the taller tar roof across it, rusted water towers silhouetted against magenta neon beyond, wet gravel and dishes in the foreground",
+      "plate": "refs/_bg/dish_roof_landing.png"
+    },
+    "dish_roof_corner": {
+      "of": "dish_roof",
+      "description": "the far corner of the satellite-dish roof: a waist-high concrete parapet with a steel anchor bracket, a thick black power cable running off the bracket and sagging away across a neon-lit street toward a lower building, satellite dishes behind, the red mast light blinking",
+      "plate": "refs/_bg/dish_roof_corner.png"
+    },
+    "cable_span": {
+      "description": "a thick black power cable sagging steeply across a street canyon at night in heavy rain, from a high rooftop corner down to a low flat gravel roof, sixty storeys of lit windows on either side and the street glowing with neon far below",
+      "plate": "refs/_bg/cable_span.png"
+    },
+    "lower_roof": {
+      "description": "a low flat gravel rooftop at night in heavy rain, a squat rooftop vent and a dark access hatch, the neon-lit street close below its knee-high parapet, glass towers soaring above lit magenta and cyan",
+      "plate": "refs/_bg/lower_roof.png"
+    },
+    "lower_roof_edge": {
+      "of": "lower_roof",
+      "description": "the edge of the same low gravel roof, looking out past its knee-high parapet over the neon-lit street below and the tall glass towers across it, rain falling through the glow of the signs",
+      "plate": "refs/_bg/lower_roof_edge.png"
+    }
+  },
+  "audio": { "mode": "generate" },
+  "upscale": {
+    "save_latents": "final",
+    "master": {
+      "deliver": "1080p", "fit": "crop", "quality": "master",
+      "finish": { "frequency_split": true },
+      "targets": {
+        "minimax_h3_*": { "method": "latent", "scale": "auto" },
+        "ltx2*":        { "method": "latent" },
+        "wan22_*":      { "method": "seedvr2", "seedvr2_model": "7b" },
+        "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" }
+      }
+    }
+  }
+}
