@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 
+from seriesmith import ff as FF
 from seriesmith.takes import STRIP_FRAMES
 
 THUMB_LONG_SIDE = 480
@@ -35,7 +36,7 @@ def _run(cmd: list[str]) -> bytes:
 
 def probe(mp4: str) -> dict:
     """{"frames", "fps", "width", "height", "audio"} of a video file."""
-    out = json.loads(_run(["ffprobe", "-v", "error", "-count_frames", "-show_streams",
+    out = json.loads(_run([*FF.tool("ffprobe"), "-v", "error", "-count_frames", "-show_streams",
                            "-of", "json", mp4]))
     video = next((s for s in out.get("streams", []) if s.get("codec_type") == "video"), None)
     if video is None:
@@ -62,7 +63,7 @@ def thumb(mp4: str, path: str, frames: int) -> None:
     """The middle frame, its long side THUMB_LONG_SIDE."""
     scale = (f"scale='if(gte(iw,ih),{THUMB_LONG_SIDE},-2)':'if(gte(iw,ih),-2,{THUMB_LONG_SIDE})'"
              ":flags=lanczos")
-    _run(["ffmpeg", "-y", "-v", "error", "-i", mp4, "-vf",
+    _run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", mp4, "-vf",
           f"{_select([max(0, frames // 2)])},{scale}", "-frames:v", "1", "-q:v", str(JPEG_Q),
           path])
 
@@ -70,7 +71,7 @@ def thumb(mp4: str, path: str, frames: int) -> None:
 def strip(mp4: str, path: str, frames: int) -> None:
     """strip_indices' frames side by side, STRIP_CELL_WIDTH wide each."""
     idx = strip_indices(max(1, frames))
-    _run(["ffmpeg", "-y", "-v", "error", "-i", mp4, "-vf",
+    _run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", mp4, "-vf",
           f"{_select(idx)},scale={STRIP_CELL_WIDTH}:-2:flags=lanczos,tile={len(idx)}x1",
           "-fps_mode", "passthrough",
           "-frames:v", "1", "-q:v", str(JPEG_Q), path])

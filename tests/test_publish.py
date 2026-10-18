@@ -21,15 +21,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import publish as P  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 FONT = next((f for f in ("C:/Windows/Fonts/segoescb.ttf", "C:/Windows/Fonts/arial.ttf",
                          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                          "/Library/Fonts/Arial.ttf") if os.path.isfile(f)), None)
 
 
 def make_clip(path: str, seconds: float, size: str, rate: int, sound: bool = True) -> None:
-    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"testsrc=size={size}:rate={rate}"]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", f"testsrc=size={size}:rate={rate}"]
     if sound:
         cmd += ["-f", "lavfi", "-i", "sine=frequency=440:sample_rate=32000"]
     cmd += ["-t", f"{seconds}", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]
@@ -94,7 +95,7 @@ class EndToEnd(unittest.TestCase):
         for name in ("INTRO", "OUTRO"):
             raw = os.path.join(show, "_titles", f"{name}_raw.mp4")
             make_clip(raw, 2, "1376x768", 24)
-            r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", raw, "-c", "copy",
+            r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", raw, "-c", "copy",
                                 "-color_primaries", "bt709", "-color_trc", "bt709",
                                 "-colorspace", "bt709", "-color_range", "tv",
                                 os.path.join(show, "_titles", f"{name}.mp4")],
@@ -110,7 +111,7 @@ class EndToEnd(unittest.TestCase):
         else:
             raw = os.path.join(show, "raw.mp4")
             make_clip(raw, 3, "320x176", 24, sound=False)
-            r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", raw, "-c", "copy",
+            r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", raw, "-c", "copy",
                                 "-color_primaries", "bt709", "-color_trc", "bt709",
                                 "-colorspace", "bt709", "-color_range", "tv", cut],
                                capture_output=True, text=True, timeout=120)

@@ -25,7 +25,8 @@ Backends
     `series.backend`, else its target's own first (a Router target's is
     router; a workflow target's is local). A default that doesn't suit a
     target falls back to the target's own, with a note. local is your own
-    ComfyUI through comfy-api-proxy (docs/SETUP.md); model files are resolved
+    ComfyUI, straight to its own API (or through comfy-api-proxy, with
+    local_via "proxy": docs/SETUP.md); model files are resolved
     against its loaders. Each take is a job on this process's own queue
     (runner.Runner), run one at a time: its inputs are staged as it starts, so
     a `continuous: latent` shot holds the take rendered just before it, on any
@@ -180,8 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.backend and J.backend_kind(args.backend) not in TG.BACKENDS:
         ap.error(f"{args.backend!r} is not a backend ({', '.join(TG.BACKENDS)})")
 
-    # ComfyUI itself, for what the proxy doesn't serve: its loaders' model
-    # lists and its saved workflows. Asked only when a shot renders there.
+    # ComfyUI itself, for its loaders' model lists and its saved workflows. Asked only when a shot renders there.
     comfy = J.Comfy(settings.comfyui_url)
     workflows: dict = {}
     # a target's workflow as saved in that ComfyUI wins over the repo's copy,

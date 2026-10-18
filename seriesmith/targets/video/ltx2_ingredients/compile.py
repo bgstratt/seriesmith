@@ -102,7 +102,7 @@ class Ctx:
         self.fps = target.template.fps_for(series_cfg)
         self.warnings: list[str] = []
         own = ((series_cfg.get("series") or {}).get("target")
-               or TG.DEFAULT_VIDEO_TARGET) == target.id
+               or TG.machine_default("video")) == target.id
         # The IC-LoRA knows one bucket: another target's series block lends no
         # size (Target.preset would pass its width/height on)
         base = self.preset if own else target.presets[pass_]

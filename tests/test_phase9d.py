@@ -30,12 +30,13 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import api as A  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase9b import steps_wav  # noqa: E402
 
 ASSEMBLE = ["-m", "seriesmith.assemble"]
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 FPS = 24
 
 
@@ -429,7 +430,7 @@ class CliTest(Base):
 # ---------------------------------------------------------------------------
 
 def ff(*args: str) -> subprocess.CompletedProcess:
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", *args], capture_output=True,
+    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *args], capture_output=True,
                        text=True, timeout=180)
     if r.returncode != 0:
         raise RuntimeError(r.stderr)
@@ -464,7 +465,7 @@ def tone_wav(path: str, seconds: float, amp: int = 12000, rate: int = 44100,
 
 
 def probe_frames(path: str) -> int:
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
                         "-count_frames", "-show_entries", "stream=nb_read_frames",
                         "-of", "csv=p=0", path], capture_output=True, text=True,
                        timeout=180)
@@ -473,7 +474,7 @@ def probe_frames(path: str) -> int:
 
 def probe_audio(path: str) -> list[str]:
     """"<rate>,<channels>" of every audio stream in the file."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a",
+    r = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "a",
                         "-show_entries", "stream=sample_rate,channels",
                         "-of", "csv=p=0", path], capture_output=True, text=True,
                        timeout=180)
@@ -481,7 +482,7 @@ def probe_audio(path: str) -> list[str]:
 
 
 def probe_duration(path: str) -> float:
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+    r = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-show_entries", "format=duration",
                         "-of", "csv=p=0", path], capture_output=True, text=True,
                        timeout=180)
     return float(r.stdout.strip())

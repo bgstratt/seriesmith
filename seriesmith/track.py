@@ -158,7 +158,8 @@ def align_ready(python: str | None = None) -> dict:
     what is missing."""
     py = python or align_python()
     pkgs = probe(py)
-    ffmpeg = shutil.which("ffmpeg")
+    from seriesmith import ff as FF
+    ffmpeg = (FF.find("ffmpeg") or [None])[0]
     missing = []
     if not ffmpeg:
         missing.append("ffmpeg")

@@ -638,7 +638,7 @@ def episode_target_info(root: str, ov: dict | None = None, built: str | None = N
         return {"target": ep, "target_source": "editor", "series_target": series}
     if series:
         return {"target": series, "target_source": "series", "series_target": series}
-    return {"target": J.TG.DEFAULT_VIDEO_TARGET if built is None else built,
+    return {"target": J.TG.machine_default("video") if built is None else built,
             "target_source": "default", "series_target": None}
 
 
@@ -1664,7 +1664,7 @@ def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dic
     """{node class: {"tier", "feature"}} a target's renders need: its
     workflow's classes as a job's graph keeps them (the saver in place, then
     pruned to what the saver needs), its loader and saver, and target.json's
-    `nodes`.
+    `nodes`. A class the binding can bypass is optional.
 
     `graph` is the workflow a render would use now (jobs.target_graph_source,
     which the routes and the CLI pass: a graph saved in the running ComfyUI
@@ -1714,6 +1714,11 @@ def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dic
     for c in sorted({sent(x) for x in
                      classes | {x for x in (b.loader_class, b.saver_class) if x}}):
         need[c] = {"tier": "required", "feature": ""}
+    # a node the job can do without (binding `bypass_if_missing`): spliced out
+    # where it isn't installed (backends/native.py), so only a feature is lost
+    for c in b.bypass:
+        if c in need:
+            need[c] = {"tier": "optional", "feature": f"{c} (rendered without it)"}
     need.update(t.nodes)
     _NODES[key] = need
     return need
@@ -1797,6 +1802,24 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
         up = U.upscale_readiness(t, object_info)
         if up is not None:
             out[t.id]["upscale"] = up
+    return out
+
+
+def detect_defaults(ready: dict[str, dict], candidates: dict[str, list]) -> dict[str, str]:
+    """{kind: target id} the default model for each kind on this machine,
+    from readiness (`ready`, {target id: readiness}) and each kind's
+    candidates in the order they're preferred (targets.default_candidates):
+    the first that is ready, else the first that renders degraded (an
+    accelerator or an optional node missing). A kind with none installed is
+    left out: the built-in default stays, and What's missing says what to get."""
+    out = {}
+    for kind, ts in candidates.items():
+        ids = [getattr(t, "id", t) for t in ts]
+        for want in ("ready", "degraded"):
+            hit = next((i for i in ids if (ready.get(i) or {}).get("status") == want), None)
+            if hit:
+                out[kind] = hit
+                break
     return out
 
 

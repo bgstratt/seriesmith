@@ -2,6 +2,7 @@
   "id": "flux3_klein",
   "kind": "image",
   "label": "FLUX.3 Image Klein (text to image, and edit from reference images)",
+  "default_rank": 50,
   "short": "Klein 3",
   "code": "target.py",
 

@@ -5,7 +5,8 @@ Every job has the same lifecycle wherever it runs: its input files go up, it
 is submitted, its progress is followed, and its outputs come back. A backend
 is one place that can do that:
 
-    local        your own ComfyUI, through comfy-api-proxy     ComfyBackend
+    local        your own ComfyUI, straight to its own API     ComfyUIBackend (native)
+                 (or through comfy-api-proxy: local_via)       ComfyBackend
     cloud        Comfy Cloud                                   ComfyBackend
     deployment   a Comfy API deployment of one workflow        ComfyBackend
     router       a hosted model through Comfy Router           RouterBackend
@@ -20,7 +21,8 @@ and puts what that backend expects in its place (the filename a LoadImage node
 reads; a URL a provider can fetch).
 
 This module and `settings` need nothing outside the standard library; the
-ComfyUI and Router backends import comfy-sdk when they are built.
+Comfy API and Router backends import comfy-sdk when they are built (the
+native local one doesn't need it).
 """
 from __future__ import annotations
 
@@ -161,6 +163,9 @@ class Run:
     id: str = ""
     backend: str = ""
     error: str | None = None
+    # what the backend changed to run it (a node it hasn't, spliced out), for
+    # the job's log
+    notes: tuple = ()
 
     def refresh(self) -> str:
         """The run's status now (queued, running, or one of TERMINAL)."""
@@ -238,7 +243,11 @@ def available(settings=None) -> dict[str, Backend]:
     s = settings or load_settings()
     out: dict[str, Backend] = {}
     from seriesmith.backends.comfy import ComfyBackend
-    out["local"] = ComfyBackend("local", "local", s.local_url, None)
+    if s.local_via == "proxy":
+        out["local"] = ComfyBackend("local", "local", s.local_url, None)
+    else:
+        from seriesmith.backends.native import ComfyUIBackend
+        out["local"] = ComfyUIBackend("local", s.local_comfyui)
     if s.api_key:
         out["cloud"] = ComfyBackend("cloud", "cloud", s.cloud_url, s.api_key)
         from seriesmith.backends.router import RouterBackend

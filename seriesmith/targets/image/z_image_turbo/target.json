@@ -2,6 +2,7 @@
   "id": "z_image_turbo",
   "kind": "image",
   "label": "Z-Image Turbo (fast text to image)",
+  "default_rank": 30,
   "short": "Z-Image",
   "code": "target.py",
 

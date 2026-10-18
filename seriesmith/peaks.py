@@ -24,12 +24,13 @@ import array
 import hashlib
 import json
 import os
-import shutil
 import struct
 import subprocess
 import sys
 import tempfile
 import wave
+
+from seriesmith import ff as FF
 
 RATE = 200                       # cached peaks per second
 FF_RATE = 8000                   # ffmpeg decodes to mono s16le at this rate
@@ -134,10 +135,10 @@ def mp4_info(path: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 def _ffprobe(path: str) -> dict | None:
-    if not shutil.which("ffprobe"):
+    if not FF.have("ffprobe"):
         return None
     try:
-        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+        r = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-show_entries",
                             "format=duration:stream=codec_type,sample_rate",
                             "-of", "json", path], capture_output=True, timeout=60)
         data = json.loads(r.stdout.decode("utf-8", "replace") or "{}")
@@ -261,13 +262,13 @@ def _wav_peaks(path: str) -> tuple[list[int], float] | None:
 
 def _ffmpeg_peaks(path: str) -> list[int]:
     """Peaks at RATE a second through ffmpeg (mono s16le at FF_RATE)."""
-    if not shutil.which("ffmpeg"):
+    if not FF.have("ffmpeg"):
         raise PeaksError(f"ffmpeg is not on PATH: it is needed to read the sound of "
                          f"{os.path.basename(path)}")
     per_bin = FF_RATE // RATE
     # stderr goes to a temp file, so a chatty ffmpeg can't block on a full pipe
     with tempfile.TemporaryFile() as err:
-        proc = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-i", path, "-vn",
+        proc = subprocess.Popen([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-vn",
                                  "-ac", "1", "-ar", str(FF_RATE), "-f", "s16le", "-"],
                                 stdout=subprocess.PIPE, stderr=err)
         try:

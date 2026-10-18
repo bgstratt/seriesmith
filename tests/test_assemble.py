@@ -19,9 +19,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 
 ASSEMBLE = ["-m", "seriesmith.assemble"]
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 
 
 def ff(*args: str) -> subprocess.CompletedProcess:
@@ -30,7 +31,7 @@ def ff(*args: str) -> subprocess.CompletedProcess:
 
 def make_clip(path: str, frames: int, size: str) -> None:
     """A testsrc clip of exactly `frames` frames at 24 fps, with a sine track."""
-    r = ff("ffmpeg", "-y", "-v", "error",
+    r = ff(*FF.tool("ffmpeg"), "-y", "-v", "error",
            "-f", "lavfi", "-i", f"testsrc=size={size}:rate=24",
            "-f", "lavfi", "-t", f"{frames / 24:.6f}", "-i", "sine=frequency=440:sample_rate=44100",
            "-frames:v", str(frames), "-c:v", "libx264", "-preset", "ultrafast",
@@ -40,13 +41,13 @@ def make_clip(path: str, frames: int, size: str) -> None:
 
 
 def probe_frames(path: str) -> int:
-    r = ff("ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+    r = ff(*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-count_frames",
            "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", path)
     return int(r.stdout.strip())
 
 
 def probe_size(path: str) -> str:
-    r = ff("ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = ff(*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
            "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path)
     return r.stdout.strip()
 
@@ -254,7 +255,7 @@ class AssembleTest(unittest.TestCase):
         self.assertIn(b"crf=23.0", data)
         self.assertNotIn(b"crf=12.0", data)
         mov = os.path.splitext(self.out())[0] + ".mov"
-        r = ff("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+        r = ff(*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
                "stream=codec_name,profile", "-of", "csv=p=0", mov)
         self.assertEqual(r.stdout.strip(), "prores,HQ")
         self.assertEqual(probe_frames(mov), 61)
@@ -283,7 +284,7 @@ class AssembleTest(unittest.TestCase):
         self.take("sh010", 22)
         n = self.take("sh020", 39)
         high = T.take_paths(self.root, "final", "sh020", n).mp4
-        r = ff("ffmpeg", "-y", "-v", "error", "-i", self.clips[("64x64", 39)], "-c:v", "libx264",
+        r = ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", self.clips[("64x64", 39)], "-c:v", "libx264",
                "-preset", "medium", "-profile:v", "high", "-c:a", "copy", high + ".tmp.mp4")
         self.assertEqual(r.returncode, 0, r.stderr)
         os.replace(high + ".tmp.mp4", high)
@@ -324,7 +325,7 @@ class AssembleTest(unittest.TestCase):
 
 
 def frame_md5s(path: str, first: int, count: int) -> list[str]:
-    r = ff("ffmpeg", "-v", "error", "-i", path, "-map", "0:v:0",
+    r = ff(*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-map", "0:v:0",
            "-vf", f"select=between(n\\,{first}\\,{first + count - 1})", "-fps_mode", "passthrough",
            "-f", "framemd5", "-")
     return [ln.rsplit(",", 1)[1].strip() for ln in r.stdout.splitlines()
@@ -421,7 +422,7 @@ class SelectiveTest(unittest.TestCase):
         is conformed and the rest still copied."""
         self.three()
         mp4 = T.take_paths(self.root, "final", "sh020", 1).mp4
-        r = ff("ffmpeg", "-y", "-v", "error", "-i", mp4, "-c", "copy",
+        r = ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", mp4, "-c", "copy",
                "-bsf:v", "h264_metadata=sample_aspect_ratio=1/1", mp4 + ".tag.mp4")
         self.assertEqual(r.returncode, 0, r.stderr)
         os.replace(mp4 + ".tag.mp4", mp4)
@@ -466,7 +467,7 @@ class SelectiveTest(unittest.TestCase):
         """A take whose sound runs 60 ms past its picture (an upscale like
         sh1360's): its picture is the conformed clip's, copied."""
         t = T.reserve_take(self.root, "final", shot, {"status": "queued"})
-        r = ff("ffmpeg", "-y", "-v", "error", "-i", self.clips[("64x64", frames)],
+        r = ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", self.clips[("64x64", frames)],
                "-f", "lavfi", "-t", f"{frames / 24 + 0.06:.6f}", "-i", "sine=frequency=330",
                "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
                "-c:a", "aac", "-ar", "32000", "-ac", "2", t.paths.mp4)
@@ -508,7 +509,7 @@ class SelectiveTest(unittest.TestCase):
         self.assemble()
         out = self.out()
         pic = os.path.join(self.root, "picture.mp4")
-        ff("ffmpeg", "-y", "-v", "error", "-i", out, "-map", "0:v:0", "-c", "copy", pic)
+        ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", out, "-map", "0:v:0", "-c", "copy", pic)
         from seriesmith import publish as PUB
         for path in (out, pic):
             for first in (0, 1, 55, 56, 57, 110):
@@ -521,13 +522,13 @@ class SelectiveTest(unittest.TestCase):
         lst = os.path.join(self.root, "l.txt")
         os.makedirs(self.root, exist_ok=True)
         long = os.path.join(self.root, "long.mp4")
-        ff("ffmpeg", "-y", "-v", "error", "-i", self.clips[("64x64", 22)], "-f", "lavfi",
+        ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", self.clips[("64x64", 22)], "-f", "lavfi",
            "-t", "1.2", "-i", "sine", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
            "-c:a", "aac", long)
         with open(lst, "w", encoding="utf-8") as fh:
             for f in (long, self.clips[("64x64", 22)]):
                 fh.write(f"file '{f.replace(os.sep, '/')}'\n")
-        ff("ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", p)
+        ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", p)
         self.assertIn("gap in its timing", self.A.timing_gap(p, 44, 24.0))
 
 
@@ -566,7 +567,7 @@ class FrameCountTest(unittest.TestCase):
 
     def test_no_header_count_is_decoded(self):
         p = os.path.join(self.dir, "c.h264")             # a raw stream: no container count
-        r = ff("ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=32x32:rate=24",
+        r = ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=32x32:rate=24",
                "-frames:v", "22", "-c:v", "libx264", "-preset", "ultrafast", "-f", "h264", p)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.A.frame_count(p), 22)

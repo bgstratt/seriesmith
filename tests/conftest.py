@@ -15,6 +15,8 @@ os.environ["SERIESMITH_LOCAL_URL"] = _NOWHERE
 os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE
 os.environ["SERIESMITH_CLOUD_URL"] = _NOWHERE
 os.environ.pop("COMFY_API_KEY", None)
+# nothing is pip-installed by a test that sets a key (seriesmith/sdk.py)
+os.environ["SERIESMITH_NO_AUTO_INSTALL"] = "1"
 # the caches kept between runs (seriesmith/diskcache.py) go to a scratch folder,
 # never beside the settings file above (tests/)
 import tempfile  # noqa: E402

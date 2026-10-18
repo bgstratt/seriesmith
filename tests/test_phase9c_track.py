@@ -35,10 +35,11 @@ from seriesmith import api as A  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import track as K  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
-HAVE_FF = bool(shutil.which("ffmpeg"))
+HAVE_FF = bool(FF.have("ffmpeg"))
 HAVE_NUMPY = importlib.util.find_spec("numpy") is not None
 
 
@@ -91,7 +92,7 @@ class ReadyTest(unittest.TestCase):
     def ready(self, numpy="1.26", faster=None, openai=None, ffmpeg="C:/ff/ffmpeg.exe"):
         pkgs = {"numpy": numpy, "faster-whisper": faster, "openai-whisper": openai}
         with mock.patch.object(K, "probe", lambda py: dict(pkgs)), \
-                mock.patch.object(K.shutil, "which", lambda n: ffmpeg):
+                mock.patch.object(FF, "find", lambda n: [ffmpeg] if ffmpeg else None):
             return K.align_ready("C:/py/python.exe")
 
     def test_everything_there(self):

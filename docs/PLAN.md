@@ -37,6 +37,14 @@ From reading comfy-sdk 0.4.0 and comfy-api-proxy 0.1.6 (2026-10-10):
   the node pack installed, are the models there) still ask ComfyUI directly,
   for the local backend only.
 - **The proxy needs `--state-dir`**, or a restart forgets its assets and jobs.
+- **ComfyUI's own API is enough for a local job** (2026-10-18). `/upload/image`
+  takes any file into `input/<subfolder>/`; `/prompt` queues the graph (a 400
+  with `node_errors` when it can't); `/history/<id>` lists every file a node
+  reported (the ui keys the proxy maps: `images`, `gifs`, `audio`, `text`,
+  `files`, `latents`) and how the run ended; `/view` fetches each; `/ws` with a
+  client id of our own carries its progress. So the local backend talks to
+  ComfyUI directly (`backends/native.py`) and the proxy is opt-in
+  (`local_via: "proxy"`).
 
 ## Step 1 — core and compile ✅
 
@@ -629,6 +637,64 @@ each) made quick to open.
       override (as Inspect shot saves one); Save as the project's size makes
       it the default. The editor inside ComfyUI looked at: fine. The timeline's
       drawing: not a concern (it draws after the shots and renders).
+
+## The thirty-second install (2026-10-18)
+
+Clone, link `comfy_nodes` into ComfyUI, start ComfyUI: the editor is there and
+renders. Or start `run_seriesmith.bat` beside it. No pip into ComfyUI, no proxy,
+no other node pack; the default models are the ones installed.
+
+- [x] The node pack finds the seriesmith package in the repo it is linked from
+      (the junction resolved), so the editor inside ComfyUI needs nothing in
+      ComfyUI's Python (it has aiohttp, Pillow and numpy; comfy-sdk is only for
+      Cloud and Router, imported when used).
+- [x] The local backend straight to ComfyUI (`backends/native.py`): uploads by
+      content to `input/seriesmith/`, `/prompt`, status and outputs from
+      `/history` as the proxy reads them, progress over `/ws`, cancel, and
+      attach by prompt id after a restart. comfy-api-proxy stays, behind
+      `local_via: "proxy"` (Settings → Through comfy-api-proxy). Inside ComfyUI
+      the local backend is that ComfyUI on its own port (`Settings.host_url`),
+      which fixes the proxy having been pointed at `comfyui_url` there.
+- [x] `run_seriesmith.bat` / `_ext.bat` / `run_seriesmith.sh` make the repo's
+      `.venv` and `pip install -e .` on their first start.
+- [x] `H3SLAAttention` (ComfyUI-PlagueKind-Nodes) optional: the binding's
+      `bypass_if_missing` splices it out where ComfyUI hasn't it (the take
+      notes it), and readiness calls the target degraded. The location tour
+      still needs it.
+- [x] The default models from what's installed: target.json `default_rank`
+      orders the local candidates; each host, when ComfyUI first answers (and
+      on each readiness check after), keeps the first ready one per kind
+      (else the first degraded) in the settings' `detected_targets`;
+      `targets.machine_default` is the user's `default_targets` (Settings),
+      else that, else H3 Ref2VA / Krea 2. A series naming no model renders on
+      it, and a new series (the starter, the wizard, Simple mode) is given it
+      in its series config. Router models are never picked by themselves.
+- [x] comfy-sdk put in when it's needed (`seriesmith/sdk.py`): Cloud,
+      deployments and Router run on it, nothing else does, and ComfyUI's
+      Python hasn't it. Saving a Comfy API key (or starting with one set)
+      pip-installs it into the running Python in the background, once; the
+      Settings window says how it went and has Install; Render on says why
+      those backends are down meanwhile. `SERIESMITH_NO_AUTO_INSTALL=1` turns
+      it off (the tests set it). Tried in a fresh venv: 8 s, importable at
+      once, no restart.
+- [ ] Tried on a fresh ComfyUI portable with only LTX-2's files: Simple mode
+      defaults to LTX-2 and renders; then H3's files without the PlagueKind
+      pack: H3 is the default, degraded, and renders.
+- [x] A render without ffmpeg: the saver's mp4 through PyAV (`encode_av`, `av`
+      is in ComfyUI's requirements) when `ffmpeg` isn't on PATH. Measured
+      against the ffmpeg command on 73 frames at 864x480: the same H.264
+      yuv420p, BT.709 tv-range tags, frame count, red at Y 63, and AAC; 0.70 s
+      against 0.49 s.
+- [x] No ffmpeg to install at all: every `ffmpeg` / `ffprobe` command goes
+      through `seriesmith/ff.py` (the node pack through `comfy_nodes/_ff.py`).
+      `ffmpeg`: PATH, else imageio-ffmpeg's static 7.1 build (now a dependency;
+      it has libx264, aac, NVENC, drawtext, scale, concat, amix and everything
+      else the graphs use), else the repo `.venv`'s. `ffprobe`: PATH, else
+      `helpers/ffprobe_av.py` on PyAV (also a dependency), answering the 14
+      ways seriesmith asks (json, csv, default; -count_frames / -count_packets;
+      -show_data's extradata dump) as ffprobe does: compared field for field on
+      12 files (takes, upscales, hosted renders, old untagged takes), no
+      difference. The ffmpeg tests run with no ffmpeg on PATH.
 
 ## Step 15 — models behind other APIs (next)
 

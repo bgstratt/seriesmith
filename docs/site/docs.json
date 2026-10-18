@@ -20,7 +20,7 @@
   },
   "navigation": {
     "groups": [
-      { "group": "Get started", "pages": ["index", "install", "setup"] },
+      { "group": "Get started", "pages": ["index", "quickstart", "full-setup", "install", "setup"] },
       { "group": "Using seriesmith", "pages": ["editor", "commands"] },
       { "group": "Writing episodes", "pages": ["authoring", "script-conversion"] },
       {

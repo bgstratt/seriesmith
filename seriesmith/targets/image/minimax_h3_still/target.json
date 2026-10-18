@@ -2,6 +2,7 @@
   "id": "minimax_h3_still",
   "kind": "image",
   "label": "MiniMax H3 (a still: the first frame of a 5-frame render)",
+  "default_rank": 70,
   "short": "H3 still",
   "code": "target.py",
   "capabilities": {
@@ -40,6 +41,7 @@
       }
     },
     "prune": true,
+    "bypass_if_missing": {"H3SLAAttention": "model"},
     "params": {
       "model": {
         "class_type": "UNETLoader",

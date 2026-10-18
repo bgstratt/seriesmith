@@ -2,6 +2,7 @@
   "id": "wan22_vace",
   "kind": "video",
   "label": "Wan 2.2 14B VACE (refs)",
+  "default_rank": 40,
   "short": "Wan+refs",
   "code": "compile.py",
   "capabilities": {

@@ -22,8 +22,12 @@ Started from h3pipe `c5f9be0` (2026-10-09).
 - **Targets.** A target is one model's way of rendering: its legal lengths and
   sizes (template), how subjects, plates and voices become inputs (recipe), its
   prompt writer, and its presets. Each shot picks one; the series config sets the
-  default and a script can change it per sequence or shot. (The editor calls a
-  target a model.)
+  default and a script can change it per sequence or shot. A series config that
+  names none renders on this machine's default: picked in Settings, else the
+  first one installed in ComfyUI (target.json `default_rank`: H3 Ref2VA, LTX-2,
+  Wan 2.2, ...), else H3 Ref2VA (`targets.machine_default`; SETUP.md, "The
+  default models"). A new series is given it in its series config. (The editor
+  calls a target a model.)
 - **Seeds.** A shot's seed comes from its episode, sequence and shot ids
   (`stable_seed`), so an untouched shot re-renders identically on a backend that
   can promise that.
@@ -41,14 +45,18 @@ that:
 
 | Backend | Reached with | Cost | Runs |
 |---|---|---|---|
-| Local ComfyUI | Comfy SDK, through `comfy-api-proxy` | your GPU | any workflow, your custom nodes |
+| Local ComfyUI | its own API (`/prompt`, `/history`, `/view`: `backends/native.py`), or the Comfy SDK through `comfy-api-proxy` (`local_via`) | your GPU | any workflow, your custom nodes |
 | Comfy Cloud | Comfy SDK (v2 API) | Comfy subscription | workflows on Cloud's node set |
 | Comfy API deployment | Comfy SDK (v2 API), the deployment's URL | paid plan, per GPU-second | your exact workflow, built and pinned |
 | Comfy Router | Comfy SDK's Router client | Comfy credits per request | hosted models (Seedance, Kling, hosted H3, Nano Banana, …) |
 
-The first three are one client with a different base URL: a workflow in API
-format, assets in, a job, assets out. Router is a model call (a model string and
-arguments), with an mp4 or png back.
+Cloud and deployments are one client with a different base URL: a workflow in
+API format, assets in, a job, assets out. The local ComfyUI is the same shape
+over ComfyUI's own API (inputs uploaded to `input/seriesmith/`, the graph
+queued, its outputs fetched as /history lists them, read as comfy-api-proxy
+reads them), so nothing has to be installed beside it; the proxy, which served
+the v2 API in front of it before, is opt-in. Router is a model call (a model
+string and arguments), with an mp4 or png back.
 
 One Comfy API key covers Cloud, Comfy API and Router.
 
@@ -76,9 +84,16 @@ the ones that can ([CONTINUOUS.md](CONTINUOUS.md)). A take from a target whose s
 the provider decides (`capabilities.seed`) is marked `reproducible: false`.
 
 Hosted models return finished video only: no latents. A Comfy API deployment
-returns whatever its workflow saves and reports: the proxy and the v2 API hand
-back a saved latent as an output like any picture (PLAN.md, "Facts the plan
-rests on"); whether Comfy Cloud does the same is still to be confirmed.
+returns whatever its workflow saves and reports: ComfyUI's /history (and the
+proxy and the v2 API) hand back a saved latent as an output like any picture
+(PLAN.md, "Facts the plan rests on"); whether Comfy Cloud does the same is still
+to be confirmed.
+
+A node a target can do without (binding `bypass_if_missing`, e.g. H3's
+`H3SLAAttention` from a third-party pack) is spliced out by the local backend
+where ComfyUI hasn't it, the take noting it, and readiness calls the target
+degraded rather than not ready: a render needs no pack beyond core ComfyUI and
+seriesmith's own.
 
 A model's limits (its lengths, sizes, longest prompt, how many pictures and how
 they're sent, whether it makes sound) are read into one form by
@@ -163,8 +178,9 @@ The editor is h3pipe's React app. Its components only talk to two interfaces,
 places from one codebase:
 
 - **Standalone** (`seriesmith serve`, the main product): seriesmith's own server
-  (aiohttp, port 8190) serves the page and the API, and starts comfy-api-proxy for
-  the local backend. No ComfyUI needed if every job goes to the cloud.
+  (aiohttp, port 8190) serves the page and the API (and starts comfy-api-proxy,
+  when local renders go through it). No ComfyUI needed if every job goes to the
+  cloud. `run_seriesmith.bat` / `.sh` set up the repo's `.venv` on first start.
   `seriesmith stop [--restart]` (or Settings' Stop / Restart, on the machine that
   runs it) stops it cleanly; under a `run_seriesmith` launcher, Restart starts it
   again.
@@ -241,7 +257,8 @@ The work list, with what "done" means for each step, is [PLAN.md](PLAN.md).
 
 - Does Comfy Cloud accept arbitrary custom node packs, or only a curated set?
   (Deployments clearly do.)
-- Does Comfy Cloud return a saved latent as an output, as the proxy does?
+- Does Comfy Cloud return a saved latent as an output, as the proxy does?
+
 
 Answered since: Router's hosted H3 (`minimax_h3`) takes reference images and
 first/last frames, no reference audio (it makes its own sound); Router answers an

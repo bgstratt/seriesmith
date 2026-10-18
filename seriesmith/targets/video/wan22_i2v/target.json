@@ -2,6 +2,7 @@
   "id": "wan22_i2v",
   "kind": "video",
   "label": "Wan 2.2 14B I2V",
+  "default_rank": 50,
   "short": "Wan I2V",
   "code": "compile.py",
 

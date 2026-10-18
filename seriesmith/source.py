@@ -827,6 +827,10 @@ def new_episode(parent: str, name: str, series_id: str | None = None,
                 ep_title = title or raw["series"].get("title") or name
             script = _retitled(_read_text(os.path.join(STARTER, "ep01.md")), name, ep_title)
 
+    if not sibling:
+        # a new series: it says which models it renders on, where this
+        # machine's are other than the built-in ones (what's installed)
+        stamp_machine_defaults(raw)
     os.makedirs(ep)
     try:
         atomic_write(os.path.join(ep, "series.json"), dump_series(raw, "\n").encode("utf-8"))
@@ -851,6 +855,23 @@ def new_episode(parent: str, name: str, series_id: str | None = None,
             "files": ["series.json", f"{name}.md"], "refs": refs,
             "check": check_text(ep, "script", script),
             "episode": E.episode_summary(ep)}
+
+
+def stamp_machine_defaults(raw: dict) -> dict:
+    """A new series config given this machine's default models where it names
+    none and they aren't the built-in ones (targets.machine_default: what was
+    found installed, or the user's choice), so the series renders on them
+    wherever it is opened. Returns `raw`, changed in place."""
+    from seriesmith import targets as TG
+    s = raw.setdefault("series", {})
+    video = TG.machine_default("video")
+    if not s.get("target") and video != TG.DEFAULT_VIDEO_TARGET:
+        s["target"] = video
+    image = TG.machine_default("image")
+    refs = raw.get("refs") if isinstance(raw.get("refs"), dict) else {}
+    if not refs.get("target") and image != TG.DEFAULT_IMAGE_TARGET:
+        raw["refs"] = dict(refs, target=image)
+    return raw
 
 
 def _template_config(src: str, series_id: str | None, title: str | None,

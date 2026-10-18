@@ -812,11 +812,20 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
 ### `GET /seriesmith/info`
 `{"version", "settings" (as `GET /seriesmith/settings` describes them), "comfy_connected"}`.
 
+### `POST /seriesmith/sdk/install`
+Installs comfy-sdk (what Comfy Cloud, deployments and Router run on) into the server's
+Python, in the background (`seriesmith/sdk.py`). Answers `{"sdk": {"status": "ready" | "missing" | "installing" | "failed", "error", "command", "python"}}`; `GET /seriesmith/settings` carries the same `sdk` to poll. PUT `/seriesmith/settings` starts it
+by itself when the settings then have a key and the SDK is missing (not again after a
+failure, and not with `SERIESMITH_NO_AUTO_INSTALL=1`). While it is missing,
+`GET /seriesmith/backends` gives `cloud`, `router` and each deployment a `down` saying so.
+
 ### `GET /seriesmith/settings` / `PUT /seriesmith/settings`
 This machine's settings (`seriesmith/settings.py`; never the series config). GET answers
-`{"settings": {"local_url", "comfyui_url", "cloud_url", "api_key": "set" | null, "deployments": {target: url}, "path", "paid_limit", "enabled_drafts", "target_limits"}, "file", "from_env": {field: env var}}` — never the key itself. PUT takes any of
+`{"settings": {"local_url", "comfyui_url", "cloud_url", "api_key": "set" | null, "deployments": {target: url}, "path", "paid_limit", "enabled_drafts", "target_limits", "local_via": "comfyui" | "proxy", "default_targets": {kind: id}, "detected_targets": {kind: id}}, "file", "from_env": {field: env var}}` — never the key itself. PUT takes any of
 `local_url`, `comfyui_url`, `cloud_url`, `api_key` (null removes it), `deployments`,
-`paid_limit` (null: no cap), `enabled_drafts`, `target_limits`; saves the file, makes the
+`paid_limit` (null: no cap), `enabled_drafts`, `target_limits`, `local_via` (null: straight
+to ComfyUI), `default_targets` (`{"video": id, "image": id}`; \{\} or null clears it: what's
+installed decides), `detected_targets` (written by seriesmith itself); saves the file, makes the
 backends again from it (a running job keeps its own) and answers as GET. 400 for a value
 it can't take. A field the environment sets wins over the file.
 
@@ -1684,7 +1693,7 @@ Each target gains `readiness` (cached briefly; computed off the event loop from
 The same readiness as a table: status, what's missing, the folder, and the URL when known.
 
 ### The episode target
-- **`overrides.json`** gains a top-level `"episode": {"target": "<id>"}`. It is the episode's default for every shot that has no target of its own (script `target:`, a profile's target, or a shot override). Precedence: request → shot override → shot/sequence script line or profile → **episode override** → `series.target` → `minimax_h3_ref2va`. Shots whose resolved target differs from what the build compiled are compiled at queue time, as a retarget is.
+- **`overrides.json`** gains a top-level `"episode": {"target": "<id>"}`. It is the episode's default for every shot that has no target of its own (script `target:`, a profile's target, or a shot override). Precedence: request → shot override → shot/sequence script line or profile → **episode override** → `series.target` → this machine's default (`targets.machine_default`: Settings' choice, else the first installed by `default_rank`, else `minimax_h3_ref2va`). Shots whose resolved target differs from what the build compiled are compiled at queue time, as a retarget is.
 - **`PUT /seriesmith/episode-target`**, body `{ep, target: "<id>" | null}`. `null` clears it. Returns the episode's target info and emits `seriesmith.episode`.
 - **`GET /seriesmith/episode`** gains:
   - `target`: the episode default now in force;

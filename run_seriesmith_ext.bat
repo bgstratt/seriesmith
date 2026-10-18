@@ -12,7 +12,13 @@ REM --port 8190 is the default; change it here if you want a different one
 
 set "SM_PORT=8190"
 set "SM=%~dp0.venv\Scripts\seriesmith.exe"
-if not exist "%SM%" set "SM=seriesmith"
+if not exist "%SM%" (
+  where seriesmith >nul 2>nul && set "SM=seriesmith"
+)
+REM the first start: the repo's .venv made and seriesmith installed in it
+if "%SM%"=="%~dp0.venv\Scripts\seriesmith.exe" if not exist "%SM%" (
+  call :setup || goto failed
+)
 
 REM Find the LAN IP of the adapter that actually has a default gateway
 for /f "usebackq delims=" %%a in (`powershell -NoProfile -Command "(Get-NetIPConfiguration | Where-Object {$_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up'} | Select-Object -First 1 -ExpandProperty IPv4Address).IPAddress"`) do set "LANIP=%%a"
@@ -52,6 +58,29 @@ if not errorlevel 1 (
 )
 
 echo.
-echo If seriesmith didn't start: is the repo's .venv set up (INSTALL.md), or is
+echo If seriesmith didn't start: is ComfyUI's address right in Settings, or is
 echo something else already on port %SM_PORT%?
 pause <con
+exit /b 1
+
+:setup
+echo.
+echo  First start: setting up seriesmith in %~dp0.venv (a minute or two, once)...
+set "SM_PY="
+where py >nul 2>nul && py -3 -c "import sys; sys.exit(sys.version_info < (3, 10))" >nul 2>nul && set "SM_PY=py -3"
+if not defined SM_PY (
+  where python >nul 2>nul && python -c "import sys; sys.exit(sys.version_info < (3, 10))" >nul 2>nul && set "SM_PY=python"
+)
+if not defined SM_PY (
+  echo  ! Python 3.10 or later wasn't found. Install it from python.org, then run this again.
+  exit /b 1
+)
+%SM_PY% -m venv "%~dp0.venv" || exit /b 1
+"%~dp0.venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -e "%~dp0." || exit /b 1
+exit /b 0
+
+:failed
+echo.
+echo  seriesmith couldn't be set up (see above).
+pause <con
+exit /b 1

@@ -1,6 +1,8 @@
 // Settings: this machine's own (GET / PUT /seriesmith/settings, the standalone
 // server's): the Comfy API key that turns on Comfy Cloud and Comfy Router,
-// where the local ComfyUI is, and the deployments a model can render on. Never
+// where the local ComfyUI is (and whether renders go to it through
+// comfy-api-proxy), the models a series naming none renders on (found
+// installed, or picked here), and the deployments a model can render on. Never
 // the series config's business, which is shared. A setting the environment
 // gives (COMFY_API_KEY, ...) wins over the file, so it shows here but can't be
 // changed here.
@@ -13,9 +15,22 @@ import { FloatingWindow } from "./FloatingWindow";
 import { ModelOptions } from "./Targets";
 
 interface SettingsView {
-  settings: { local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>; path: string | null; paid_limit?: number | null };
+  settings: {
+    local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>;
+    path: string | null; paid_limit?: number | null; local_via?: "comfyui" | "proxy";
+    default_targets?: Record<string, string>; detected_targets?: Record<string, string>;
+  };
   file: string;
   from_env: Record<string, string>;
+  /** comfy-sdk, which Cloud and Router run on: installed when a key is set */
+  sdk?: SdkState;
+}
+
+interface SdkState {
+  status: "ready" | "missing" | "installing" | "failed";
+  error: string | null;
+  command: string;
+  python: string;
 }
 
 async function call(method: "GET" | "PUT", body?: unknown): Promise<SettingsView> {
@@ -129,7 +144,10 @@ function SettingsBody({ server }: { server: boolean }) {
   const [key, setKey] = useState("");
   const [deps, setDeps] = useState<{ target: string; url: string }[]>([]);
   const [limit, setLimit] = useState("");
+  const [viaProxy, setViaProxy] = useState(false);
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [sdk, setSdk] = useState<SdkState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -138,8 +156,33 @@ function SettingsBody({ server }: { server: boolean }) {
     setUrls({ comfyui_url: v.settings.comfyui_url, local_url: v.settings.local_url, cloud_url: v.settings.cloud_url });
     setDeps(Object.entries(v.settings.deployments).map(([target, url]) => ({ target, url })));
     setLimit(v.settings.paid_limit == null ? "" : String(v.settings.paid_limit));
+    setViaProxy(v.settings.local_via === "proxy");
+    setDefaults({ ...(v.settings.default_targets ?? {}) });
+    if (v.sdk) setSdk(v.sdk);
     setKey("");
   };
+  // while comfy-sdk installs, ask how it's going; once it's in, Cloud and Router answer
+  useEffect(() => {
+    if (sdk?.status !== "installing") return;
+    const t = setInterval(() => {
+      call("GET").then((v) => {
+        if (v.sdk) setSdk(v.sdk);
+        if (v.sdk?.status !== "installing") void refreshBackends();
+      }).catch(() => { /* the server is away */ });
+    }, 2000);
+    return () => clearInterval(t);
+  }, [sdk?.status]);
+  async function installSdk() {
+    setError(null);
+    try {
+      const r = await fetch("/seriesmith/sdk/install", { method: "POST" });
+      const data = (await r.json()) as { sdk?: SdkState; error?: string };
+      if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
+      if (data.sdk) setSdk(data.sdk);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   useEffect(() => {
     void loadTargets();
     call("GET").then(take).catch((e) => setError((e as Error).message));
@@ -155,8 +198,11 @@ function SettingsBody({ server }: { server: boolean }) {
       body.deployments = Object.fromEntries(deps.filter((d) => d.target && d.url.trim()).map((d) => [d.target, d.url.trim()]));
       if (key.trim() && !view?.from_env.api_key) body.api_key = key.trim();
       body.paid_limit = limit.trim() === "" ? null : Math.max(0, Math.floor(Number(limit)));
+      if (!view?.from_env.local_via) body.local_via = viaProxy ? "proxy" : null;
+      body.default_targets = Object.fromEntries(Object.entries(defaults).filter(([, v]) => v));
       take(await call("PUT", body));
       await refreshBackends();
+      void loadTargets(true);
       setNote(what);
     } catch (e) {
       setError((e as Error).message);
@@ -167,6 +213,19 @@ function SettingsBody({ server }: { server: boolean }) {
 
   const env = view?.from_env ?? {};
   const video = (targets?.targets ?? []).filter((t) => t.kind === "video" && !t.draft);
+  const images = (targets?.targets ?? []).filter((t) => t.kind === "image" && !t.draft);
+  const detected = view?.settings.detected_targets ?? {};
+  const labelOf = (id: string | undefined) => (targets?.targets ?? []).find((t) => t.id === id)?.label || id || "";
+  const defaultPick = (kind: "video" | "image", list: typeof video, builtin: string) => (
+    <>
+      <label htmlFor={`sm-set-def-${kind}`}>{kind === "video" ? "Video model" : "Picture model"}</label>
+      <select id={`sm-set-def-${kind}`} className="h3-in" value={defaults[kind] ?? ""}
+        onChange={(e) => setDefaults({ ...defaults, [kind]: e.target.value })}>
+        <option value="">{detected[kind] ? `What's installed: ${labelOf(detected[kind])}` : `Built-in: ${labelOf(builtin)}`}</option>
+        <ModelOptions targets={list} />
+      </select>
+    </>
+  );
   const head = (
     <>
       <div className="h3-head-text">
@@ -196,12 +255,22 @@ function SettingsBody({ server }: { server: boolean }) {
             <KindStatus kinds={["local"]} ok="ComfyUI answering" />
           </div>
           <div className="h3-form">
-            {url("comfyui_url", "ComfyUI", "Your ComfyUI: model lists and node checks come from it.")}
-            {url("local_url", "comfy-api-proxy", "What local renders are sent to: started beside your ComfyUI when it isn't running.")}
+            {url("comfyui_url", "ComfyUI", "Your ComfyUI: local renders go to it, and model lists and node checks come from it.")}
+            {defaultPick("video", video, "minimax_h3_ref2va")}
+            {defaultPick("image", images, "krea2")}
           </div>
           <span className="h3-small h3-muted">
-            Model lists and node checks come from ComfyUI; local renders go through the proxy, started beside it.
+            Local renders go straight to ComfyUI. A series that names no model renders on the ones above: what seriesmith
+            found installed in ComfyUI unless you pick one.
           </span>
+          <details open={viaProxy}>
+            <summary className="h3-small">Through comfy-api-proxy (advanced)</summary>
+            <label className="h3-row h3-small" style={{ gap: 6, marginTop: 6 }}>
+              <input type="checkbox" checked={viaProxy} disabled={!!env.local_via} onChange={(e) => setViaProxy(e.target.checked)} />
+              Send local renders through comfy-api-proxy (pip install comfy-api-proxy; started beside ComfyUI)
+            </label>
+            {viaProxy && <div className="h3-form" style={{ marginTop: 6 }}>{url("local_url", "comfy-api-proxy", "Where the proxy answers.")}</div>}
+          </details>
         </section>
 
         <section className="h3-card">
@@ -236,6 +305,26 @@ function SettingsBody({ server }: { server: boolean }) {
               <span className="h3-small h3-muted">a session, then it stops and asks</span>
             </div>
           </div>
+          {view?.settings.api_key && sdk && sdk.status !== "ready" && (
+            <div className="h3-col" style={{ gap: 4 }}>
+              <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+                <span className={`h3-status${sdk.status === "failed" ? " h3-s-failed" : ""}`}>
+                  {sdk.status === "installing" ? <><i className="pi pi-spin pi-spinner" /> Installing Comfy's SDK for Cloud and Router…</>
+                    : sdk.status === "failed" ? "Installing Comfy's SDK failed"
+                    : "Cloud and Router need Comfy's SDK"}
+                </span>
+                {sdk.status !== "installing" && (
+                  <button className="h3-btn" onClick={() => void installSdk()}>
+                    <i className="pi pi-download" /> {sdk.status === "failed" ? "Try again" : "Install"}
+                  </button>
+                )}
+              </div>
+              {sdk.status === "failed" && sdk.error && <pre className="h3-small h3-err" style={{ whiteSpace: "pre-wrap", margin: 0 }}>{sdk.error}</pre>}
+              {sdk.status !== "installing" && (
+                <span className="h3-small h3-muted">Or run it yourself: <span className="h3-mono">{sdk.command}</span></span>
+              )}
+            </div>
+          )}
           <span className="h3-small h3-muted">
             From your Comfy account (platform.comfy.org, API keys). It turns on Comfy Cloud (any graph, on Comfy's GPUs) and
             Comfy Router (hosted models: Seedance, Krea 2, ...), which uploads its input pictures through Cloud. Paid use is billed

@@ -215,6 +215,7 @@ def make_app(roots: list[str] | None = None, settings=None,
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
+    app["make_context"] = make_context
     for method, path, view in routes(make_context):
         app.router.add_route(method, path, view)
         # as ComfyUI serves them too, under /api
@@ -343,14 +344,19 @@ def _graceful_exit() -> None:
 
 
 def ensure_proxy(settings) -> str:
-    """comfy-api-proxy answering at settings.local_url: started beside this
-    Python (its own background process, state in %LOCALAPPDATA%\\seriesmith\\
-    proxy) when it isn't and the local ComfyUI is up. Returns what happened."""
+    """With local_via "proxy": comfy-api-proxy answering at settings.local_url,
+    started beside this Python (its own background process, state in
+    %LOCALAPPDATA%\\seriesmith\\proxy) when it isn't and the local ComfyUI is
+    up. Otherwise there is nothing to start: local renders go straight to
+    ComfyUI. Returns what happened."""
     import shutil
     import subprocess
     from urllib.parse import urlparse
 
     from seriesmith.backends.comfy import health
+    if settings.local_via != "proxy":
+        # the local backend is ComfyUI's own API (backends/native.py)
+        return f"local renders: straight to ComfyUI at {settings.local_comfyui}"
     if health(settings.local_url, timeout=2.0) is None:
         return f"comfy-api-proxy: {settings.local_url}"
     if not _answers(settings.comfyui_url):
@@ -374,6 +380,34 @@ def ensure_proxy(settings) -> str:
                         str(u.port or 8189), "--state-dir", state],
                        capture_output=True, text=True, timeout=60)
     return "comfy-api-proxy: " + ((r.stdout or r.stderr).strip().splitlines() or ["started"])[-1]
+
+
+def detect_models(make_context) -> str:
+    """The default video and image models found installed in ComfyUI
+    (api.remember_defaults, through a readiness check), for a host to call
+    once ComfyUI answers. Returns what it found, as a line for the log."""
+    A.DETECT_DEFAULTS = True          # and on every readiness check from now on
+    A.target_readiness(make_context())
+    from seriesmith import targets as TG
+    return "default models: " + ", ".join(f"{k} {TG.machine_default(k)}" for k in ("video", "image"))
+
+
+def detect_when_up(make_context, url: str, wait: float = 600.0) -> None:
+    """detect_models in the background, once ComfyUI at `url` answers."""
+    import threading
+    import time
+
+    def run():
+        end = time.time() + wait
+        while time.time() < end and not _answers(url):
+            time.sleep(2.0)
+        if not _answers(url):
+            return
+        try:
+            log.info("seriesmith: %s", detect_models(make_context))
+        except Exception as e:                            # noqa: BLE001  log, go on
+            log.warning("seriesmith: finding the installed models failed: %s", e)
+    threading.Thread(target=run, daemon=True, name="seriesmith-models").start()
 
 
 def _answers(url: str) -> bool:
@@ -408,6 +442,11 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     if "local" in app["backends"]:
         print("  " + ensure_proxy(app["settings"]), flush=True)
+        # the models a series naming none renders on: what's installed there
+        detect_when_up(app["make_context"], app["settings"].comfyui_url)
+    # seriesmith's own install has comfy-sdk; an install without it, and a key: put it in
+    from seriesmith import sdk as SDK
+    SDK.ensure(app["settings"])
     if args.host in ("0.0.0.0", "::", ""):
         # every interface: say the addresses that open it (0.0.0.0 doesn't)
         print(f"  seriesmith editor: http://127.0.0.1:{args.port}/   (Ctrl+C stops it)", flush=True)

@@ -7,18 +7,24 @@ Read from a JSON file, then the environment over it:
     file   %APPDATA%\\seriesmith\\settings.json (Windows), else
            ~/.config/seriesmith/settings.json; SERIESMITH_SETTINGS names another
 
-    {"local_url":   "http://127.0.0.1:8189",     comfy-api-proxy beside your ComfyUI
-     "comfyui_url": "http://127.0.0.1:8188",     ComfyUI itself (model lists, node checks)
+    {"comfyui_url": "http://127.0.0.1:8188",     your ComfyUI: local renders, model lists
+     "local_via":   "comfyui",                   "proxy": local renders through
+     "local_url":   "http://127.0.0.1:8189",     comfy-api-proxy at local_url instead
      "cloud_url":   "https://cloud.comfy.org",
      "api_key":     "comfyui-...",               better kept in COMFY_API_KEY
      "deployments": {"minimax_h3_ref2va": "https://<build>.run.comfy.app"},
      "enabled_drafts": ["veo_3_1_lite"],          built-in draft targets switched on
-     "target_limits": {"ltx2": {"size": {"multiple": 32}}}}
+     "target_limits": {"ltx2": {"size": {"multiple": 32}}},
                                                   this machine's changes to built-in
                                                   targets' limits (seriesmith.limits)
+     "default_targets":  {"video": "ltx2"},      the model a series without one uses
+     "detected_targets": {"video": "ltx2", "image": "krea2"}}
+                                                  what seriesmith found installed in
+                                                  ComfyUI (edit.detect_defaults); the
+                                                  default when default_targets hasn't one
 
     environment   SERIESMITH_LOCAL_URL, SERIESMITH_COMFYUI_URL, SERIESMITH_CLOUD_URL,
-                  COMFY_API_KEY
+                  SERIESMITH_LOCAL_VIA, COMFY_API_KEY
 
 Stdlib only.
 """
@@ -29,6 +35,8 @@ import os
 from dataclasses import dataclass, field
 
 LOCAL_URL = "http://127.0.0.1:8189"
+LOCAL_VIA = ("comfyui", "proxy")
+DEFAULT_KINDS = ("video", "image")
 COMFYUI_URL = "http://127.0.0.1:8188"
 CLOUD_URL = "https://cloud.comfy.org"
 
@@ -49,6 +57,21 @@ class Settings:
     # this machine's changes to built-in targets' limits: {id: seriesmith.limits
     # sections}, applied as the target loads (the editor's Limits form)
     target_limits: dict[str, dict] = field(default_factory=dict)
+    # how local renders reach ComfyUI: "comfyui" (its own API, at comfyui_url)
+    # or "proxy" (comfy-api-proxy at local_url)
+    local_via: str = "comfyui"
+    # the video / image model a series that names none uses on this machine:
+    # the user's choice, else what was found installed, else the built-in
+    default_targets: dict[str, str] = field(default_factory=dict)
+    detected_targets: dict[str, str] = field(default_factory=dict)
+    # not a setting: the ComfyUI this server runs inside (server/comfyui.py),
+    # which local renders go to whatever comfyui_url says
+    host_url: str | None = None
+
+    @property
+    def local_comfyui(self) -> str:
+        """The ComfyUI local renders go to straight (local_via "comfyui")."""
+        return self.host_url or self.comfyui_url
 
     def describe(self) -> dict:
         """The settings without the key itself (for listings and logs)."""
@@ -56,7 +79,9 @@ class Settings:
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
                 "deployments": dict(self.deployments), "path": self.path,
                 "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts),
-                "target_limits": dict(self.target_limits)}
+                "target_limits": dict(self.target_limits), "local_via": self.local_via,
+                "default_targets": dict(self.default_targets),
+                "detected_targets": dict(self.detected_targets)}
 
 
 def settings_path() -> str:
@@ -97,7 +122,21 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         paid_limit=_paid_limit(data.get("paid_limit")),
         enabled_drafts=[str(x) for x in data.get("enabled_drafts") or [] if isinstance(x, str)],
         target_limits={str(k): v for k, v in (data.get("target_limits") or {}).items()
-                       if isinstance(v, dict)} if isinstance(data.get("target_limits"), dict) else {})
+                       if isinstance(v, dict)} if isinstance(data.get("target_limits"), dict) else {},
+        local_via=_local_via(env.get("SERIESMITH_LOCAL_VIA") or data.get("local_via")),
+        default_targets=_by_kind(data.get("default_targets")),
+        detected_targets=_by_kind(data.get("detected_targets")))
+
+
+def _local_via(v) -> str:
+    return v if v in LOCAL_VIA else LOCAL_VIA[0]
+
+
+def _by_kind(v) -> dict[str, str]:
+    """{kind: target id} for the kinds that have a default, the rest dropped."""
+    if not isinstance(v, dict):
+        return {}
+    return {k: t for k, t in v.items() if k in DEFAULT_KINDS and isinstance(t, str) and t}
 
 
 def _paid_limit(v) -> int | None:
@@ -105,9 +144,10 @@ def _paid_limit(v) -> int | None:
 
 
 FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "paid_limit",
-          "enabled_drafts", "target_limits")
+          "enabled_drafts", "target_limits", "local_via", "default_targets", "detected_targets")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
-             "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY"}
+             "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY",
+             "local_via": "SERIESMITH_LOCAL_VIA"}
 
 
 def from_env(env: dict | None = None) -> dict[str, str]:
@@ -161,6 +201,24 @@ def save_settings(updates: dict, path: str | None = None) -> str:
                 data[k] = {str(t): x for t, x in v.items() if x}
                 if not data[k]:
                     data.pop(k)
+            continue
+        if k == "local_via":
+            if v in (None, ""):
+                data.pop(k, None)
+            elif v not in LOCAL_VIA:
+                raise ValueError(f"local_via: one of {', '.join(LOCAL_VIA)}")
+            else:
+                data[k] = v
+            continue
+        if k in ("default_targets", "detected_targets"):
+            if v in (None, {}):
+                data.pop(k, None)
+                continue
+            if not isinstance(v, dict) or set(v) - set(DEFAULT_KINDS) or                     not all(t is None or isinstance(t, str) for t in v.values()):
+                raise ValueError(f"{k}: {{kind: target id}}, the kinds {', '.join(DEFAULT_KINDS)}")
+            data[k] = {kind: t for kind, t in v.items() if t}
+            if not data[k]:
+                data.pop(k)
             continue
         if k == "deployments":
             if v in (None, {}):

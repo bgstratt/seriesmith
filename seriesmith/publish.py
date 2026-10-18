@@ -61,6 +61,7 @@ import tempfile
 from seriesmith import assemble as ASM  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 
 SUBTITLE = {
     "font": "C:/Windows/Fonts/segoescb.ttf",
@@ -169,7 +170,7 @@ def default_input(root: str, pass_: str) -> str | None:
 def probe(path: str) -> dict:
     """The picture's stream (plus `extradata`, its H.264 headers), frame count,
     duration and whether there is sound."""
-    r = run(["ffprobe", "-v", "error", "-count_packets", "-show_streams", "-show_data",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-count_packets", "-show_streams", "-show_data",
              "-show_entries", "format=duration", "-of", "json", path], timeout=600)
     if r.returncode != 0:
         raise PublishError(f"ffprobe can't read {path}: {r.stderr.strip()}")
@@ -338,7 +339,7 @@ def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str
                                 cut_tags(cut), matrix=src.get("color_space") or ""))
     with open(os.path.join(tmp, "title_graph.txt"), "w", encoding="utf-8") as f:
         f.write(graph)
-    r = run(["ffmpeg", "-y", "-v", "error", "-i", clip, "-/filter_complex", "title_graph.txt",
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", clip, "-/filter_complex", "title_graph.txt",
              "-map", "[tv]", "-frames:v", str(frames),
              "-c:v", "libx264", *ASM.QUALITY_ARGS[quality], "-pix_fmt", "yuv420p",
              "-r", f"{fps:g}", "-video_track_timescale", str(cut["timescale"]), "-an", dst],
@@ -350,7 +351,7 @@ def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str
 def frame_hashes(path: str, first: int, count: int, info: dict) -> list[str]:
     """framemd5 of `count` decoded frames from frame `first` on."""
     at = ASM.picture_offset(path) + (first - 0.5) / info["fps"]
-    r = run(["ffmpeg", "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
+    r = run([*FF.tool("ffmpeg"), "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
              "-map", "0:v:0", "-frames:v", str(count), "-f", "framemd5", "-"], timeout=600)
     if r.returncode != 0 or r.stderr.strip():
         raise PublishError(f"{os.path.basename(path)} doesn't decode cleanly at frame {first}: "
@@ -418,7 +419,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     # late and failed check_joins on every real master (ep01, 2026-10-04). Its
     # sound is laid separately below either way.
     pic_only = os.path.join(tmp, "cut_picture.mp4")
-    r = run(["ffmpeg", "-y", "-v", "error", "-i", src, "-map", "0:v:0", "-c", "copy",
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-map", "0:v:0", "-c", "copy",
              pic_only], cwd=tmp)
     if r.returncode != 0:
         return f"the cut's picture couldn't be copied out: {r.stderr.strip()[-300:]}"
@@ -435,7 +436,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     silence = len(order) + 1
     with open(os.path.join(tmp, "sound_graph.txt"), "w", encoding="utf-8") as f:
         f.write(";\n".join(sound_graph(pieces, silence)))
-    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", "join.txt"]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", "join.txt"]
     for s in sounds:
         cmd += ["-i", s]
     joined = os.path.join(tmp, "joined.mp4")
@@ -465,7 +466,7 @@ def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, 
     pi, po = (probe(intro) if intro else None), (probe(outro) if outro else None)
     with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
         f.write(filter_graph(cut, pi, po, sub))
-    cmd = ["ffmpeg", "-y", "-v", "error"]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error"]
     for p in (intro, src, outro):
         if p:
             cmd += ["-i", p]

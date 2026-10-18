@@ -25,6 +25,7 @@ sys.path.insert(0, HERE)
 
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import tour as TOUR  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_render import png_bytes  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "kitchen_sink")
@@ -279,14 +280,14 @@ class TurningPointTest(unittest.TestCase):
         self.assertEqual(self.H.turning_points(motion, 24.0, found), [])
 
 
-@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "needs ffmpeg")
+@unittest.skipUnless(FF.have("ffmpeg") and FF.have("ffprobe"), "needs ffmpeg")
 class GrabFrameTest(Base):
     def test_any_moment_becomes_a_hold(self):
         import subprocess
         ref = R.find_ref(self.s, "location:kitchen")
         ((side, _g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
         mp4 = TOUR._tour_file(ref, side["tour"], ".mp4")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+        subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
                         "testsrc=size=320x180:rate=24:duration=2", "-pix_fmt", "yuv420p", mp4],
                        check=True)
         side.update(status="ok", video=R.ep_rel(self.s.ep, mp4), fps=24)

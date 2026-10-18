@@ -23,17 +23,18 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_ltx import build_mixed  # noqa: E402
 from test_render import ENV  # noqa: E402
 
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 W, H = 64, 48
 
 
 def make_mp4(path: str, frames: int = 17, source: str = "testsrc") -> None:
     """A tiny H.264 clip whose frames all differ (testsrc draws a counter)."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+    subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi",
                     "-i", f"{source}=size={W}x{H}:rate=24", "-frames:v", str(frames),
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", path],
                    check=True, capture_output=True)
@@ -50,7 +51,7 @@ def make_take(root: str, pass_: str, shot: str, frames: int = 17,
 
 def rgb_frames(path: str) -> list[bytes]:
     """Every frame of a video (or the one of an image) as raw RGB24."""
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "rawvideo",
+    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-f", "rawvideo",
                         "-pix_fmt", "rgb24", "-"], check=True, capture_output=True)
     n = W * H * 3
     return [r.stdout[i:i + n] for i in range(0, len(r.stdout), n)]
@@ -276,7 +277,7 @@ class KeyframeTest(unittest.TestCase):
             self.kf(source_shot="sh010", source_take=2, frame=17)
         with self.assertRaises(R.RefError):
             self.kf(source_shot="sh010", source_take=2, frame=1.5)
-        with mock.patch.object(R.shutil, "which", return_value=None):
+        with mock.patch.object(FF, "find", return_value=None):
             with self.assertRaisesRegex(R.FfmpegMissing, "needs ffprobe on PATH"):
                 self.kf(source_shot="sh010", source_take=2)
         # nothing was left behind by the failures

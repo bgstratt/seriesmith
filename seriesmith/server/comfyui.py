@@ -7,8 +7,9 @@ nodes loading. Ported from h3pipe's comfy_nodes/h3pipe_routes.py.
 The same app as `seriesmith serve`: the same settings and project folders
 (seriesmith's own folder, settings.settings_path), and seriesmith's queue
 (standalone.start_queue) with its backends, its own journal
-(queue-comfyui.json, so the two hosts never recover each other's jobs), and
-comfy-api-proxy started for the local backend. What the journal had is
+(queue-comfyui.json, so the two hosts never recover each other's jobs), its
+local renders queued on this ComfyUI itself (or through comfy-api-proxy, with
+local_via "proxy", started here). What the journal had is
 picked up once this ComfyUI answers (in the background: at load time its
 server isn't up yet).
 """
@@ -83,7 +84,7 @@ def start(server, settings=None, wait: float = 120.0):
     import threading
     import time
 
-    from seriesmith.server.standalone import _answers, ensure_proxy, start_queue
+    from seriesmith.server.standalone import _answers, detect_models, ensure_proxy, start_queue
     from seriesmith.settings import load_settings
     url = base_url(server)
 
@@ -91,12 +92,22 @@ def start(server, settings=None, wait: float = 120.0):
         server.send_sync(event, data)
     try:
         settings = settings or load_settings()
+        # local renders go to this ComfyUI, on whatever port it was started
+        settings.host_url = url
         runner, make_context, recover_all = start_queue(settings, user_dir(), emit, comfy_url=url,
                                                         journal="queue-comfyui.json")
     except Exception as e:                                # noqa: BLE001  the editor still loads
         log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
                     "straight to ComfyUI", e)
         return (lambda: A.Context(user_dir(), url, emit)), []
+
+    # a Comfy API key already set (Settings, COMFY_API_KEY) but no comfy-sdk in
+    # ComfyUI's Python: put it in, in the background (seriesmith.sdk)
+    from seriesmith import sdk as SDK
+    try:
+        SDK.ensure(settings)
+    except Exception as e:                                # noqa: BLE001  never stop the load
+        log.warning("seriesmith: comfy-sdk: %s", e)
 
     def when_up():
         end = time.time() + wait
@@ -106,6 +117,10 @@ def start(server, settings=None, wait: float = 120.0):
             log.info("seriesmith: %s", ensure_proxy(settings))
         except Exception as e:                            # noqa: BLE001  log, go on
             log.warning("seriesmith: comfy-api-proxy: %s", e)
+        try:
+            log.info("seriesmith: %s", detect_models(make_context))
+        except Exception as e:                            # noqa: BLE001  log, go on
+            log.warning("seriesmith: finding the installed models failed: %s", e)
         try:
             recover_all()
         except Exception:                                 # noqa: BLE001  log, go on

@@ -1,0 +1,243 @@
+---
+title: "Full setup"
+description: "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."
+---
+
+{/* Generated from docs/FULL_SETUP.md by tools/make_site_docs.py: edit that file, not this one. */}
+
+The [thirty-second install](/quickstart) gets you writing, rendering, cutting and
+exporting on the models you already have. This page is everything on top of that, grouped
+by what it gives you: the node packs, model files, LoRAs and other software for each
+feature.
+
+You only need the parts for what you use. Install any of it in any order. Two places
+tell you what's still missing:
+- **in the editor**, each model picker's **What's missing** window;
+- **from the command line**, with ComfyUI running: `seriesmith targets`.
+
+This page isn't the list of every model seriesmith supports. That list, with every file,
+folder and link, is [INSTALL.md, section 4](/install#4-models).
+
+- [At a glance](#at-a-glance)
+- [Rendering video](#rendering-video)
+- [Pictures: characters, places, props and keyframes](#pictures-characters-places-props-and-keyframes)
+- [Sound: voices and recorded dialogue](#sound-voices-and-recorded-dialogue)
+- [Upscaling](#upscaling)
+- [Post-processing](#post-processing)
+- [Master, publish and the export](#master-publish-and-the-export)
+- [360s and turned views](#360s-and-turned-views)
+- [Software outside ComfyUI](#software-outside-comfyui)
+
+Put each model file in the ComfyUI `models/` folder named beside it (`models/loras/`,
+`models/vae/`, ...). ComfyUI also reads `models/unet/` for `diffusion_models` and
+`models/clip/` for `text_encoders`. Install node packs with ComfyUI-Manager or by
+cloning them into `custom_nodes/`, then restart ComfyUI.
+
+## At a glance
+
+| For | Node packs | Model files | Other |
+|---|---|---|---|
+| MiniMax H3 at full quality and speed | ComfyUI-PlagueKind-Nodes | H3's 4 files, 2 turbo LoRAs | |
+| Shots that carry on from the one before | | H3 FL2VA's model, 2 turbo LoRAs | |
+| Reference pictures and keyframes | | Krea 2's 3 files; FLUX.2 Klein's 3 | |
+| Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
+| Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
+| Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
+| Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
+| Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
+| Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
+| Master and publish | | | a title font (ffmpeg comes with seriesmith) |
+| 360s and turned views | | 3 LoRAs | |
+| ffmpeg inside ComfyUI's Python | ComfyUI-VideoHelperSuite (optional) | | |
+
+## Rendering video
+
+seriesmith renders on whichever video model is installed: see
+[Which models it uses](/quickstart#which-models-it-uses). The default, and the one every
+feature is built around, is **MiniMax H3 Ref2VA**. It keeps characters and places like
+their pictures and lip-syncs what they say.
+
+**MiniMax H3 Ref2VA** (`minimax_h3_ref2va`):
+
+| File | Folder | Download |
+|---|---|---|
+| `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
+| `minimax_h3_video_vae_fp16.safetensors` | `vae` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
+| `minimax_h3_audio_vae_fp32.safetensors` | `vae` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+| `minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors` (final pass) | `loras` | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors) |
+| `minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors` (proxy pass) | `loras` | [Kijai/MiniMax-H3_comfy](https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors) |
+
+- **The two LoRAs** are accelerators. Without them a pass still renders, on the slower
+  base preset, and the take says so.
+- **[ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes)**
+  adds `H3SLAAttention`, the sparse attention the turbo LoRAs were trained with.
+  - Without it, H3 renders with the node left out, and the editor marks H3 as
+    **degraded**.
+  - With it, you get the quality and speed the LoRAs were made for.
+- **The default H3 stack** wants a recent NVIDIA card. seriesmith is developed on a 32 GB
+  RTX 5090.
+
+**Shots that carry on from the one before** (`continuous: first`) render on
+**MiniMax H3 FL2VA**. FL2VA uses H3's text encoder and VAEs, plus:
+
+| File | Folder | Download |
+|---|---|---|
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
+| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | `loras` | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors) |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | `loras` | [Kijai/MiniMax-H3_comfy](https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors) |
+
+FL2VA also runs the editor's **location tours**. Tours still need
+ComfyUI-PlagueKind-Nodes.
+
+**Other models.** LTX-2.5 (it makes its own sound), LTX-2.3 ingredients, and Wan 2.2 I2V,
+5B and VACE (Wan makes no sound) are listed file by file in
+[INSTALL.md, Everything, by model family](/install#everything-by-model-family). All of
+them use core ComfyUI nodes. The hosted models on Comfy Router need no files, only a Comfy
+API key ([SETUP.md](/setup)).
+
+## Pictures: characters, places, props and keyframes
+
+**Krea 2** draws the character sheets, props and location plates (`krea2`, the default
+picture model):
+
+| File | Folder | Download |
+|---|---|---|
+| `krea2_turbo_fp8_scaled.safetensors` | `diffusion_models` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors) |
+| `qwen3vl_4b_fp8_scaled.safetensors` | `text_encoders` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) |
+| `wan_2.1_vae.safetensors` | `vae` | [Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors) |
+
+**FLUX.2 Klein 9B edit** draws shot keyframes from the characters' and places' pictures
+(`flux2_klein_edit`). Without it, keyframes are drawn on the picture model:
+
+| File | Folder | Download |
+|---|---|---|
+| `flux-2-klein-9b-kv.safetensors` | `diffusion_models` | [black-forest-labs/FLUX.2-klein-9b-kv](https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-kv/resolve/main/flux-2-klein-9b-kv.safetensors) |
+| `qwen_3_8b_fp8mixed.safetensors` | `text_encoders` | [Comfy-Org/flux2-klein-9B](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors) |
+| `flux2-vae.safetensors` | `vae` | [Comfy-Org/flux2-dev](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+
+The other picture models (Z-Image Turbo, Qwen-Image 2.1, FLUX.3 Klein, FLUX.1 Kontext,
+Qwen-Image-Edit Rapid) are in [INSTALL.md](/install#everything-by-model-family).
+
+## Sound: voices and recorded dialogue
+
+H3 and LTX-2.5 make a shot's sound themselves. These are for the rest.
+
+**Generated voice samples** give each character a voice sample. A shot whose audio is
+`clone` then speaks its lines in that voice (`ltx2_voice`). This needs
+[ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) (its audio-only nodes)
+and three of LTX-2.5's files:
+
+| File | Folder | Download |
+|---|---|---|
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `diffusion_models` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
+| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `text_encoders` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-audio-vae-bf16.safetensors` | `vae` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
+
+ComfyUI-LTXVideo also lets the `ltx2` video model read reference sheets.
+
+**Recorded dialogue** lip-syncs an episode to lines you recorded
+([RECORDED_DIALOGUE.md](/recorded-dialogue)):
+
+- `pip install faster-whisper numpy` for `seriesmith align` and the editor's Recording
+  window. Install them in seriesmith's Python, or in any Python on PATH; the Recording
+  window names the one it found and prints the exact `pip install` line for it.
+- `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
+  `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+
+## Upscaling
+
+You only need this to upscale takes: `seriesmith upscale`, the editor's **Upscale**,
+**Export 2x**, `master`. A render never needs it. Each method is independent: install the
+ones you want.
+
+**H3 takes, re-sampled at 2x** (the best for H3):
+- **The node pack:**
+  [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler).
+  Use that one, **not its "Plus" fork**: the fork invents detail.
+- **The model:** `minimax_h3_latent_upscaler_3d_fp16.safetensors` in
+  `models/latent_upscale_models/`. Its Hugging Face repo now publishes it as
+  `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors`; save it under the old name
+  ([download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler)).
+- **For takes longer than 5.5 s:**
+  [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline). Its context
+  windows let a long shot at 2x fit a 32 GB card.
+
+**LTX-2.5 takes** need nothing: an upscale runs the model's own latent upsampler again.
+
+**Any take, through an upscale model** (the pixel method): put one or more in
+`models/upscale_models/`. RealESRGAN_x2 is the default; RealESRGAN_x4 is the other choice.
+Both come from the [xinntao/Real-ESRGAN releases](https://github.com/xinntao/Real-ESRGAN/releases).
+
+**Any take, with SeedVR2**, which adds real detail and is slower. It runs on ComfyUI's
+own nodes. You need the VAE and at least one model:
+
+| File | Folder | Download |
+|---|---|---|
+| `seedvr2_ema_vae_fp16.safetensors` | `vae` | [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/vae/seedvr2_ema_vae_fp16.safetensors) |
+| `seedvr2_7b_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_7b_int8_convrot.safetensors) |
+| `seedvr2_3b_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_3b_int8_convrot.safetensors) |
+
+**Any take, on an NVIDIA RTX card, with RTX Video Super Resolution** (no model file, and
+fast):
+1. Install Comfy-Org's **Nvidia RTX Nodes** (ComfyUI-Manager: search "RTX"; it needs
+   CUDA PyTorch cu130 or newer).
+2. If ComfyUI's log says `No module named 'nvvfx'`, run
+   `python_embeded\python.exe -m pip install nvidia-vfx --extra-index-url https://pypi.nvidia.com`
+   and restart ComfyUI.
+
+## Post-processing
+
+Post-processing runs after the upscale: whole-frame enhancement, then motion blur
+([POST_PROCESSING.md](/post-processing)).
+
+| Tier | Needs |
+|---|---|
+| Draft | an upscale model (RealESRGAN_x2), as above |
+| Production | SeedVR2 7B and its VAE, as above |
+| Cinematic | `SUPIR-v0F_fp16.safetensors` in `models/model_patches/` ([Kijai/SUPIR_pruned](https://huggingface.co/Kijai/SUPIR_pruned/resolve/main/SUPIR-v0F_fp16.safetensors)), and the SDXL base checkpoint `sd_xl_base_1.0_0.9vae.safetensors` in `models/checkpoints/` ([stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)) |
+| Deblur on RTX | Nvidia RTX Nodes, as above |
+| Motion blur | `raft_large_C_T_SKHT_V2-ff5fadd5.pth` in `models/optical_flow/` ([torchvision's weights](https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth); ComfyUI doesn't download them) |
+
+## Master, publish and the export
+
+Assemble, master and publish cut with ffmpeg. You don't need to install it:
+- **seriesmith's own install** brings a static ffmpeg build (imageio-ffmpeg) and PyAV;
+- **inside ComfyUI**, PyAV is always there. `ffmpeg` itself comes from:
+  - ComfyUI-VideoHelperSuite, if it's installed (it brings imageio-ffmpeg into ComfyUI's
+    Python);
+  - otherwise the repo's `.venv`, once `run_seriesmith` has made it;
+  - otherwise one on PATH.
+- **Your own ffmpeg** on PATH always comes first (`winget install Gyan.FFmpeg`,
+  `apt install ffmpeg`, `brew install ffmpeg`).
+
+**Titles.** Publish writes the episode's title under the series title on the series'
+intro and outro clips, with one font file for every episode. The default is
+`C:\Windows\Fonts\segoescb.ttf`; set `publish.subtitle.font` in the series config to
+any `.ttf` or `.otf` to use another. The intro and outro clips themselves are yours to
+make, once per series ([COMMANDS.md](/commands)).
+
+## 360s and turned views
+
+The Refs tab's **Make 360** and a character's **Turn** each use a LoRA in `models/loras/`.
+Only the button that uses one needs it:
+
+| File | Used by | Download |
+|---|---|---|
+| `flux-2-klein-9B-360-erp-outpaint-lora_V1.safetensors` | **Make 360** on FLUX.2 Klein (the default; also needs `flux-2-klein-base-9b-fp8.safetensors`) | [nomadoor/flux-2-klein-9B-360-erp-outpaint-lora](https://huggingface.co/nomadoor/flux-2-klein-9B-360-erp-outpaint-lora/resolve/main/flux-2-klein-9B-360-erp-outpaint-lora_V1.safetensors) |
+| `pano360_qwen21_edit_v1.safetensors` | **Make 360** on Qwen-Image 2.1 | [Gogodr/qwen-image-2.1-edit-pano360-lora](https://huggingface.co/Gogodr/qwen-image-2.1-edit-pano360-lora/resolve/main/pano360_qwen21_edit_v1.safetensors) |
+| `angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors` | a character's **Turn** (Qwen-Image 2.1) | [akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA](https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA/resolve/main/checkpoints_v2/angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors) |
+
+## Software outside ComfyUI
+
+| Install | For |
+|---|---|
+| Python 3.10 or later | the editor on its own page and the `seriesmith` command (`run_seriesmith` sets up the rest) |
+| `pip install faster-whisper numpy` | recorded dialogue: `align` and the Recording window |
+| `pip install demucs`, for ComfyUI's `python` | the `dub_keep_foley` audio policy |
+| Node.js 20.19+ and `npm install` in `web/` | only to rebuild the editor after changing `web/` |
+| `pip install pytest` | the test suite |
+
+Comfy Cloud, deployments and the hosted Router models need only a Comfy API key, set in
+**Settings** ([SETUP.md](/setup)). Saving it installs Comfy's SDK, which they run on,
+into ComfyUI's Python if it isn't there; nothing to do by hand.

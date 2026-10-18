@@ -2,6 +2,7 @@
   "id": "ltx2",
   "kind": "video",
   "label": "LTX-2.5 distilled (text / keyframes to video + audio)",
+  "default_rank": 20,
   "short": "LTX-2",
   "code": "compile.py",
 

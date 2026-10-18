@@ -43,6 +43,15 @@ import time
 import numpy as np
 import torch
 
+try:
+    from . import _ff
+except ImportError:                       # this file loaded on its own (a test), not as the pack
+    import importlib.util as _iu
+    _spec = _iu.spec_from_file_location(
+        "seriesmith_nodes_ff", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ff.py"))
+    _ff = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(_ff)
+
 # ---------------------------------------------------------------------------
 # H3 constants
 # ---------------------------------------------------------------------------
@@ -80,6 +89,64 @@ def snap_up(frames: int) -> int:
 # renders all encode through this; assemble converts the older BT.601 takes.
 RGB_TO_BT709 = ("scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
                 "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709")
+
+
+def encode_av(images, mp4: str, fps: float, audio_path: str | None = None) -> None:
+    """The take's mp4 as the ffmpeg command writes it (H.264 CRF 16, yuv420p,
+    BT.709 limited range with all four colour tags, AAC 192k from a PCM wav,
+    exactly as many frames as given), through PyAV: ffmpeg's own libraries,
+    which ComfyUI installs (`av` in its requirements), for a machine with no
+    ffmpeg on PATH. ImportError without PyAV."""
+    import av
+    from fractions import Fraction
+
+    n, h, w = int(images.shape[0]), int(images.shape[1]), int(images.shape[2])
+    rate = Fraction(fps).limit_denominator(1001)
+    arr = (images[..., :3].clamp(0, 1).cpu().numpy() * 255.0 + 0.5).astype(np.uint8)
+    tmp = mp4 + ".part.mp4"
+    out = av.open(tmp, "w")
+    try:
+        vs = out.add_stream("libx264", rate=rate)
+        vs.width, vs.height = w - w % 2, h - h % 2     # yuv420p needs even sides
+        vs.pix_fmt = "yuv420p"
+        vs.options = {"crf": "16"}
+        cc = vs.codec_context
+        for k, v in (("color_range", 1), ("colorspace", 1), ("color_primaries", 1),
+                     ("color_trc", 1)):                # 1: MPEG (tv) range / BT.709
+            try:
+                setattr(cc, k, v)
+            except (AttributeError, TypeError, ValueError):
+                pass
+        ast = None
+        if audio_path:
+            pcm, sr = _read_pcm_wav(audio_path)
+            ast = out.add_stream("aac", rate=sr)
+            ast.bit_rate = 192_000
+            ast.layout = "stereo" if pcm.shape[0] > 1 else "mono"
+        for i in range(n):
+            frame = av.VideoFrame.from_ndarray(arr[i, :vs.height, :vs.width], format="rgb24")
+            frame = frame.reformat(format="yuv420p", dst_colorspace="ITU709",
+                                   dst_color_range="MPEG")
+            frame.pts = i
+            for packet in vs.encode(frame):
+                out.mux(packet)
+        for packet in vs.encode():
+            out.mux(packet)
+        if ast is not None:
+            data = pcm[:2].numpy().astype(np.float32)
+            chunk = 1024
+            for start in range(0, data.shape[1], chunk):
+                af = av.AudioFrame.from_ndarray(np.ascontiguousarray(data[:, start:start + chunk]),
+                                                format="fltp", layout=ast.layout.name)
+                af.sample_rate = sr
+                af.pts = start
+                for packet in ast.encode(af):
+                    out.mux(packet)
+            for packet in ast.encode():
+                out.mux(packet)
+    finally:
+        out.close()
+    os.replace(tmp, mp4)
 
 
 def _blank(h: int = 64, w: int = 64) -> torch.Tensor:
@@ -162,7 +229,7 @@ def _ffmpeg_decode(path: str) -> tuple[torch.Tensor, int]:
         out = os.path.join(tmp, "decoded.wav")
         try:
             subprocess.run(
-                ["ffmpeg", "-y", "-v", "error", "-i", path,
+                [*_ff.tool("ffmpeg"), "-y", "-v", "error", "-i", path,
                  "-acodec", "pcm_s16le", out],
                 check=True, capture_output=True, timeout=300)
         except FileNotFoundError:
@@ -1059,7 +1126,7 @@ class SeriesmithSaveTake:
             first = sorted(os.listdir(tmpdir))[0]
             pattern = os.path.join(tmpdir, re.sub(r"\d{6}", "%06d", first))
 
-        cmd = ["ffmpeg", "-y"]
+        cmd = [*_ff.tool("ffmpeg"), "-y"]
         if pipe:
             cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w}x{h}",
                     "-framerate", str(fps), "-i", "-"]
@@ -1086,7 +1153,14 @@ class SeriesmithSaveTake:
                 subprocess.run(cmd, check=True, capture_output=True, timeout=900)
             result = f"mp4 written ({'with audio' if audio_path else 'mute'})"
         except FileNotFoundError:
-            result = "ffmpeg not found - mp4 skipped"
+            # no ffmpeg on PATH: PyAV, which every ComfyUI has (its requirements)
+            try:
+                encode_av(images, mp4, fps, audio_path)
+                result = f"mp4 written ({'with audio' if audio_path else 'mute'}; PyAV, no ffmpeg on PATH)"
+            except ImportError:
+                result = "ffmpeg not found - mp4 skipped"
+            except Exception as exc:                      # noqa: BLE001  said in the record
+                result = f"ffmpeg not found, and PyAV failed: {exc}"
         except subprocess.CalledProcessError as exc:
             result = f"ffmpeg failed: {(exc.stderr or b'').decode('utf-8', 'replace')[-160:]}"
         except subprocess.TimeoutExpired:

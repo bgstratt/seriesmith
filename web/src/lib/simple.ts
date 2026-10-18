@@ -12,7 +12,7 @@ import { fitSize } from "./size";
 
 /** What each video model is good at, in a line, for the model picker. */
 export const MODEL_NOTES: Record<string, string> = {
-  minimax_h3_ref2va: "Keeps your characters and places looking like their pictures, and lip-syncs what they say. The default.",
+  minimax_h3_ref2va: "Keeps your characters and places looking like their pictures, and lip-syncs what they say.",
   minimax_h3_fl2va: "H3 between a first and a last frame you give it.",
   ltx2: "Quick, and makes its own sound; can start from a picture.",
   ltx2_ingredients: "LTX-2 that takes your characters and places as pictures to work from.",

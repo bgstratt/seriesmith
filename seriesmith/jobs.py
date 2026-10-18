@@ -1323,7 +1323,7 @@ def target_choice(overrides: dict | None, shot_id: str, built: str,
     else:
         # no current shots.json to ask: a build target other than the series
         # config's can only have come from the script
-        st = built if built != (series or TG.DEFAULT_VIDEO_TARGET) else None
+        st = built if built != (series or TG.machine_default("video")) else None
     if st:
         return st, "script"
     ep = T.episode_target(overrides or {})
@@ -2346,6 +2346,29 @@ def prune(g: dict, keep: str) -> None:
                 stack.append(v[0])
     for k in [k for k in g if k not in need]:
         del g[k]
+
+
+def bypass_nodes(g: dict, bypass: dict[str, str]) -> list[str]:
+    """Splice out every node of a class in `bypass` ({class: the input its
+    output passes through}): whatever read its output reads that input's
+    source instead. Returns the classes taken out, each once."""
+    gone: list[str] = []
+    for nid in [k for k, v in g.items() if v.get("class_type") in bypass]:
+        node = g.get(nid)
+        if node is None:
+            continue
+        via = node.get("inputs", {}).get(bypass[node["class_type"]])
+        if not (isinstance(via, list) and len(via) == 2):
+            continue                      # nothing to pass through: left as it is
+        for v in g.values():
+            ins = v.get("inputs") or {}
+            for k, x in ins.items():
+                if isinstance(x, list) and len(x) == 2 and x[0] == nid:
+                    ins[k] = list(via)
+        del g[nid]
+        if node["class_type"] not in gone:
+            gone.append(node["class_type"])
+    return gone
 
 
 def upstream_node(g: dict, start: str, ctype: str) -> str | None:

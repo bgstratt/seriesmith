@@ -2289,7 +2289,7 @@ def delete_override(ctx: Context, query: dict):
     shot = check_shot(query.get("shot"))
     p = query.get("pass")
     pass_ = check_pass(p) if p else None
-    built_target = E.shot_built_target(ep, shot) or T.DEFAULT_TARGET
+    built_target = E.shot_built_target(ep, shot) or TG.machine_default("video")
     ov = T.load_overrides(ep)
     target = J.effective_target(ov, shot, built_target, root=ep)
     E.clear_shot_override(ov, shot, pass_, target)
@@ -2334,7 +2334,8 @@ def get_targets(ctx: Context, query: dict):
             d["readiness"] = rd.get(d["id"]) or {"status": "unknown", "missing": [],
                                                  "resolved": {}, "features_off": [],
                                                  "nodes_missing": []}
-    return 200, {"targets": out, "default": dict(TG.DEFAULT_TARGETS)}
+    return 200, {"targets": out, "default": dict(TG.DEFAULT_TARGETS,
+                                                 **{k: TG.machine_default(k) for k in ("video", "image")})}
 
 
 READY_TTL = 30.0                                          # seconds a readiness answer is kept
@@ -2860,7 +2861,29 @@ def target_readiness(ctx: Context) -> dict:
         # an unanswered ComfyUI isn't worth remembering
         if info is not None:
             _READY[ctx.comfy_url] = (time.monotonic(), rd)
+            if DETECT_DEFAULTS:
+                remember_defaults(rd)
         return rd
+
+
+# whether readiness answers update the settings' detected_targets (the
+# models found installed): set by the hosts (`seriesmith serve`, ComfyUI's),
+# never by the CLI or the tests
+DETECT_DEFAULTS = False
+
+
+def remember_defaults(rd: dict) -> dict:
+    """The default video and image models found installed (edit.detect_defaults)
+    written to the settings' `detected_targets` when they changed: a series
+    naming no model renders on them (targets.machine_default). Returns them."""
+    from seriesmith import settings as S
+    found = E.detect_defaults(rd, {k: TG.default_candidates(k) for k in S.DEFAULT_KINDS})
+    try:
+        if S.load_settings().detected_targets != found:
+            S.save_settings({"detected_targets": found or None})
+    except (OSError, ValueError):
+        pass                                              # a settings file it can't write: next time
+    return found
 
 
 @handler
