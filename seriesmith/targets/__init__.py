@@ -243,7 +243,11 @@ class Binding:
     of ({"class_type", "inputs": {saver input: that node's input}}), with
     `saver.drop` (classes deleted with it) and `saver.set` (fixed saver
     inputs), so a stock workflow ending in CreateVideo/SaveVideo can feed
-    H3SaveShot. `prune` drops every node the saver doesn't depend on."""
+    H3SaveShot. `prune` drops every node the saver doesn't depend on.
+    `bypass_if_missing` maps a node class a job can do without to the input
+    its output passes through ({"H3SLAAttention": "model"}): a ComfyUI that
+    hasn't the class runs the graph with the node spliced out
+    (jobs.bypass_nodes) and the target is degraded, not not-ready."""
     workflow: str                       # the repo copy (absolute path), or ""
     workflow_name: str                  # its name among ComfyUI's saved workflows
     env: str = ""                       # environment variable naming a file to use
@@ -252,6 +256,7 @@ class Binding:
     params: dict = field(default_factory=dict)
     review_nodes: list = field(default_factory=list)
     prune: bool = False
+    bypass: dict = field(default_factory=dict)
 
     @property
     def loader_class(self) -> str:
@@ -425,7 +430,8 @@ class Target:
             workflow_name=b.get("workflow_name") or wf,
             env=b.get("env", ""), loader=dict(b.get("loader") or {}),
             saver=dict(b.get("saver") or {}), params=dict(b.get("params") or {}),
-            review_nodes=list(b.get("review_nodes") or []), prune=bool(b.get("prune")))
+            review_nodes=list(b.get("review_nodes") or []), prune=bool(b.get("prune")),
+            bypass={str(k): str(v) for k, v in (b.get("bypass_if_missing") or {}).items()})
         self.presets: dict[str, Preset] = {}
         for name, p in (spec.get("presets") or {}).items():
             if name.startswith("_"):                      # a comment
@@ -453,6 +459,14 @@ class Target:
     def shipped_draft(self) -> bool:
         """A built-in target that ships as a draft (an untested Router model)."""
         return not self.custom and bool(self.spec.get("draft"))
+
+    @property
+    def default_rank(self) -> int | None:
+        """Where this target comes in choosing the default from what's
+        installed (target.json `default_rank`, lower first; None: never the
+        default by itself)."""
+        r = self.spec.get("default_rank")
+        return r if isinstance(r, int) and not isinstance(r, bool) else None
 
     @property
     def draft(self) -> bool:
@@ -809,7 +823,7 @@ class Target:
         base = self.presets[pass_]
         final = self.presets.get("final", base)
         block = s if pass_ == "final" else (series_cfg or {}).get(pass_, {})
-        if (s.get("target") or DEFAULT_VIDEO_TARGET) != self.id and self.kind == "video":
+        if (s.get("target") or machine_default("video")) != self.id and self.kind == "video":
             # Not the series target (a shot or profile picked this one): the
             # pass block's model / LoRA / steps were written for another model,
             # so only its picture size carries over (made legal by fit_size).
@@ -830,7 +844,7 @@ class Target:
 
     def describe(self) -> dict:
         return {"id": self.id, "kind": self.kind, "label": self.label,
-                "default": self.id == DEFAULT_TARGETS.get(self.kind),
+                "default": self.id == machine_default(self.kind),
                 "presets": {k: p.to_json() for k, p in self.presets.items()},
                 "widgets": self.binding.widgets(),
                 "workflow": self.binding.workflow_name,
@@ -1196,15 +1210,55 @@ def shadowed_custom(root: str) -> list[str]:
     return [f for k, n, f in custom_folders(root) if (k, n) in repo_ids]
 
 
+def bypassable() -> dict[str, str]:
+    """Every node class some target can do without, and the input its output
+    passes through when it's spliced out (bindings' `bypass_if_missing`)."""
+    out: dict[str, str] = {}
+    for t in list_targets():
+        for ctype, via in t.binding.bypass.items():
+            out.setdefault(ctype, via)
+    return out
+
+
 def forget_targets() -> None:
     """Drop the cache (a custom target.json was written or deleted)."""
     _CACHE.clear()
     _FOLDERS.clear()
 
 
+def machine_default(kind: str) -> str:
+    """The target a series that names none uses on this machine, for `kind`
+    (video, image): the settings' `default_targets` (the user's choice), else
+    `detected_targets` (what edit.detect_defaults found installed), else the
+    built-in default (DEFAULT_TARGETS). One that no longer exists is skipped."""
+    builtin = DEFAULT_TARGETS[kind]
+    s = _settings()[1]
+    if s is None:
+        return builtin
+    for tid in (s.default_targets.get(kind), s.detected_targets.get(kind)):
+        if not tid:
+            continue
+        try:
+            load_target(tid, kind)
+        except (TargetError, ValueError, OSError):
+            continue
+        return tid
+    return builtin
+
+
+def default_candidates(kind: str) -> list[Target]:
+    """The targets that may become the default by being installed, in the
+    order they're preferred (target.json `default_rank`): local ones only,
+    never a draft or a paid hosted model."""
+    out = [t for t in list_targets(kind)
+           if t.default_rank is not None and not t.draft and not t.spec.get("router")]
+    return sorted(out, key=lambda t: (t.default_rank, t.id))
+
+
 def video_target(series_cfg: dict | None = None) -> Target:
-    """The series config's video target (`series.target`, else the default)."""
-    tid = ((series_cfg or {}).get("series") or {}).get("target") or DEFAULT_VIDEO_TARGET
+    """The series config's video target (`series.target`, else this machine's
+    default: machine_default)."""
+    tid = ((series_cfg or {}).get("series") or {}).get("target") or machine_default("video")
     return load_target(tid, "video")
 
 
@@ -1239,8 +1293,10 @@ def refs_block(series_cfg: dict | None) -> dict:
 
 def image_target(series_cfg: dict | None = None) -> Target:
     """The image target that makes this series' refs: the series config's
-    `refs.target`, else krea2."""
-    return load_target(refs_block(series_cfg).get("target") or DEFAULT_IMAGE_TARGET, "image")
+    `refs.target`, else this machine's default (machine_default: krea2 unless
+    another was found installed)."""
+    return load_target(refs_block(series_cfg).get("target") or machine_default("image"),
+                       "image")
 
 
 def audio_target(series_cfg: dict | None = None) -> Target:

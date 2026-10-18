@@ -2,6 +2,7 @@
   "id": "flux3_klein_turbo",
   "kind": "image",
   "label": "FLUX.3 Image Klein turbo (step-distilled: text to image, and edit from reference images)",
+  "default_rank": 60,
   "short": "Klein 3 turbo",
   "code": "target.py",
 

@@ -26,18 +26,19 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.backends import File  # noqa: E402
 from seriesmith.backends.fake import FakeBackend  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_render import FIXTURE, build_episode  # noqa: E402
 
 SEEDANCE = "seedance_2_5"
 MODEL = "byteplus/dreamina-seedance-2-5-260628"
-HAVE_FFMPEG = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FFMPEG = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 
 
 def tiny_mp4(seconds: float = 1.0) -> bytes:
     """A real 320x180, 24 fps mp4 with sound: what a provider might return."""
     with tempfile.TemporaryDirectory() as d:
         out = os.path.join(d, "v.mp4")
-        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+        subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-f", "lavfi", "-i",
                         f"testsrc=size=320x180:rate=24:duration={seconds}", "-f", "lavfi",
                         "-i", f"sine=frequency=440:duration={seconds}", "-shortest",
                         "-pix_fmt", "yuv420p", out], check=True, capture_output=True)

@@ -33,8 +33,8 @@ you to write into:
 1. **Install seriesmith**, the node pack and the model files ([INSTALL.md](/install)),
    or set up a cloud backend ([SETUP.md](/setup)).
 2. **Run `seriesmith serve`** (`--root C:\Shows` names your project folders) and open
-   http://127.0.0.1:8190. It starts comfy-api-proxy in front of your ComfyUI if it isn't
-   running. `run_seriesmith.bat` does the same and opens the page in your browser
+   http://127.0.0.1:8190. Local renders go straight to your ComfyUI. `run_seriesmith.bat`
+   does the same (setting itself up the first time) and opens the page in your browser
    (`run_seriesmith_ext.bat` opens it to your network too). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.
@@ -80,8 +80,9 @@ settings and the text windows wait in Advanced. It is remembered in this browser
     time)** makes its picture before the clip renders, and the place is then there to pick
     for the next clip; left off, each clip imagines it its own way.
   - **Said** (a clip with people in it): the lines, under who says them.
-- The settings: **Model** (the video model, what each is good at in its tooltip, H3 by
-  default; for a picture, the image model, Krea 2 by default: an edit model draws the
+- The settings: **Model** (the video model, what each is good at in its tooltip, this
+  machine's default marked: the one picked in Settings, else the first installed, H3 first;
+  for a picture, the image model, Krea 2 first the same way: an edit model draws the
   people and the place from their pictures, a text-to-image one from their words),
   **Framing**, **Length** and **Size**. Several shots has a row per shot instead (what we
   see, framing, length), in order, sharing the people and the place.
@@ -758,10 +759,32 @@ becomes an episode folder under the show you choose, named from its header; the 
 says which went in and why any didn't (a script with no header, a config that doesn't
 build it). Then build and render them as any other episode.
 
+## Features: installing models, node packs and tools
+
+**Settings → Features…** lists what can be added to this install, grouped as
+[FULL_SETUP.md](/full-setup) has it: video and picture models, H3's sparse attention,
+voices, upscaling, post-processing, 360s and turns, ffmpeg and VideoHelperSuite.
+
+- **Each feature** has a checkbox and a status: **Installed** (ticked, greyed), **Partly
+  installed**, **Not installed**, or **Restart ComfyUI** (a node pack is in, not loaded
+  yet).
+- **The chevron** lists the feature's files, packs and packages, each with where it goes
+  and its size. A gated file links its licence page.
+- **The foot** adds up what the ticked features still download; each file shared between
+  features counts once.
+- **Install** queues them. The card on top follows each item (a download's bytes, a
+  clone, a pip install) and has **Stop**. A stopped download resumes next time. When a
+  node pack went in, it says to restart ComfyUI.
+- **Gated files** (LTX-2.5, FLUX) need a **Hugging Face token** in Settings and their
+  licence accepted on Hugging Face. Without them the file fails, saying which.
+- **What's missing** has an **Install** button beside each file with a known download,
+  and beside each missing node a known pack provides. It opens Features to show the
+  progress.
+
 ## Where shots render
 
 Every render, reference, voice, upscale, post and tour is a **job**, and a job runs on a
-**backend**: `local` (your own ComfyUI, through comfy-api-proxy), `cloud` (Comfy Cloud),
+**backend**: `local` (your own ComfyUI), `cloud` (Comfy Cloud),
 `deployment:<target>` or `router` (a hosted model). **Render on** in the top bar (on top of
 seriesmith Shots inside ComfyUI) picks one for every render from the page this session, and
 the Render dialog's own row for that request: every backend this machine is set up for, a
@@ -796,12 +819,12 @@ where things are. What it would lose to a restart, it doesn't:
 - **A restart.** The queue keeps a list of its live jobs (`queue.json` beside the
   settings file). When `seriesmith serve` starts again, a job that had reached its backend
   is found again by its run's id and collected as if nothing happened ("(found again)" in
-  Jobs): on your ComfyUI through comfy-api-proxy, on Comfy Cloud, a deployment or Router.
+  Jobs): on your ComfyUI (by its prompt id), on Comfy Cloud, a deployment or Router.
   A job still waiting in seriesmith's queue (your ComfyUI takes one at a time, so after a
   big **Generate missing** most are) had cost nothing: it is queued again by itself, in the
   order it was queued, keeping its take number, and nothing is left failed.
-- **A dropped connection.** A run's backend out of reach (the network, the proxy
-  restarting, a 5xx) is asked again for up to 15 minutes before the run is given up on;
+- **A dropped connection.** A run's backend out of reach (the network, ComfyUI
+  busy loading, a 5xx) is asked again for up to 15 minutes before the run is given up on;
   the job itself goes on where it runs.
 - **A hung job.** Each kind of job has a generous time limit (a render 2 hours, an
   upscale 4, a post 6, a ref picture 30 minutes, a tour 1 hour); past it, it is stopped and
@@ -817,8 +840,13 @@ where things are. What it would lose to a restart, it doesn't:
 **Settings** in the top bar (on top of seriesmith Shots inside ComfyUI) is this machine's
 own, never the series': the **Comfy API key** (from platform.comfy.org; it turns on Comfy
 Cloud and Comfy Router, and paid use is billed to that account), the Cloud address, **Paid
-runs per session** (the cap; empty is none), where your **ComfyUI** and **comfy-api-proxy**
-are, and **deployments** (a model built into a Comfy deployment of its own, which then
+runs per session** (the cap; empty is none; under the key, while Comfy's SDK installs for
+Cloud and Router, how that is going, with **Install** if it failed), where your **ComfyUI** is, the **Video
+model** and **Picture model** a series naming none renders on (what seriesmith found
+installed in ComfyUI, unless you pick one), whether local renders go **through
+comfy-api-proxy** (advanced; off: straight to ComfyUI), **Features…** (below), the
+**Hugging Face token** for gated downloads, **Folders** (your own ffmpeg; ComfyUI's
+folder, when it can't be asked), and **deployments** (a model built into a Comfy deployment of its own, which then
 shows in **Render on** as `deployment:<model>`). Saving applies at once. They live in
 `%APPDATA%\seriesmith\settings.json`; a value the environment sets (`COMFY_API_KEY`, ...)
 wins and shows as such. On the standalone page opened on the PC that runs the server,

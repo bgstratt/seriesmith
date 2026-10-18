@@ -4,7 +4,9 @@
 // the notes a take's `resolved` gives.
 
 import { useEffect, useRef, useState } from "react";
-import { closeMissing, copyText, installWorkflow, openMissing, refreshReadiness, revertWorkflow, setEpisodeTarget } from "../actions";
+import { closeMissing, copyText, installWorkflow, openFeatures, openMissing, refreshReadiness, revertWorkflow, setEpisodeTarget } from "../actions";
+import { host } from "../host";
+import { startInstall, type InstallAsk } from "../lib/features";
 import {
   downloadOf, episodeTargetSourceLabel, folderPath, missingCountText, missingGroups, normReadiness, notReadyBanner,
   pickWarning, readinessBadge, readinessOf, resolutionNotes, searchText, seriesSnippet, seriesTarget, targetCounts,
@@ -404,7 +406,10 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
                 <b className="h3-mono h3-ell h3-grow" title={n}>{n}</b>
                 <CopyButton text={n} what="Node name" />
               </div>
-              <div className="h3-small">custom node needed: install the node pack that provides it (ComfyUI-Manager can search by node name), then restart ComfyUI.</div>
+              <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
+                <InstallButton ask={{ classes: [n] }} title="Install the node pack that provides it, then restart ComfyUI" />
+                <span className="h3-muted">custom node needed: the node pack that provides it, then a ComfyUI restart (ComfyUI-Manager can search by node name).</span>
+              </div>
             </div>
           ))}
         </div>
@@ -486,6 +491,29 @@ function GraphCard({ t }: { t: Target }) {
   );
 }
 
+/** Install what What's missing names (by file name or node class: the server
+ * only downloads what the code records), then show its progress in Features. */
+async function installMissing(ask: InstallAsk) {
+  try {
+    const r = await startInstall(ask);
+    if (r.skipped.length) host().toast("warn", "Some of it can't be installed from here", r.skipped.join("; "));
+    if (r.queued.length) openFeatures(true);
+    else if (!r.skipped.length) host().toast("info", "Already installed", "Refresh to check again.");
+  } catch (e) {
+    host().toast("error", "Couldn't install it", (e as Error).message);
+  }
+}
+
+function InstallButton({ ask, title }: { ask: InstallAsk; title: string }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button className="h3-btn" disabled={busy} title={title}
+      onClick={() => { setBusy(true); void installMissing(ask).finally(() => setBusy(false)); }}>
+      <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-download"} /> Install
+    </button>
+  );
+}
+
 function MissingFileCard({ m, t }: { m: MissingFile; t: Target }) {
   const dl = downloadOf(m);
   const folder = folderPath(m.folder);
@@ -506,9 +534,12 @@ function MissingFileCard({ m, t }: { m: MissingFile; t: Target }) {
       )}
       <div className="h3-small">
         {"url" in dl ? (
-          <a className="h3-dl" href={dl.url} target="_blank" rel="noopener noreferrer" title={dl.url}>
-            <i className="pi pi-external-link" /> Download{m.source ? <span className="h3-muted"> ({m.source})</span> : null}
-          </a>
+          <span className="h3-row h3-wrap" style={{ gap: 8 }}>
+            <InstallButton ask={{ files: [m.want] }} title={`Download it into ComfyUI/${folder ?? "models"}`} />
+            <a className="h3-dl" href={dl.url} target="_blank" rel="noopener noreferrer" title={dl.url}>
+              <i className="pi pi-external-link" /> Download{m.source ? <span className="h3-muted"> ({m.source})</span> : null}
+            </a>
+          </span>
         ) : (
           <span className="h3-muted">No download link known: {searchText(m)}</span>
         )}

@@ -5,13 +5,18 @@ Linux/macOS differences are called out where they exist. The commands are writte
 Windows paths: on Linux/macOS use forward slashes, and `python3` where `python` is
 missing.
 
-What you end up with: the `seriesmith` command and its editor (a page `seriesmith serve`
-opens in your browser), comfy-api-proxy in front of your ComfyUI, seriesmith's node pack
-in ComfyUI, and one episode folder holding a series config, a script, and everything
-seriesmith generated from them.
+What you end up with: seriesmith's node pack in ComfyUI, its editor inside ComfyUI or
+on a page of its own (`seriesmith serve`), the `seriesmith` command, and one episode
+folder holding a series config, a script, and everything seriesmith generated from them.
+
+**In a hurry?** [The thirty-second install](docs/QUICKSTART.md): clone, link the node pack
+into ComfyUI, start ComfyUI. Nothing goes into ComfyUI's Python, no other node packs, no
+ffmpeg; it renders on the models you already have. [Full setup](docs/FULL_SETUP.md) lists
+the node packs, model files and software each extra feature needs, and **Settings →
+Features…** in the editor installs any of them for you. This page is every part in detail.
 
 1. [Requirements](#1-requirements)
-2. [seriesmith, the proxy and the node pack](#2-seriesmith-the-proxy-and-the-node-pack)
+2. [seriesmith and the node pack](#2-seriesmith-and-the-node-pack)
 3. [Workflows](#3-workflows)
 4. [Models](#4-models)
 5. [First run](#5-first-run)
@@ -25,13 +30,29 @@ does with it all is the [README](README.md).
 
 ## 1. Requirements
 
-- **Python 3.10 or later.** `pip install -e .` in the repo installs seriesmith and what it
-  needs (comfy-sdk, aiohttp, Pillow, numpy); a virtualenv is a good idea. The build and
-  `check` themselves need nothing beyond the standard library.
-- **`ffmpeg` and `ffprobe` on PATH.** Assemble, master and publish cut with them; the
-  waveform peaks, the audio import, `align` and the Recording window need them too. On
-  Windows, `winget install Gyan.FFmpeg`; on Linux/macOS, your package manager
-  (`apt install ffmpeg`, `brew install ffmpeg`).
+- **Python 3.10 or later**, for the editor on its own page and the `seriesmith` command
+  (inside ComfyUI, seriesmith runs on ComfyUI's own Python and needs nothing installed).
+  `run_seriesmith.bat` makes the repo's `.venv` and runs `pip install -e .` there the
+  first time; that installs what seriesmith needs (comfy-sdk, aiohttp, Pillow, numpy,
+  imageio-ffmpeg, PyAV). The build and `check` themselves need nothing beyond the
+  standard library.
+- **ffmpeg: nothing to install.** Assemble, master and publish cut with `ffmpeg` and
+  measure with `ffprobe`; so do the waveform peaks, the audio import, `align`, the
+  Recording window and a frame cut out of a take. seriesmith takes the first it finds
+  (`seriesmith/ff.py`):
+  - **First, your own:** the folder named in **Settings → Folders → ffmpeg folder**,
+    else the full build **Settings → Features → ffmpeg and ffprobe** downloads into
+    seriesmith's folder (gyan.dev's on Windows, a static build on Linux);
+  - **`ffmpeg`:** else the one on PATH, else imageio-ffmpeg's (a static ffmpeg 7 build
+    that comes with seriesmith's own install; inside ComfyUI, there when a node pack
+    brought it, else the one in the repo's `.venv` once `run_seriesmith` has made it);
+  - **`ffprobe`:** else the one on PATH, else a stand-in that answers the same questions
+    through PyAV (ffmpeg's own libraries, in ComfyUI's requirements and seriesmith's).
+  - A render needs neither: without ffmpeg, the saver writes the take's mp4 through PyAV,
+    the same H.264 / BT.709 / AAC file, and the take's record says so.
+
+  An ffmpeg on PATH counts too (`winget install Gyan.FFmpeg`; `apt install ffmpeg`,
+  `brew install ffmpeg`).
 - **Somewhere to render**, one or both:
   - **your own ComfyUI** (a recent local [ComfyUI](https://github.com/comfyanonymous/ComfyUI);
     seriesmith is developed against 0.38 — the MiniMax H3, Krea 2 and SeedVR2 nodes are
@@ -43,17 +64,17 @@ does with it all is the [README](README.md).
     deployments and the hosted models through Comfy Router ([docs/SETUP.md](docs/SETUP.md)).
     A hosted model (Seedance, Kling, Veo, Nano Banana, ...) needs no GPU and no model
     files; paid use is billed to the key's account.
-- **Third-party node packs** for some targets — see [the table below](#third-party-node-packs).
+- **Optional node packs** for some extras — see [the table below](#optional-node-packs).
 
-### Third-party node packs
+### Optional node packs
 
-Everything else the targets' workflows use ships with core ComfyUI or with seriesmith's
-own pack (section 2). `seriesmith targets` names a missing node class under the target
-that needs it.
+A render needs nothing beyond core ComfyUI and seriesmith's own pack (section 2). The packs
+below add something; `seriesmith targets` names a missing node class under the target that
+uses it.
 
-| Pack | Provides | Needed by |
+| Pack | Provides | Used by |
 |---|---|---|
-| [ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes) | `H3SLAAttention` (sparse attention the H3 turbo LoRAs were distilled against) | `minimax_h3_ref2va` (the default video target), `minimax_h3_still`, and the location tours (`seriesmith/workflows/h3_tour.json`) |
+| [ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes) | `H3SLAAttention` (sparse attention the H3 turbo LoRAs were distilled against) | `minimax_h3_ref2va` and `minimax_h3_still`. Without the pack they render with the node spliced out, show as **degraded**, and the take notes it. The location tours (`seriesmith/workflows/h3_tour.json`) still need it |
 | [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXVAudioOnlyModel`, `LTXVAudioOnlyEmptyVideoLatent`; `LTXICLoRALoaderModelOnly`, `LTXAddVideoICLoRAGuide` | `ltx2_voice` (the default voice target); `ltx2` only for reference sheets |
 | [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) | `MinimaxH3LatentUpscaler3D` | `seriesmith upscale` on H3 takes only — see **The upscaler**, below |
 | [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | an H3 upscale of a take longer than 5.5 s, so it fits a 32 GB card — see **The upscaler**. Its README also asks for [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm); that's for its own timeline workflows, not this node |
@@ -86,12 +107,20 @@ names the interpreter it settled on and prints the exact `pip install` line for 
 
 ---
 
-## 2. seriesmith, the proxy and the node pack
+## 2. seriesmith and the node pack
 
 ### seriesmith
 
 ```
 git clone https://github.com/bgstratt/seriesmith.git C:\code\seriesmith
+```
+
+Anywhere you like (`C:\code\seriesmith` and `C:\AI\ComfyUI` in this guide are only
+examples) — it does not have to live near ComfyUI. For the editor inside ComfyUI that is
+all. For the editor on its own page, `run_seriesmith.bat` sets up the rest the first time
+it runs. For the `seriesmith` command, set it up yourself:
+
+```
 cd C:\code\seriesmith
 python -m venv .venv
 .venv\Scripts\activate          (source .venv/bin/activate elsewhere)
@@ -99,23 +128,11 @@ pip install -e .
 seriesmith --help
 ```
 
-Anywhere you like (`C:\code\seriesmith` and `C:\AI\ComfyUI` in this guide are only
-examples) — it does not have to live near ComfyUI.
-
-### comfy-api-proxy
-
-seriesmith talks to every ComfyUI the same way, through Comfy's API. Your own ComfyUI
-gets that API from [comfy-api-proxy](https://pypi.org/project/comfy-api-proxy/), a small
-server in front of it:
-
-```
-pip install comfy-api-proxy
-```
-
-You rarely start it yourself: `seriesmith serve`, and every command that queues work on
-`local`, start it when it isn't running and ComfyUI is (on port 8189, its state in
-`%LOCALAPPDATA%\seriesmith\proxy`). [docs/SETUP.md](docs/SETUP.md) has the details and the
-command to run it by hand.
+Local renders go straight to your ComfyUI, through its own API (`/prompt`, `/history`,
+`/view`). [comfy-api-proxy](https://pypi.org/project/comfy-api-proxy/), which earlier
+versions needed in front of ComfyUI, is now optional: **Settings → Through
+comfy-api-proxy**, or `"local_via": "proxy"` in the settings file
+([docs/SETUP.md](docs/SETUP.md)).
 
 ### The node pack
 
@@ -143,23 +160,25 @@ Restart ComfyUI whenever a `comfy_nodes/*.py` file changes, since ComfyUI import
 classes once at startup. The pack sits happily beside h3pipe's, if you keep that for
 h3pipe.
 
-### The editor inside ComfyUI (optional)
+### The editor inside ComfyUI
 
 The same pack also puts seriesmith's editor inside ComfyUI: **seriesmith Shots** and
 **seriesmith Refs** in the sidebar, **seriesmith Timeline** in the bottom panel. It's
-the same app as `seriesmith serve`, with the same project folders, settings and queue.
-For that, ComfyUI's own Python needs the seriesmith package (and comfy-api-proxy, which it
-starts for the local backend). With the portable ComfyUI, from the seriesmith repo:
+the same app as `seriesmith serve`, with the same project folders, settings and queue,
+and it renders on the ComfyUI it runs in. It loads seriesmith from the repo the pack is
+linked from, on ComfyUI's own Python, which already has everything it needs: nothing to
+install. (A copied rather than linked `comfy_nodes` folder can't find the repo; its
+nodes still load and the editor stays off, and ComfyUI's console says so.) Comfy Cloud,
+deployments and Router run on Comfy's SDK (comfy-sdk), which ComfyUI's Python doesn't
+have. The first time you save a Comfy API key in **Settings**, or start ComfyUI with one
+already set, seriesmith installs it there in the background (a few seconds; Settings
+shows it, and **Install** tries again if it failed). Without a key nothing is installed;
+`SERIESMITH_NO_AUTO_INSTALL=1` turns the automatic install off.
 
-```
-C:\AI\ComfyUI\python_embeded\python.exe -m pip install -e . comfy-api-proxy
-```
-
-`-e` links it to the repo, so pulling updates it (restart ComfyUI after). Without it the
-nodes still load and the editor stays off (ComfyUI's console says so). Inside ComfyUI, a
-bar on top of **seriesmith Shots** has **Render on**, the **Jobs** button and
-**Settings**, as the standalone page's top bar does. The ComfyUI host keeps its own queue
-journal (`queue-comfyui.json`), so it and `seriesmith serve` can run at the same time.
+Inside ComfyUI, a bar on top of **seriesmith Shots** has **Render on**, the **Jobs**
+button and **Settings**, as the standalone page's top bar does. The ComfyUI host keeps
+its own queue journal (`queue-comfyui.json`), so it and `seriesmith serve` can run at the
+same time.
 
 ### Check it
 
@@ -168,6 +187,11 @@ seriesmith backends               # each backend, and whether it answers
 seriesmith backends --try local   # a picture up through ComfyUI and back
 seriesmith targets                # what this ComfyUI can render, and what's missing
 ```
+
+The first time either host sees ComfyUI answer, it checks which models are installed
+(the same check as `seriesmith targets`). It keeps the default video and picture model
+it found in the settings file (`detected_targets`) and logs them
+(`seriesmith: default models: video ltx2, image krea2`).
 
 Then `seriesmith serve` (add `--root C:\Shows` to name your project folders) and open
 http://127.0.0.1:8190. Set your **project roots** — the folders holding your episodes —
@@ -179,7 +203,8 @@ on Linux/macOS), else read from `SERIESMITH_ROOTS` (`;`-separated, `:` on Linux/
 On Windows the repo has two launchers, like ComfyUI's: **`run_seriesmith.bat`** (this PC
 only) and **`run_seriesmith_ext.bat`** (other devices on your network too: it listens on
 every interface, `--host 0.0.0.0`, and prints the address to open on a laptop or phone).
-Double-click one, or make a desktop shortcut to it: it opens the editor in your browser
+On Linux/macOS, `./run_seriesmith.sh` (add `--ext` for the network). The first start of
+any of them makes the repo's `.venv` and installs seriesmith in it. Double-click one, or make a desktop shortcut to it: it opens the editor in your browser
 (`--auto-launch`) once the server is up, as ComfyUI's do. Each starts seriesmith again when the
 editor's **Settings → This server → Restart** (or `seriesmith stop --restart`) asks it
 to, and closes when it is stopped (**Stop**, `seriesmith stop`, or Ctrl+C, without cmd's
@@ -320,7 +345,7 @@ below applies to them.
 
 **Nodes count too.** Some targets need node classes as well as files. Most are core
 ComfyUI (MiniMax H3 FL2VA's `MiniMaxH3AddGuide`, the Wan 2.2 and LTX-2.5 video graphs);
-the rest come from the [third-party packs](#third-party-node-packs) in section 1.
+the rest come from the [optional packs](#optional-node-packs) in section 1.
 `seriesmith targets` lists a missing one as `node <Class> (update ComfyUI, or install the node
 pack)`.
 
@@ -843,11 +868,20 @@ ComfyUI is not running, or not on that port. Work on `local` needs it up, and th
 readiness checks ask it. `comfyui_url` in the settings ([docs/SETUP.md](docs/SETUP.md))
 points seriesmith elsewhere.
 
-**A job fails at once with `comfy-api-proxy` in its error, or `seriesmith backends` says
-`local` doesn't answer.**
-The proxy isn't running and couldn't be started: `pip install comfy-api-proxy` into the
-same Python as seriesmith, and check ComfyUI is up (the proxy is only started in front of
-a ComfyUI that answers). `comfy-api-proxy status` says whether it's running.
+**`seriesmith backends` says `local` doesn't answer.**
+Local renders go to `comfyui_url` (inside ComfyUI: that ComfyUI itself), so it is the
+same as above: ComfyUI isn't up there. Only if you set renders to go through the proxy
+(`"local_via": "proxy"`): the proxy isn't running and couldn't be started.
+`pip install comfy-api-proxy` into the same Python as seriesmith, and check ComfyUI is up
+(the proxy is only started in front of a ComfyUI that answers). `comfy-api-proxy status`
+says whether it's running.
+
+**Simple mode or a new series picked a model you didn't expect.**
+A series that names no model uses this machine's default: the one you picked in
+**Settings**, else the first one installed (H3, LTX-2, Wan 2.2 for video; Krea 2, FLUX.2
+Klein, ... for pictures), else H3 and Krea 2. `seriesmith targets` shows what is ready.
+The found ones are kept in the settings file as `detected_targets`, and are checked again
+each time seriesmith starts.
 
 **A job fails with a missing node class (`SeriesmithShotLoader`, `SeriesmithSaveTake`, ...).**
 seriesmith's node pack isn't in that ComfyUI, or ComfyUI wasn't restarted since it was

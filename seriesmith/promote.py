@@ -416,7 +416,7 @@ def episode_candidates(st: State) -> tuple[list, list]:
             continue
         where = f"`{block}.{key}`"
         if f == "target":
-            old = (st.raw.get("series") or {}).get("target") or TG.DEFAULT_VIDEO_TARGET
+            old = (st.raw.get("series") or {}).get("target") or TG.machine_default("video")
             sets = [f"{b}.{k}" for b in ("series", "proxy")
                     for k in PASS_BLOCK_KEYS if (st.raw.get(b) or {}).get(k) is not None]
             if sets and old != v:

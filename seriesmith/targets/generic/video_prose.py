@@ -111,7 +111,7 @@ def keyframe_path(recipe: dict, shot_id: str, end: str) -> str:
 
 def is_series_target(target, series_cfg: dict) -> bool:
     return ((series_cfg.get("series") or {}).get("target")
-            or TG.DEFAULT_VIDEO_TARGET) == target.id
+            or TG.machine_default("video")) == target.id
 
 
 class Ctx:

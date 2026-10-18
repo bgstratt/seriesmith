@@ -18,8 +18,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 from seriesmith import assemble as A  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 
-HAVE_FF = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+HAVE_FF = FF.have("ffmpeg") is not None and FF.have("ffprobe") is not None
 W, H = 256, 144
 BT709_RED = (63, 102, 240)
 BT601_RED = (81, 90, 240)
@@ -30,7 +31,7 @@ def red_clip(path: str, tagged_709: bool) -> None:
     (ffmpeg's default conversion, as takes were written before the fix)."""
     vf = (["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p," + A.BT709_TAGS]
           if tagged_709 else [])
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+    subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
                     f"color=c=red:s={W}x{H}:r=24:d=1", "-f", "lavfi", "-t", "1", "-i",
                     "anullsrc=r=44100:cl=mono", *vf, "-c:v", "libx264", "-crf", "0",
                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", path],
@@ -39,13 +40,13 @@ def red_clip(path: str, tagged_709: bool) -> None:
 
 def yuv(path: str) -> tuple[int, int, int]:
     """Y, U, V of the first frame's top-left pixel."""
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo",
+    raw = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo",
                           "-pix_fmt", "yuv420p", "-"], capture_output=True, check=True).stdout
     return raw[0], raw[W * H], raw[W * H + (W // 2) * (H // 2)]
 
 
 def tags(path: str) -> list[str]:
-    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+    out = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
                           "stream=color_range,color_space,color_primaries,color_transfer",
                           "-of", "default=nw=1:nk=1", path], capture_output=True, text=True).stdout
     return out.split()

@@ -57,7 +57,6 @@ import json
 import math
 import os
 import re
-import shutil
 import subprocess
 import sys
 
@@ -65,6 +64,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
+from seriesmith import ff as FF  # noqa: E402
 
 SR = 16000
 LEAD = 0.25      # seconds of air kept before a line's first word
@@ -114,9 +114,9 @@ def shot_grids(series_cfg_path: str, script_text: str):
 
 def load_pcm(path: str) -> "np.ndarray":
     import numpy as np
-    if not shutil.which("ffmpeg"):
+    if not FF.have("ffmpeg"):
         sys.exit("  !! ffmpeg not found on PATH")
-    r = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR),
+    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR),
                         "-f", "f32le", "-"], capture_output=True)
     if r.returncode != 0:
         sys.exit(f"  !! could not decode {path}: {r.stderr.decode('utf-8', 'replace')[-300:]}")

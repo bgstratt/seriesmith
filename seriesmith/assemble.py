@@ -72,6 +72,7 @@ import wave
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 
 NOT_RENDERED = "not rendered"
 # --progress: one line per step for whoever runs this (master, through
@@ -93,7 +94,7 @@ def say(on: bool, stage: str, done: int | None = None, total: int | None = None,
 
 
 def have(tool: str) -> bool:
-    return shutil.which(tool) is not None
+    return FF.have(tool)
 
 
 def frame_count(path: str) -> int:
@@ -101,7 +102,7 @@ def frame_count(path: str) -> int:
     read without decoding anything; `-count_frames` decodes the whole stream
     (minutes on a master) and is only the fallback, for a file whose header
     has no count."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=nb_frames", "-of", "csv=p=0", path], timeout=60)
     try:
         n = int(r.stdout.decode().strip())
@@ -109,7 +110,7 @@ def frame_count(path: str) -> int:
             return n
     except (ValueError, AttributeError):
         pass
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-count_frames",
              "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", path],
             timeout=300)
     try:
@@ -120,7 +121,7 @@ def frame_count(path: str) -> int:
 
 def frame_rate(path: str) -> float | None:
     """The clip's frame rate (ffprobe's r_frame_rate), or None."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", path], timeout=60)
     try:
         num, _, den = r.stdout.decode().strip().partition("/")
@@ -161,7 +162,7 @@ def stream_sig(path: str) -> tuple[tuple | None, tuple[int, int] | None, float]:
     for every clip in it. The third must be nothing: the demuxer starts the next
     clip where the longer stream ends, so sound that overruns leaves a hole in
     the picture's timing (sh1360's upscale, 2026-10-04: 22 ms)."""
-    r = run(["ffprobe", "-v", "error", "-show_data", "-show_entries",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-show_data", "-show_entries",
              "stream=codec_type,sample_rate,channels,duration,extradata," + ",".join(SIG_KEYS),
              "-of", "default", path], timeout=60)
     video = audio = None
@@ -197,7 +198,7 @@ OVERRUN_S = 0.001
 
 def video_duration(path: str) -> float | None:
     """The first video stream's duration from the file's header."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=duration", "-of", "csv=p=0", path], timeout=60)
     return _float(r.stdout.decode().strip())
 
@@ -224,7 +225,7 @@ def picture_offset(path: str) -> float:
     a little after its sound (the B-frame delay), and a file of picture alone
     starts with it: seeking by the picture's own start time, or by none, lands a
     frame off in one case or the other."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
              "stream=start_time:format=start_time", "-of", "json", path], timeout=60)
     try:
         d = json.loads(r.stdout.decode())
@@ -238,7 +239,7 @@ def frame_md5s(path: str, first: int, count: int, fps: float) -> list[str]:
     """framemd5 of `count` decoded frames from frame `first` on, or [] when they
     don't decode cleanly."""
     at = max(0.0, picture_offset(path) + (first - 0.5) / fps)
-    r = run(["ffmpeg", "-v", "error", "-ss", f"{at:.6f}", "-i", path, "-map", "0:v:0",
+    r = run([*FF.tool("ffmpeg"), "-v", "error", "-ss", f"{at:.6f}", "-i", path, "-map", "0:v:0",
              "-frames:v", str(count), "-f", "framemd5", "-"], timeout=600)
     if r.returncode != 0 or r.stderr.strip():
         return []
@@ -278,7 +279,7 @@ def timing_gap(out: str, frames: int, fps: float) -> str | None:
 
 
 def video_size(path: str) -> tuple[int, int] | None:
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
              "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path],
             timeout=60)
     try:
@@ -290,7 +291,7 @@ def video_size(path: str) -> tuple[int, int] | None:
 
 def audio_format(path: str) -> tuple[int, int] | None:
     """(sample rate, channels) of a file's first audio stream, or None."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "a:0", "-show_entries",
              "stream=sample_rate,channels", "-of", "csv=p=0", path], timeout=60)
     try:
         rate, ch = r.stdout.decode().strip().splitlines()[0].split(",")[:2]
@@ -332,7 +333,7 @@ def clip_track(src: str | None, dst: str, spec: dict, seconds: float,
         af.append(f"adelay={round(offset * 1000)}:all=1")
     # apad is bounded by -t, never by -shortest (see normalise)
     af.append("apad")
-    r = run(["ffmpeg", "-y", "-v", "error", "-i", src, "-vn", "-map", "0:a:0",
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-vn", "-map", "0:a:0",
              "-af", ",".join(af), "-t", f"{seconds:.6f}",
              "-ar", str(rate), "-ac", str(channels), "-c:a", "pcm_s16le", dst])
     if r.returncode != 0:
@@ -362,7 +363,7 @@ def normalise(src: str, dst: str, audio_wav: str | None, fps: float,
     few milliseconds short, so it is not welcome anywhere in this pipeline.
     """
     rate, ch = layout or (44100, 1)
-    cmd = ["ffmpeg", "-y", "-v", "error", "-i", src]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src]
     if audio_wav and os.path.isfile(audio_wav):
         cmd += ["-i", audio_wav]
     else:
@@ -397,7 +398,7 @@ BT709_TAGS = "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspac
 
 def color_matrix(path: str) -> str:
     """The first video stream's colour matrix tag ("bt709", "unknown", ...)."""
-    r = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
              "stream=color_space", "-of", "csv=p=0", path], timeout=60)
     return (r.stdout.decode().strip() or "unknown") if r.returncode == 0 else "unknown"
 
@@ -417,7 +418,7 @@ QUALITY_ARGS = {"review": ["-crf", "16", "-preset", "medium"],
 
 def prores_from(src: str, mov: str) -> str | None:
     """A ProRes 422 HQ .mov of `src` (24-bit PCM sound). None, or why it failed."""
-    p = run(["ffmpeg", "-y", "-v", "error", "-i", src, "-map", "0:v:0", "-map", "0:a?",
+    p = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-map", "0:v:0", "-map", "0:a?",
              "-c:v", "prores_ks", "-profile:v", "3", "-vendor", "apl0",
              "-pix_fmt", "yuv422p10le", "-c:a", "pcm_s24le", mov], timeout=3600)
     return None if p.returncode == 0 else p.stderr.decode("utf-8", "replace")[-300:]
@@ -457,7 +458,7 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
     """
     rate, ch = layout or (44100, 2)
     dur = f"{frames / fps:.6f}"
-    cmd = ["ffmpeg", "-y", "-v", "error", "-i", src]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src]
     silent = False
     if audio == src:
         amap = "0:a:0"
@@ -647,7 +648,7 @@ def main() -> int:
 
     for tool in ("ffmpeg", "ffprobe"):
         if not have(tool):
-            print(f"error: {tool} not found on PATH", file=sys.stderr)
+            print(f"error: {tool} not found (on PATH, imageio-ffmpeg or PyAV)", file=sys.stderr)
             return 1
 
     cut_data = T.load_cut(root)
@@ -1025,7 +1026,7 @@ def main() -> int:
                 fh.write(f"file '{norm.replace(os.sep, '/')}'\n")
                 say(args.progress, "clips", i + 1, len(plan), p["id"])
         say(args.progress, "join", text=os.path.basename(out_path))
-        return run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0",
+        return run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0",
                     "-i", listing, "-c", "copy", out_path], timeout=1800), clips
 
     with tempfile.TemporaryDirectory(prefix="h3asm_") as tmp:
@@ -1063,7 +1064,7 @@ def main() -> int:
                 start = plan[0]["audio_in"] if plan[0]["audio_in"] is not None else base_in
                 start += plan[0]["trim_in"] / fps
                 tmp_out = os.path.join(tmp, "master.mp4")
-                r = run(["ffmpeg", "-y", "-v", "error", "-i", out_path,
+                r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", out_path,
                          "-ss", f"{start:.6f}", "-t", f"{total / fps:.6f}", "-i", track,
                          "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
                          "-c:a", "aac", "-b:a", "192k", "-af", "apad",

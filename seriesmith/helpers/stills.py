@@ -28,8 +28,14 @@ import subprocess
 import sys
 
 
+def _cmd(tool: str) -> list[str]:
+    """A tool given as a path, or as a command (a JSON list: tour.py passes
+    ffprobe so, since it may be a Python running PyAV's stand-in)."""
+    return json.loads(tool) if tool.startswith("[") else [tool]
+
+
 def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
-    out = subprocess.run([ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries",
+    out = subprocess.run([*_cmd(ffprobe), "-v", "error", "-select_streams", "v:0", "-show_entries",
                           "stream=width,height,r_frame_rate", "-of", "json", path],
                          capture_output=True, text=True, check=True).stdout
     st = json.loads(out)["streams"][0]
@@ -39,7 +45,7 @@ def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
 
 def frames(ffmpeg: str, path: str, w: int, h: int):
     import numpy as np
-    p = subprocess.Popen([ffmpeg, "-v", "error", "-i", path, "-f", "rawvideo", "-pix_fmt",
+    p = subprocess.Popen([*_cmd(ffmpeg), "-v", "error", "-i", path, "-f", "rawvideo", "-pix_fmt",
                           "rgb24", "-"], stdout=subprocess.PIPE)
     size = w * h * 3
     try:

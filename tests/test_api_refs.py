@@ -18,6 +18,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 from seriesmith import api as A  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 import test_api  # noqa: E402
@@ -334,7 +335,7 @@ class KeyframeApiTest(ApiTest):
         self.err(self.kf(), 400)
         self.err(A.post_refs_keyframe(self.ctx, {"ep": os.path.join(self.tmp, "x"),
                                                  "shot": "sh020"}), 403)
-        with mock.patch.object(R.shutil, "which", return_value=None):
+        with mock.patch.object(FF, "find", return_value=None):
             self.assertIn("ffprobe", self.err(self.kf(shot="sh020"), 500))
         self.assertEqual(self.events_of("seriesmith.ref"), [])
         self.assertNotIn("shot:sh020:first", self.refs())

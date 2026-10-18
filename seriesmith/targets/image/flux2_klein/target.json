@@ -2,6 +2,7 @@
   "id": "flux2_klein",
   "kind": "image",
   "label": "FLUX.2 Klein 9B (text to image)",
+  "default_rank": 20,
   "short": "Klein",
   "code": "target.py",
 

@@ -11,9 +11,10 @@ Stdlib only.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import wave
+
+from seriesmith import ff as FF
 
 
 class AudioError(ValueError):
@@ -52,10 +53,10 @@ def _wave_slice(src: str, dst: str, start: float | None, end: float | None) -> f
 
 
 def _ffmpeg_slice(src: str, dst: str, start: float | None, end: float | None) -> float:
-    if not shutil.which("ffmpeg"):
+    if not FF.have("ffmpeg"):
         raise AudioError(f"{os.path.basename(src)} is not a PCM wav and ffmpeg is not on "
                          f"PATH to cut it: convert it to a 16-bit wav")
-    cmd = ["ffmpeg", "-y", "-v", "error"]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error"]
     if start is not None:
         cmd += ["-ss", f"{start:.3f}"]
     cmd += ["-i", src]

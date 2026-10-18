@@ -2,6 +2,7 @@
   "id": "minimax_h3_ref2va",
   "kind": "video",
   "label": "MiniMax H3 Ref2VA",
+  "default_rank": 10,
   "short": "H3",
   "code": "compile.py",
 
@@ -72,7 +73,8 @@
       "video_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["VAEDecode", "vae"]},
       "audio_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["VAEDecodeAudio", "vae"]}
     },
-    "review_nodes": ["SaveVideo", "CreateVideo"]
+    "review_nodes": ["SaveVideo", "CreateVideo"],
+    "bypass_if_missing": {"H3SLAAttention": "model"}
   },
 
   "models": {

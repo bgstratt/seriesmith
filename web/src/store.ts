@@ -416,6 +416,8 @@ export interface AppState {
   draftsOpen: boolean;
   /** the standalone page's Settings window (components/SettingsWindow.tsx) */
   settingsOpen: boolean;
+  /** the Features window: what can be added, and the installer (components/FeaturesWindow.tsx) */
+  featuresOpen: boolean;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -520,6 +522,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     queueInPanel: false,
     draftsOpen: false,
     settingsOpen: false,
+    featuresOpen: false,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},

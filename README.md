@@ -20,16 +20,18 @@ kept with the exact settings that made it.
 
 seriesmith is the successor to h3pipe, which did all this on one local ComfyUI.
 
-New here? **[INSTALL.md](INSTALL.md)** goes from nothing to a rendered proxy
-episode; **[docs/AUTHORING.md](docs/AUTHORING.md)** is the script and series config
-format.
+New here? **[The thirty-second install](docs/QUICKSTART.md)** gets it running in ComfyUI on
+the models you already have; **[docs/AUTHORING.md](docs/AUTHORING.md)** is the script and
+series config format.
 
 ### The documents
 
 | | What it is | Read it when |
 |---|---|---|
-| **[INSTALL.md](INSTALL.md)** | What to install and where: seriesmith, the proxy, the node pack, the workflows, every model file with its folder and link | Setting up, or a model is missing |
-| **[docs/SETUP.md](docs/SETUP.md)** | The backends: your ComfyUI through comfy-api-proxy, Comfy Cloud, deployments, Router; the settings file and the key | Choosing where shots render |
+| **[docs/QUICKSTART.md](docs/QUICKSTART.md)** | The thirty-second install: clone, link the node pack, start ComfyUI | First |
+| **[docs/FULL_SETUP.md](docs/FULL_SETUP.md)** | The node packs, model files, LoRAs and software for every feature, by job: H3 at full quality, voices, upscale, post, master, 360s | Turning on a feature that says something is missing |
+| **[INSTALL.md](INSTALL.md)** | Each part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, a first episode | Setting up by hand, or a model is missing |
+| **[docs/SETUP.md](docs/SETUP.md)** | The backends: your ComfyUI, Comfy Cloud, deployments, Router; the default models; the settings file and the key | Choosing where shots render |
 | **[docs/EDITOR.md](docs/EDITOR.md)** | Driving the editor: the order things happen in, every button, what click, double-click and right-click do in each panel, and the keyboard | Using the editor |
 | **[docs/AUTHORING.md](docs/AUTHORING.md)** | The format, and the whole of it: a first episode to copy, every field of the script and the series config, framing, timing, camera and the reference rules | Writing or fixing an episode. Read once before the first one |
 | **[docs/SCRIPT_CONVERSION.md](docs/SCRIPT_CONVERSION.md)** | A spec-format screenplay scene worked all the way through to shots | You have a screenplay and want it as an episode |
@@ -108,8 +110,8 @@ pictures, sound); a change to a built-in one is kept on this machine.
 From the command line, `seriesmith target-from-workflow <workflow> <episode> --save`
 saves a workflow as that show's model.
 
-**Backends** are where a job runs: `local` (your own ComfyUI, through
-comfy-api-proxy), `cloud` (Comfy Cloud), `deployment:<target>` (a deployed
+**Backends** are where a job runs: `local` (your own ComfyUI, straight to its
+own API), `cloud` (Comfy Cloud), `deployment:<target>` (a deployed
 workflow) and `router` (a hosted model through Comfy Router). The last three need a
 Comfy API key. A job runs on the request's backend, else the shot's, the episode's,
 the series config's (`series.backend`), else its target's first.
@@ -125,35 +127,40 @@ same.
 
 ## Install
 
-**[INSTALL.md](INSTALL.md) is the full walkthrough.** The short version:
+**[INSTALL.md](INSTALL.md) is the full walkthrough.** The thirty-second version:
 
 ```
-git clone https://github.com/bgstratt/seriesmith.git
-cd seriesmith
-pip install -e .
-pip install comfy-api-proxy
+git clone https://github.com/bgstratt/seriesmith.git C:\path\to\seriesmith
 mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\comfy_nodes"
 ```
 
-(`ln -s` on Linux/macOS.) Restart ComfyUI so it loads seriesmith's nodes, then
-`seriesmith serve` opens the editor at http://127.0.0.1:8190 and starts the proxy
-in front of your ComfyUI. On Windows, `run_seriesmith.bat` (this PC) or
-`run_seriesmith_ext.bat` (your home network too) does the same, opens the editor in
-your browser, and starts it again
-after the editor's **Restart**; `seriesmith stop [--restart]` stops it from a
-terminal. With the seriesmith package installed in ComfyUI's own Python, the node
-pack also puts the editor inside ComfyUI (INSTALL.md, "The editor inside ComfyUI").
-The default MiniMax H3 targets also need the
-[ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes)
-pack (its `H3SLAAttention` node); INSTALL.md lists every pack and which target
-needs it, and every model file with its link (generated from the targets by
-`python tools/make_models_md.py`).
+(`ln -s` on Linux/macOS.) Start ComfyUI: the editor is in its sidebar and renders on
+it. Nothing goes into ComfyUI's Python and no other node pack is needed. Or, with
+ComfyUI running, `run_seriesmith.bat` (this PC; `run_seriesmith_ext.bat`: your home
+network too; `run_seriesmith.sh` on Linux/macOS) sets itself up in the repo's `.venv`
+the first time, opens the editor at http://127.0.0.1:8190, and starts it again after
+the editor's **Restart**; `seriesmith stop [--restart]` stops it from a terminal. The
+default models are the ones you already have: H3, else LTX-2, else Wan 2.2 for video;
+Krea 2, else FLUX.2 Klein, ... for pictures (docs/SETUP.md, "The default models").
+Everything else is optional, and **Settings → Features…** installs it:
+- more models;
+- H3's sparse attention (the PlagueKind pack: H3 renders without it, marked degraded);
+- voices;
+- upscalers;
+- post-processing;
+- a full ffmpeg.
 
-**Requirements**, in short: Python 3.10+; a recent local
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) and an NVIDIA GPU that can
-hold the models you use (developed on a 32 GB card), or a Comfy API key and the
-cloud; `ffmpeg` and `ffprobe` on PATH; optionally `faster-whisper` and `numpy` for
-`align`, `demucs` for the `dub_keep_foley` foley bed.
+[docs/FULL_SETUP.md](docs/FULL_SETUP.md) lists it all by feature. INSTALL.md has every
+model file with its link, generated from the targets by `python tools/make_models_md.py`.
+
+**Requirements**, in short:
+- a recent local [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and an NVIDIA GPU
+  that can hold the models you use (developed on a 32 GB card), or a Comfy API key and
+  the cloud;
+- git;
+- Python 3.10+, only for the editor on its own page and the command line.
+
+ffmpeg comes with it (imageio-ffmpeg and PyAV), and your own wins if you have one.
 
 ## The editor
 
@@ -179,8 +186,8 @@ http://127.0.0.1:8190:
 - **Script**, **Series config**, **Inspector**, **Recording**, **Audio from…**,
   **Promote**, **Upscale**, **Post-process**, **Master** and **Models** open as
   floating windows.
-- **Settings** (top bar): this machine's Comfy API key, ComfyUI, proxy and
-  deployment addresses, and, on the PC that runs the server, **Stop** and
+- **Settings** (top bar): this machine's Comfy API key, ComfyUI and deployment
+  addresses, the default video and picture models, and, on the PC that runs the server, **Stop** and
   **Restart**.
 
 **[docs/EDITOR.md](docs/EDITOR.md) is the guide to driving all of it.** Everything

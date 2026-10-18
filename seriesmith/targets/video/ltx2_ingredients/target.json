@@ -2,6 +2,7 @@
   "id": "ltx2_ingredients",
   "kind": "video",
   "label": "LTX-2.3 ingredients (character/plate refs)",
+  "default_rank": 30,
   "short": "LTX+refs",
   "code": "compile.py",
 

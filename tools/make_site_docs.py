@@ -25,7 +25,9 @@ GITHUB = "https://github.com/bgstratt/seriesmith/blob/main/"
 
 # (source, page, description): the order is docs.json's
 PAGES = [
-    ("INSTALL.md", "install", "From nothing to a rendered proxy episode: seriesmith, the proxy, the node pack and every model file."),
+    ("docs/QUICKSTART.md", "quickstart", "Clone, link the node pack, start ComfyUI: seriesmith running on the models you already have."),
+    ("docs/FULL_SETUP.md", "full-setup", "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."),
+    ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),
     ("docs/SETUP.md", "setup", "Where shots render: your ComfyUI, Comfy Cloud, a deployment or Comfy Router, and the settings that choose."),
     ("docs/EDITOR.md", "editor", "The editor page: shots, takes, refs, the cut and the queue, every button and key."),
     ("docs/COMMANDS.md", "commands", "Every stage as a command, the files each reads and writes, and an episode worked from a terminal."),

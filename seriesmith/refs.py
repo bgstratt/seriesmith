@@ -534,7 +534,7 @@ def image_defaults(s: Series, ready=None) -> dict:
         elif block.get("target"):
             out.update(target=block["target"], target_source="series")
         else:
-            out.update(target=TG.DEFAULT_IMAGE_TARGET, target_source="default")
+            out.update(target=TG.machine_default("image"), target_source="default")
         ek = T.episode_field(ov, "keyframe_target")
         if ek and ek in known:
             out.update(keyframe_target=ek, keyframe_target_source="editor")
@@ -1759,7 +1759,7 @@ def extract_audio(src: str, start: float, end: float, out: str, timeout: int = 3
     """`start..end` seconds of `src`'s sound as a 16-bit PCM wav at `out`
     (ffmpeg, a subprocess, as assemble runs it). Mono is left alone: what
     the file has is what the sample gets."""
-    rc, log = _run([_ffmpeg("ffmpeg"), "-v", "error", "-nostdin", "-y",
+    rc, log = _run([*_ffmpeg("ffmpeg"), "-v", "error", "-nostdin", "-y",
                     "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", src,
                     "-vn", "-c:a", "pcm_s16le", out], timeout)
     if rc != 0 or not os.path.isfile(out):
@@ -1854,8 +1854,11 @@ class FfmpegMissing(RuntimeError):
     """ffmpeg / ffprobe aren't on PATH (500)."""
 
 
-def _ffmpeg(tool: str) -> str:
-    exe = shutil.which(tool)
+def _ffmpeg(tool: str) -> list[str]:
+    """The command for ffmpeg / ffprobe (seriesmith.ff: on PATH, else
+    imageio-ffmpeg's, else ffprobe through PyAV). FfmpegMissing without one."""
+    from seriesmith import ff as FF
+    exe = FF.find(tool)
     if not exe:
         raise FfmpegMissing(f"cutting a frame out of a take needs {tool} on PATH "
                             f"(install ffmpeg: https://ffmpeg.org/download.html)")
@@ -1874,7 +1877,7 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
 def video_frames(mp4: str, timeout: int = 300) -> int:
     """How many frames the video really has (decoded and counted, not the
     container's estimate)."""
-    rc, out = _run([_ffmpeg("ffprobe"), "-v", "error", "-select_streams", "v:0",
+    rc, out = _run([*_ffmpeg("ffprobe"), "-v", "error", "-select_streams", "v:0",
                     "-count_frames", "-show_entries", "stream=nb_read_frames",
                     "-of", "csv=p=0", mp4], timeout)
     try:
@@ -1906,7 +1909,7 @@ def extract_frame(mp4: str, index: int, out: str, timeout: int = 300) -> None:
     """Write frame `index` (0-based, counted in decode order) of `mp4` to `out`
     as a PNG. `select` counts decoded frames, so the frame is exact (seeking
     with -ss lands on timestamps)."""
-    rc, msg = _run([_ffmpeg("ffmpeg"), "-y", "-v", "error", "-i", mp4,
+    rc, msg = _run([*_ffmpeg("ffmpeg"), "-y", "-v", "error", "-i", mp4,
                     "-vf", f"select=eq(n\\,{index})", "-fps_mode", "passthrough",
                     "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", out],
                    timeout)
@@ -2030,7 +2033,7 @@ def _video_name(name: str) -> str:
 def video_duration(path: str, timeout: int = 60) -> float | None:
     """A video's length in seconds (the container's), or None."""
     try:
-        rc, out = _run([_ffmpeg("ffprobe"), "-v", "error", "-show_entries", "format=duration",
+        rc, out = _run([*_ffmpeg("ffprobe"), "-v", "error", "-show_entries", "format=duration",
                         "-of", "csv=p=0", path], timeout)
         return round(float(out.strip().splitlines()[0]), 3) if rc == 0 else None
     except (FfmpegMissing, ValueError, IndexError):
@@ -2078,7 +2081,7 @@ def list_videos(s: Series) -> list[dict]:
 def extract_frame_at(video: str, seconds: float, out: str, timeout: int = 300) -> None:
     """Write the frame shown at `seconds` into `video` to `out` as a PNG (-ss
     before -i decodes up to it, so it's the frame the player showed)."""
-    rc, msg = _run([_ffmpeg("ffmpeg"), "-y", "-v", "error", "-ss", f"{seconds:.3f}", "-i", video,
+    rc, msg = _run([*_ffmpeg("ffmpeg"), "-y", "-v", "error", "-ss", f"{seconds:.3f}", "-i", video,
                     "-frames:v", "1", "-update", "1", "-f", "image2", "-c:v", "png", out], timeout)
     if rc != 0 or not os.path.isfile(out) or os.path.getsize(out) == 0:
         raise RefError(f"ffmpeg couldn't take the frame at {seconds:.2f}s of "
@@ -2757,6 +2760,9 @@ EDIT_FIELDS = ("take", "with", "wrap", "from_view", "turn")
 # side view the viewer's right (krea2 VIEWS).
 TURN_TARGET = "qwen_image_21"
 TURN_LORA = "angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors"
+# in models/loras/, where the Features installer gets it
+TURN_LORA_URL = ("https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA/resolve/main/"
+                 "checkpoints_v2/" + TURN_LORA)
 TURN_STRENGTH = 0.9
 VIEW_TURNS = {
     "01_threequarter": "<mva> front-left view, eye-level shot",
@@ -2900,6 +2906,7 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
 
 PANO_TARGET = "qwen_image_21"
 PANO_LORA = "pano360_qwen21_edit_v1.safetensors"
+PANO_LORA_URL = "https://huggingface.co/Gogodr/qwen-image-2.1-edit-pano360-lora/resolve/main/" + PANO_LORA
 PANO_SIZE = (2048, 1024)      # the card's larger 2:1 size: a third more detail per view than 1536x768
 PANO_WORDS = 35             # the LoRA's card: a one-sentence scene of 15-35 words
 

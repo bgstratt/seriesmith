@@ -2,20 +2,40 @@
 
 ## Install
 
-Python 3.10 or newer. A virtual environment of its own keeps seriesmith apart
-from ComfyUI's Python:
+Inside ComfyUI, nothing: link the node pack (below) and seriesmith runs on
+ComfyUI's own Python, loaded from the repo the pack is linked from.
+
+For `seriesmith serve` and the command line, Python 3.10 or newer, in a virtual
+environment of its own (`run_seriesmith.bat` / `run_seriesmith.sh` make it the
+first time they run):
 
     python -m venv .venv
     .venv\Scripts\activate            (Windows; source .venv/bin/activate elsewhere)
     pip install -e .
 
-That brings comfy-sdk, which every backend uses.
+That brings comfy-sdk, which Comfy Cloud, deployments and Router use. Inside
+ComfyUI, seriesmith installs comfy-sdk into ComfyUI's Python itself, in the
+background, once a Comfy API key is set (saved in Settings, or `COMFY_API_KEY`
+at startup); Settings shows how it went and has **Install** to try again. Only
+those backends use it. `SERIESMITH_NO_AUTO_INSTALL=1` turns the automatic
+install off.
 
-## Your own GPU: ComfyUI and comfy-api-proxy
+## Your own GPU: ComfyUI
 
-seriesmith talks to your ComfyUI through **comfy-api-proxy**, which serves the
-same Comfy API v2 as Comfy Cloud in front of it. Install it in the same
-environment and start it beside ComfyUI:
+Local renders go straight to your ComfyUI (`comfyui_url`, default
+`http://127.0.0.1:8188`; inside ComfyUI, that ComfyUI on whatever port it runs),
+through its own API: the input files go up to `input/seriesmith/` (named by
+their content, so each is sent once), the graph is queued on `/prompt`,
+followed on `/ws` and `/history`, and its outputs fetched from `/view`. A job
+that was running when seriesmith stopped is picked up again by its prompt id.
+
+### Through comfy-api-proxy instead (optional)
+
+**comfy-api-proxy** serves the same Comfy API v2 as Comfy Cloud in front of a
+ComfyUI. seriesmith used it for every local render before it talked to ComfyUI
+directly; it still can, with `"local_via": "proxy"` in the settings (or
+`SERIESMITH_LOCAL_VIA=proxy`, or Settings → Through comfy-api-proxy). Install it
+in the same environment:
 
     pip install comfy-api-proxy
     comfy-api-proxy start --comfyui http://127.0.0.1:8188 --port 8189 --state-dir "%LOCALAPPDATA%\seriesmith\proxy"
@@ -27,9 +47,9 @@ environment and start it beside ComfyUI:
 - `comfy-api-proxy status` / `stop` manage the background process.
 - The proxy can't see ComfyUI's model lists or installed nodes; seriesmith asks
   ComfyUI for those directly (`comfyui_url`).
-- You rarely start it yourself: `seriesmith serve`, and every command that
-  queues work on `local` (render, upscale, post, master, tour, kreagen), start
-  it when it isn't running and ComfyUI is.
+- With `local_via` "proxy" you rarely start it yourself: `seriesmith serve`, and
+  every command that queues work on `local` (render, upscale, post, master,
+  tour, kreagen), start it when it isn't running and ComfyUI is.
 
 Check it:
 
@@ -47,13 +67,33 @@ ComfyUI's `custom_nodes` and restart ComfyUI:
     mklink /J "<ComfyUI>\custom_nodes\seriesmith" "<seriesmith>\comfy_nodes"     (Windows)
     ln -s "<seriesmith>/comfy_nodes" "<ComfyUI>/custom_nodes/seriesmith"           (elsewhere)
 
-They sit happily beside h3pipe's node pack if you keep it for h3pipe. With
-the seriesmith package installed in ComfyUI's own Python (`pip install -e
-<seriesmith> comfy-api-proxy` with that Python), the pack also serves the
-editor inside ComfyUI: the same app as `seriesmith serve` (INSTALL.md, "The
-editor inside ComfyUI"). A target's own model nodes (H3's
-`H3SLAAttention` from ComfyUI-PlagueKind-Nodes, for one) are still needed;
+They sit happily beside h3pipe's node pack if you keep it for h3pipe. The pack
+also serves the editor inside ComfyUI, the same app as `seriesmith serve`
+(INSTALL.md, "The editor inside ComfyUI"): it finds the seriesmith package in
+the repo it is linked from (or installed in ComfyUI's Python, if it is). No
+other pack is needed to render. A node a target can do without (binding
+`bypass_if_missing`: H3's `H3SLAAttention`, from ComfyUI-PlagueKind-Nodes) is
+spliced out of the graph where ComfyUI hasn't it, and the take notes it.
 `seriesmith render --dry-run` writes the graph a shot would run.
+
+## The default models
+
+A series config that names no video target (`series.target`) or picture
+target (`refs.target`) renders on this machine's default for that kind:
+
+1. the one picked in Settings (`default_targets` in the settings file);
+2. else the one found installed (`detected_targets`). Each time a host
+   (`seriesmith serve`, the editor inside ComfyUI) sees ComfyUI answer, and on
+   each readiness check after that, it takes the first target, in
+   `default_rank` order (target.json), that is ready, else the first that is
+   degraded: H3 Ref2VA, LTX-2.5, LTX-2.3 ingredients, Wan 2.2 VACE / I2V / 5B;
+   Krea 2, FLUX.2 Klein, Z-Image Turbo, Qwen-Image 2.1, FLUX.3 Klein, ...;
+3. else the built-in: `minimax_h3_ref2va` and `krea2`.
+
+A new series (the starter, a new series from the wizard, a Simple-mode project)
+gets the defaults written into its series config when they aren't the
+built-in ones, so it renders on the same models wherever it is opened.
+Hosted (Router) models are never picked by themselves: they are paid.
 
 ## Comfy Cloud, deployments and Router
 
@@ -90,8 +130,8 @@ Anything not in the environment can go in a settings file,
 
 ```json
 {
-  "local_url": "http://127.0.0.1:8189",
   "comfyui_url": "http://127.0.0.1:8188",
+  "default_targets": {"video": "ltx2"},
   "deployments": {"minimax_h3_ref2va": "https://<your-build>.run.comfy.app"}
 }
 ```
@@ -100,6 +140,17 @@ The other keys, most of them written by the editor rather than by hand:
 
 - `cloud_url` (default `https://cloud.comfy.org`) and `api_key` (better kept in
   `COMFY_API_KEY`).
+- `default_targets`: `{"video": id, "image": id}`, the models a series naming none
+  renders on (Settings' **Video model** / **Picture model**); `detected_targets`: the
+  ones found installed, written by seriesmith (**The default models**, above).
+- `hf_token`: a Hugging Face read token, for the gated downloads (LTX-2.5, FLUX) the
+  Features window makes; `HF_TOKEN` in the environment wins.
+- `ffmpeg_dir`: a folder holding your own ffmpeg and ffprobe, used before anything else
+  (`seriesmith/ff.py`).
+- `comfyui_dir`: ComfyUI's folder (the one with `main.py`), for the Features window to
+  install into when the standalone server can't ask ComfyUI (`/internal/folder_paths`).
+- `local_via`: `"comfyui"` (the default: local renders straight to ComfyUI) or
+  `"proxy"` (through comfy-api-proxy at `local_url`, default `http://127.0.0.1:8189`).
 - `paid_limit`: how many paid runs one server session may queue (none: no cap).
 - `enabled_drafts`: the built-in draft models switched on for every show (the Models
   window's **Enable**).
@@ -112,6 +163,7 @@ the editor's project folders (`default/seriesmith/config.json`) and the queue's 
 show only goes in `<show>/targets/<id>/` instead.
 
 The environment wins over the file: `SERIESMITH_LOCAL_URL`,
-`SERIESMITH_COMFYUI_URL`, `SERIESMITH_CLOUD_URL`, `COMFY_API_KEY`;
+`SERIESMITH_COMFYUI_URL`, `SERIESMITH_CLOUD_URL`, `SERIESMITH_LOCAL_VIA`, `COMFY_API_KEY`,
+`HF_TOKEN`;
 `SERIESMITH_SETTINGS` names another file. These are this machine's settings;
 nothing here goes in the series config, which gets shared.

@@ -34,6 +34,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 import test_api  # noqa: E402
 from seriesmith.targets.audio import common as AC  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 from test_phase85 import Episode  # noqa: E402
 from test_render import queue_generate, wav_bytes  # noqa: E402
@@ -41,7 +42,7 @@ from test_render import queue_generate, wav_bytes  # noqa: E402
 OBJECT_INFO = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                           "object_info_audio.json"), encoding="utf-8"))
 VOICE = "ltx2_voice"
-HAVE_FFMPEG = shutil.which("ffmpeg") is not None
+HAVE_FFMPEG = FF.have("ffmpeg") is not None
 needs_ffmpeg = unittest.skipUnless(HAVE_FFMPEG, "ffmpeg not on PATH")
 
 

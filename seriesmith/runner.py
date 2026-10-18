@@ -146,6 +146,11 @@ class Runner:
             def got_run(run):
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+                for n in run.notes:
+                    report(line=n)
+                if run.notes:
+                    had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
+                    T.update_sidecar(take.paths.sidecar, notes=list(had) + list(run.notes))
 
             def resume(bits):
                 qjob.resume.update(bits)
@@ -283,6 +288,8 @@ class Runner:
                 run = backend.call(*call) if hosted else backend.submit(g)
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+                for n in run.notes:
+                    report(line=n)
                 T.update_sidecar(take.paths.sidecar, backend_job=run.id)
                 remote = self._remote(qjob, take.paths.sidecar, report)
                 status = run.watch(on_progress=progress, on_status=lambda st: remote(run, st))
@@ -349,6 +356,8 @@ class Runner:
                 run = backend.submit(g)
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+                for n in run.notes:
+                    report(line=n)
                 T.update_sidecar(fin.sidecar, backend_job=run.id)
                 qjob.resume.update(saver=J.node_of(g, F.SAVER), extra=extra)
                 self.queue.write_journal()
@@ -420,6 +429,8 @@ class Runner:
                 run = backend.submit(graph)
                 qjob.cancel_run = run.cancel
                 report(line=f"on {backend.name}: {run.id}")
+                for n in run.notes:
+                    report(line=n)
                 side.update(backend_job=run.id)
                 TR.save_side(ref, side)
                 status = run.watch(on_progress=progress)
@@ -764,14 +775,15 @@ def _to_wav(path: str) -> bool:
     """`path` (any audio ffmpeg reads) rewritten in place as a 16-bit PCM wav;
     False (left as it was) when there's no ffmpeg or it fails."""
     import os
-    import shutil
     import subprocess
-    exe = shutil.which("ffmpeg")
+
+    from seriesmith import ff as FF
+    exe = FF.find("ffmpeg")
     if not exe:
         return False
     out = path + ".wav"
     try:
-        subprocess.run([exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
+        subprocess.run([*exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
                        capture_output=True, check=True, timeout=120)
         os.replace(out, path)
         return True
@@ -820,8 +832,9 @@ def wait(queue: Queue, ids, timeout: float | None = None, poll: float = 0.25) ->
 def cli_runner(backend: str | None = None, settings=None, log=print) -> Runner:
     """A queue and runner of the command line's own, on the backends the
     settings set up. When the work will run on this machine's ComfyUI
-    (`backend` local, or None: each job's own, usually local), comfy-api-proxy
-    is started in front of it if it isn't running (server.standalone.ensure_proxy).
+    (`backend` local, or None: each job's own, usually local) through
+    comfy-api-proxy (local_via "proxy"), the proxy is started in front of it if
+    it isn't running (server.standalone.ensure_proxy).
     ValueError when `backend` isn't set up here."""
     from seriesmith.backends import available
     from seriesmith.settings import load_settings

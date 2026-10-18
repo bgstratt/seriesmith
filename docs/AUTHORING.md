@@ -231,8 +231,10 @@ target-from-workflow`), named in `target:` like any other.
 - `steps`, `lora` and `model` are optional per pass. `lora` takes one LoRA or a chain, as
   the script's `lora:` line does (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`);
   see [COMMANDS.md](COMMANDS.md), **Steps, model and LoRA**.
-- `series.target` names the video model the episode renders on: `minimax_h3_ref2va`
-  (MiniMax H3, the default: leave it out), `ltx2` (LTX-2.5 distilled), `ltx2_ingredients`
+- `series.target` names the video model the episode renders on. Leave it out unless you
+  want one in particular: the series then renders on this machine's default, the model
+  its owner picked or the first one installed (MiniMax H3, else LTX-2, else Wan 2.2), and
+  a new series is given it. The models: `minimax_h3_ref2va` (MiniMax H3), `ltx2` (LTX-2.5 distilled), `ltx2_ingredients`
   (LTX-2.3 with your character sheets and plates), `minimax_h3_fl2va` (MiniMax H3 from
   first/last keyframes), one of the silent Wan 2.2 models: `wan22_i2v` (14B, from a
   first frame), `wan22_ti2v` (5B, text or a first frame) or `wan22_vace` (14B with your
@@ -738,7 +740,9 @@ precision, a merge), it is used instead, and the take notes which file it was.
    kept in the episode's `overrides.json`, not in `series.json`. While it is set, a shot
    can be pinned to its built target from the editor (or `--target built`).
 5. `series.target` in `series.json`;
-6. `minimax_h3_ref2va`.
+6. this machine's default: the model picked in Settings, else the first installed
+   (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, the Wan 2.2 models), else
+   `minimax_h3_ref2va`.
 
 A shot whose target is not the one it was built for is compiled for its new target when
 it is queued, so you don't need to rebuild. To make an episode target permanent, put

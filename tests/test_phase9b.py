@@ -30,10 +30,11 @@ from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import api as A  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 import test_api  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 
 
 def tearDownModule():
@@ -73,7 +74,7 @@ def steps_wav(path: str, levels: list[int], seconds_each: float = 0.5, rate: int
 
 
 def ff(*args: str) -> None:
-    r = subprocess.run(["ffmpeg", "-y", "-v", "error", *args], capture_output=True, text=True,
+    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *args], capture_output=True, text=True,
                        timeout=120)
     if r.returncode != 0:
         raise RuntimeError(r.stderr)
@@ -394,7 +395,7 @@ class PeaksTest(Base):
     def test_not_audio(self):
         with open(os.path.join(self.ep, "notes.txt"), "w") as fh:
             fh.write("hello")
-        with mock.patch.object(PK.shutil, "which", return_value=None):
+        with mock.patch.object(FF, "find", return_value=None):
             PK._info_cache.clear()
             got = self.peaks("notes.txt")
             self.assertEqual((got["peaks"], got["silent"]), ([], True))
@@ -405,7 +406,7 @@ class PeaksTest(Base):
             fh.write(b"not really")
         with mock.patch.object(PK, "media_info", return_value={"audio": True, "duration": 1.0,
                                                                 "rate": 8000}), \
-                mock.patch.object(PK.shutil, "which", return_value=None):
+                mock.patch.object(FF, "find", return_value=None):
             self.assertIn("ffmpeg", self.err(A.get_peaks(self.ctx, {"ep": self.ep,
                                                                     "path": "x.m4a"}), 500))
 

@@ -2,6 +2,7 @@
   "id": "qwen_image_21",
   "kind": "image",
   "label": "Qwen-Image 2.1 (text to image, and edit from reference images)",
+  "default_rank": 40,
   "short": "Qwen 2.1",
   "code": "target.py",
   "capabilities": {

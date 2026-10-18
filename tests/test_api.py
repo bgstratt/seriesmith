@@ -22,9 +22,10 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_render import stub_refs, ENV, FIXTURE, FakeComfy, WORKFLOW, play_runner, settle  # noqa: E402
 
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 _BUILT = None                                            # one build, copied per test
 
 

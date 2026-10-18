@@ -40,6 +40,7 @@ from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.targets.video.wan import prompt as WP  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from test_ltx_ingredients import kitchen_sink  # noqa: E402
 from test_render import FIXTURE, FakeComfy, build_episode  # noqa: E402
 
@@ -55,7 +56,7 @@ OBJECT_INFO = json.load(open(os.path.join(WF, "object_info_wan.json"), encoding=
 HIGH = "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors"
 LOW = "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors"
 needs_pil = unittest.skipIf(Image is None, "composing a reference image needs PIL")
-HAVE_FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 
 
 def capture(tid: str) -> dict[str, str]:
@@ -615,7 +616,7 @@ def ff(*args: str) -> subprocess.CompletedProcess:
 
 def make_clip(path: str, frames: int, fps: int, size: str = "64x64", sound: bool = True) -> None:
     """testsrc at `fps`, exactly `frames` frames, with a sine track or mute."""
-    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"testsrc=size={size}:rate={fps}"]
+    cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", f"testsrc=size={size}:rate={fps}"]
     if sound:
         cmd += ["-f", "lavfi", "-t", f"{frames / fps:.6f}", "-i",
                 "sine=frequency=440:sample_rate=44100"]
@@ -628,7 +629,7 @@ def make_clip(path: str, frames: int, fps: int, size: str = "64x64", sound: bool
 
 
 def probe(path: str, stream: str, entry: str) -> str:
-    return ff("ffprobe", "-v", "error", "-select_streams", stream, "-count_frames",
+    return ff(*FF.tool("ffprobe"), "-v", "error", "-select_streams", stream, "-count_frames",
               "-show_entries", f"stream={entry}", "-of", "csv=p=0", path).stdout.strip()
 
 
@@ -681,7 +682,7 @@ class AssembleFpsTest(unittest.TestCase):
                          ["00:00:00.000", "00:00:02.000", "00:00:07.083", "00:00:08.083"])
         self.assertIn("from 16fps", " ".join(rows[1]))
         # sync: the sound runs the whole cut (silence under the mute Wan clips)
-        dur = float(ff("ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+        dur = float(ff(*FF.tool("ffprobe"), "-v", "error", "-select_streams", "a:0", "-show_entries",
                        "stream=duration", "-of", "csv=p=0", mp4).stdout.strip())
         self.assertAlmostEqual(dur, 243 / 24, delta=0.05)
 

@@ -29,6 +29,7 @@ import subprocess
 import numpy as np
 import torch
 
+from . import _ff
 from .shot import load_audio, load_latent
 
 log = logging.getLogger("seriesmith")
@@ -94,11 +95,11 @@ def kept_latent(path: str):
 
 def read_frames(path: str) -> torch.Tensor:
     """Every frame of a video as a float IMAGE batch [T, H, W, 3] in 0..1."""
-    wh = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+    wh = subprocess.run([*_ff.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
                          "stream=width,height", "-of", "csv=p=0:s=x", path],
                         capture_output=True, text=True, check=True, timeout=60).stdout.strip()
     w, h = (int(x) for x in wh.split("x")[:2])
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-f", "rawvideo",
+    raw = subprocess.run([*_ff.tool("ffmpeg"), "-v", "error", "-i", path, "-f", "rawvideo",
                           "-pix_fmt", "rgb24", "-"],
                          capture_output=True, check=True, timeout=900).stdout
     arr = np.frombuffer(raw, dtype=np.uint8).reshape(-1, h, w, 3)
