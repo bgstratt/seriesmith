@@ -849,9 +849,13 @@ The cut as an editable track, along the bottom of the page.
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
 - **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
-  **2x** beside it assembles from the takes' upscales. **Titles** assembles the whole
-  cut and puts the series intro and outro around it with the episode's title
-  (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into `<episode>/publish/`).
+  **2x** beside it assembles from the takes' upscales. A clip without a fresh one (none
+  yet, a stale or failed one) is upscaled first, by the series config's `upscale.master`
+  recipe as Master does (each take's defaults without one), after saying which; the
+  export starts by itself when the last upscale is in, and a failed one stops it.
+  **Titles** assembles the whole cut and puts the series intro and outro around it with
+  the episode's title (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into
+  `<episode>/publish/`), and its **2x** upscales what's missing the same way.
   **Play all** watches the cut straight from the takes without assembling anything.
 - **Cut** (the menu in the header): undo / redo, **Reset order**, **Clear trims**, copy the
   order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the

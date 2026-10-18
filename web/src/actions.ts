@@ -8,7 +8,7 @@ import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
 import { staleShots } from "./lib/progress";
 import { pairFiles } from "./lib/importSeries";
-import { buildPlaylist, startOf, totalDuration, type PlayItem } from "./lib/playlist";
+import { buildPlaylist, startOf, totalDuration, upscalesNeeded, type PlayItem } from "./lib/playlist";
 import { type RefTargetKind } from "./lib/imageTargets";
 import {
   clearKeyframeText, clearSeriesRefText, isKeyframeRef, keyframeOf, keyframeRefId, keyframeSource, type KeyframeEnd,
@@ -1387,6 +1387,74 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
   }
 }
 
+/**
+ * The 2x exports (beside Export and Titles): the cut from each clip's fresh upscale.
+ * A clip without one is upscaled first, by the series config's upscale.master recipe
+ * (Master's), else each take's defaults; clips already being upscaled are waited for.
+ * The export runs by itself when the last one is in (upscalePending, followed through
+ * the seriesmith.upscale events); a failed one stops it, and says which.
+ */
+export async function exportUpscaled(partial: boolean, publish = false) {
+  const s = get();
+  if (!s.ep) return;
+  const ep = s.ep;
+  const pass = s.pass;
+  const { make, waiting } = upscalesNeeded(s.status[statusKey(ep, pass)]);
+  const opts: AssembleOptions = { upscaled: true, ...(publish ? { publish: true } : {}) };
+  if (!make.length && !waiting.length) return assemble(partial, opts);
+  const names = [...make, ...waiting].map((x) => x.shot);
+  const list = names.slice(0, 8).join(", ") + (names.length > 8 ? ` and ${names.length - 8} more` : "");
+  if (!confirm(`${names.length} clip${names.length === 1 ? " has" : "s have"} no fresh upscale (${list}).\n\n`
+    + `Upscale ${make.length ? "them" : "nothing new"}${waiting.length ? ` (${waiting.length} already on the way)` : ""} `
+    + `by the series recipe, then ${publish ? "add titles" : "export"} at 2x when they're done?`)) return;
+  if (make.length) {
+    const req = { pass, takes: make };
+    try {
+      await api().upscale({ ep, ...req, recipe: true });
+    } catch (e) {
+      // no upscale.master recipe in the series config: each take's defaults
+      if (!(e instanceof ApiError && e.status === 409 && /recipe/i.test(errText(e)))) {
+        report("Couldn't queue the upscales", e);
+        return;
+      }
+      try {
+        await api().upscale({ ep, ...req });
+      } catch (e2) {
+        report("Couldn't queue the upscales", e2);
+        return;
+      }
+    }
+  }
+  upscalePending = { ep, pass, partial, opts, left: new Set(names), failed: [] };
+  host().toast("info", `Upscaling ${names.length} clip${names.length === 1 ? "" : "s"}`,
+               `${publish ? "Titles" : "The export"} at 2x starts when they're done (keep this page open).`);
+  scheduleRefresh(0);
+}
+
+/** A 2x export waiting for its upscales: which shots are still to come. */
+let upscalePending: {
+  ep: string; pass: Pass; partial: boolean; opts: AssembleOptions; left: Set<string>; failed: string[];
+} | null = null;
+
+/** A seriesmith.upscale event: one fewer to wait for; the export when none are left. */
+function upscaleArrived(u: UpscaleEvent) {
+  const p = upscalePending;
+  if (!p || !sameEp(u.ep, p.ep) || !p.left.has(u.shot) || (u.status !== "ok" && u.status !== "failed")) return;
+  p.left.delete(u.shot);
+  if (u.status === "failed") p.failed.push(u.shot);
+  if (p.left.size) return;
+  upscalePending = null;
+  if (p.failed.length) {
+    host().toast("error", "The 2x export didn't run", `${p.failed.join(", ")}: the upscale failed. Fix or redo it, then 2x again.`);
+    return;
+  }
+  if (!sameEp(get().ep, p.ep) || get().pass !== p.pass) {
+    host().toast("info", "The upscales are done", "Open the episode again and press 2x to export.");
+    return;
+  }
+  void assemble(p.partial, p.opts);
+}
+
 // ---------------------------------------------------------------------------
 // overrides and redo
 // ---------------------------------------------------------------------------
@@ -1627,6 +1695,7 @@ export function wireEvents() {
     if (u.status === "ok") host().toast("success", `${u.shot} ${tn(u.take)} upscaled`);
     if (u.status === "failed") host().toast("error", `${u.shot} ${tn(u.take)}'s upscale failed`, "Its .up.json says why (Show details).");
     scheduleRefresh();
+    upscaleArrived(u);
   });
   h.on("seriesmith.post", (d) => {
     const u = (d ?? {}) as UpscaleEvent;

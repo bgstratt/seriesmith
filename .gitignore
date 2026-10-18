@@ -28,6 +28,10 @@ refs_todo_proxy.json
 *.jpg
 *.jpeg
 !examples/**/*.png
+# the logo: the editor's icons (and the page built from them), the docs site's favicon
+!web/src/brand/*.png
+!seriesmith/server/static/assets/*.png
+!docs/site/*.png
 
 # Editors / OS
 .vscode/

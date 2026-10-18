@@ -42,6 +42,29 @@ export function clipTake(s: ShotStatus, other: EpisodeStatus | undefined): TakeS
 }
 
 /**
+ * The 2x exports' to-do: each clip of the cut (in it, in the script, with a good take of
+ * this pass, not the other pass's stand-in) whose take has no fresh finished upscale.
+ * `make`: none yet, a stale one (the take changed since) or a failed one; `waiting`: one
+ * is queued already. Both empty: every clip can export from its upscale.
+ */
+export function upscalesNeeded(st: EpisodeStatus | undefined): {
+  make: { shot: string; take: number }[];
+  waiting: { shot: string; take: number }[];
+} {
+  const make: { shot: string; take: number }[] = [];
+  const waiting: { shot: string; take: number }[] = [];
+  for (const s of st?.shots ?? []) {
+    if (s.cut?.out || s.orphan || s.cut?.placeholder) continue;
+    const t = cutTake(s);
+    if (!t || t.status !== "ok" || !t.mp4) continue;
+    const u = t.upscale;
+    if (u && u.status === "ok" && u.fresh && u.mp4) continue;
+    (u && u.status === "queued" ? waiting : make).push({ shot: s.shot, take: t.take });
+  }
+  return { make, waiting };
+}
+
+/**
  * cut.json trims are frames dropped from the head (`trim_in`) and tail
  * (`trim_out`) of a clip `frames` long, as assemble applies them. Returns the
  * window in seconds, or null when the trims leave nothing (assemble skips it).
