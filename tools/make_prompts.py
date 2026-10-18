@@ -50,12 +50,15 @@ DESCRIPTION = (
     "Write episode scripts and series configs for seriesmith, the script-to-episode AI video "
     "pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue lines, "
     "who/with/size/dur/plate/camera/sound fields, target lines and first/last keyframe lines) "
-    "and the series config (series.json) of subjects, locations, voices, profiles and targets. "
+    "and the series config (series.json) of subjects, locations, voices, profiles and targets, "
+    "and the series' delivery (render size, upscale and master recipes, post-processing and "
+    "titles). "
     "Shots render on a video target chosen per shot or episode, MiniMax H3 by default, or "
     "LTX-2, Wan 2.2, Seedance and others, on a local ComfyUI or Comfy's cloud. Use it whenever "
-    "the user wants to write, draft, outline or extend an episode, break a screenplay or scene "
-    "into shots, adapt spec-format pages, add characters, props or location angles to a series "
-    "config, choose which model renders a shot, re-time shots whose dialogue doesn't fit, or "
+    "the user wants to write, draft, outline or extend an episode, start a series, break a "
+    "screenplay or scene into shots, adapt spec-format pages, add characters, props or location "
+    "angles to a series config, set up how a series is upscaled and mastered, choose which model "
+    "renders a shot, re-time shots whose dialogue doesn't fit, or "
     "fix a script seriesmith check rejected, even if they never name seriesmith or the file "
     "formats."
 )
@@ -68,6 +71,15 @@ Before writing anything, ask for the series config (`series.json`) if the series
 Adding a character means adding to that file, not inventing a new one: if you write `riley`
 when the series config already has `riley_freeman`, every reference path breaks. With no
 series config yet you are starting a series: write both files.
+
+Starting a series, settle what **Starting a series: what to settle first** lists before the
+first shot: the look, the delivery (1080p, 1440p or 4K, which sets the render size, the
+proxy and the master recipe), the voices, the finishing pass and the titles. Ask what the
+brief doesn't already say, in one message, then write the whole config: `upscale.master`
+and `post` as well as the cast and the places. If the person would rather you just start,
+use that section's defaults and list what you assumed. An existing series config is the
+show's: add what the episode needs and change nothing else unasked, but if it has no
+`upscale.master` block, say once that it can't be mastered by recipe until it has one.
 
 Write the film, not the model. Leave `target:` lines out unless a shot needs something only
 one model does (see **Choosing a video target**); advice that holds for one target only is

@@ -12,6 +12,15 @@ Adding a character means adding to that file, not inventing a new one: if you wr
 when the series config already has `riley_freeman`, every reference path breaks. With no
 series config yet you are starting a series: write both files.
 
+Starting a series, settle what **Starting a series: what to settle first** lists before the
+first shot: the look, the delivery (1080p, 1440p or 4K, which sets the render size, the
+proxy and the master recipe), the voices, the finishing pass and the titles. Ask what the
+brief doesn't already say, in one message, then write the whole config: `upscale.master`
+and `post` as well as the cast and the places. If the person would rather you just start,
+use that section's defaults and list what you assumed. An existing series config is the
+show's: add what the episode needs and change nothing else unasked, but if it has no
+`upscale.master` block, say once that it can't be mastered by recipe until it has one.
+
 Write the film, not the model. Leave `target:` lines out unless a shot needs something only
 one model does (see **Choosing a video target**); advice that holds for one target only is
 marked with that target's name. Validate with `seriesmith check series.json <script>` and
@@ -114,6 +123,66 @@ Shows\ep01`; [INSTALL.md](../INSTALL.md) has the rest of the commands, and
 `docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
 shots if you are starting from one (the script-writing skill bundles it as
 `references/script_conversion.md`).
+
+## Starting a series: what to settle first
+
+The first episode above is the smallest series config that builds. A series that will be
+finished (upscaled, mastered and published) needs a few more decisions. They're made once,
+and they all live in the series config. Settle them before the first script: changing the
+size later only changes the takes rendered after the change, and a master needs its
+recipe before it can run.
+
+| Decision | What to ask | Where it goes | With no answer |
+|---|---|---|---|
+| **Look** | Live action or animated? What should it look like (film stock, lens, palette, drawing style)? | `style.look` | Ask: there's no good default. See **Writing the `look` line** |
+| **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed) and master 1440p. See **Final resolution** and **Masters** |
+| **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
+| **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
+| **Titles** | Is there a series intro and outro (clips made once for the whole show)? | `_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; `publish` only to name other files or style the episode title | Nothing to write: a master picks the clips up when they're there. See **Series intro and outro** |
+| **Model** | Does it have to render on one model (what's installed, a hosted one)? | `series.target`, `refs` | Leave both out: the series renders on the machine's default models |
+| **Pace** | How fast do people talk? | `speech.pace` | `normal` |
+
+Ask these in **one message**, only the ones the brief doesn't already answer ("for
+YouTube at 4K", "the voices are recorded" answer two). If the person would rather you
+just start, use the defaults and say which ones you used. Then write the whole config:
+the blocks below, not only the cast and the places.
+
+A series rendered at size and mastered at 1440p, with generated voices, the finishing
+pass, and the intro and outro picked up from `_titles/`:
+
+```json
+{
+  "series": { "id": "last_light", "title": "Last Light", "fps": 24,
+              "width": 1344, "height": 768 },
+  "proxy": { "width": 960, "height": 544, "steps": 8,
+             "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors" },
+  "style": { "look": "a live-action film shot on 35mm, anamorphic lenses, sodium-vapour night light, wet streets, shallow depth of field" },
+  "speech": { "pace": "normal" },
+  "subjects": { },
+  "locations": { },
+  "audio": { "mode": "generate" },
+  "upscale": { "save_latents": "final",
+    "master": { "deliver": "1440p", "fit": "crop", "quality": "master",
+      "finish": { "frequency_split": true },
+      "targets": {
+        "minimax_h3_*": { "method": "latent", "scale": 2 },
+        "ltx2*":        { "method": "latent", "scale": 2 },
+        "wan22_*":      { "method": "seedvr2", "seedvr2_model": "7b" },
+        "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" } } } },
+  "post": { "master": { "enhance": "production", "motion_blur": 0.3 } }
+}
+```
+
+The other deliveries change the size and the recipe together: **Delivering 1080p**
+(960×544, re-sample 2x) and **Delivering 4K** (a re-sample, then an upscale model) under
+**Masters**. The upscale methods need their files installed: in the editor, **Settings →
+Features…** installs them (the H3 latent upscaler, SeedVR2, Real-ESRGAN, RTX Video Super
+Resolution).
+
+**An existing series config** is the show's, not yours to restyle. Add the subjects and
+locations a new episode needs, and change nothing else unasked. If it has no
+`upscale.master` or `post` block, say once that the show can't be mastered by recipe
+until it has one, and offer to add one.
 
 ## The one thing that shapes every decision
 
@@ -732,8 +801,10 @@ the same as data.
 - **Optional** files (the LTX duration head): only their feature is off (`dur: model`
   renders the estimate).
 
-A link is only given when ComfyUI's own templates, your saved workflows or
-ComfyUI-Manager's model list record it. Otherwise the line says to search for the exact
+In the editor, a missing file with a link has an **Install** button in the model
+picker's **What's missing** window, and **Settings → Features…** installs a whole model (or
+an upscaler, a node pack, ffmpeg) at once. A link is only given when ComfyUI's own
+templates, your saved workflows or ComfyUI-Manager's model list record it. Otherwise the line says to search for the exact
 file name. If you have a file of the same family under another name (another
 precision, a merge), it is used instead, and the take notes which file it was.
 
