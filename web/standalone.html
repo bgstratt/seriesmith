@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>seriesmith</title>
+    <link rel="icon" href="./src/brand/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="./src/brand/favicon-192.png" sizes="192x192" type="image/png" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/primeicons@7.0.0/primeicons.css" />
     <script>
       try { if (localStorage.getItem("seriesmith.theme") === "light") document.documentElement.classList.add("light"); } catch (e) {}
@@ -48,7 +50,11 @@
         grid-area: top; display: flex; align-items: center; gap: 12px; padding: 0 12px;
         background: var(--comfy-menu-bg); border-bottom: 1px solid var(--border-color);
       }
-      #sm-top b { font-family: var(--sm-serif); font-size: 18px; font-weight: 600; letter-spacing: .01em; }
+      #sm-top b { font-family: var(--sm-serif); font-size: 18px; font-weight: 600; letter-spacing: .01em; display: inline-flex; align-items: center; gap: 8px; }
+      /* the anvil (seriesmith-site's brand/make.py): light teal on the dark theme, teal on the light */
+      #sm-top .sm-mark { height: 22px; width: auto; display: block; }
+      #sm-top .sm-mark.on-light, :root.light #sm-top .sm-mark.on-dark { display: none; }
+      :root.light #sm-top .sm-mark.on-light { display: block; }
       #sm-top .spacer { flex: 1 1 auto; }
       #sm-top button {
         background: transparent; color: var(--fg-color); border: 1px solid var(--border-color);
@@ -91,7 +97,7 @@
   <body>
     <div id="sm">
       <header id="sm-top">
-        <b>seriesmith</b>
+        <b><img class="sm-mark on-dark" src="./src/brand/mark-light.png" alt="" /><img class="sm-mark on-light" src="./src/brand/mark.png" alt="" />seriesmith</b>
         <span class="spacer"></span>
         <span id="sm-queue"></span>
         <span id="sm-conn" title="connection to the seriesmith server"></span>

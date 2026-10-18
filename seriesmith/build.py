@@ -53,16 +53,26 @@ from seriesmith.targets.video.minimax_h3_ref2va import compile as _h3  # noqa: E
 
 # Checks for the series config's stage recipes, by block name ("upscale",
 # "post"): each takes the block's `master` and returns warnings. Imported only
-# when a series config has such a recipe.
+# when a series config has such a recipe. The script-writing skill carries the
+# build without those stages (they need the rest of seriesmith), so there the
+# recipe is passed over with a note rather than failing the whole check.
+NOT_CHECKED = ("series.json {block}.master isn't checked by this copy of the build "
+               "(the skill's); `seriesmith check` checks it")
 
 
 def _check_upscale(recipe) -> list[str]:
-    from seriesmith import upscale
+    try:
+        from seriesmith import upscale
+    except ImportError:
+        return [NOT_CHECKED.format(block="upscale")]
     return upscale.check_recipe(recipe)
 
 
 def _check_post(recipe) -> list[str]:
-    from seriesmith import post
+    try:
+        from seriesmith import post
+    except ImportError:
+        return [NOT_CHECKED.format(block="post")]
     return post.check_recipe(recipe)
 
 

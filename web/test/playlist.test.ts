@@ -1,7 +1,7 @@
 // Play all: trim maths, the playlist, and stepping through it on one clock.
 import { describe, expect, it } from "vitest";
 import {
-  atOutPoint, buildPlaylist, clipOffset, cutTime, fileTime, framesOf, locate, nextVideo, playFile, startOf, totalDuration, trimWindow,
+  atOutPoint, buildPlaylist, clipOffset, cutTime, fileTime, framesOf, locate, nextVideo, playFile, startOf, totalDuration, trimWindow, upscalesNeeded,
   type PlayItem,
 } from "../src/lib/playlist";
 import type { CutInfo, EpisodeStatus, ShotStatus, TakeSummary } from "../src/types";
@@ -213,5 +213,34 @@ describe("play-all sequencing", () => {
     expect(log).toEqual(["show a", "card b", "swap c", "swap d"]);
     // the whole cut plays in about its duration (each clip ends within a frame of its out point)
     expect(Math.abs(t - totalDuration(items))).toBeLessThan(4 / 24);
+  });
+});
+
+describe("the 2x exports' to-do", () => {
+  const up = (over = {}) => ({ status: "ok" as const, fresh: true, width: 2688, height: 1536, route: "pixel" as const, start_step: null,
+                               comfy_prompt_id: null, mp4: "r/a/t1.up.mp4", save_notes: "", ...over });
+  const withUp = (id: string, u?: object, cut: Partial<CutInfo> = {}, over: Partial<ShotStatus> = {}) =>
+    shot(id, 72, { takes: [take(1, { mp4: `r/${id}/t1.mp4`, ...(u ? { upscale: up(u) } : {}) })], ...over }, cut);
+  it("lists the clips with no fresh upscale, and the ones already on the way", () => {
+    const st = ep([
+      withUp("sh010", {}),                          // fresh: nothing to do
+      withUp("sh020"),                              // none
+      withUp("sh030", { fresh: false }),            // stale: the take changed
+      withUp("sh040", { status: "failed" }),        // failed: again
+      withUp("sh050", { status: "queued" }),        // on the way: wait for it
+    ], "final");
+    const { make, waiting } = upscalesNeeded(st);
+    expect(make.map((x) => x.shot)).toEqual(["sh020", "sh030", "sh040"]);
+    expect(waiting.map((x) => x.shot)).toEqual(["sh050"]);
+    expect(make[0].take).toBe(1);
+  });
+  it("leaves out what the export leaves out", () => {
+    const st = ep([
+      withUp("sh010", undefined, { out: true }),                  // left out of the cut
+      withUp("sh020", undefined, {}, { orphan: true }),           // no longer in the script
+      withUp("sh030", undefined, { placeholder: true }),          // the other pass's stand-in
+      shot("sh040", 72, { takes: [take(1, { status: "failed", mp4: null })] }),   // no good take
+    ], "final");
+    expect(upscalesNeeded(st)).toEqual({ make: [], waiting: [] });
   });
 });

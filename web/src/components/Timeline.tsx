@@ -3,7 +3,7 @@ import {
   type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import {
-  assemble, currentPlaylist, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
+  assemble, currentPlaylist, exportUpscaled, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
 import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setTrims, toggleWaves, undoCut } from "../cutActions";
@@ -542,7 +542,7 @@ export function Timeline() {
           <button disabled={!ep || asm.busy} title={`Export: assemble the ${pass} review cut into one mp4 with ffmpeg (missing shots are skipped). Not needed to watch the cut: use Play all.`} onClick={() => void assemble(true)}>
             <i className={asm.busy && !asm.publish ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {asm.busy && !asm.publish ? "Assembling…" : "Export"}
           </button>
-          <button disabled={!ep || asm.busy} title={`Export the ${pass} cut from its upscales (2x): clips without a fresh upscale are scaled up. Writes <cut>_up.mp4 beside the plain cut`} onClick={() => void assemble(true, { upscaled: true })}>
+          <button disabled={!ep || asm.busy} title={`Export the ${pass} cut from its upscales (2x). Clips without a fresh upscale are upscaled first (the series' upscale.master recipe, as Master does), and the export runs when they're done. Writes <cut>_up.mp4 beside the plain cut`} onClick={() => void exportUpscaled(true)}>
             2x
           </button>
         </span>
@@ -550,7 +550,7 @@ export function Timeline() {
           <button disabled={!ep || asm.busy} title={`Add Titles: assemble the whole ${pass} cut (fails if a shot is missing), then put the series intro and outro around it with the episode's title (_titles/INTRO.mp4 and OUTRO.mp4 in the show folder). Writes <episode>/publish/`} onClick={() => void assemble(false, { publish: true })}>
             <i className={asm.busy && asm.publish ? "pi pi-spin pi-spinner" : "pi pi-bookmark"} /> {asm.busy && asm.publish ? "Adding titles…" : "Titles"}
           </button>
-          <button disabled={!ep || asm.busy} title={`Add Titles to the cut from its upscales (2x), as Export 2x assembles it`} onClick={() => void assemble(false, { upscaled: true, publish: true })}>
+          <button disabled={!ep || asm.busy} title={`Add Titles to the cut from its upscales (2x), upscaling any clip without a fresh one first, as Export 2x does`} onClick={() => void exportUpscaled(false, true)}>
             2x
           </button>
         </span>

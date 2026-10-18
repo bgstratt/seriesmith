@@ -104,9 +104,11 @@ from seriesmith import build  # noqa: E402
 raise SystemExit(build.main(sys.argv[1:], prog="check.py"))
 '''
 
-# What scripts/seriesmith/ carries: the build and what it imports (all stdlib).
-# Workflows are only read when rendering, so they stay out.
-BUNDLE_FILES = ["__init__.py", "build.py"]
+# What scripts/seriesmith/ carries: the build and what a check imports (all stdlib):
+# settings, because the targets look beside it for this machine's own models. The
+# upscale and post stages stay out (they need the rest of seriesmith): the build
+# passes their recipes over with a note. Workflows are only read when rendering.
+BUNDLE_FILES = ["__init__.py", "build.py", "settings.py"]
 BUNDLE_DIRS = ["core", "targets"]
 BUNDLE_SKIP = ["__pycache__", "*.pyc", "workflow.json"]
 
@@ -155,8 +157,9 @@ def skipped(name: str) -> bool:
     return any(fnmatch.fnmatch(name, pat) for pat in BUNDLE_SKIP)
 
 
-def bundle(text: str) -> str:
-    out = os.path.join(ROOT, "build", "skill")
+def bundle(text: str, out: str | None = None) -> str:
+    """The skill's folder and zip, in `out` (build/skill/ by default)."""
+    out = out or os.path.join(ROOT, "build", "skill")
     folder = os.path.join(out, NAME)
     if os.path.isdir(folder):
         shutil.rmtree(folder)
