@@ -354,6 +354,12 @@ def seedvr2_readiness(object_info: dict | None, want: str | None = None) -> dict
     return {"status": "not_ready" if missing else "ready", "missing": missing,
             "models": models, "default": default}
 DEFAULT_PIXEL_MODEL = "RealESRGAN_x2.pth"
+# where the Features installer gets the pixel models (ai-forever's copies of
+# xinntao's Real-ESRGAN weights, checked 2026-10-18), into models/upscale_models/
+PIXEL_DOWNLOADS = {
+    "RealESRGAN_x2.pth": "https://huggingface.co/ai-forever/Real-ESRGAN/resolve/main/RealESRGAN_x2.pth",
+    "RealESRGAN_x4.pth": "https://huggingface.co/ai-forever/Real-ESRGAN/resolve/main/RealESRGAN_x4.pth",
+}
 # auto: the GPU's NVENC when ffmpeg has it (H.264 up to 4096 wide, HEVC above),
 # else x264; nvenc forces it (fails without); x264 forces the CPU encoder
 ENCODERS = ("auto", "nvenc", "x264")

@@ -8,7 +8,7 @@
 // changed here.
 
 import { useEffect, useState } from "react";
-import { loadTargets, openSettings, setBackends } from "../actions";
+import { loadTargets, openFeatures, openSettings, setBackends } from "../actions";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
@@ -18,6 +18,7 @@ interface SettingsView {
   settings: {
     local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>;
     path: string | null; paid_limit?: number | null; local_via?: "comfyui" | "proxy";
+    hf_token?: "set" | null; ffmpeg_dir?: string | null; comfyui_dir?: string | null;
     default_targets?: Record<string, string>; detected_targets?: Record<string, string>;
   };
   file: string;
@@ -142,6 +143,8 @@ function SettingsBody({ server }: { server: boolean }) {
   const [view, setView] = useState<SettingsView | null>(null);
   const [urls, setUrls] = useState({ comfyui_url: "", local_url: "", cloud_url: "" });
   const [key, setKey] = useState("");
+  const [hfToken, setHfToken] = useState("");
+  const [dirs, setDirs] = useState({ ffmpeg_dir: "", comfyui_dir: "" });
   const [deps, setDeps] = useState<{ target: string; url: string }[]>([]);
   const [limit, setLimit] = useState("");
   const [viaProxy, setViaProxy] = useState(false);
@@ -160,6 +163,8 @@ function SettingsBody({ server }: { server: boolean }) {
     setDefaults({ ...(v.settings.default_targets ?? {}) });
     if (v.sdk) setSdk(v.sdk);
     setKey("");
+    setHfToken("");
+    setDirs({ ffmpeg_dir: v.settings.ffmpeg_dir ?? "", comfyui_dir: v.settings.comfyui_dir ?? "" });
   };
   // while comfy-sdk installs, ask how it's going; once it's in, Cloud and Router answer
   useEffect(() => {
@@ -197,6 +202,8 @@ function SettingsBody({ server }: { server: boolean }) {
       for (const k of ["comfyui_url", "local_url", "cloud_url"] as const) if (!view?.from_env[k]) body[k] = urls[k];
       body.deployments = Object.fromEntries(deps.filter((d) => d.target && d.url.trim()).map((d) => [d.target, d.url.trim()]));
       if (key.trim() && !view?.from_env.api_key) body.api_key = key.trim();
+      if (hfToken.trim() && !view?.from_env.hf_token) body.hf_token = hfToken.trim();
+      for (const k of ["ffmpeg_dir", "comfyui_dir"] as const) body[k] = dirs[k].trim() || null;
       body.paid_limit = limit.trim() === "" ? null : Math.max(0, Math.floor(Number(limit)));
       if (!view?.from_env.local_via) body.local_via = viaProxy ? "proxy" : null;
       body.default_targets = Object.fromEntries(Object.entries(defaults).filter(([, v]) => v));
@@ -263,6 +270,23 @@ function SettingsBody({ server }: { server: boolean }) {
             Local renders go straight to ComfyUI. A series that names no model renders on the ones above: what seriesmith
             found installed in ComfyUI unless you pick one.
           </span>
+          <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+            <button className="h3-btn" onClick={() => openFeatures(true)}>
+              <i className="pi pi-box" /> Features…
+            </button>
+            <span className="h3-small h3-muted">Add models, node packs and tools: H3 at full quality, voices, upscale, post, ffmpeg.</span>
+          </div>
+          <details open={!!(view?.settings.ffmpeg_dir || view?.settings.comfyui_dir)}>
+            <summary className="h3-small">Folders (ffmpeg, ComfyUI)</summary>
+            <div className="h3-form" style={{ marginTop: 6 }}>
+              <label htmlFor="sm-set-ffmpeg" title="A folder holding your own ffmpeg and ffprobe: used before anything else">ffmpeg folder</label>
+              <input id="sm-set-ffmpeg" className="h3-in h3-mono" value={dirs.ffmpeg_dir} placeholder="empty: found by itself"
+                onChange={(e) => setDirs({ ...dirs, ffmpeg_dir: e.target.value })} />
+              <label htmlFor="sm-set-comfydir" title="The folder with ComfyUI's main.py, for Features to install into when it can't ask ComfyUI">ComfyUI folder</label>
+              <input id="sm-set-comfydir" className="h3-in h3-mono" value={dirs.comfyui_dir} placeholder="empty: asked of ComfyUI"
+                onChange={(e) => setDirs({ ...dirs, comfyui_dir: e.target.value })} />
+            </div>
+          </details>
           <details open={viaProxy}>
             <summary className="h3-small">Through comfy-api-proxy (advanced)</summary>
             <label className="h3-row h3-small" style={{ gap: 6, marginTop: 6 }}>
@@ -295,6 +319,19 @@ function SettingsBody({ server }: { server: boolean }) {
                   <button className="h3-btn" disabled={busy} onClick={() => {
                     if (window.confirm("Remove the saved API key? Comfy Cloud and Comfy Router stop until a key is set again.")) void save({ api_key: null }, "Key removed");
                   }}>Remove</button>
+                )}
+              </div>
+            )}
+            <label htmlFor="sm-set-hf" title="For the gated downloads (FLUX, LTX-2.5) in Features: huggingface.co, Settings, Access Tokens (read)">Hugging Face token</label>
+            {env.hf_token ? (
+              <span className="h3-small h3-muted">Set by the environment ({env.hf_token}): change it there.</span>
+            ) : (
+              <div className="h3-row" style={{ gap: 4 }}>
+                <input id="sm-set-hf" className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={hfToken}
+                  placeholder={view?.settings.hf_token ? "a new token replaces the one saved" : "hf_… (for gated model downloads)"}
+                  onChange={(e) => setHfToken(e.target.value)} />
+                {view?.settings.hf_token && (
+                  <button className="h3-btn" disabled={busy} onClick={() => void save({ hf_token: null }, "Token removed")}>Remove</button>
                 )}
               </div>
             )}

@@ -17,8 +17,8 @@ folder holding a series config, a script, and everything seriesmith generated fr
 **In a hurry?** [The thirty-second install](/quickstart): clone, link the node pack
 into ComfyUI, start ComfyUI. Nothing goes into ComfyUI's Python, no other node packs, no
 ffmpeg; it renders on the models you already have. [Full setup](/full-setup) lists
-the node packs, model files and software each extra feature needs. This page is every part
-in detail.
+the node packs, model files and software each extra feature needs, and **Settings →
+Features…** in the editor installs any of them for you. This page is every part in detail.
 
 1. [Requirements](#1-requirements)
 2. [seriesmith and the node pack](#2-seriesmith-and-the-node-pack)
@@ -45,15 +45,18 @@ does with it all is the [README](https://github.com/bgstratt/seriesmith/blob/mai
   measure with `ffprobe`; so do the waveform peaks, the audio import, `align`, the
   Recording window and a frame cut out of a take. seriesmith takes the first it finds
   (`seriesmith/ff.py`):
-  - **`ffmpeg`:** the one on PATH, else imageio-ffmpeg's (a static ffmpeg 7 build that
-    comes with seriesmith's own install; inside ComfyUI, there when a node pack brought
-    it, else the one in the repo's `.venv` once `run_seriesmith` has made it);
-  - **`ffprobe`:** the one on PATH, else a stand-in that answers the same questions
+  - **First, your own:** the folder named in **Settings → Folders → ffmpeg folder**,
+    else the full build **Settings → Features → ffmpeg and ffprobe** downloads into
+    seriesmith's folder (gyan.dev's on Windows, a static build on Linux);
+  - **`ffmpeg`:** else the one on PATH, else imageio-ffmpeg's (a static ffmpeg 7 build
+    that comes with seriesmith's own install; inside ComfyUI, there when a node pack
+    brought it, else the one in the repo's `.venv` once `run_seriesmith` has made it);
+  - **`ffprobe`:** else the one on PATH, else a stand-in that answers the same questions
     through PyAV (ffmpeg's own libraries, in ComfyUI's requirements and seriesmith's).
   - A render needs neither: without ffmpeg, the saver writes the take's mp4 through PyAV,
     the same H.264 / BT.709 / AAC file, and the take's record says so.
 
-  Your own ffmpeg on PATH still wins (`winget install Gyan.FFmpeg`; `apt install ffmpeg`,
+  An ffmpeg on PATH counts too (`winget install Gyan.FFmpeg`; `apt install ffmpeg`,
   `brew install ffmpeg`).
 - **Somewhere to render**, one or both:
   - **your own ComfyUI** (a recent local [ComfyUI](https://github.com/comfyanonymous/ComfyUI);

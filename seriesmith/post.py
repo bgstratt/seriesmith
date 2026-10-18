@@ -60,6 +60,9 @@ NONE = ("none", "off")
 # on an SDXL checkpoint. Prompts are SUPIR's own defaults, shortened.
 SUPIR_MODEL = "SUPIR-v0F_fp16.safetensors"
 SUPIR_CHECKPOINT = "sd_xl_base_1.0_0.9vae.safetensors"
+# in models/checkpoints/ (Stability AI's SDXL base, checked 2026-10-18)
+SUPIR_CHECKPOINT_URL = ("https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/"
+                        "resolve/main/" + SUPIR_CHECKPOINT)
 SUPIR_PROMPT = ("cinematic film still, high quality, highly detailed, sharp focus, "
                 "natural skin texture, fine film grain")
 SUPIR_NEGATIVE = ("painting, oil painting, illustration, drawing, cartoon, CG style, 3D render, "

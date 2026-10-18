@@ -99,10 +99,13 @@ def queue_routes(settings, runner, connected=lambda: False) -> list[tuple]:
             fresh = load_settings()
         except ValueError as e:
             return web.json_response({"error": str(e)}, status=400)
-        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "path",
+        for k in ("local_url", "comfyui_url", "cloud_url", "api_key", "hf_token", "ffmpeg_dir",
+                  "comfyui_dir", "deployments", "path",
                   "paid_limit", "local_via", "default_targets", "detected_targets"):
             setattr(settings, k, getattr(fresh, k))
         queue.paid_limit = settings.paid_limit
+        from seriesmith import ff as FF
+        FF.forget()                                       # ffmpeg_dir may have changed
         backends.clear()
         backends.update(available(settings))
         # a key set, and comfy-sdk not here (ComfyUI's Python): put it in now

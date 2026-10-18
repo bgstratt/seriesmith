@@ -2760,6 +2760,9 @@ EDIT_FIELDS = ("take", "with", "wrap", "from_view", "turn")
 # side view the viewer's right (krea2 VIEWS).
 TURN_TARGET = "qwen_image_21"
 TURN_LORA = "angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors"
+# in models/loras/, where the Features installer gets it
+TURN_LORA_URL = ("https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA/resolve/main/"
+                 "checkpoints_v2/" + TURN_LORA)
 TURN_STRENGTH = 0.9
 VIEW_TURNS = {
     "01_threequarter": "<mva> front-left view, eye-level shot",
@@ -2903,6 +2906,7 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
 
 PANO_TARGET = "qwen_image_21"
 PANO_LORA = "pano360_qwen21_edit_v1.safetensors"
+PANO_LORA_URL = "https://huggingface.co/Gogodr/qwen-image-2.1-edit-pano360-lora/resolve/main/" + PANO_LORA
 PANO_SIZE = (2048, 1024)      # the card's larger 2:1 size: a third more detail per view than 1536x768
 PANO_WORDS = 35             # the LoRA's card: a one-sentence scene of 15-35 words
 

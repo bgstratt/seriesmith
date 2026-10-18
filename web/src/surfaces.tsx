@@ -16,6 +16,7 @@ import { ClipAudioWindow } from "./components/ClipAudio";
 import { InspectorWindow } from "./components/Inspector";
 import { PromoteDialog } from "./components/Promote";
 import { MissingWindow } from "./components/Readiness";
+import { FeaturesWindow } from "./components/FeaturesWindow";
 import { RefsTab } from "./components/RefsTab";
 import { RenderDialog } from "./components/RenderDialog";
 import { UpscaleDialog } from "./components/UpscaleDialog";
@@ -157,6 +158,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Inspector", InspectorWindow],
   ["Viewer", Viewer],
   ["What's missing", MissingWindow],
+  ["Features", FeaturesWindow],
   ["Script / series config", SourceWindows],
   ["Series settings", SeriesFormWindow],
   ["Cast card", SubjectCardWindow],

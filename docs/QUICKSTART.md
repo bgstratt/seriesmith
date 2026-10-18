@@ -88,4 +88,5 @@ Some things need extra node packs, model files or software:
 - matching recorded dialogue;
 - 360s of a place, and turning a character.
 
-[Full setup](FULL_SETUP.md) lists each of these with what it needs.
+**Settings → Features…** installs any of them for you: tick what you want and press
+Install. [Full setup](FULL_SETUP.md) lists each one with what it needs.

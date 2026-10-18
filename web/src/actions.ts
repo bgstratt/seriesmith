@@ -3199,6 +3199,15 @@ export function openSettings(open = true) {
   set({ settingsOpen: open });
 }
 
+/** The Features window: what can be added to this install, and its installer. */
+export function openFeatures(open = true) {
+  set({ featuresOpen: open, menu: null });
+}
+
+export function closeFeatures() {
+  set({ featuresOpen: false });
+}
+
 export function openJobs(open = true) {
   set({ jobsOpen: open });
 }

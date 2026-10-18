@@ -812,6 +812,29 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
 ### `GET /seriesmith/info`
 `{"version", "settings" (as `GET /seriesmith/settings` describes them), "comfy_connected"}`.
 
+### The Features window
+`seriesmith/features.py` (the catalog), `seriesmith/installer.py` (the work),
+`seriesmith/server/features_views.py` (the routes, on both hosts):
+
+- **`GET /seriesmith/features`** answers:
+  `{"groups": [{id, label, about}], "features": [{id, group, label, about, restart, status,   "items": [{key, kind: "model" | "pack" | "pip" | "ffmpeg", name, folder?, url?, target?,   where?, gated?, licence?, status}]}], "place": {root, custom_nodes, python, why_not},   "hf_token": bool, "job": {running, restart, "tasks": [{key, kind, name, folder, status:   "queued" | "running" | "done" | "failed" | "canceled", bytes, total, error, note}]}}`.
+  - An item's status is `installed`, `missing`, `restart` (a pack cloned, not loaded) or
+    `unknown`.
+  - A feature's status is `installed`, `partial`, `missing`, `restart`, `unknown` or
+    `unavailable`.
+  - A target's files count as installed when readiness says so, so a substitute of the
+    same family counts.
+- **`GET /seriesmith/features/sizes`** answers `{"sizes": {url: bytes | null}}`, asked
+  of each download's server once (HEAD, with the Hugging Face token).
+- **`POST /seriesmith/features/install`** takes `{features?: [id], files?: [file name],   classes?: [node class]}`.
+  - What's already installed is left out, and each item is queued once.
+  - Files are taken by name only: the server downloads only URLs the code records.
+  - It answers `{"job", "queued": [key], "skipped": [why]}`.
+  - It answers 409 with `place.why_not` when a file or pack has nowhere to go (a
+    ComfyUI on another machine).
+- **`POST /seriesmith/features/cancel`** stops after the current item; a download's
+  `.part` is kept and resumes.
+
 ### `POST /seriesmith/sdk/install`
 Installs comfy-sdk (what Comfy Cloud, deployments and Router run on) into the server's
 Python, in the background (`seriesmith/sdk.py`). Answers `{"sdk": {"status": "ready" | "missing" | "installing" | "failed", "error", "command", "python"}}`; `GET /seriesmith/settings` carries the same `sdk` to poll. PUT `/seriesmith/settings` starts it

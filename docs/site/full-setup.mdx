@@ -10,14 +10,48 @@ exporting on the models you already have. This page is everything on top of that
 by what it gives you: the node packs, model files, LoRAs and other software for each
 feature.
 
-You only need the parts for what you use. Install any of it in any order. Two places
-tell you what's still missing:
-- **in the editor**, each model picker's **What's missing** window;
-- **from the command line**, with ComfyUI running: `seriesmith targets`.
+You only need the parts for what you use. Install any of it in any order.
+
+## Install it from the editor
+
+You don't have to do any of this by hand. **Settings → Features…** lists every feature on
+this page, grouped the same way:
+- what's already installed is ticked;
+- tick the rest you want, and the window shows how much it will download;
+- press **Install**.
+
+seriesmith then puts each piece in:
+- **model files** go into ComfyUI's `models/` folders;
+- **node packs** are cloned into `custom_nodes/`, with their requirements pip-installed
+  into ComfyUI's Python;
+- **Python packages** go into the Python that uses them;
+- **ffmpeg** is a full build downloaded into seriesmith's own folder.
+
+The window shows each item's progress. A stopped download resumes where it left off next
+time. After a node pack, restart ComfyUI to load it.
+
+Mix and match as you like: for example, RTX Video Super Resolution instead of Real-ESRGAN
+for pixel upscales, or SeedVR2 without the H3 latent upscaler.
+
+The **What's missing** window has an **Install** button too: beside each missing file
+that has a known download, and beside each missing node that a known pack provides.
+
+**Gated models.** LTX-2.5 and the FLUX models are gated on Hugging Face:
+1. Accept the licence on the model's page (the window links it).
+2. Make a read token on huggingface.co (Settings → Access Tokens).
+3. Paste the token into **Settings → Hugging Face token**, or set `HF_TOKEN`.
+
+**Where it installs.** Inside ComfyUI, seriesmith uses that ComfyUI's own folders. The
+standalone editor asks the ComfyUI on this machine where its folders are. For a ComfyUI it
+can't ask, set **Settings → Folders → ComfyUI folder**.
+
+To see what's still missing without installing anything: each model picker's **What's
+missing** window, or `seriesmith targets` with ComfyUI running.
 
 This page isn't the list of every model seriesmith supports. That list, with every file,
 folder and link, is [INSTALL.md, section 4](/install#4-models).
 
+- [Install it from the editor](#install-it-from-the-editor)
 - [At a glance](#at-a-glance)
 - [Rendering video](#rendering-video)
 - [Pictures: characters, places, props and keyframes](#pictures-characters-places-props-and-keyframes)
@@ -28,8 +62,8 @@ folder and link, is [INSTALL.md, section 4](/install#4-models).
 - [360s and turned views](#360s-and-turned-views)
 - [Software outside ComfyUI](#software-outside-comfyui)
 
-Put each model file in the ComfyUI `models/` folder named beside it (`models/loras/`,
-`models/vae/`, ...). ComfyUI also reads `models/unet/` for `diffusion_models` and
+By hand instead: put each model file in the ComfyUI `models/` folder named beside it
+(`models/loras/`, `models/vae/`, ...). ComfyUI also reads `models/unet/` for `diffusion_models` and
 `models/clip/` for `text_encoders`. Install node packs with ComfyUI-Manager or by
 cloning them into `custom_nodes/`, then restart ComfyUI.
 
@@ -208,8 +242,12 @@ Assemble, master and publish cut with ffmpeg. You don't need to install it:
     Python);
   - otherwise the repo's `.venv`, once `run_seriesmith` has made it;
   - otherwise one on PATH.
-- **Your own ffmpeg** on PATH always comes first (`winget install Gyan.FFmpeg`,
-  `apt install ffmpeg`, `brew install ffmpeg`).
+- **Your own ffmpeg** comes first:
+  - the folder named in **Settings → Folders → ffmpeg folder**;
+  - else the full build **Features → ffmpeg and ffprobe** downloads (gyan.dev's on
+    Windows, a static build on Linux);
+  - else one on PATH (`winget install Gyan.FFmpeg`, `apt install ffmpeg`,
+    `brew install ffmpeg`).
 
 **Titles.** Publish writes the episode's title under the series title on the series'
 intro and outro clips, with one font file for every episode. The default is

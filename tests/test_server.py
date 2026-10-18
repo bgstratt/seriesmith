@@ -176,9 +176,9 @@ class ComfyHostTest(unittest.TestCase):
     def test_it_registers_every_route(self):
         server, added = self.server()
         self.assertTrue(comfyui.register(server, wait=0))
-        # the API, and the queue's own routes (Jobs, Render on, Settings, the
-        # SDK's Install, info)
-        self.assertEqual(len(added), len(A.ROUTES) + 7)
+        # the API, the queue's own routes (Jobs, Render on, Settings, the SDK's
+        # Install, info) and the Features window's four
+        self.assertEqual(len(added), len(A.ROUTES) + 11)
         self.assertIn(("GET", "/seriesmith/jobs"), added)
         self.assertIn(("PUT", "/seriesmith/settings"), added)
         self.assertIn(("POST", "/seriesmith/sdk/install"), added)

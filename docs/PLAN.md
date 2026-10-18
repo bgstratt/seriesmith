@@ -677,6 +677,20 @@ no other node pack; the default models are the ones installed.
       those backends are down meanwhile. `SERIESMITH_NO_AUTO_INSTALL=1` turns
       it off (the tests set it). Tried in a fresh venv: 8 s, importable at
       once, no restart.
+- [x] The Features window (Settings → Features…, and Install in What's missing):
+      every feature of FULL_SETUP.md as a checkbox, installed ones ticked;
+      model files downloaded into ComfyUI's models folders (resumed from a
+      .part, the Hugging Face token for the gated ones), node packs cloned into
+      custom_nodes with their requirements pip-installed into ComfyUI's Python
+      (then a restart), pip packages, a full ffmpeg build (gyan.dev / a static
+      Linux build) that seriesmith.ff uses first. The catalog
+      (`seriesmith/features.py`) takes each target's files from the target, and
+      only ever downloads URLs the code records; the node packs' repos and the
+      last few download links (Real-ESRGAN, SDXL base, the 360 and Turn LoRAs)
+      are recorded now. Checked 2026-10-18: every recorded link answers; 16 are
+      gated (all of LTX-2.5, all of Black Forest Labs'). Tried for real into a
+      scratch ComfyUI folder: RAFT downloaded, PlagueKind cloned (restart),
+      gyan.dev's ffmpeg 9.0.2 downloaded and used first.
 - [ ] Tried on a fresh ComfyUI portable with only LTX-2's files: Simple mode
       defaults to LTX-2 and renders; then H3's files without the PlagueKind
       pack: H3 is the default, degraded, and renders.

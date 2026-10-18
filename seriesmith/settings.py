@@ -12,6 +12,11 @@ Read from a JSON file, then the environment over it:
      "local_url":   "http://127.0.0.1:8189",     comfy-api-proxy at local_url instead
      "cloud_url":   "https://cloud.comfy.org",
      "api_key":     "comfyui-...",               better kept in COMFY_API_KEY
+     "hf_token":    "hf_...",                    Hugging Face, for gated downloads
+                                                  (the Features installer); or HF_TOKEN
+     "ffmpeg_dir":  "C:/ffmpeg/bin",             your own ffmpeg and ffprobe (seriesmith.ff)
+     "comfyui_dir": "C:/AI/ComfyUI/ComfyUI",     where ComfyUI is, when seriesmith can't
+                                                  ask it (the standalone server's installer)
      "deployments": {"minimax_h3_ref2va": "https://<build>.run.comfy.app"},
      "enabled_drafts": ["veo_3_1_lite"],          built-in draft targets switched on
      "target_limits": {"ltx2": {"size": {"multiple": 32}}},
@@ -24,7 +29,7 @@ Read from a JSON file, then the environment over it:
                                                   default when default_targets hasn't one
 
     environment   SERIESMITH_LOCAL_URL, SERIESMITH_COMFYUI_URL, SERIESMITH_CLOUD_URL,
-                  SERIESMITH_LOCAL_VIA, COMFY_API_KEY
+                  SERIESMITH_LOCAL_VIA, COMFY_API_KEY, HF_TOKEN
 
 Stdlib only.
 """
@@ -47,6 +52,12 @@ class Settings:
     comfyui_url: str = COMFYUI_URL
     cloud_url: str = CLOUD_URL
     api_key: str | None = None
+    # Hugging Face, for the gated downloads (FLUX, LTX-2.5) the installer makes
+    hf_token: str | None = None
+    # a folder holding your own ffmpeg and ffprobe, used before anything else
+    ffmpeg_dir: str | None = None
+    # ComfyUI's own folder (the one with main.py), when it can't be asked
+    comfyui_dir: str | None = None
     deployments: dict[str, str] = field(default_factory=dict)
     path: str | None = None          # the file these came from, if any
     # paid runs (Cloud, Router, a deployment) one server session may queue; None: no cap
@@ -77,6 +88,8 @@ class Settings:
         """The settings without the key itself (for listings and logs)."""
         return {"local_url": self.local_url, "comfyui_url": self.comfyui_url,
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
+                "hf_token": "set" if self.hf_token else None, "ffmpeg_dir": self.ffmpeg_dir,
+                "comfyui_dir": self.comfyui_dir,
                 "deployments": dict(self.deployments), "path": self.path,
                 "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts),
                 "target_limits": dict(self.target_limits), "local_via": self.local_via,
@@ -117,6 +130,9 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
                      or COMFYUI_URL).rstrip("/"),
         cloud_url=(env.get("SERIESMITH_CLOUD_URL") or data.get("cloud_url") or CLOUD_URL).rstrip("/"),
         api_key=env.get("COMFY_API_KEY") or data.get("api_key") or None,
+        hf_token=env.get("HF_TOKEN") or data.get("hf_token") or None,
+        ffmpeg_dir=data.get("ffmpeg_dir") or None,
+        comfyui_dir=data.get("comfyui_dir") or None,
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
         path=path,
         paid_limit=_paid_limit(data.get("paid_limit")),
@@ -143,10 +159,12 @@ def _paid_limit(v) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
-FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "deployments", "paid_limit",
+FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "hf_token", "ffmpeg_dir",
+          "comfyui_dir", "deployments", "paid_limit",
           "enabled_drafts", "target_limits", "local_via", "default_targets", "detected_targets")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
              "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY",
+             "hf_token": "HF_TOKEN",
              "local_via": "SERIESMITH_LOCAL_VIA"}
 
 
@@ -237,9 +255,14 @@ def save_settings(updates: dict, path: str | None = None) -> str:
         if not isinstance(v, str):
             raise ValueError(f"{k} must be text")
         v = v.strip()
-        if k != "api_key" and not v.startswith(("http://", "https://")):
+        if k in ("ffmpeg_dir", "comfyui_dir"):
+            if not os.path.isdir(v):
+                raise ValueError(f"{k}: {v} isn't a folder")
+            data[k] = os.path.abspath(v)
+            continue
+        if k not in ("api_key", "hf_token") and not v.startswith(("http://", "https://")):
             raise ValueError(f"{k}: a URL starting with http:// or https://")
-        data[k] = v.rstrip("/") if k != "api_key" else v
+        data[k] = v if k in ("api_key", "hf_token") else v.rstrip("/")
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:

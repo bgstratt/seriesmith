@@ -143,6 +143,12 @@ The other keys, most of them written by the editor rather than by hand:
 - `default_targets`: `{"video": id, "image": id}`, the models a series naming none
   renders on (Settings' **Video model** / **Picture model**); `detected_targets`: the
   ones found installed, written by seriesmith (**The default models**, above).
+- `hf_token`: a Hugging Face read token, for the gated downloads (LTX-2.5, FLUX) the
+  Features window makes; `HF_TOKEN` in the environment wins.
+- `ffmpeg_dir`: a folder holding your own ffmpeg and ffprobe, used before anything else
+  (`seriesmith/ff.py`).
+- `comfyui_dir`: ComfyUI's folder (the one with `main.py`), for the Features window to
+  install into when the standalone server can't ask ComfyUI (`/internal/folder_paths`).
 - `local_via`: `"comfyui"` (the default: local renders straight to ComfyUI) or
   `"proxy"` (through comfy-api-proxy at `local_url`, default `http://127.0.0.1:8189`).
 - `paid_limit`: how many paid runs one server session may queue (none: no cap).
@@ -157,6 +163,7 @@ the editor's project folders (`default/seriesmith/config.json`) and the queue's 
 show only goes in `<show>/targets/<id>/` instead.
 
 The environment wins over the file: `SERIESMITH_LOCAL_URL`,
-`SERIESMITH_COMFYUI_URL`, `SERIESMITH_CLOUD_URL`, `SERIESMITH_LOCAL_VIA`, `COMFY_API_KEY`;
+`SERIESMITH_COMFYUI_URL`, `SERIESMITH_CLOUD_URL`, `SERIESMITH_LOCAL_VIA`, `COMFY_API_KEY`,
+`HF_TOKEN`;
 `SERIESMITH_SETTINGS` names another file. These are this machine's settings;
 nothing here goes in the series config, which gets shared.

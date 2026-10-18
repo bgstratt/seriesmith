@@ -142,17 +142,25 @@ the first time, opens the editor at http://127.0.0.1:8190, and starts it again a
 the editor's **Restart**; `seriesmith stop [--restart]` stops it from a terminal. The
 default models are the ones you already have: H3, else LTX-2, else Wan 2.2 for video;
 Krea 2, else FLUX.2 Klein, ... for pictures (docs/SETUP.md, "The default models").
-The default MiniMax H3 targets also need the
-[ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes)
-pack (its `H3SLAAttention` node); INSTALL.md lists every pack and which target
-needs it, and every model file with its link (generated from the targets by
-`python tools/make_models_md.py`).
+Everything else is optional, and **Settings → Features…** installs it:
+- more models;
+- H3's sparse attention (the PlagueKind pack: H3 renders without it, marked degraded);
+- voices;
+- upscalers;
+- post-processing;
+- a full ffmpeg.
 
-**Requirements**, in short: Python 3.10+; a recent local
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) and an NVIDIA GPU that can
-hold the models you use (developed on a 32 GB card), or a Comfy API key and the
-cloud; `ffmpeg` and `ffprobe` on PATH; optionally `faster-whisper` and `numpy` for
-`align`, `demucs` for the `dub_keep_foley` foley bed.
+[docs/FULL_SETUP.md](docs/FULL_SETUP.md) lists it all by feature. INSTALL.md has every
+model file with its link, generated from the targets by `python tools/make_models_md.py`.
+
+**Requirements**, in short:
+- a recent local [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and an NVIDIA GPU
+  that can hold the models you use (developed on a 32 GB card), or a Comfy API key and
+  the cloud;
+- git;
+- Python 3.10+, only for the editor on its own page and the command line.
+
+ffmpeg comes with it (imageio-ffmpeg and PyAV), and your own wins if you have one.
 
 ## The editor
 

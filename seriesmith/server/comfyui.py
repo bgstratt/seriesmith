@@ -127,8 +127,10 @@ def start(server, settings=None, wait: float = 120.0):
             log.exception("seriesmith: picking up the last session's jobs failed")
     if wait:
         threading.Thread(target=when_up, daemon=True, name="seriesmith-start").start()
+    from seriesmith.server.features_views import feature_routes
     from seriesmith.server.queue_views import queue_routes
-    return make_context, queue_routes(settings, runner, lambda: True)
+    return make_context, (queue_routes(settings, runner, lambda: True)
+                          + feature_routes(settings, make_context, in_comfyui=True))
 
 
 def register_on_prompt_server() -> bool:
