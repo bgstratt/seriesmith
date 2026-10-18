@@ -43,6 +43,14 @@ class SkillBundleTest(unittest.TestCase):
                               capture_output=True, text=True, encoding="utf-8", env=env,
                               cwd=self.tmp, timeout=120)
 
+    def test_claude_ai_takes_its_front_matter(self):
+        # claude.ai refuses a SKILL.md whose description is over 1024 characters
+        with open(os.path.join(self.tmp, P.NAME, "SKILL.md"), encoding="utf-8") as fh:
+            head = fh.read().split("---")[1]
+        desc = next(ln for ln in head.splitlines() if ln.startswith("description: "))
+        self.assertLessEqual(len(desc[len("description: "):]), 1024)
+        self.assertIn(f"name: {P.NAME}", head)
+
     def test_the_bundle_carries_what_a_check_imports(self):
         pkg = os.path.join(self.tmp, P.NAME, "scripts", "seriesmith")
         for f in P.BUNDLE_FILES:

@@ -44,23 +44,22 @@ SOURCE = os.path.join(ROOT, "docs", "AUTHORING.md")
 BREAKDOWN = os.path.join(ROOT, "docs", "SCRIPT_CONVERSION.md")
 
 NAME = "seriesmith-episode-script"
+MAX_DESCRIPTION = 1024           # claude.ai's limit on a skill's description
 INSTRUCTIONS = "seriesmith-script.instructions.md"
 
 DESCRIPTION = (
     "Write episode scripts and series configs for seriesmith, the script-to-episode AI video "
-    "pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue lines, "
-    "who/with/size/dur/plate/camera/sound fields, target lines and first/last keyframe lines) "
-    "and the series config (series.json) of subjects, locations, voices, profiles and targets, "
-    "and the series' delivery (render size, upscale and master recipes, post-processing and "
-    "titles). "
-    "Shots render on a video target chosen per shot or episode, MiniMax H3 by default, or "
-    "LTX-2, Wan 2.2, Seedance and others, on a local ComfyUI or Comfy's cloud. Use it whenever "
-    "the user wants to write, draft, outline or extend an episode, start a series, break a "
-    "screenplay or scene into shots, adapt spec-format pages, add characters, props or location "
-    "angles to a series config, set up how a series is upscaled and mastered, choose which model "
-    "renders a shot, re-time shots whose dialogue doesn't fit, or "
-    "fix a script seriesmith check rejected, even if they never name seriesmith or the file "
-    "formats."
+    "pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, "
+    "who/with/size/dur/plate/camera/sound fields, target and first/last keyframe lines) and "
+    "the series config (series.json) of subjects, locations, voices, profiles and targets, "
+    "with the series' delivery (render size, upscale and master recipes, post, titles). Shots "
+    "render on a video target per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and "
+    "others) on a local ComfyUI or Comfy's cloud. Use it whenever the user wants to write, "
+    "outline or extend an episode, start a series, break a screenplay or scene into shots, "
+    "add characters, props or locations to a series config, set up how a series is upscaled "
+    "and mastered, choose which model renders a shot, re-time shots whose dialogue doesn't "
+    "fit, or fix a script seriesmith check rejected, even if they never name seriesmith or "
+    "the file formats."
 )
 
 PREAMBLE = """You are writing for seriesmith. Follow this format exactly: the output is compiled
@@ -147,6 +146,8 @@ def write(path: str, content: str) -> None:
 def skill_text(text: str, extra: str = "") -> str:
     # the frontmatter is YAML: an unquoted value can't hold ": "
     assert ": " not in DESCRIPTION and "#" not in DESCRIPTION, DESCRIPTION
+    # claude.ai refuses a skill whose description is longer
+    assert len(DESCRIPTION) <= MAX_DESCRIPTION, f"description is {len(DESCRIPTION)} characters, over {MAX_DESCRIPTION}"
     return ("---\n"
             f"name: {NAME}\n"
             f"description: {DESCRIPTION}\n"
