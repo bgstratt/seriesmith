@@ -380,7 +380,7 @@ def post_graph(job: PostJob) -> dict:
 # readiness
 # ---------------------------------------------------------------------------
 
-BASE_NODES = ("H3LoadTakeVideo", "H3SaveUpscale")
+BASE_NODES = ("SeriesmithLoadTakeVideo", "SeriesmithSaveUpscale")
 SUPIR_NODES = ("CheckpointLoaderSimple", "ModelPatchLoader", "RebatchImages", "SUPIRApply",
                "CLIPTextEncode", "VAEEncode", "KSampler", "VAEDecodeTiled", "SeriesmithFramesToBatch",
                "SeriesmithFinishUpscale")

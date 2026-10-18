@@ -35,6 +35,14 @@ from seriesmith.core.story import parse_story  # noqa: E402
 from test_api import ApiTest  # noqa: E402
 
 KITCHEN = os.path.join(HERE, "fixtures", "kitchen_sink")
+# the episode-folder nodes a finish graph is built with, as the backend runs them
+# (finishing.portable)
+RUNS_AS = {"H3LoadTakeLatent": "SeriesmithLoadTakeLatent", "H3LoadTakeVideo": "SeriesmithLoadTakeVideo",
+           "H3SaveUpscale": "SeriesmithSaveUpscale"}
+
+
+def runs_as(g: dict) -> set:
+    return {RUNS_AS.get(v["class_type"], v["class_type"]) for v in g.values()}
 
 # every built-in video target re-samples now; the tests of one that doesn't use
 # wan22_vace with its `upscale` block taken away (targets are cached by folder)
@@ -430,7 +438,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual(px["images"], ["up_video", 0])
         self.assertEqual(g["up_save"]["inputs"]["images"], ["up_pixels", 0])
         self.assertTrue(g["up_save"]["inputs"]["out_mp4"].endswith(".up.mp4"))
-        self.assertEqual({v["class_type"] for v in g.values()}, set(U.PIXEL_NODES))
+        self.assertEqual(runs_as(g), set(U.PIXEL_NODES))
 
     def test_detail_starts_earlier(self):
         t = self.final_take()
@@ -686,7 +694,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual((rec["mode"], rec["upscaler"]), ("pixel_refine", "RealESRGAN_x2.pth, then the target's own sampler"))
         self.assertEqual(U.plan_upscale(self.ep, t, route="latent").action, "error")
         # its readiness asks for the pixel pieces, and the model
-        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "VAEEncode", "H3SaveUpscale")}
+        info = {c: {"input": {}} for c in ("SeriesmithLoadTakeVideo", "SeriesmithPixelUpscale", "VAEEncode", "SeriesmithSaveUpscale")}
         info["UpscaleModelLoader"] = {"input": {"required": {"model_name": [["RealESRGAN_x2.pth"], {}]}}}
         self.assertEqual(U.not_ready([up], info), [])
         missing = U.not_ready([U.plan_upscale(self.ep, t, pixel_model="RealESRGAN_x4.pth")], info)
@@ -756,8 +764,8 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual(g[ref["image"][0]]["inputs"]["image"], "h3pipe/sh010_ref.png")
         self.assertEqual((g[vace]["inputs"]["width"], g[vace]["inputs"]["height"]), (1664, 960))
         self.assertTrue(self.by_class(g, "TrimVideoLatent"))
-        info = {c: {"input": {}} for c in ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader",
-                                           "VAEEncode", "H3SaveUpscale", "ImageScale")}
+        info = {c: {"input": {}} for c in ("SeriesmithLoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader",
+                                           "VAEEncode", "SeriesmithSaveUpscale", "ImageScale")}
         r = U.upscale_readiness(up.target, info)
         self.assertEqual(r["status"], "not_ready")
         self.assertIn("LatentConcat", r["missing"][0])
@@ -918,7 +926,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual((fin["images"], fin["source"], fin["grain"]), (["up_pixels", 0], ["up_video", 0], 0.02))
         self.assertEqual(g["up_save"]["inputs"]["images"], ["up_pixels_finish", 0])
         self.assertFalse(self.by_class(g, "UpscaleModelLoader"))
-        self.assertEqual({v["class_type"] for v in g.values()}, set(U.VSR_NODES) - {"ImageScale"})
+        self.assertEqual(runs_as(g), set(U.VSR_NODES) - {"ImageScale"})
         # a size 8 doesn't divide: made a little larger, then lanczos to it
         up = U.plan_upscale(self.ep, t, method="pixel", pixel_model="rtx_vsr:HIGHBITRATE_ULTRA",
                             deliver="1080p")

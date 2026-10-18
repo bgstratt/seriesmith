@@ -299,14 +299,16 @@ def upscaler_model(spec: dict) -> str | None:
             or ((u.get("model") or {}).get("inputs") or {}).get("model_name"))
 
 
-# the nodes an upscale graph adds to the target's (besides its upscaler)
-UPSCALE_NODES = ("H3LoadTakeLatent", "H3LoadTakeVideo", "SeriesmithHoldAudio", "H3SaveUpscale",
-                 "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "SplitSigmas", "VAEEncode",
+# the nodes an upscale graph adds to the target's (besides its upscaler), as the
+# backend runs them: the H3 loaders and saver the graphs are built with become
+# seriesmith's when the job starts (finishing.portable), so these name those
+UPSCALE_NODES = ("SeriesmithLoadTakeLatent", "SeriesmithLoadTakeVideo", "SeriesmithHoldAudio",
+                 "SeriesmithSaveUpscale", "LTXVSeparateAVLatent", "LTXVConcatAVLatent", "SplitSigmas", "VAEEncode",
                  "VAEEncodeAudio")
 AUDIO_ENCODE = {"class_type": "VAEEncodeAudio", "audio": "audio", "vae": "vae"}
 
 METHODS = ("latent", "pixel", "seedvr2")
-PIXEL_NODES = ("H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "H3SaveUpscale")
+PIXEL_NODES = ("SeriesmithLoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "SeriesmithSaveUpscale")
 
 # SeedVR2 (ByteDance, Apache 2.0), native in ComfyUI core: a one-step video
 # restoration model, any take, no prompt. Its files, as ComfyUI's own templates
@@ -321,9 +323,9 @@ SEEDVR2_DOWNLOADS = {
     "seedvr2_3b_int8_convrot.safetensors": ("diffusion_models", "https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_3b_int8_convrot.safetensors"),
 }
 SEEDVR2_SOURCE = "ComfyUI templates utility_seedvr2_3b_int8_upscale_video.json / utility_seedvr2_7b_int8_upscale_image.json (properties.models)"
-SEEDVR2_NODES = ("H3LoadTakeVideo", "ImageScale", "SeedVR2Preprocess", "VAEEncodeTiled",
+SEEDVR2_NODES = ("SeriesmithLoadTakeVideo", "ImageScale", "SeedVR2Preprocess", "VAEEncodeTiled",
                  "SeedVR2TemporalChunk", "SeedVR2Conditioning", "KSampler", "SeedVR2TemporalMerge",
-                 "VAEDecodeTiled", "SeedVR2PostProcessing", "SeriesmithFinishUpscale", "H3SaveUpscale",
+                 "VAEDecodeTiled", "SeedVR2PostProcessing", "SeriesmithFinishUpscale", "SeriesmithSaveUpscale",
                  "UNETLoader", "VAELoader")
 
 
@@ -370,7 +372,7 @@ MAX_SCALE = 4.0                         # the H3 latent upscaler's limit; the pi
 VSR = "rtx_vsr"
 VSR_NODE = "RTXVideoSuperResolution"
 VSR_OFFERED = (VSR, VSR + ":HIGHBITRATE_ULTRA")
-VSR_NODES = ("H3LoadTakeVideo", VSR_NODE, "ImageScale", "SeriesmithFinishUpscale", "H3SaveUpscale")
+VSR_NODES = ("SeriesmithLoadTakeVideo", VSR_NODE, "ImageScale", "SeriesmithFinishUpscale", "SeriesmithSaveUpscale")
 VSR_PACK = ("install Comfy-Org's Nvidia RTX Nodes pack (ComfyUI Manager: search \"RTX\"; "
             "an NVIDIA RTX card and its nvidia-vfx wheel)")
 
@@ -481,8 +483,8 @@ def upscale_readiness(target: "TG.Target", object_info: dict | None) -> dict | N
         need.append(spec["upsampler"]["class_type"])
     if spec.get("mode", RESAMPLE) == PIXEL_REFINE:
         # Wan: no latent, no audio; the pixel model's pieces instead
-        need = ["H3LoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "VAEEncode",
-                "H3SaveUpscale"]
+        need = ["SeriesmithLoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "VAEEncode",
+                "SeriesmithSaveUpscale"]
         if spec.get("reference"):
             need += ["ImageScale", "LatentConcat"]
     if spec.get("mode", RESAMPLE) == RESAMPLE and spec["upscaler"].get("model"):
