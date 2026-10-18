@@ -886,9 +886,10 @@
 .h3-card .h3-refs-used { gap: 8px; }
 .h3-card .h3-ru .h3-thumb { border-radius: 8px; }
 
-/* Jobs: a card per lane, a row per job */
+/* Jobs: a card per lane, a row per job; the cards keep their height (overflow:
+   hidden would let the column squeeze them) so the list scrolls instead */
 .sm-jobs { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-.sm-lane { background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow); overflow: hidden; }
+.sm-lane { flex: none; background: var(--h3-card); border: 1px solid var(--h3-card-border); border-radius: 14px; box-shadow: var(--h3-shadow); overflow: hidden; }
 .sm-lane > header { position: static; background: transparent; border-bottom: 1px solid var(--h3-border); padding: 9px 12px; }
 .sm-lane > header > b { font-family: var(--h3-serif); font-size: 15px; }
 .sm-job { padding: 8px 12px; border-bottom: 1px solid color-mix(in srgb, var(--h3-border) 60%, transparent); }
