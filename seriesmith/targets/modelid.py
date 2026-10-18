@@ -124,6 +124,12 @@ FAMILIES: dict[str, dict] = {
     # FLUX.3 Image Klein (targets/image/flux3_klein, flux3_klein_turbo)
     "flux3-klein": {"label": "FLUX.3 Image Klein"},
     "flux3-klein-distilled": {"label": "FLUX.3 Image Klein step-distilled (turbo)"},
+    # MOSS-Image (targets/image/moss_image_sft, moss_image_base): one architecture,
+    # the base and its supervised fine-tune, told apart by name
+    "moss-image": {"label": "MOSS-Image"},
+    "moss-image-base": {"label": "MOSS-Image Base", "parent": "moss-image", "names": ["*base*"]},
+    "moss-image-sft": {"label": "MOSS-Image SFT", "parent": "moss-image", "names": ["*sft*"]},
+    "qwen3.5-9b": {"label": "Qwen3.5 9B (MOSS-Image's text encoder)"},
     "flux1": {"label": "FLUX.1"},
     "flux1-dev": {"label": "FLUX.1 dev", "parent": "flux1"},
     "flux1-schnell": {"label": "FLUX.1 schnell", "parent": "flux1"},

@@ -691,6 +691,12 @@ no other node pack; the default models are the ones installed.
       gated (all of LTX-2.5, all of Black Forest Labs'). Tried for real into a
       scratch ComfyUI folder: RAFT downloaded, PlagueKind cloned (restart),
       gyan.dev's ffmpeg 9.0.2 downloaded and used first.
+- [x] MOSS-Image as two image targets (2026-10-18): `moss_image_sft` (the one
+      to draw with; default_rank 55, after FLUX.3 Klein) and `moss_image_base`
+      (for LoRAs trained on the base; never a default by itself). ComfyUI 0.41's
+      own support (CLIPLoader type moss_image, the FLUX.2 latent), the model
+      card's 50 steps, cfg 3, euler, shift 5; the int8 files by default, the
+      bf16 ones by family. Rendered on the RTX 5090: 28 s a 1024x1024 picture.
 - [ ] Tried on a fresh ComfyUI portable with only LTX-2's files: Simple mode
       defaults to LTX-2 and renders; then H3's files without the PlagueKind
       pack: H3 is the default, degraded, and renders.

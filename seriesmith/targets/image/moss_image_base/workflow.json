@@ -1,0 +1,141 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load diffusion model"
+  },
+  "inputs": {
+   "unet_name": "moss_image_base_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  }
+ },
+ "2": {
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Load text encoder"
+  },
+  "inputs": {
+   "clip_name": "qwen3.5_9b_int8_convrot.safetensors",
+   "type": "moss_image",
+   "device": "default"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE"
+  },
+  "inputs": {
+   "vae_name": "flux2-vae.safetensors"
+  }
+ },
+ "4": {
+  "class_type": "ModelSamplingAuraFlow",
+  "_meta": {
+   "title": "Model sampling (shift)"
+  },
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "shift": 5
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "Positive prompt"
+  },
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": ""
+  }
+ },
+ "6": {
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "Negative prompt"
+  },
+  "inputs": {
+   "clip": [
+    "2",
+    0
+   ],
+   "text": ""
+  }
+ },
+ "7": {
+  "class_type": "EmptyFlux2LatentImage",
+  "_meta": {
+   "title": "Image size"
+  },
+  "inputs": {
+   "width": 1024,
+   "height": 1024,
+   "batch_size": 1
+  }
+ },
+ "8": {
+  "class_type": "KSampler",
+  "_meta": {
+   "title": "KSampler"
+  },
+  "inputs": {
+   "model": [
+    "4",
+    0
+   ],
+   "positive": [
+    "5",
+    0
+   ],
+   "negative": [
+    "6",
+    0
+   ],
+   "latent_image": [
+    "7",
+    0
+   ],
+   "seed": 0,
+   "steps": 50,
+   "cfg": 3,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "denoise": 1
+  }
+ },
+ "9": {
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE decode"
+  },
+  "inputs": {
+   "samples": [
+    "8",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ]
+  }
+ },
+ "10": {
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "Save image"
+  },
+  "inputs": {
+   "images": [
+    "9",
+    0
+   ],
+   "filename_prefix": "seriesmith/refs"
+  }
+ }
+}

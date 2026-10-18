@@ -1,0 +1,187 @@
+{
+  "id": "moss_image_sft",
+  "kind": "image",
+  "label": "MOSS-Image SFT (text to image)",
+  "default_rank": 55,
+  "short": "MOSS",
+  "code": "target.py",
+  "capabilities": {
+    "_note": "Text to image only: no reference images. MOSS-Image (the supervised fine-tune of MOSS-Image-Base: the one to draw with (clearer text and layouts than the base, the model card's comparison)). Its layout prompts (boxes drawn in ComfyUI's Create Bounding Boxes, MOSSImageLayoutPrompt) aren't used: seriesmith writes the whole picture as one caption.",
+    "mode": "t2i",
+    "max_refs": 0
+  },
+  "template": {
+    "_note": "Sizes a series ref is generated at (as krea2's). The model card's own examples are 1024x1024; dimensions must be multiples of 16. A keyframe is generated at its shot's render size, scaled up (same aspect, multiples of size_multiple) to at least min_pixels.",
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ],
+    "size_multiple": 16,
+    "min_pixels": 786432
+  },
+  "recipe": {
+    "_note": "Series refs are worded as krea2 words them (targets/image/common.py). Keyframes: targets/image/common.py keyframe_prompt."
+  },
+  "binding": {
+    "_note": "An API graph after ComfyUI's MOSS-Image support (comfy/supported_models.py MOSSImage, 0.41): UNETLoader, CLIPLoader type moss_image (Qwen3.5 9B), FLUX.2's VAE and empty latent (MOSS-Image is a flow model on the FLUX.2 latent), ModelSamplingAuraFlow at the model's own shift 5, a positive and an empty negative CLIPTextEncode, KSampler euler/simple. The model card's negative-branch layer skipping (layer 22) is left out: an ordinary cfg pass instead. H3SaveRefTake takes the place of SaveImage; prune drops anything it doesn't need.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_moss_image_sft.json",
+    "env": "SERIESMITH_MOSS_IMAGE_SFT_WORKFLOW",
+    "saver": {
+      "class_type": "H3SaveRefTake",
+      "replace": {
+        "class_type": "SaveImage",
+        "inputs": {
+          "images": "images"
+        }
+      }
+    },
+    "prune": true,
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true,
+        "insert_after": {
+          "class_type": "UNETLoader",
+          "output": 0
+        }
+      },
+      "prompt": {
+        "class_type": "CLIPTextEncode",
+        "field": "text",
+        "title": "Positive prompt"
+      },
+      "negative": {
+        "class_type": "CLIPTextEncode",
+        "field": "text",
+        "title": "Negative prompt"
+      },
+      "width": {
+        "class_type": "EmptyFlux2LatentImage",
+        "field": "width"
+      },
+      "height": {
+        "class_type": "EmptyFlux2LatentImage",
+        "field": "height"
+      },
+      "steps": {
+        "class_type": "KSampler",
+        "field": "steps"
+      },
+      "seed": {
+        "class_type": "KSampler",
+        "field": "seed"
+      },
+      "cfg": {
+        "class_type": "KSampler",
+        "field": "cfg"
+      },
+      "sampler": {
+        "class_type": "KSampler",
+        "field": "sampler_name"
+      },
+      "scheduler": {
+        "class_type": "KSampler",
+        "field": "scheduler"
+      },
+      "shift": {
+        "class_type": "ModelSamplingAuraFlow",
+        "field": "shift"
+      }
+    }
+  },
+  "models": {
+    "_note": "Name-based identification only: no header fingerprint is recorded for MOSS-Image yet (targets/modelid.py). Base and SFT share their architecture and are told apart by name (moss-image-sft); the base is excluded so it never stands in. The bf16 copy of the same model resolves by family. The text encoder is Qwen3.5 9B (int8 here; its bf16 and w4a8 copies count too); the VAE is FLUX.2's.",
+    "model": {
+      "family": "moss-image-sft",
+      "patterns": [
+        "moss_image_sft*",
+        "*moss*image*sft*"
+      ],
+      "tier": "required",
+      "exclude": [
+        "*base*",
+        "*lora*"
+      ]
+    },
+    "text_encoder": {
+      "family": "qwen3.5-9b",
+      "patterns": [
+        "qwen3.5_9b*",
+        "*qwen3.5*9b*",
+        "*qwen3_5*9b*"
+      ],
+      "tier": "required"
+    },
+    "vae": {
+      "family": "flux2-vae",
+      "patterns": [
+        "flux2-vae*",
+        "full_encoder_small_decoder*",
+        "*flux*2*vae*"
+      ],
+      "tier": "required"
+    }
+  },
+  "presets": {
+    "_note": "The model card's defaults: 50 steps, cfg 3, flow-matching Euler (euler/simple), shift 5, an empty negative prompt.",
+    "final": {
+      "model": "moss_image_sft_int8_convrot.safetensors",
+      "text_encoder": "qwen3.5_9b_int8_convrot.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "lora": "",
+      "steps": 50,
+      "cfg": 3.0,
+      "sampler": "euler",
+      "scheduler": "simple",
+      "shift": 5,
+      "negative": ""
+    }
+  },
+  "downloads": {
+    "_note": "Comfy-Org's repackaging (Apache 2.0, not gated). The repo also has bf16 copies of each model (twice the size) and bf16 / w4a8 copies of the text encoder; the int8 ones are the default here, and the others resolve by family.",
+    "moss_image_sft_int8_convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/MOSS-Image (ComfyUI's repackaging; file names checked 2026-10-18)"
+    },
+    "moss_image_sft_bf16.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_bf16.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/MOSS-Image (ComfyUI's repackaging; file names checked 2026-10-18): the same model at bf16, resolved by family"
+    },
+    "qwen3.5_9b_int8_convrot.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_int8_convrot.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/MOSS-Image (ComfyUI's repackaging; file names checked 2026-10-18)"
+    },
+    "flux2-vae.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
+      "source": "ComfyUI template image_flux2_klein_9b_kv_image_edit.json (properties.models); Comfy-Org/MOSS-Image carries the same file"
+    }
+  }
+}

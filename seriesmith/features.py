@@ -213,6 +213,10 @@ def catalog() -> list[Feature]:
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
+        target_feature("pictures.moss_image_sft", "pictures", "moss_image_sft", "MOSS-Image SFT",
+                       "Text to image, strong on lettering and layout (Apache 2.0). 50 steps."),
+        target_feature("pictures.moss_image_base", "pictures", "moss_image_base", "MOSS-Image Base",
+                       "The base MOSS-Image the SFT is tuned from: for LoRAs trained on it, and comparing."),
         Feature("h3.sparse_attention", "h3", "H3 sparse attention",
                 "ComfyUI-PlagueKind-Nodes: the attention H3's turbo LoRAs were trained with. "
                 "Without it H3 renders without it (degraded). The location tours need it.",
