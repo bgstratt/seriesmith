@@ -716,6 +716,7 @@ The target picker sets which image model generates. They are not interchangeable
 |---|---|---|
 | `krea2` | No | Text to image. The default, and it holds a character across four views well because they share one seed |
 | `z_image_turbo`, `flux2_klein` | No | Text to image |
+| `moss_image_sft`, `moss_image_base` | No | MOSS-Image: text to image, good with lettering and layout; the SFT is the one to draw with, the base is for LoRAs trained on it |
 | `flux_kontext` | One | The only edit target that takes a negative prompt |
 | `flux2_klein_edit` | Up to 4 | The default for keyframes when installed |
 | `minimax_h3_still` | Up to 9 | The video model rendering 5 frames and keeping the first |

@@ -56,6 +56,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "flux3_klein"), ("image", "flux3_klein_turbo"),
                                ("image", "minimax_h3_still"), ("image", "qwen_image_21"),
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
+                               ("image", "moss_image_sft"), ("image", "moss_image_base"),
                                ("image", "krea_2_router"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
@@ -419,6 +420,7 @@ class TargetsRouteTest(ApiTest):
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "flux3_klein", "flux3_klein_turbo",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
+                                   "moss_image_sft", "moss_image_base",
                                    "klein_erp_360", "ltx2_voice", "seedance_2_5", "krea_2_router"})
         for tid, label, short in (("wan22_i2v", "Wan 2.2 14B I2V", "Wan I2V"),
                                   ("wan22_ti2v", "Wan 2.2 5B TI2V", "Wan 5B"),
@@ -478,7 +480,8 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual([t["id"] for t in images if t["id"] not in ROUTER],
                          ["flux2_klein", "flux2_klein_edit", "flux3_klein", "flux3_klein_turbo",
                           "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
-                          "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio", "z_image_turbo"])
+                          "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
+                          "qwen_rapid_aio", "z_image_turbo"])
         # seriesmith's fields (where a job runs, whether it repeats) are the same
         # for every workflow target (test_capabilities); h3pipe's are compared here
         for t in images:
@@ -493,6 +496,9 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual(caps["flux_kontext"],
                          {"mode": "edit", "max_refs": 1, "negative_prompt": True})
         self.assertEqual(caps["z_image_turbo"]["mode"], "t2i")
+        # MOSS-Image: text to image, with a live negative (cfg 3)
+        for tid in ("moss_image_sft", "moss_image_base"):
+            self.assertEqual(caps[tid], {"mode": "t2i", "max_refs": 0, "negative_prompt": True})
         # FLUX.3 Klein: one graph, both jobs; only the base has a live negative
         self.assertEqual(caps["flux3_klein"],
                          {"mode": "edit", "max_refs": 10, "negative_prompt": True})

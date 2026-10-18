@@ -36,7 +36,7 @@ OBJECT_INFO_WAN = json.load(open(os.path.join(HERE, "fixtures", "workflows",
 OBJECT_INFO_LTX = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                               "object_info_ltx.json"), encoding="utf-8"))
 IMAGE_TARGETS = ("z_image_turbo", "flux2_klein", "flux2_klein_edit", "flux_kontext",
-                 "flux3_klein", "flux3_klein_turbo")
+                 "flux3_klein", "flux3_klein_turbo", "moss_image_sft", "moss_image_base")
 COMFY_MODELS = os.environ.get("COMFYUI_MODELS", r"C:\AI\ComfyUI\ComfyUI\models")
 
 _BUILT: dict = {}

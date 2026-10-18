@@ -279,6 +279,8 @@ workflows (`<ComfyUI>/user/default/workflows/`):
 | `wan22_vace` | `seriesmith_wan22_14b_vace.json` | `$SERIESMITH_WAN22_VACE_WORKFLOW` |
 | `krea2` | `krea2_refs_t2i.json` | `$KREA_WORKFLOW` |
 | `z_image_turbo` | `seriesmith_z_image_turbo.json` | `$SERIESMITH_Z_IMAGE_TURBO_WORKFLOW` |
+| `moss_image_sft` | `seriesmith_moss_image_sft.json` | `$SERIESMITH_MOSS_IMAGE_SFT_WORKFLOW` |
+| `moss_image_base` | `seriesmith_moss_image_base.json` | `$SERIESMITH_MOSS_IMAGE_BASE_WORKFLOW` |
 | `flux2_klein` | `seriesmith_flux2_klein_t2i.json` | `$SERIESMITH_FLUX2_KLEIN_WORKFLOW` |
 | `flux2_klein_edit` | `seriesmith_flux2_klein_edit.json` | `$SERIESMITH_FLUX2_KLEIN_EDIT_WORKFLOW` |
 | `flux_kontext` | `seriesmith_flux_kontext.json` | `$SERIESMITH_FLUX_KONTEXT_WORKFLOW` |
@@ -570,7 +572,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `flux2-vae.safetensors` | `models/vae/` | required | `flux2_klein_edit`, `flux3_klein`, `flux3_klein_turbo`, `klein_erp_360` | [Comfy-Org/flux2-dev](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| `flux2-vae.safetensors` | `models/vae/` | required | `flux2_klein_edit`, `flux3_klein`, `flux3_klein_turbo`, `klein_erp_360`, `moss_image_base`, `moss_image_sft` | [Comfy-Org/flux2-dev](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
 | `full_encoder_small_decoder.safetensors` | `models/vae/` | required | `flux2_klein` | [black-forest-labs/FLUX.2-small-decoder](https://huggingface.co/black-forest-labs/FLUX.2-small-decoder/resolve/main/full_encoder_small_decoder.safetensors) |
 
 **FLUX.3 Image Klein** (`flux3-klein`)
@@ -627,6 +629,24 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `krea2_turbo_fp8_scaled.safetensors` | `models/diffusion_models/` | required | `krea2` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors) |
+
+**MOSS-Image Base** (`moss-image-base`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `moss_image_base_int8_convrot.safetensors` | `models/diffusion_models/` | required | `moss_image_base` | [Comfy-Org/MOSS-Image](https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_base_int8_convrot.safetensors) |
+
+**Qwen3.5 9B (MOSS-Image's text encoder)** (`qwen3.5-9b`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `qwen3.5_9b_int8_convrot.safetensors` | `models/text_encoders/` | required | `moss_image_base`, `moss_image_sft` | [Comfy-Org/MOSS-Image](https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/text_encoders/qwen3.5_9b_int8_convrot.safetensors) |
+
+**MOSS-Image SFT** (`moss-image-sft`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `moss_image_sft_int8_convrot.safetensors` | `models/diffusion_models/` | required | `moss_image_sft` | [Comfy-Org/MOSS-Image](https://huggingface.co/Comfy-Org/MOSS-Image/resolve/main/diffusion_models/moss_image_sft_int8_convrot.safetensors) |
 
 **Qwen-Image 2.1** (`qwen-image-2.1`)
 
