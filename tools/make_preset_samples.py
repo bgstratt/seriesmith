@@ -103,7 +103,8 @@ def moves_episode(work: str, presets: list[dict]) -> tuple[str, dict]:
         sm = p.get("sample") or {}
         move = sm.get("camera") or (p["move"] if p["id"] in MOVE_AS_SAID else p["move"] + " with large amplitude")
         size = sm.get("size", "wide")       # None: no size line (a POV shot says so in its action)
-        lines += [f"## {shots[p['id']]}", *([f"size: {size}"] if size else []), f"dur: {sm.get('dur', MOVE_SECONDS)}",
+        lines += [f"## {shots[p['id']]}", *([f"size: {size}"] if size else []),
+                  *([f"plate: {sm['location']}"] if sm.get("location") else []), f"dur: {sm.get('dur', MOVE_SECONDS)}",
                   sm.get("action", MOVE_ACTION), f"camera: {move}",
                   "sound: a quiet city street, distant traffic", ""]
     os.makedirs(ep, exist_ok=True)
@@ -114,6 +115,12 @@ def moves_episode(work: str, presets: list[dict]) -> tuple[str, dict]:
     cfg.setdefault("style", {})["look"] = look_text(BASE_LOOK)
     # what the plate shows, with room for the woman the action brings in
     cfg["locations"]["porch"]["description"] = BASE_PLACE.replace(", no people", "")
+    # a sample's own place (camera.json `location`): its plate drawn from `plate` (moves_plates)
+    for p in presets:
+        sm = p.get("sample") or {}
+        if sm.get("location"):
+            cfg["locations"][sm["location"]] = {"description": sm["plate"],
+                                                "plate": f"../refs/_bg/{sm['location']}.png"}
     series = json.dumps(cfg, indent=2)
     script = os.path.join(work, "moves.md")
     text = "\n".join(lines)
@@ -284,6 +291,14 @@ def main(argv=None) -> int:
             if not mk.generate(PLATE, None, f"{look_text(BASE_LOOK)}. {BASE_PLACE}", args.look_target, pick=True):
                 return 1
         mep, shots = moves_episode(os.path.dirname(ep), PR._load("camera"))
+        for p in moves:
+            sm = p.get("sample") or {}
+            loc = sm.get("location")
+            if loc and not os.path.isfile(os.path.join(os.path.dirname(ep), "refs", "_bg", f"{loc}.png")):
+                print(f"plate {loc}")
+                if not Maker(args, R.load_series(mep)).generate(
+                        f"location:{loc}", None, f"{look_text(BASE_LOOK)}. {sm['plate']}", args.look_target, pick=True):
+                    return 1
         only_shots = ",".join(shots[p["id"]] for p in moves)
         cmd = [sys.executable, "-m", "seriesmith", "render", mep, "--only", only_shots]
         if args.redo:

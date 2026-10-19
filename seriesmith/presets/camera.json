@@ -1,5 +1,5 @@
 {
-  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model). A sample is drawn the way the H3 prompt guide writes motion (the move, its amplitude and speed, and what it travels toward or reveals): `sample` gives its camera line, and the framing (`size`) and action it starts from when the defaults (wide; the woman by the bench) don't suit the move. The tile still hands over the plain move A big move over three seconds flickers on H3 (every fourth frame: its latents), so a sample can run longer (`dur`) at a smaller amplitude.",
+  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model). A sample is drawn the way the H3 prompt guide writes motion (the move, its amplitude and speed, and what it travels toward or reveals): `sample` gives its camera line, and the framing (`size`) and action it starts from when the defaults (wide; the woman by the bench) don't suit the move. The tile still hands over the plain move A big move over three seconds flickers on H3 (every fourth frame: its latents), so a sample can run longer (`dur`) at a smaller amplitude `base`: rendered on H3's base preset (20 steps, no turbo LoRA, no SLA attention), which makes a big move whole where the turbo leaves it faint or flickering; `location` and `plate`: a place of its own for the sample (a POV wants a long view ahead), its plate drawn from `plate`.",
   "presets": [
     {
       "id": "static",
@@ -21,7 +21,8 @@
       "sample": {
         "size": "medium",
         "camera": "pulls out with large amplitude at slow speed, revealing the whole street, the cafe and the bench around her",
-        "action": "It opens close on a woman in a red wool coat, her face and shoulders filling the frame, as she waits by the bench outside the cafe."
+        "action": "It opens close on a woman in a red wool coat, her face and shoulders filling the frame, as she waits by the bench outside the cafe.",
+        "base": true
       }
     },
     {
@@ -43,7 +44,8 @@
       "move": "pans left",
       "sample": {
         "dur": 5,
-        "camera": "pans left at slow speed from the cafe front along the street, revealing the row of houses beyond"
+        "camera": "pans left at slow speed from the cafe front along the street, revealing the row of houses beyond",
+        "base": true
       }
     },
     {
@@ -68,7 +70,8 @@
       "group": "pivot",
       "move": "tilts down",
       "sample": {
-        "camera": "tilts down with large amplitude at slow speed from the rooftops and the evening sky down to her standing by the bench"
+        "camera": "tilts down with large amplitude at slow speed from the rooftops and the evening sky down to her standing by the bench",
+        "base": true
       }
     },
     {
@@ -128,10 +131,13 @@
       "group": "orbit",
       "move": "takes the subject's POV",
       "sample": {
-        "size": null,
+        "size": "pov",
         "dur": 5,
-        "action": "Seen through someone's own eyes as they walk along the wet street toward the cafe door: no one stands in front of the camera; only their own hand, in a red wool sleeve, rises into the bottom of the frame and reaches for the brass door handle.",
-        "camera": "moves forward at walking pace, bobbing gently, as if carried by the person walking"
+        "base": true,
+        "location": "pov_street",
+        "plate": "A long narrow cobbled street at dusk seen at eye level from the middle of the street, looking straight down its length to a vanishing point, wet cobbles shining, shop windows and cafe fronts glowing warm on both sides, street lamps lit, no people",
+        "action": "Walking down the middle of the wet cobbled street, seen through her own eyes: the street stretches ahead to a vanishing point, shop windows glowing on both sides slide past; no one stands in front of the camera.",
+        "camera": "moves forward at walking pace down the middle of the street, bobbing gently with each step"
       }
     },
     {
