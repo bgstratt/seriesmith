@@ -12,7 +12,7 @@ import type { PresetList } from "../src/types";
 setApi({ presetImageUrl: (name: string) => `/seriesmith/presets/image?name=${name}` } as unknown as Api);
 
 const PRESETS: PresetList = {
-  relight: [], look: [],
+  relight: [], look: [], look_builder: [],
   framing: [{ id: "cu", label: "Close-up", group: "close", hint: "the face", image: "framing/cu.jpg" }],
   camera: [
     { id: "push_in", label: "Push in", group: "dolly", move: "pushes in", image: "camera/push_in.mp4" },

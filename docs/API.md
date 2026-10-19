@@ -3905,7 +3905,7 @@ What the editor offers to pick from, each preset filling a text that stays edita
 (`seriesmith/presets/`: `relight.json`, `look.json`, and their sample pictures under `img/`,
 made by `tools/make_preset_samples.py`).
 
-### `GET /seriesmith/presets[?kind=relight|look|framing|camera]`
+### `GET /seriesmith/presets[?kind=relight|look|framing|camera|look_builder]`
 ```json
 {"relight": [{"id": "rain", "label": "Rain", "group": "weather", "for": ["place", "subject"],
               "texts": {"place": "Change only the weather: it is raining steadily, …",
@@ -3919,7 +3919,13 @@ made by `tools/make_preset_samples.py`).
   plate, `subject` for a character's view or a prop (`for` lists the ones it has; the portrait
   lights are `subject` only). It goes to `POST /seriesmith/refs/generate` as the `prompt` of an
   `edit`, like any instruction.
-- A look's `text` is a `style.look` line.
+- A look's `text` is a `style.look` line, and its `parts` the same look in the look builder's
+  rows (`{"medium": "live_action", "lens": "anamorphic", …}`).
+- `look_builder` (the series form's): the rows, in order, each `{"id", "label", "camera_row",
+  "options": [{"id", "label", "clause", "drawn"?, "image"?}]}`. The line is the medium's clause
+  then each picked row's, joined by semicolons; a `drawn` medium leaves out the `camera_row`
+  rows (`presets.compose_look`, and the editor's `lib/lookBuilder.ts` alike). The picks are
+  kept in the series config's `style.look_parts`.
 - `framing` (the shot form's): `{"id": "cu", "label": "Close-up", "group": "close", "hint":
   "the face", "image": "framing/cu.jpg"}`; the `id` is the `size:` value.
 - `camera` (the shot form's): `{"id": "push_in", "label": "Push in", "group": "dolly", "move":

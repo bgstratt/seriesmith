@@ -930,6 +930,10 @@ depth of field with the background falling into soft bokeh, low-key light from t
 lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine
 film grain"*.
 
+The editor's look builder (Series settings, the new-series wizard) writes such a line from
+its parts (medium, camera, lens, film, light, grade) and keeps its picks beside it in
+`style.look_parts`; only `style.look` reaches a prompt.
+
 Each clause is something the model can see: shallow focus and bokeh separate the subject
 from the room and soften what the model draws worst, low-key practical light gives the frame
 contrast and shape, and grain gives the image the texture of film. Keep it to one sentence;

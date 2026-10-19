@@ -819,8 +819,15 @@ shown as pictures, each filling a text that stays editable.
       1:16, without 2:02; both moves whole (first-to-last change 83 / 82); largest
       frame-to-frame jump 13.2 with, 2.6 without. So SLA stays on the full model unless a
       shot wants every frame smooth.
-- [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
-      each option a sample picture; a per-shot lens beside framing, if it earns its place.
+- [x] The look builder (2026-10-19): `presets/look_builder.json`, six rows (medium, camera,
+      lens, film, light, grade), each option a clause of the brief and a sample picture (the
+      looks' scene in a live-action base with only that option set). `compose_look` (and
+      `lib/lookBuilder.ts`, the same strings tested on both sides) joins the medium and the
+      picks by semicolons, a drawn medium folding the camera rows away. The 13 look presets
+      carry `parts`, so one sets the rows. Series settings and the wizard: **Build the look**;
+      the picks in `style.look_parts`, rewriting the line only while it's theirs.
+- [ ] Maybe: a per-shot lens beside framing, if it earns its place (shallow focus is a lens
+      option, so it can be set series-wide and changed per shot in the action).
 
 ## Step 15 — models behind other APIs (next)
 
