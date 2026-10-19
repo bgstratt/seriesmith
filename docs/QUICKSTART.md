@@ -1,8 +1,8 @@
 # The thirty-second install
 
-seriesmith runs inside the ComfyUI you already have. It uses the models you already have
-in it. You don't install anything into ComfyUI's Python, you don't need other node packs,
-and you don't need ffmpeg.
+seriesmith can run inside the ComfyUI you already have. It uses the models you already have
+in it. You don't have to install anything into ComfyUI's Python, you don't need other node packs,
+and you don't need ffmpeg to get started, but they do help later.
 
 You need:
 
