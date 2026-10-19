@@ -811,6 +811,11 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
             master = (s.series_cfg.get("locations") or {}).get(e["of"]) or {}
             word = ((target.recipe.get("ref_word") if target is not None else None)
                     or "reference image")
+            if e.get("relight"):
+                # a relit version: the source's plate under another light
+                from seriesmith.relight import instruction
+                from seriesmith.targets.image.common import edit_prompt
+                return edit_prompt(instruction(e["relight"]), refs[:1], word)
             return angle_prompt(s.look, e["description"], e["of"].replace("_", " "),
                                 master.get("description", ""), word)
         return plate_prompt(s.look, e["description"])
@@ -4117,6 +4122,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         # and that name goes into every prompt), so the listing says whose
         # variant it is rather than inventing a second name for them
         "of": ref.entry.get("of") or None,
+        "relight": ref.entry.get("relight") or None,
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,
         "used_by": (usage or {}).get(ref.id) or {p: [] for p in T.PASSES},

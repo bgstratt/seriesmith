@@ -31,7 +31,8 @@
       {"id": "wide", "label": "Wide", "clause": "wide-angle lenses: deep focus, the space stretched around the subject"},
       {"id": "long", "label": "Long", "clause": "long lenses: compressed depth, the background pulled close and soft"},
       {"id": "shallow", "label": "Shallow focus", "clause": "shallow depth of field: the subject sharp, the background falling into soft bokeh"},
-      {"id": "tilt_shift", "label": "Tilt-shift", "clause": "tilt-shift lenses: a thin plane of focus that makes the world look miniature"}
+      {"id": "tilt_shift", "label": "Tilt-shift", "clause": "tilt-shift lenses: a thin plane of focus that makes the world look miniature"},
+      {"id": "deep", "label": "Deep focus", "clause": "deep focus: everything sharp from the foreground to the far distance"}
     ]},
     {"id": "film", "label": "Film / sensor", "camera_row": true, "options": [
       {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm practicals against cool shadows, visible grain"},

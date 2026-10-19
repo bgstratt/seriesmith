@@ -45,6 +45,12 @@ inherited -- an angle has its own `description` and `plate`, and a shot still
 names it with `plate:` -- but an edit target generates its plate from the
 master's, so every angle is visibly the same place (refs.angle_reference_images),
 and the editor lists the angles under their master.
+
+A location with `of:` and `relight: <preset id or instruction>` is a **relit**
+version of it: the same view under another light (the porch at dusk). An edit
+target generates its plate as an edit of the source's plate with that relight
+(refs.built_prompt); a sequence relight writes them (seriesmith.relight). A
+relit location may be of an angle; nothing is of a relit one.
 """
 
 from __future__ import annotations
@@ -101,9 +107,17 @@ def _check_continuous(cfg: dict) -> None:
 
 
 def _check_angles(locations: dict) -> None:
-    """A location's `of` names another location, which is not itself an angle."""
+    """A location's `of` names another location, which is not itself an angle
+    (a relit one's may be an angle, but not another relit one)."""
     for lid, e in locations.items():
         of = e.get("of")
+        relight = e.get("relight")
+        if relight is not None and (not isinstance(relight, str) or not relight.strip()):
+            raise ValueError(f"location '{lid}' has `relight: {relight!r}`: a relight preset "
+                             f"id or the instruction, as text")
+        if relight is not None and of is None:
+            raise ValueError(f"location '{lid}' has `relight` but no `of`: `of` names the "
+                             f"location it is a relit version of")
         if of is None:
             continue
         if not isinstance(of, str) or not of:
@@ -116,15 +130,24 @@ def _check_angles(locations: dict) -> None:
         if master is None:
             raise ValueError(f"location '{lid}' has `of: {of}`, which is not a location in "
                              f"series.json")
-        if master.get("of"):
+        if master.get("relight"):
+            raise ValueError(f"location '{lid}' is of '{of}', which is itself relit "
+                             f"(of '{master['of']}'): name '{master['of']}'")
+        if master.get("of") and not relight:
             raise ValueError(f"location '{lid}' is an angle of '{of}', which is itself an angle "
                              f"(of '{master['of']}'): name the master, '{master['of']}'")
 
 
 def location_master(series_cfg: dict, lid: str) -> str:
-    """The location an angle is of (`of`), or the location itself."""
-    e = (series_cfg.get("locations") or {}).get(lid) or {}
-    return e.get("of") or lid
+    """The location an angle is of (`of`), or the location itself; a relit
+    angle's is its angle's."""
+    locs = series_cfg.get("locations") or {}
+    for _ in range(2):
+        of = (locs.get(lid) or {}).get("of")
+        if not of:
+            break
+        lid = of
+    return lid
 
 
 MAX_MEMBERS = 12            # past this it is a crowd: write it as `extras:` or put it in the plate

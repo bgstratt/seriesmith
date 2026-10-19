@@ -981,6 +981,25 @@ angles of it:
   On a text-to-image model (Krea 2) it is drawn from its words as before.
 - The Refs tab lists the angles under their master.
 - An angle's master must be a location that isn't itself an angle.
+
+**A relit plate is a location too.** The same view under another light (the street at dusk
+for a flashback, the porch at night) is a location with `of:` and `relight:`, a relight
+preset's id (`dusk`, `night`, `rain`, `neon`…: the editor's Relight pictures) or the
+instruction in your own words:
+
+```json
+"street_dusk": {"name": "Street (Dusk)", "of": "street", "relight": "dusk",
+                "description": "a wet night street ... It is dusk, a deep blue evening sky ...",
+                "plate": "../refs/_bg/street_dusk.png"}
+```
+
+- On an edit model its plate is made **from the source's plate** with that relight: the
+  same place, only the light changed. Its description should carry the new light, since
+  shots read it.
+- Name it like any location: `# sq04 street_dusk`, or `plate: street_dusk` on a shot.
+- The source may be an angle; a relit plate's source can't itself be relit.
+- The editor writes these for you: **Relight…** on a sequence's header relights every
+  plate the sequence uses in one go and can point the sequence at them.
 - The Refs tab can also make an angle's picture from the master's plate in two other ways:
   a **360 panorama** of it (Make 360), whose viewer saves any view you turn to; or an H3
   **camera tour** through it, whose held frames (and any frame you stop on) become
@@ -1196,6 +1215,7 @@ sound: running footsteps on grass, fabric movement
 | `retention: partially_copy` | how closely a dubbed shot copies the recording: `fully_copy`, `partially_copy` or `reference` (H3 Ref2VA; dub shots only) |
 | `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none: where the pass's LoRA is a turbo (H3's), that renders the full model, the pass's base preset (20 steps, `res_multistep` on H3); a shot's own `steps:` still wins |
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
+| `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |

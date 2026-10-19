@@ -112,3 +112,12 @@ describe("a shot's lora: line", () => {
     expect(loraLine("", "0.5")).toBe("");
   });
 });
+
+describe("a shot's lens", () => {
+  it("is written after the framing, and read back", () => {
+    const f = parseShot(["## sh010", "size: ms", "dur: 3", "Ada waits."]);
+    f.keys.lens = "shallow";
+    expect(writeShot(f)).toEqual(["## sh010", "size: ms", "lens: shallow", "dur: 3", "Ada waits."]);
+    expect(parseShot(writeShot(f)).keys.lens).toBe("shallow");
+  });
+});

@@ -135,6 +135,11 @@ export interface MasterAsk {
   pass: Pass;
 }
 
+/** the sequence relight dialog: the sequence whose plates it relights */
+export interface RelightAsk {
+  sequence: string;
+}
+
 /** Phase 13: the Upscale dialog's subject: named takes of a pass, or that pass's whole cut. */
 export interface UpscaleAsk {
   title: string;
@@ -311,6 +316,7 @@ export interface AppState {
   upscaleAsk: UpscaleAsk | null;
   postAsk: PostAsk | null;
   masterAsk: MasterAsk | null;
+  relightAsk: RelightAsk | null;
   /** the episode's master job: being assembled, or the last one (null: none known) */
   masterJob: MasterJob | null;
   /** refs by episode (GET /seriesmith/refs) */
@@ -480,6 +486,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     upscaleAsk: null,
     postAsk: null,
     masterAsk: null,
+    relightAsk: null,
     masterJob: null,
     refs: {},
     refsError: {},
