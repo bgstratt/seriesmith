@@ -19,6 +19,7 @@ JPEG). A sample already made is skipped unless --redo.
     python tools/make_preset_samples.py --work C:/tmp/presets --only look
     python tools/make_preset_samples.py --work C:/tmp/presets --only relight --edit-target flux_kontext
     python tools/make_preset_samples.py --work C:/tmp/presets --only neon,rain --redo
+    python tools/make_preset_samples.py --work C:/tmp/presets --only night:subject --redo --edit-target flux2_klein_edit
 
 Writes seriesmith/presets/img/{look,relight}/*.jpg (commit them).
 """
@@ -115,7 +116,7 @@ class Maker:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--work", required=True, help="the scratch folder (kept: its takes, a rerun's start)")
-    ap.add_argument("--only", default="", help="look, relight, or preset ids (comma-separated)")
+    ap.add_argument("--only", default="", help="look, relight, or preset ids, a relight's one wording as id:place or id:subject (comma-separated)")
     ap.add_argument("--redo", action="store_true", help="make samples that are already made again")
     ap.add_argument("--look-target", default="krea2", help="the image model the looks are drawn on")
     ap.add_argument("--edit-target", default="flux_kontext", help="the edit model the relights run on")
@@ -148,9 +149,11 @@ def main(argv=None) -> int:
         print(f"look {p['id']}")
         keep(mk.generate(PLATE, None, f"{p['text']}. {LOOK_SCENE}", args.look_target), name)
 
-    relights = [p for p in PR._load("relight") if want("relight", p["id"])]
+    relights = [p for p in PR._load("relight") if want("relight", p["id"])
+                or any(o.startswith(p["id"] + ":") for o in only)]
     todo = [(p, w) for p in relights for w in ("place", "subject")
-            if p.get(w) and (args.redo or not PR.image_path(PR.image_name("relight", p["id"], w)))]
+            if p.get(w) and (not only or "relight" in only or p["id"] in only or f"{p['id']}:{w}" in only)
+            and (args.redo or not PR.image_path(PR.image_name("relight", p["id"], w)))]
     if todo:
         base = look_text(BASE_LOOK)
         if any(w == "place" for _, w in todo):

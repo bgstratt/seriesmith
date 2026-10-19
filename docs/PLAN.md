@@ -773,7 +773,12 @@ shown as pictures, each filling a text that stays editable.
 - [x] `tools/make_preset_samples.py`: the sample pictures rendered with seriesmith itself on
       a scratch episode (the starter): each look on one scene, each relight on a base plate
       and a base figure through an edit model; small JPEGs in `presets/img/`.
-- [ ] Render the samples (a running ComfyUI, or `--backend cloud`) and commit them.
+- [x] The samples rendered on this machine (2026-10-19): looks on Krea 2, relights on FLUX
+      Kontext; nine wordings rewritten after the first pass, where Kontext crushed a night to
+      black or recoloured a figure (a relight now names something visibly lit, and a figure's
+      keeps its hair and clothes' colors). Four (night, moonlight and top light on the figure,
+      the flashlight on the plate) are FLUX.2 Klein edit's: it relit them where Kontext
+      couldn't, keeping the figure's own colors. Klein is the better relighter of the two.
 - [ ] Later: a series' own presets (series.json), and relighting a sequence's plates in one go.
 
 ## Step 15 — models behind other APIs (next)
