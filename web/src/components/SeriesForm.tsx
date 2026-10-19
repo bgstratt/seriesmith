@@ -15,7 +15,7 @@ import {
 } from "../lib/seriesForm";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
-import type { Target, TargetKind } from "../types";
+import type { LookBuilderRow, LookPreset, Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, PicturePath, Thumb } from "./Picture";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
@@ -227,6 +227,9 @@ export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", e
   );
 }
 
+const NO_LOOKS: LookPreset[] = [];
+const NO_ROWS: LookBuilderRow[] = [];
+
 /** The series' look: the presets as pictures over the line they fill. */
 function LookField({ value, onChange, textarea, parts, onParts }: {
   value: string; onChange: (v: string) => void; textarea: JSX.Element;
@@ -234,8 +237,10 @@ function LookField({ value, onChange, textarea, parts, onParts }: {
   parts?: LookParts | null; onParts?: (p: LookParts) => void;
 }) {
   const tiles = useLookTiles();
-  const looks = useApp((s) => s.presets?.look ?? []);
-  const rows = useApp((s) => s.presets?.look_builder ?? []);
+  // select the stable list itself: a fresh `[]` from a selector is a new value on every
+  // read, and the store re-renders on it forever (React error #185)
+  const looks = useApp((s) => s.presets?.look) ?? NO_LOOKS;
+  const rows = useApp((s) => s.presets?.look_builder) ?? NO_ROWS;
   const [open, setOpen] = useState(false);
   const cur = parts ?? {};
   const built = composeLook(rows, cur);
