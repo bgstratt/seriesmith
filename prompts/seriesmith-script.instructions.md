@@ -744,6 +744,17 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
   shot renders the profile's model and LoRAs at 9 steps. A `lora:` line replaces the
   profile's whole LoRA list.
 - A profile name that isn't in the series config is an error.
+- **The full model for the shots that need it.** H3's 8-step turbo is fast but weak on big
+  camera moves (a pull out, a pan, a tilt from the rooftops), which it leaves faint or
+  flickering. A profile with no LoRA renders those on the full model instead, H3's base
+  preset (20 steps, `res_multistep`, no sparse attention), about three times slower:
+
+  ```json
+  "profiles": { "full": { "loras": ["none"] } }
+  ```
+
+  then `profile: full` on the shots with a big move (or `lora: none` on one shot, or
+  `"lora": "none"` in the series config's `series` block for all of them).
 
 ### Model files: `model_families`
 
@@ -1177,7 +1188,7 @@ sound: running footsteps on grass, fabric movement
 | `text: OPEN 24 HOURS` | on-screen text the picture must show (a sign, a note, a screen), quoted into the prompt. Never the series title or credits: those are added in the edit, not rendered into a shot |
 | `policy: generate` | this shot's audio: `generate` (the model makes all of it), `dub` (lip sync to the recording's `audio:` window, which becomes the soundtrack), `dub_keep_foley` (the same, keeping the model's sound effects under it) or `clone` (spoken in each speaker's `voice_sample`). Without it, dialogue shots follow `audio.mode` and silent ones generate |
 | `retention: partially_copy` | how closely a dubbed shot copies the recording: `fully_copy`, `partially_copy` or `reference` (H3 Ref2VA; dub shots only) |
-| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none |
+| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none: where the pass's LoRA is a turbo (H3's), that renders the full model, the pass's base preset (20 steps, `res_multistep` on H3) with what goes with the turbo left out (H3's sparse attention); a shot's own `steps:` still wins |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |

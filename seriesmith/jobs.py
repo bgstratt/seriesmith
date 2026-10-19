@@ -2473,6 +2473,9 @@ def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = No
             del g[k]
     if t.supports("patch_graph"):
         t.patch_graph(g, job, dict(job.inputs if inputs is None else inputs))
+    if job.based and b.bypass:
+        # the base preset renders the full model: what goes with the turbo goes too
+        bypass_nodes(g, dict(b.bypass))
     if job.continuity:
         continuity_frame(g, job, take, dict(job.inputs if inputs is None else inputs))
     if (job.recompiled or job.shot).get("hold"):
@@ -2891,8 +2894,12 @@ def resolve_models(job: Job, listing=None, resolve=DEFAULT, cache=DEFAULT,
     download). `listing` is model_lister's (None: nothing is resolved, as
     before). Records job.resolved (the sidecar's `resolved`) and notes.
     Returns targets.resolve_models' answer ({} when not run)."""
-    if listing is None or not job.runs:
+    if not job.runs:
         return {}
+    if listing is None:
+        # nothing to check files against: none is resolved, but a turbo turned
+        # off (`lora: none`) still renders the base preset
+        listing = lambda spec: None                               # noqa: E731
     if resolve is DEFAULT:
         resolve = model_resolver()
     if cache is DEFAULT:
@@ -2918,6 +2925,11 @@ def resolve_models(job: Job, listing=None, resolve=DEFAULT, cache=DEFAULT,
         job.loras = r["loras"]
     if r["base"] is not None:
         job.based = True
+        gone = sorted(t.binding.bypass)
+        if gone:
+            # what a target can do without goes with its turbo (H3's sparse attention,
+            # which the turbo LoRAs were distilled against): left out of the full model
+            job.notes.append(f"{', '.join(gone)} left out: it goes with the turbo")
         base_steps = r["base"].get("steps")
         if base_steps is not None:
             if job.steps_set:

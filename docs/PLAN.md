@@ -809,6 +809,12 @@ shown as pictures, each filling a text that stays editable.
       LoRA, no SLA attention: the Cloud-shaped graph run on this machine): the 8-step turbo
       left them faint or flickering, the full model made each move whole and steady (largest
       frame-to-frame jump 0.9-2.5). For a big camera move, H3's base beats its turbo.
+- [x] The turbo off renders the full model (2026-10-19): `lora: none` (a shot, a sequence, a
+      profile, the series) where the pass's LoRA slot holds an accelerator takes the path a
+      missing turbo takes, the pass's base preset (its steps and sampler; a shot's own steps
+      win), and a based job splices out the target's `bypass_if_missing` nodes (H3's SLA,
+      which the turbo LoRAs were distilled against). It needs no model list. AUTHORING's
+      `lora:` row and a `full` profile for big moves.
 - [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
       each option a sample picture; a per-shot lens beside framing, if it earns its place.
 
