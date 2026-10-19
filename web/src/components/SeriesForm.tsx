@@ -19,6 +19,7 @@ import type { Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, PicturePath, Thumb } from "./Picture";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
+import { PresetPicker, useLookTiles } from "./PresetPicker";
 import { MasterRecipe } from "./MasterRecipe";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
@@ -221,6 +222,18 @@ export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", e
   );
 }
 
+/** The series' look: the presets as pictures over the line they fill. */
+function LookField({ value, onChange, textarea }: { value: string; onChange: (v: string) => void; textarea: JSX.Element }) {
+  const tiles = useLookTiles();
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <PresetPicker tiles={tiles} value={value} onPick={onChange} open={!value.trim()}
+        title="Looks: pick one to start from, then make it yours" />
+      {textarea}
+    </div>
+  );
+}
+
 export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget, listBackend }: {
   f: Field; value: string; onChange: (v: string) => void; targets?: Target[];
   defaults?: Partial<Record<TargetKind, string>>; backends?: string[];
@@ -234,6 +247,8 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
   if (f.kind === "long") {
     input = <textarea className="h3-in" rows={3} style={{ fontFamily: "inherit", resize: "vertical" }} value={value}
       placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} />;
+    // the look: picked from presets as pictures (seriesmith/presets/look.json), still the series' own to write
+    if (f.path.join(".") === "style.look") input = <LookField value={value} onChange={onChange} textarea={input} />;
   } else if (f.kind === "select") {
     input = (
       <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>

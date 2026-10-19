@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""
+The presets' sample pictures (seriesmith/presets/img/), made with seriesmith
+itself on a scratch episode (the starter series, built into --work):
+
+- look/<id>.jpg: one scene, the same for every look, drawn in that look
+  (look.json's text), on the image target (--look-target, default krea2);
+- relight/<id>-place.jpg: a base plate (BASE_PLACE, in BASE_LOOK) relit by the
+  preset's `place` wording, on the edit target (--edit-target);
+- relight/<id>-subject.jpg: a base figure (BASE_FIGURE: Ada's three-quarter
+  view, plain background) relit by its `subject` wording.
+
+Each take goes through seriesmith's queue on --backend (default: each
+target's own, usually this machine's ComfyUI), as `seriesmith refs` does, and
+is kept in the work folder; the sample is the picture made small (SIZE wide,
+JPEG). A sample already made is skipped unless --redo.
+
+    python tools/make_preset_samples.py --work C:/tmp/presets
+    python tools/make_preset_samples.py --work C:/tmp/presets --only look
+    python tools/make_preset_samples.py --work C:/tmp/presets --only relight --edit-target flux_kontext
+    python tools/make_preset_samples.py --work C:/tmp/presets --only neon,rain --redo
+    python tools/make_preset_samples.py --work C:/tmp/presets --only night:subject --redo --edit-target flux2_klein_edit
+
+Writes seriesmith/presets/img/{look,relight}/*.jpg (commit them).
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from seriesmith import jobs as J  # noqa: E402
+from seriesmith import presets as PR  # noqa: E402
+from seriesmith import refs as R  # noqa: E402
+
+STARTER = os.path.join(ROOT, "examples", "starter")
+IMG = os.path.join(PR.HERE, "img")
+SIZE = 480
+PLATE, FIGURE, FIGURE_VIEW = "location:porch", "subject:ada", "01_threequarter"
+
+# the scene every look is drawn in: a figure in a place, so a look shows on both
+LOOK_SCENE = ("A woman in her thirties with short dark hair and a red wool coat waits at a tram stop "
+              "on a city street at dusk, a lit cafe window behind her, a streetlamp just coming on")
+# what the relights start from: plain, even light, so each preset's change shows
+BASE_LOOK = "prestige_35mm"
+BASE_PLACE = ("A quiet city street corner: a cafe front with a striped awning and a glass door, a "
+              "streetlamp, a wooden bench, a bicycle leaning on a brick wall, wet cobbles, no people, "
+              "in soft even late-morning daylight")
+BASE_FIGURE = ("A full-body three-quarter view of a woman in her thirties with short dark hair and a "
+               "red wool coat, standing relaxed, on a plain light grey studio background, in soft even "
+               "front light")
+
+
+def look_text(pid: str) -> str:
+    return next(p["text"] for p in PR._load("look") if p["id"] == pid)
+
+
+def episode(work: str) -> str:
+    """The scratch episode (the starter series), built once."""
+    ep = os.path.join(work, "ep01")
+    if not os.path.isfile(os.path.join(ep, "shotlist", "shotlist.json")):
+        os.makedirs(work, exist_ok=True)
+        subprocess.run([sys.executable, "-m", "seriesmith", "build",
+                        os.path.join(STARTER, "series.json"), os.path.join(STARTER, "ep01.md"),
+                        "-o", ep], check=True, cwd=ROOT)
+    if not os.path.isfile(os.path.join(ep, "series.json")):
+        # the series config beside the episode, as the starter keeps it
+        import shutil
+        shutil.copyfile(os.path.join(STARTER, "series.json"), os.path.join(ep, "series.json"))
+    return ep
+
+
+def shrink(src: str, dst: str) -> None:
+    from PIL import Image
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with Image.open(src) as im:
+        im = im.convert("RGB")
+        im.thumbnail((SIZE, SIZE * 4), Image.LANCZOS)
+        im.save(dst, "JPEG", quality=84, optimize=True)
+
+
+class Maker:
+    def __init__(self, args, s):
+        self.args, self.s = args, s
+        self.comfy = J.Comfy(args.comfy, client_id="preset-samples")
+        try:
+            self.listing = J.model_lister(self.comfy)
+        except Exception:                                 # noqa: BLE001  not reachable: no listing
+            self.listing = None
+
+    def run(self, req: R.GenRequest, pick: bool = False) -> str | None:
+        """One take, waited for; its picture, or None."""
+        try:
+            done = R.generate_and_wait(self.s, req, self.comfy, timeout=self.args.timeout,
+                                       listing=self.listing, cache=R.TG.modelid.temp_cache(),
+                                       pick=pick, backend=self.args.backend or None)
+        except (R.RefError, R.UnknownRef, RuntimeError) as e:
+            print(f"  !! {req.ref}: {e}")
+            return None
+        return done[0].paths.image if done else None
+
+    def generate(self, ref: str, view: str | None, prompt: str, target: str, pick: bool = False):
+        return self.run(R.GenRequest(ref=ref, view=view, prompt=prompt, target=target,
+                                     seed=self.args.seed, note="preset sample"), pick)
+
+    def edit(self, ref: str, view: str | None, instruction: str):
+        return self.run(R.GenRequest(ref=ref, view=view, prompt=instruction, target=self.args.edit_target,
+                                     seed=self.args.seed, note=instruction[:80],
+                                     edit={"take": None, "with": [], "wrap": True}))
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--work", required=True, help="the scratch folder (kept: its takes, a rerun's start)")
+    ap.add_argument("--only", default="", help="look, relight, or preset ids, a relight's one wording as id:place or id:subject (comma-separated)")
+    ap.add_argument("--redo", action="store_true", help="make samples that are already made again")
+    ap.add_argument("--look-target", default="krea2", help="the image model the looks are drawn on")
+    ap.add_argument("--edit-target", default="flux_kontext", help="the edit model the relights run on")
+    ap.add_argument("--backend", default="", help="where the takes run (default: each target's own)")
+    ap.add_argument("--comfy", default="http://127.0.0.1:8188", help="this machine's ComfyUI")
+    ap.add_argument("--seed", type=int, default=20261019, help="one seed for every sample, so they compare")
+    ap.add_argument("--timeout", type=int, default=900)
+    args = ap.parse_args(argv)
+    only = {x.strip() for x in args.only.split(",") if x.strip()}
+    want = lambda kind, pid: not only or kind in only or pid in only   # noqa: E731
+
+    ep = episode(os.path.abspath(args.work))
+    s = R.load_series(ep)
+    mk = Maker(args, s)
+    made = failed = 0
+
+    def keep(src, name):
+        nonlocal made, failed
+        if src and os.path.isfile(src):
+            shrink(src, os.path.join(IMG, name))
+            made += 1
+            print(f"  -> img/{name}")
+        else:
+            failed += 1
+
+    for p in PR._load("look"):
+        name = PR.image_name("look", p["id"])
+        if not want("look", p["id"]) or (not args.redo and PR.image_path(name)):
+            continue
+        print(f"look {p['id']}")
+        keep(mk.generate(PLATE, None, f"{p['text']}. {LOOK_SCENE}", args.look_target), name)
+
+    relights = [p for p in PR._load("relight") if want("relight", p["id"])
+                or any(o.startswith(p["id"] + ":") for o in only)]
+    todo = [(p, w) for p in relights for w in ("place", "subject")
+            if p.get(w) and (not only or "relight" in only or p["id"] in only or f"{p['id']}:{w}" in only)
+            and (args.redo or not PR.image_path(PR.image_name("relight", p["id"], w)))]
+    if todo:
+        base = look_text(BASE_LOOK)
+        if any(w == "place" for _, w in todo):
+            print("base plate")
+            if not mk.generate(PLATE, None, f"{base}. {BASE_PLACE}", args.look_target, pick=True):
+                return 1
+        if any(w == "subject" for _, w in todo):
+            print("base figure")
+            if not mk.generate(FIGURE, FIGURE_VIEW, f"{base}. {BASE_FIGURE}", args.look_target, pick=True):
+                return 1
+        for p, w in todo:
+            print(f"relight {p['id']} ({w})")
+            ref, view = (PLATE, None) if w == "place" else (FIGURE, FIGURE_VIEW)
+            keep(mk.edit(ref, view, p[w]), PR.image_name("relight", p["id"], w))
+
+    print(f"\n  {made} sample(s) made{f', {failed} failed' if failed else ''}: {IMG}")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -149,5 +149,5 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
 
 def routes(make_context: Callable[[], "A.Context"]) -> list[tuple[str, str, Callable]]:
     """(method, path, view) for every route of the editor's API."""
-    return [(method, path, make_view(make_context, fn, takes, is_file=fn in (A.get_file, A.get_thumb)))
+    return [(method, path, make_view(make_context, fn, takes, is_file=fn in (A.get_file, A.get_thumb, A.get_preset_image)))
             for method, path, fn, takes in A.ROUTES]

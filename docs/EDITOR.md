@@ -168,7 +168,10 @@ short wizard:
    folder already has episodes, it says so: the new one continues that series.
 2. **Series** (a new series only): its id, the video model, the final and proxy sizes
    (864×480 by default), the look, how dialogue sounds and the speech pace. Everything
-   else is in Series settings, any time.
+   else is in Series settings, any time. **Look** offers presets as pictures, the same
+   scene in each (prestige drama, neon noir, 1970s film, documentary, black and white, 3D
+   animated, 2D cartoon, anime, stop-motion, watercolor, graphic novel…): one fills the
+   line, which stays yours to edit, as it is in Series settings.
 3. **Cast and places**: who and where the episode is about — a character (name, design,
    voice), a location (a short name and its description), a prop or vehicle —
    each with its picture path filled in from the show's layout. A next episode carries its
@@ -634,6 +637,14 @@ script call for is listed here.
 - **Generate missing** fills everything the episode needs in one go. It does the pictures —
   **not the voices.** Generate a voice from its own ref row.
 - **Clear** unpicks a ref; **Discard** bins a candidate.
+- **Edit** a picture (a candidate, or the live one) and the edit window opens on its
+  instruction. **Relight** above it is a row of presets shown as pictures, each the same
+  sample place or figure under that light: time of day (dawn to night), weather (overcast,
+  rain, fog, snow, storm), light (neon, moonlight, streetlights, firelight, police lights,
+  emergency red, sunbeams, a flashlight) and, for a character's view or a prop, portrait
+  light (Rembrandt, rim, top light, low-key noir, soft beauty, silhouette). A plate and a
+  figure each get their own wording. Picking one fills the instruction, which stays yours
+  to edit or replace; the edit model changes the light and keeps the rest.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

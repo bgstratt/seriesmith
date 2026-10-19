@@ -366,6 +366,23 @@ export function loadWidgetChoices(classType: string, field: string): Promise<voi
 
 const modelFilesLoading = new Map<string, Promise<void>>();
 
+let presetsLoading: Promise<void> | null = null;
+
+/** GET /seriesmith/presets, once (a server without the route: empty lists, the pickers stay text) */
+export function loadPresets(): Promise<void> {
+  if (get().presets || presetsLoading) return presetsLoading ?? Promise.resolve();
+  presetsLoading = (async () => {
+    try {
+      set({ presets: await api().presets() });
+    } catch {
+      set({ presets: { relight: [], look: [] } });
+    } finally {
+      presetsLoading = null;
+    }
+  })();
+  return presetsLoading;
+}
+
 /** The modelFiles key of one target's model param, as listed for `backend`
  * ("": the episode's own backend, as the server decides). */
 export function modelFilesKey(target: string, param: string, backend = ""): string {

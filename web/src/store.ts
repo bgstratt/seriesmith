@@ -7,8 +7,7 @@ import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
   Issue, MasterJob, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
-  TargetList,
-} from "./types";
+  TargetList, PresetList } from "./types";
 
 // ---------------------------------------------------------------------------
 // a tiny store
@@ -353,6 +352,8 @@ export interface AppState {
   widgetChoices: Record<string, string[]>;
   /** GET /seriesmith/models, by "target|param" */
   modelFiles: Record<string, ModelList>;
+  /** GET /seriesmith/presets (null until loaded; a server without it: empty lists) */
+  presets: PresetList | null;
   zoom: number;
   build: { busy: boolean; result: BuildResult | null; error: string | null };
   /** `publish`: the running one is a Publish (assemble, then the titles) */
@@ -506,6 +507,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     missingPanel: null,
     widgetChoices: {},
     modelFiles: {},
+    presets: null,
     zoom: clampZoom(prefs.zoom ?? ZOOM_DEFAULT),
     build: { busy: false, result: null, error: null },
     assemble: { busy: false, output: null, report: null, error: null },

@@ -1,0 +1,185 @@
+{
+  "about": "Relight presets for a ref's picture (the edit window's Relight): the same picture at another time of day, in other weather, or under another light. `place` is the instruction for a location plate, `subject` for a character's view or a prop. The edit wrapper (targets/image/common.py edit_prompt) names everything else as fixed. A plate's presets name the sources the light comes from (docs/AUTHORING.md: a set lit by things you can point at). The sample pictures are img/relight/<id>-place.jpg and -subject.jpg, made by tools/make_preset_samples.py.",
+  "presets": [
+    {
+      "id": "dawn",
+      "label": "Dawn",
+      "group": "time",
+      "place": "Change only the time of day and the light: it is dawn, the cool blue light just before sunrise, a pale sky, lamps still faintly lit",
+      "subject": "Change only the light on the figure: cool blue dawn light from the front-left, soft and dim, with a faint warm edge where the first sun catches one side"
+    },
+    {
+      "id": "day",
+      "label": "Day",
+      "group": "time",
+      "place": "Change only the time of day and the light: it is midday under a clear sky, bright neutral daylight with crisp shadows, lamps off",
+      "subject": "Change only the light on the figure: bright neutral midday daylight from above, crisp short shadows under the brow, nose and chin"
+    },
+    {
+      "id": "golden_hour",
+      "label": "Golden hour",
+      "group": "time",
+      "place": "Change only the time of day and the light: it is late afternoon golden hour, low warm sunlight raking in from one side, long soft shadows",
+      "subject": "Change only the light on the figure: low warm golden-hour sunlight from one side, a glowing rim on the hair and shoulder, the other side in soft warm shadow"
+    },
+    {
+      "id": "dusk",
+      "label": "Dusk",
+      "group": "time",
+      "place": "Change only the time of day and the light: it is dusk, a deep blue evening sky still bright at the horizon, the windows glowing warm and the street lamps lit, soft blue shadows",
+      "subject": "Change only the light on the figure: blue dusk ambient light with a warm lamp glow on one cheek from the side"
+    },
+    {
+      "id": "night",
+      "label": "Night",
+      "group": "time",
+      "place": "Change only the time of day and the light: it is night under a dark blue sky, the windows glowing warm, the street lamps lit and casting bright pools on the ground, deep shadows between them",
+      "subject": "Change only the light on the figure: night, a warm practical lamp off to one side lighting that side of the face and coat, the other side in deep shadow, the background dark"
+    },
+    {
+      "id": "overcast",
+      "label": "Overcast",
+      "group": "weather",
+      "place": "Change only the light: a flat overcast day, soft shadowless grey light, a white sky",
+      "subject": "Change only the light on the figure: soft shadowless overcast daylight, even and cool, no hard shadows"
+    },
+    {
+      "id": "rain",
+      "label": "Rain",
+      "group": "weather",
+      "place": "Change only the weather: it is raining steadily, wet reflective surfaces, rain streaks in the air, a dark wet sky",
+      "subject": "Change only the light and the weather on the figure: it is raining, the hair and clothes wet and glistening, cool grey light with bright reflected highlights"
+    },
+    {
+      "id": "fog",
+      "label": "Fog",
+      "group": "weather",
+      "place": "Change only the weather and the light: thick fog fills the space, the distance fading to pale grey, every lamp a soft glowing halo, low contrast",
+      "subject": "Change only the light on the figure: soft diffuse light through fog, low contrast, the edges of the figure softened by haze"
+    },
+    {
+      "id": "snow",
+      "label": "Snow",
+      "group": "weather",
+      "place": "Change only the weather: snow is falling and lies on every surface, cold blue-white light, a pale sky, breath-cold air",
+      "subject": "Change only the light and the weather on the figure: falling snow, flakes caught in the hair and on the shoulders, cold blue-white light"
+    },
+    {
+      "id": "storm",
+      "label": "Storm",
+      "group": "weather",
+      "place": "Change only the weather and the light: a storm, a dark churning sky, a flash of lightning throwing hard white light and sharp shadows across everything",
+      "subject": "Change only the light on the figure: a lightning flash, hard cold white light from one side and sharp black shadows, the rest dark"
+    },
+    {
+      "id": "neon",
+      "label": "Neon",
+      "group": "light",
+      "place": "Change only the light: night, lit by neon signs, magenta and cyan light pooling on the surfaces and reflecting in every wet or glossy one, deep shadows between the signs",
+      "subject": "Change only the light on the figure: two-tone neon, magenta from one side and cyan from the other, saturated color on the skin, dark between"
+    },
+    {
+      "id": "moonlight",
+      "label": "Moonlight",
+      "group": "light",
+      "place": "Change only the light: night under a bright full moon, cold silver-blue moonlight from above casting long soft shadows, no lamps",
+      "subject": "Change only the light on the figure: cold silver-blue moonlight from above and behind, a pale rim along the shoulders and the hair, the face in soft blue shadow; the hair and clothes keep their own colors"
+    },
+    {
+      "id": "streetlight",
+      "label": "Streetlight",
+      "group": "light",
+      "place": "Change only the light: night, the sodium street lamps lit and casting bright orange pools on the ground and the nearest walls beneath them, dark gaps between the pools",
+      "subject": "Change only the light on the figure: a sodium streetlamp overhead, hard orange top light, the eyes in shadow"
+    },
+    {
+      "id": "firelight",
+      "label": "Firelight",
+      "group": "light",
+      "place": "Change only the light: night, lit by warm firelight from candles in the windows and a brazier burning on the ground nearby, flickering orange light on the nearest walls and ground, darkness beyond",
+      "subject": "Change only the light on the figure: warm flickering firelight from low and in front, orange glow on the face, dark behind"
+    },
+    {
+      "id": "police",
+      "label": "Police lights",
+      "group": "light",
+      "place": "Change only the light: night, red and blue police lights flashing across the walls and surfaces, hard colored light and moving shadows",
+      "subject": "Change only the light on the figure: red light from one side and blue from the other, hard, as from police lights at night"
+    },
+    {
+      "id": "emergency",
+      "label": "Emergency red",
+      "group": "light",
+      "place": "Change only the light: the power is out, the space lit only by dim red emergency lights, deep red shadows",
+      "subject": "Change only the light on the figure: dim red emergency light from above, deep red shadows, the rest in darkness"
+    },
+    {
+      "id": "sunbeams",
+      "label": "Sunbeams",
+      "group": "light",
+      "place": "Change only the light: bright shafts of sunlight slant through the windows or gaps into a hazy space, visible beams, dust glowing in them",
+      "subject": "Change only the light on the figure: a single shaft of warm sunlight across the figure through haze, the rest in soft shadow"
+    },
+    {
+      "id": "flashlight",
+      "label": "Flashlight",
+      "group": "light",
+      "place": "Change only the light: it is dark, and a single flashlight beam throws a bright white circle across the middle of the scene, picking out the nearest things in hard light while the rest falls into dim blue darkness",
+      "subject": "Change only the light on the figure: a hard flashlight beam from in front and below, the background black"
+    },
+    {
+      "id": "rembrandt",
+      "label": "Rembrandt",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: classic Rembrandt lighting, one soft key light high and to one side, a small triangle of light on the shadowed cheek, deep soft shadows"
+    },
+    {
+      "id": "rim",
+      "label": "Rim light",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: strong backlight outlining the hair and shoulders in a bright rim, the front lit dimly"
+    },
+    {
+      "id": "top_light",
+      "label": "Top light",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: a single hard light directly overhead, bright on the top of the head, the shoulders and the tops of the arms, the eyes and under the chin in deep shadow, the background dim"
+    },
+    {
+      "id": "low_key",
+      "label": "Low-key noir",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: low-key light through venetian blinds, hard stripes of light and shadow across the face and body, the rest dark; keep the full color of the clothes and skin"
+    },
+    {
+      "id": "soft_key",
+      "label": "Soft beauty",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: soft, even, flattering front light from a large source, gentle shadows, a catchlight in each eye"
+    },
+    {
+      "id": "silhouette",
+      "label": "Silhouette",
+      "group": "portrait",
+      "for": [
+        "subject"
+      ],
+      "subject": "Change only the light on the figure: strong light behind, the figure almost a dark silhouette with only a thin bright edge"
+    }
+  ]
+}

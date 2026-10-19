@@ -52,6 +52,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
+| `GET /seriesmith/presets`, `GET /seriesmith/presets/image` | Presets as pictures |
 | `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
 | `POST /seriesmith/refs/keyframe` | Continuity keyframes |
 | `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
@@ -3773,3 +3774,31 @@ default, and "dev is crisper without a sheet" (this section's earlier claim, an 
 reading of the frames) is withdrawn. Keep it only as a lever to re-test if LTX ships new
 dev guidance, and change the default only on fresh side-by-sides. The sheet itself is a
 separate matter and is on by default: nobody disputed it.
+
+## Presets as pictures (2026-10-19)
+
+What the editor offers to pick from, each preset filling a text that stays editable
+(`seriesmith/presets/`: `relight.json`, `look.json`, and their sample pictures under `img/`,
+made by `tools/make_preset_samples.py`).
+
+### `GET /seriesmith/presets[?kind=relight|look]`
+```json
+{"relight": [{"id": "rain", "label": "Rain", "group": "weather", "for": ["place", "subject"],
+              "texts": {"place": "Change only the weather: it is raining steadily, …",
+                        "subject": "Change only the light and the weather on the figure: …"},
+              "images": {"place": "relight/rain-place.jpg", "subject": "relight/rain-subject.jpg"}}],
+ "look": [{"id": "neon_noir", "label": "Neon noir", "group": "live action",
+           "text": "a live-action neo-noir thriller shot on 35mm anamorphic lenses: …",
+           "image": "look/neon_noir.jpg"}]}
+```
+- A relight preset's `texts` are the edit instruction by what is edited: `place` for a location
+  plate, `subject` for a character's view or a prop (`for` lists the ones it has; the portrait
+  lights are `subject` only). It goes to `POST /seriesmith/refs/generate` as the `prompt` of an
+  `edit`, like any instruction.
+- A look's `text` is a `style.look` line.
+- `images` / `image` name a sample picture only once it is made. `group` is for grouping the
+  tiles. `kind` answers with that list alone; another kind is 400.
+
+### `GET /seriesmith/presets/image?name=look/neon_noir.jpg`
+The sample picture (JPEG, about 480 px wide), by the name the list gave. A name that isn't one
+made: 404.

@@ -20,7 +20,7 @@ import type {
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
-  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake } from "./types";
+  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList } from "./types";
 import { comboChoices } from "./lib/targets";
 
 /** A ref take as the import routes return it. */
@@ -188,6 +188,10 @@ export interface Api {
   /** URL of a ref file (live file or a candidate, `../` beside a parent-folder
    * series config); `version` busts the image cache after a re-pick. */
   refFileUrl(ep: string, path: string, version?: string | null): string;
+  /** GET /seriesmith/presets: the relight and look presets the editor offers as pictures. */
+  presets(): Promise<PresetList>;
+  /** A preset's sample picture (GET /seriesmith/presets/image), by the name presets gave. */
+  presetImageUrl(name: string): string;
   /** A picture made small (GET /seriesmith/thumb): `width` px wide, rounded up to
    * 128 / 256 / 512 / 1024. For a picture shown small; the file itself for one shown whole. */
   thumbUrl(ep: string, path: string, width: number, version?: string | null): string;
@@ -566,6 +570,11 @@ export function createHttpApi(t: Transport): Api {
     browse: (path, files) => get(`/seriesmith/browse?${qs({ path: path || undefined, files: files || undefined })}`),
     refs: (ep) => get(`/seriesmith/refs?${qs({ ep })}`),
     refFileUrl: (ep, path, version) => t.url(`/seriesmith/file?${qs({ ep, path, v: version || undefined })}`),
+    presets: async () => {
+      const r = await get<Partial<PresetList>>("/seriesmith/presets");
+      return { relight: Array.isArray(r?.relight) ? r.relight : [], look: Array.isArray(r?.look) ? r.look : [] };
+    },
+    presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
     thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {
