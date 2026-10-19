@@ -1933,6 +1933,17 @@ export interface ModelList {
   files: ModelFile[];
 }
 
+/** A look preset (GET /seriesmith/presets): a series' look line, with its sample picture when made */
+export interface LookPreset { id: string; label: string; group: string; text: string; image?: string }
+/** "place": a location plate's wording; "subject": a character's view or a prop's */
+export type RelightWording = "place" | "subject";
+/** A relight preset: the instruction per wording, and each wording's sample picture when made */
+export interface RelightPreset {
+  id: string; label: string; group: string; for: RelightWording[];
+  texts: Partial<Record<RelightWording, string>>; images: Partial<Record<RelightWording, string>>;
+}
+export interface PresetList { relight: RelightPreset[]; look: LookPreset[] }
+
 export interface TargetList {
   targets: Target[];
   default: Partial<Record<TargetKind, string>>;

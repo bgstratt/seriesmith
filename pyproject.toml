@@ -23,6 +23,8 @@ include = ["seriesmith*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.txt", "*.md"]
+# the presets' sample pictures (seriesmith/presets/img/, tools/make_preset_samples.py)
+"seriesmith.presets" = ["img/*/*.jpg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

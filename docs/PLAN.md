@@ -752,6 +752,30 @@ Cloud's nodes (DESIGN.md, "Backends"; SETUP.md, "Comfy Cloud").
       PNG frames, the foley bed; refs, tours, upscales and posts on Cloud (their graphs
       use the pack's nodes or keep theirs; untried there).
 
+## Presets as pictures: relighting refs, the series' look (2026-10-19)
+
+Comfy-Org's comfy-cinematic-studio (a Router sample: four dropdowns of fixed phrases joined
+into one FLUX.2 Pro prompt) was looked at for what to borrow. Its per-image light and lens
+axes aren't needed in the script: the look line and the location's own light already carry
+them, and the plate carries a shot's light. What is worth having is the picking: presets
+shown as pictures, each filling a text that stays editable.
+
+- [x] `seriesmith/presets/`: `relight.json` (24: time of day, weather, light setups, and
+      portrait lights for a figure only), each with a plate's wording (`place`, naming the
+      sources the light comes from) and a figure's or prop's (`subject`); `look.json` (13
+      look lines written as a DP's brief: live action, animation, illustration). The old
+      edit window's seven text buttons (Dawn ... Rain) are among them, unchanged.
+- [x] `GET /seriesmith/presets`, `GET /seriesmith/presets/image` (both hosts).
+- [x] The editor: the edit window's Relight is a picker of picture tiles in the ref's
+      wording (plates wide, figures square); the series form's and the new-series wizard's
+      Look gets the same, open while the look is empty. A pick fills the text; the text
+      stays the person's to edit.
+- [x] `tools/make_preset_samples.py`: the sample pictures rendered with seriesmith itself on
+      a scratch episode (the starter): each look on one scene, each relight on a base plate
+      and a base figure through an edit model; small JPEGs in `presets/img/`.
+- [ ] Render the samples (a running ComfyUI, or `--backend cloud`) and commit them.
+- [ ] Later: a series' own presets (series.json), and relighting a sequence's plates in one go.
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
