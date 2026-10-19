@@ -283,8 +283,10 @@ export interface Api {
   /** ComfyUI's choices for one combo widget (`/object_info/<class_type>`), or
    * null when the node or widget isn't there. */
   widgetChoices(classType: string, field: string): Promise<string[] | null>;
-  /** GET /seriesmith/models: one model param's files, matching the target's family first. */
-  modelFiles(target: string, param: string, ep?: string | null): Promise<ModelList>;
+  /** GET /seriesmith/models: one model param's files, matching the target's family first.
+   * `backend` ("cloud"): Comfy Cloud's files; none: the episode's backend (its
+   * overrides, the series config), else this machine's. */
+  modelFiles(target: string, param: string, ep?: string | null, backend?: string | null): Promise<ModelList>;
   /** Phase 9a: GET /seriesmith/source: the script or the series config, with its hash. */
   source(ep: string, file: SourceFile): Promise<SourceDoc>;
   /** GET /seriesmith/source?…&hash_only=1: has the file changed on disk? */
@@ -710,11 +712,12 @@ export function createHttpApi(t: Transport): Api {
       const info = await get<unknown>(`/object_info/${encodeURIComponent(classType)}`);
       return comboChoices(info, classType, field);
     },
-    modelFiles: async (target, param, ep) => {
-      const r = await get<Partial<ModelList>>(`/seriesmith/models?${qs({ target, param, ep: ep || undefined })}`);
+    modelFiles: async (target, param, ep, backend) => {
+      const r = await get<Partial<ModelList>>(`/seriesmith/models?${qs({ target, param, ep: ep || undefined, backend: backend || undefined })}`);
       return {
         target: r?.target ?? target, param: r?.param ?? param, family: r?.family ?? "", label: r?.label ?? r?.family ?? "",
         patterns: Array.isArray(r?.patterns) ? r.patterns : [], fingerprint: !!r?.fingerprint,
+        backend: typeof r?.backend === "string" ? r.backend : "local",
         files: Array.isArray(r?.files) ? r.files : [],
       };
     },

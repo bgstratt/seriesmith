@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { loadModelFiles, loadModels } from "../actions";
+import { loadModelFiles, loadModels, modelFilesKey } from "../actions";
 import { diffStats, diffWords } from "../lib/diff";
 import type { LoraRow } from "../lib/overrideForm";
 import { loraChainLine, parseLoraChain } from "../lib/shotForm";
@@ -7,7 +7,7 @@ import { shortName } from "../lib/format";
 import { isModelMismatch, modelGroups, modelWarning } from "../lib/targets";
 import { useApp } from "../store";
 import type { ModelList } from "../types";
-import { useTargetPickers } from "./Targets";
+import { useListBackend, useTargetPickers } from "./Targets";
 
 /** Model picker from ComfyUI's diffusion_models (or unet) list. `""` = the placeholder. */
 /** `choices` (a target's own list) replaces ComfyUI's generic one. `grouped`
@@ -137,21 +137,25 @@ export function MoreToggle({ open, onToggle, label }: { open: boolean; onToggle:
 
 /** A `lora:` line's LoRAs (`name`, `name:0.7`, a chain "a:0.6, b" applied in
  * that order, or `none`), picked from what `target` loads: one row per LoRA,
- * "+ LoRA" for another. "" is the default (the series' or the target's preset). */
-export function LoraLine({ value, onChange, target, empty = "the default" }: {
-  value: string; onChange: (v: string) => void; target: string | null; empty?: string;
+ * "+ LoRA" for another. "" is the default (the series' or the target's preset).
+ * `backend`: where it renders (the series form's own field), for whose list:
+ * Comfy Cloud's files when that is Comfy Cloud (useListBackend). */
+export function LoraLine({ value, onChange, target, empty = "the default", backend }: {
+  value: string; onChange: (v: string) => void; target: string | null; empty?: string; backend?: string | null;
 }) {
-  const pickers = useTargetPickers(target);
+  const pickers = useTargetPickers(target, backend);
+  const on = useListBackend(backend);
   const loras = useApp((s) => s.loras);
   // the files of the model's LoRA family (GET /seriesmith/models?param=loras): the
   // list where ComfyUI's own isn't served (the standalone app)
   const t = pickers.target;
-  const family = useApp((s) => (t?.models?.loras ? s.modelFiles[`${t.id}|loras`] : undefined));
+  const family = useApp((s) => (t?.models?.loras ? s.modelFiles[modelFilesKey(t.id, "loras", on)] : undefined));
   useEffect(() => {
     void loadModels();
-    if (t?.models?.loras) void loadModelFiles(t.id, "loras");
-  }, [t?.id]);
-  const list = pickers.loras?.length ? pickers.loras : family?.files.length ? family.files.map((f) => f.name) : loras ?? [];
+    if (t?.models?.loras) void loadModelFiles(t.id, "loras", false, on);
+  }, [t?.id, on]);
+  const list = pickers.loras?.length ? pickers.loras : family?.files.length ? family.files.map((f) => f.name)
+    : pickers.cloud ? [] : loras ?? [];
   const cur = parseLoraChain(value);
   // rows added with "+ LoRA" and not chosen yet (the line can't hold them)
   const [blank, setBlank] = useState(0);
@@ -179,7 +183,7 @@ export function LoraLine({ value, onChange, target, empty = "the default" }: {
               }}>
               <option value="">{i === 0 ? empty : "(choose a LoRA)"}</option>
               {i === 0 && <option value="__none">none (no LoRA)</option>}
-              {r.name && !list.includes(r.name) && <option value={r.name}>{shortName(r.name, 44)} (not installed)</option>}
+              {r.name && !list.includes(r.name) && <option value={r.name}>{shortName(r.name, 44)} ({pickers.cloud ? "not on Comfy Cloud" : "not installed"})</option>}
               {list.map((l) => <option key={l} value={l} title={l}>{shortName(l, 44)}</option>)}
             </select>
             {r.name && (
@@ -202,10 +206,10 @@ export function LoraLine({ value, onChange, target, empty = "the default" }: {
 
 /** A model file for `target`, from what it can load; "" is the default. A target
  * without a model widget gets a text box. */
-export function ModelLine({ value, onChange, target, empty = "the default" }: {
-  value: string; onChange: (v: string) => void; target: string | null; empty?: string;
+export function ModelLine({ value, onChange, target, empty = "the default", backend }: {
+  value: string; onChange: (v: string) => void; target: string | null; empty?: string; backend?: string | null;
 }) {
-  const pickers = useTargetPickers(target);
+  const pickers = useTargetPickers(target, backend);
   if (pickers.models === null) {
     return <input className="h3-in" value={value} placeholder={empty} onChange={(e) => onChange(e.target.value)} />;
   }

@@ -327,6 +327,11 @@ pictures to pick from, and pointing at a name shows it larger.
 - **LoRAs** is a chain: one row per LoRA with its strength, **+ LoRA** for another, applied
   in order (it writes `lora: a.safetensors:0.6, b.safetensors`). A hosted model has no
   model file or LoRAs to pick, and its steps read *none (the provider's)*.
+- **On Comfy Cloud** (Render on **cloud**, or the series config's **backend** set to it),
+  the model file and LoRA lists are Comfy Cloud's: its own files and any your Comfy
+  account imported (Creator and Pro plans can import models and LoRAs). A LoRA that
+  isn't there reads *(not on Comfy Cloud)*. The series config's fields follow its own
+  **backend** field, as edited.
 
 Beside the fields is what will render on the current pass, compiled as you type: the
 model, size and frames, the dialogue's pace against the shot's length (with how long it

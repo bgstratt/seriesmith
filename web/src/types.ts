@@ -1927,6 +1927,9 @@ export interface ModelList {
   patterns: string[];
   /** false: the server can't read model files, so only names were checked */
   fingerprint: boolean;
+  /** where these files are: "local" (this machine's ComfyUI) or a Comfy Cloud
+   * backend's name ("cloud": its own files, and any the account imported) */
+  backend?: string;
   files: ModelFile[];
 }
 

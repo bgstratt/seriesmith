@@ -366,17 +366,23 @@ export function loadWidgetChoices(classType: string, field: string): Promise<voi
 
 const modelFilesLoading = new Map<string, Promise<void>>();
 
-/** GET /seriesmith/models for one target's model param (cached per target and
- * param; failures are quiet: an older server has no such route, and the
- * picker keeps its flat list). */
-export function loadModelFiles(target: string, param = "model", force = false): Promise<void> {
-  const key = `${target}|${param}`;
+/** The modelFiles key of one target's model param, as listed for `backend`
+ * ("": the episode's own backend, as the server decides). */
+export function modelFilesKey(target: string, param: string, backend = ""): string {
+  return `${target}|${param}|${backend}`;
+}
+
+/** GET /seriesmith/models for one target's model param (cached per target,
+ * param and backend; failures are quiet: an older server has no such route,
+ * and the picker keeps its flat list). `backend` "cloud": Comfy Cloud's files. */
+export function loadModelFiles(target: string, param = "model", force = false, backend = ""): Promise<void> {
+  const key = modelFilesKey(target, param, backend);
   if (!force && get().modelFiles[key]) return Promise.resolve();
   const running = modelFilesLoading.get(key);
   if (running) return running;
   const p = (async () => {
     try {
-      const list = await api().modelFiles(target, param, get().ep);
+      const list = await api().modelFiles(target, param, get().ep, backend || null);
       set((s) => ({ modelFiles: { ...s.modelFiles, [key]: list } }));
     } catch {
       /* no route: the flat list */

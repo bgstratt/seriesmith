@@ -73,6 +73,8 @@ function SeriesForm({ ep }: { ep: string }) {
   const set = (path: readonly string[], value: unknown) => sc.setDraft((d) => setPath(d, path, value));
   const list = targets?.targets ?? [];
   const videoId = (draft && (getPath(draft, ["series", "target"]) as string)) || targets?.default?.video || "minimax_h3_ref2va";
+  // the LoRA and model file fields list what the series' backend has (Comfy Cloud's own files there)
+  const listBackend = (draft && (getPath(draft, ["series", "backend"]) as string)) || "local";
   const rule = sizeRule(list.find((t) => t.id === videoId)?.template);
 
   const head = (
@@ -113,7 +115,7 @@ function SeriesForm({ ep }: { ep: string }) {
                     {fields.map((f) => (
                       <Fragment key={f.path.join(".")}>
                       <FieldRow f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
-                        backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
+                        backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId} listBackend={listBackend}
                         onChange={(v) => {
                           set(f.path, parsed(f, v));
                           // a master needs a section per video model, or every shot is a gap
@@ -144,7 +146,7 @@ function SeriesForm({ ep }: { ep: string }) {
                       <span className="h3-small h3-muted"><b>{sec.title}</b></span>
                       {fields.map((f) => (
                         <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
-                          backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId}
+                          backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId} listBackend={listBackend}
                           onChange={(v) => set(f.path, parsed(f, v))} />
                       ))}
                     </div>
@@ -219,11 +221,13 @@ export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", e
   );
 }
 
-export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget }: {
+export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget, listBackend }: {
   f: Field; value: string; onChange: (v: string) => void; targets?: Target[];
   defaults?: Partial<Record<TargetKind, string>>; backends?: string[];
   /** the video model a LoRA or model file field picks for */
   videoTarget?: string | null;
+  /** where the series renders (its backend field, as edited): whose files those fields list */
+  listBackend?: string | null;
 }) {
   const kind = f.kind === "video_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
   let input;
@@ -253,9 +257,9 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
   } else if (f.kind === "picture") {
     input = <PicturePath value={value} onChange={onChange} pickKey={`field:${f.path.join(".")}`} what={f.label.toLowerCase()} placeholder={f.placeholder} />;
   } else if (f.kind === "lora") {
-    input = <LoraLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" />;
+    input = <LoraLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" backend={listBackend} />;
   } else if (f.kind === "model") {
-    input = <ModelLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" />;
+    input = <ModelLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" backend={listBackend} />;
   } else if (f.kind === "backend") {
     const bs = backends ?? [];
     input = (
