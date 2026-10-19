@@ -727,6 +727,19 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
   shot renders the profile's model and LoRAs at 9 steps. A `lora:` line replaces the
   profile's whole LoRA list.
 - A profile name that isn't in the series config is an error.
+- **The full model for the shots that need it.** H3's 8-step turbo is fast but weak on big
+  camera moves (a pull out, a pan, a tilt from the rooftops), which it leaves faint or
+  flickering. A profile with no LoRA renders those on the full model instead, H3's base
+  preset (20 steps, `res_multistep`), about twice as slow; add `"sla": "off"` for the
+  smoothest frames, slower again:
+
+  ```json
+  "profiles": { "full": { "loras": ["none"] },
+                "full_smooth": { "loras": ["none"], "sla": "off" } }
+  ```
+
+  then `profile: full` on the shots with a big move (or `lora: none` on one shot, or
+  `"lora": "none"` in the series config's `series` block for all of them).
 
 ### Model files: `model_families`
 
@@ -1146,7 +1159,7 @@ sound: running footsteps on grass, fabric movement
 | `## shNNN` | a shot. **Every `##` is a cut** — no `CUT TO:` needed |
 | `who: a, b` | characters on screen, in this order (on H3 Ref2VA they become `<Picture 1..3>`); `cast:` is the same |
 | `with: x, y` | props and vehicles, after the characters; `props:` is the same |
-| `size: mcu` | shot size, from extreme close-up to extreme wide (`ecu`, `cu`/`close`, `mcu`, `ms`/`medium`, `cowboy`, `mws`, `fs`/`full`, `ws`/`wide`, `ews`; the full names work too). Opens the shot's prompt as its framing ("A medium close-up frames… from the chest up"), and decides how much of the location and of the sheet is used. See **Faces need room** |
+| `size: mcu` | shot size, from extreme close-up to extreme wide (`ecu`, `cu`/`close`, `mcu`, `ms`/`medium`, `cowboy`, `mws`, `fs`/`full`, `ws`/`wide`, `ews`), or an angle (`pov`, `ots`, `low`, `high`); the full names work too. Opens the shot's prompt as its framing ("A medium close-up frames… from the chest up"), and decides how much of the location and of the sheet is used. See **Faces need room** |
 | `plate: street_gate` | this shot's angle; defaults to the sequence's location |
 | `dur: 3.04` | duration in seconds, from the grid below (`duration:` is the same) |
 | `dur: auto` | derive the duration from the dialogue at this shot's pace |
@@ -1160,7 +1173,8 @@ sound: running footsteps on grass, fabric movement
 | `text: OPEN 24 HOURS` | on-screen text the picture must show (a sign, a note, a screen), quoted into the prompt. Never the series title or credits: those are added in the edit, not rendered into a shot |
 | `policy: generate` | this shot's audio: `generate` (the model makes all of it), `dub` (lip sync to the recording's `audio:` window, which becomes the soundtrack), `dub_keep_foley` (the same, keeping the model's sound effects under it) or `clone` (spoken in each speaker's `voice_sample`). Without it, dialogue shots follow `audio.mode` and silent ones generate |
 | `retention: partially_copy` | how closely a dubbed shot copies the recording: `fully_copy`, `partially_copy` or `reference` (H3 Ref2VA; dub shots only) |
-| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none |
+| `model:`, `lora:`, `steps:` | per-shot render overrides; also valid under a `#` header. `lora:` takes one LoRA (`soft_light.safetensors`, `soft_light.safetensors:0.6` for a strength) or a chain of them separated by commas, applied in that order (`lora: turbo_8step.safetensors, soft_light.safetensors:0.6`); `lora: none` for none: where the pass's LoRA is a turbo (H3's), that renders the full model, the pass's base preset (20 steps, `res_multistep` on H3); a shot's own `steps:` still wins |
+| `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
@@ -1556,6 +1570,22 @@ slightly / strongly · takes the subject's POV · rolls clockwise / counterclock
 **Amplitude:** with small amplitude · with large amplitude
 **Speed:** at slow speed · at fast speed
 
+**Say where the move goes.** A move alone tells the model how the camera travels, not what
+the frame should hold at the end, and a bare `pulls out` often barely moves. Finish the line
+with what it travels toward or reveals, the way H3's own prompt guide writes every move:
+
+```
+camera: pushes in with small amplitude at slow speed toward the folded letter in her hands
+camera: pulls out with large amplitude at slow speed, revealing the whole square around her
+camera: pans right with large amplitude at slow speed from the cafe along the street to the station
+camera: tilts down at slow speed from the rooftops to her standing by the bench
+camera: trucks left at slow speed along the shop fronts, the street lamp sliding past in the foreground
+```
+
+A large move wants `at slow speed`: a large, fast one can flash or smear on the way. A truck
+or a pedestal reads by what slides past in the foreground (parallax), so name something
+there. For what a character sees, use `size: pov` and say in the action whose eyes they are.
+
 "Arcs around them with large amplitude at fast speed" beats "swoops around dramatically",
 because it names a move the model was trained on.
 
@@ -1571,7 +1601,7 @@ Film terms translate into that vocabulary:
 | orbit | `arcs around <name>…` |
 | follow, lead | `tracks <name> as she walks…` (in front of or behind, in the action) |
 | handheld | `shakes slightly` |
-| over the shoulder | not a move: frame it in the action, "over Ada's shoulder, Bo faces camera", with both in `who:` |
+| over the shoulder | not a move: `size: ots`, with both in `who:`, and say whose shoulder in the action ("over Ada's shoulder, Bo faces camera") |
 | rack focus | not a move: say it in the action, "the focus shifts from the cup to Ada's face" |
 
 Staging (where people stand, who faces camera, how a scene's angles cut together) is the
@@ -1618,6 +1648,15 @@ label. Choose it by what the shot has to show:
 | `fs` (`full`) | full shot | head to toe | a whole-body action: a trip, a dance step, a fall |
 | `ws` (`wide`) | wide shot | the subject in the room | geography, entrances |
 | `ews` | extreme wide shot | the subject small in a big setting | scale, isolation, establishing a place |
+| `pov` | POV shot | what a character sees, through their eyes | discovery, a threat approaching, reaching for something |
+| `ots` (`over-the-shoulder`) | over-the-shoulder shot | past one person's shoulder onto the other | dialogue coverage, a confrontation; put both in `who:` |
+| `low` (`low-angle`) | low-angle shot | the subject seen from below | power, menace, a hero moment |
+| `high` (`high-angle`) | high-angle shot | the subject seen from above | weakness, isolation, a fall seen from the top |
+
+The last four are angles, framings H3's guide names beside the sizes: they say where the
+camera looks from rather than how much it holds, act like a medium for the plate and the
+sheet, and are never counted as a jump cut against another size. Say the distance in the
+action when it matters ("a low-angle close-up of his face", "a high-angle wide of the square").
 
 The full names work too (`size: medium close-up`), and so do `ls` (long shot) and `els`. The
 in-between sizes put what the frame holds into the prompt ("from the chest up"), so a model

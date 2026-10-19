@@ -21,6 +21,7 @@ import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { LengthPicker } from "./LengthPicker";
+import { PresetPicker, useCameraTiles, useFramingTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
@@ -67,6 +68,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const sc = useSeriesConfig(ep);
   const [doc, setDoc] = useState<SourceDoc | null>(null);
   const [form, setForm] = useState<Form | null>(null);
+  // the framings as pictures (seriesmith/presets/framing.json)
+  const framings = useFramingTiles();
   const [orig, setOrig] = useState<string>("");
   const [seq, setSeq] = useState<string>("");          // a new shot's sequence ("+": a new one)
   const [newSeq, setNewSeq] = useState({ id: "", location: "" });
@@ -270,6 +273,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     <LengthPicker value={form.keys.dur ?? ""} onChange={(v) => set("dur", v)} empty="—" auto model />
                   </span>
                 </div>
+                <PresetPicker tiles={framings} value={form.keys.size ?? ""} picked={framingId(form.keys.size)}
+                  onPick={(v) => set("size", v)} title="Framing, as pictures" open={!form.keys.size} size={0.8} />
                 <div className="h3-col" style={{ gap: 4 }}>
                   <span className="h3-card-title" title="What is visibly happening, present tense, concrete and physical. This shot only: the model remembers nothing of the shot before, so say it fresh. Not how anyone feels.">
                     What happens <i className="pi pi-info-circle sm-tip-i" />
@@ -519,12 +524,18 @@ export function CameraField({ value, onChange }: { value: string; onChange: (v: 
   const [move, setMove] = useState("");
   const [amp, setAmp] = useState("");
   const [speed, setSpeed] = useState("");
-  const build = (m: string, a: string, s: string) => {
-    setMove(m); setAmp(a); setSpeed(s);
-    if (m) onChange(cameraLine(m, a, s));
+  const [toward, setToward] = useState("");
+  const moves = useCameraTiles();
+  const build = (m: string, a: string, s: string, t = toward) => {
+    setMove(m); setAmp(a); setSpeed(s); setToward(t);
+    if (m) onChange(cameraLine(m, a, s, t));
   };
+  // the move the line starts with (its amplitude and speed after it), longest first
+  const current = [...moves].sort((a, b) => b.text.length - a.text.length).find((t) => value.trim().startsWith(t.text));
   return (
     <div className="h3-col" style={{ gap: 3 }}>
+      <PresetPicker tiles={moves} value={value} picked={current?.id ?? null} onPick={(m) => build(m, amp, speed)}
+        title="Camera moves, as clips (hover to play)" open={!value.trim()} size={0.8} />
       <input className="h3-in" value={value} placeholder="holds a static shot" onChange={(e) => onChange(e.target.value)} />
       <div className="h3-row h3-wrap">
         <span className="h3-small h3-muted">build:</span>
@@ -538,9 +549,27 @@ export function CameraField({ value, onChange }: { value: string; onChange: (v: 
         <select className="h3-in" value={speed} onChange={(e) => build(move, amp, e.target.value)}>
           {CAMERA_SPEED.map((m) => <option key={m} value={m}>{m || "any speed"}</option>)}
         </select>
+        <input className="h3-in h3-grow" style={{ minWidth: 180 }} value={toward} placeholder="where it goes: toward her face / revealing the square"
+          title="What the move travels toward or reveals: the model frames the end of the move from it, and a bare move often barely moves"
+          onChange={(e) => build(move, amp, speed, e.target.value)} />
       </div>
     </div>
   );
+}
+
+/** A `size:` as the framing presets name it (the script's own aliases read too). */
+function framingId(size: string | undefined): string | null {
+  const v = (size ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  if (!v) return null;
+  const alias: Record<string, string> = {
+    xcu: "ecu", extremecloseup: "ecu", close: "cu", closeup: "cu", mediumcloseup: "mcu", ms: "medium",
+    mid: "medium", midshot: "medium", mediumshot: "medium", cowboyshot: "cowboy", americanshot: "cowboy",
+    mediumwide: "mws", mls: "mws", mediumlong: "mws", fs: "full", fullshot: "full", ws: "wide", ls: "wide",
+    long: "wide", wideshot: "wide", longshot: "wide", xws: "ews", els: "ews", extremewide: "ews", extremelong: "ews",
+    povshot: "pov", pointofview: "pov", overtheshoulder: "ots", overshoulder: "ots", lowangle: "low",
+    lowangleshot: "low", highangle: "high", highangleshot: "high",
+  };
+  return alias[v] ?? v;
 }
 
 function Preview({ p, pass, show, setShow }: { p: ShotPreview | null; pass: string; show: boolean; setShow: (b: boolean) => void }) {

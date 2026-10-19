@@ -781,6 +781,47 @@ shown as pictures, each filling a text that stays editable.
       couldn't, keeping the figure's own colors. Klein is the better relighter of the two.
 - [ ] Later: a series' own presets (series.json), and relighting a sequence's plates in one go.
 
+## Shot direction as pictures: framing and camera moves (2026-10-19)
+
+- [x] `presets/framing.json` (the nine `size:` values, each with how much the frame holds)
+      and `presets/camera.json` (the 20 moves the `camera:` line starts with, grouped:
+      still, dolly, zoom, pan and tilt, truck and pedestal, around, handheld and roll).
+- [x] Their samples, made by `tools/make_preset_samples.py`: each framing on Krea 2 (the same
+      woman and street at every size); each move as a shot of a scratch episode rendered by
+      `seriesmith render` on H3 (the base plate, the woman written into the action), its
+      take made a 360 px silent loop. A move's sample is rendered with large amplitude so
+      the clip shows it (the tile still hands over the plain move); the extreme close-up is
+      cut from the close-up's render (`crop`), as Krea 2 won't frame the eyes alone. Pull out
+      and tilt down were faint on the turbo over three seeds (see below).
+- [x] The shot form: **Framing, as pictures** under Framing; **Camera moves, as clips** in
+      Camera (a clip plays while pointed at; a pick starts the line with the move, its
+      amplitude and speed still the menus beside it).
+- [x] The angles as framings (2026-10-19): `pov`, `ots`, `low`, `high` in core/framing.py,
+      named by H3's guide beside the sizes; medium for the plate and sheet, outside ORDER, so
+      never a jump cut. AUTHORING's size table, the shot form and four more framing tiles.
+- [x] A camera line says where it goes: AUTHORING's camera section (the guide ends every move
+      on what it travels toward or reveals; a large move wants slow speed; a truck or pedestal
+      reads by its foreground), and the builder's **where it goes** box. The camera samples
+      were redrawn so: each with its own line (`sample` in camera.json), a starting framing that
+      suits the move, and a longer, smaller move where H3 flickered (every fourth frame, its
+      latents) on a big one in three seconds; measured, not eyeballed (frame-to-frame brightness).
+      Pull out, pan left and tilt down are H3's base preset (20 steps, res_multistep, no turbo
+      LoRA, no SLA attention: the Cloud-shaped graph run on this machine): the 8-step turbo
+      left them faint or flickering, the full model made each move whole and steady (largest
+      frame-to-frame jump 0.9-2.5). For a big camera move, H3's base beats its turbo.
+- [x] The turbo off renders the full model (2026-10-19): `lora: none` (a shot, a sequence, a
+      profile, the series) where the pass's LoRA slot holds an accelerator takes the path a
+      missing turbo takes, the pass's base preset (its steps and sampler; a shot's own steps
+      win). It needs no model list. AUTHORING's `lora:` row and a `full` profile for big moves.
+- [x] `sla: off` (2026-10-19): a shot's, a sequence's, a profile's or the series' switch that
+      splices out the target's `bypass_if_missing` nodes (H3's sparse attention); on by
+      default, turbo or not. Measured on pull out, same seed, 20 steps, no LoRA: with SLA
+      1:16, without 2:02; both moves whole (first-to-last change 83 / 82); largest
+      frame-to-frame jump 13.2 with, 2.6 without. So SLA stays on the full model unless a
+      shot wants every frame smooth.
+- [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
+      each option a sample picture; a per-shot lens beside framing, if it earns its place.
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

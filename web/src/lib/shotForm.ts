@@ -199,6 +199,10 @@ export const SIZES: { value: string; label: string }[] = [
   { value: "full", label: "full — head to toe" },
   { value: "wide", label: "wide — the people in their place" },
   { value: "ews", label: "extreme wide — the place, people small in it" },
+  { value: "pov", label: "POV — through a character's eyes" },
+  { value: "ots", label: "over the shoulder — past one onto the other" },
+  { value: "low", label: "low angle — seen from below" },
+  { value: "high", label: "high angle — seen from above" },
 ];
 
 /** Durations free on H3's grid (17k+5 frames at 24 fps), with what each suits. */
@@ -225,9 +229,14 @@ export const CAMERA_MOVES = [
 export const CAMERA_AMPLITUDE = ["", "with small amplitude", "with large amplitude"];
 export const CAMERA_SPEED = ["", "at slow speed", "at fast speed"];
 
-/** A camera line from its parts. */
-export function cameraLine(move: string, amplitude: string, speed: string): string {
-  return [move, amplitude, speed].filter(Boolean).join(" ");
+/** A camera line from its parts: the move, its amplitude and speed, and where it goes
+ * ("toward her face", "revealing the square": H3's guide ends every move so). */
+export function cameraLine(move: string, amplitude: string, speed: string, toward = ""): string {
+  const line = [move, amplitude, speed].filter(Boolean).join(" ");
+  const t = toward.trim();
+  if (!t) return line;
+  // "revealing…" and "showing…" read after a comma; "toward…", "from…" and the like straight on
+  return /^(revealing|showing|until|as)\b/i.test(t) ? `${line}, ${t}` : `${line} ${t}`;
 }
 
 /** A new shot's form. */

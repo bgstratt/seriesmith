@@ -1,9 +1,11 @@
 """
 Presets the editor offers as pictures to pick from, each filling a text that
 stays editable: relighting a ref's picture (relight.json: the edit window's
-Relight, a plate's wording and a character's or prop's) and the series'
-look (look.json: the series form's Look). Each preset's sample picture is
-under img/ (made by tools/make_preset_samples.py, with seriesmith itself);
+Relight, a plate's wording and a character's or prop's), the series' look
+(look.json: the series form's Look), a shot's framing (framing.json: its
+`size:`) and its camera move (camera.json: how its `camera:` line starts).
+Each preset's sample is under img/ (made by tools/make_preset_samples.py,
+with seriesmith itself): a JPEG, or for a camera move a short silent clip;
 one not made yet is simply left out of the answer.
 
 Standard library only.
@@ -14,7 +16,9 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KINDS = ("relight", "look")
+KINDS = ("relight", "look", "framing", "camera")
+# a camera move's sample is a clip, the rest pictures
+EXT = {"camera": ".mp4"}
 # which of a relight preset's texts a ref kind reads
 WORDING = {"location": "place", "character": "subject", "prop": "subject", "vehicle": "subject"}
 
@@ -31,15 +35,16 @@ def _load(kind: str) -> list[dict]:
 
 
 def image_name(kind: str, pid: str, wording: str | None = None) -> str:
-    """A preset's sample picture, under img/: look/<id>.jpg, relight/<id>-<wording>.jpg."""
-    return f"{kind}/{pid}{'-' + wording if wording else ''}.jpg"
+    """A preset's sample, under img/: look/<id>.jpg, relight/<id>-<wording>.jpg,
+    camera/<id>.mp4."""
+    return f"{kind}/{pid}{'-' + wording if wording else ''}{EXT.get(kind, '.jpg')}"
 
 
 def image_path(name: str) -> str | None:
     """The file of a sample picture named as image_name names it, or None
     (not made yet, or a name that isn't one)."""
     parts = name.replace("\\", "/").split("/")
-    if (len(parts) != 2 or parts[0] not in KINDS or not parts[1].endswith(".jpg")
+    if (len(parts) != 2 or parts[0] not in KINDS or not parts[1].endswith(EXT.get(parts[0], ".jpg"))
             or any(c in parts[1] for c in "/\\:") or parts[1].startswith(".")):
         return None
     p = os.path.join(HERE, "img", parts[0], parts[1])
@@ -49,10 +54,18 @@ def image_path(name: str) -> str | None:
 def listing(kind: str) -> list[dict]:
     """The presets of `kind`, as the editor shows them. A look: {id, label,
     group, text, image}. A relight: {id, label, group, for: [wordings],
-    texts: {wording: text}, images: {wording: name}}. An image is the
-    picture's name for GET /seriesmith/presets/image, present only when made."""
+    texts: {wording: text}, images: {wording: name}}. A framing: {id, label,
+    group, hint, image}. A camera move: {id, label, group, move, image}. An
+    image is the sample's name for GET /seriesmith/presets/image, present
+    only when made."""
     out = []
     for p in _load(kind):
+        if kind in ("framing", "camera"):
+            name = image_name(kind, p["id"])
+            keep = ("hint",) if kind == "framing" else ("move",)
+            out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),
+                        **{k: p[k] for k in keep}, **({"image": name} if image_path(name) else {})})
+            continue
         if kind == "look":
             name = image_name(kind, p["id"])
             out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),

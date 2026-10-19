@@ -43,6 +43,19 @@ class DataTest(unittest.TestCase):
                 self.assertNotIn("high quality", p["text"].lower())
                 self.assertGreater(len(p["text"].split()), 12)
 
+    def test_framing_and_camera_say_what_the_script_does(self):
+        from seriesmith.core import framing as F
+        for p in PR._load("framing"):
+            with self.subTest(p["id"]):
+                # every size the shot form offers is one the script reads
+                self.assertIn(F.ALIASES.get(p["id"].replace("-", ""), p["id"]), F.SIZES)
+        self.assertEqual([p["id"] for p in PR._load("framing")],
+                         ["ecu", "cu", "mcu", "medium", "cowboy", "mws", "full", "wide", "ews",
+                          "pov", "ots", "low", "high"])
+        moves = [p["move"] for p in PR._load("camera")]
+        self.assertEqual(len(moves), len(set(moves)))
+        self.assertIn("pushes in", moves)
+
     def test_a_ref_kind_reads_its_wording(self):
         self.assertIn("the light on the figure", PR.relight_text("neon", "character"))
         self.assertTrue(PR.relight_text("neon", "location").startswith("Change only the light:"))
@@ -61,6 +74,8 @@ class ListingTest(unittest.TestCase):
             shutil.copyfile(os.path.join(PR.HERE, f"{kind}.json"), os.path.join(tmp, f"{kind}.json"))
         os.makedirs(os.path.join(tmp, "img", "look"))
         os.makedirs(os.path.join(tmp, "img", "relight"))
+        os.makedirs(os.path.join(tmp, "img", "camera"))
+        open(os.path.join(tmp, "img", "camera", "arc.mp4"), "wb").write(b"mp4")
         open(os.path.join(tmp, "img", "look", "neon_noir.jpg"), "wb").write(b"\xff\xd8jpg")
         open(os.path.join(tmp, "img", "relight", "rain-place.jpg"), "wb").write(b"\xff\xd8jpg")
         patch = mock.patch.object(PR, "HERE", tmp)
@@ -80,7 +95,7 @@ class ListingTest(unittest.TestCase):
     def test_the_routes(self):
         ctx = A.Context(tempfile.mkdtemp(), "http://127.0.0.1:9", env={})
         status, data = A.get_presets(ctx, {})
-        self.assertEqual((status, set(data)), (200, {"relight", "look"}))
+        self.assertEqual((status, set(data)), (200, set(PR.KINDS)))
         self.assertEqual(set(A.get_presets(ctx, {"kind": "look"})[1]), {"look"})
         self.assertEqual(A.get_presets(ctx, {"kind": "nope"})[0], 400)
         status, data = A.get_preset_image(ctx, {"name": "look/neon_noir.jpg"})
@@ -91,6 +106,11 @@ class ListingTest(unittest.TestCase):
                      "look/neon_noir.png", "", "look/.jpg"):
             with self.subTest(name):
                 self.assertEqual(A.get_preset_image(ctx, {"name": name})[0], 404)
+        # a camera move's sample is a clip
+        status, data = A.get_preset_image(ctx, {"name": "camera/arc.mp4"})
+        self.assertEqual((status, data["content_type"]), (200, "video/mp4"))
+        self.assertEqual(A.get_preset_image(ctx, {"name": "camera/arc.jpg"})[0], 404)
+        self.assertEqual(A.get_preset_image(ctx, {"name": "look/neon_noir.mp4"})[0], 404)
         routes = {(m, p) for m, p, _f, _t in A.ROUTES}
         self.assertIn(("GET", "/seriesmith/presets"), routes)
         self.assertIn(("GET", "/seriesmith/presets/image"), routes)

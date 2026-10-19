@@ -1,0 +1,171 @@
+{
+  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model). A sample is drawn the way the H3 prompt guide writes motion (the move, its amplitude and speed, and what it travels toward or reveals): `sample` gives its camera line, and the framing (`size`) and action it starts from when the defaults (wide; the woman by the bench) don't suit the move. The tile still hands over the plain move A big move over three seconds flickers on H3 (every fourth frame: its latents), so a sample can run longer (`dur`) at a smaller amplitude `base`: rendered on H3's base preset (20 steps, no turbo LoRA, no SLA attention), which makes a big move whole where the turbo leaves it faint or flickering; `location` and `plate`: a place of its own for the sample (a POV wants a long view ahead), its plate drawn from `plate`.",
+  "presets": [
+    {
+      "id": "static",
+      "label": "Static",
+      "group": "frame",
+      "move": "holds a static shot"
+    },
+    {
+      "id": "push_in",
+      "label": "Push in",
+      "group": "dolly",
+      "move": "pushes in"
+    },
+    {
+      "id": "pull_out",
+      "label": "Pull out",
+      "group": "dolly",
+      "move": "pulls out",
+      "sample": {
+        "size": "medium",
+        "camera": "pulls out with large amplitude at slow speed, revealing the whole street, the cafe and the bench around her",
+        "action": "It opens close on a woman in a red wool coat, her face and shoulders filling the frame, as she waits by the bench outside the cafe.",
+        "base": true
+      }
+    },
+    {
+      "id": "zoom_in",
+      "label": "Zoom in",
+      "group": "lens",
+      "move": "zooms in"
+    },
+    {
+      "id": "zoom_out",
+      "label": "Zoom out",
+      "group": "lens",
+      "move": "zooms out"
+    },
+    {
+      "id": "pan_left",
+      "label": "Pan left",
+      "group": "pivot",
+      "move": "pans left",
+      "sample": {
+        "dur": 5,
+        "camera": "pans left at slow speed from the cafe front along the street, revealing the row of houses beyond",
+        "base": true
+      }
+    },
+    {
+      "id": "pan_right",
+      "label": "Pan right",
+      "group": "pivot",
+      "move": "pans right",
+      "sample": {
+        "dur": 5,
+        "camera": "pans right at slow speed from the cafe front along the street, revealing the row of houses beyond"
+      }
+    },
+    {
+      "id": "tilt_up",
+      "label": "Tilt up",
+      "group": "pivot",
+      "move": "tilts up"
+    },
+    {
+      "id": "tilt_down",
+      "label": "Tilt down",
+      "group": "pivot",
+      "move": "tilts down",
+      "sample": {
+        "camera": "tilts down with large amplitude at slow speed from the rooftops and the evening sky down to her standing by the bench",
+        "base": true
+      }
+    },
+    {
+      "id": "truck_left",
+      "label": "Truck left",
+      "group": "slide",
+      "move": "trucks left",
+      "sample": {
+        "camera": "trucks left with large amplitude at slow speed along the cafe front, the street lamp in the foreground sliding across the frame"
+      }
+    },
+    {
+      "id": "truck_right",
+      "label": "Truck right",
+      "group": "slide",
+      "move": "trucks right",
+      "sample": {
+        "camera": "trucks right with large amplitude at slow speed along the cafe front, the street lamp in the foreground sliding across the frame"
+      }
+    },
+    {
+      "id": "pedestal_up",
+      "label": "Pedestal up",
+      "group": "slide",
+      "move": "pedestals up",
+      "sample": {
+        "dur": 5,
+        "camera": "pedestals up at slow speed, rising from the wet cobbles to look down on her and the street from above the awning"
+      }
+    },
+    {
+      "id": "pedestal_down",
+      "label": "Pedestal down",
+      "group": "slide",
+      "move": "pedestals down",
+      "sample": {
+        "dur": 5,
+        "action": "It opens high above the street, looking down on the striped awning, the bench and a woman in a red wool coat waiting beside it.",
+        "camera": "pedestals down with large amplitude at slow speed, descending from above the awning to eye level beside her"
+      }
+    },
+    {
+      "id": "arc",
+      "label": "Arc around",
+      "group": "orbit",
+      "move": "arcs around"
+    },
+    {
+      "id": "track",
+      "label": "Track",
+      "group": "orbit",
+      "move": "tracks"
+    },
+    {
+      "id": "pov",
+      "label": "POV",
+      "group": "orbit",
+      "move": "takes the subject's POV",
+      "sample": {
+        "size": "pov",
+        "dur": 5,
+        "base": true,
+        "location": "pov_street",
+        "plate": "A long narrow cobbled street at dusk seen at eye level from the middle of the street, looking straight down its length to a vanishing point, wet cobbles shining, shop windows and cafe fronts glowing warm on both sides, street lamps lit, no people",
+        "action": "Walking down the middle of the wet cobbled street, seen through her own eyes: the street stretches ahead to a vanishing point, shop windows glowing on both sides slide past; no one stands in front of the camera.",
+        "camera": "moves forward at walking pace down the middle of the street, bobbing gently with each step"
+      }
+    },
+    {
+      "id": "shake_slight",
+      "label": "Shake (slight)",
+      "group": "handheld",
+      "move": "shakes slightly"
+    },
+    {
+      "id": "shake_strong",
+      "label": "Shake (strong)",
+      "group": "handheld",
+      "move": "shakes strongly"
+    },
+    {
+      "id": "roll_cw",
+      "label": "Roll clockwise",
+      "group": "handheld",
+      "move": "rolls clockwise",
+      "sample": {
+        "camera": "rolls clockwise at slow speed"
+      }
+    },
+    {
+      "id": "roll_ccw",
+      "label": "Roll counterclockwise",
+      "group": "handheld",
+      "move": "rolls counterclockwise"
+    }
+  ]
+}

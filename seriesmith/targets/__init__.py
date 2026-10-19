@@ -1340,7 +1340,7 @@ def target_for_workflow(name: str) -> Target | None:
 # profiles and target selection
 # ---------------------------------------------------------------------------
 
-PROFILE_KEYS = ("target", "model", "loras", "steps")
+PROFILE_KEYS = ("target", "model", "loras", "steps", "sla")
 
 
 def normalize_loras(value, where: str) -> list[dict]:
@@ -1402,6 +1402,10 @@ def series_profiles(series_cfg: dict) -> dict[str, dict]:
             prof["steps"] = p["steps"]
         if p.get("loras") is not None:
             prof["loras"] = normalize_loras(p["loras"], where)
+        if p.get("sla") is not None:
+            if p["sla"] not in ("on", "off"):
+                raise ValueError(f"{where}: sla must be on or off")
+            prof["sla"] = p["sla"]
         out[name] = prof
     return out
 
@@ -2010,10 +2014,26 @@ def resolve_models(target: Target, pass_: str, wanted: dict, listing, resolve=No
                 out["loras"] = new
             lora_list = new
 
-    if not (accel or accel_loras):
+    # the turbo turned off: `lora: none` where the pass's own LoRA slot holds an
+    # accelerator. It renders the pass's base preset, as a turbo that isn't
+    # installed does: the full model, at the base's steps and sampler.
+    turned_off = (isinstance(loras, list) and not lora_list and not accel_loras and any(
+        lora_spec(target, n, True)["tier"] == "accelerator" for n in slot))
+    if not (accel or accel_loras or turned_off):
         return out
     preset = target.presets.get(pass_)
     base = copy.deepcopy(preset.base) if preset is not None and preset.base else None
+    if turned_off and not (accel or accel_loras):
+        if base is None:
+            return out                     # no base to render: the LoRA is simply off
+        out["base"] = base
+        out["values"] = {k: v for k, v in base.items()
+                         if k not in BASE_FILE_KEYS and k not in models}
+        said = ", ".join(f"{k} {v}" for k, v in base.items()
+                         if k not in ("loras", "lora") and not isinstance(v, (dict, list)))
+        out["notes"].append(f"turbo off (lora: none): rendered with the {pass_} base preset "
+                            f"({said}), the full model")
+        return out
     if base is None:
         # nothing to fall back to: this pass can't do without its accelerator
         out["blocked"] += [m for m in out["missing"] if m["tier"] == "accelerator"]

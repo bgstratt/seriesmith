@@ -1,0 +1,105 @@
+{
+  "about": "Framing presets (the shot form's Framing): a shot's `size:`, each with a sample picture of the same woman and street at that size (img/framing/<id>.jpg, made by tools/make_preset_samples.py). `id` is what the script's `size:` says (core/framing.py reads it); `hint` how much the frame holds; `prompt` what the sample is drawn from. A preset with `crop` has no render of its own: its sample is cut from another's render (`of`), `box` its left, top and width as fractions.",
+  "presets": [
+    {
+      "id": "ecu",
+      "label": "Extreme close-up",
+      "group": "close",
+      "hint": "the eyes, a detail",
+      "prompt": "An extreme close-up: only her eyes and the bridge of her nose fill the whole frame, macro detail of her skin and lashes, nothing else visible",
+      "crop": {
+        "of": "cu",
+        "box": [
+          0.301,
+          0.188,
+          0.387
+        ]
+      }
+    },
+    {
+      "id": "cu",
+      "label": "Close-up",
+      "group": "close",
+      "hint": "the face",
+      "prompt": "A close-up: her face fills the frame from the top of her head to her chin, her shoulders just cut off"
+    },
+    {
+      "id": "mcu",
+      "label": "Medium close-up",
+      "group": "close",
+      "hint": "chest up",
+      "prompt": "A medium close-up of her, from the chest up"
+    },
+    {
+      "id": "medium",
+      "label": "Medium",
+      "group": "medium",
+      "hint": "waist up",
+      "prompt": "A medium shot of her, from the waist up"
+    },
+    {
+      "id": "cowboy",
+      "label": "Cowboy",
+      "group": "medium",
+      "hint": "mid-thigh up",
+      "prompt": "A cowboy shot: she is framed from the top of her head down to the middle of her thighs, her legs cut off at mid-thigh by the bottom of the frame"
+    },
+    {
+      "id": "mws",
+      "label": "Medium wide",
+      "group": "medium",
+      "hint": "knees up, some room",
+      "prompt": "A medium-wide shot: she is framed from her head down to just below her knees, her shins cut off by the bottom of the frame, the street around her"
+    },
+    {
+      "id": "full",
+      "label": "Full",
+      "group": "wide",
+      "hint": "head to toe",
+      "prompt": "A full shot of her, her whole figure from head to toe"
+    },
+    {
+      "id": "wide",
+      "label": "Wide",
+      "group": "wide",
+      "hint": "the people in their place",
+      "prompt": "A wide shot: she stands small in the street, her whole figure about a third of the frame's height, the cafe, the tram stop and the street around her"
+    },
+    {
+      "id": "ews",
+      "label": "Extreme wide",
+      "group": "wide",
+      "hint": "the place, people small in it",
+      "prompt": "An extreme wide shot: she is small in the frame at the foot of a long street of tall buildings"
+    },
+    {
+      "id": "pov",
+      "label": "POV",
+      "group": "angle",
+      "hint": "through their eyes",
+      "prompt": "A first-person POV shot: we see only what she sees, walking up to a cafe door at a tram stop on a city street at dusk, her own hand in a red wool sleeve reaching out from the bottom of the frame toward the brass door handle; she herself is not in the picture",
+      "scene": false
+    },
+    {
+      "id": "ots",
+      "label": "Over the shoulder",
+      "group": "angle",
+      "hint": "past one onto the other",
+      "prompt": "An over-the-shoulder shot: past the dark shoulder and back of a man's head in the foreground, she faces the camera"
+    },
+    {
+      "id": "low",
+      "label": "Low angle",
+      "group": "angle",
+      "hint": "seen from below",
+      "prompt": "A low-angle shot: a worm's-eye view from the wet pavement, the camera looking steeply up at her standing over it, the street lamps and the evening sky above her"
+    },
+    {
+      "id": "high",
+      "label": "High angle",
+      "group": "angle",
+      "hint": "seen from above",
+      "prompt": "A high-angle shot: the camera high above looking down on her standing alone on the wet pavement of the tram stop"
+    }
+  ]
+}

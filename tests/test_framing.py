@@ -55,10 +55,21 @@ class NamesTest(unittest.TestCase):
         self.assertEqual({c for c in framing.SIZES if framing.family(c) == "close"},
                          {"ecu", "cu", "mcu"})
         self.assertEqual({c for c in framing.SIZES if framing.family(c) == "medium"},
-                         {"ms", "cowboy", "mws"})
+                         {"ms", "cowboy", "mws", "pov", "ots", "low", "high"})
         self.assertEqual({c for c in framing.SIZES if framing.family(c) == "wide"},
                          {"fs", "ws", "ews"})
         self.assertEqual(framing.family("not a size"), "medium")    # an old, hand-edited list
+
+    def test_the_angles(self):
+        # framings H3's guide names beside the sizes: where the camera looks from
+        for name, c in (("POV", "pov"), ("point of view", "pov"), ("over-the-shoulder", "ots"),
+                        ("OTS", "ots"), ("low angle", "low"), ("high-angle shot", "high")):
+            self.assertEqual(framing.canonical(name), c, name)
+        self.assertEqual(framing.article(framing.term("ots")), "An over-the-shoulder shot")
+        # not a distance: a change of angle is never a jump cut
+        self.assertIsNone(framing.steps_apart("low", "cu"))
+        self.assertIsNone(framing.steps_apart("ms", "pov"))
+        self.assertEqual(framing.steps_apart("ws", "cu"), 6)
 
     def test_extreme_alone_is_not_a_size(self):
         self.assertIsNone(framing.canonical("extreme"))               # close or wide?

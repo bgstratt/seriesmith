@@ -25,7 +25,7 @@ from .speech import SPEECH_RATE
 META_KEYS = {"who", "cast", "with", "props", "size", "audio", "dur", "duration",
              "camera", "sound", "music", "policy", "continuous", "text",
              "pace", "plate", "retention", "model", "lora", "steps", "extras",
-             "target", "profile", "first", "last", "overlap"}
+             "target", "profile", "first", "last", "overlap", "sla"}
 SIZES = framing.ALIASES          # every name `size:` takes (core/framing.py)
 
 # Voice-only delivery markers. A speaker tagged with one of these is NOT added
@@ -298,6 +298,12 @@ def _parse(text: str, subject_ids: set[str], character_ids: set[str],
                         target["continuous"] = "first"
                 else:
                     target[key] = method
+            elif key == "sla":
+                v = val.strip().lower()
+                if v not in ("on", "off"):
+                    raise ScriptError(n, line, f"`sla: {val.strip()}` must be on or off (the "
+                                               f"model's sparse attention: off renders smoother, slower)")
+                target["sla"] = v
             elif key == "pace":
                 if val.strip().lower() not in SPEECH_RATE:
                     raise ScriptError(n, line,
@@ -448,7 +454,7 @@ def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int]) -> Shot:
         overrides=overrides, source={"line": span[0], "end_line": span[1]},
         unparsed=unparsed, target=sh.get("target") or None,
         profile=sh.get("profile") or None, first=sh.get("first") or None,
-        last=sh.get("last") or None, continuous=sh.get("continuous") or None,
+        last=sh.get("last") or None, continuous=sh.get("continuous") or None, sla=sh.get("sla"),
         overlap=sh.get("overlap"), legacy=list(sh.get("_legacy") or []))
 
 
@@ -466,7 +472,7 @@ def episode_from_parsed(ep: dict, seq_lines: list[int],
             shots=[_shot_ir(ep["id"], seq, sh, spans[sh["id"]]) for sh in seq["shots"]],
             unparsed=unparsed, target=seq.get("target") or None,
             profile=seq.get("profile") or None, first=seq.get("first") or None,
-            last=seq.get("last") or None))
+            last=seq.get("last") or None, sla=seq.get("sla")))
     return Episode(id=ep["id"], title=ep["title"], series=dict(series or {}),
                    sequences=sequences)
 
