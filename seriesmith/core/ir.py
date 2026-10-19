@@ -67,8 +67,8 @@ def _overrides(d: dict | None = None) -> dict:
 def _put_choice(d: dict, node) -> None:
     """`target`, `profile`, `first` and `last` (and a shot's `continuous`,
     `overlap` and legacy notes), only when set (see the module docstring)."""
-    for k in ("target", "profile", "first", "last"):
-        if getattr(node, k):
+    for k in ("target", "profile", "first", "last", "sla"):
+        if getattr(node, k, None):
             d[k] = getattr(node, k)
     for k in ("overlap", "legacy"):
         if getattr(node, k, None):
@@ -126,6 +126,7 @@ class Shot:
     first: str | None = None         # `first:`: a keyframe method or an image path
     last: str | None = None
     continuous: str | None = None    # `continuous:` on the shot: first | latent | none
+    sla: str | None = None           # `sla:`: on | off, the model's sparse attention
     overlap: int | None = None       # `overlap:`: frames of the previous clip a latent holds
     legacy: list = field(default_factory=list)   # old forms read, for `seriesmith check`
 
@@ -184,7 +185,7 @@ class Shot:
                    source=dict(d.get("source", {})), unparsed=dict(d.get("unparsed", {})),
                    target=d.get("target"), profile=d.get("profile"),
                    first=d.get("first"), last=d.get("last"),
-                   continuous=d.get("continuous"), overlap=d.get("overlap"),
+                   continuous=d.get("continuous"), overlap=d.get("overlap"), sla=d.get("sla"),
                    legacy=list(d.get("legacy") or []))
 
 
@@ -203,6 +204,7 @@ class Sequence:
     profile: str | None = None
     first: str | None = None         # the default `first:` / `last:` of its shots
     last: str | None = None
+    sla: str | None = None           # its shots' default `sla:`
     overlap: int | None = None       # its shots' default `overlap:`
     legacy: list = field(default_factory=list)
 
@@ -228,7 +230,7 @@ class Sequence:
                    unparsed=dict(d.get("unparsed", {})),
                    target=d.get("target"), profile=d.get("profile"),
                    first=d.get("first"), last=d.get("last"), overlap=d.get("overlap"),
-                   legacy=list(d.get("legacy") or []))
+                   sla=d.get("sla"), legacy=list(d.get("legacy") or []))
 
 
 @dataclass

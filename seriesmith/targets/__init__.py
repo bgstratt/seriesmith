@@ -1340,7 +1340,7 @@ def target_for_workflow(name: str) -> Target | None:
 # profiles and target selection
 # ---------------------------------------------------------------------------
 
-PROFILE_KEYS = ("target", "model", "loras", "steps")
+PROFILE_KEYS = ("target", "model", "loras", "steps", "sla")
 
 
 def normalize_loras(value, where: str) -> list[dict]:
@@ -1402,6 +1402,10 @@ def series_profiles(series_cfg: dict) -> dict[str, dict]:
             prof["steps"] = p["steps"]
         if p.get("loras") is not None:
             prof["loras"] = normalize_loras(p["loras"], where)
+        if p.get("sla") is not None:
+            if p["sla"] not in ("on", "off"):
+                raise ValueError(f"{where}: sla must be on or off")
+            prof["sla"] = p["sla"]
         out[name] = prof
     return out
 

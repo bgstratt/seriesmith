@@ -812,9 +812,13 @@ shown as pictures, each filling a text that stays editable.
 - [x] The turbo off renders the full model (2026-10-19): `lora: none` (a shot, a sequence, a
       profile, the series) where the pass's LoRA slot holds an accelerator takes the path a
       missing turbo takes, the pass's base preset (its steps and sampler; a shot's own steps
-      win), and a based job splices out the target's `bypass_if_missing` nodes (H3's SLA,
-      which the turbo LoRAs were distilled against). It needs no model list. AUTHORING's
-      `lora:` row and a `full` profile for big moves.
+      win). It needs no model list. AUTHORING's `lora:` row and a `full` profile for big moves.
+- [x] `sla: off` (2026-10-19): a shot's, a sequence's, a profile's or the series' switch that
+      splices out the target's `bypass_if_missing` nodes (H3's sparse attention); on by
+      default, turbo or not. Measured on pull out, same seed, 20 steps, no LoRA: with SLA
+      1:16, without 2:02; both moves whole (first-to-last change 83 / 82); largest
+      frame-to-frame jump 13.2 with, 2.6 without. So SLA stays on the full model unless a
+      shot wants every frame smooth.
 - [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
       each option a sample picture; a per-shot lens beside framing, if it earns its place.
 

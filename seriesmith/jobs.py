@@ -1415,6 +1415,49 @@ def backend_choice(overrides: dict | None, shot_id: str, target: "TG.Target",
 
 
 _SCRIPT_TARGETS: dict = {}
+_SCRIPT_SLA: dict = {}
+
+
+def script_sla(root: str) -> dict[str, str | None]:
+    """{shot id: "on" | "off" | None}: a shot's `sla:` (the model's sparse
+    attention), from its line, its profile, its sequence's line or profile,
+    else the series config's `series.sla`. {} when the story can't be read.
+    Cached per file version, as script_targets."""
+    sj = os.path.join(root, "shotlist", "shots.json")
+    cfg_path = next((os.path.join(d, "series.json")
+                     for d in (root, os.path.dirname(os.path.normpath(root)))
+                     if os.path.isfile(os.path.join(d, "series.json"))), None)
+    try:
+        key = (os.path.normcase(os.path.abspath(root)), os.stat(sj).st_mtime_ns,
+               os.stat(cfg_path).st_mtime_ns if cfg_path else None)
+    except OSError:
+        return {}
+    if key in _SCRIPT_SLA:
+        return _SCRIPT_SLA[key]
+    out: dict = {}
+    try:
+        from seriesmith.core import ir
+        with open(sj, encoding="utf-8") as fh:
+            story = ir.Episode.loads(fh.read())
+        cfg = (T.read_json(cfg_path) or {}) if cfg_path else {}
+        profiles = TG.series_profiles(cfg)
+        default = (cfg.get("series") or {}).get("sla")
+        for sq in story.sequences:
+            seq = {"id": sq.id, "profile": sq.profile, "sla": sq.sla}
+            for s in sq.shots:
+                shot = {"id": s.id, "profile": s.profile, "sla": s.sla}
+                out[s.id] = TG.layered(TG.render_layers(cfg, seq, shot, profiles), "sla", default)
+    except Exception:
+        out = {}
+    _SCRIPT_SLA.clear()
+    _SCRIPT_SLA[key] = out
+    return out
+
+
+def shot_sla(job: "Job") -> str | None:
+    """The job's shot's `sla:` (script_sla), or None: the target's own."""
+    return script_sla(job.root).get(job.id)
+
 
 
 def script_targets(root: str) -> dict[str, str | None] | None:
@@ -2473,8 +2516,9 @@ def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = No
             del g[k]
     if t.supports("patch_graph"):
         t.patch_graph(g, job, dict(job.inputs if inputs is None else inputs))
-    if job.based and b.bypass:
-        # the base preset renders the full model: what goes with the turbo goes too
+    if b.bypass and shot_sla(job) == "off":
+        # `sla: off` (a shot, its sequence, a profile, the series): what the target can do
+        # without (H3's sparse attention) left out: smoother, slower
         bypass_nodes(g, dict(b.bypass))
     if job.continuity:
         continuity_frame(g, job, take, dict(job.inputs if inputs is None else inputs))
@@ -2896,9 +2940,15 @@ def resolve_models(job: Job, listing=None, resolve=DEFAULT, cache=DEFAULT,
     Returns targets.resolve_models' answer ({} when not run)."""
     if not job.runs:
         return {}
+    b = job_target(job).binding
+    note = f"{', '.join(sorted(b.bypass))} left out (sla: off): smoother, slower"
+    if b.bypass and shot_sla(job) == "off" and note not in job.notes:
+        job.notes.append(note)
     if listing is None:
-        # nothing to check files against: none is resolved, but a turbo turned
-        # off (`lora: none`) still renders the base preset
+        # nothing to check files against: nothing is resolved, unless the turbo
+        # is turned off (`lora: none`), which needs no list to render the base preset
+        if job.loras != []:
+            return {}
         listing = lambda spec: None                               # noqa: E731
     if resolve is DEFAULT:
         resolve = model_resolver()
@@ -2925,11 +2975,6 @@ def resolve_models(job: Job, listing=None, resolve=DEFAULT, cache=DEFAULT,
         job.loras = r["loras"]
     if r["base"] is not None:
         job.based = True
-        gone = sorted(t.binding.bypass)
-        if gone:
-            # what a target can do without goes with its turbo (H3's sparse attention,
-            # which the turbo LoRAs were distilled against): left out of the full model
-            job.notes.append(f"{', '.join(gone)} left out: it goes with the turbo")
         base_steps = r["base"].get("steps")
         if base_steps is not None:
             if job.steps_set:
