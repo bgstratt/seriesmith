@@ -1,5 +1,5 @@
 {
-  "about": "Look presets for the series config's style.look (the series form's Look): each a director of photography's brief, one sentence of what the lens, focus, light and stock (or the drawing) do (docs/AUTHORING.md, Writing the look line). Picking one fills the line, which stays the series' own to edit. The sample pictures are img/look/<id>.jpg, the same scene in each look, made by tools/make_preset_samples.py. `parts` is the preset in the look builder's rows (look_builder.json), so picking it sets them too.",
+  "about": "Look presets for the series config's style.look (the series form's Look): each a director of photography's brief, one sentence of what the lens, focus, light and stock (or the drawing) do (docs/AUTHORING.md, Writing the look line). Picking one fills the line, which stays the series' own to edit. The sample pictures are img/look/<id>.jpg, each look on the same woman in a red coat, in its own `scene` (a western's frontier street) or else the shared one (LOOK_SCENE), made by tools/make_preset_samples.py. `parts` is the preset in the look builder's rows (look_builder.json), so picking it sets them too.",
   "presets": [
     {
       "id": "prestige_35mm",
@@ -26,7 +26,8 @@
         "film": "t500",
         "light": "neon",
         "grade": "high_contrast"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands alone on a rain-soaked downtown street at night under neon signs, steam rising from a grate"
     },
     {
       "id": "seventies_film",
@@ -39,7 +40,8 @@
         "lens": "vintage",
         "film": "faded70s",
         "light": "soft"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands outside a 1970s diner beside a parked station wagon, a gas station sign across the road"
     },
     {
       "id": "documentary",
@@ -53,7 +55,8 @@
         "film": "digital_clean",
         "light": "soft",
         "grade": "natural"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat walks through a crowded open-air market, stallholders and shoppers around her"
     },
     {
       "id": "bw_noir",
@@ -66,7 +69,8 @@
         "film": "bw",
         "light": "chiaroscuro",
         "grade": "high_contrast"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat waits under a lone streetlamp outside a 1940s hotel at night, a parked sedan at the curb"
     },
     {
       "id": "cool_scifi",
@@ -79,7 +83,8 @@
         "lens": "spherical",
         "film": "digital_clean",
         "grade": "cool"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in a vast clean corridor of a space station, a curved window onto a ringed planet behind her"
     },
     {
       "id": "pastoral",
@@ -93,7 +98,130 @@
         "film": "portrait",
         "light": "golden",
         "grade": "warm"
-      }
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat walks a gravel path past a Georgian country house on a misty morning, a horse-drawn carriage beyond"
+    },
+    {
+      "id": "western",
+      "label": "Western",
+      "group": "genre",
+      "text": "a live-action western shot on 35mm anamorphic lenses: wide open vistas, hard high sun with short black shadows, dust hanging in the air, a sun-bleached warm grade with dry ochre and faded blue, fine film grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "anamorphic",
+        "film": "d250",
+        "light": "hard_sun",
+        "grade": "warm"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in the dusty main street of a frontier town, wooden storefronts and a water tower behind her"
+    },
+    {
+      "id": "thriller",
+      "label": "Thriller",
+      "group": "genre",
+      "text": "a live-action thriller shot on long lenses: compressed depth, cool desaturated color, hard top light and deep shadow, a restless slightly handheld frame, steely blue-grey grade",
+      "parts": {
+        "medium": "live_action",
+        "camera": "handheld",
+        "lens": "long",
+        "light": "chiaroscuro",
+        "grade": "cool"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in an empty multi-storey car park at night, a single car's headlights behind her"
+    },
+    {
+      "id": "road_movie",
+      "label": "Road movie",
+      "group": "genre",
+      "text": "a live-action road movie shot on 35mm: wide-angle open landscapes, warm low golden-hour sun with long shadows and lens flares, a faded warm film stock with soft contrast",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "wide",
+        "film": "faded70s",
+        "light": "golden",
+        "grade": "warm"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands beside an old car on the shoulder of an empty desert highway, the road running to the horizon"
+    },
+    {
+      "id": "horror",
+      "label": "Horror",
+      "group": "genre",
+      "text": "a live-action horror film shot on spherical lenses: low-key light from a single weak practical, deep crushed shadows that swallow the edges of the frame, a sickly green-cyan grade, heavy grain",
+      "parts": {
+        "medium": "live_action",
+        "lens": "spherical",
+        "film": "t500",
+        "light": "low_key",
+        "grade": "high_contrast"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands at the end of a long dim hallway in an abandoned house, peeling wallpaper, one bare bulb"
+    },
+    {
+      "id": "fantasy",
+      "label": "Fantasy",
+      "group": "genre",
+      "text": "a live-action fantasy epic shot on large-format digital: soft haze and shafts of light through the air, rich saturated color, glowing highlights and a gentle bloom, a painterly warm-and-teal grade",
+      "parts": {
+        "medium": "live_action",
+        "camera": "large_format",
+        "light": "golden",
+        "grade": "teal_orange"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in an ancient moss-covered forest, a ruined stone archway behind her, light shafts through the canopy"
+    },
+    {
+      "id": "romance",
+      "label": "Romance",
+      "group": "genre",
+      "text": "a live-action romance shot on 35mm with shallow depth of field: warm soft key light, creamy skin tones, a gentle bloom on the highlights, soft background bokeh and a warm portrait stock",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "shallow",
+        "film": "portrait",
+        "light": "soft",
+        "grade": "warm"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands on a bridge over a river in a European city at dusk, string lights along the railing"
+    },
+    {
+      "id": "war",
+      "label": "War",
+      "group": "genre",
+      "text": "a live-action war film shot handheld on 16mm: a bleach-bypass grade, desaturated and silvery with high contrast, smoke and dust in the air, harsh flat daylight, heavy grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film16",
+        "lens": "wide",
+        "grade": "bleach"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in a bombed-out street of rubble and broken walls, smoke drifting across"
+    },
+    {
+      "id": "technicolor",
+      "label": "Technicolor musical",
+      "group": "genre",
+      "text": "a live-action 1950s Technicolor musical: saturated three-strip color with deep reds and blues, bright even studio light, crisp focus and a polished glossy finish",
+      "parts": {
+        "medium": "live_action",
+        "film": "slide",
+        "light": "high_key"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands on a bright painted studio street set of colorful shopfronts and a striped awning, a lamppost beside her"
+    },
+    {
+      "id": "vhs",
+      "label": "80s VHS",
+      "group": "genre",
+      "text": "1980s home video shot on a consumer camcorder: soft interlaced picture, smeared bleeding color, crushed highlights, low resolution and tape noise, a slight handheld wobble",
+      "parts": {
+        "medium": "live_action",
+        "camera": "handheld"
+      },
+      "scene": "A woman in her thirties with short dark hair and a red wool coat stands in a suburban backyard at a birthday party, a picnic table with a cake and balloons behind her"
     },
     {
       "id": "animated_3d",
