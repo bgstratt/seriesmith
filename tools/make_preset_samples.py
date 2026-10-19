@@ -99,8 +99,12 @@ def moves_episode(work: str, presets: list[dict]) -> tuple[str, dict]:
     shots = {p["id"]: f"sh{(i + 1) * 10:03d}" for i, p in enumerate(presets)}
     lines = ["= ep02  Camera moves", "", "# sq01  porch", ""]
     for p in presets:
-        lines += [f"## {shots[p['id']]}", "size: wide", f"dur: {MOVE_SECONDS}", MOVE_ACTION,
-                  f"camera: {p['move'] if p['id'] in MOVE_AS_SAID else p['move'] + ' with large amplitude'}",
+        # the preset's own sample line (camera.json `sample`), else the move made large
+        sm = p.get("sample") or {}
+        move = sm.get("camera") or (p["move"] if p["id"] in MOVE_AS_SAID else p["move"] + " with large amplitude")
+        size = sm.get("size", "wide")       # None: no size line (a POV shot says so in its action)
+        lines += [f"## {shots[p['id']]}", *([f"size: {size}"] if size else []), f"dur: {sm.get('dur', MOVE_SECONDS)}",
+                  sm.get("action", MOVE_ACTION), f"camera: {move}",
                   "sound: a quiet city street, distant traffic", ""]
     os.makedirs(ep, exist_ok=True)
     # the starter's series in the base look (it is a cartoon), as the plate is drawn
@@ -194,7 +198,7 @@ class Maker:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--work", required=True, help="the scratch folder (kept: its takes, a rerun's start)")
-    ap.add_argument("--only", default="", help="look, relight, or preset ids, a relight's one wording as id:place or id:subject (comma-separated)")
+    ap.add_argument("--only", default="", help="look, relight, or preset ids, a relight's one wording as id:place or id:subject, one kind's id as kind:id (camera:pov) (comma-separated)")
     ap.add_argument("--redo", action="store_true", help="make samples that are already made again")
     ap.add_argument("--look-target", default="krea2", help="the image model the looks are drawn on")
     ap.add_argument("--edit-target", default="flux_kontext", help="the edit model the relights run on")
@@ -206,7 +210,8 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args(argv)
     only = {x.strip() for x in args.only.split(",") if x.strip()}
-    want = lambda kind, pid: not only or kind in only or pid in only   # noqa: E731
+    # a kind, an id (every kind that has it), or kind:id (that one alone: camera:pov)
+    want = lambda kind, pid: not only or kind in only or pid in only or f"{kind}:{pid}" in only   # noqa: E731
 
     ep = episode(os.path.abspath(args.work))
     s = R.load_series(ep)
@@ -265,7 +270,9 @@ def main(argv=None) -> int:
             keep(cut(src, p["crop"]["box"], os.path.join(os.path.dirname(ep), f"{p['id']}.png")) if src else None,
                  name)
             continue
-        renders[p["id"]] = mk.generate(PLATE, None, f"{look_text(BASE_LOOK)}. {p['prompt']}. {FRAMING_SCENE}",
+        # a POV says what she sees, not her (`scene`: false leaves the shared scene out)
+        scene = f" {FRAMING_SCENE}" if p.get("scene", True) else ""
+        renders[p["id"]] = mk.generate(PLATE, None, f"{look_text(BASE_LOOK)}. {p['prompt']}.{scene}",
                                        args.look_target)
         keep(renders[p["id"]], name)
 

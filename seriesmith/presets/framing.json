@@ -71,6 +71,35 @@
       "group": "wide",
       "hint": "the place, people small in it",
       "prompt": "An extreme wide shot: she is small in the frame at the foot of a long street of tall buildings"
+    },
+    {
+      "id": "pov",
+      "label": "POV",
+      "group": "angle",
+      "hint": "through their eyes",
+      "prompt": "A first-person POV shot: we see only what she sees, walking up to a cafe door at a tram stop on a city street at dusk, her own hand in a red wool sleeve reaching out from the bottom of the frame toward the brass door handle; she herself is not in the picture",
+      "scene": false
+    },
+    {
+      "id": "ots",
+      "label": "Over the shoulder",
+      "group": "angle",
+      "hint": "past one onto the other",
+      "prompt": "An over-the-shoulder shot: past the dark shoulder and back of a man's head in the foreground, she faces the camera"
+    },
+    {
+      "id": "low",
+      "label": "Low angle",
+      "group": "angle",
+      "hint": "seen from below",
+      "prompt": "A low-angle shot: a worm's-eye view from the wet pavement, the camera looking steeply up at her standing over it, the street lamps and the evening sky above her"
+    },
+    {
+      "id": "high",
+      "label": "High angle",
+      "group": "angle",
+      "hint": "seen from above",
+      "prompt": "A high-angle shot: the camera high above looking down on her standing alone on the wet pavement of the tram stop"
     }
   ]
 }

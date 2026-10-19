@@ -524,10 +524,11 @@ export function CameraField({ value, onChange }: { value: string; onChange: (v: 
   const [move, setMove] = useState("");
   const [amp, setAmp] = useState("");
   const [speed, setSpeed] = useState("");
+  const [toward, setToward] = useState("");
   const moves = useCameraTiles();
-  const build = (m: string, a: string, s: string) => {
-    setMove(m); setAmp(a); setSpeed(s);
-    if (m) onChange(cameraLine(m, a, s));
+  const build = (m: string, a: string, s: string, t = toward) => {
+    setMove(m); setAmp(a); setSpeed(s); setToward(t);
+    if (m) onChange(cameraLine(m, a, s, t));
   };
   // the move the line starts with (its amplitude and speed after it), longest first
   const current = [...moves].sort((a, b) => b.text.length - a.text.length).find((t) => value.trim().startsWith(t.text));
@@ -548,6 +549,9 @@ export function CameraField({ value, onChange }: { value: string; onChange: (v: 
         <select className="h3-in" value={speed} onChange={(e) => build(move, amp, e.target.value)}>
           {CAMERA_SPEED.map((m) => <option key={m} value={m}>{m || "any speed"}</option>)}
         </select>
+        <input className="h3-in h3-grow" style={{ minWidth: 180 }} value={toward} placeholder="where it goes: toward her face / revealing the square"
+          title="What the move travels toward or reveals: the model frames the end of the move from it, and a bare move often barely moves"
+          onChange={(e) => build(move, amp, speed, e.target.value)} />
       </div>
     </div>
   );
@@ -562,6 +566,8 @@ function framingId(size: string | undefined): string | null {
     mid: "medium", midshot: "medium", mediumshot: "medium", cowboyshot: "cowboy", americanshot: "cowboy",
     mediumwide: "mws", mls: "mws", mediumlong: "mws", fs: "full", fullshot: "full", ws: "wide", ls: "wide",
     long: "wide", wideshot: "wide", longshot: "wide", xws: "ews", els: "ews", extremewide: "ews", extremelong: "ews",
+    povshot: "pov", pointofview: "pov", overtheshoulder: "ots", overshoulder: "ots", lowangle: "low",
+    lowangleshot: "low", highangle: "high", highangleshot: "high",
   };
   return alias[v] ?? v;
 }

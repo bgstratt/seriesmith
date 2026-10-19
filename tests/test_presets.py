@@ -50,7 +50,8 @@ class DataTest(unittest.TestCase):
                 # every size the shot form offers is one the script reads
                 self.assertIn(F.ALIASES.get(p["id"].replace("-", ""), p["id"]), F.SIZES)
         self.assertEqual([p["id"] for p in PR._load("framing")],
-                         ["ecu", "cu", "mcu", "medium", "cowboy", "mws", "full", "wide", "ews"])
+                         ["ecu", "cu", "mcu", "medium", "cowboy", "mws", "full", "wide", "ews",
+                          "pov", "ots", "low", "high"])
         moves = [p["move"] for p in PR._load("camera")]
         self.assertEqual(len(moves), len(set(moves)))
         self.assertIn("pushes in", moves)

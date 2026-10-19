@@ -796,6 +796,15 @@ shown as pictures, each filling a text that stays editable.
 - [x] The shot form: **Framing, as pictures** under Framing; **Camera moves, as clips** in
       Camera (a clip plays while pointed at; a pick starts the line with the move, its
       amplitude and speed still the menus beside it).
+- [x] The angles as framings (2026-10-19): `pov`, `ots`, `low`, `high` in core/framing.py,
+      named by H3's guide beside the sizes; medium for the plate and sheet, outside ORDER, so
+      never a jump cut. AUTHORING's size table, the shot form and four more framing tiles.
+- [x] A camera line says where it goes: AUTHORING's camera section (the guide ends every move
+      on what it travels toward or reveals; a large move wants slow speed; a truck or pedestal
+      reads by its foreground), and the builder's **where it goes** box. The camera samples
+      were redrawn so: each with its own line (`sample` in camera.json), a starting framing that
+      suits the move, and a longer, smaller move where H3 flickered (every fourth frame, its
+      latents) on a big one in three seconds; measured, not eyeballed (frame-to-frame brightness).
 - [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
       each option a sample picture; a per-shot lens beside framing, if it earns its place.
 

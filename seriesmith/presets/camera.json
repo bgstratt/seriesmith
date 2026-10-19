@@ -1,5 +1,5 @@
 {
-  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model).",
+  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model). A sample is drawn the way the H3 prompt guide writes motion (the move, its amplitude and speed, and what it travels toward or reveals): `sample` gives its camera line, and the framing (`size`) and action it starts from when the defaults (wide; the woman by the bench) don't suit the move. The tile still hands over the plain move A big move over three seconds flickers on H3 (every fourth frame: its latents), so a sample can run longer (`dur`) at a smaller amplitude.",
   "presets": [
     {
       "id": "static",
@@ -17,7 +17,12 @@
       "id": "pull_out",
       "label": "Pull out",
       "group": "dolly",
-      "move": "pulls out"
+      "move": "pulls out",
+      "sample": {
+        "size": "medium",
+        "camera": "pulls out with large amplitude at slow speed, revealing the whole street, the cafe and the bench around her",
+        "action": "It opens close on a woman in a red wool coat, her face and shoulders filling the frame, as she waits by the bench outside the cafe."
+      }
     },
     {
       "id": "zoom_in",
@@ -35,13 +40,21 @@
       "id": "pan_left",
       "label": "Pan left",
       "group": "pivot",
-      "move": "pans left"
+      "move": "pans left",
+      "sample": {
+        "dur": 5,
+        "camera": "pans left at slow speed from the cafe front along the street, revealing the row of houses beyond"
+      }
     },
     {
       "id": "pan_right",
       "label": "Pan right",
       "group": "pivot",
-      "move": "pans right"
+      "move": "pans right",
+      "sample": {
+        "dur": 5,
+        "camera": "pans right at slow speed from the cafe front along the street, revealing the row of houses beyond"
+      }
     },
     {
       "id": "tilt_up",
@@ -53,31 +66,49 @@
       "id": "tilt_down",
       "label": "Tilt down",
       "group": "pivot",
-      "move": "tilts down"
+      "move": "tilts down",
+      "sample": {
+        "camera": "tilts down with large amplitude at slow speed from the rooftops and the evening sky down to her standing by the bench"
+      }
     },
     {
       "id": "truck_left",
       "label": "Truck left",
       "group": "slide",
-      "move": "trucks left"
+      "move": "trucks left",
+      "sample": {
+        "camera": "trucks left with large amplitude at slow speed along the cafe front, the street lamp in the foreground sliding across the frame"
+      }
     },
     {
       "id": "truck_right",
       "label": "Truck right",
       "group": "slide",
-      "move": "trucks right"
+      "move": "trucks right",
+      "sample": {
+        "camera": "trucks right with large amplitude at slow speed along the cafe front, the street lamp in the foreground sliding across the frame"
+      }
     },
     {
       "id": "pedestal_up",
       "label": "Pedestal up",
       "group": "slide",
-      "move": "pedestals up"
+      "move": "pedestals up",
+      "sample": {
+        "dur": 5,
+        "camera": "pedestals up at slow speed, rising from the wet cobbles to look down on her and the street from above the awning"
+      }
     },
     {
       "id": "pedestal_down",
       "label": "Pedestal down",
       "group": "slide",
-      "move": "pedestals down"
+      "move": "pedestals down",
+      "sample": {
+        "dur": 5,
+        "action": "It opens high above the street, looking down on the striped awning, the bench and a woman in a red wool coat waiting beside it.",
+        "camera": "pedestals down with large amplitude at slow speed, descending from above the awning to eye level beside her"
+      }
     },
     {
       "id": "arc",
@@ -95,7 +126,13 @@
       "id": "pov",
       "label": "POV",
       "group": "orbit",
-      "move": "takes the subject's POV"
+      "move": "takes the subject's POV",
+      "sample": {
+        "size": null,
+        "dur": 5,
+        "action": "Seen through someone's own eyes as they walk along the wet street toward the cafe door: no one stands in front of the camera; only their own hand, in a red wool sleeve, rises into the bottom of the frame and reaches for the brass door handle.",
+        "camera": "moves forward at walking pace, bobbing gently, as if carried by the person walking"
+      }
     },
     {
       "id": "shake_slight",
@@ -113,7 +150,10 @@
       "id": "roll_cw",
       "label": "Roll clockwise",
       "group": "handheld",
-      "move": "rolls clockwise"
+      "move": "rolls clockwise",
+      "sample": {
+        "camera": "rolls clockwise at slow speed"
+      }
     },
     {
       "id": "roll_ccw",

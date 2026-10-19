@@ -12,8 +12,13 @@ the location plate a shot keeps, the face or body panel of a sheet), so the
 new in-between sizes reuse the three families' handling:
 
     close    ecu, cu, mcu
-    medium   ms, cowboy, mws
+    medium   ms, cowboy, mws, and the angles: pov, ots, low, high
     wide     fs, ws, ews
+
+The angles (a POV shot, over the shoulder, from below, from above) are
+framings H3's guide names beside the sizes; they say where the camera looks
+from, not how much it holds, so they have no place in ORDER and two shots one
+of which is an angle are never called a jump cut.
 
 The words are what the prompt says. H3's own guide names most of these
 framings; for the ones it doesn't (cowboy, full, extreme wide) the extent
@@ -37,6 +42,10 @@ SIZES = {
     "fs":     ("full shot", "from head to toe", "wide"),
     "ws":     ("wide shot", None, "wide"),
     "ews":    ("extreme wide shot", "small within the vastness of the setting", "wide"),
+    "pov":    ("POV shot", "seen through another character's own eyes", "medium"),
+    "ots":    ("over-the-shoulder shot", "past the shoulder of the person facing them", "medium"),
+    "low":    ("low-angle shot", "seen from below, the camera looking up", "medium"),
+    "high":   ("high-angle shot", "seen from above, the camera looking down", "medium"),
 }
 
 # every name a script may write, normalised (see _key), to its canonical size
@@ -52,12 +61,17 @@ ALIASES = {
     "ws": "ws", "wide": "ws", "wideshot": "ws", "ls": "ws", "long": "ws", "longshot": "ws",
     "ews": "ews", "xws": "ews", "els": "ews", "xls": "ews", "extremewide": "ews",
     "extremewideshot": "ews", "extremelong": "ews", "extremelongshot": "ews",
+    "pov": "pov", "povshot": "pov", "pointofview": "pov", "pointofviewshot": "pov",
+    "ots": "ots", "overtheshoulder": "ots", "overtheshouldershot": "ots", "overshoulder": "ots",
+    "low": "low", "lowangle": "low", "lowangleshot": "low", "lowshot": "low",
+    "high": "high", "highangle": "high", "highangleshot": "high", "highshot": "high",
 }
 
 FAMILIES = ("close", "medium", "wide")
 
-# tightest to widest: how far apart two sizes are (steps_apart)
+# tightest to widest: how far apart two sizes are (steps_apart); the angles aren't distances
 ORDER = ("ecu", "cu", "mcu", "ms", "cowboy", "mws", "fs", "ws", "ews")
+ANGLES = ("pov", "ots", "low", "high")
 
 
 def _key(name: str) -> str:
@@ -109,9 +123,10 @@ def in_sizes(name: str | None, names) -> bool:
 def steps_apart(a: str | None, b: str | None) -> int | None:
     """How many sizes apart two framings are (mws and mcu: 3), or None when
     either isn't a size. Two shots of the same people on the same plate want
-    two or more, or the cut reads as a jump cut."""
+    two or more, or the cut reads as a jump cut. None too when either is an
+    angle (pov, ots, low, high): a change of angle is a cut of its own."""
     ca, cb = canonical(a), canonical(b)
-    if ca is None or cb is None:
+    if ca is None or cb is None or ca in ANGLES or cb in ANGLES:
         return None
     return abs(ORDER.index(ca) - ORDER.index(cb))
 
