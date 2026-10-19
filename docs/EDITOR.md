@@ -169,9 +169,13 @@ short wizard:
 2. **Series** (a new series only): its id, the video model, the final and proxy sizes
    (864×480 by default), the look, how dialogue sounds and the speech pace. Everything
    else is in Series settings, any time. **Look** offers presets as pictures, the same
-   scene in each (prestige drama, neon noir, 1970s film, documentary, black and white, 3D
-   animated, 2D cartoon, anime, stop-motion, watercolor, graphic novel…): one fills the
-   line, which stays yours to edit, as it is in Series settings. **Build the look** under
+   woman in a red coat in each (prestige drama, neon noir, 1970s film, documentary, black
+   and white; genres: western, thriller, road movie, horror, fantasy, romance, war,
+   Technicolor musical, 80s VHS; 3D animated, 2D cartoon, anime, stop-motion, watercolor,
+   graphic novel…): one fills the line, which stays yours to edit, as it is in Series
+   settings. A genre's picture shows its world (a frontier town, a desert highway), but the
+   line is only the look (light, lens, grade, stock): your locations and characters decide
+   where the story is, so a western look on a city street is a dusty, sun-bleached city. **Build the look** under
    them writes the line from its parts, a row of pictures each: **Medium**, **Camera**,
    **Lens**, **Film / sensor**, **Light**, **Grade**. Each pick adds what a director of
    photography would say of it ("anamorphic lenses: oval bokeh, horizontal lens flares…");

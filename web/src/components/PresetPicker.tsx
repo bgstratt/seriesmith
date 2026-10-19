@@ -25,7 +25,7 @@ export interface PresetTile {
 
 const GROUP_LABEL: Record<string, string> = {
   time: "Time of day", weather: "Weather", light: "Light", portrait: "Portrait light",
-  "live action": "Live action", animation: "Animation", illustration: "Illustration",
+  "live action": "Live action", genre: "Genre", animation: "Animation", illustration: "Illustration",
   close: "Close", medium: "Medium", wide: "Wide", angle: "Angle",
   frame: "Still", dolly: "Dolly", lens: "Zoom", pivot: "Pan and tilt", slide: "Truck and pedestal",
   orbit: "Around", handheld: "Handheld and roll", lenses: "Lens",

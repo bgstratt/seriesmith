@@ -246,7 +246,7 @@ def main(argv=None) -> int:
         if not want("look", p["id"]) or (not args.redo and PR.image_path(name)):
             continue
         print(f"look {p['id']}")
-        keep(mk.generate(PLATE, None, f"{p['text']}. {LOOK_SCENE}", args.look_target), name)
+        keep(mk.generate(PLATE, None, f"{p['text']}. {p.get('scene') or LOOK_SCENE}", args.look_target), name)
 
     for row in PR._load("look_builder"):
         for o in row["options"]:

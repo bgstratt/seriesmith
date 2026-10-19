@@ -785,7 +785,13 @@ shown as pictures, each filling a text that stays editable.
       (`POST /seriesmith/refs/relight`, `seriesmith/relight.py`) writes a sequence's relit
       locations, queues their edits and can re-point the sequence (`# sq` line, `plate:` lines).
       The Shots tab's sequence header: **Relight…**. Checked on Klein (porch -> dusk).
-- [ ] Next: a series' own presets (profiles carrying look/lens/grade, saved relights).
+- [x] Genre looks (2026-10-19): western, thriller, road movie, horror, fantasy, romance, war,
+      Technicolor musical, 80s VHS (`group: genre`). A look may carry its own sample `scene`
+      (the genre's setting around the same woman in red); the look line stays light, lens,
+      grade and stock, so a series' own locations decide the setting. The genre-like looks
+      (neo-noir, sci-fi, period, documentary, b&w noir, 70s) got scenes too.
+- [ ] Next: your own presets saved and applied (profiles carrying look/lens/grade, saved
+      relights and looks).
 - [x] A per-shot `lens:` (2026-10-19; also under a `#` header): the look builder's Lens row
       and `deep` (core/framing.py LENSES, a test keeps them equal to look_builder.json). The
       IR shot's action opens with the lens sentence, so every target reads it with no code of
@@ -839,8 +845,8 @@ shown as pictures, each filling a text that stays editable.
       picks by semicolons, a drawn medium folding the camera rows away. The 13 look presets
       carry `parts`, so one sets the rows. Series settings and the wizard: **Build the look**;
       the picks in `style.look_parts`, rewriting the line only while it's theirs.
-- [ ] Maybe: a per-shot lens beside framing, if it earns its place (shallow focus is a lens
-      option, so it can be set series-wide and changed per shot in the action).
+- [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
+      the sequence relight).
 
 ## Step 15 — models behind other APIs (next)
 
