@@ -3905,7 +3905,7 @@ What the editor offers to pick from, each preset filling a text that stays edita
 (`seriesmith/presets/`: `relight.json`, `look.json`, and their sample pictures under `img/`,
 made by `tools/make_preset_samples.py`).
 
-### `GET /seriesmith/presets[?kind=relight|look]`
+### `GET /seriesmith/presets[?kind=relight|look|framing|camera]`
 ```json
 {"relight": [{"id": "rain", "label": "Rain", "group": "weather", "for": ["place", "subject"],
               "texts": {"place": "Change only the weather: it is raining steadily, …",
@@ -3920,9 +3920,14 @@ made by `tools/make_preset_samples.py`).
   lights are `subject` only). It goes to `POST /seriesmith/refs/generate` as the `prompt` of an
   `edit`, like any instruction.
 - A look's `text` is a `style.look` line.
+- `framing` (the shot form's): `{"id": "cu", "label": "Close-up", "group": "close", "hint":
+  "the face", "image": "framing/cu.jpg"}`; the `id` is the `size:` value.
+- `camera` (the shot form's): `{"id": "push_in", "label": "Push in", "group": "dolly", "move":
+  "pushes in", "image": "camera/push_in.mp4"}`; `move` is how the `camera:` line starts, and
+  the sample is a short silent clip.
 - `images` / `image` name a sample picture only once it is made. `group` is for grouping the
   tiles. `kind` answers with that list alone; another kind is 400.
 
 ### `GET /seriesmith/presets/image?name=look/neon_noir.jpg`
-The sample picture (JPEG, about 480 px wide), by the name the list gave. A name that isn't one
-made: 404.
+The sample (a JPEG about 480 px wide; a camera move's a silent H.264 clip about 360 px wide,
+`video/mp4`), by the name the list gave. A name that isn't one made: 404.

@@ -1942,7 +1942,11 @@ export interface RelightPreset {
   id: string; label: string; group: string; for: RelightWording[];
   texts: Partial<Record<RelightWording, string>>; images: Partial<Record<RelightWording, string>>;
 }
-export interface PresetList { relight: RelightPreset[]; look: LookPreset[] }
+/** A framing preset: a shot's `size:` (its id), how much the frame holds, its sample picture when made */
+export interface FramingPreset { id: string; label: string; group: string; hint: string; image?: string }
+/** A camera-move preset: how a shot's `camera:` line starts, its sample clip (mp4) when made */
+export interface CameraPreset { id: string; label: string; group: string; move: string; image?: string }
+export interface PresetList { relight: RelightPreset[]; look: LookPreset[]; framing: FramingPreset[]; camera: CameraPreset[] }
 
 export interface TargetList {
   targets: Target[];

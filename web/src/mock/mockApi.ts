@@ -1594,7 +1594,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     },
     async presets() {
       await wait();
-      return { relight: [], look: [] };
+      return { relight: [], look: [], framing: [], camera: [] };
     },
     presetImageUrl(name) {
       return media + name.split("/").pop();

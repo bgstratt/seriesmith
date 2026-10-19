@@ -8,7 +8,13 @@ itself on a scratch episode (the starter series, built into --work):
 - relight/<id>-place.jpg: a base plate (BASE_PLACE, in BASE_LOOK) relit by the
   preset's `place` wording, on the edit target (--edit-target);
 - relight/<id>-subject.jpg: a base figure (BASE_FIGURE: Ada's three-quarter
-  view, plain background) relit by its `subject` wording.
+  view, plain background) relit by its `subject` wording;
+- framing/<id>.jpg: the same woman and street (FRAMING_SCENE) at each size, on
+  the image target;
+- camera/<id>.mp4: a short silent loop of each camera move: a scratch episode
+  of one shot per move (`camera: <move>`, the base plate, the woman written
+  into the action) rendered by `seriesmith render` on the series' video model
+  (--video-target, default its own: MiniMax H3), each take made small.
 
 Each take goes through seriesmith's queue on --backend (default: each
 target's own, usually this machine's ComfyUI), as `seriesmith refs` does, and
@@ -50,6 +56,18 @@ BASE_LOOK = "prestige_35mm"
 BASE_PLACE = ("A quiet city street corner: a cafe front with a striped awning and a glass door, a "
               "streetlamp, a wooden bench, a bicycle leaning on a brick wall, wet cobbles, no people, "
               "in soft even late-morning daylight")
+# every framing draws her; the size sentence goes first, so it leads
+FRAMING_SCENE = ("She is a woman in her thirties with short dark hair and a red wool coat, waiting at a "
+                 "tram stop on a city street at dusk, a lit cafe window behind her; she is the only one "
+                 "in red")
+# every camera move's shot: the base plate, with her written in
+MOVE_ACTION = ("A woman in a red wool coat stands by the bench outside the cafe, waiting, and looks "
+               "down the street.")
+MOVE_SECONDS = 3
+# a sample shows the move, so it is made large (the tile still hands over the plain move);
+# these say their size themselves, or have none
+MOVE_AS_SAID = {"static", "shake_slight", "shake_strong"}
+CLIP_WIDTH = 360
 BASE_FIGURE = ("A full-body three-quarter view of a woman in her thirties with short dark hair and a "
                "red wool coat, standing relaxed, on a plain light grey studio background, in soft even "
                "front light")
@@ -72,6 +90,66 @@ def episode(work: str) -> str:
         import shutil
         shutil.copyfile(os.path.join(STARTER, "series.json"), os.path.join(ep, "series.json"))
     return ep
+
+
+def moves_episode(work: str, presets: list[dict]) -> tuple[str, dict]:
+    """The scratch episode of camera moves: one plate-only shot per move, built.
+    (its folder, {preset id: shot id})."""
+    ep = os.path.join(work, "moves")
+    shots = {p["id"]: f"sh{(i + 1) * 10:03d}" for i, p in enumerate(presets)}
+    lines = ["= ep02  Camera moves", "", "# sq01  porch", ""]
+    for p in presets:
+        lines += [f"## {shots[p['id']]}", "size: wide", f"dur: {MOVE_SECONDS}", MOVE_ACTION,
+                  f"camera: {p['move'] if p['id'] in MOVE_AS_SAID else p['move'] + ' with large amplitude'}",
+                  "sound: a quiet city street, distant traffic", ""]
+    os.makedirs(ep, exist_ok=True)
+    # the starter's series in the base look (it is a cartoon), as the plate is drawn
+    import json
+    with open(os.path.join(STARTER, "series.json"), encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    cfg.setdefault("style", {})["look"] = look_text(BASE_LOOK)
+    # what the plate shows, with room for the woman the action brings in
+    cfg["locations"]["porch"]["description"] = BASE_PLACE.replace(", no people", "")
+    series = json.dumps(cfg, indent=2)
+    script = os.path.join(work, "moves.md")
+    text = "\n".join(lines)
+    fresh = all(os.path.isfile(f) and open(f, encoding="utf-8").read() == t
+                for f, t in ((script, text), (os.path.join(ep, "series.json"), series)))
+    if not fresh:
+        with open(script, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        with open(os.path.join(ep, "series.json"), "w", encoding="utf-8") as fh:
+            fh.write(series)
+        subprocess.run([sys.executable, "-m", "seriesmith", "build", os.path.join(ep, "series.json"),
+                        script, "-o", ep], check=True, cwd=ROOT)
+    return ep, shots
+
+
+def latest_take(ep: str, shot: str) -> str | None:
+    """A shot's newest finished take's mp4."""
+    from seriesmith import takes as T
+    good = [t for t in T.list_takes(ep, "final", shot) if t.status == "ok" and os.path.isfile(t.paths.mp4)]
+    return good[-1].paths.mp4 if good else None
+
+
+def clip(src: str, dst: str) -> None:
+    """A take made a small silent loop: CLIP_WIDTH wide, H.264, no sound."""
+    from seriesmith import ff as FF
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-an",
+                    "-vf", f"scale={CLIP_WIDTH}:-2:flags=lanczos,fps=24,format=yuv420p",
+                    "-c:v", "libx264", "-crf", "28", "-preset", "slow", "-movflags", "+faststart", dst],
+                   check=True)
+
+
+def cut(src: str, box: list[float], dst: str) -> str:
+    """A 16:9 piece of a picture: `box` its left, top and width as fractions."""
+    from PIL import Image
+    with Image.open(src) as im:
+        w, h = im.size
+        x, y, cw = round(box[0] * w), round(box[1] * h), round(box[2] * w)
+        im.crop((x, y, x + cw, y + round(cw * 9 / 16))).save(dst)
+    return dst
 
 
 def shrink(src: str, dst: str) -> None:
@@ -120,6 +198,8 @@ def main(argv=None) -> int:
     ap.add_argument("--redo", action="store_true", help="make samples that are already made again")
     ap.add_argument("--look-target", default="krea2", help="the image model the looks are drawn on")
     ap.add_argument("--edit-target", default="flux_kontext", help="the edit model the relights run on")
+    ap.add_argument("--video-target", default="", help="the video model the camera moves render on "
+                    "(default: the series' own)")
     ap.add_argument("--backend", default="", help="where the takes run (default: each target's own)")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188", help="this machine's ComfyUI")
     ap.add_argument("--seed", type=int, default=20261019, help="one seed for every sample, so they compare")
@@ -168,6 +248,55 @@ def main(argv=None) -> int:
             print(f"relight {p['id']} ({w})")
             ref, view = (PLATE, None) if w == "place" else (FIGURE, FIGURE_VIEW)
             keep(mk.edit(ref, view, p[w]), PR.image_name("relight", p["id"], w))
+
+    framings = PR._load("framing")
+    renders = {}                                  # a framing's render, for one cut from it
+    for p in sorted(framings, key=lambda p: "crop" in p):
+        name = PR.image_name("framing", p["id"])
+        if not want("framing", p["id"]) or (not args.redo and PR.image_path(name)):
+            continue
+        print(f"framing {p['id']}")
+        if "crop" in p:
+            # too tight for the image model to frame: cut from another framing's render
+            src = renders.get(p["crop"]["of"]) or mk.generate(
+                PLATE, None, f"{look_text(BASE_LOOK)}. "
+                f"{next(q['prompt'] for q in framings if q['id'] == p['crop']['of'])}. {FRAMING_SCENE}",
+                args.look_target)
+            keep(cut(src, p["crop"]["box"], os.path.join(os.path.dirname(ep), f"{p['id']}.png")) if src else None,
+                 name)
+            continue
+        renders[p["id"]] = mk.generate(PLATE, None, f"{look_text(BASE_LOOK)}. {p['prompt']}. {FRAMING_SCENE}",
+                                       args.look_target)
+        keep(renders[p["id"]], name)
+
+    moves = [p for p in PR._load("camera") if want("camera", p["id"])
+             and (args.redo or not PR.image_path(PR.image_name("camera", p["id"])))]
+    if moves:
+        if not os.path.isfile(os.path.join(os.path.dirname(ep), "refs", "_bg", "porch.png")):
+            print("base plate")
+            if not mk.generate(PLATE, None, f"{look_text(BASE_LOOK)}. {BASE_PLACE}", args.look_target, pick=True):
+                return 1
+        mep, shots = moves_episode(os.path.dirname(ep), PR._load("camera"))
+        only_shots = ",".join(shots[p["id"]] for p in moves)
+        cmd = [sys.executable, "-m", "seriesmith", "render", mep, "--only", only_shots]
+        if args.redo:
+            cmd.append("--redo")
+        if args.video_target:
+            cmd += ["--target", args.video_target]
+        if args.backend:
+            cmd += ["--backend", args.backend]
+        print(f"camera moves: rendering {len(moves)} shot(s)")
+        subprocess.run(cmd, cwd=ROOT)
+        for p in moves:
+            src = latest_take(mep, shots[p["id"]])
+            name = PR.image_name("camera", p["id"])
+            if src:
+                clip(src, os.path.join(IMG, name))
+                made += 1
+                print(f"  -> img/{name}")
+            else:
+                failed += 1
+                print(f"  !! {p['id']}: no take")
 
     print(f"\n  {made} sample(s) made{f', {failed} failed' if failed else ''}: {IMG}")
     return 1 if failed else 0

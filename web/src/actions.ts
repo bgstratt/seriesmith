@@ -375,7 +375,7 @@ export function loadPresets(): Promise<void> {
     try {
       set({ presets: await api().presets() });
     } catch {
-      set({ presets: { relight: [], look: [] } });
+      set({ presets: { relight: [], look: [], framing: [], camera: [] } });
     } finally {
       presetsLoading = null;
     }

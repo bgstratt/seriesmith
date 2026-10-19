@@ -1,9 +1,11 @@
 // Presets as pictures (GET /seriesmith/presets): a tile per preset, grouped,
-// each with its sample picture when one is made. Picking one hands its text to
-// the field it serves, which stays editable: the preset is a start, not a lock.
-// The edit window's Relight and the series form's Look use it.
+// each with its sample when one is made (a picture, or for a camera move a
+// short clip that plays while the pointer is on it). Picking one hands its
+// value to the field it serves, which stays editable: the preset is a start,
+// not a lock. The edit window's Relight, the series form's Look and the shot
+// form's Framing and Camera use it.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../host";
 import { loadPresets } from "../actions";
 import { useApp } from "../store";
@@ -13,20 +15,31 @@ export interface PresetTile {
   id: string;
   label: string;
   group: string;
+  /** what picking it hands over (an instruction, a look line, a size, a move) */
   text: string;
-  /** the sample picture's name (GET /seriesmith/presets/image), when made */
+  /** a second line under the label (a framing's "chest up") */
+  sub?: string;
+  /** the sample's name (GET /seriesmith/presets/image), when made: .jpg, or a camera move's .mp4 */
   image?: string;
 }
 
 const GROUP_LABEL: Record<string, string> = {
   time: "Time of day", weather: "Weather", light: "Light", portrait: "Portrait light",
   "live action": "Live action", animation: "Animation", illustration: "Illustration",
+  close: "Close", medium: "Medium", wide: "Wide",
+  frame: "Still", dolly: "Dolly", lens: "Zoom", pivot: "Pan and tilt", slide: "Truck and pedestal",
+  orbit: "Around", handheld: "Handheld and roll",
 };
+
+function usePresets() {
+  const presets = useApp((s) => s.presets);
+  useEffect(() => { void loadPresets(); }, []);
+  return presets;
+}
 
 /** The relight presets for a ref of `kind`, in its wording (a plate's or a figure's). */
 export function useRelightTiles(kind: string): PresetTile[] {
-  const presets = useApp((s) => s.presets);
-  useEffect(() => { void loadPresets(); }, []);
+  const presets = usePresets();
   const wording: RelightWording = kind === "location" ? "place" : "subject";
   return (presets?.relight ?? [])
     .filter((p) => p.for.includes(wording) && p.texts[wording])
@@ -35,34 +48,67 @@ export function useRelightTiles(kind: string): PresetTile[] {
 
 /** The look presets, as tiles. */
 export function useLookTiles(): PresetTile[] {
-  const presets = useApp((s) => s.presets);
-  useEffect(() => { void loadPresets(); }, []);
+  const presets = usePresets();
   return (presets?.look ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.text, image: p.image }));
 }
 
+/** The framings: picking one hands over the `size:` value (its id). */
+export function useFramingTiles(): PresetTile[] {
+  const presets = usePresets();
+  return (presets?.framing ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.id, sub: p.hint, image: p.image }));
+}
+
+/** The camera moves: picking one hands over the move (a `camera:` line's start). */
+export function useCameraTiles(): PresetTile[] {
+  const presets = usePresets();
+  return (presets?.camera ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.move, image: p.image }));
+}
+
+/** A tile's sample: a picture, or a clip shown on its first frame and played while hovered. */
+function Sample({ name, w, h, hover }: { name?: string; w: number; h: number; hover: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (hover) void v.play().catch(() => {});
+    else { v.pause(); v.currentTime = 0; }
+  }, [hover]);
+  if (!name) return <div style={{ width: w, height: h, background: "linear-gradient(135deg, var(--h3-chip), transparent)" }} />;
+  const src = api().presetImageUrl(name);
+  const style = { display: "block", width: w, height: h, objectFit: "cover" as const };
+  return name.endsWith(".mp4")
+    ? <video ref={ref} src={src} muted loop playsInline preload="metadata" style={style} />
+    : <img src={src} alt="" loading="lazy" style={style} />;
+}
+
 /**
- * The tiles, grouped. `value` is the field's text: the tile whose text it is
- * shows as picked. `square`: figures (a character's view) are drawn square,
- * places and looks wide.
+ * The tiles, grouped. `value` is the field's value: the tile it is shows as
+ * picked (or `picked`, a tile's id, when the field holds more than the tile
+ * gives, as a camera line does). `square`: figures are drawn square, places,
+ * looks and shots wide.
  */
-export function PresetPicker({ tiles, value, onPick, square = false, title, open: open0 = true }: {
+export function PresetPicker({ tiles, value, onPick, square = false, title, open: open0 = true, picked: pickedId, size = 1 }: {
   tiles: PresetTile[];
   value: string;
   onPick: (text: string) => void;
   square?: boolean;
   title?: string;
   open?: boolean;
+  picked?: string | null;
+  /** the tiles' scale (the shot form's are smaller) */
+  size?: number;
 }) {
   const [open, setOpen] = useState(open0);
+  const [hover, setHover] = useState<string | null>(null);
   if (!tiles.length) return null;
   const groups = [...new Set(tiles.map((t) => t.group))];
-  const picked = tiles.find((t) => t.text === value.trim());
-  const w = square ? 76 : 112;
-  const h = square ? 76 : 63;
+  const picked = pickedId !== undefined ? tiles.find((t) => t.id === pickedId) : tiles.find((t) => t.text === value.trim());
+  const w = Math.round((square ? 76 : 112) * size);
+  const h = Math.round((square ? 76 : 63) * size);
   return (
     <div className="h3-col sm-presets" style={{ gap: 4 }}>
-      <button className="h3-link h3-small" style={{ alignSelf: "flex-start" }} onClick={() => setOpen(!open)}
-        title="Presets fill the text below; you can still edit it, or write your own">
+      <button type="button" className="h3-link h3-small" style={{ alignSelf: "flex-start" }} onClick={() => setOpen(!open)}
+        title="Presets fill the field; you can still edit it, or write your own">
         <i className={`pi ${open ? "pi-chevron-down" : "pi-chevron-right"}`} /> {title ?? "Presets"}
         {picked ? <span className="h3-muted"> · {picked.label}</span> : null}
       </button>
@@ -74,13 +120,13 @@ export function PresetPicker({ tiles, value, onPick, square = false, title, open
               const on = picked?.id === t.id;
               return (
                 <button key={t.id} type="button" title={t.text} onClick={() => onPick(t.text)}
+                  onMouseEnter={() => setHover(t.id)} onMouseLeave={() => setHover(null)}
                   className={`sm-preset${on ? " h3-on" : ""}`}
                   style={{ flex: "0 0 auto", width: w, padding: 0, border: `2px solid ${on ? "var(--h3-primary)" : "var(--h3-border)"}`,
                     borderRadius: 8, overflow: "hidden", background: "var(--h3-card, transparent)", cursor: "pointer", textAlign: "left" }}>
-                  {t.image
-                    ? <img src={api().presetImageUrl(t.image)} alt="" loading="lazy" style={{ display: "block", width: w, height: h, objectFit: "cover" }} />
-                    : <div style={{ width: w, height: h, background: "linear-gradient(135deg, var(--h3-chip), transparent)" }} />}
+                  <Sample name={t.image} w={w} h={h} hover={hover === t.id} />
                   <div className="h3-small" style={{ padding: "3px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</div>
+                  {t.sub && <div className="h3-small h3-muted" style={{ padding: "0 6px 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.sub}</div>}
                 </button>
               );
             })}

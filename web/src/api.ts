@@ -572,7 +572,8 @@ export function createHttpApi(t: Transport): Api {
     refFileUrl: (ep, path, version) => t.url(`/seriesmith/file?${qs({ ep, path, v: version || undefined })}`),
     presets: async () => {
       const r = await get<Partial<PresetList>>("/seriesmith/presets");
-      return { relight: Array.isArray(r?.relight) ? r.relight : [], look: Array.isArray(r?.look) ? r.look : [] };
+      const list = <T,>(v: T[] | undefined) => (Array.isArray(v) ? v : []);
+      return { relight: list(r?.relight), look: list(r?.look), framing: list(r?.framing), camera: list(r?.camera) };
     },
     presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
     thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),

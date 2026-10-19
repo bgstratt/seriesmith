@@ -23,6 +23,8 @@ const PRESETS: PresetList = {
       texts: { subject: "Change only the light on the figure: Rembrandt" }, images: {} },
   ],
   look: [],
+  framing: [],
+  camera: [],
 };
 
 const PLATE = {

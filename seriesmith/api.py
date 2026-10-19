@@ -2992,9 +2992,9 @@ def _listing_cloud(ctx: Context, query: dict, ep: str | None, t):
 @handler
 def get_presets(ctx: Context, query: dict):
     """The pictures the editor offers to pick from (seriesmith/presets): the
-    relight presets of the edit window and the series form's looks, each with
-    its sample picture's name for GET /seriesmith/presets/image when made.
-    `kind` (relight or look) answers with that one alone."""
+    relight presets of the edit window, the series form's looks, the shot
+    form's framings and camera moves, each with its sample's name for GET
+    /seriesmith/presets/image when made. `kind` answers with that one alone."""
     from seriesmith import presets as PR
     kinds = [query["kind"]] if query.get("kind") else list(PR.KINDS)
     try:
@@ -3005,12 +3005,13 @@ def get_presets(ctx: Context, query: dict):
 
 @handler
 def get_preset_image(ctx: Context, query: dict):
-    """A preset's sample picture, by the name GET /seriesmith/presets gave."""
+    """A preset's sample (a JPEG, a camera move's an mp4), by the name GET
+    /seriesmith/presets gave."""
     from seriesmith import presets as PR
     path = PR.image_path(str(query.get("name") or ""))
     if path is None:
         raise ApiError(404, f"no preset picture {query.get('name')!r}")
-    return 200, {"path": path, "content_type": "image/jpeg"}
+    return 200, {"path": path, "content_type": "video/mp4" if path.endswith(".mp4") else "image/jpeg"}
 
 
 # ---------------------------------------------------------------------------

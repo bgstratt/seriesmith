@@ -1,0 +1,125 @@
+{
+  "about": "Camera-move presets (the shot form's Camera): the move a shot's `camera:` line starts with (its amplitude and speed are added after), each with a sample clip, the same street rendered with that move (img/camera/<id>.mp4, made by tools/make_preset_samples.py on the series' video model).",
+  "presets": [
+    {
+      "id": "static",
+      "label": "Static",
+      "group": "frame",
+      "move": "holds a static shot"
+    },
+    {
+      "id": "push_in",
+      "label": "Push in",
+      "group": "dolly",
+      "move": "pushes in"
+    },
+    {
+      "id": "pull_out",
+      "label": "Pull out",
+      "group": "dolly",
+      "move": "pulls out"
+    },
+    {
+      "id": "zoom_in",
+      "label": "Zoom in",
+      "group": "lens",
+      "move": "zooms in"
+    },
+    {
+      "id": "zoom_out",
+      "label": "Zoom out",
+      "group": "lens",
+      "move": "zooms out"
+    },
+    {
+      "id": "pan_left",
+      "label": "Pan left",
+      "group": "pivot",
+      "move": "pans left"
+    },
+    {
+      "id": "pan_right",
+      "label": "Pan right",
+      "group": "pivot",
+      "move": "pans right"
+    },
+    {
+      "id": "tilt_up",
+      "label": "Tilt up",
+      "group": "pivot",
+      "move": "tilts up"
+    },
+    {
+      "id": "tilt_down",
+      "label": "Tilt down",
+      "group": "pivot",
+      "move": "tilts down"
+    },
+    {
+      "id": "truck_left",
+      "label": "Truck left",
+      "group": "slide",
+      "move": "trucks left"
+    },
+    {
+      "id": "truck_right",
+      "label": "Truck right",
+      "group": "slide",
+      "move": "trucks right"
+    },
+    {
+      "id": "pedestal_up",
+      "label": "Pedestal up",
+      "group": "slide",
+      "move": "pedestals up"
+    },
+    {
+      "id": "pedestal_down",
+      "label": "Pedestal down",
+      "group": "slide",
+      "move": "pedestals down"
+    },
+    {
+      "id": "arc",
+      "label": "Arc around",
+      "group": "orbit",
+      "move": "arcs around"
+    },
+    {
+      "id": "track",
+      "label": "Track",
+      "group": "orbit",
+      "move": "tracks"
+    },
+    {
+      "id": "pov",
+      "label": "POV",
+      "group": "orbit",
+      "move": "takes the subject's POV"
+    },
+    {
+      "id": "shake_slight",
+      "label": "Shake (slight)",
+      "group": "handheld",
+      "move": "shakes slightly"
+    },
+    {
+      "id": "shake_strong",
+      "label": "Shake (strong)",
+      "group": "handheld",
+      "move": "shakes strongly"
+    },
+    {
+      "id": "roll_cw",
+      "label": "Roll clockwise",
+      "group": "handheld",
+      "move": "rolls clockwise"
+    },
+    {
+      "id": "roll_ccw",
+      "label": "Roll counterclockwise",
+      "group": "handheld",
+      "move": "rolls counterclockwise"
+    }
+  ]
+}

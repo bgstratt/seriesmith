@@ -781,6 +781,24 @@ shown as pictures, each filling a text that stays editable.
       couldn't, keeping the figure's own colors. Klein is the better relighter of the two.
 - [ ] Later: a series' own presets (series.json), and relighting a sequence's plates in one go.
 
+## Shot direction as pictures: framing and camera moves (2026-10-19)
+
+- [x] `presets/framing.json` (the nine `size:` values, each with how much the frame holds)
+      and `presets/camera.json` (the 20 moves the `camera:` line starts with, grouped:
+      still, dolly, zoom, pan and tilt, truck and pedestal, around, handheld and roll).
+- [x] Their samples, made by `tools/make_preset_samples.py`: each framing on Krea 2 (the same
+      woman and street at every size); each move as a shot of a scratch episode rendered by
+      `seriesmith render` on H3 (the base plate, the woman written into the action), its
+      take made a 360 px silent loop. A move's sample is rendered with large amplitude so
+      the clip shows it (the tile still hands over the plain move); the extreme close-up is
+      cut from the close-up's render (`crop`), as Krea 2 won't frame the eyes alone. Pull out
+      and tilt down stay faint on H3 from a wide start, over three seeds.
+- [x] The shot form: **Framing, as pictures** under Framing; **Camera moves, as clips** in
+      Camera (a clip plays while pointed at; a pick starts the line with the move, its
+      amplitude and speed still the menus beside it).
+- [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
+      each option a sample picture; a per-shot lens beside framing, if it earns its place.
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

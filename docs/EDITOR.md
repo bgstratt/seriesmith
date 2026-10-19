@@ -310,7 +310,9 @@ in the script as fields, in cards; each field's help is on its label (point at t
   Character** / **+ Prop** opens a new cast card. **Where**: another location than the
   sequence's.
 - **Framing** (extreme close-up to extreme wide), **Length** (type the seconds or pick from
-  **lengths**: the model's grid, or auto to fit the dialogue).
+  **lengths**: the model's grid, or auto to fit the dialogue). Under them, **Framing, as
+  pictures**: the nine sizes as the same woman on the same street, close to wide, each with
+  how much the frame holds ("chest up", "head to toe"); open while the shot has no framing.
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
@@ -319,7 +321,8 @@ location's plate; initials until there is one. **add…** and the location butto
 pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves: a move, its
-  amplitude and its speed), **Sound**,
+  amplitude and its speed; **Camera moves, as clips** shows each move as a short clip of the
+  same street, played while you point at it, and picking one starts the line with it), **Sound**,
   **Extras**, **On-screen text**.
 - **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
