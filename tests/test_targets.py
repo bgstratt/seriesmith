@@ -486,7 +486,7 @@ class TargetsRouteTest(ApiTest):
         # for every workflow target (test_capabilities); h3pipe's are compared here
         for t in images:
             # a hosted one runs on Router only, and the provider decides what a seed means
-            want = (["router"], False) if t["id"] == "krea_2_router" or t["id"] in ROUTER else (["local", "deployment"], True)
+            want = (["router"], False) if t["id"] == "krea_2_router" or t["id"] in ROUTER else (["local", "cloud", "deployment"], True)
             self.assertEqual((t["capabilities"].pop("backends"), t["capabilities"].pop("reproducible")),
                              want, t["id"])
         caps = {t["id"]: t["capabilities"] for t in images}

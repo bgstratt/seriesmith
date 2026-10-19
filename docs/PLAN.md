@@ -716,6 +716,36 @@ no other node pack; the default models are the ones installed.
       12 files (takes, upscales, hosted renders, old untagged takes), no
       difference. The ffmpeg tests run with no ffmpeg on PATH.
 
+## Comfy Cloud: a shot as Cloud's own nodes (2026-10-18)
+
+Comfy Cloud runs a curated node set (its /api/object_info: 3795 classes, the core
+MiniMax H3 and SeedVR2 nodes and every open-weights model file our workflows load,
+not seriesmith's pack or PlagueKind's), so a workflow target's shot goes there made of
+Cloud's nodes (DESIGN.md, "Backends"; SETUP.md, "Comfy Cloud").
+
+- [x] The loader's decisions in `comfy_nodes/shotplan.py` (standard library only),
+      used by the loader node and by seriesmith (`shotnodes.shotplan()`). The node's
+      outputs are unchanged: the old and new loader compared in ComfyUI's Python on
+      390 cases (four shows' shotlists; every panel mode, clone, dub, a dub window
+      with a held head, missing refs, declared panels, plate only, a bad width),
+      every tensor and value equal.
+- [x] `seriesmith/cloud.py`: the loader's pictures (cut to their panels) and sounds
+      (the recording's slice, sample-exact) as LoadImage / LoadAudio uploads, its
+      values written in; the saver as CreateVideo + SaveVideo (H.264 CRF 16, BT.709)
+      and SaveAudio; the take's thumbnail, strip and record made here; a
+      `bypass_if_missing` node Cloud hasn't spliced out; anything else it hasn't,
+      refused before anything is sent. Workflow targets run on `cloud`
+      (`GRAPH_BACKENDS`); a job for Cloud is planned against Cloud's model lists, so
+      H3 renders its base preset there (20 steps, res_multistep, no LoRA: Cloud has
+      no 8-step Ref2VA LoRA). `render --dry-run --backend cloud` writes the graph.
+- [x] Live 2026-10-18, LAST LIGHT sh040 (a copy), 73 frames: the Cloud graph on the
+      local ComfyUI first (2:42 on the RTX 5090, free), then on Comfy Cloud (1:56 from
+      queueing to the take): mp4 BT.709 with H3's sound, `_h3.wav`, thumbnail, strip,
+      record with the loaded refs.
+- [ ] Not on Cloud yet: `continuous: latent` shots (the chain nodes), a take's latent,
+      PNG frames, the foley bed; refs, tours, upscales and posts on Cloud (their graphs
+      use the pack's nodes or keep theirs; untried there).
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

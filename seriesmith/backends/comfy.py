@@ -162,6 +162,21 @@ class ComfyBackend(Backend):
     def ping(self) -> str | None:
         return health(self.base_url, self.api_key)
 
+    def object_info(self) -> dict:
+        """Every node class this backend has, with its inputs (Comfy Cloud's
+        /api/object_info, asked once every few minutes: seriesmith.cloud)."""
+        from seriesmith import cloud as C
+        return C.object_info(self.base_url, self.api_key)
+
+    def has_node(self, ctype: str) -> bool:
+        return ctype in self.object_info()
+
+    def choices(self, ctype: str, field_name: str, strict: bool = False) -> list[str] | None:
+        """The values a combo widget offers here (the model files a loader can
+        load), or None when the node isn't known: what jobs.model_lister asks."""
+        from seriesmith.jobs import choices_in
+        return choices_in(self.object_info(), ctype, field_name, strict)
+
     def submit(self, graph: dict) -> Run:
         """Upload the graph's File inputs (each once, by content) and submit."""
         g = copy.deepcopy(graph)

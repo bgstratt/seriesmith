@@ -46,7 +46,7 @@ that:
 | Backend | Reached with | Cost | Runs |
 |---|---|---|---|
 | Local ComfyUI | its own API (`/prompt`, `/history`, `/view`: `backends/native.py`), or the Comfy SDK through `comfy-api-proxy` (`local_via`) | your GPU | any workflow, your custom nodes |
-| Comfy Cloud | Comfy SDK (v2 API) | Comfy subscription | workflows on Cloud's node set |
+| Comfy Cloud | Comfy SDK (v2 API) | Comfy subscription | workflows on Cloud's node set: a shot's graph is made of them (`cloud.py`) |
 | Comfy API deployment | Comfy SDK (v2 API), the deployment's URL | paid plan, per GPU-second | your exact workflow, built and pinned |
 | Comfy Router | Comfy SDK's Router client | Comfy credits per request | hosted models (Seedance, Kling, hosted H3, Nano Banana, …) |
 
@@ -57,6 +57,22 @@ queued, its outputs fetched as /history lists them, read as comfy-api-proxy
 reads them), so nothing has to be installed beside it; the proxy, which served
 the v2 API in front of it before, is opt-in. Router is a model call (a model
 string and arguments), with an mp4 or png back.
+
+Comfy Cloud runs ComfyUI's nodes and the packs Comfy installed there, not
+seriesmith's (its /api/object_info lists them: 2026-10-18, 3795 classes, the
+core MiniMax H3 and SeedVR2 nodes among them, neither seriesmith's pack nor
+PlagueKind's). So a render sent there is made of Cloud's own nodes
+(`seriesmith/cloud.py`). The loader's decisions (size, length, which panels of
+which sheet, the voice slices, prompt, seed, steps) live in
+`comfy_nodes/shotplan.py`, standard library only, which the loader node and
+seriesmith both use: seriesmith cuts the pictures and sounds the plan names and
+they go up for LoadImage / LoadAudio, and the values are written into the nodes
+that read them. The saver becomes CreateVideo + SaveVideo (H.264 CRF 16, BT.709)
+and SaveAudio, and seriesmith makes the thumbnail, strip and record as for a
+hosted take. A job for Cloud is planned against Cloud's own model lists (its
+loaders' choices), so a missing accelerator LoRA renders the base preset there,
+and a `bypass_if_missing` node Cloud hasn't is spliced out. Not on Cloud:
+`continuous: latent` (the chain nodes), the take's latent, PNG frames, a foley bed.
 
 One Comfy API key covers Cloud, Comfy API and Router.
 
@@ -255,14 +271,15 @@ The work list, with what "done" means for each step, is [PLAN.md](PLAN.md).
 
 ## Open questions
 
-- Does Comfy Cloud accept arbitrary custom node packs, or only a curated set?
-  (Deployments clearly do.)
-- Does Comfy Cloud return a saved latent as an output, as the proxy does?
+- Does Comfy Cloud return a saved latent as an output, as the proxy does? (Not
+  needed while Cloud's renders keep none: an H3 latent is a nested tensor its
+  SaveLatent may not take.)
 
 
 Answered since: Router's hosted H3 (`minimax_h3`) takes reference images and
 first/last frames, no reference audio (it makes its own sound); Router answers an
-ordinary Comfy API key (live since 2026-10-11).
+ordinary Comfy API key (live since 2026-10-11). Comfy Cloud runs a curated node set,
+not your packs (2026-10-18): a shot goes there as Cloud's own nodes (`cloud.py`).
 
 ## Notes from the port
 

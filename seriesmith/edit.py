@@ -1521,6 +1521,21 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         raise ValueError("queue_shots needs seriesmith's queue (runner.Runner)")
     out = {"queued": [], "skipped": [], "errors": []}
     listing = J.model_lister(comfy, model_list)
+    clouds: dict = {}
+
+    def cloud_listing(job, ov):
+        """The model files Comfy Cloud has, for a job that renders there (a
+        missing accelerator LoRA renders the base preset); None otherwise."""
+        try:
+            name = J.backend_choice(ov, job.id, J.job_target(job), backend, root)[0]
+        except ValueError:
+            return None
+        b = runner.backends.get(name)
+        if b is None or b.kind != "cloud":
+            return None
+        if name not in clouds:
+            clouds[name] = J.model_lister(b)
+        return clouds[name]
     queued_ids: dict[str, str] = {}          # runner: shot -> its queue job, for `after`
     cut_order = None
     for sid in (shot_ids if shot_ids is not None else list(index)):
@@ -1547,7 +1562,7 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         if job.action == "error":
             out["errors"].append({"shot": sid, "error": job.error})
             continue
-        J.resolve_models(job, listing, model_resolve, model_cache)
+        J.resolve_models(job, cloud_listing(job, ov) or listing, model_resolve, model_cache)
         if job.action == "missing_files":
             out["skipped"].append({"shot": sid, "target": job.target,
                                    "reason": "model files not installed: "

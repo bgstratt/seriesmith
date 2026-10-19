@@ -73,7 +73,7 @@ class BackendChoiceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             J.backend_choice({}, "sh010", self.sd, "local")
         with self.assertRaises(ValueError):
-            J.backend_choice(T.set_shot_backend({}, "sh010", "cloud"), "sh010", self.h3)
+            J.backend_choice(T.set_shot_backend({}, "sh010", "router"), "sh010", self.h3)
 
     def test_clearing_a_shots_backend_leaves_nothing_behind(self):
         ov = T.set_shot_backend({}, "sh010", "router")
