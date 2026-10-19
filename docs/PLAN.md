@@ -792,7 +792,7 @@ shown as pictures, each filling a text that stays editable.
       take made a 360 px silent loop. A move's sample is rendered with large amplitude so
       the clip shows it (the tile still hands over the plain move); the extreme close-up is
       cut from the close-up's render (`crop`), as Krea 2 won't frame the eyes alone. Pull out
-      and tilt down stay faint on H3 from a wide start, over three seeds.
+      and tilt down were faint on the turbo over three seeds (see below).
 - [x] The shot form: **Framing, as pictures** under Framing; **Camera moves, as clips** in
       Camera (a clip plays while pointed at; a pick starts the line with the move, its
       amplitude and speed still the menus beside it).
@@ -805,6 +805,10 @@ shown as pictures, each filling a text that stays editable.
       were redrawn so: each with its own line (`sample` in camera.json), a starting framing that
       suits the move, and a longer, smaller move where H3 flickered (every fourth frame, its
       latents) on a big one in three seconds; measured, not eyeballed (frame-to-frame brightness).
+      Pull out, pan left and tilt down are H3's base preset (20 steps, res_multistep, no turbo
+      LoRA, no SLA attention: the Cloud-shaped graph run on this machine): the 8-step turbo
+      left them faint or flickering, the full model made each move whole and steady (largest
+      frame-to-frame jump 0.9-2.5). For a big camera move, H3's base beats its turbo.
 - [ ] Next: a look builder (medium, camera, lens, film, light, grade) writing the look line,
       each option a sample picture; a per-shot lens beside framing, if it earns its place.
 
