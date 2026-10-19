@@ -9,6 +9,8 @@ itself on a scratch episode (the starter series, built into --work):
   preset's `place` wording, on the edit target (--edit-target);
 - relight/<id>-subject.jpg: a base figure (BASE_FIGURE: Ada's three-quarter
   view, plain background) relit by its `subject` wording;
+- look_builder/<row>-<option>.jpg: the look presets' scene in a plain live-action
+  base with only that option set (compose_look), so each tile shows its own part;
 - framing/<id>.jpg: the same woman and street (FRAMING_SCENE) at each size, on
   the image target;
 - camera/<id>.mp4: a short silent loop of each camera move: a scratch episode
@@ -240,6 +242,16 @@ def main(argv=None) -> int:
             continue
         print(f"look {p['id']}")
         keep(mk.generate(PLATE, None, f"{p['text']}. {LOOK_SCENE}", args.look_target), name)
+
+    for row in PR._load("look_builder"):
+        for o in row["options"]:
+            oid = f"{row['id']}-{o['id']}"
+            name = PR.image_name("look_builder", oid)
+            if not want("look_builder", oid) or (not args.redo and PR.image_path(name)):
+                continue
+            parts = {"medium": o["id"]} if row["id"] == "medium" else {"medium": "live_action", row["id"]: o["id"]}
+            print(f"look builder {oid}")
+            keep(mk.generate(PLATE, None, f"{PR.compose_look(parts)}. {LOOK_SCENE}", args.look_target), name)
 
     relights = [p for p in PR._load("relight") if want("relight", p["id"])
                 or any(o.startswith(p["id"] + ":") for o in only)]

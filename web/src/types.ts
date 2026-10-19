@@ -1934,7 +1934,16 @@ export interface ModelList {
 }
 
 /** A look preset (GET /seriesmith/presets): a series' look line, with its sample picture when made */
-export interface LookPreset { id: string; label: string; group: string; text: string; image?: string }
+export interface LookPreset { id: string; label: string; group: string; text: string; image?: string;
+  /** the preset in the look builder's rows ({row: option id}) */
+  parts?: Record<string, string> }
+/** A row of the look builder (medium, camera, lens, film, light, grade): each option a clause of the look line */
+export interface LookBuilderRow {
+  id: string; label: string;
+  /** folded away under a drawn medium (camera, lens, film) */
+  camera_row: boolean;
+  options: { id: string; label: string; clause: string; drawn?: boolean; image?: string }[];
+}
 /** "place": a location plate's wording; "subject": a character's view or a prop's */
 export type RelightWording = "place" | "subject";
 /** A relight preset: the instruction per wording, and each wording's sample picture when made */
@@ -1946,7 +1955,10 @@ export interface RelightPreset {
 export interface FramingPreset { id: string; label: string; group: string; hint: string; image?: string }
 /** A camera-move preset: how a shot's `camera:` line starts, its sample clip (mp4) when made */
 export interface CameraPreset { id: string; label: string; group: string; move: string; image?: string }
-export interface PresetList { relight: RelightPreset[]; look: LookPreset[]; framing: FramingPreset[]; camera: CameraPreset[] }
+export interface PresetList {
+  relight: RelightPreset[]; look: LookPreset[]; framing: FramingPreset[]; camera: CameraPreset[];
+  look_builder: LookBuilderRow[];
+}
 
 export interface TargetList {
   targets: Target[];

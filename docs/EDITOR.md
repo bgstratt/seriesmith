@@ -171,7 +171,15 @@ short wizard:
    else is in Series settings, any time. **Look** offers presets as pictures, the same
    scene in each (prestige drama, neon noir, 1970s film, documentary, black and white, 3D
    animated, 2D cartoon, anime, stop-motion, watercolor, graphic novel…): one fills the
-   line, which stays yours to edit, as it is in Series settings.
+   line, which stays yours to edit, as it is in Series settings. **Build the look** under
+   them writes the line from its parts, a row of pictures each: **Medium**, **Camera**,
+   **Lens**, **Film / sensor**, **Light**, **Grade**. Each pick adds what a director of
+   photography would say of it ("anamorphic lenses: oval bokeh, horizontal lens flares…");
+   a second click on a pick clears it, and a drawn or animated medium folds Camera, Lens and
+   Film away. A look preset sets the rows too, so you can start from one and change a part.
+   The picks rewrite the line only while it's still theirs: once you edit it by hand they
+   leave it alone, and **Use the built line** puts theirs back. The picks are kept in the
+   series config (`style.look_parts`).
 3. **Cast and places**: who and where the episode is about — a character (name, design,
    voice), a location (a short name and its description), a prop or vehicle —
    each with its picture path filled in from the show's layout. A next episode carries its

@@ -1,0 +1,64 @@
+{
+  "about": "The look builder (the series form's Look): a row per part of the look, each option a clause of the cinematographer's brief the builder writes into style.look (compose_look: the medium, then the other parts' clauses joined by semicolons). A medium that is drawn or animated (`drawn`) folds the camera, lens and film rows away. The picks are kept in style.look_parts; the line stays the series' own to edit. The sample pictures are img/look_builder/<row>-<option>.jpg, each the look presets' scene in a live-action base with only that option set (made by tools/make_preset_samples.py).",
+  "rows": [
+    {"id": "medium", "label": "Medium", "options": [
+      {"id": "live_action", "label": "Live action", "clause": "a live-action film"},
+      {"id": "animated_3d", "label": "3D animation", "drawn": true,
+       "clause": "a 3D animated feature: soft rounded character design, subsurface-scattered skin, global illumination"},
+      {"id": "cartoon_2d", "label": "2D cartoon", "drawn": true,
+       "clause": "a 2D hand-drawn cartoon with clean black line art, flat solid colors and cel shading"},
+      {"id": "anime", "label": "Anime", "drawn": true,
+       "clause": "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted backgrounds"},
+      {"id": "stop_motion", "label": "Stop-motion", "drawn": true,
+       "clause": "a stop-motion film of handmade clay and felt puppets on miniature sets, visible fingerprints and fabric texture"},
+      {"id": "watercolor", "label": "Watercolor", "drawn": true,
+       "clause": "a watercolor illustration come to life: wet-edged washes on textured paper, loose ink outlines"},
+      {"id": "graphic_novel", "label": "Graphic novel", "drawn": true,
+       "clause": "a graphic novel come to life: bold black ink lines, heavy spot blacks, halftone shading"}
+    ]},
+    {"id": "camera", "label": "Camera", "camera_row": true, "options": [
+      {"id": "digital", "label": "Digital cinema", "clause": "shot on a digital cinema camera: clean, sharp, low noise"},
+      {"id": "large_format", "label": "Large format", "clause": "shot on large-format digital: a wide, shallow, three-dimensional image with smooth falloff"},
+      {"id": "super35", "label": "Super 35", "clause": "shot on Super 35: classic cinema framing and depth"},
+      {"id": "film35", "label": "35mm film", "clause": "shot on 35mm film"},
+      {"id": "film16", "label": "16mm film", "clause": "shot on 16mm film: softer, grainier, a little rough"},
+      {"id": "handheld", "label": "Handheld", "clause": "shot handheld: a slight, living drift in every frame"}
+    ]},
+    {"id": "lens", "label": "Lens", "camera_row": true, "options": [
+      {"id": "spherical", "label": "Spherical", "clause": "spherical lenses: true geometry, round bokeh"},
+      {"id": "anamorphic", "label": "Anamorphic", "clause": "anamorphic lenses: oval bokeh, horizontal lens flares, slight distortion at the edges"},
+      {"id": "vintage", "label": "Vintage", "clause": "vintage lenses: soft edges, a gentle glow around the highlights, lower contrast"},
+      {"id": "wide", "label": "Wide", "clause": "wide-angle lenses: deep focus, the space stretched around the subject"},
+      {"id": "long", "label": "Long", "clause": "long lenses: compressed depth, the background pulled close and soft"},
+      {"id": "shallow", "label": "Shallow focus", "clause": "shallow depth of field: the subject sharp, the background falling into soft bokeh"},
+      {"id": "tilt_shift", "label": "Tilt-shift", "clause": "tilt-shift lenses: a thin plane of focus that makes the world look miniature"}
+    ]},
+    {"id": "film", "label": "Film / sensor", "camera_row": true, "options": [
+      {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm practicals against cool shadows, visible grain"},
+      {"id": "d250", "label": "Daylight 250D", "clause": "daylight 250D stock: natural color, fine grain"},
+      {"id": "portrait", "label": "Portrait stock", "clause": "a warm portrait stock: soft creamy skin tones, gentle contrast"},
+      {"id": "slide", "label": "Slide film", "clause": "slide film: saturated color, deep contrast, crisp blacks"},
+      {"id": "bw", "label": "Black and white", "clause": "black-and-white stock: rich silver tones, deep blacks"},
+      {"id": "digital_clean", "label": "Clean digital", "clause": "a clean digital sensor: no grain, wide dynamic range"},
+      {"id": "faded70s", "label": "Faded 70s", "clause": "1970s film stock: warm faded color, soft contrast, halation around the highlights"}
+    ]},
+    {"id": "light", "label": "Light", "options": [
+      {"id": "low_key", "label": "Low-key practicals", "clause": "low-key light from the practical lamps in each space, pools of light and deep soft shadow"},
+      {"id": "soft", "label": "Soft naturalistic", "clause": "soft naturalistic window and daylight, gentle shadows"},
+      {"id": "hard_sun", "label": "Hard sun", "clause": "hard direct sunlight, crisp shadows, bright highlights"},
+      {"id": "neon", "label": "Neon night", "clause": "night light from neon signs in magenta and cyan, reflections on wet surfaces"},
+      {"id": "high_key", "label": "High-key", "clause": "bright high-key light, few shadows, an open airy feel"},
+      {"id": "golden", "label": "Golden hour", "clause": "warm low golden-hour sun, long shadows, glowing rims"},
+      {"id": "chiaroscuro", "label": "Chiaroscuro", "clause": "strong single-source light carving faces out of darkness"}
+    ]},
+    {"id": "grade", "label": "Grade", "options": [
+      {"id": "teal_orange", "label": "Teal and orange", "clause": "a teal-and-orange grade: warm skin against cool shadows"},
+      {"id": "bleach", "label": "Bleach bypass", "clause": "a bleach-bypass grade: desaturated, silvery, high contrast"},
+      {"id": "muted", "label": "Muted", "clause": "a muted, desaturated grade with lifted blacks"},
+      {"id": "warm", "label": "Warm golden", "clause": "a warm golden grade"},
+      {"id": "cool", "label": "Cool steel", "clause": "a cool steel-blue grade"},
+      {"id": "high_contrast", "label": "High contrast", "clause": "a high-contrast grade with crushed blacks"},
+      {"id": "natural", "label": "Natural", "clause": "a natural, true-to-life grade"}
+    ]}
+  ]
+}

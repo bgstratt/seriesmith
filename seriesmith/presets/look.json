@@ -1,31 +1,159 @@
 {
-  "about": "Look presets for the series config's style.look (the series form's Look): each a director of photography's brief, one sentence of what the lens, focus, light and stock (or the drawing) do (docs/AUTHORING.md, Writing the look line). Picking one fills the line, which stays the series' own to edit. The sample pictures are img/look/<id>.jpg, the same scene in each look, made by tools/make_preset_samples.py.",
+  "about": "Look presets for the series config's style.look (the series form's Look): each a director of photography's brief, one sentence of what the lens, focus, light and stock (or the drawing) do (docs/AUTHORING.md, Writing the look line). Picking one fills the line, which stays the series' own to edit. The sample pictures are img/look/<id>.jpg, the same scene in each look, made by tools/make_preset_samples.py. `parts` is the preset in the look builder's rows (look_builder.json), so picking it sets them too.",
   "presets": [
-    {"id": "prestige_35mm", "label": "Prestige drama", "group": "live action",
-     "text": "a naturalistic live-action prestige drama shot on 35mm anamorphic lenses: shallow depth of field with the background falling into soft bokeh, low-key light from the practical lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine film grain"},
-    {"id": "neon_noir", "label": "Neon noir", "group": "live action",
-     "text": "a live-action neo-noir thriller shot on 35mm anamorphic lenses: shallow depth of field, night streets lit by neon signs in magenta and cyan, wet surfaces full of reflections, deep black shadows, saturated color and fine film grain"},
-    {"id": "seventies_film", "label": "1970s film", "group": "live action",
-     "text": "a live-action 1970s feature shot on 35mm film with zoom lenses: available natural light, warm faded color with soft contrast, visible film grain and a slight halation around the highlights"},
-    {"id": "documentary", "label": "Documentary", "group": "live action",
-     "text": "a live-action documentary shot handheld on a digital cinema camera with a wide-angle lens: deep focus, real available light, natural true-to-life color and a slight handheld drift"},
-    {"id": "bw_noir", "label": "Black and white", "group": "live action",
-     "text": "a black-and-white live-action film noir shot on 35mm: hard low-key light from single sources, deep black shadows and bright edges, high contrast and fine silver grain"},
-    {"id": "cool_scifi", "label": "Cool science fiction", "group": "live action",
-     "text": "a live-action science-fiction film shot on large-format digital with spherical lenses: clean precise focus, cool blue-teal light from practical panels and screens, crisp highlights and controlled, sterile color"},
-    {"id": "pastoral", "label": "Sunlit pastoral", "group": "live action",
-     "text": "a live-action period drama shot on 35mm with soft vintage lenses: natural window light and golden late-afternoon sun, warm painterly color, gentle contrast and soft film grain"},
-    {"id": "animated_3d", "label": "3D animated feature", "group": "animation",
-     "text": "a 3D animated feature film: soft rounded character design with expressive faces, subsurface-scattered skin, warm global illumination with soft bounce light, gentle depth of field and rich saturated color"},
-    {"id": "cartoon_2d", "label": "2D cartoon", "group": "animation",
-     "text": "a 2D hand-drawn cartoon animation with flat 2D illustration, clean black line art, flat solid colors, and cel-shaded artwork"},
-    {"id": "anime", "label": "Anime", "group": "animation",
-     "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel-shaded characters over richly painted backgrounds, luminous skies and soft atmospheric light"},
-    {"id": "stop_motion", "label": "Stop-motion", "group": "animation",
-     "text": "a stop-motion animated film with handmade clay and felt puppets on miniature sets: visible fingerprints and fabric texture, small practical lamps, shallow macro depth of field"},
-    {"id": "watercolor", "label": "Watercolor storybook", "group": "illustration",
-     "text": "a watercolor storybook illustration come to life: soft wet-edged washes of color on textured paper, loose ink outlines, gentle diffuse light and a limited warm palette"},
-    {"id": "graphic_novel", "label": "Graphic novel", "group": "illustration",
-     "text": "a graphic novel come to life: bold black ink lines and heavy spot blacks, flat limited color with halftone shading, hard dramatic light and strong silhouettes"}
+    {
+      "id": "prestige_35mm",
+      "label": "Prestige drama",
+      "group": "live action",
+      "text": "a naturalistic live-action prestige drama shot on 35mm anamorphic lenses: shallow depth of field with the background falling into soft bokeh, low-key light from the practical lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine film grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "anamorphic",
+        "light": "low_key",
+        "grade": "muted"
+      }
+    },
+    {
+      "id": "neon_noir",
+      "label": "Neon noir",
+      "group": "live action",
+      "text": "a live-action neo-noir thriller shot on 35mm anamorphic lenses: shallow depth of field, night streets lit by neon signs in magenta and cyan, wet surfaces full of reflections, deep black shadows, saturated color and fine film grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "anamorphic",
+        "film": "t500",
+        "light": "neon",
+        "grade": "high_contrast"
+      }
+    },
+    {
+      "id": "seventies_film",
+      "label": "1970s film",
+      "group": "live action",
+      "text": "a live-action 1970s feature shot on 35mm film with zoom lenses: available natural light, warm faded color with soft contrast, visible film grain and a slight halation around the highlights",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "vintage",
+        "film": "faded70s",
+        "light": "soft"
+      }
+    },
+    {
+      "id": "documentary",
+      "label": "Documentary",
+      "group": "live action",
+      "text": "a live-action documentary shot handheld on a digital cinema camera with a wide-angle lens: deep focus, real available light, natural true-to-life color and a slight handheld drift",
+      "parts": {
+        "medium": "live_action",
+        "camera": "handheld",
+        "lens": "wide",
+        "film": "digital_clean",
+        "light": "soft",
+        "grade": "natural"
+      }
+    },
+    {
+      "id": "bw_noir",
+      "label": "Black and white",
+      "group": "live action",
+      "text": "a black-and-white live-action film noir shot on 35mm: hard low-key light from single sources, deep black shadows and bright edges, high contrast and fine silver grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "film": "bw",
+        "light": "chiaroscuro",
+        "grade": "high_contrast"
+      }
+    },
+    {
+      "id": "cool_scifi",
+      "label": "Cool science fiction",
+      "group": "live action",
+      "text": "a live-action science-fiction film shot on large-format digital with spherical lenses: clean precise focus, cool blue-teal light from practical panels and screens, crisp highlights and controlled, sterile color",
+      "parts": {
+        "medium": "live_action",
+        "camera": "large_format",
+        "lens": "spherical",
+        "film": "digital_clean",
+        "grade": "cool"
+      }
+    },
+    {
+      "id": "pastoral",
+      "label": "Sunlit pastoral",
+      "group": "live action",
+      "text": "a live-action period drama shot on 35mm with soft vintage lenses: natural window light and golden late-afternoon sun, warm painterly color, gentle contrast and soft film grain",
+      "parts": {
+        "medium": "live_action",
+        "camera": "film35",
+        "lens": "vintage",
+        "film": "portrait",
+        "light": "golden",
+        "grade": "warm"
+      }
+    },
+    {
+      "id": "animated_3d",
+      "label": "3D animated feature",
+      "group": "animation",
+      "text": "a 3D animated feature film: soft rounded character design with expressive faces, subsurface-scattered skin, warm global illumination with soft bounce light, gentle depth of field and rich saturated color",
+      "parts": {
+        "medium": "animated_3d",
+        "light": "soft"
+      }
+    },
+    {
+      "id": "cartoon_2d",
+      "label": "2D cartoon",
+      "group": "animation",
+      "text": "a 2D hand-drawn cartoon animation with flat 2D illustration, clean black line art, flat solid colors, and cel-shaded artwork",
+      "parts": {
+        "medium": "cartoon_2d"
+      }
+    },
+    {
+      "id": "anime",
+      "label": "Anime",
+      "group": "animation",
+      "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel-shaded characters over richly painted backgrounds, luminous skies and soft atmospheric light",
+      "parts": {
+        "medium": "anime",
+        "light": "soft"
+      }
+    },
+    {
+      "id": "stop_motion",
+      "label": "Stop-motion",
+      "group": "animation",
+      "text": "a stop-motion animated film with handmade clay and felt puppets on miniature sets: visible fingerprints and fabric texture, small practical lamps, shallow macro depth of field",
+      "parts": {
+        "medium": "stop_motion",
+        "light": "low_key"
+      }
+    },
+    {
+      "id": "watercolor",
+      "label": "Watercolor storybook",
+      "group": "illustration",
+      "text": "a watercolor storybook illustration come to life: soft wet-edged washes of color on textured paper, loose ink outlines, gentle diffuse light and a limited warm palette",
+      "parts": {
+        "medium": "watercolor",
+        "light": "soft"
+      }
+    },
+    {
+      "id": "graphic_novel",
+      "label": "Graphic novel",
+      "group": "illustration",
+      "text": "a graphic novel come to life: bold black ink lines and heavy spot blacks, flat limited color with halftone shading, hard dramatic light and strong silhouettes",
+      "parts": {
+        "medium": "graphic_novel",
+        "light": "chiaroscuro",
+        "grade": "high_contrast"
+      }
+    }
   ]
 }

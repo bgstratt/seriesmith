@@ -25,6 +25,7 @@ const PRESETS: PresetList = {
   look: [],
   framing: [],
   camera: [],
+  look_builder: [],
 };
 
 const PLATE = {

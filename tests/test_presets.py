@@ -56,6 +56,29 @@ class DataTest(unittest.TestCase):
         self.assertEqual(len(moves), len(set(moves)))
         self.assertIn("pushes in", moves)
 
+    def test_the_look_builder_writes_the_brief(self):
+        # the same strings web/test/lookBuilder.test.ts expects: the two compose alike
+        self.assertEqual(
+            PR.compose_look({"medium": "live_action", "camera": "film35", "lens": "anamorphic",
+                             "light": "low_key", "grade": "muted"}),
+            "a live-action film; shot on 35mm film; anamorphic lenses: oval bokeh, horizontal lens "
+            "flares, slight distortion at the edges; low-key light from the practical lamps in each "
+            "space, pools of light and deep soft shadow; a muted, desaturated grade with lifted blacks")
+        self.assertEqual(
+            PR.compose_look({"medium": "anime", "camera": "film35", "light": "soft"}),
+            "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted "
+            "backgrounds; soft naturalistic window and daylight, gentle shadows")
+        self.assertEqual(PR.compose_look({"camera": "film35"}), "")
+
+    def test_every_look_preset_is_in_the_builders_rows(self):
+        rows = {r["id"]: {o["id"] for o in r["options"]} for r in PR._load("look_builder")}
+        for p in PR._load("look"):
+            with self.subTest(p["id"]):
+                self.assertIn("medium", p["parts"])
+                for row, opt in p["parts"].items():
+                    self.assertIn(opt, rows[row], f"{row}: {opt}")
+                self.assertTrue(PR.compose_look(p["parts"]))
+
     def test_a_ref_kind_reads_its_wording(self):
         self.assertIn("the light on the figure", PR.relight_text("neon", "character"))
         self.assertTrue(PR.relight_text("neon", "location").startswith("Change only the light:"))

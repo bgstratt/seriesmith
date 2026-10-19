@@ -260,7 +260,9 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
               onChange={(v) => setSeries((r) => setSize(r, "proxy", v))} />
             {["style.look", "audio.mode", "speech.pace"].map((p) => (
               <FieldRow key={p} f={FIELD(p)} value={shown(series, FIELD(p))}
-                onChange={(v) => setSeries((r) => setPath(r, FIELD(p).path, parsed(FIELD(p), v)))} />
+                onChange={(v) => setSeries((r) => setPath(r, FIELD(p).path, parsed(FIELD(p), v)))}
+                lookParts={(getPath(series, ["style", "look_parts"]) as Record<string, string> | undefined) ?? null}
+                onLookParts={(lp) => setSeries((r) => setPath(r, ["style", "look_parts"], lp))} />
             ))}
             <div className="h3-small h3-muted">The rest (models for pictures and voices, finishing, the intro and outro) is in Series settings, any time.</div>
           </>

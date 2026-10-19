@@ -16,7 +16,7 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KINDS = ("relight", "look", "framing", "camera")
+KINDS = ("relight", "look", "framing", "camera", "look_builder")
 # a camera move's sample is a clip, the rest pictures
 EXT = {"camera": ".mp4"}
 # which of a relight preset's texts a ref kind reads
@@ -31,7 +31,28 @@ def _load(kind: str) -> list[dict]:
     if kind not in KINDS:
         raise PresetError(f"preset kind must be one of {', '.join(KINDS)}, not {kind!r}")
     with open(os.path.join(HERE, f"{kind}.json"), encoding="utf-8") as fh:
-        return json.load(fh)["presets"]
+        d = json.load(fh)
+    return d["rows"] if kind == "look_builder" else d["presets"]
+
+
+def compose_look(parts: dict) -> str:
+    """The look line the builder writes from its picks ({row: option id}):
+    the medium's clause, then the other rows' in order, all joined by semicolons;
+    a drawn medium leaves the camera rows (camera, lens, film) out. "" for no
+    medium picked."""
+    rows = _load("look_builder")
+    by = {r["id"]: {o["id"]: o for o in r["options"]} for r in rows}
+    medium = by["medium"].get(parts.get("medium") or "")
+    if medium is None:
+        return ""
+    clauses = []
+    for r in rows[1:]:
+        if medium.get("drawn") and r.get("camera_row"):
+            continue
+        o = by[r["id"]].get(parts.get(r["id"]) or "")
+        if o:
+            clauses.append(o["clause"])
+    return "; ".join([medium["clause"], *clauses])
 
 
 def image_name(kind: str, pid: str, wording: str | None = None) -> str:
@@ -66,10 +87,19 @@ def listing(kind: str) -> list[dict]:
             out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),
                         **{k: p[k] for k in keep}, **({"image": name} if image_path(name) else {})})
             continue
+        if kind == "look_builder":
+            opts = []
+            for o in p["options"]:
+                name = image_name(kind, f"{p['id']}-{o['id']}")
+                opts.append({**o, **({"image": name} if image_path(name) else {})})
+            out.append({"id": p["id"], "label": p["label"], "camera_row": bool(p.get("camera_row")),
+                        "options": opts})
+            continue
         if kind == "look":
             name = image_name(kind, p["id"])
             out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),
-                        "text": p["text"], **({"image": name} if image_path(name) else {})})
+                        "text": p["text"], "parts": p.get("parts") or {},
+                        **({"image": name} if image_path(name) else {})})
             continue
         words = [w for w in (p.get("for") or ("place", "subject")) if p.get(w)]
         images = {w: image_name(kind, p["id"], w) for w in words}

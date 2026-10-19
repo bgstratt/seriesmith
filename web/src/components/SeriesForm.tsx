@@ -15,11 +15,12 @@ import {
 } from "../lib/seriesForm";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { useApp } from "../store";
-import type { Target, TargetKind } from "../types";
+import type { LookBuilderRow, LookPreset, Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, PicturePath, Thumb } from "./Picture";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { PresetPicker, useLookTiles } from "./PresetPicker";
+import { composeLook, togglePart, visibleRows, type LookParts } from "../lib/lookBuilder";
 import { MasterRecipe } from "./MasterRecipe";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
@@ -117,6 +118,8 @@ function SeriesForm({ ep }: { ep: string }) {
                       <Fragment key={f.path.join(".")}>
                       <FieldRow f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
                         backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId} listBackend={listBackend}
+                        lookParts={(getPath(draft, ["style", "look_parts"]) as LookParts | undefined) ?? null}
+                        onLookParts={(p) => set(["style", "look_parts"], p)}
                         onChange={(v) => {
                           set(f.path, parsed(f, v));
                           // a master needs a section per video model, or every shot is a gap
@@ -148,6 +151,8 @@ function SeriesForm({ ep }: { ep: string }) {
                       {fields.map((f) => (
                         <FieldRow key={f.path.join(".")} f={f} value={shown(draft, f)} targets={list} defaults={targets?.default}
                           backends={(backends ?? []).map((b) => b.name)} videoTarget={videoId} listBackend={listBackend}
+                        lookParts={(getPath(draft, ["style", "look_parts"]) as LookParts | undefined) ?? null}
+                        onLookParts={(p) => set(["style", "look_parts"], p)}
                           onChange={(v) => set(f.path, parsed(f, v))} />
                       ))}
                     </div>
@@ -222,25 +227,73 @@ export function SaveBar({ dirty, saving, onRevert, onSave, saveLabel = "Save", e
   );
 }
 
+const NO_LOOKS: LookPreset[] = [];
+const NO_ROWS: LookBuilderRow[] = [];
+
 /** The series' look: the presets as pictures over the line they fill. */
-function LookField({ value, onChange, textarea }: { value: string; onChange: (v: string) => void; textarea: JSX.Element }) {
+function LookField({ value, onChange, textarea, parts, onParts }: {
+  value: string; onChange: (v: string) => void; textarea: JSX.Element;
+  /** the builder's picks (style.look_parts) and where they go; without them, presets only */
+  parts?: LookParts | null; onParts?: (p: LookParts) => void;
+}) {
   const tiles = useLookTiles();
+  // select the stable list itself: a fresh `[]` from a selector is a new value on every
+  // read, and the store re-renders on it forever (React error #185)
+  const looks = useApp((s) => s.presets?.look) ?? NO_LOOKS;
+  const rows = useApp((s) => s.presets?.look_builder) ?? NO_ROWS;
+  const [open, setOpen] = useState(false);
+  const cur = parts ?? {};
+  const built = composeLook(rows, cur);
+  // the line is the builder's while it says what the picks say (or is empty)
+  const ours = !value.trim() || value.trim() === built;
+  const setParts = (next: LookParts) => {
+    onParts?.(next);
+    if (ours) onChange(composeLook(rows, next));
+  };
   return (
     <div className="h3-col" style={{ gap: 4 }}>
-      <PresetPicker tiles={tiles} value={value} onPick={onChange} open={!value.trim()}
-        title="Looks: pick one to start from, then make it yours" />
+      <PresetPicker tiles={tiles} value={value} open={!value.trim()}
+        title="Looks: pick one to start from, then make it yours"
+        onPick={(text) => {
+          onChange(text);
+          const p = looks.find((l) => l.text === text)?.parts;
+          if (p && onParts) onParts({ ...p });
+        }} />
+      {onParts && rows.length > 0 && (
+        <div className="h3-col" style={{ gap: 4 }}>
+          <button type="button" className="h3-link h3-small" style={{ alignSelf: "flex-start" }} onClick={() => setOpen(!open)}
+            title="Build the look from its parts: each pick adds what a director of photography would say about it">
+            <i className={`pi ${open ? "pi-chevron-down" : "pi-chevron-right"}`} /> Build the look: medium, camera, lens, film, light, grade
+          </button>
+          {open && visibleRows(rows, cur).map((r) => (
+            <PresetPicker key={r.id} size={0.6} picked={cur[r.id] ?? null} value=""
+              title={r.id === "camera" ? "Camera (its tiles look alike: a camera shows in motion and texture, not a still)" : r.label}
+              tiles={r.options.map((o) => ({ id: o.id, label: o.label, group: "", text: o.id, image: o.image }))}
+              onPick={(id) => setParts(togglePart(cur, r.id, id))} />
+          ))}
+          {open && !ours && built && (
+            <div className="h3-row h3-small" style={{ gap: 6 }}>
+              <span className="h3-muted">The line has been edited by hand, so the picks don't rewrite it.</span>
+              <button type="button" className="h3-btn h3-small" title={built} onClick={() => onChange(built)}>Use the built line</button>
+            </div>
+          )}
+        </div>
+      )}
       {textarea}
     </div>
   );
 }
 
-export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget, listBackend }: {
+export function FieldRow({ f, value, onChange, targets, defaults, backends, videoTarget, listBackend, lookParts, onLookParts }: {
   f: Field; value: string; onChange: (v: string) => void; targets?: Target[];
   defaults?: Partial<Record<TargetKind, string>>; backends?: string[];
   /** the video model a LoRA or model file field picks for */
   videoTarget?: string | null;
   /** where the series renders (its backend field, as edited): whose files those fields list */
   listBackend?: string | null;
+  /** the look builder's picks (style.look_parts) and where they go, for the Look field */
+  lookParts?: LookParts | null;
+  onLookParts?: (p: LookParts) => void;
 }) {
   const kind = f.kind === "video_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
   let input;
@@ -248,7 +301,9 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
     input = <textarea className="h3-in" rows={3} style={{ fontFamily: "inherit", resize: "vertical" }} value={value}
       placeholder={f.placeholder} onChange={(e) => onChange(e.target.value)} />;
     // the look: picked from presets as pictures (seriesmith/presets/look.json), still the series' own to write
-    if (f.path.join(".") === "style.look") input = <LookField value={value} onChange={onChange} textarea={input} />;
+    if (f.path.join(".") === "style.look") {
+      input = <LookField value={value} onChange={onChange} textarea={input} parts={lookParts} onParts={onLookParts} />;
+    }
   } else if (f.kind === "select") {
     input = (
       <select className="h3-in" value={value} onChange={(e) => onChange(e.target.value)}>
