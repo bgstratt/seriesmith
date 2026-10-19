@@ -245,7 +245,7 @@ go to the local ComfyUI directly, as in h3pipe, until step 8 moves them.
       /h3pipe/import; "Import series…" in the episode browser). Porchlights
       season 2 (10 episodes, each with its own config) imports and checks clean.
 
-## Step 8 — each stage portable, continuity, deployments (all but deployments live)
+## Step 8 — each stage portable, continuity, deployments (live but deployments: supported, not pursued)
 
 With the UI there to try each one:
 - [x] Refs through targets and backends: generating a ref (and Generate
@@ -292,7 +292,13 @@ With the UI there to try each one:
       master still queue on ComfyUI directly, and the compute nodes
       (H3PixelUpscale, H3FinishUpscale, H3HoldAudio, H3MotionBlur, ...) are
       still h3pipe's (step 9).
-- [ ] Deployments, live (the Router run is done: step 4, step 14).
+- [~] Deployments: supported, not pursued (2026-10-18). A deployment is a pinned
+      ComfyUI (custom nodes, models) behind the same Comfy API: seriesmith sends it
+      the graphs it sends a local ComfyUI (`deployments` in the settings). Comfy Cloud
+      now covers the no-GPU case ("Comfy Cloud: a shot as Cloud's own nodes"); a
+      deployment would only add seriesmith's own nodes there (chains, kept latents,
+      upscale and post), for an upload of the weights, cold starts and GPU-second
+      billing. Not run live.
 
 ## Step 9 — leaving h3pipe behind ✅
 
