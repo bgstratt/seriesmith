@@ -109,6 +109,25 @@ them inline in the request instead).
 The editor's **Settings** window sets the key too (saved in the settings file below);
 `seriesmith backends` says whether one is set.
 
+### Comfy Cloud
+
+Comfy Cloud is ComfyUI on Comfy's GPUs, on your Comfy subscription: the open-weights
+models (MiniMax H3, LTX-2, Wan 2.2, FLUX, ...) with no GPU of your own and nothing to
+download. Pick `cloud` as a shot's, an episode's or the series' backend (or
+`seriesmith render ... --backend cloud`).
+
+Cloud runs ComfyUI's own nodes and the packs Comfy has installed there, not
+seriesmith's, so a shot sent there is made of Cloud's nodes alone: seriesmith cuts the
+reference pictures and voice slices itself and sends them as plain uploads, and Cloud's
+own save nodes return the video and its sound. What comes back is a take like any
+other (thumbnail, strip, record). Model files are Cloud's: a model whose accelerator
+LoRA Cloud hasn't renders its base preset there (H3: 20 steps, no LoRA, slower), and a
+node a model can do without (H3's sparse attention) is left out; the take's notes say so.
+
+What stays on your own ComfyUI (or a deployment): a `continuous: latent` shot, which
+holds the take before it through seriesmith's chain nodes. A take made on Cloud keeps
+no latent (an upscale of it goes through the VAE), no PNG frames and no foley bed.
+
 ### Comfy Router models
 
 A hosted model is a target like any other, on the `router` backend only: no GPU, no

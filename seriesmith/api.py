@@ -2928,16 +2928,28 @@ def get_models(ctx: Context, query: dict):
         raise ApiError(400, f"{t.id} declares no model family for {param!r} "
                             f"(it does for: {', '.join(t.models) or 'nothing'})")
     extra = {}
+    ep = None
     if query.get("ep"):
         ep = check_ep(ctx, query.get("ep"))
         try:
             extra = J.series_model_families(ep)
         except ValueError as e:
             raise ApiError(400, str(e))
-    names = ctx.model_list(spec["folder"], spec["class_type"], spec["field"])
+    cloud = _listing_cloud(ctx, query, ep, t)
+    if cloud is not None:
+        # the files Comfy Cloud has (its own, and any the account imported):
+        # named, not read, so only names are checked
+        try:
+            names = cloud.choices(spec["class_type"], spec["field"]) or []
+        except Exception as e:                            # noqa: BLE001  said to the page
+            raise ApiError(502, f"Comfy Cloud didn't list its models: {e}")
+        resolve = None
+    else:
+        names = ctx.model_list(spec["folder"], spec["class_type"], spec["field"])
+        resolve = ctx.model_resolve
     files = []
     for n in names:
-        c = TG.check_model(t, param, n, ctx.model_resolve, extra, ctx.model_cache) or {}
+        c = TG.check_model(t, param, n, resolve, extra, ctx.model_cache) or {}
         found = c.get("found") or {}
         m = c.get("match")
         files.append({"name": n,
@@ -2954,8 +2966,27 @@ def get_models(ctx: Context, query: dict):
                  "patterns": spec["patterns"] + [p for p in extra.get(spec["family"], [])
                                                  if p not in spec["patterns"]],
                  "folder": spec["folder"], "class_type": spec["class_type"],
-                 "field": spec["field"], "fingerprint": ctx.model_resolve is not None,
+                 "field": spec["field"], "fingerprint": resolve is not None,
+                 "backend": cloud.name if cloud is not None else "local",
                  "files": files}
+
+
+def _listing_cloud(ctx: Context, query: dict, ep: str | None, t):
+    """The Comfy Cloud backend a model list is for, or None (this machine's):
+    the request's `backend`, else the shot's / episode's / series config's
+    (jobs.backend_choice; `shot` optional), when that is a cloud one."""
+    name = query.get("backend") or None
+    if not name and ep:
+        try:
+            name = J.backend_choice(T.load_overrides(ep), query.get("shot") or "", t, None, ep)[0]
+        except ValueError:
+            name = None
+    if not isinstance(name, str) or J.backend_kind(name) != "cloud":
+        return None
+    backend = ctx.runner.backends.get(name) if ctx.runner is not None else None
+    if backend is None:
+        raise ApiError(409, f"{name} isn't set up here: a Comfy API key turns it on (Settings)")
+    return backend
 
 
 # ---------------------------------------------------------------------------

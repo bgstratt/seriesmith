@@ -23,12 +23,13 @@ def target(**caps) -> TG.Target:
 
 
 class BackendsTest(unittest.TestCase):
-    def test_a_workflow_target_runs_locally_or_on_a_deployment(self):
+    def test_a_workflow_target_runs_locally_on_cloud_or_on_a_deployment(self):
+        # Comfy Cloud with its own nodes in place of seriesmith's (seriesmith/cloud.py)
         for t in TG.list_targets():
             if t.spec.get("router"):
                 continue                        # a hosted model: RouterTargetTest
             with self.subTest(target=t.id):
-                self.assertEqual(t.capabilities()["backends"], ["local", "deployment"])
+                self.assertEqual(t.capabilities()["backends"], ["local", "cloud", "deployment"])
 
     def test_a_target_can_name_its_own(self):
         self.assertEqual(target(backends=["router"]).backends, ["router"])

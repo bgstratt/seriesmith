@@ -85,7 +85,9 @@ uses it.
 | [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | an H3 upscale of a take longer than 5.5 s, so it fits a 32 GB card — see **The upscaler**. Its README also asks for [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm); that's for its own timeline workflows, not this node |
 
 Install them with ComfyUI-Manager or by cloning into `custom_nodes`, then restart ComfyUI.
-A deployment or Comfy Cloud needs the same packs there.
+A deployment needs the same packs there. Comfy Cloud has its own set: seriesmith sends it
+Cloud's own nodes, leaving out what a model can do without ([docs/SETUP.md](/setup),
+"Comfy Cloud").
 
 ### Optional, and what each one unlocks
 
@@ -907,7 +909,8 @@ each time seriesmith starts.
 **A job fails with a missing node class (`SeriesmithShotLoader`, `SeriesmithSaveTake`, ...).**
 seriesmith's node pack isn't in that ComfyUI, or ComfyUI wasn't restarted since it was
 linked or updated. Link `comfy_nodes\` into `custom_nodes\` (section 2) and restart
-ComfyUI. A deployment or Comfy Cloud needs the pack too.
+ComfyUI. A deployment needs the pack too; Comfy Cloud doesn't (seriesmith sends it Cloud's
+own nodes).
 
 **You changed `web/` and nothing changed in the browser.**
 The editor is served from the committed pages, not from `web/`: `seriesmith serve` from

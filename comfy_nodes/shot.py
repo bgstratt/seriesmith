@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import datetime
 import json
-import math
 import os
 import re
 import subprocess
@@ -45,18 +44,24 @@ import torch
 
 try:
     from . import _ff
+    from . import shotplan as _plan
 except ImportError:                       # this file loaded on its own (a test), not as the pack
     import importlib.util as _iu
-    _spec = _iu.spec_from_file_location(
-        "seriesmith_nodes_ff", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_ff.py"))
-    _ff = _iu.module_from_spec(_spec)
-    _spec.loader.exec_module(_ff)
+
+    def _sibling(name: str, as_name: str):
+        spec = _iu.spec_from_file_location(
+            as_name, os.path.join(os.path.dirname(os.path.abspath(__file__)), f"{name}.py"))
+        mod = _iu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    _ff = _sibling("_ff", "seriesmith_nodes_ff")
+    _plan = _sibling("shotplan", "seriesmith_nodes_shotplan")
 
 # ---------------------------------------------------------------------------
-# H3 constants
+# H3 constants (the frame grid, the policies and panel modes: shotplan.py)
 # ---------------------------------------------------------------------------
 
-GRID_STEP, GRID_BASE, GRID_MAX = 17, 5, 3592
+GRID_STEP, GRID_BASE, GRID_MAX = _plan.GRID_STEP, _plan.GRID_BASE, _plan.GRID_MAX
 
 # Take thumbnails. STRIP_FRAMES must match takes.STRIP_FRAMES: the editor
 # reads the strip as that many equal-width cells.
@@ -64,21 +69,9 @@ STRIP_FRAMES = 8
 THUMB_LONG_SIDE = 480
 STRIP_CELL_WIDTH = 192
 JPEG_QUALITY = 85
-AUDIO_POLICIES = ["generate", "dub", "dub_keep_foley", "clone"]
-PANEL_MODES = ["auto", "full", "pair", "face", "body"]
-
-
-def snap_up(frames: int) -> int:
-    """Round up onto H3's 17k+5 frame grid."""
-    if frames <= GRID_BASE:
-        return GRID_BASE
-    value = GRID_STEP * math.ceil((frames - GRID_BASE) / GRID_STEP) + GRID_BASE
-    if value > GRID_MAX:
-        raise ValueError(
-            f"{frames} frames exceeds H3's maximum of {GRID_MAX} "
-            f"({GRID_MAX / 24:.2f}s at 24fps). Split this shot."
-        )
-    return value
+AUDIO_POLICIES = _plan.AUDIO_POLICIES
+PANEL_MODES = _plan.PANEL_MODES
+snap_up = _plan.snap_up
 
 
 # RGB frames to HD video the way every player reads HD: the BT.709 matrix,
@@ -154,8 +147,8 @@ def _blank(h: int = 64, w: int = 64) -> torch.Tensor:
 
 
 # An unused subject socket's picture (H3's smallest canvas): it holds the
-# socket's number so the plate stays <Picture 4> (see SeriesmithShotLoader.load).
-PLACEHOLDER_SIZE = 32
+# socket's number so the plate stays <Picture 4> (shotplan.plan_shot).
+PLACEHOLDER_SIZE = _plan.PLACEHOLDER_SIZE
 
 
 def _neutral(h: int, w: int) -> torch.Tensor:
@@ -193,15 +186,11 @@ def crop_panels(sheet: torch.Tensor, panels: int, keep: list[int]) -> torch.Tens
     costing per-panel resolution. It is a pure reference-cost reduction.
     """
     _, h, w, _ = sheet.shape
-    if panels <= 1 or not keep:
-        return sheet
-    pw = w // panels
-    keep = [i for i in keep if 0 <= i < panels]
-    if not keep:
+    box = _plan.crop_box(w, panels, keep)
+    if box == [(0, w)]:
         return sheet
     # contiguous runs stay contiguous so the result is still a clean strip
-    slices = [sheet[:, :, i * pw:(i + 1) * pw, :] for i in sorted(keep)]
-    return torch.cat(slices, dim=2)
+    return torch.cat([sheet[:, :, x0:x1, :] for x0, x1 in box], dim=2)
 
 
 def _read_pcm_wav(path: str) -> tuple[torch.Tensor, int]:
@@ -390,27 +379,6 @@ class SeriesmithShotLoader:
             return where.get(str(path or "").replace("\\", "/"), "") if path else ""
         return resolve
 
-    @staticmethod
-    def _panels_for(mode: str, cast_n: int, shot_size: str) -> tuple[str, list[int]]:
-        """Decide which panels of a 4-panel strip (3/4, side, back, face) to keep.
-
-        Reference cost scales with strip width, so crowded shots drop to the
-        two panels that actually carry identity.
-        """
-        if mode == "full":
-            return "full", [0, 1, 2, 3]
-        if mode == "pair":
-            return "pair", [0, 3]
-        if mode == "face":
-            return "face", [3]
-        if mode == "body":
-            return "body", [0]
-        # auto -- one panel, so the reference never contains a second figure
-        # for H3 to duplicate into frame.
-        if cast_n <= 1 and shot_size in ("close", "cu"):
-            return "face", [3]
-        return "body", [0]
-
     # -- main --------------------------------------------------------------
 
     def load(self, shotlist, files, index, panel_mode, fps, resolution_override="",
@@ -421,266 +389,36 @@ class SeriesmithShotLoader:
         except ValueError as exc:
             raise ValueError(f"shotlist is not JSON: {exc}") from None
 
-        shots = doc.get("shots", [])
-        if not shots:
-            raise ValueError("the shotlist contains no shots")
-        shot = shots[index % len(shots)]
+        # what to send (shotplan.py: the same plan seriesmith makes for a
+        # ComfyUI without this pack), then the pictures and sounds it names
+        plan = _plan.plan_shot(doc, index, panel_mode, fps, resolution_override, resolve)
 
-        defaults = doc.get("defaults", {})
-        book = doc.get("subjects", doc.get("cast", {}))
+        def picture(spec: dict) -> torch.Tensor:
+            if "neutral" in spec:
+                return _neutral(*spec["neutral"])
+            return crop_panels(load_image(spec["path"]), spec["panels"], spec["keep"])
 
-        # ---- geometry ----------------------------------------------------
-        if resolution_override.strip():
-            m = re.match(r"^\s*(\d+)\s*[xX*]\s*(\d+)\s*$", resolution_override)
-            if not m:
-                raise ValueError(
-                    f"resolution_override must look like 1344x768, got {resolution_override!r}"
-                )
-            width, height = int(m.group(1)), int(m.group(2))
-        else:
-            width = int(shot.get("width", defaults.get("width", 1344)))
-            height = int(shot.get("height", defaults.get("height", 768)))
-        for name, v in (("width", width), ("height", height)):
-            if v % 32:
-                raise ValueError(
-                    f"{name}={v} is not a multiple of 32. H3 rejects it. "
-                    f"Nearest legal: {v // 32 * 32} or {(v // 32 + 1) * 32}."
-                )
+        refs = [picture(r) for r in plan["refs"]]
+        ref_bg = picture(plan["bg"])
+        sizes = [None if "neutral" in r else (int(t.shape[2]), int(t.shape[1]))
+                 for r, t in zip(plan["refs"], refs)]
+        audio_refs = [None if a is None else
+                      load_audio(a["path"]) if a["start"] is None else
+                      load_audio(a["path"], a["start"], a["end"])
+                      for a in plan["audio"]]
+        info = _plan.info_text(plan, sizes)
 
-        # ---- duration ----------------------------------------------------
-        if "audio_in" in shot and "audio_out" in shot:
-            duration = float(shot["audio_out"]) - float(shot["audio_in"])
-            if duration <= 0:
-                raise ValueError(f"shot {shot.get('id')}: audio_out must follow audio_in")
-        else:
-            duration = float(shot.get("duration", defaults.get("duration", 3.04)))
-        # continuous: latent (docs/CONTINUOUS.md): `hold` more frames, the
-        # previous take's last ones held at the head (H3ChainLatent) and
-        # trimmed off after decoding (H3ChainTrim)
-        hold = int(shot.get("hold") or 0)
-        length = snap_up(max(1, round(duration * fps)) + hold)
-
-        # ---- references --------------------------------------------------
-        # Slots 1-3 are the shot's subjects (characters first, then props and
-        # vehicles). Slot 4 is ALWAYS the location plate. There is no style
-        # reference: the style is already carried by every sheet and plate,
-        # which are all drawn in it, and by the text prefix. Spending slot 4 on
-        # the background instead buys concrete layout, palette, lighting
-        # direction and depth for this specific shot -- and keeps the same
-        # location looking like the same place across every cut in a sequence.
-        subject_ids = shot.get("subjects") or shot.get("cast") or []
-        size = (shot.get("size") or "medium").lower()
-        panels_total = int(defaults.get("sheet_panels", 4))
-
-        # `missing_refs: blank` (set by jobs when a render is asked for anyway)
-        # turns a missing picture into flat grey and a missing audio reference
-        # into none, instead of failing the shot.
-        render_anyway = shot.get("missing_refs") == "blank"
-        blanked: list[str] = []
-
-        # Background first: it is also what fills any unused subject socket.
-        bg_path = resolve(shot.get("background", ""))
-        if not bg_path or not os.path.isfile(bg_path):
-            if not render_anyway:
-                raise FileNotFoundError(
-                    f"shot {shot.get('id')}: background plate not found at "
-                    f"{bg_path or '<unset>'}. Every shot needs one -- it is <Picture 4>."
-                )
-            ref_bg = _neutral(height, width)
-            blanked.append("Picture 4")
-        else:
-            ref_bg = load_image(bg_path)
-
-        # Characters get the panel-crop cost lever; props are single images.
-        n_chars = sum(1 for s in subject_ids
-                      if book.get(s, {}).get("kind", "character") == "character")
-        declared = shot.get("panels")
-        if panel_mode != "auto":
-            mode_used, keep = self._panels_for(panel_mode, 99, size)
-        elif declared:
-            d = int(declared)
-            if d == 1:
-                view = shot.get("panel_view", "body")
-                keep = [3] if view == "face" else [0]
-                mode_used = view
-            elif d == 4:
-                keep, mode_used = [0, 1, 2, 3], "full"
-            else:
-                keep, mode_used = [0, 3], "pair"
-        else:
-            mode_used, keep = self._panels_for("auto", len(subject_ids), size)
-
-        refs: list[torch.Tensor] = []
-        ref_notes: list[str] = []
-        for sid in subject_ids[:3]:
-            entry = book.get(sid, {})
-            kind = entry.get("kind", "character")
-            path = resolve(entry.get("sheet", ""))
-            if not path or not os.path.isfile(path):
-                if not render_anyway:
-                    raise FileNotFoundError(
-                        f"shot {shot.get('id')}: reference for '{sid}' not found at "
-                        f"{path or '<unset>'}"
-                    )
-                refs.append(_neutral(1024, 1024))
-                blanked.append(f"Picture {len(refs)}")
-                ref_notes.append(f"{sid} ({kind}) MISSING -> flat grey")
-                continue
-            img = load_image(path)
-            if kind == "character":
-                # `sheet_panels: 1` in the series config: a single picture, sent whole
-                n_panels = int(entry.get("sheet_panels") or panels_total)
-                img = crop_panels(img, n_panels, keep)
-                how = "whole" if n_panels <= 1 else f"{mode_used} of {n_panels} panels"
-                note = f"{sid} ({kind}) {os.path.basename(path)} [{img.shape[2]}x{img.shape[1]}, {how}]"
-            else:
-                note = f"{sid} ({kind}) {os.path.basename(path)} [{img.shape[2]}x{img.shape[1]}, whole]"
-            refs.append(img)
-            ref_notes.append(note)
-
-        if not refs:
-            # Plate-only shot: an establishing view with voiceover over it. The
-            # prompt makes the location <Subject 1>, sourced from <Picture 4>,
-            # and names no other picture — so the subject sockets get placeholders.
-            ref_notes.append("no subjects — the background is the whole reference")
-        if len(subject_ids) > 3:
-            raise ValueError(
-                f"shot {shot.get('id')}: {len(subject_ids)} subjects but only 3 slots "
-                f"-- slot 4 is the background. Drop {len(subject_ids) - 3}."
-            )
-
-        # A shot with fewer than three subjects fills those sockets with a 32x32
-        # grey placeholder, so the plate stays <Picture 4> as the prompt says.
-        # MiniMaxH3ReferenceToVideo skips a None socket and the text encoder
-        # numbers only the pictures it is given (comfy/text_encoders/minimax.py),
-        # so empty sockets (2026-09-22 to 2026-10-05) sent a one-subject shot's
-        # plate as <Picture 2> under a prompt naming <Picture 4>. 32x32 is the
-        # node's smallest canvas and it never enlarges a reference, so each
-        # placeholder costs a 2x2 latent and a few vision tokens, not the plate's
-        # thousands (padding with the plate itself, before 2026-09-22, did).
-        n_sub = len(refs)
-        while len(refs) < 3:
-            refs.append(_neutral(PLACEHOLDER_SIZE, PLACEHOLDER_SIZE))
-        ref_notes.append(f"background {os.path.basename(bg_path or '') or '(none)'}"
-                         f"{' MISSING -> flat grey' if 'Picture 4' in blanked else ''} -> <Picture 4>"
-                         + (f" (slots {n_sub + 1}-3 placeholders)" if n_sub < 3 else ""))
-
-        # ---- audio -------------------------------------------------------
-        policy = (shot.get("audio_policy") or defaults.get("audio_policy") or "generate")
-        if policy not in AUDIO_POLICIES:
-            raise ValueError(
-                f"shot {shot.get('id')}: audio_policy {policy!r} not one of {AUDIO_POLICIES}"
-            )
-
-        audio_note = "none"
-        audio_refs: list[dict | None] = [None, None, None]
-
-        if policy == "generate":
-            # Deliberately None, not silence. ref_audio is a *reference* socket:
-            # handing it a silent clip tells H3 "match this audio", which biases
-            # it toward generating silence.
-            audio_note = "generate (no audio reference)"
-
-        elif policy == "clone":
-            # One timbre sample PER SPEAKER. A two-hander needs two, or the
-            # second character gets voiced from the first one's sample.
-            # `vrefs`, not `refs` -- `refs` is the image reference list above and
-            # shadowing it silently truncates the picture slots.
-            vrefs = shot.get("voice_refs") or []
-            if not vrefs and shot.get("voice_subject"):
-                vrefs = [{"subject": shot["voice_subject"],
-                          "sample": book.get(shot["voice_subject"], {}).get("voice_sample", "")}]
-            if len(vrefs) > 3:
-                raise ValueError(
-                    f"shot {shot.get('id')}: {len(vrefs)} voice references but H3 takes "
-                    f"at most 3. Split the shot."
-                )
-            names = []
-            for i, r in enumerate(vrefs[:3]):
-                p = resolve(r.get("sample", ""))
-                if (not p or not os.path.isfile(p)) and render_anyway:
-                    blanked.append(f"Audio {i + 1}")
-                    names.append(f"<Audio {i + 1}>={r.get('subject')} MISSING (none)")
-                    continue
-                if not p or not os.path.isfile(p):
-                    raise FileNotFoundError(
-                        f"shot {shot.get('id')}: voice sample for '{r.get('subject')}' "
-                        f"not found at {p or '<unset>'}. clone mode needs one per speaker."
-                    )
-                audio_refs[i] = load_audio(p)
-                names.append(f"<Audio {i + 1}>={r.get('subject')}")
-            audio_note = "clone <- " + ", ".join(names) if names else "clone (no refs)"
-
-        else:  # dub / dub_keep_foley
-            # ONE clip: the slice of the recorded mix, which already contains
-            # every voice in the shot.
-            src = shot.get("audio_file") or defaults.get("master_track", "")
-            src = resolve(src)
-            if (not src or not os.path.isfile(src)) and render_anyway:
-                blanked.append("Audio 1")
-                src = ""
-            elif not src or not os.path.isfile(src):
-                raise FileNotFoundError(
-                    f"shot {shot.get('id')}: audio_policy '{policy}' needs the recorded "
-                    f"mix; looked for {src or '<unset>'}"
-                )
-            if not src:
-                audio_note = f"{policy} <- recording MISSING (no audio reference)"
-            elif "audio_in" in shot and not shot.get("audio_file"):
-                # a held head starts the window that much earlier on the
-                # recording, so the voices land where the shot's own frames are
-                a_in = max(0.0, float(shot["audio_in"]) - hold / fps)
-                audio_refs[0] = load_audio(src, a_in, float(shot["audio_out"]))
-                audio_note = (f"{policy} <- {os.path.basename(src)} "
-                              f"[{a_in:.2f}..{shot['audio_out']:.2f}]")
-            else:
-                audio_refs[0] = load_audio(src)
-                audio_note = f"{policy} <- {os.path.basename(src)}"
-
-        # ---- prompt / seed -----------------------------------------------
-        prompt = shot.get("prompt", "")
-        if isinstance(prompt, list):
-            prompt = "\n\n".join(prompt)
-        prefix = doc.get("prompt_prefix", "")
-        if prefix:
-            prompt = f"{prefix}\n\n{prompt}"
-        seed = int(shot.get("seed", 0)) & 0x7FFF_FFFF_FFFF_FFFF
-        # Sampler steps travel with the shot so the proxy pass actually renders
-        # at its own step count instead of inheriting whatever the workflow's
-        # scheduler widget happens to say.
-        steps = int(shot.get("steps", defaults.get("steps", 4)))
-
-        pad = length - hold - round(duration * fps)
-        # 1-based, and stated as "of N" rather than "/ N-1". The Shot Index
-        # widget is NOT a progress readout: ComfyUI serializes the whole batch
-        # up front, incrementing the widget once per prompt at queue time, so it
-        # reads 36 while shot 1 is still rendering. This line updates per
-        # execution, so it is the one that actually tracks the batch.
-        pos = index % len(shots)
-        info = "\n".join([
-            f"shot {pos + 1} of {len(shots)}   —   {shot.get('id', '?')}",
-            f"{width}x{height}   {length} frames   {length / fps:.2f}s   {steps} steps"
-            f"   (asked {duration:.2f}s, pad {pad}f)"
-            + (f"   holding {hold}f of the previous take" if hold else ""),
-            f"subjects: {', '.join(subject_ids) if subject_ids else '- (plate only)'}   size: {size}",
-            f"voices: {', '.join(shot.get('voices', [])) or '-'}",
-            f"audio: {audio_note}",
-            *([f"RENDERED WITHOUT: {', '.join(blanked)} (missing refs)"] if blanked else []),
-            "refs:",
-            *[f"  {n}" for n in ref_notes],
-            f"seed: {seed}",
-        ])
-
-        print(f"[seriesmith] shot {pos + 1}/{len(shots)}  {shot.get('id', '?')}  "
-              f"{width}x{height}  {length}f ({length / fps:.2f}s)  {steps} steps  "
-              f"{policy}", flush=True)
+        print(f"[seriesmith] shot {plan['pos'] + 1}/{plan['count']}  {plan['label']}  "
+              f"{plan['width']}x{plan['height']}  {plan['length']}f "
+              f"({plan['length'] / fps:.2f}s)  {plan['steps']} steps  "
+              f"{plan['policy']}", flush=True)
 
         return (
-            str(shot.get("id", f"shot_{index:04d}")), prompt,
+            plan["id"], plan["prompt"],
             refs[0], refs[1], refs[2], ref_bg,
             audio_refs[0], audio_refs[1], audio_refs[2],
-            width, height, length, steps, seed,
-            policy, info, len(shots),
+            plan["width"], plan["height"], plan["length"], plan["steps"], plan["seed"],
+            plan["policy"], info, plan["count"],
         )
 
 

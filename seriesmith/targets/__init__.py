@@ -98,10 +98,10 @@ PASSES = ("final", "proxy")
 # through Comfy Router.
 BACKENDS = ("local", "cloud", "deployment", "router")
 # A target that renders a ComfyUI workflow runs where that workflow can: your
-# own ComfyUI, or a deployment built from it. Comfy Cloud only runs its own
-# node set, so a target says `cloud` itself once its workflow is known to run
-# there.
-GRAPH_BACKENDS = ("local", "deployment")
+# own ComfyUI, Comfy Cloud (with Cloud's own nodes in place of seriesmith's:
+# seriesmith/cloud.py; what Cloud hasn't, it says when the job starts), or a
+# deployment built from it.
+GRAPH_BACKENDS = ("local", "cloud", "deployment")
 
 
 class TargetError(ValueError):

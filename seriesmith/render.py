@@ -51,7 +51,7 @@ import time
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import targets as TG
-from seriesmith.backends import BackendError, File, available
+from seriesmith.backends import BackendError, File, available, files_in
 from seriesmith.settings import load_settings
 
 
@@ -197,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     model_resolve = J.model_resolver()
     model_cache = TG.modelid.temp_cache()
     listing = None
+    cloud_listing: dict = {}                      # a cloud backend's name -> its model_lister
     plans = []
     where: dict[int, str] = {}                    # id(job) -> backend name
     total_frames = 0
@@ -235,10 +236,19 @@ def main(argv: list[str] | None = None) -> int:
                 where[id(j)] = name
             if hosted(t):
                 continue                                  # no model files to resolve
-            if j.runs and where[id(j)] in backends and backends[where[id(j)]].kind == "local" \
-                    and listing is None and not args.dry_run:
-                listing = J.model_lister(comfy)
-            J.resolve_models(j, listing, model_resolve, model_cache)
+            on = backends.get(where[id(j)]) if j.runs and id(j) in where else None
+            if on is not None and on.kind == "cloud":
+                # the files Comfy Cloud has, not this machine's: a missing
+                # accelerator LoRA renders the base preset there
+                if on.name not in cloud_listing:
+                    cloud_listing[on.name] = J.model_lister(on)
+                use = cloud_listing[on.name]
+            else:
+                if on is not None and on.kind == "local" and listing is None \
+                        and not args.dry_run:
+                    listing = J.model_lister(comfy)
+                use = listing
+            J.resolve_models(j, use, model_resolve, model_cache)
             J.check_models(j, model_resolve, model_cache)
         todo = [j for j in jobs if j.runs]
         plans.append((root, jobs))
@@ -274,7 +284,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     gkw = dict(panel_mode=args.panel_mode, review_copy=False, portable=True)
     if args.dry_run:
-        return dry_run(plans, pass_, base_for, gkw)
+        return dry_run(plans, pass_, base_for, gkw,
+                       {id_: backends.get(n) for id_, n in where.items()})
     if not n_todo:
         print("\n  nothing to do: --redo renders new takes.\n")
         return 0
@@ -359,9 +370,11 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if failed else 0
 
 
-def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
+def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> int:
     """Write what the first shot that would run would send; nothing is
-    reserved, written or uploaded."""
+    reserved, written or uploaded. `on`: id(job) -> its backend (a Comfy
+    Cloud one gets the graph made of Cloud's nodes, seriesmith.cloud.lower;
+    the files it would upload are left in a folder it names)."""
     for root, jobs in plans:
         for j in (j for j in jobs if j.runs):
             take = T.Take(j.id, j.take, pass_, T.take_paths(root, pass_, j.id, j.take))
@@ -376,14 +389,27 @@ def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
                     (c.get("image_url") or {}).get("url"), File))
                 print(f"\n  wrote {out} ({j.id}, {model}; {n} picture(s) to upload)")
                 return 0
+            backend = (on or {}).get(id(j))
+            plan = None
             try:
                 J.stage_portable(j)
                 g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
+                if backend is not None and backend.kind == "cloud":
+                    from seriesmith import cloud as C
+                    g, plan = C.lower(g, j, take, backend.object_info())
             finally:
-                unstage(j)
+                if plan is None:
+                    unstage(j)
             out = os.path.join(os.getcwd(), "render_graph.json")
             with open(out, "w", encoding="utf-8") as fh:
                 json.dump(as_json(g), fh, indent=2)
+            if plan is not None:
+                ups = len({f.path for _, _, f in files_in(g)})
+                print(f"\n  wrote {out} ({j.id}, {j.target} as Comfy Cloud's nodes; {ups} "
+                      f"file(s) to upload, made in {plan['staging']})")
+                for n in plan["notes"]:
+                    print(f"  ~ {n}")
+                return 0
             ups = len(J.shot_files(j)) if J.job_target(j).binding.loader_class \
                 else len(j.input_files)
             print(f"\n  wrote {out} ({j.id}, {j.target}; {ups} file(s) to upload)")
@@ -396,7 +422,9 @@ def dry_run(plans, pass_: str, base_for, gkw: dict) -> int:
 
 def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
     """What a started take sends: ("call", (model, arguments)) for a hosted
-    target, else ("graph", the portable graph). NotPortable for a graph that
+    target; ("cloud", (graph, plan)) on Comfy Cloud, the portable graph made of
+    Cloud's own nodes (seriesmith.cloud.lower; `plan` is what collecting it
+    needs); else ("graph", the portable graph). NotPortable for a graph that
     still reads the episode folder, on a backend that doesn't share its disk."""
     target = J.job_target(job)
     if hosted(target):
@@ -405,6 +433,13 @@ def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
     from seriesmith.shotnodes import uses_h3pipe
     if gkw.get("portable") and uses_h3pipe(g):
         raise J.NotPortable(f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
+    if backend.kind == "cloud":
+        from seriesmith import cloud as C
+        g, plan = C.lower(g, job, take, backend.object_info())
+        if plan["notes"]:
+            had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
+            T.update_sidecar(take.paths.sidecar, notes=list(had) + plan["notes"])
+        return "cloud", (g, plan)
     bound = episode_bound(g)
     if bound and backend.kind != "local":
         raise J.NotPortable(f"reads the episode folder ({', '.join(bound)}): local only for now")
@@ -423,11 +458,22 @@ def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
     (seriesmith's queue's id; default the backend's). Returns the take's
     status: "ok", "failed"."""
     kind, what = prepare(job, take, backend, base, gkw)
-    run = backend.call(*what) if kind == "call" else backend.submit(what)
+    if kind == "cloud":
+        from seriesmith import cloud as C
+        what, plan = what
+        try:
+            run = backend.submit(what)
+        finally:
+            C.done_sending(plan)
+    else:
+        run = backend.call(*what) if kind == "call" else backend.submit(what)
     if on_run is not None:
         on_run(run)
     J.mark_submitted(take, backend.name, run.id, prompt_id)
     bits = ({"model": what[0], "arguments": as_json(what[1]), "saver": None} if kind == "call"
+            else {"model": None, "arguments": None, "saver": None,
+                  "cloud": {k: v for k, v in plan.items() if k != "staging"}}
+            if kind == "cloud"
             else {"model": None, "arguments": None, "saver": J.node_of(what, J.PORTABLE_SAVER)})
     if on_resume is not None:
         on_resume(bits)
@@ -438,9 +484,13 @@ def run_take(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict,
 
 def collect_run(take: T.Take, run, status: str, bits: dict) -> str:
     """A take's run, ended with `status`, collected into the take: a hosted
-    model's video (bits["model"]) or the portable saver's files (bits["saver"])."""
+    model's video (bits["model"]), a Comfy Cloud run's (bits["cloud"]:
+    seriesmith.cloud.collect) or the portable saver's files (bits["saver"])."""
     if bits.get("model"):
         return J.collect_router_take(take, run, status, bits.get("arguments"))
+    if bits.get("cloud"):
+        from seriesmith import cloud as C
+        return C.collect(take, run, status, bits["cloud"])
     return J.collect_take(take, run, bits.get("saver"), status)
 
 

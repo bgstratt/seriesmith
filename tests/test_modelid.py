@@ -512,6 +512,35 @@ class ModelsRouteTest(ApiTest):
         self.assertEqual([f["match"] for f in data["files"]].count("fingerprint"), 0)
         self.assertIn(("GET", "/seriesmith/models"), {(m, p) for m, p, _f, _t in A.ROUTES})
 
+    def test_models_route_lists_comfy_clouds_files_where_it_renders(self):
+        from types import SimpleNamespace
+        cloud_files = ["ltx-2.5-22b-distilled-transformer-bf16.safetensors", "imported_ltx.safetensors"]
+        info = {"UNETLoader": {"input": {"required": {"unet_name": [cloud_files]}}}}
+        cloud = SimpleNamespace(name="cloud", choices=lambda c, f, strict=False: J.choices_in(info, c, f, strict))
+        backends = self.ctx.runner.backends
+        self.addCleanup(lambda: backends.pop("cloud", None))
+        backends["cloud"] = cloud
+        # asked for by name
+        data = self.ok(A.get_models(self.ctx, {"target": "ltx2", "backend": "cloud"}))
+        self.assertEqual((data["backend"], data["fingerprint"]), ("cloud", False))
+        self.assertEqual([f["name"] for f in data["files"]], cloud_files)
+        # not asked: this machine's, until the series config renders on Cloud
+        self.assertEqual(self.ok(A.get_models(self.ctx, {"target": "ltx2", "ep": self.ep}))["backend"],
+                         "local")
+        p = os.path.join(self.ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg.setdefault("series", {})["backend"] = "cloud"
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        data = self.ok(A.get_models(self.ctx, {"target": "ltx2", "ep": self.ep}))
+        self.assertEqual((data["backend"], len(data["files"])), ("cloud", 2))
+        # asked for this machine's in so many words
+        self.assertEqual(self.ok(A.get_models(self.ctx, {"target": "ltx2", "ep": self.ep,
+                                                         "backend": "local"}))["backend"], "local")
+        # no key here: no Cloud
+        del backends["cloud"]
+        self.err(A.get_models(self.ctx, {"target": "ltx2", "backend": "cloud"}), 409)
+
     def test_targets_route_has_models(self):
         data = self.ok(A.get_targets(self.ctx, {}))
         ltx = next(t for t in data["targets"] if t["id"] == "ltx2")

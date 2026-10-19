@@ -1575,7 +1575,7 @@ Each target has `"models": {"<param>": {"family", "label", "patterns", "folder"}
 `ltx2`'s `"model": {"family": "ltx2.5", "label": "LTX 2.5", "patterns": ["ltx-2.5*", "*ltx*2.5*", "*ltx*2_5*"], "folder": "diffusion_models"}`. `{}` for a target that declares
 none.
 
-### `GET /seriesmith/models?target=ltx2&param=model[&ep=…]`
+### `GET /seriesmith/models?target=ltx2&param=model[&ep=…][&backend=…][&shot=…]`
 One model param's files, as ComfyUI lists them (`folder_paths.get_filename_list` of the
 param's folder), each checked against the family:
 ```json
@@ -1607,6 +1607,13 @@ param's folder), each checked against the family:
 - `param` defaults to `model`. A target that declares no family for the param, or an
   unknown target, answers 400. `ep` (optional, inside a root) adds that series config's
   `model_families` patterns.
+- **Where the files are** (2026-10-18): `backend` names whose list it is. A Comfy Cloud
+  backend (`cloud`) answers with Cloud's own files, and any the account imported (its
+  loader's choices in Cloud's `/api/object_info`), checked by name only
+  (`fingerprint: false`). Without `backend`, the episode's decides (`ep`; `shot` for a
+  shot's own: overrides, then the series config's `series.backend`, as a render picks
+  one). The answer says which: `"backend": "local"` or the Cloud backend's name. Asked
+  for a Cloud backend this server hasn't (no Comfy API key): 409; Cloud not answering: 502.
 
 ### `POST /seriesmith/render`: `allow_model_mismatch`
 - Before a take is reserved, every model file the job loads is checked

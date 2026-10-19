@@ -2,7 +2,7 @@
 // and the widget choices a target's binding allows, and the target badge.
 
 import { useEffect, useMemo } from "react";
-import { loadModelFiles, loadTargets, loadWidgetChoices, openMissing } from "../actions";
+import { loadModelFiles, loadTargets, loadWidgetChoices, modelFilesKey, openMissing } from "../actions";
 import { byWhere, isHosted,
   findTarget, listDefaultTarget, pickerChoices, pickerSpec, seriesDefaultTarget, videoTargets, widgetKey, type WidgetSpec,
 } from "../lib/targets";
@@ -55,29 +55,59 @@ export interface TargetPickers {
   modelLowFiles: ModelList | undefined;
   /** the model runs on Comfy Router: no model file, no LoRAs (models and loras are null) */
   hosted: boolean;
+  /** the lists are Comfy Cloud's files (its own, and any the account imported):
+   * the shot or series renders there */
+  cloud: boolean;
 }
 
-/** What the model and LoRA pickers may offer under `targetId`. */
-export function useTargetPickers(targetId: string | null | undefined): TargetPickers {
+/** Where the model and LoRA lists come from: `backend` when given (the series
+ * form's own field, as edited), else Render on's choice, else "" (the
+ * episode's backend, which the server works out). */
+export function useListBackend(backend?: string | null): string {
+  const chosen = useApp((s) => s.renderBackend);
+  return backend ?? chosen ?? "";
+}
+
+/** What the model and LoRA pickers may offer under `targetId`, on `backend`
+ * (useListBackend): Comfy Cloud's files when that is where it renders. */
+export function useTargetPickers(targetId: string | null | undefined, backend?: string | null): TargetPickers {
   const list = useApp((s) => s.targets);
+  const on = useListBackend(backend);
   const target = findTarget(list, targetId);
   const spec = useMemo(() => pickerSpec(target), [target]);
   const models = useChoices(spec.model);
   const loras = useChoices(spec.loras);
   const hasFamily = !!target?.models?.model && spec.model.kind === "node";
-  const modelFiles = useApp((s) => (hasFamily && target ? s.modelFiles[`${target.id}|model`] : undefined));
+  const modelFiles = useApp((s) => (hasFamily && target ? s.modelFiles[modelFilesKey(target.id, "model", on)] : undefined));
   useEffect(() => {
-    if (hasFamily && target) void loadModelFiles(target.id, "model");
-  }, [hasFamily, target]);
+    if (hasFamily && target) void loadModelFiles(target.id, "model", false, on);
+  }, [hasFamily, target, on]);
   // Phase 8.5: a two-stage target's low-noise model (GET /seriesmith/models?param=model_low)
   const twoStage = !!target?.models?.model_low;
-  const modelLowFiles = useApp((s) => (twoStage && target ? s.modelFiles[`${target.id}|model_low`] : undefined));
+  const modelLowFiles = useApp((s) => (twoStage && target ? s.modelFiles[modelFilesKey(target.id, "model_low", on)] : undefined));
   useEffect(() => {
-    if (twoStage && target) void loadModelFiles(target.id, "model_low");
-  }, [twoStage, target]);
+    if (twoStage && target) void loadModelFiles(target.id, "model_low", false, on);
+  }, [twoStage, target, on]);
+  // the LoRA family's files, for where it renders (Comfy Cloud's list replaces this machine's)
+  const hasLoras = !!target?.models?.loras;
+  const loraFiles = useApp((s) => (hasLoras && target ? s.modelFiles[modelFilesKey(target.id, "loras", on)] : undefined));
+  useEffect(() => {
+    if (hasLoras && target) void loadModelFiles(target.id, "loras", false, on);
+  }, [hasLoras, target, on]);
   const hosted = !!target && isHosted(target);
-  if (hosted) return { models: null, loras: null, target, modelFiles: undefined, twoStage: false, modelLowFiles: undefined, hosted };
-  return { models, loras, target, modelFiles, twoStage, modelLowFiles, hosted };
+  if (hosted) return { models: null, loras: null, target, modelFiles: undefined, twoStage: false, modelLowFiles: undefined, hosted, cloud: false };
+  const cloud = isCloud(modelFiles) || isCloud(loraFiles);
+  const names = (m: ModelList | undefined) => (m ? m.files.map((f) => f.name) : undefined);
+  return {
+    models: cloud && models !== null ? names(modelFiles) ?? models : models,
+    loras: cloud && loras !== null ? names(loraFiles) ?? loras : loras,
+    target, modelFiles, twoStage, modelLowFiles, hosted, cloud,
+  };
+}
+
+/** A model list that is Comfy Cloud's (GET /seriesmith/models said where). */
+export function isCloud(m: ModelList | undefined): boolean {
+  return !!m?.backend && m.backend !== "local";
 }
 
 /** `<option>`s for a list of models, in two groups by where they run (your
