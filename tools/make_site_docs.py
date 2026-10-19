@@ -38,7 +38,7 @@ PAGES = [
     ("docs/RECORDED_DIALOGUE.md", "recorded-dialogue", "Lip-synced episodes from real recorded lines instead of generated voices."),
     ("docs/KREAGEN.md", "reference-images", "How the reference pictures are made: sheets, plates, props and keyframes on an image model."),
     ("docs/H3_TARGET.md", "h3-target", "The default video model, MiniMax H3 Ref2VA, in detail: its picture slots, sheets, voices and pacing."),
-    ("docs/API.md", "api", "The editor's HTTP API and the files behind it, for driving seriesmith from your own code."),
+    ("docs/API.md", "api-reference", "The editor's HTTP API and the files behind it, for driving seriesmith from your own code."),
 ]
 PAGE_OF = {src: page for src, page, _ in PAGES}
 HEADER = "{/* Generated from %s by tools/make_site_docs.py: edit that file, not this one. */}\n"
