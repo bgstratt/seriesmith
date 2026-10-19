@@ -22,6 +22,7 @@ import { RenderDialog } from "./components/RenderDialog";
 import { UpscaleDialog } from "./components/UpscaleDialog";
 import { PostDialog } from "./components/PostDialog";
 import { MasterDialog } from "./components/MasterDialog";
+import { RelightDialog } from "./components/RelightDialog";
 import { ShotsTab } from "./components/ShotsTab";
 import { SeriesFormWindow } from "./components/SeriesForm";
 import { FrameUseWindow } from "./components/FrameUse";
@@ -176,6 +177,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Upscale", UpscaleDialog],
   ["Post-process", PostDialog],
   ["Master", MasterDialog],
+  ["Relight", RelightDialog],
   ["Browse", BrowseDialog],
   ["Supply", SupplyDialog],
   ["Issues", IssuesWindow],

@@ -21,7 +21,7 @@ import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { LengthPicker } from "./LengthPicker";
-import { PresetPicker, useCameraTiles, useFramingTiles } from "./PresetPicker";
+import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
@@ -70,6 +70,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const [form, setForm] = useState<Form | null>(null);
   // the framings as pictures (seriesmith/presets/framing.json)
   const framings = useFramingTiles();
+  const lenses = useLensTiles();
   const [orig, setOrig] = useState<string>("");
   const [seq, setSeq] = useState<string>("");          // a new shot's sequence ("+": a new one)
   const [newSeq, setNewSeq] = useState({ id: "", location: "" });
@@ -269,12 +270,22 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     </select>
                   </span>
                   <span className="h3-row" style={{ gap: 6 }}>
+                    <Tip label="Lens" help="The lens this shot is shot on: the action opens with it. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry." htmlFor="sm-sf-lens" />
+                    <select id="sm-sf-lens" className="h3-in" value={form.keys.lens ?? ""} onChange={(e) => set("lens", e.target.value)}>
+                      <option value="">— (the look's)</option>
+                      {lenses.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                      {form.keys.lens && !lenses.some((l) => l.id === form.keys.lens) && <option value={form.keys.lens}>{form.keys.lens}</option>}
+                    </select>
+                  </span>
+                  <span className="h3-row" style={{ gap: 6 }}>
                     <Tip label="Length" help="Seconds on H3's grid (other lengths round up onto the model's own; the preview says what renders); auto fits the dialogue." />
                     <LengthPicker value={form.keys.dur ?? ""} onChange={(v) => set("dur", v)} empty="—" auto model />
                   </span>
                 </div>
                 <PresetPicker tiles={framings} value={form.keys.size ?? ""} picked={framingId(form.keys.size)}
                   onPick={(v) => set("size", v)} title="Framing, as pictures" open={!form.keys.size} size={0.8} />
+                <PresetPicker tiles={lenses} value={form.keys.lens ?? ""} picked={form.keys.lens || null}
+                  onPick={(v) => set("lens", form.keys.lens === v ? "" : v)} title="Lens, as pictures" open={false} size={0.8} />
                 <div className="h3-col" style={{ gap: 4 }}>
                   <span className="h3-card-title" title="What is visibly happening, present tense, concrete and physical. This shot only: the model remembers nothing of the shot before, so say it fresh. Not how anyone feels.">
                     What happens <i className="pi pi-info-circle sm-tip-i" />

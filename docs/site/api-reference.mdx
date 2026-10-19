@@ -48,7 +48,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -1130,6 +1130,21 @@ Body `{"ep", "ref", "view"?, "take", "to"}`. Copies a finished picture take (a t
 for example) into another ref as a new, unpicked candidate (`refs.copy_take`). The new
 take's sidecar records `copied_from`. The answer is the new take. A character is copied
 into one of its views, not into the character itself (400).
+
+### `POST /seriesmith/refs/relight`
+Body `{"ep", "relight", "sequence"? | "locations"?, "suffix"?, "target"?, "count"?, "repoint"?, "dry_run"?, "backend"?}`: a sequence relight (`seriesmith/relight.py`). Give a
+`sequence` (every plate its shots use: its own location and any `plate:`, from the build) or
+a list of `locations`, not both. `relight` is a relight preset's id or the instruction.
+Each plate gets a relit location in the series config, written after it: `<id>_<suffix>`
+(`suffix` defaults to the preset's id, else `relit`), with `of` the plate, `relight`, the
+plate's description plus the new light, and a `plate` path beside the source's. A plate
+that is already relit is relit again from its source; one already made with the same
+relight is reused. Each gets a generate queued on `target` (an edit model; default the
+episode's, as an edit's), an edit of the source's live plate. `repoint` (a sequence only)
+rewrites the sequence's `# sqNN <location>` line and its shots' `plate:` lines to the relit
+ones and rebuilds. Returns `{"locations": [{"source", "id", "exists", "entry"}], "queued", "errors", "repointed": [sequence and shot ids]}`; `dry_run` writes and queues nothing. 400
+for a source with no plate yet, an unknown sequence or location, a suffix other than
+letters, digits and `_`, or an id already taken by another location.
 
 ### `POST /seriesmith/refs/from-frame` (step 13)
 Body `{"ep", "pass", "shot", "take", "frame", "ref", "view"?, "instruction"?, "target"?, "views"?, "pick"?}`, or, for a video of your own, `{"ep", "video", "time", "ref", ...}`

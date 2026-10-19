@@ -32,6 +32,9 @@ refs_todo_proxy.json
 !web/src/brand/*.png
 !seriesmith/server/static/assets/*.png
 !docs/site/*.png
+# the presets' sample pictures and camera clips (made by tools/make_preset_samples.py)
+!seriesmith/presets/img/**/*.jpg
+!seriesmith/presets/img/**/*.mp4
 
 # Editors / OS
 .vscode/

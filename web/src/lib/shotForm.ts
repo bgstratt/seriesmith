@@ -35,7 +35,7 @@ export interface ShotForm {
 const ALIASES: Record<string, string> = { cast: "who", props: "with", duration: "dur" };
 
 /** The keys before the action, in the order they are written. */
-export const HEAD_KEYS = ["who", "with", "size", "dur", "plate", "pace", "audio", "target", "profile",
+export const HEAD_KEYS = ["who", "with", "size", "lens", "dur", "plate", "pace", "audio", "target", "profile",
   "model", "lora", "steps", "policy", "retention", "first", "last", "continuous", "overlap"];
 /** The keys after the action (dialogue goes between camera and sound). */
 export const TAIL_KEYS = ["extras", "text", "camera"];

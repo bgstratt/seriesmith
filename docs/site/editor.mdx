@@ -325,7 +325,10 @@ in the script as fields, in cards; each field's help is on its label (point at t
   **lengths**: the model's grid, or auto to fit the dialogue). Under them, **Framing, as
   pictures**: the nine sizes as the same woman on the same street, close to wide, each with
   how much the frame holds ("chest up", "head to toe"), and the four angles (POV, over the
-  shoulder, low, high); open while the shot has no framing.
+  shoulder, low, high); open while the shot has no framing. **Lens** beside them (`lens:`):
+  the look builder's lenses (spherical, anamorphic, vintage, wide, long, shallow focus,
+  tilt-shift) and deep focus, for this shot only; **Lens, as pictures** shows each. Empty
+  leaves it to the look.
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
@@ -663,6 +666,17 @@ script call for is listed here.
   light (Rembrandt, rim, top light, low-key noir, soft beauty, silhouette). A plate and a
   figure each get their own wording. Picking one fills the instruction, which stays yours
   to edit or replace; the edit model changes the light and keeps the rest.
+- **Re-render…** on a sequence's header (Shots tab) renders all its shots again as new takes
+  with the same seeds, so only what you changed (a relight, a character's new sheet) differs.
+  Your takes stay; pick the new ones as usual. **Re-render stale** above the list does the
+  same for every shot whose inputs changed, across the episode.
+- **A whole sequence under another light**: **Relight…** on a sequence's header (Shots tab)
+  relights every plate the sequence uses at once, for a flashback, a dream or a night
+  version. Pick a relight picture or say it in your own words. Each plate becomes a new
+  location (`street_dusk`), made on the edit model from the plate itself, so the place stays
+  and only the light changes. The dialog lists what it will make before you start. **Point
+  the sequence at the relit plates** (on by default) rewrites the sequence's location and its
+  shots' `plate:` lines, so the next render uses them. Pick the takes in Refs as usual.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

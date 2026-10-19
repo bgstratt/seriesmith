@@ -1623,6 +1623,15 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(req.ep);
       throw new Error(`the mock can't copy ${req.ref} t${req.take} into ${req.to}`);
     },
+    async refsRelight(req) {
+      await wait();
+      need(req.ep);
+      const ids = req.locations ?? ["street"];
+      return {
+        locations: ids.map((source) => ({ source, id: `${source}_${req.suffix || req.relight}`, exists: false, entry: {} })),
+        queued: [], errors: req.dry_run ? [] : [{ error: "the mock doesn't relight" }], repointed: [],
+      };
+    },
     async refsPick(req) {
       await wait();
       need(req.ep);

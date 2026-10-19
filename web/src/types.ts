@@ -1182,6 +1182,28 @@ export interface RefOverrideInfo {
  * (GET /seriesmith/refs/owner-takes): read-only, `picked` its pick. */
 export type OwnerTake = RefTake & { episode: string; picked: boolean };
 
+/** POST /seriesmith/refs/relight: a sequence's plates (or some locations) under another light */
+export interface RelightRequest {
+  ep: string;
+  relight: string;
+  sequence?: string;
+  locations?: string[];
+  suffix?: string | null;
+  target?: string | null;
+  count?: number;
+  repoint?: boolean;
+  dry_run?: boolean;
+  backend?: string;
+}
+
+export interface RelightResult {
+  locations: { source: string; id: string; exists: boolean; entry: Record<string, unknown> }[];
+  queued: { ref: string; view: string | null; take: number; prompt_id: string; seed: string; target?: string }[];
+  errors: { ref?: string; view?: string | null; take?: number; error: string }[];
+  /** what re-pointing changed: the sequence id, shot ids */
+  repointed: string[];
+}
+
 export interface RefView {
   /** 01_threequarter | 02_side | 03_back | 04_face */
   view: string;
@@ -1292,6 +1314,8 @@ export interface Ref {
    * so this is what tells the two rows apart.
    */
   of?: string | null;
+  /** a relit location (sequence relight): the relight preset id or instruction; `of` its source */
+  relight?: string | null;
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;

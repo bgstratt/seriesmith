@@ -28,7 +28,7 @@ const GROUP_LABEL: Record<string, string> = {
   "live action": "Live action", animation: "Animation", illustration: "Illustration",
   close: "Close", medium: "Medium", wide: "Wide", angle: "Angle",
   frame: "Still", dolly: "Dolly", lens: "Zoom", pivot: "Pan and tilt", slide: "Truck and pedestal",
-  orbit: "Around", handheld: "Handheld and roll",
+  orbit: "Around", handheld: "Handheld and roll", lenses: "Lens",
 };
 
 function usePresets() {
@@ -56,6 +56,15 @@ export function useLookTiles(): PresetTile[] {
 export function useFramingTiles(): PresetTile[] {
   const presets = usePresets();
   return (presets?.framing ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.id, sub: p.hint, image: p.image }));
+}
+
+/** The lenses a shot's `lens:` takes (core/framing.py LENSES): the look builder's Lens row;
+ * picking one hands over its id. */
+export function useLensTiles(): PresetTile[] {
+  const presets = usePresets();
+  const row = (presets?.look_builder ?? []).find((r) => r.id === "lens");
+  if (!row) return [];
+  return row.options.map((o) => ({ id: o.id, label: o.label, group: "lenses", text: o.id, image: o.image }));
 }
 
 /** The camera moves: picking one hands over the move (a `camera:` line's start). */

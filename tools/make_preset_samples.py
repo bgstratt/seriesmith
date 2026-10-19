@@ -8,7 +8,8 @@ itself on a scratch episode (the starter series, built into --work):
 - relight/<id>-place.jpg: a base plate (BASE_PLACE, in BASE_LOOK) relit by the
   preset's `place` wording, on the edit target (--edit-target);
 - relight/<id>-subject.jpg: a base figure (BASE_FIGURE: Ada's three-quarter
-  view, plain background) relit by its `subject` wording;
+  view, standing on the sample street in plain daylight) relit by its `subject`
+  wording, the street behind her asked into the same light (SUBJECT_SCENE);
 - look_builder/<row>-<option>.jpg: the look presets' scene in a plain live-action
   base with only that option set (compose_look), so each tile shows its own part;
 - framing/<id>.jpg: the same woman and street (FRAMING_SCENE) at each size, on
@@ -71,8 +72,12 @@ MOVE_SECONDS = 3
 MOVE_AS_SAID = {"static", "shake_slight", "shake_strong"}
 CLIP_WIDTH = 360
 BASE_FIGURE = ("A full-body three-quarter view of a woman in her thirties with short dark hair and a "
-               "red wool coat, standing relaxed, on a plain light grey studio background, in soft even "
-               "front light")
+               "red wool coat, standing relaxed on the pavement of a quiet city street corner, a cafe "
+               "front with a striped awning and a streetlamp behind her, a brick wall, wet cobbles, in "
+               "soft even late-morning daylight, no other people")
+# a figure's wording relights the figure; in a sample the street behind her is
+# asked into the same light, or she'd stand lit by neon in a daylit street
+SUBJECT_SCENE = "; the street behind her in the same light, as one picture"
 
 
 def look_text(pid: str) -> str:
@@ -271,7 +276,8 @@ def main(argv=None) -> int:
         for p, w in todo:
             print(f"relight {p['id']} ({w})")
             ref, view = (PLATE, None) if w == "place" else (FIGURE, FIGURE_VIEW)
-            keep(mk.edit(ref, view, p[w]), PR.image_name("relight", p["id"], w))
+            text = p[w] if w == "place" else p[w].rstrip(".") + SUBJECT_SCENE
+            keep(mk.edit(ref, view, text), PR.image_name("relight", p["id"], w))
 
     framings = PR._load("framing")
     renders = {}                                  # a framing's render, for one cut from it

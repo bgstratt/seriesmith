@@ -3371,6 +3371,94 @@ def post_refs_copy_take(ctx: Context, body):
 
 
 @handler
+def post_refs_relight(ctx: Context, body):
+    """A sequence relight (seriesmith.relight): `{ep, relight, sequence? |
+    locations?, suffix?, target?, count?, repoint?, dry_run?}`. Each plate the
+    sequence uses (or each of `locations`) gets a relit location in the series
+    config (`<id>_<suffix>`, of: it, relight: the preset or instruction), and a
+    generate of each is queued on the edit target (the request's, else the
+    episode's), an edit of the source's live plate. `repoint` (a sequence
+    only) points the sequence and its shots' `plate:` lines at the relit ones
+    and rebuilds. Returns {locations: [{source, id, exists}], queued, errors,
+    repointed}; `dry_run` writes and queues nothing."""
+    from seriesmith import relight as RL
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    sequence, locations = body.get("sequence"), body.get("locations")
+    if (sequence is None) == (locations is None):
+        raise ApiError(400, "give a sequence or a list of locations")
+    if sequence is not None and (not isinstance(sequence, str) or not sequence):
+        raise ApiError(400, "sequence must be a sequence id")
+    if locations is not None and (not isinstance(locations, list) or not locations
+                                  or not all(isinstance(x, str) and x for x in locations)):
+        raise ApiError(400, "locations must be a list of location ids")
+    relight = body.get("relight")
+    if not isinstance(relight, str) or not relight.strip():
+        raise ApiError(400, "relight must be a relight preset id or the instruction")
+    suffix = body.get("suffix")
+    if suffix is not None and not isinstance(suffix, str):
+        raise ApiError(400, "suffix must be text or null")
+    target = _opt_image_target(body, "target")
+    count = body.get("count", 1)
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 16:
+        raise ApiError(400, "count must be a whole number from 1 to 16")
+    repoint, dry_run = body.get("repoint", False), body.get("dry_run", False)
+    if not isinstance(repoint, bool) or not isinstance(dry_run, bool):
+        raise ApiError(400, "repoint and dry_run must be true or false")
+    if repoint and sequence is None:
+        raise ApiError(400, "repoint is for a sequence: its shots are what get re-pointed")
+    s = _series(ep)
+    try:
+        if sequence is not None:
+            locations = RL.sequence_locations(ep, sequence)
+        planned = RL.plan(s, locations, relight, suffix or None)
+    except RL.RelightError as e:
+        raise ApiError(400, str(e))
+    out = {"locations": [{"source": p["source"], "id": p["id"], "exists": p["exists"],
+                          "entry": p["entry"]} for p in planned],
+           "queued": [], "errors": [], "repointed": []}
+    if dry_run:
+        return 200, out
+    try:
+        RL.write_locations(s, planned)
+    except RL.RelightError as e:
+        raise ApiError(400, str(e))
+    s = _series(ep)
+    try:
+        base, _ = R.resolve_workflow(ctx.comfy_url)
+    except Exception as e:
+        raise ApiError(500, f"{R.REFS_WORKFLOW} can't be read: {e}")
+    listing = J.model_lister(ctx.comfy, ctx.model_choices)
+    for p in planned:
+        ref = _ref(s, f"location:{p['id']}")
+        try:
+            t = R.edit_target_for(s, ref, target)
+            req = R.GenRequest(ref=ref.id, count=count, target=t.id)
+            result = R.queue_generate(s, req, ctx.comfy, base, save_node=True, listing=listing,
+                                      resolve=ctx.model_resolve, cache=ctx.model_cache,
+                                      runner=ctx.runner, backend=_opt_backend(ctx, body))
+        except (R.RefError, R.UnknownRef) as e:
+            out["errors"].append({"ref": ref.id, "error": str(e)})
+            continue
+        for q in result["queued"]:
+            ref_event(ctx, ep, q["ref"], q["view"], q["take"], "queued")
+        for err in result["errors"]:
+            if err.get("take"):
+                ref_event(ctx, ep, err["ref"], err["view"], err["take"], "failed")
+        out["queued"] += result["queued"]
+        out["errors"] += result["errors"]
+    if repoint:
+        try:
+            out["repointed"] = RL.repoint(ep, sequence, {p["from"]: p["id"] for p in planned})
+        except RL.RelightError as e:
+            raise ApiError(400, str(e))
+        if out["repointed"]:
+            E.build_episode(ep)
+    episode_event(ctx, ep)
+    return 200, seeds_out(out)
+
+
+@handler
 def put_refs_pick(ctx: Context, body):
     """Make a candidate the live file. A voice whose character has no
     `voice_sample` yet is written to refs/voices/<id>.wav and the series
@@ -4098,6 +4186,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),
+    ("POST", "/seriesmith/refs/relight", post_refs_relight, "body"),
     ("POST", "/seriesmith/refs/tour-frame", post_refs_tour_frame, "body"),
     ("PUT", "/seriesmith/refs/pick", put_refs_pick, "body"),
     ("DELETE", "/seriesmith/refs/pick", delete_refs_pick, "query"),

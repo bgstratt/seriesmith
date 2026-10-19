@@ -29,7 +29,7 @@ import type {
   AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
-  UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest,
+  UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
 } from "./types";
 
 const set = store.set;
@@ -1116,6 +1116,20 @@ export function renderStale() {
   requestRender(ids, true, `Re-render ${ids.length} stale shot(s)`, "same");
 }
 
+/**
+ * Re-render a sequence (its header's Re-render…): every shot of it as a new
+ * take with the same seed, so a relight or a character change is all that
+ * differs. Asks first; a shot whose refs aren't picked yet goes through the
+ * render dialog, as any render does.
+ */
+export function renderSequence(sequence: string, shots: string[]) {
+  if (!shots.length) return;
+  // requestRender asks itself past 8 shots or for a paid backend
+  const asks = shots.length > 8 || paidRuns(shots).n > 1;
+  if (!asks && !confirm(`Re-render ${sequence}: ${shots.length} shot${shots.length === 1 ? "" : "s"}, new takes with the same seeds?`)) return;
+  requestRender(shots, true, `Re-render ${sequence}`, "same");
+}
+
 export function closeRenderAsk() {
   set({ renderAsk: null });
 }
@@ -1236,6 +1250,47 @@ export function masterCut() {
 
 export function closeMaster() {
   set({ masterAsk: null });
+}
+
+/** The sequence relight dialog for sequence `sequence`. */
+export function openRelight(sequence: string) {
+  set({ menu: null, relightAsk: { sequence } });
+}
+
+export function closeRelight() {
+  set({ relightAsk: null });
+}
+
+/**
+ * A sequence relight (POST /seriesmith/refs/relight): its plates relit as new
+ * locations, their edits queued, the sequence re-pointed if asked. Returns the
+ * result, or null when it failed (reported).
+ */
+export async function relightSequence(req: Omit<RelightRequest, "ep">): Promise<RelightResult | null> {
+  const ep = get().ep;
+  if (!ep) return null;
+  return withBusy(`relight|${req.sequence ?? ""}`, async () => {
+    try {
+      const backend = get().renderBackend || undefined;
+      const r = await api().refsRelight({ ...req, ep, ...(backend ? { backend } : {}) });
+      if (req.dry_run) return r;
+      const learned: Record<string, RefTakeRef> = {};
+      for (const q of r.queued) learned[q.prompt_id] = { ep, ref: q.ref, view: q.view ?? null, take: q.take };
+      set((s) => ({ refPrompts: { ...s.refPrompts, ...learned } }));
+      if (r.queued.length) {
+        host().toast("success", `Relighting ${r.queued.length} plate${r.queued.length > 1 ? "s" : ""}`,
+          r.queued.map((q) => `${refLabel(q.ref, q.view)} ${tn(q.take)}`).join(", ")
+          + (r.repointed.length ? ` · ${req.sequence} now uses them` : ""));
+      }
+      for (const x of r.errors) host().toast("error", `${x.ref ? refLabel(x.ref, x.view ?? null) : "A plate"} didn't queue`, x.error);
+      scheduleRefsRefresh(0);
+      scheduleRefresh(0);
+      return r;
+    } catch (e) {
+      report(`Couldn't relight ${req.sequence ?? "the plates"}`, e);
+      return null;
+    }
+  });
 }
 
 /** GET /seriesmith/master/job: the episode's master as it is now (the Master

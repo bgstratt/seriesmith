@@ -173,3 +173,38 @@ class JumpCutTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LensTest(unittest.TestCase):
+    """`lens:` on a shot or a sequence: the action opens with the lens sentence."""
+
+    def story(self, seq_lens="", shot_lens=""):
+        from seriesmith.core.story import parse_story
+        text = ("= ep01  Test\n\n# sq01  kitchen\n" + (f"lens: {seq_lens}\n" if seq_lens else "")
+                + "\n## sh010\nsize: ms\n" + (f"lens: {shot_lens}\n" if shot_lens else "")
+                + "dur: 3\n\nAda waits.\n\n## sh020\nsize: ws\ndur: 3\n\nBo leaves.\n")
+        return parse_story(text, {"ada", "bo"}, {"ada", "bo"})
+
+    def test_a_shot_opens_with_its_lens(self):
+        sh1, sh2 = self.story(shot_lens="Shallow").sequences[0].shots
+        self.assertEqual(sh1.lens, "shallow")
+        self.assertEqual(sh1.action, "Shallow depth of field: the subject sharp, the background "
+                                     "falling into soft bokeh. Ada waits.")
+        self.assertEqual((sh2.lens, sh2.action), (None, "Bo leaves."))
+        self.assertEqual(sh1.to_json()["lens"], "shallow")
+        self.assertNotIn("lens", sh2.to_json())                    # only when set
+
+    def test_a_sequence_gives_its_shots_one(self):
+        sq = self.story(seq_lens="tilt-shift", shot_lens="long").sequences[0]
+        self.assertEqual([s.lens for s in sq.shots], ["long", "tilt_shift"])
+        self.assertEqual(sq.lens, "tilt_shift")
+
+    def test_what_is_refused(self):
+        with self.assertRaisesRegex(ScriptError, "must be one of spherical"):
+            self.story(shot_lens="fisheye")
+
+    def test_the_look_builder_says_the_same(self):
+        import json
+        path = os.path.join(ROOT, "seriesmith", "presets", "look_builder.json")
+        rows = {r["id"]: r for r in json.load(open(path, encoding="utf-8"))["rows"]}
+        self.assertEqual({o["id"]: o["clause"] for o in rows["lens"]["options"]}, framing.LENSES)

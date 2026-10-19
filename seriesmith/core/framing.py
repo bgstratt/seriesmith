@@ -131,6 +131,35 @@ def steps_apart(a: str | None, b: str | None) -> int | None:
     return abs(ORDER.index(ca) - ORDER.index(cb))
 
 
+# `lens:` (a shot's, or its sequence's for all its shots): the look builder's
+# Lens row (seriesmith/presets/look_builder.json, the same clauses; a test keeps
+# them alike). The shot's action opens with it (lens_sentence),
+# so every model reads it. Shallow focus shows the most; with a plate as the
+# reference, the plate fixes the geometry and the rest show less.
+LENSES = {
+    "spherical": "spherical lenses: true geometry, round bokeh",
+    "anamorphic": "anamorphic lenses: oval bokeh, horizontal lens flares, slight distortion at the edges",
+    "vintage": "vintage lenses: soft edges, a gentle glow around the highlights, lower contrast",
+    "wide": "wide-angle lenses: deep focus, the space stretched around the subject",
+    "long": "long lenses: compressed depth, the background pulled close and soft",
+    "shallow": "shallow depth of field: the subject sharp, the background falling into soft bokeh",
+    "tilt_shift": "tilt-shift lenses: a thin plane of focus that makes the world look miniature",
+    "deep": "deep focus: everything sharp from the foreground to the far distance",
+}
+
+
+def lens(name: str | None) -> str | None:
+    """A `lens:` value's id (tilt-shift and tilt_shift alike), or None."""
+    k = (name or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return k if k in LENSES else None
+
+
+def lens_sentence(name: str) -> str:
+    """The sentence a shot's action opens with for `lens: name`."""
+    c = LENSES[lens(name)]
+    return c[0].upper() + c[1:] + "."
+
+
 def describe() -> str:
     """The sizes and their short names, for an error message."""
     short = {c: [a for a, v in ALIASES.items() if v == c and len(a) <= 6] for c in SIZES}

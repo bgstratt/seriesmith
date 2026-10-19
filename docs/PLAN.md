@@ -779,7 +779,20 @@ shown as pictures, each filling a text that stays editable.
       keeps its hair and clothes' colors). Four (night, moonlight and top light on the figure,
       the flashlight on the plate) are FLUX.2 Klein edit's: it relit them where Kontext
       couldn't, keeping the figure's own colors. Klein is the better relighter of the two.
-- [ ] Later: a series' own presets (series.json), and relighting a sequence's plates in one go.
+- [x] Sequence relight (2026-10-19): a relit plate is a location with `of:` + `relight:` (a
+      preset id or the instruction), generated as an edit of the source's plate
+      (refs.built_prompt: edit_prompt of the relight; refs.angle_reference_images). One request
+      (`POST /seriesmith/refs/relight`, `seriesmith/relight.py`) writes a sequence's relit
+      locations, queues their edits and can re-point the sequence (`# sq` line, `plate:` lines).
+      The Shots tab's sequence header: **Relight…**. Checked on Klein (porch -> dusk).
+- [ ] Next: a series' own presets (profiles carrying look/lens/grade, saved relights).
+- [x] A per-shot `lens:` (2026-10-19; also under a `#` header): the look builder's Lens row
+      and `deep` (core/framing.py LENSES, a test keeps them equal to look_builder.json). The
+      IR shot's action opens with the lens sentence, so every target reads it with no code of
+      its own. The shot form: **Lens** beside Framing, with the builder's pictures. The test
+      (8 H3 shots, one seed, a plate as the reference): only shallow focus visibly changes the
+      picture, anamorphic a little; the plate fixes the geometry, so wide, long and tilt-shift
+      barely show. Kept as a full list anyway: other models may follow more.
 
 ## Shot direction as pictures: framing and camera moves (2026-10-19)
 

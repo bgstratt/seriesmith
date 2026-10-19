@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, loadEpisodes, loadIssues, openBrowse, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, loadEpisodes, loadIssues, openBrowse, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -484,6 +484,16 @@ function ShotBin() {
                 <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                 <b>{g.sequence}</b>
                 <span className="h3-muted h3-small">{g.shots.length} shot{g.shots.length > 1 ? "s" : ""} · {fmtSeconds(g.seconds)}</span>
+                <button className="h3-link h3-small" style={{ marginLeft: "auto" }}
+                  title="Render this sequence's shots again, as new takes with the same seeds (after a relight or a character change): only what changed differs. The takes you have stay."
+                  onClick={(e) => { e.stopPropagation(); renderSequence(g.sequence, g.shots.map((s) => s.shot)); }}>
+                  Re-render…
+                </button>
+                <button className="h3-link h3-small"
+                  title="Relight: every plate this sequence uses at another time, in other weather or light (a flashback, a night version)"
+                  onClick={(e) => { e.stopPropagation(); openRelight(g.sequence); }}>
+                  Relight…
+                </button>
               </div>
               {!isCollapsed && (view === "board" ? (
                 <div className="h3-board">
