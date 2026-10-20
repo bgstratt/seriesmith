@@ -863,6 +863,11 @@ shown as pictures, each filling a text that stays editable.
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
 
+## Refactor pass (2026-10-20, in progress)
+
+Fixes, speed, duplicated code combined and the architecture standardized, item by item
+with a live check each: [REFACTOR.md](REFACTOR.md).
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
