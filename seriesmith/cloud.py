@@ -31,11 +31,9 @@ import shutil
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.request
 import wave
 
-from seriesmith.backends import BackendError, File, tls
+from seriesmith.backends import BackendError, File, HTTPFailure, http_json
 from seriesmith.core import paths as P
 
 # how long Cloud's node list is trusted before it is asked again
@@ -63,13 +61,11 @@ def object_info(base_url: str, api_key: str | None, timeout: float = 120.0) -> d
         hit = _INFO.get(base)
     if hit and time.monotonic() - hit[0] < TTL:
         return hit[1]
-    req = urllib.request.Request(base + "/api/object_info",
-                                 headers={"X-API-Key": api_key} if api_key else {})
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=tls()) as r:
-            info = json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        raise BackendError(f"{base} didn't list its nodes ({e.code})") from None
+        info = http_json(base + "/api/object_info",
+                         headers={"X-API-Key": api_key} if api_key else None, timeout=timeout)
+    except HTTPFailure as e:
+        raise BackendError(f"{base} didn't list its nodes ({e.status})") from None
     except (OSError, ValueError) as e:
         raise BackendError(f"{base} didn't list its nodes: {e}") from None
     if not isinstance(info, dict):
