@@ -493,17 +493,40 @@ from phone photos stop coming out sideways).
 Each starts with a short design note here (what changes, what stays, what you'll see)
 for you to agree before code.
 
-#### 3.1 Targets: one shot-compile base ☐
-The shot entry is compiled in 5 near-copies (ltx2, fl2va, ltx2_ingredients,
-video_prose, ref2va's legacy path): checks, length, cram warning, layers, the entry,
-the model/LoRA/profile tail, the episode doc and report. **`targets/video_compile.py`**
-with the shared steps and per-target hooks; the reference-sheet staging (3 copies:
-ltx2, ingredients, wan) and panel picking (2) go with it.
-- **Goldens:** every target's shotlist and prompts byte-identical; warning wording kept
-  per target.
-- **Live check (you):** Build every show you have (read-only: into a scratch copy);
-  shotlists identical to before (a diff of the shotlist folders). One local render each
-  on ref2va, fl2va and ltx2 in Ballroom-refactor.
+#### 3.1 Targets: the shared compile steps, light ✅ (decided 2026-10-20)
+**Design note, as agreed.** The video targets are vertical slices on purpose: each model
+takes its inputs its own way, and new models mostly arrive as data (a target.json on
+`builtin:video_prose` / `builtin:router_video`), which already share their compile. A
+base class with hooks would make the next hand-built model fit someone else's steps. So
+only what is model-agnostic and identical moves, as plain functions each target calls in
+its own order (`targets/video_compile.py`); prompts, keys, length checks, the shotlist
+doc and every render-time difference (router_video's request: max_chars, picture
+mentions, ratio and resolution, Seedance's library and drafts) stay where they are. H3
+Ref2VA's legacy path stays its own (its entries' shape, voices and retention, the latent
+hold). Reference-sheet staging and panel picking: not moved (render-time, per model).
+- **First: the Router request goldens** (`tests/test_router_golden.py`, from main before
+  any change). The 15 Router models had none: every shot's request pinned offline, with a
+  long-prompt case per model so the max_chars cut shows (Runway and Veo at 902 chars,
+  Kling 2448 with its picture mentions, the line and the sound kept), a Seedance draft's
+  final, and the refusals of models that need a first keyframe.
+- **Done:** check_shot, shot_duration (FL2VA's private copy gone: the one that missed
+  `dur: model` in 1.1), snap_frames, crammed, shot_audio, shot_layers, entry_head,
+  entry_tail, legal_size, fallback / override warnings, episode_report. ltx2, FL2VA,
+  ingredients and video_prose: 486 lines out, 74 in, ~230 in the module. Every golden
+  byte-identical (Router ones included); three real episodes rebuild identically on main
+  and here.
+- **Changed on purpose** (approved): a shot past ltx2's or FL2VA's longest names itself
+  in the seconds asked, as the others did ("2160 frames is longer than LTX-2's maximum
+  of 481 (20.04s)" before); a Router or prose model that makes sound says in `--check`
+  which shots ask for a cloned voice or a dub it renders as generate (a silent one's
+  "makes no sound" line already did).
+- **Found and fixed:** every Router model's audio fallback reason said "Seedance makes
+  its own sound..." (the generator copies Seedance's recipe): Kling, hosted H3, Veo,
+  Wan 2.7 and 3.0 now name themselves; the Router goldens change by that name only.
+- Live: one local render each through the editor on the new compile, Ballroom-refactor
+  proxy: ltx2 (sh010, 49 s, 73 frames with sound), H3 FL2VA (sh030, 24 s, 39 frames with
+  sound), Wan 2.2 5B on the prose path (sh050, 18 s, 73 frames, mute as it should be):
+  each take's mp4, record, thumbnail and strip saved. Suite 1563 passed.
 
 #### 3.2 Server: one route list, one error standard ☐
 Three route tables registered differently by the two hosts (`/api/seriesmith/jobs` is
