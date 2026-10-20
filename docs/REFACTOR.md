@@ -438,6 +438,13 @@ with different TLS, error and User-Agent handling. **One** `backends.http_json`.
   Seedance schema, a missing model's error, Cloud's node list (3,796): identical old vs
   new. The Seedance library POST is a paid render's step, so only its local-server test
   (`tests/test_http.py`) covers it. Suite 1552 passed.
+- Your smoke-test questions, answered: renders that come back from Router or Cloud are
+  saved by code 2.4 didn't touch (its router diff is `_api` alone; cloud's, the node
+  list). Seedance registration, run against a local fake of the library endpoints on
+  old and new code: byte-identical requests (method, path, headers, body with the file's
+  sha256), the same `asset://` id after polling to Active, the same refusal message.
+  That check also caught one difference of mine (an empty answer returned None instead
+  of raising, as before), fixed.
 
 #### 2.5 Take records: `mark_failed` / `mark_queued` ☐
 The same failed/queued sidecar update in jobs, refs, finishing, upscale and post;

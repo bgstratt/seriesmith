@@ -95,7 +95,7 @@ def http_json(url: str, method: str = "GET", body=None, headers: dict | None = N
     try:
         with urllib.request.urlopen(req, timeout=timeout,
                                     context=tls() if url.startswith("https") else None) as r:
-            return json.loads(r.read().decode("utf-8") or "null")
+            return json.loads(r.read().decode("utf-8"))      # empty: ValueError, as json.load
     except urllib.error.HTTPError as e:
         raise HTTPFailure(e.code, e.read().decode("utf-8", "replace")[:1000]) from None
 
