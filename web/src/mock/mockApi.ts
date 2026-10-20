@@ -787,6 +787,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   }
 
   const api: Api = {
+    fetch: (path: string, init?: RequestInit) => fetch(path, init),
     async getConfig() {
       await wait();
       return { roots: [...roots], comfy: "http://127.0.0.1:8188", version: 1 };

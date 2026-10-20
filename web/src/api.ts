@@ -102,6 +102,10 @@ export interface KeptVideo {
 }
 
 export interface Api {
+  /** A server path fetched through the host (inside ComfyUI its api.fetchApi,
+   * which knows the /api prefix and a ComfyUI served under a sub-path), for the
+   * windows that read the server's own routes (Jobs, Settings, Features). */
+  fetch(path: string, init?: RequestInit): Promise<Response>;
   getConfig(): Promise<Config>;
   putConfig(roots: string[]): Promise<Config>;
   episodes(): Promise<EpisodeSummary[]>;
@@ -497,6 +501,7 @@ export function createHttpApi(t: Transport): Api {
   }
 
   return {
+    fetch: (path, init) => t.fetch(path, init),
     getConfig: () => get("/seriesmith/config"),
     putConfig: (roots) => call("PUT", "/seriesmith/config", { roots }),
     episodes: () => get("/seriesmith/episodes"),

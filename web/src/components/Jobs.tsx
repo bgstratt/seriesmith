@@ -44,7 +44,7 @@ let wired = false;
 
 async function refresh() {
   try {
-    const r = await fetch("/seriesmith/jobs");
+    const r = await api().fetch("/seriesmith/jobs");
     if (r.ok) {
       snap = (await r.json()) as Snapshot;
       notify();
@@ -84,7 +84,7 @@ function useQueue(): Snapshot {
 
 async function act(action: string, body: Record<string, unknown>) {
   try {
-    const r = await fetch(`/seriesmith/jobs/${action}`, {
+    const r = await api().fetch(`/seriesmith/jobs/${action}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     const data = await r.json();

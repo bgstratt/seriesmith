@@ -2,6 +2,8 @@
 // POST /features/install, /features/cancel: seriesmith/server/features_views.py).
 // Pure helpers and the calls; the window is components/FeaturesWindow.tsx.
 
+import { api } from "../host";
+
 export type ItemStatus = "installed" | "missing" | "restart" | "unknown";
 export type FeatureStatus = ItemStatus | "partial" | "unavailable";
 
@@ -55,7 +57,7 @@ export interface FeaturesView {
 }
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(path, body === undefined ? undefined : {
+  const r = await api().fetch(path, body === undefined ? undefined : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const data = await r.json().catch(() => ({}));

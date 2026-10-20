@@ -14,7 +14,7 @@ import { Boundary } from "./components/ErrorBoundary";
 import { dockWindow } from "./components/FloatingWindow";
 import { BackendChoice, JobsButton, JobsWindow } from "./components/Jobs";
 import { VIEWER_RECT_KEY } from "./components/Viewer";
-import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
+import { api, setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
 import { store, type BackendInfo } from "./store";
 import { injectStyles, mountOverlay, mountSurface } from "./surfaces";
 import { installSplitters } from "./splitters";
@@ -141,7 +141,7 @@ createRoot(document.getElementById("sm-queue")!).render(
 /** The backends renders can go to, and whether each answers (every 30 s). */
 async function loadBackends() {
   try {
-    const r = await fetch("/seriesmith/backends");
+    const r = await api().fetch("/seriesmith/backends");
     if (r.ok) setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
   } catch {
     /* the server is away */
