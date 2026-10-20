@@ -32,7 +32,7 @@ def all_routes(make_context: Callable[[], "A.Context"], settings, runner=None,
     with a `runner` (the queue started)."""
     out = list(api_routes(make_context))
     if runner is not None:
-        out += QV.queue_routes(settings, runner, connected)
+        out += QV.queue_routes(settings, runner, connected, make_context)
     out += FV.feature_routes(settings, make_context, in_comfyui)
     return out
 

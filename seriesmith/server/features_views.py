@@ -18,12 +18,10 @@ records (features.known_files), never one the page sends.
 """
 from __future__ import annotations
 
-import asyncio
 import threading
 import urllib.error
 import urllib.request
 
-from aiohttp import web
 
 from seriesmith import features as FT
 from seriesmith import installer as INS
@@ -52,9 +50,11 @@ PATHS = [("GET", "/seriesmith/features"), ("GET", "/seriesmith/features/sizes"),
 
 
 def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tuple]:
-    """[(method, path, handler)] over this host's settings; `make_context()`
-    gives an api.Context (readiness, ComfyUI's /object_info)."""
+    """[(method, path, view)] over this host's settings; `make_context()`
+    gives an api.Context (readiness, ComfyUI's /object_info). Handlers as the
+    API's are, served by views.make_view."""
     from seriesmith import api as A
+    from seriesmith.server.views import make_view
 
     def place() -> INS.Place:
         if in_comfyui:
@@ -67,8 +67,9 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
 
     installer = INS.Installer(place, token=lambda: settings.hf_token, on_change=changed)
 
-    def look() -> dict:
-        ctx = make_context()
+    def here(ctx) -> tuple[INS.Place, dict]:
+        """Where things go, and what's there now (readiness, ComfyUI's nodes;
+        nothing of either when it doesn't answer)."""
         p = place()
         try:
             readiness = A.target_readiness(ctx)
@@ -78,70 +79,53 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
             info = A.comfy_object_info(ctx)
         except Exception:                                 # noqa: BLE001
             info = None
-        env = INS.env_for(p, readiness, info)
-        feats = FT.catalog()
-        return {"groups": [{"id": g, "label": label, "about": about} for g, label, about in FT.GROUPS],
-                "features": FT.status(feats, env), "place": p.to_json(),
-                "hf_token": bool(settings.hf_token), "job": installer.state()}
+        return p, INS.env_for(p, readiness, info)
 
-    async def features(request: web.Request) -> web.Response:
-        return web.json_response(await asyncio.get_running_loop().run_in_executor(None, look))
+    @A.handler
+    def features(ctx, query):
+        p, env = here(ctx)
+        return 200, {"groups": [{"id": g, "label": label, "about": about}
+                                for g, label, about in FT.GROUPS],
+                     "features": FT.status(FT.catalog(), env), "place": p.to_json(),
+                     "hf_token": bool(settings.hf_token), "job": installer.state()}
 
-    async def sizes(request: web.Request) -> web.Response:
+    @A.handler
+    def sizes(ctx, query):
         urls = sorted({i.url for f in FT.catalog() for i in f.items if i.kind == "model" and i.url})
         todo = [u for u in urls if u not in _SIZES]
+        lock = threading.Lock()
 
-        def ask():
-            lock = threading.Lock()
+        def one(u):
+            n = head_size(u, settings.hf_token)
+            with lock:
+                _SIZES[u] = n
+        threads = [threading.Thread(target=one, args=(u,), daemon=True) for u in todo]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(30)
+        return 200, {"sizes": {u: _SIZES.get(u) for u in urls}}
 
-            def one(u):
-                n = head_size(u, settings.hf_token)
-                with lock:
-                    _SIZES[u] = n
-            threads = [threading.Thread(target=one, args=(u,), daemon=True) for u in todo]
-            for t in threads:
-                t.start()
-            for t in threads:
-                t.join(30)
-        if todo:
-            await asyncio.get_running_loop().run_in_executor(None, ask)
-        return web.json_response({"sizes": {u: _SIZES.get(u) for u in urls}})
+    @A.handler
+    def install(ctx, body):
+        body = A.body_dict(body)
+        p, env = here(ctx)
+        items, skipped = FT.resolve(body.get("features") or [], body.get("files") or [],
+                                    body.get("classes") or [], env=env)
+        if items and p.why_not and any(i.kind in ("model", "pack") for i in items):
+            return 409, {"error": p.why_not, "skipped": skipped}
+        return 200, {"job": installer.start(items) if items else installer.state(),
+                     "queued": [i.key for i in items], "skipped": skipped}
 
-    async def install(request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-        except ValueError:
-            return web.json_response({"error": "the body must be JSON"}, status=400)
-        if not isinstance(body, dict):
-            return web.json_response({"error": "the body must be an object"}, status=400)
+    @A.handler
+    def cancel(ctx, query):
+        return 200, {"job": installer.cancel()}
 
-        def go():
-            ctx = make_context()
-            p = place()
-            try:
-                readiness = A.target_readiness(ctx)
-            except Exception:                             # noqa: BLE001
-                readiness = {}
-            try:
-                info = A.comfy_object_info(ctx)
-            except Exception:                             # noqa: BLE001
-                info = None
-            items, skipped = FT.resolve(body.get("features") or [], body.get("files") or [],
-                                        body.get("classes") or [], env=INS.env_for(p, readiness, info))
-            if items and p.why_not and any(i.kind in ("model", "pack") for i in items):
-                return {"error": p.why_not, "skipped": skipped}, 409
-            return {"job": installer.start(items) if items else installer.state(),
-                    "queued": [i.key for i in items], "skipped": skipped}, 200
-        out, status = await asyncio.get_running_loop().run_in_executor(None, go)
-        return web.json_response(out, status=status)
-
-    async def cancel(request: web.Request) -> web.Response:
-        return web.json_response({"job": installer.cancel()})
-
-    return [("GET", "/seriesmith/features", features),
-            ("GET", "/seriesmith/features/sizes", sizes),
-            ("POST", "/seriesmith/features/install", install),
-            ("POST", "/seriesmith/features/cancel", cancel)]
+    return [(m, p, make_view(make_context, fn, takes)) for m, p, fn, takes in (
+        ("GET", "/seriesmith/features", features, "query"),
+        ("GET", "/seriesmith/features/sizes", sizes, "query"),
+        ("POST", "/seriesmith/features/install", install, "body"),
+        ("POST", "/seriesmith/features/cancel", cancel, "query"))]
 
 
 __all__ = ["feature_routes", "head_size"]

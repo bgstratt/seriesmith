@@ -4358,6 +4358,13 @@ def get_issues_export(ctx: Context, query: dict):
 
 # (method, path, handler, what it takes: "query", "body" (JSON) or "form" (JSON, or
 # multipart/form-data whose file field arrives as an Upload))
+# how a route answers, read by server/views.make_view: these three stream a file
+# (`reply`), and thumbnails (CPU: shrinking pictures) have threads of their own
+# (`pool`), so a Refs tab asking for hundreds never holds up the other requests
+for _fn in (get_file, get_thumb, get_preset_image):
+    _fn.reply = "file"
+get_thumb.pool = "thumb"
+
 ROUTES = [
     ("GET", "/seriesmith/config", get_config, "query"),
     ("PUT", "/seriesmith/config", put_config, "body"),

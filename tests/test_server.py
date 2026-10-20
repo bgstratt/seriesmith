@@ -250,7 +250,10 @@ class ComfyHostTest(unittest.TestCase):
         self.assertTrue(comfyui.register(server, wait=0))
         # the API, the queue's own routes (Jobs, Render on, Settings, the SDK's
         # Install, info) and the Features window's four
-        self.assertEqual(len(added), len(A.ROUTES) + 11)
+        from seriesmith.server import features_views as FV
+        from seriesmith.server import queue_views as QV
+        self.assertEqual(len(added), len(A.ROUTES) + len(QV.PATHS) + len(FV.PATHS))
+        self.assertEqual(sorted(added[len(A.ROUTES):]), sorted(QV.PATHS + FV.PATHS))
         self.assertIn(("GET", "/seriesmith/jobs"), added)
         self.assertIn(("PUT", "/seriesmith/settings"), added)
         self.assertIn(("POST", "/seriesmith/sdk/install"), added)

@@ -92,7 +92,12 @@ def drop_uploads(form) -> None:
                 pass
 
 
-def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: bool = False):
+def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
+    """An aiohttp view of a handler (ctx, arg) -> (status, data): `takes` says
+    what arg is ("query", "body": JSON, "form": multipart); the handler's
+    `reply` ("file": data is {path, content_type}) and `pool` ("thumb") say
+    how it answers and where it runs (api.py sets them)."""
+    is_file = getattr(fn, "reply", "json") == "file"
     async def view(request: web.Request) -> web.StreamResponse:
         if takes == "form" and request.content_type == "multipart/form-data":
             if (request.content_length or 0) > A.MAX_UPLOAD + (1 << 20):
@@ -130,9 +135,7 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
             finally:
                 ASKED.req = None
         try:
-            # a thumbnail (shrinking a picture: CPU) on a pool of its own, so a
-            # Refs tab asking for hundreds never holds up the other requests
-            pool = _thumb_pool() if fn is A.get_thumb else None
+            pool = _thumb_pool() if getattr(fn, "pool", None) == "thumb" else None
             status, data = await loop.run_in_executor(pool, call, ctx, arg)
         except Exception as e:                            # handler() already catches; belt
             log.exception("seriesmith: %s failed", request.path)
@@ -149,5 +152,5 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str, is_file: 
 
 def routes(make_context: Callable[[], "A.Context"]) -> list[tuple[str, str, Callable]]:
     """(method, path, view) for every route of the editor's API."""
-    return [(method, path, make_view(make_context, fn, takes, is_file=fn in (A.get_file, A.get_thumb, A.get_preset_image)))
+    return [(method, path, make_view(make_context, fn, takes))
             for method, path, fn, takes in A.ROUTES]
