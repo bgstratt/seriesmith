@@ -47,10 +47,9 @@ from dataclasses import dataclass
 
 from seriesmith import targets as TG
 from seriesmith.core import framing, ir
-from seriesmith.core.ir import stable_seed
-from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
-from seriesmith.targets.video.ltx2.compile import _duration, _lines, put_model_duration, shotlist_extra
+from seriesmith.targets.video.ltx2.compile import _duration, shotlist_extra
 from seriesmith.core import paths as P
+from seriesmith.targets import video_compile as VC
 from seriesmith.targets.graph import of, consumers, new_id  # noqa: F401
 
 SILENT = "silent"
@@ -129,15 +128,12 @@ class Ctx:
         self.fps = target.template.fps_for(series_cfg)
         self.warnings: list[str] = []
         base = self.preset if is_series_target(target, series_cfg) else target.presets[pass_]
-        w, h = int(base.width), int(base.height)
-        self.width, self.height = target.template.fit_size(w, h)
-        if (self.width, self.height) != (w, h):
-            self.warnings.append(f"{pass_} size {w}x{h} is not legal on {target.short}; "
-                                 f"rendering {self.width}x{self.height}")
+        self.width, self.height = VC.legal_size(target, base, pass_, self.warnings)
         self.total_req = self.total_raw = 0
         self.long: list[str] = []                 # "<shot> <frames>" past the trained length
         self.talking: list[str] = []              # shots with dialogue
         self.intents: dict[str, int] = {}         # audio intent -> shots (all render silent)
+        self.fallbacks: dict[str, list[str]] = {}  # audio intent -> the shots it falls back on
         self.profiles = TG.series_profiles(series_cfg)
         self.recording = series_cfg.get("audio", {}).get("track", "")
         self.needed: dict[str, dict] = {}
@@ -225,96 +221,28 @@ def panels(ctx: Ctx, shot: ir.Shot, loc_key: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
-    series_cfg, target, template = ctx.series_cfg, ctx.target, ctx.target.template
-    book = series_cfg["subjects"]
-    for s in list(shot.cast) + list(shot.props):
-        if s not in book:
-            raise ValueError(f"shot {shot.id}: '{s}' is not in series.json's subjects")
-    loc_key = shot.plate or sq.location
-    if loc_key not in series_cfg["locations"]:
-        raise ValueError(f"shot {shot.id}: location '{loc_key}' is not in series.json "
-                         f"({', '.join(series_cfg['locations'])})")
-    if not shot.cast and not shot.props and not shot.dialogue and not shot.action:
-        raise ValueError(f"shot {shot.id}: nothing in it. Add `who:`, `with:`, action "
-                         f"text, or dialogue.")
-    pace = shot.pace or series_cfg.get("speech", {}).get("pace", "normal")
-    if pace not in SPEECH_RATE:
-        raise ValueError(f"series.json speech.pace '{pace}' must be one of {sorted(SPEECH_RATE)}")
+    series_cfg, template = ctx.series_cfg, ctx.target.template
+    loc_key, pace = VC.check_shot(series_cfg, sq, shot)
     dur, windowed = _duration(ctx, shot, pace)
-    fps = ctx.fps
-    req = max(1, round(dur * fps))
-    try:
-        raw = template.snap(req)
-    except ValueError:
-        raise ValueError(f"shot {shot.id}: {dur:.2f}s is longer than {target.short}'s "
-                         f"maximum of {template.max} frames ({template.max / fps:.2f}s at "
-                         f"{fps:g} fps). Split the shot, or render it on another "
-                         f"target.") from None
+    req, raw = VC.snap_frames(ctx, shot, dur)
     if shot.dialogue:
         ctx.talking.append(shot.id)
-        held = raw / fps
-        rate = forced_rate(_lines(shot), held)
-        syl, _ = pacing(_lines(shot))
-        if rate > RATE_CEILING:
-            fits = template.snap(max(1, round(speech_seconds(_lines(shot), pace) * fps))) / fps
-            ctx.warnings.append(f"{shot.id}: CRAMMED — {syl} syllables in {held:.2f}s forces "
-                                f"{rate:.1f} syl/s (ceiling {RATE_CEILING}). `dur: {fits:.2f}` "
-                                f"gives it room.")
+    VC.crammed(ctx, shot, pace, raw)
     trained = int(template.spec.get("trained_frames") or 0)
     if trained and raw > trained:
         ctx.long.append(f"{shot.id} {raw}")
-    ctx.total_req += req
-    ctx.total_raw += raw
-
-    intent = TG.audio_intent(shot, series_cfg, ctx.pass_)
-    policy, note = target.audio_policy(intent)
+    VC.count_frames(ctx, req, raw)
+    intent, policy, note = VC.shot_audio(ctx, shot)
     ctx.intents[intent] = ctx.intents.get(intent, 0) + 1
-
-    seq = {"id": sq.id, "profile": sq.profile, "target": sq.target,
-           **{k: v for k, v in (sq.overrides or {}).items() if v is not None}}
-    sh = {"id": shot.id, "profile": shot.profile, "target": shot.target,
-          **{k: v for k, v in (shot.overrides or {}).items() if v is not None}}
-    for node in (sq, shot):
-        if "steps" in node.unparsed:
-            raise ValueError(f"{'shot' if node is shot else 'sequence'} {node.id}: steps "
-                             f"must be a whole number, not {node.unparsed['steps']!r}")
-    layers = TG.render_layers(series_cfg, seq, sh, ctx.profiles)
-    entry = {
-        "id": shot.id,
-        "sequence": sq.id,
-        "subjects": list(shot.cast) + [p for p in shot.props if p not in shot.cast],
-        "background": series_cfg["locations"][loc_key].get("plate", ""),
-        "size": shot.size,
-        "length": raw,
-        "seed": stable_seed(ep_id, sq.id, shot.id),
-        "steps": int(TG.layered(layers, "steps", ctx.preset.steps, present=True)),
-        "audio_policy": policy,
-        "prompt": ctx.style.build_prompt(shot, sq, series_cfg),
-        "negative": ctx.preset.extra.get("negative", ""),
-        "keyframes": {end: keyframe_path(ctx.recipe, shot.id, end)
-                      for end in TG.keyframe_ends(ctx.recipe, shot, sq)},
-    }
+    layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
+    entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
+    entry["prompt"] = ctx.style.build_prompt(shot, sq, series_cfg)
+    entry["negative"] = ctx.preset.extra.get("negative", "")
+    entry["keyframes"] = {end: keyframe_path(ctx.recipe, shot.id, end)
+                          for end in TG.keyframe_ends(ctx.recipe, shot, sq)}
     if ctx.recipe.get("reference_image"):
         entry["panels"] = panels(ctx, shot, loc_key)
-    if note:
-        entry["audio_intent"] = intent
-        entry["audio_note"] = note
-    model = TG.layered(layers, "model")
-    if model:
-        entry["model"] = model
-    lora = TG.layered_lora(layers)
-    if lora:
-        entry[lora[0]] = lora[1]
-    profile = shot.profile or sq.profile
-    if profile:
-        entry["profile"] = profile
-    t = shot.timing or {}
-    if windowed:
-        entry["audio_in"], entry["audio_out"] = t["audio_in"], t["audio_out"]
-    else:
-        entry["duration"] = round(dur, 3)
-    put_model_duration(ctx, shot, pace, entry)
-    return entry
+    return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
 def _ids(ids: list[str], n: int = 8) -> str:
@@ -364,28 +292,18 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
         ctx.warnings.append(f"{len(ctx.long)} shot(s) are longer than {target.short}'s trained "
                             f"{target.template.spec.get('trained_frames')} frames (motion may "
                             f"loop or drift; shot, frames): {_ids(ctx.long, 12)}")
+    if not ctx.silent:
+        # what a model that makes its own sound renders another way (a cloned
+        # voice, a dub: Seedance's generate), said as ltx2's and H3's are; a
+        # silent one's already said above
+        VC.fallback_warnings(ctx, target)
     for sh in shots_out:
-        for k in ("model", "lora"):
-            if k in sh:
-                ctx.warnings.append(f"{sh['id']} overrides {k}: {sh[k]}")
+        VC.override_warnings(ctx, sh)
         if len(sh.get("panels") or []) > 4:
             ctx.warnings.append(f"{sh['id']}: {len(sh['panels'])} subjects on one reference "
                                 f"image; small panels carry over worse")
-    fps = ctx.fps
-    report = {
-        "episode": story.id, "title": story.title,
-        "mode": "proxy" if pass_ == "proxy" else "final",
-        "resolution": f"{ctx.width}x{ctx.height}", "steps": p.steps,
-        "model": p.model, "lora": p.lora or "none", "fps": fps,
-        "shots": len(shots_out), "sequences": seqs,
-        "target_s": ctx.total_req / fps, "delivered_s": ctx.total_raw / fps,
-        "pad_frames": ctx.total_raw - ctx.total_req,
-        "policies": {pol: sum(1 for s in shots_out if s["audio_policy"] == pol)
-                     for pol in sorted({s["audio_policy"] for s in shots_out})},
-        "needed": ctx.needed, "blocked_shots": ctx.blocked, "warnings": ctx.warnings,
-        "target": target.id, "size_hints": dict(r.get("size_hints") or {}),
-    }
-    return doc, report
+    return doc, VC.episode_report(ctx, story, target, shots_out, seqs, ctx.needed, ctx.blocked,
+                                  r.get("size_hints"))
 
 
 def compile_shot(target, shot_ir: ir.Shot, series_cfg: dict, preset, ctx=None,

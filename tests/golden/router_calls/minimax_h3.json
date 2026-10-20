@@ -1,0 +1,376 @@
+{
+ "sh010": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera pushes in on Ada with small amplitude at slow speed. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada slams the walk-in door shut and turns to face the kitchen. Visible on-screen text reads \"OPEN 24 HOURS\". The sound is the compressor hum of the walk-in, a door latch clanking. A plucky ukulele sting plays underneath.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/ada/ada_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/kitchen.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 988402314
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh020": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. The diner kettle is a dented chrome kettle with a black bakelite handle and a whistle cap on a chain. Also in frame are two customers at the counter seen through the window, backs to camera, unnamed background figures who look nothing like Ada and Bo. Bo sets the kettle down on the burner and flicks the gas on. Ada, in a voice that is dry, quick and precise, says, warmly: \"You know that one whistles.\" Bo, in a voice that is slow and cracking, says: \"I know.\" Bo says, whispering: \"That's the point.\" The ambient sound of the place follows the action. There is no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/ada/ada_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/bo/bo_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/props/kettle.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/kitchen.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 976780801
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [
+   "audio clone renders as generate on MiniMax: MiniMax makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh020 with a long prompt": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: live-action, warm tungsten light, 35mm film grain. The kitchen's detail 0: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 1: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 2: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 3: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 4: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 5: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 6: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 7: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 8: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 9: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 10: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 11: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 12: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 13: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 14: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 15: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 16: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 17: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 18: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 19: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 20: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 21: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/ada/ada_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/bo/bo_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/props/kettle.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/kitchen.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 976780801
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [
+   "audio clone renders as generate on MiniMax: MiniMax makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh110": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Cy is a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots. Ada, Bo and Cy spill out of the diner door into the rain. Ada, in a voice that is dry, quick and precise, says: \"Van.\" Bo, in a voice that is slow and cracking, says: \"Where?\" Cy says: \"There!\" The sound is traffic hiss on wet asphalt. There is no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/ada/ada_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/bo/bo_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/cy/cy_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/street.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 877177574
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [
+   "audio dub renders as generate on MiniMax: MiniMax makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh140": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. The street empties; the neon sign flickers once and goes dark. The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"And that was the last anyone saw of the kettle.\" The ambient sound of the place follows the action. There is no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/street.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 711101116
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [
+   "audio dub renders as generate on MiniMax: MiniMax makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh150": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada stops dead in the middle of the road, soaked, and starts to laugh. The ambient sound of the place follows the action. There is no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/shots/sh150/first.png"
+      }
+     },
+     "role": "first_frame",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/shots/sh150/last.png"
+      }
+     },
+     "role": "last_frame",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "resolution": "768P",
+   "seed": 1793119048
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh150 with a long prompt": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: live-action, warm tungsten light, 35mm film grain. The kitchen's detail 0: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 1: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 2: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 3: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 4: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 5: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 6: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 7: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 8: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 9: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 10: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 11: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 12: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 13: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 14: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 15: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 16: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 17: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 18: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 19: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 20: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 21: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/shots/sh150/first.png"
+      }
+     },
+     "role": "first_frame",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/shots/sh150/last.png"
+      }
+     },
+     "role": "last_frame",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "resolution": "768P",
+   "seed": 1793119048
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [],
+  "size": [
+   1366,
+   768
+  ]
+ },
+ "sh210": {
+  "arguments": {
+   "content": [
+    {
+     "text": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. Ada, in a voice that is dry, quick and precise, says: \"Well.\" Bo, in a voice that is slow and cracking, says: \"Well what?\" Ada says: \"Put the tea on.\" The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"They did.\" The ambient sound of the place follows the action. There is no music.",
+     "type": "text"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/ada/ada_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/bo/bo_sheet_4panel.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    },
+    {
+     "image_url": {
+      "url": {
+       "file": "refs/_bg/kitchen_window.png"
+      }
+     },
+     "role": "reference_image",
+     "type": "image_url"
+    }
+   ],
+   "duration": 4,
+   "ratio": "16:9",
+   "resolution": "768P",
+   "seed": 1595767556
+  },
+  "frames": 96,
+  "model": "minimax/minimax-h3",
+  "notes": [
+   "audio clone renders as generate on MiniMax: MiniMax makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1366,
+   768
+  ]
+ }
+}

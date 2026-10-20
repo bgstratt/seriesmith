@@ -39,9 +39,8 @@ import uuid
 
 from seriesmith import targets as TG
 from seriesmith.core import ir
-from seriesmith.core.ir import stable_seed
-from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
-from seriesmith.targets.video.ltx2.compile import model_duration, put_model_duration
+from seriesmith.targets import video_compile as VC
+from seriesmith.targets.video_compile import shot_duration as _duration
 
 from .prompt import build_prompt, with_keyframes
 from seriesmith.core import paths as P
@@ -59,10 +58,6 @@ def keyframe_path(shot_id: str, end: str) -> str:
     """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
     return RECIPE["keyframe_path"].format(shot=P.safe_id(shot_id),
                                           end=end)
-
-
-def _lines(shot: ir.Shot) -> list[dict]:
-    return [{"who": d.speaker, "line": d.line} for d in shot.dialogue]
 
 
 class Ctx:
@@ -84,63 +79,17 @@ class Ctx:
         self.absent = set(absent or ())
 
 
-def _duration(ctx: Ctx, shot: ir.Shot, pace: str) -> tuple[float, bool]:
-    """(seconds, from a recording window) as the script asks; `dur: model`
-    renders the estimate (H3 can't predict a length)."""
-    t = shot.timing or {}
-    if "audio_in" in t:
-        return t["audio_out"] - t["audio_in"], True
-    if t.get("model"):
-        return model_duration(ctx, shot, pace)[0], False
-    if t.get("auto"):
-        if not shot.dialogue:
-            raise ValueError(f"shot {shot.id}: `dur: auto` needs dialogue to measure. "
-                             f"Give a silent shot an explicit `dur:`.")
-        return speech_seconds(_lines(shot), pace), False
-    if "seconds" in t:
-        return float(t["seconds"]), False
-    raise ValueError(f"shot {shot.id}: needs `audio: 3.10-7.40`, `dur: 3.04`, or `dur: auto`")
-
-
 def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     series_cfg, template = ctx.series_cfg, ctx.target.template
-    book = series_cfg["subjects"]
-    for s in list(shot.cast) + list(shot.props):
-        if s not in book:
-            raise ValueError(f"shot {shot.id}: '{s}' is not in series.json's subjects")
-    loc_key = shot.plate or sq.location
-    if loc_key not in series_cfg["locations"]:
-        raise ValueError(f"shot {shot.id}: location '{loc_key}' is not in series.json "
-                         f"({', '.join(series_cfg['locations'])})")
-    if not shot.cast and not shot.props and not shot.dialogue and not shot.action:
-        raise ValueError(f"shot {shot.id}: nothing in it. Add `who:`, `with:`, action "
-                         f"text, or dialogue.")
-    pace = shot.pace or series_cfg.get("speech", {}).get("pace", "normal")
-    if pace not in SPEECH_RATE:
-        raise ValueError(f"series.json speech.pace '{pace}' must be one of {sorted(SPEECH_RATE)}")
+    loc_key, pace = VC.check_shot(series_cfg, sq, shot)
     dur, windowed = _duration(ctx, shot, pace)
-    fps = ctx.fps
-    req = max(1, round(dur * fps))
-    raw = template.snap(req)
-    if shot.dialogue:
-        held = raw / fps
-        rate = forced_rate(_lines(shot), held)
-        syl, _ = pacing(_lines(shot))
-        if rate > RATE_CEILING:
-            fits = template.snap(max(1, round(speech_seconds(_lines(shot), pace) * fps))) / fps
-            ctx.warnings.append(f"{shot.id}: CRAMMED — {syl} syllables in {held:.2f}s forces "
-                                f"{rate:.1f} syl/s (ceiling {RATE_CEILING}). `dur: {fits:.2f}` "
-                                f"gives it room.")
+    req, raw = VC.snap_frames(ctx, shot, dur)
+    VC.crammed(ctx, shot, pace, raw)
     trained = int(template.spec.get("trained_frames") or 0)
     if trained and raw > trained:
         ctx.long.append(shot.id)
-    ctx.total_req += req
-    ctx.total_raw += raw
-
-    intent = TG.audio_intent(shot, series_cfg, ctx.pass_)
-    policy, note = ctx.target.audio_policy(intent)
-    if note:
-        ctx.fallbacks.setdefault(intent, []).append(shot.id)
+    VC.count_frames(ctx, req, raw)
+    intent, policy, note = VC.shot_audio(ctx, shot)
     if policy in DUB:
         if "audio" in ctx.absent:
             # render anyway without the recording: H3 voices the lines itself
@@ -153,48 +102,12 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
             raise ValueError(f"shot {shot.id}: uses an `audio:` window but series.json has "
                              f"no audio.track set.")
 
-    seq = {"id": sq.id, "profile": sq.profile, "target": sq.target,
-           **{k: v for k, v in (sq.overrides or {}).items() if v is not None}}
-    sh = {"id": shot.id, "profile": shot.profile, "target": shot.target,
-          **{k: v for k, v in (shot.overrides or {}).items() if v is not None}}
-    for node in (sq, shot):
-        if "steps" in node.unparsed:
-            raise ValueError(f"{'shot' if node is shot else 'sequence'} {node.id}: steps "
-                             f"must be a whole number, not {node.unparsed['steps']!r}")
-    layers = TG.render_layers(series_cfg, seq, sh, ctx.profiles)
-    entry = {
-        "id": shot.id,
-        "sequence": sq.id,
-        "subjects": list(shot.cast) + [p for p in shot.props if p not in shot.cast],
-        "background": series_cfg["locations"][loc_key].get("plate", ""),
-        "size": shot.size,
-        "length": raw,
-        "seed": stable_seed(ep_id, sq.id, shot.id),
-        "steps": int(TG.layered(layers, "steps", ctx.preset.steps, present=True)),
-        "audio_policy": policy,
-        "prompt": build_prompt(shot, sq, series_cfg, policy),
-        "keyframes": {end: keyframe_path(shot.id, end)
-                      for end in TG.keyframe_ends(RECIPE, shot, sq)},
-    }
-    if note:
-        entry["audio_intent"] = intent
-        entry["audio_note"] = note
-    model = TG.layered(layers, "model")
-    if model:
-        entry["model"] = model
-    lora = TG.layered_lora(layers)
-    if lora:
-        entry[lora[0]] = lora[1]
-    profile = shot.profile or sq.profile
-    if profile:
-        entry["profile"] = profile
-    t = shot.timing or {}
-    if windowed:
-        entry["audio_in"], entry["audio_out"] = t["audio_in"], t["audio_out"]
-    else:
-        entry["duration"] = round(dur, 3)
-    put_model_duration(ctx, shot, pace, entry)
-    return entry
+    layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
+    entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
+    entry["prompt"] = build_prompt(shot, sq, series_cfg, policy)
+    entry["keyframes"] = {end: keyframe_path(shot.id, end)
+                          for end in TG.keyframe_ends(RECIPE, shot, sq)}
+    return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
 def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,

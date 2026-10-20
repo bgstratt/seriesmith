@@ -1,0 +1,60 @@
+{
+ "sh010": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh010 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh020": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh020 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh020 with a long prompt": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh020 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh110": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh110 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh140": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh140 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh150": {
+  "arguments": {
+   "duration": 2,
+   "promptImage": {
+    "file": "refs/shots/sh150/first.png"
+   },
+   "promptText": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada stops dead in the middle of the road, soaked, and starts to laugh.",
+   "ratio": "1280:720",
+   "seed": 1793119048
+  },
+  "frames": 48,
+  "model": "runway/gen4_turbo",
+  "notes": [
+   "audio generate renders as silent on Runway: runway/gen4_turbo makes no sound: the take is mute, and the edit lays the sound under it"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh150 with a long prompt": {
+  "arguments": {
+   "duration": 2,
+   "promptImage": {
+    "file": "refs/shots/sh150/first.png"
+   },
+   "promptText": "The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
+   "ratio": "1280:720",
+   "seed": 1793119048
+  },
+  "frames": 48,
+  "model": "runway/gen4_turbo",
+  "notes": [
+   "audio generate renders as silent on Runway: runway/gen4_turbo makes no sound: the take is mute, and the edit lays the sound under it"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh210": {
+  "error": "ValueError: Runway starts every shot from its first keyframe, and sh210 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ }
+}

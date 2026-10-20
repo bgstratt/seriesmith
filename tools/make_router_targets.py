@@ -212,6 +212,10 @@ def build() -> dict[str, dict]:
             p = RI.propose(model, json.load(fh), base=base)["proposal"]
         p.update(id=tid, label=f"{label} (hosted, Comfy Router)", short=short)
         p.pop("draft", None)
+        # the recipe came from Seedance's: its audio fallback says the model's own name
+        fb = (p.get("recipe") or {}).get("policy_fallback") or {}
+        if fb.get("why", "").startswith(base["short"] + " makes its own sound"):
+            fb["why"] = short + fb["why"][len(base["short"]):]
         if limits:
             p = L.apply(p, limits)
         if extra:
