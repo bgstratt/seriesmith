@@ -267,7 +267,8 @@ class GraphTest(unittest.TestCase):
     def test_graph_leaves_lora_alone_when_none_named(self):
         with tempfile.TemporaryDirectory() as root:
             build_episode(root)
-            doc = J.load_shotlist(root, "final")
+            import copy
+            doc = copy.deepcopy(J.load_shotlist(root, "final"))   # the loaded doc is shared
             doc["defaults"]["lora"] = ""
             j = J.plan_job(root, "final", doc, 0, J.RenderRequest("sh010"), {})
             self.assertIsNone(j.loras)

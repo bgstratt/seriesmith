@@ -203,7 +203,7 @@ today).
   workflows saved in ComfyUI still win); a dead port 98.4 → 2.35 s, identical answer.
   `test_readiness::test_route` 96 → 2.3 s.
 
-#### 1.8 The Refs tab: each file read once per request ☐
+#### 1.8 The Refs tab: each file read once per request ✅ (your check pending; target half met)
 `GET /refs` on Porchlights ep01 makes 3,200 JSON reads: the shotlist is parsed 378
 times (1.1 s), `episode_shots` and `cut_entries` rebuilt 56 times, `built_shot_ids` 43,
 `keyframe_refs` computed twice, takes listed again by the sweep, auto-pick and listing.
@@ -218,6 +218,24 @@ copy); `keyframe_refs` once per listing.
   states and pictures as before (compare against a saved `/refs` reply from before the
   change: identical JSON). Then in Ballroom-refactor: generate one ref locally, pick a
   take, Build; the tab updates each time without a reload.
+- **Done:** `takes.read_json_kept` (parsed once while size and mtime hold, never while
+  written in the last RACY_S, failures never kept; the parse is shared) behind
+  `load_shotlist` and `script_order`; `read_json_copy` (a private copy of the kept parse)
+  for overrides, ref overrides and the cut, which are read, changed and saved;
+  `refs.read_picks` (the shared parse) for the 13 places that only read picks, the 3
+  that save keep `load_picks`. An audit of every shotlist caller found none that changes
+  the doc (one test did; it copies now). The series config stays a plain read: deep
+  copies of it cost more than parsing.
+- **Measured over HTTP:** Porchlights ep01 `/refs` 2.27 / 2.39 s → 1.13 / 1.24 s; FRTEST
+  0.41 / 0.54 → 0.39 / 0.45 s (the < 0.3 s target not met). In the server the sweep and
+  auto-pick run after the reply (`sweep_later`), so the listing is what the tab waits
+  on: 1.0 s, spread over ~200 refs each working out its own state. Going further means
+  computing that once per request (3.4's request scope), not more file caching.
+- **Same answers:** the refs listing (3.07 MB over Porchlights ep01, FRTEST,
+  Ballroom-refactor, DeanStories ep05, ArchTest) and the episode status of both passes
+  (3.71 MB) are byte-identical between the old code and the new. Live on
+  Ballroom-refactor: a location ref generated locally (krea2, 16 s), its new take
+  picked, the original picked back: the listing showed each change on the next request.
 
 #### 1.9 The Episode tab: takes read once per request ☐
 `GET /episode` lists every shot's takes twice (the sweep, then the status) and reads

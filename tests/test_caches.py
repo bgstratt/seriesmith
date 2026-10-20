@@ -204,3 +204,66 @@ class ObjectInfoCacheTest(unittest.TestCase):
                                      else ["SeedVR2"])
         self.assertEqual(missing, [])
         self.assertEqual(len(self.asked), 2)
+
+
+class KeptJsonTest(unittest.TestCase):
+    """takes.read_json_kept: a file read over and over (a shotlist) is parsed
+    once while its size and mtime hold, and the parse is shared."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.addCleanup(T.forget_kept)
+        self.path = os.path.join(self._tmp.name, "shotlist.json")
+
+    def write(self, data, age=10.0):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        t = time.time() - age
+        os.utime(self.path, (t, t))
+
+    def test_parsed_once_and_shared(self):
+        self.write({"fps": 24})
+        a = T.read_json_kept(self.path)
+        self.assertIs(T.read_json_kept(self.path), a)
+
+    def test_a_rewrite_of_the_same_size_is_read(self):
+        self.write({"fps": 24})
+        T.read_json_kept(self.path)
+        self.write({"fps": 12}, age=5.0)                     # same size, another mtime
+        self.assertEqual(T.read_json_kept(self.path), {"fps": 12})
+
+    def test_a_file_just_written_is_not_kept(self):
+        self.write({"fps": 24}, age=0.0)
+        a = T.read_json_kept(self.path)
+        self.assertIsNot(T.read_json_kept(self.path), a)     # parsed again: it may change yet
+
+    def test_gone_or_broken_is_raised_not_kept(self):
+        with self.assertRaises(FileNotFoundError):
+            T.read_json_kept(self.path)
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write('{"fps": 2')
+        with self.assertRaises(ValueError):
+            T.read_json_kept(self.path)
+        self.write({"fps": 24})
+        self.assertEqual(T.read_json_kept(self.path), {"fps": 24})
+
+    def test_a_copy_to_change_is_its_own(self):
+        self.write({"shots": {"sh010": {"seed": 1}}})
+        mine = T.read_json_copy(self.path)
+        mine["shots"]["sh010"]["seed"] = 2
+        self.assertEqual(T.read_json_kept(self.path)["shots"]["sh010"]["seed"], 1)
+        self.assertEqual(T.read_json_copy(os.path.join(self._tmp.name, "none.json"), {}), {})
+
+    def test_read_picks_never_changes_the_shared_parse(self):
+        from seriesmith import refs as R
+        p = os.path.join(self._tmp.name, R.PICKS_FILE)
+        os.makedirs(os.path.dirname(p))
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump({"refs": {"subject:ada": {"take": 2}}}, fh)        # no "version"
+        os.utime(p, (time.time() - 10, time.time() - 10))
+        got = R.read_picks(self._tmp.name)
+        self.assertEqual(got["version"], 1)
+        self.assertNotIn("version", T.read_json_kept(p))
+        self.assertEqual(R.read_picks(os.path.join(self._tmp.name, "nowhere")),
+                         {"version": 1, "refs": {}})

@@ -960,13 +960,15 @@ def shotlist_target(doc: dict) -> "TG.Target":
 
 def load_shotlist(root: str, pass_: str, target: str | None = None) -> dict:
     """A built shotlist: the series target's (shotlist.json), or with `target`
-    that target's own file in an episode that mixes targets."""
+    that target's own file in an episode that mixes targets. Parsed once while
+    the file is unchanged (takes.read_json_kept): the doc is shared by every
+    caller, so read it, never change it (frozen_shotlist copies)."""
     path = os.path.join(root, shotlist_rel(pass_, target))
-    if not os.path.isfile(path):
+    try:
+        return T.read_json_kept(path)
+    except FileNotFoundError:
         raise FileNotFoundError(f"{path} not found — run build first"
-                                + (" with --proxy" if pass_ == "proxy" else ""))
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+                                + (" with --proxy" if pass_ == "proxy" else "")) from None
 
 
 def extra_shotlist_targets(root: str, pass_: str) -> list[str]:
@@ -1003,8 +1005,7 @@ def load_shotlists(root: str, pass_: str) -> list[dict]:
 def script_order(root: str) -> list[str]:
     """Shot ids in script order, from shotlist/shots.json ([] if it isn't there)."""
     try:
-        with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
-            ep = json.load(fh)
+        ep = T.read_json_kept(os.path.join(root, "shotlist", "shots.json"))
     except (OSError, ValueError):
         return []
     return [s["id"] for sq in ep.get("sequences", []) for s in sq.get("shots", [])]

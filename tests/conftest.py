@@ -41,11 +41,14 @@ try:
         os.environ.update(_PINNED)
         from seriesmith import api as A
         from seriesmith import targets as TG
+        from seriesmith import takes as T
         TG.forget_targets()
         A.forget_comfy()
+        T.forget_kept()
         yield
         os.environ.update(_PINNED)
         TG.forget_targets()
         A.forget_comfy()
+        T.forget_kept()
 except ImportError:                                      # pragma: no cover (unittest alone)
     pass
