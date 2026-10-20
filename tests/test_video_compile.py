@@ -47,5 +47,34 @@ class TooLongTest(unittest.TestCase):
                 self.assertIn("Split the shot, or render it on another target.", out)
 
 
+
+class FallbackWarningTest(unittest.TestCase):
+    """A model that makes its own sound and renders a cloned voice or a dub as
+    generate says so in --check, as ltx2 and H3 do (the prose and Router
+    targets didn't); a silent one's "makes no sound" line already says it."""
+
+    SHOT = "## sh010\nwho: ada\nsize: ms\ndur: 3\nADA: Hello there.\n"   # clone: the series says so
+
+    def test_a_sounding_router_model_says_what_falls_back(self):
+        out = build("seedance_2_5", self.SHOT).stdout
+        self.assertIn("ask for audio clone, which Seedance can't render", out)
+
+    def test_a_silent_model_says_it_once(self):
+        out = build("wan22_ti2v", self.SHOT).stdout
+        self.assertNotIn("can't render", out)
+        self.assertIn("makes no sound", out)
+
+    def test_each_router_model_names_itself(self):
+        import glob
+        import json
+        for f in glob.glob(os.path.join(ROOT, "seriesmith", "targets", "video", "*", "target.json")):
+            with open(f, encoding="utf-8") as fh:
+                spec = json.load(fh)
+            why = ((spec.get("recipe") or {}).get("policy_fallback") or {}).get("why", "")
+            if spec.get("code") == "builtin:router_video" and "makes its own sound" in why:
+                with self.subTest(target=spec["id"]):
+                    self.assertTrue(why.startswith(spec["short"] + " "), why)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

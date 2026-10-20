@@ -27,7 +27,7 @@
     ],
     "policy_fallback": {
       "to": "generate",
-      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+      "why": "Wan makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
     },
     "keyframes": [
       "first",

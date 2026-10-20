@@ -96,7 +96,7 @@
   "frames": 96,
   "model": "veo/veo-3.1-fast-generate-001",
   "notes": [
-   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "audio clone renders as generate on Veo: Veo makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
   ],
   "size": [
    1280,
@@ -154,7 +154,7 @@
   "frames": 96,
   "model": "veo/veo-3.1-fast-generate-001",
   "notes": [
-   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "audio clone renders as generate on Veo: Veo makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
   ],
   "size": [
    1280,
@@ -212,7 +212,7 @@
   "frames": 96,
   "model": "veo/veo-3.1-fast-generate-001",
   "notes": [
-   "audio dub renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "audio dub renders as generate on Veo: Veo makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
   ],
   "size": [
    1280,
@@ -250,7 +250,7 @@
   "frames": 96,
   "model": "veo/veo-3.1-fast-generate-001",
   "notes": [
-   "audio dub renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "audio dub renders as generate on Veo: Veo makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
   ],
   "size": [
    1280,
@@ -382,7 +382,7 @@
   "frames": 96,
   "model": "veo/veo-3.1-fast-generate-001",
   "notes": [
-   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "audio clone renders as generate on Veo: Veo makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
   ],
   "size": [
    1280,

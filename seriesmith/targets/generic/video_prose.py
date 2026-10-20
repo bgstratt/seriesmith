@@ -292,6 +292,11 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
         ctx.warnings.append(f"{len(ctx.long)} shot(s) are longer than {target.short}'s trained "
                             f"{target.template.spec.get('trained_frames')} frames (motion may "
                             f"loop or drift; shot, frames): {_ids(ctx.long, 12)}")
+    if not ctx.silent:
+        # what a model that makes its own sound renders another way (a cloned
+        # voice, a dub: Seedance's generate), said as ltx2's and H3's are; a
+        # silent one's already said above
+        VC.fallback_warnings(ctx, target)
     for sh in shots_out:
         VC.override_warnings(ctx, sh)
         if len(sh.get("panels") or []) > 4:
