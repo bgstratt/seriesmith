@@ -1,0 +1,392 @@
+{
+ "sh010": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera pushes in on Ada with small amplitude at slow speed. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada slams the walk-in door shut and turns to face the kitchen. Visible on-screen text reads \"OPEN 24 HOURS\". The sound is the compressor hum of the walk-in, a door latch clanking. A plucky ukulele sting plays underneath.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/ada/ada_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/_bg/kitchen.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 988402314
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh020": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "A medium shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. The diner kettle is a dented chrome kettle with a black bakelite handle and a whistle cap on a chain. Also in frame are two customers at the counter seen through the window, backs to camera, unnamed background figures who look nothing like Ada and Bo. Bo sets the kettle down on the burner and flicks the gas on. Ada, in a voice that is dry, quick and precise, says, warmly: \"You know that one whistles.\" Bo, in a voice that is slow and cracking, says: \"I know.\" Bo says, whispering: \"That's the point.\" The ambient sound of the place follows the action. There is no music.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/ada/ada_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/bo/bo_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/props/kettle.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 976780801
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [
+   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh020 with a long prompt": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/ada/ada_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/bo/bo_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/props/kettle.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 976780801
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [
+   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh110": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Cy is a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots. Ada, Bo and Cy spill out of the diner door into the rain. Ada, in a voice that is dry, quick and precise, says: \"Van.\" Bo, in a voice that is slow and cracking, says: \"Where?\" Cy says: \"There!\" The sound is traffic hiss on wet asphalt. There is no music.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/ada/ada_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/bo/bo_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/cy/cy_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 877177574
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [
+   "audio dub renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh140": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. The street empties; the neon sign flickers once and goes dark. The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"And that was the last anyone saw of the kettle.\" The ambient sound of the place follows the action. There is no music.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/_bg/street.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 711101116
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [
+   "audio dub renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh150": {
+  "arguments": {
+   "instances": [
+    {
+     "image": {
+      "bytesBase64Encoded": {
+       "file": "refs/shots/sh150/first.png",
+       "via": "base64"
+      },
+      "mimeType": "image/png"
+     },
+     "lastFrame": {
+      "bytesBase64Encoded": {
+       "file": "refs/shots/sh150/last.png",
+       "via": "base64"
+      },
+      "mimeType": "image/png"
+     },
+     "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada stops dead in the middle of the road, soaked, and starts to laugh. The ambient sound of the place follows the action. There is no music."
+    }
+   ],
+   "parameters": {
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 1793119048
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh150 with a long prompt": {
+  "arguments": {
+   "instances": [
+    {
+     "image": {
+      "bytesBase64Encoded": {
+       "file": "refs/shots/sh150/first.png",
+       "via": "base64"
+      },
+      "mimeType": "image/png"
+     },
+     "lastFrame": {
+      "bytesBase64Encoded": {
+       "file": "refs/shots/sh150/last.png",
+       "via": "base64"
+      },
+      "mimeType": "image/png"
+     },
+     "prompt": "The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music."
+    }
+   ],
+   "parameters": {
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 1793119048
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh210": {
+  "arguments": {
+   "instances": [
+    {
+     "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. Ada, in a voice that is dry, quick and precise, says: \"Well.\" Bo, in a voice that is slow and cracking, says: \"Well what?\" Ada says: \"Put the tea on.\" The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"They did.\" The ambient sound of the place follows the action. There is no music.",
+     "referenceImages": [
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/ada/ada_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/bo/bo_sheet_4panel.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      },
+      {
+       "image": {
+        "bytesBase64Encoded": {
+         "file": "refs/_bg/kitchen_window.png",
+         "via": "base64"
+        },
+        "mimeType": "image/png"
+       },
+       "referenceType": "asset"
+      }
+     ]
+    }
+   ],
+   "parameters": {
+    "aspectRatio": "16:9",
+    "durationSeconds": 4,
+    "generateAudio": true,
+    "resolution": "720p",
+    "sampleCount": 1,
+    "seed": 1595767556
+   }
+  },
+  "frames": 96,
+  "model": "veo/veo-3.1-lite-generate-001",
+  "notes": [
+   "audio clone renders as generate on Veo: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+  ],
+  "size": [
+   1280,
+   720
+  ]
+ }
+}

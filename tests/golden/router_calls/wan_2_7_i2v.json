@@ -1,0 +1,92 @@
+{
+ "sh010": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh010 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh020": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh020 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh020 with a long prompt": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh020 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh110": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh110 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh140": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh140 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ },
+ "sh150": {
+  "arguments": {
+   "input": {
+    "media": [
+     {
+      "type": "first_frame",
+      "url": {
+       "file": "refs/shots/sh150/first.png"
+      }
+     },
+     {
+      "type": "last_frame",
+      "url": {
+       "file": "refs/shots/sh150/last.png"
+      }
+     }
+    ],
+    "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Ada stops dead in the middle of the road, soaked, and starts to laugh. The ambient sound of the place follows the action. There is no music."
+   },
+   "parameters": {
+    "audio": true,
+    "duration": 2,
+    "ratio": "adaptive",
+    "resolution": "720P",
+    "seed": 1793119048,
+    "watermark": false
+   }
+  },
+  "frames": 48,
+  "model": "wan/wan2.7-i2v",
+  "notes": [],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh150 with a long prompt": {
+  "arguments": {
+   "input": {
+    "media": [
+     {
+      "type": "first_frame",
+      "url": {
+       "file": "refs/shots/sh150/first.png"
+      }
+     },
+     {
+      "type": "last_frame",
+      "url": {
+       "file": "refs/shots/sh150/last.png"
+      }
+     }
+    ],
+    "prompt": "Style: live-action, warm tungsten light, 35mm film grain. The kitchen's detail 0: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 1: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 2: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 3: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 4: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 5: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 6: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 7: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 8: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 9: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 10: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 11: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 12: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 13: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 14: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 15: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 16: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 17: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 18: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 19: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 20: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 21: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music."
+   },
+   "parameters": {
+    "audio": true,
+    "duration": 2,
+    "ratio": "adaptive",
+    "resolution": "720P",
+    "seed": 1793119048,
+    "watermark": false
+   }
+  },
+  "frames": 48,
+  "model": "wan/wan2.7-i2v",
+  "notes": [],
+  "size": [
+   1280,
+   720
+  ]
+ },
+ "sh210": {
+  "error": "ValueError: Wan starts every shot from its first keyframe, and sh210 has none yet: make it first (the shot's menu, or first: generate in the script)"
+ }
+}
