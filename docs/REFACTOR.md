@@ -112,7 +112,7 @@ after a save, missing `enabled_drafts` and `target_limits`; the reply, Settings 
   the restarted server: `seedance_2_0_fast` enabled showed at once in the reply and
   `/info`; reverted.
 
-#### 1.3 `commands.py` stops adding the package folder to `sys.path` ☐
+#### 1.3 `commands.py` stops adding the package folder to `sys.path` ✅
 `commands.main` inserts `seriesmith/` itself on `sys.path` in 11 branches, after which
 `import queue` is `seriesmith/queue.py`, not the standard library's, and modules load
 twice under two names. **Change:** delete the inserts; fix any import that relied on
@@ -121,6 +121,10 @@ them (expected: none; the modules are imported as `seriesmith.x`).
   standard library's; the suite.
 - **Live check:** each command's `--help`, then `seriesmith takes`, `seriesmith cut`
   and `seriesmith issues` on Ballroom-refactor; output as before.
+- **Done:** confirmed real: before the fix `import queue` after a command was
+  `seriesmith/queue.py`. No module relied on the inserts. Live: every command's `--help`
+  exits as before (most say usage with exit 1: 3.6's business), and `takes`, `cut --show`,
+  `issues --export`, `promote` on Ballroom-refactor print byte-identical output.
 
 #### 1.4 The align transcript cache is written safely ☐
 `align.py:498-510` reads the cache with unclosed `open()`s and writes it in place, so

@@ -110,6 +110,19 @@ class EditFlowTest(unittest.TestCase):
         self.assertEqual(st["sh010"]["takes"][0]["stale"], [])
         self.assertIn("(STALE)", self.h3("takes", self.ep, "--proxy", "--no-sweep"))
 
+    def test_a_command_leaves_the_standard_library_alone(self):
+        """commands.main put seriesmith/ itself on sys.path, after which
+        `import queue` was seriesmith/queue.py, not the standard library's."""
+        self.h3("build", self.ep)
+        code = ("import sys; sys.argv = ['seriesmith', 'takes', sys.argv[1]]\n"
+                "from seriesmith import commands; commands.main()\n"
+                "import queue; print('QUEUE', queue.__file__)")
+        r = subprocess.run([sys.executable, "-c", code, self.ep], capture_output=True, env=ENV,
+                           cwd=self._tmp.name, text=True, encoding="utf-8")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        where = r.stdout.split("QUEUE ", 1)[1].strip()
+        self.assertNotIn("seriesmith", os.path.normcase(where).split(os.sep)[-2:])
+
     def test_pick_refuses_unusable_and_unknown(self):
         self.h3("build", self.ep)
         T.reserve_take(self.ep, "proxy", "sh010", {"status": "queued"})
