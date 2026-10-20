@@ -1045,12 +1045,11 @@ def reserve_take(ref: Ref, view: str | None, sidecar: dict,
 
 
 def mark_queued(take: RefTake, prompt_id: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, comfy_prompt_id=prompt_id)
+    take.sidecar = T.record_queued(take.paths.sidecar, prompt_id)
 
 
 def mark_failed(take: RefTake, why: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, status="failed",
-                                    finished=T.now(), save_notes=why)
+    take.sidecar = T.record_failed(take.paths.sidecar, why)
 
 
 def image_size(path: str) -> tuple[int, int] | None:

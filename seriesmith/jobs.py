@@ -1992,12 +1992,11 @@ def place_staged(job: Job, take: T.Take) -> None:
 
 
 def mark_queued(take: T.Take, prompt_id: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, comfy_prompt_id=prompt_id)
+    take.sidecar = T.record_queued(take.paths.sidecar, prompt_id)
 
 
 def mark_failed(take: T.Take, why: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, status="failed",
-                                    finished=T.now(), save_notes=why)
+    take.sidecar = T.record_failed(take.paths.sidecar, why)
 
 
 def finish_job(take: T.Take) -> str:

@@ -1647,10 +1647,7 @@ def settings_of(up: UpscaleJob) -> dict:
     return d
 
 
-def settings_hash(settings: dict) -> str:
-    import hashlib
-    import json
-    return hashlib.sha1(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
+settings_hash = T.settings_hash
 
 
 def recipe_status(root: str, take: T.Take, recipe: dict | None = None,
@@ -1748,12 +1745,11 @@ def start(up: UpscaleJob) -> None:
 
 
 def mark_queued(up: UpscaleJob, pid: str) -> None:
-    T.update_sidecar(up.take.paths.up_sidecar, comfy_prompt_id=pid)
+    T.record_queued(up.take.paths.up_sidecar, pid)
 
 
 def mark_failed(up: UpscaleJob, why: str) -> None:
-    T.update_sidecar(up.take.paths.up_sidecar, status="failed", finished=T.now(),
-                     save_notes=why)
+    T.record_failed(up.take.paths.up_sidecar, why)
 
 
 def cut_takes(root: str, only: set[str] | None = None, take_n: int | None = None,

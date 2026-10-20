@@ -446,11 +446,18 @@ with different TLS, error and User-Agent handling. **One** `backends.http_json`.
   That check also caught one difference of mine (an empty answer returned None instead
   of raising, as before), fixed.
 
-#### 2.5 Take records: `mark_failed` / `mark_queued` ☐
+#### 2.5 Take records: `mark_failed` / `mark_queued` ✅
 The same failed/queued sidecar update in jobs, refs, finishing, upscale and post;
 `settings_hash` identical in upscale and post. **Into takes.py.**
 - **Live check (you):** a local upscale and a post that fail (missing model) and one
   that succeed, in Ballroom-refactor; their takes read the same as before.
+- **Done:** `takes.record_queued` / `record_failed` / `settings_hash`; the seven
+  mark_queued / mark_failed of jobs, refs, finishing, upscale and post call them (each
+  keeps its name and signature); upscale's and post's settings_hash are takes' (a test
+  pins its value: records store it); post.rel is upscale's.
+- Found: test_ref_queue failed whenever it ran after test_refs (its module teardown
+  deleted the shared episode but kept pointing at it); the suite passed only by running
+  them alphabetically. Fixed in the test.
 
 #### 2.6 Small copies ☐
 Prompt helpers (`_sentence`, `_and`, `_article`, `_subject_sentence`, 4 copies) into
