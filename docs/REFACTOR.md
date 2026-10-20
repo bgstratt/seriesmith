@@ -84,7 +84,7 @@ ffmpeg/ffprobe runs of an assemble of a scratch copy. Not a test; nothing import
 
 ### Fixes
 
-#### 1.1 H3 FL2VA accepts `dur: model` ☐
+#### 1.1 H3 FL2VA accepts `dur: model` ✅
 `targets/video/minimax_h3_fl2va/compile.py:84` `_duration` has no `model` branch, so a
 `dur: model` shot on fl2va fails with "needs `audio:`…" although AUTHORING.md says
 every non-LTX target renders at the estimate (ref2va, ltx2, ingredients and prose do).
@@ -95,6 +95,10 @@ does, with the "renders at the estimate" warning.
 - **Live check:** in Ballroom-refactor, set one shot to `target: minimax_h3_fl2va` with
   `dur: model`; Build; `seriesmith check` shows the estimate warning; the shot's
   length in the editor is the estimate. No render needed.
+- **Done:** reproduced ("needs `audio:`…"), fixed with ltx2's `model_duration` /
+  `put_model_duration` (as prose and ingredients use; 3.1 moves them to the shared base).
+  Live: sh020 as fl2va `dur: model 2-4` built at 4.00 s / 107 frames, check warned "H3
+  FL2V can't predict", the editor showed it; the script restored after.
 
 #### 1.2 Saving Settings refreshes every field ☐
 `server/queue_views.py:102` copies a hand-written field list into the live settings
