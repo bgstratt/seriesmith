@@ -144,7 +144,7 @@ class Runner:
                 report(p.value, p.step, p.steps)
 
             def got_run(run):
-                qjob.cancel_run = run.cancel
+                self.queue.arm_cancel(qjob, run.cancel)
                 report(line=f"on {backend.name}: {run.id}")
                 for n in run.notes:
                     report(line=n)
@@ -286,7 +286,7 @@ class Runner:
                 report(p.value, p.step, p.steps)
             try:
                 run = backend.call(*call) if hosted else backend.submit(g)
-                qjob.cancel_run = run.cancel
+                self.queue.arm_cancel(qjob, run.cancel)
                 report(line=f"on {backend.name}: {run.id}")
                 for n in run.notes:
                     report(line=n)
@@ -354,7 +354,7 @@ class Runner:
                 for n in fin.notes:
                     report(line=n)
                 run = backend.submit(g)
-                qjob.cancel_run = run.cancel
+                self.queue.arm_cancel(qjob, run.cancel)
                 report(line=f"on {backend.name}: {run.id}")
                 for n in run.notes:
                     report(line=n)
@@ -427,7 +427,7 @@ class Runner:
                 report(p.value, p.step, p.steps)
             try:
                 run = backend.submit(graph)
-                qjob.cancel_run = run.cancel
+                self.queue.arm_cancel(qjob, run.cancel)
                 report(line=f"on {backend.name}: {run.id}")
                 for n in run.notes:
                     report(line=n)
@@ -546,7 +546,7 @@ class Runner:
             report(line=f"{why}: run {run_id} on {backend.name}")
             try:
                 run = backend.attach(run_id, res.get("model"))
-                qjob.cancel_run = run.cancel
+                self.queue.arm_cancel(qjob, run.cancel)
                 status = run.watch(on_progress=progress)
                 result = self._collect(res, run, status, backend.name)
             except Exception as e:                       # noqa: BLE001  the record fails

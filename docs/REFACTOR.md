@@ -155,6 +155,19 @@ route already is).
   whole server 1.50 s before, not at all after. (A ValueError past the save itself now
   answers 400, not 500.)
 
+#### 1.5b A cancel asked while a job is staging isn't lost ✅
+Found by 1.5's live check: cancelled the instant it started, a local render ran its full
+59 s and succeeded. A cancel that arrives while the work is still staging (uploads, before
+its run exists) sets `cancel_asked` with nothing to call, and the five places the runner
+then gave the run's cancel (`qjob.cancel_run = run.cancel`) never looked back. **Change:**
+`Queue.arm_cancel(job, fn)` gives it under the queue's lock and calls it at once if a
+cancel (or the time limit) was asked; `Queue.cancel` reads `cancel_run` under the same
+lock, so exactly one of them stops the run.
+- **Done:** a queue test for both orders (cancel before / after the run starts; stopped
+  once either way). Live: cancelled at 0.0 s into a local render: the job ended
+  canceled in 1 s, "the job was canceled in ComfyUI", take sh010 t02 failed/canceled,
+  ComfyUI's queue empty. A cancel 15 s in (sh050) stops it too, as before.
+
 ### Speed
 
 #### 1.6 One `object_info` fetch per ComfyUI per 30 s ☐
