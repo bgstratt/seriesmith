@@ -256,7 +256,7 @@ takes still queued and hands its listing to `episode_status`.
   one.) A cold first load right after a server start can still take seconds while the
   startup readiness check runs beside it.
 
-#### 1.10 Assemble probes each file once ☐
+#### 1.10 Assemble probes each file once ✅ (your check pending)
 An assemble of 5 shots runs ffprobe 34 times, field by field (start time, streams,
 frame count, size, colour, duration), about a third of its time. **Change:**
 `ff.probe(path)` returns one dict of what assemble asks for, cached per (path, mtime,
@@ -269,6 +269,13 @@ minutes on a master).
 - **Live check (you):** Assemble Ballroom-refactor ep01 from the editor; play it: same
   cut, same audio, same length; the new file's hash matches the one assembled before
   the change.
+- **Done:** `assemble.probe(path)`: one `ffprobe -of json` per file with every field the
+  helpers read (frame count, rate, size, colour, start times, durations, audio layout,
+  the stream signature with its codec headers), kept per (path, size, mtime); the
+  helpers read their field from it and `-count_frames` stays the fallback. Outputs are
+  byte-identical to the old code's: Ballroom-refactor ep01 (sha1 358a3dcb…, 3 clips
+  re-encoded) and ep02 (d486e3d2…, every clip copied). ffprobe runs 34 → 12 (ep01) and
+  32 → 11 (ep02); ep01 3.8 → 3.3 s, ep02 1.84 → 0.75 s.
 
 Phase 1 ends with the whole bench rerun, the table above filled with after-numbers,
 and one PR.
