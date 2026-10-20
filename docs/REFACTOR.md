@@ -100,7 +100,7 @@ does, with the "renders at the estimate" warning.
   Live: sh020 as fl2va `dur: model 2-4` built at 4.00 s / 107 frames, check warned "H3
   FL2V can't predict", the editor showed it; the script restored after.
 
-#### 1.2 Saving Settings refreshes every field ✅ (your check pending)
+#### 1.2 Saving Settings refreshes every field ✅
 `server/queue_views.py:102` copies a hand-written field list into the live settings
 after a save, missing `enabled_drafts` and `target_limits`; the reply, Settings and
 `/info` show the old values until a restart. **Change:** copy `settings.FIELDS` (plus
@@ -142,7 +142,7 @@ transcribed again instead of crashing.
   cache cut short, before crashed with a JSONDecodeError traceback, after goes to
   transcribe again (here: "no Whisper installed", the venv has none).
 
-#### 1.5 Queue actions run off the event loop ✅ (your check pending)
+#### 1.5 Queue actions run off the event loop ✅
 `server/queue_views.py`: cancel, move, pause and the Settings save run on the event
 loop; cancel makes a network call to ComfyUI or the cloud there, so every open editor
 freezes until it returns. **Change:** run them in the executor (as every `api.py`
@@ -171,7 +171,7 @@ lock, so exactly one of them stops the run.
 
 ### Speed
 
-#### 1.6 One `object_info` fetch per ComfyUI per 30 s ✅ (your check pending)
+#### 1.6 One `object_info` fetch per ComfyUI per 30 s ✅
 17 call sites fetch ComfyUI's full node list (4.2 MB, 1.1 s) on every call, uncached,
 and the Context (and so the client) is new per request. **Change:** a shared cache in
 `jobs.Comfy.object_info`, keyed by base URL, with the readiness cache's TTL
@@ -204,7 +204,7 @@ today).
   workflows saved in ComfyUI still win); a dead port 98.4 → 2.35 s, identical answer.
   `test_readiness::test_route` 96 → 2.3 s.
 
-#### 1.8 The Refs tab: each file read once per request ✅ (your check pending; target half met)
+#### 1.8 The Refs tab: each file read once per request ✅ (target half met)
 `GET /refs` on Porchlights ep01 makes 3,200 JSON reads: the shotlist is parsed 378
 times (1.1 s), `episode_shots` and `cut_entries` rebuilt 56 times, `built_shot_ids` 43,
 `keyframe_refs` computed twice, takes listed again by the sweep, auto-pick and listing.
@@ -238,7 +238,7 @@ copy); `keyframe_refs` once per listing.
   Ballroom-refactor: a location ref generated locally (krea2, 16 s), its new take
   picked, the original picked back: the listing showed each change on the next request.
 
-#### 1.9 The Episode tab: takes read once per request ✅ (your check pending)
+#### 1.9 The Episode tab: takes read once per request ✅
 `GET /episode` lists every shot's takes twice (the sweep, then the status) and reads
 every sidecar twice (FRTEST: 846 reads of 423). **Change:** the sweep only looks at
 takes still queued and hands its listing to `episode_status`.
@@ -257,7 +257,7 @@ takes still queued and hands its listing to `episode_status`.
   one.) A cold first load right after a server start can still take seconds while the
   startup readiness check runs beside it.
 
-#### 1.10 Assemble probes each file once ✅ (your check pending)
+#### 1.10 Assemble probes each file once ✅
 An assemble of 5 shots runs ffprobe 34 times, field by field (start time, streams,
 frame count, size, colour, duration), about a third of its time. **Change:**
 `ff.probe(path)` returns one dict of what assemble asks for, cached per (path, mtime,
@@ -278,7 +278,7 @@ minutes on a master).
   re-encoded) and ep02 (d486e3d2…, every clip copied). ffprobe runs 34 → 12 (ep01) and
   32 → 11 (ep02); ep01 3.8 → 3.3 s, ep02 1.84 → 0.75 s.
 
-#### 1.11 Opening an episode doesn't wait on readiness or repeat itself ✅ (your check pending)
+#### 1.11 Opening an episode doesn't wait on readiness or repeat itself ✅
 Found by your check of 1.6 / 1.9 ("the first load of an episode still takes several
 seconds"), with a per-request timing log on the live server: opening an episode sent
 `/episodes` four times (0.3-0.45 s each) and `/episode` twice, and `/targets?ready=1`
@@ -296,7 +296,7 @@ Porchlights ep01's `/episode` ran 5.0 s on the server, 0.28 s alone. **Change:**
   install isn't kept. Off for tests and the CLI.
 - **Measured:** `/targets?ready=1` with its cache lapsed 1.6-2.5 s → 0.025 s.
 
-#### 1.12 A workflow with a system prompt imports as a model ✅ (your check pending)
+#### 1.12 A workflow with a system prompt imports as a model ✅
 Found by your check: adding `image_netayume_lumina_t2i` failed at save ("binding.params.prompt:
 workflow must contain exactly one StringConcatenate titled 'StringConcatenate'"). Two
 things were wrong. Its prompt and negative are each a StringConcatenate of a fixed system
@@ -317,6 +317,10 @@ Phase 1 ends with the whole bench rerun, the table above filled with after-numbe
 and one PR.
 
 ### Phase 1 results (2026-10-20, branch `refactor-fixes-speed`)
+
+Your checks (2026-10-20): cancel fast and correct, Upscale and Post instant, refs pick
+faster, assembly quicker and the cut plays the same, episodes open without the wait
+(after 1.11), the drafts switch and the Lumina workflow import work (1.12).
 
 Suite: 1522 passed, 14 skipped (1503 before; 19 new tests), 10:28 (12:15 before).
 Bench on the live server, restarted on the final commit (first / again):
