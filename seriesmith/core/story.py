@@ -430,7 +430,20 @@ def _overrides(d: dict, unparsed: dict) -> dict:
     return out
 
 
-def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int]) -> Shot:
+def _styled(styles: dict | None, sh: dict, seq: dict, key: str):
+    """A shot's `lens` or `look`, most specific first: its own line, its
+    profile's, its sequence's line, the sequence's profile's."""
+    for own in (sh, seq):
+        if own.get(key):
+            return own[key]
+        prof = (styles or {}).get(own.get("profile") or "") or {}
+        if prof.get(key):
+            return prof[key]
+    return None
+
+
+def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int],
+             styles: dict | None = None) -> Shot:
     unparsed: dict = {}
     if "audio_in" in sh:
         timing = {"audio_in": sh["audio_in"], "audio_out": sh["audio_out"]}
@@ -451,7 +464,8 @@ def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int]) -> Shot:
         id=sh["id"], cast=list(sh["cast"]), props=list(sh["props"]),
         plate=sh.get("plate") or seq["location_key"], size=sh["size"],
         camera=sh.get("camera") or None,
-        action=_with_lens(sh.get("lens") or seq.get("lens"), sh["action"]),
+        action=_with_style(_styled(styles, sh, seq, "look"), _styled(styles, sh, seq, "lens"),
+                           sh["action"]),
         dialogue=[Line(speaker=d["who"], mode=d["mode"] or "on",
                        delivery=d["delivery"], line=d["line"]) for d in sh["dialogue"]],
         sound=sh.get("sound") or None, music=sh.get("music") or None,
@@ -462,20 +476,25 @@ def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int]) -> Shot:
         unparsed=unparsed, target=sh.get("target") or None,
         profile=sh.get("profile") or None, first=sh.get("first") or None,
         last=sh.get("last") or None, continuous=sh.get("continuous") or None, sla=sh.get("sla"),
-        lens=sh.get("lens") or seq.get("lens"),
+        lens=_styled(styles, sh, seq, "lens"), look=_styled(styles, sh, seq, "look"),
         overlap=sh.get("overlap"), legacy=list(sh.get("_legacy") or []))
 
 
-def _with_lens(lens: str | None, action: str) -> str:
-    """The action, opened by the `lens:` sentence when there is one."""
-    if not lens:
-        return action
-    return f"{framing.lens_sentence(lens)} {action}".rstrip()
+def _with_style(look: str | None, lens: str | None, action: str) -> str:
+    """The action, opened by a profile's look words and the `lens:` sentence
+    when there are any (so every model reads them)."""
+    lead = []
+    if look:
+        look = look.strip().rstrip(".")
+        lead.append(look[:1].upper() + look[1:] + ".")
+    if lens:
+        lead.append(framing.lens_sentence(lens))
+    return " ".join(lead + [action]).strip() if lead else action
 
 
 def episode_from_parsed(ep: dict, seq_lines: list[int],
                         spans: dict[str, tuple[int, int]],
-                        series: dict | None = None) -> Episode:
+                        series: dict | None = None, styles: dict | None = None) -> Episode:
     sequences = []
     for seq, line in zip(ep["sequences"], seq_lines):
         unparsed: dict = {}
@@ -484,7 +503,7 @@ def episode_from_parsed(ep: dict, seq_lines: list[int],
             id=seq["id"], location=seq["location_key"], continuous=seq["continuous"] or None,
             overlap=seq.get("overlap"), legacy=list(seq.get("_legacy") or []),
             overrides=overrides, source={"line": line},
-            shots=[_shot_ir(ep["id"], seq, sh, spans[sh["id"]]) for sh in seq["shots"]],
+            shots=[_shot_ir(ep["id"], seq, sh, spans[sh["id"]], styles) for sh in seq["shots"]],
             unparsed=unparsed, target=seq.get("target") or None,
             profile=seq.get("profile") or None, first=seq.get("first") or None,
             last=seq.get("last") or None, sla=seq.get("sla"), lens=seq.get("lens")))
@@ -494,10 +513,13 @@ def episode_from_parsed(ep: dict, seq_lines: list[int],
 
 def parse_story(text: str, subject_ids: set[str], character_ids: set[str],
                 series: dict | None = None,
-                variants: dict[str, str] | None = None) -> Episode:
+                variants: dict[str, str] | None = None,
+                styles: dict | None = None) -> Episode:
     """Parse a script into the story IR. `series` ({fps, width, height}, from
     series_config.series_info) is carried on the episode header; `variants`
     ({variant id: base id}, from series_config.variant_of) binds a base's
-    dialogue to the variant on screen. See `_parse`."""
+    dialogue to the variant on screen; `styles` ({profile: {look?, lens?}},
+    from series_config.profile_styles) is what a `profile:` adds to a shot's
+    prompt. See `_parse`."""
     ep, seq_lines, spans = _parse(text, subject_ids, character_ids, variants)
-    return episode_from_parsed(ep, seq_lines, spans, series)
+    return episode_from_parsed(ep, seq_lines, spans, series, styles)

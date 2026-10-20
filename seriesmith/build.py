@@ -31,7 +31,7 @@ from typing import Callable
 
 from seriesmith import targets as TG
 from seriesmith.core import framing, ir  # noqa: F401
-from seriesmith.core.series_config import (character_ids, load_series_config,
+from seriesmith.core.series_config import (character_ids, load_series_config, profile_styles,
                                            series_info, subject_ids, variant_of)
 # Model-neutral pieces, re-exported under their old names: the aligner and
 # others import them from here.
@@ -407,7 +407,8 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         with open(args.script, encoding="utf-8") as fh:
             # parse -> story IR
             story = parse_story(fh.read(), subject_ids(series_cfg), character_ids(series_cfg),
-                                series_info(series_cfg), variant_of(series_cfg))
+                                series_info(series_cfg), variant_of(series_cfg),
+                                profile_styles(series_cfg))
         # -> the video target each shot renders on (profiles and target:
         # lines checked here) -> each target compiles its own shots
         groups = TG.episode_targets(story, series_cfg)

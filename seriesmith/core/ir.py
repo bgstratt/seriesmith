@@ -67,7 +67,7 @@ def _overrides(d: dict | None = None) -> dict:
 def _put_choice(d: dict, node) -> None:
     """`target`, `profile`, `first` and `last` (and a shot's `continuous`,
     `overlap` and legacy notes), only when set (see the module docstring)."""
-    for k in ("target", "profile", "first", "last", "sla", "lens"):
+    for k in ("target", "profile", "first", "last", "sla", "lens", "look"):
         if getattr(node, k, None):
             d[k] = getattr(node, k)
     for k in ("overlap", "legacy"):
@@ -127,7 +127,8 @@ class Shot:
     last: str | None = None
     continuous: str | None = None    # `continuous:` on the shot: first | latent | none
     sla: str | None = None           # `sla:`: on | off, the model's sparse attention
-    lens: str | None = None          # `lens:` (its own or its sequence's); the action opens with it
+    lens: str | None = None          # `lens:` (its own, its profile's, its sequence's); the action opens with it
+    look: str | None = None          # its profile's look words; the action opens with them
     overlap: int | None = None       # `overlap:`: frames of the previous clip a latent holds
     legacy: list = field(default_factory=list)   # old forms read, for `seriesmith check`
 
@@ -187,7 +188,7 @@ class Shot:
                    target=d.get("target"), profile=d.get("profile"),
                    first=d.get("first"), last=d.get("last"),
                    continuous=d.get("continuous"), overlap=d.get("overlap"), sla=d.get("sla"),
-                   lens=d.get("lens"), legacy=list(d.get("legacy") or []))
+                   lens=d.get("lens"), look=d.get("look"), legacy=list(d.get("legacy") or []))
 
 
 @dataclass

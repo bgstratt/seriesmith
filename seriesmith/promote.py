@@ -129,10 +129,11 @@ class State:
 
 
 def parse(text: str, cfg: dict):
-    from seriesmith.core.series_config import character_ids, series_info, subject_ids, variant_of
+    from seriesmith.core.series_config import (character_ids, profile_styles, series_info,
+                                               subject_ids, variant_of)
     from seriesmith.core.story import parse_story
     return parse_story(text, subject_ids(cfg), character_ids(cfg), series_info(cfg),
-                       variant_of(cfg))
+                       variant_of(cfg), profile_styles(cfg))
 
 
 # ---------------------------------------------------------------------------

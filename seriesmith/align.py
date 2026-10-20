@@ -99,13 +99,13 @@ def shot_grids(series_cfg_path: str, script_text: str):
     `target:` lines), H3's 17k+5 or LTX's 8k+1. A script the targets can't
     resolve falls back to the series target for every shot."""
     from seriesmith import targets as TG
-    from seriesmith.core.series_config import (character_ids, load_series_config, series_info,
-                                      subject_ids, variant_of)
+    from seriesmith.core.series_config import (character_ids, load_series_config, profile_styles,
+                                               series_info, subject_ids, variant_of)
     cfg = load_series_config(series_cfg_path)
     default = TG.video_target(cfg)
     try:
         story = BLD.parse_story(script_text, subject_ids(cfg), character_ids(cfg),
-                                    series_info(cfg), variant_of(cfg))
+                                    series_info(cfg), variant_of(cfg), profile_styles(cfg))
         by_shot = TG.shot_targets(story, cfg)
     except Exception:
         by_shot = {}

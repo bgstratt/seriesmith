@@ -47,7 +47,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
-| `GET /seriesmith/presets`, `GET /seriesmith/presets/image` | Presets as pictures |
+| `GET /seriesmith/presets`, `GET /seriesmith/presets/image`, `POST /seriesmith/presets/own`, `/presets/own/delete` | Presets as pictures |
 | `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
 | `POST /seriesmith/refs/keyframe` | Continuity keyframes |
 | `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
@@ -3950,6 +3950,23 @@ made by `tools/make_preset_samples.py`).
   the sample is a short silent clip.
 - `images` / `image` name a sample picture only once it is made. `group` is for grouping the
   tiles. `kind` answers with that list alone; another kind is 400.
+- Your own looks and relights follow the shipped ones, in the group `yours` with `"own":
+  true`; their pictures are named `own/<kind>/<id>.jpg`.
+
+### `POST /seriesmith/presets/own`
+Body `{"kind": "look" | "relight", "label", "id"?, "text"?, "parts"?, "place"?, "subject"?,
+"picture"?: {"ep", "ref", "view"?, "take"?}}`: keep one of your own presets for every show on
+this machine (`presets.save_own`), in `presets.json` beside the settings file. A look needs
+`text` (and may carry its builder `parts`); a relight its instruction for a `place`, a
+`subject` or both. `id` replaces that one of yours; without it the id comes from the label,
+made unique against the shipped presets and yours. `picture` (a ref's take, or its live
+picture without `take`) becomes its tile, a JPEG 480 px on its long side. Returns the preset
+as the list gives it. 400 for another kind, no name, no text or instruction, or an `id` you
+don't have; 404 for an unknown ref.
+
+### `POST /seriesmith/presets/own/delete`
+Body `{"kind", "id"}`: forget one of your own presets and its picture. 400 when you have no
+such preset.
 
 ### `GET /seriesmith/presets/image?name=look/neon_noir.jpg`
 The sample (a JPEG about 480 px wide; a camera move's a silent H.264 clip about 360 px wide,

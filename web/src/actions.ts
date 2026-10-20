@@ -30,6 +30,7 @@ import type {
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
+  OwnPresetRequest,
 } from "./types";
 
 const set = store.set;
@@ -369,6 +370,44 @@ const modelFilesLoading = new Map<string, Promise<void>>();
 let presetsLoading: Promise<void> | null = null;
 
 /** GET /seriesmith/presets, once (a server without the route: empty lists, the pickers stay text) */
+/**
+ * Keep one of your own looks or relights (POST /seriesmith/presets/own),
+ * asking its name first; `picture` (a ref's take) becomes its tile. The
+ * presets are read again, so it shows at once. True when kept.
+ */
+export async function saveOwnPreset(req: Omit<OwnPresetRequest, "label" | "picture">, suggested = "",
+                                    picture?: { ref: string; view?: string | null; take?: number | null }): Promise<boolean> {
+  const label = window.prompt(`Name this ${req.kind === "look" ? "look" : "relight"} (it's kept for every show on this machine):`, suggested);
+  if (!label?.trim()) return false;
+  const ep = get().ep;
+  try {
+    const p = await api().presetSaveOwn({ ...req, label: label.trim(), picture: picture && ep ? { ep, ...picture } : null });
+    host().toast("success", `Saved “${p.label}”`, "Under Yours, in every show's presets.");
+    await reloadPresets();
+    return true;
+  } catch (e) {
+    report(`Couldn't save the ${req.kind}`, e);
+    return false;
+  }
+}
+
+/** Forget one of your own presets, after asking. */
+export async function deleteOwnPreset(kind: "look" | "relight", id: string, label: string) {
+  if (!confirm(`Remove your ${kind} “${label}”? Series that use its words keep them.`)) return;
+  try {
+    await api().presetDeleteOwn({ kind, id });
+    await reloadPresets();
+  } catch (e) {
+    report(`Couldn't remove “${label}”`, e);
+  }
+}
+
+/** Read the presets again (after one of yours changed). */
+export function reloadPresets(): Promise<void> {
+  set({ presets: null });
+  return loadPresets();
+}
+
 export function loadPresets(): Promise<void> {
   if (get().presets || presetsLoading) return presetsLoading ?? Promise.resolve();
   presetsLoading = (async () => {

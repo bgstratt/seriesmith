@@ -4,7 +4,7 @@
 // image 2 onward ("put her in the coat from image 2").
 
 import { useMemo, useState } from "react";
-import { generateRef } from "../actions";
+import { generateRef, saveOwnPreset } from "../actions";
 import { tn } from "../lib/format";
 import { imageTargets, isEditTarget } from "../lib/imageTargets";
 import { parseLoras, type LoraRow } from "../lib/overrideForm";
@@ -87,6 +87,13 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
       )}
       <PresetPicker tiles={relights} value={text} onPick={setText} square={r.kind !== "location"}
         title="Relight: the same picture at another time, in other weather or light" />
+      {text.trim() && (
+        <button type="button" className="h3-link h3-small" style={{ alignSelf: "flex-start" }}
+          title="Keep this instruction as a relight of yours, offered in every show under Yours (save it from the finished take instead to keep its picture as the tile)"
+          onClick={() => void saveOwnPreset({ kind: "relight", [r.kind === "location" ? "place" : "subject"]: text.trim() })}>
+          <i className="pi pi-bookmark" /> Save as a relight…
+        </button>
+      )}
       <div className="h3-row h3-wrap" style={{ gap: 3 }}>
         <span className="h3-small h3-muted">Fix:</span>
         <button className={`h3-btn h3-small${text === SHARPEN ? " h3-on" : ""}`} title={`${SHARPEN}. Best on Rapid AIO, with no other picture brought in`} onClick={() => setText(SHARPEN)}>Sharpen</button>

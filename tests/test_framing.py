@@ -208,3 +208,39 @@ class LensTest(unittest.TestCase):
         path = os.path.join(ROOT, "seriesmith", "presets", "look_builder.json")
         rows = {r["id"]: r for r in json.load(open(path, encoding="utf-8"))["rows"]}
         self.assertEqual({o["id"]: o["clause"] for o in rows["lens"]["options"]}, framing.LENSES)
+
+
+class ProfileStyleTest(unittest.TestCase):
+    """A profile's `look` and `lens` (series config `profiles`): what `profile:`
+    adds to its shots' prompts, a shot's own line first."""
+
+    PROFILES = {"flashback": {"look": "a faded, desaturated memory with soft halation",
+                              "lens": "vintage", "steps": 20},
+                "tight": {"lens": "long"}}
+
+    def story(self, text):
+        from seriesmith.core.series_config import profile_styles
+        from seriesmith.core.story import parse_story
+        styles = profile_styles({"profiles": self.PROFILES})
+        return parse_story(text, {"ada"}, {"ada"}, styles=styles)
+
+    def test_a_profile_opens_the_action(self):
+        sq = self.story("= ep01  T\n\n# sq01  kitchen\nprofile: flashback\n\n## sh010\ndur: 3\n\nAda waits.\n\n"
+                        "## sh020\nprofile: tight\ndur: 3\n\nAda turns.\n\n"
+                        "## sh030\nlens: shallow\ndur: 3\n\nAda sits.\n").sequences[0]
+        a, b, c = sq.shots
+        self.assertEqual(a.action, "A faded, desaturated memory with soft halation. Vintage lenses: soft "
+                                   "edges, a gentle glow around the highlights, lower contrast. Ada waits.")
+        self.assertEqual((a.look, a.lens), ("a faded, desaturated memory with soft halation", "vintage"))
+        self.assertEqual(b.lens, "long")                        # its own profile before the sequence's
+        self.assertTrue(b.action.startswith("A faded"))         # the sequence's look still holds
+        self.assertEqual(c.lens, "shallow")                     # its own line first
+
+    def test_a_bad_lens_is_the_series_configs(self):
+        from seriesmith.core.series_config import profile_styles
+        with self.assertRaisesRegex(ValueError, "profile 'x': lens 'fisheye'"):
+            profile_styles({"profiles": {"x": {"lens": "fisheye"}}})
+
+    def test_the_render_side_takes_them(self):
+        from seriesmith import targets as TG
+        self.assertEqual(TG.series_profiles({"profiles": self.PROFILES})["flashback"], {"steps": 20})
