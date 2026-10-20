@@ -1542,11 +1542,7 @@ def post_upscale(ctx: Context, body):
             jobs.append(up)
     queued = []
     if jobs:
-        try:
-            info = ctx.comfy.object_info()
-        except Exception as e:
-            raise ApiError(502, f"ComfyUI didn't answer: {e}")
-        missing = U.not_ready(jobs, info)
+        missing = missing_on_comfy(ctx, lambda info: U.not_ready(jobs, info))
         if missing:
             raise ApiError(409, "this ComfyUI can't run these upscales: " + "; ".join(missing))
         from seriesmith import finishing as F
@@ -1665,11 +1661,7 @@ def queue_post(ctx: Context, body):
             jobs.append(job)
     queued = []
     if jobs:
-        try:
-            info = ctx.comfy.object_info()
-        except Exception as e:
-            raise ApiError(502, f"ComfyUI didn't answer: {e}")
-        missing = P.not_ready(jobs, info)
+        missing = missing_on_comfy(ctx, lambda info: P.not_ready(jobs, info))
         if missing:
             raise ApiError(409, "this ComfyUI can't run these posts: " + "; ".join(missing))
         from seriesmith import finishing as F
@@ -1709,7 +1701,7 @@ def get_post_options(ctx: Context, query: dict):
     episode's post recipe (`ep`)."""
     from seriesmith import post as P
     try:
-        info = ctx.comfy.object_info()
+        info = comfy_object_info(ctx)
     except Exception:
         info = None
 
@@ -1971,7 +1963,7 @@ def get_upscale_options(ctx: Context, query: dict):
     models/upscale_models) and default, and each video target's latent upscale
     (null: it has none; else its readiness)."""
     try:
-        info = ctx.comfy.object_info()
+        info = comfy_object_info(ctx)
     except Exception:
         info = None
     px = U.pixel_readiness(info)
@@ -2342,6 +2334,47 @@ READY_TTL = 30.0                                          # seconds a readiness 
 _READY: dict = {}
 _READY_LOCK = None
 _GRAPHS: dict = {}                                        # (Phase 11) the graph in force
+_INFO: dict = {}                                          # ComfyUI's /object_info, per address
+
+
+def comfy_object_info(ctx: Context, fresh: bool = False) -> dict:
+    """ComfyUI's /object_info (every node class it knows: megabytes, a second to
+    answer), kept READY_TTL seconds per address like readiness, for the
+    dialogs and checks that ask what this ComfyUI can run. Raises as
+    ctx.comfy.object_info does, and a failure isn't kept. `fresh` asks again
+    (before refusing work for a missing node: it may have just gone in). Only
+    a context's own client is cached; a fake one given in (tests) is asked."""
+    import time
+    if ctx._comfy is not None and not isinstance(ctx._comfy, J.Comfy):
+        return ctx.comfy.object_info()
+    hit = _INFO.get(ctx.comfy_url)
+    if hit and not fresh and time.monotonic() - hit[0] < READY_TTL:
+        return hit[1]
+    info = ctx.comfy.object_info()
+    _INFO[ctx.comfy_url] = (time.monotonic(), info)
+    return info
+
+
+def missing_on_comfy(ctx: Context, not_ready) -> list[str]:
+    """not_ready(object_info) on this ComfyUI: the kept answer first, and asked
+    again before anything is reported missing (it may have just gone in). 502
+    when ComfyUI doesn't answer."""
+    for fresh in (False, True):
+        try:
+            info = comfy_object_info(ctx, fresh=fresh)
+        except Exception as e:
+            raise ApiError(502, f"ComfyUI didn't answer: {e}")
+        missing = not_ready(info)
+        if not missing:
+            break
+    return missing
+
+
+def forget_comfy() -> None:
+    """Drop what was kept of every ComfyUI (readiness, /object_info): a file or
+    node pack went in, so the next answer asks again."""
+    _READY.clear()
+    _INFO.clear()
 
 
 def target_graphs(ctx: Context, refresh: bool = False) -> dict:
@@ -2363,6 +2396,7 @@ def forget_graphs(ctx: Context) -> None:
     graph itself, and readiness (its node check reads that graph)."""
     _GRAPHS.pop(ctx.comfy_url, None)
     _READY.pop(ctx.comfy_url, None)
+    _INFO.pop(ctx.comfy_url, None)
 
 
 @handler
@@ -2853,7 +2887,7 @@ def target_readiness(ctx: Context) -> dict:
         if hit and time.monotonic() - hit[0] < READY_TTL:
             return hit[1]
         try:
-            info, error = ctx.comfy.object_info(), ""
+            info, error = comfy_object_info(ctx), ""
         except Exception as e:
             info, error = None, f"ComfyUI didn't answer /object_info: {e}"
         rd = E.readiness(TG.list_targets(), info, ctx.model_resolve, ctx.model_cache,

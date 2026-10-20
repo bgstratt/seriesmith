@@ -1,7 +1,9 @@
 """
 The caches that keep the episode status fast: takes.file_sha1 (a ref's sha1,
 kept while its size and mtime hold) and targets._folders (the target listing,
-kept for a couple of seconds). Each must give the answer an uncached call would.
+kept for a couple of seconds); and ComfyUI's /object_info, kept per address
+for the dialogs (api.comfy_object_info). Each must give the answer an uncached
+call would.
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
+from seriesmith import api as A  # noqa: E402
+from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 
@@ -133,3 +137,70 @@ class FoldersCacheTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ObjectInfoCacheTest(unittest.TestCase):
+    """/object_info is a second and megabytes: asked once per ComfyUI for
+    READY_TTL, again when told (fresh, forget_comfy), never kept when it fails."""
+
+    def setUp(self):
+        from unittest import mock
+        self.asked = []
+        self.answer = {"KSampler": {}}
+
+        def object_info(comfy):
+            self.asked.append(comfy.base)
+            if self.answer is None:
+                raise RuntimeError("ComfyUI away")
+            return dict(self.answer)
+        patch = mock.patch.object(J.Comfy, "object_info", object_info)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.addCleanup(A.forget_comfy)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def ctx(self, url="http://127.0.0.1:8188"):
+        return A.Context(self._tmp.name, url, env={}, model_resolve=None)
+
+    def test_asked_once_per_comfyui_while_fresh(self):
+        a = A.comfy_object_info(self.ctx())
+        b = A.comfy_object_info(self.ctx())                  # a new request, its own client
+        self.assertIs(a, b)
+        A.comfy_object_info(self.ctx("http://127.0.0.1:8189"))
+        self.assertEqual(self.asked, ["http://127.0.0.1:8188", "http://127.0.0.1:8189"])
+
+    def test_fresh_forget_and_age_ask_again(self):
+        A.comfy_object_info(self.ctx())
+        A.comfy_object_info(self.ctx(), fresh=True)
+        A.forget_comfy()
+        A.comfy_object_info(self.ctx())
+        old = A._INFO["http://127.0.0.1:8188"]
+        A._INFO["http://127.0.0.1:8188"] = (old[0] - A.READY_TTL - 1, old[1])
+        A.comfy_object_info(self.ctx())
+        self.assertEqual(len(self.asked), 4)
+
+    def test_a_failure_is_not_kept(self):
+        self.answer = None
+        with self.assertRaises(RuntimeError):
+            A.comfy_object_info(self.ctx())
+        self.answer = {"KSampler": {}}
+        self.assertEqual(A.comfy_object_info(self.ctx()), {"KSampler": {}})
+        self.assertEqual(len(self.asked), 2)
+
+    def test_a_fake_client_is_always_asked(self):
+        class Fake:
+            def object_info(self):
+                return {"Fake": {}}
+        ctx = A.Context(self._tmp.name, "http://127.0.0.1:8188", comfy=Fake(), env={},
+                        model_resolve=None)
+        self.assertEqual(A.comfy_object_info(ctx), {"Fake": {}})
+        self.assertNotIn("http://127.0.0.1:8188", A._INFO)
+
+    def test_missing_is_asked_again_before_it_is_believed(self):
+        A.comfy_object_info(self.ctx())                       # kept: no SeedVR2 yet
+        self.answer = {"KSampler": {}, "SeedVR2": {}}         # then it went in
+        missing = A.missing_on_comfy(self.ctx(), lambda info: [] if "SeedVR2" in info
+                                     else ["SeedVR2"])
+        self.assertEqual(missing, [])
+        self.assertEqual(len(self.asked), 2)

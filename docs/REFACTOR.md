@@ -170,7 +170,7 @@ lock, so exactly one of them stops the run.
 
 ### Speed
 
-#### 1.6 One `object_info` fetch per ComfyUI per 30 s ☐
+#### 1.6 One `object_info` fetch per ComfyUI per 30 s ✅ (your check pending)
 17 call sites fetch ComfyUI's full node list (4.2 MB, 1.1 s) on every call, uncached,
 and the Context (and so the client) is new per request. **Change:** a shared cache in
 `jobs.Comfy.object_info`, keyed by base URL, with the readiness cache's TTL
