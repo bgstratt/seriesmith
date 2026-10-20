@@ -246,6 +246,36 @@ class BuildTest(unittest.TestCase):
 # queue time: the predictor, or the estimate
 # ---------------------------------------------------------------------------
 
+class FL2VABuildTest(unittest.TestCase):
+    """H3 FL2VA can't predict either: the estimate renders, as on Ref2VA."""
+
+    def test_falls_back_to_the_estimate_and_warns(self):
+        script = ("= dm02  FL2VA\n\n# sq01  kitchen\ntarget: minimax_h3_fl2va\n\n"
+                  "## sh010\nwho: ada\nsize: ws\ndur: model 2-4\nAda wipes the counter.\n\n"
+                  "## sh020\nwho: ada, bo\nsize: ms\ndur: model\n"
+                  "ADA: You know that one whistles.\nBO: I know.\n")
+        with tempfile.TemporaryDirectory() as root:
+            shutil.copy(os.path.join(MIXED, "series.json"), root)
+            with open(os.path.join(root, "dm02.md"), "w", encoding="utf-8") as fh:
+                fh.write(script)
+            args = [sys.executable, "-m", "seriesmith.build", os.path.join(root, "series.json"),
+                    os.path.join(root, "dm02.md"), "-o", root, "--proxy"]
+            r = subprocess.run(args, capture_output=True, env=ENV, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            check = subprocess.run(args + ["--check"], capture_output=True, env=ENV, text=True,
+                                   encoding="utf-8").stdout
+            doc, i = J.find_shot(root, "proxy", "sh010")
+            self.assertEqual(doc["target"], "minimax_h3_fl2va")
+            e = doc["shots"][i]
+            # silent: the 5 s default, clamped to the script's 2-4
+            self.assertEqual((e["duration"], e["length_estimated"]), (4.0, True))
+            self.assertNotIn("duration_predict", e)
+            # dialogue: the `dur: auto` length
+            _, j = J.find_shot(root, "proxy", "sh020")
+            self.assertTrue(doc["shots"][j]["length_estimated"])
+            self.assertIn("sh010: `dur: model` renders the estimate, 4.00s", check)
+
+
 class QueueTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

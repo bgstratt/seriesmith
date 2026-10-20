@@ -53,6 +53,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import copy
 import datetime as _dt
 import glob
 import hashlib
@@ -228,6 +229,55 @@ def read_json(path: str, default=None):
         return _shared(read)
     except FileNotFoundError:
         return default
+
+
+# Files read over and over in one request and between them (a shotlist: one
+# Refs listing of a 324-shot episode parsed it 378 times, a second of its 2.7).
+# Kept parsed while size and mtime hold, as file_sha1 keeps its hashes, and not
+# while it may still be written to (RACY_S). The parsed value is SHARED by every
+# caller: read it, never change it (copy.deepcopy first, as frozen_shotlist does).
+_KEPT: dict[str, tuple[int, int, object]] = {}
+_KEPT_MAX = 256
+_KEPT_LOCK = threading.Lock()
+
+
+def read_json_kept(path: str):
+    """The JSON in `path`, parsed once while the file is unchanged; the same
+    object to every caller, so read-only. FileNotFoundError when it's gone,
+    ValueError when it doesn't parse (neither is kept), as json.load."""
+    st = os.stat(path)
+    key = os.path.normcase(os.path.abspath(path))
+    with _KEPT_LOCK:
+        hit = _KEPT.get(key)
+    if hit and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
+        return hit[2]
+
+    def read():
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    data = _shared(read)
+    if time.time() - st.st_mtime_ns / 1e9 > RACY_S:
+        with _KEPT_LOCK:
+            if len(_KEPT) >= _KEPT_MAX:
+                _KEPT.clear()
+            _KEPT[key] = (st.st_size, st.st_mtime_ns, data)
+    return data
+
+
+def read_json_copy(path: str, default=None):
+    """read_json, for a small file read often and then changed and saved
+    (overrides, picks, the cut): its own copy of the kept parse, which is
+    cheaper than opening and parsing the file again. `default` when it's gone;
+    ValueError when it doesn't parse, as read_json."""
+    try:
+        return copy.deepcopy(read_json_kept(path))
+    except FileNotFoundError:
+        return default
+
+
+def forget_kept() -> None:
+    with _KEPT_LOCK:
+        _KEPT.clear()
 
 
 def write_json(path: str, data) -> None:
@@ -611,7 +661,7 @@ SHOT_FIELDS = ("seed", "note")
 
 
 def load_overrides(root: str) -> dict:
-    data = read_json(os.path.join(root, OVERRIDES_FILE)) or {}
+    data = read_json_copy(os.path.join(root, OVERRIDES_FILE)) or {}
     data.setdefault("shots", {})
     return data
 
@@ -918,7 +968,7 @@ def audio_label(spec: dict | None, list_pass: str = PASSES[0]) -> str:
 
 
 def load_cut(root: str) -> dict:
-    data = read_json(os.path.join(root, CUT_FILE)) or {}
+    data = read_json_copy(os.path.join(root, CUT_FILE)) or {}
     for p in PASSES:
         data.setdefault(p, [])
     return data

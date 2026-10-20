@@ -509,6 +509,32 @@ class ReadinessTest(unittest.TestCase):
         self.assertIn("SaveImage", E.target_nodes(TG.load_target("flux3_klein")))
         self.assertIn("SaveAudio", E.target_nodes(TG.load_target("ltx2_voice")))
 
+    def test_comfyui_away_is_asked_once_not_once_per_target(self):
+        """Which workflow each target renders: with ComfyUI not there, the one
+        listing fails and nothing more is asked of it (one request per target
+        took ~2 s each to fail on Windows: 96 s for the targets list)."""
+        import urllib.error
+        asked = []
+
+        def away(comfy, path, *a, **kw):
+            asked.append(path)
+            raise urllib.error.URLError("refused")
+        with mock.patch.object(J.Comfy, "_open", away):
+            graphs = E.target_graphs(TG.list_targets(), "http://127.0.0.1:9")
+        self.assertEqual(len(asked), 1, asked)
+        self.assertGreater(len(graphs), 10)
+        # the repo's copies still answer
+        self.assertEqual(graphs["ltx2"]["source"], "repo")
+
+        # a listing that fails some other way (an old ComfyUI): each target asked
+        def broken(comfy, path, *a, **kw):
+            asked.append(path)
+            raise RuntimeError("ComfyUI 500 on /api/userdata")
+        asked.clear()
+        with mock.patch.object(J.Comfy, "_open", broken):
+            E.target_graphs(TG.list_targets("video")[:3], "http://127.0.0.1:9")
+        self.assertEqual(len(asked), 4)
+
     def test_route(self):
         info = fake_object_info(drop_files={"ltx-2.5-duration-head-bf16.safetensors"})
 

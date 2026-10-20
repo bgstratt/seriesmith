@@ -402,14 +402,17 @@ def get_episodes(ctx: Context, query: dict):
     return 200, E.find_episodes(load_roots(ctx))
 
 
-def sweep(ctx: Context, ep: str, pass_: str) -> list:
-    """Close queued takes whose job is gone (see edit.sweep_takes). A ComfyUI
-    that doesn't answer means no sweep this time, not an error."""
+def sweep(ctx: Context, ep: str, pass_: str, listed: dict | None = None) -> list:
+    """Close queued takes whose job is gone (see edit.sweep_takes; `listed`
+    gets the takes it listed). A ComfyUI that doesn't answer means no sweep
+    this time, not an error."""
     try:
-        changed = E.sweep_takes(ep, pass_, ctx.comfy)
+        changed = E.sweep_takes(ep, pass_, ctx.comfy, listed=listed)
     except FileNotFoundError:
         raise
     except Exception:
+        if listed is not None:
+            listed.clear()                    # cut short: its listing isn't to be trusted
         return []
     for t in changed:
         take_event(ctx, ep, t)
@@ -421,8 +424,10 @@ def get_episode(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     J.load_shotlist(ep, pass_)                           # 404 before touching ComfyUI
-    sweep(ctx, ep, pass_)
-    return 200, seeds_out(E.episode_status(ep, pass_))
+    listed: dict = {}
+    changed = sweep(ctx, ep, pass_, listed)
+    # the sweep's listing serves the status too, unless it closed a take
+    return 200, seeds_out(E.episode_status(ep, pass_, listed=None if changed else listed))
 
 
 @handler
@@ -1542,11 +1547,7 @@ def post_upscale(ctx: Context, body):
             jobs.append(up)
     queued = []
     if jobs:
-        try:
-            info = ctx.comfy.object_info()
-        except Exception as e:
-            raise ApiError(502, f"ComfyUI didn't answer: {e}")
-        missing = U.not_ready(jobs, info)
+        missing = missing_on_comfy(ctx, lambda info: U.not_ready(jobs, info))
         if missing:
             raise ApiError(409, "this ComfyUI can't run these upscales: " + "; ".join(missing))
         from seriesmith import finishing as F
@@ -1665,11 +1666,7 @@ def queue_post(ctx: Context, body):
             jobs.append(job)
     queued = []
     if jobs:
-        try:
-            info = ctx.comfy.object_info()
-        except Exception as e:
-            raise ApiError(502, f"ComfyUI didn't answer: {e}")
-        missing = P.not_ready(jobs, info)
+        missing = missing_on_comfy(ctx, lambda info: P.not_ready(jobs, info))
         if missing:
             raise ApiError(409, "this ComfyUI can't run these posts: " + "; ".join(missing))
         from seriesmith import finishing as F
@@ -1709,7 +1706,7 @@ def get_post_options(ctx: Context, query: dict):
     episode's post recipe (`ep`)."""
     from seriesmith import post as P
     try:
-        info = ctx.comfy.object_info()
+        info = comfy_object_info(ctx)
     except Exception:
         info = None
 
@@ -1971,7 +1968,7 @@ def get_upscale_options(ctx: Context, query: dict):
     models/upscale_models) and default, and each video target's latent upscale
     (null: it has none; else its readiness)."""
     try:
-        info = ctx.comfy.object_info()
+        info = comfy_object_info(ctx)
     except Exception:
         info = None
     px = U.pixel_readiness(info)
@@ -2342,6 +2339,86 @@ READY_TTL = 30.0                                          # seconds a readiness 
 _READY: dict = {}
 _READY_LOCK = None
 _GRAPHS: dict = {}                                        # (Phase 11) the graph in force
+_INFO: dict = {}                                          # ComfyUI's /object_info, per address
+
+# On a server (the hosts set it, beside DETECT_DEFAULTS), an answer kept past
+# READY_TTL is still given at once while a thread asks ComfyUI again behind it:
+# readiness and /object_info took 1.5-2.5 s to remake, and every episode
+# opened after the 30 s waited on them. forget_comfy (an install) still makes
+# the next answer wait for a fresh one. Off for the tests and the CLI.
+REFRESH_BEHIND = False
+_BEHIND: set = set()
+_BEHIND_LOCK = threading.Lock()
+_GEN = [0]                                                # forget_comfy's count
+
+
+def _refresh_behind(key: tuple, work) -> None:
+    """work() on a thread of its own, one per key at a time, with this
+    request's shows in force (their own targets count)."""
+    with _BEHIND_LOCK:
+        if key in _BEHIND:
+            return
+        _BEHIND.add(key)
+    roots = TG.thread_roots()
+
+    def run():
+        try:
+            for r in roots:
+                TG.add_thread_root(r)
+            work()
+        except Exception:                                 # noqa: BLE001  the next ask tries again
+            pass
+        finally:
+            with _BEHIND_LOCK:
+                _BEHIND.discard(key)
+    threading.Thread(target=run, daemon=True, name="seriesmith-refresh").start()
+
+
+def comfy_object_info(ctx: Context, fresh: bool = False) -> dict:
+    """ComfyUI's /object_info (every node class it knows: megabytes, a second to
+    answer), kept READY_TTL seconds per address like readiness, for the
+    dialogs and checks that ask what this ComfyUI can run. Raises as
+    ctx.comfy.object_info does, and a failure isn't kept. `fresh` asks again
+    (before refusing work for a missing node: it may have just gone in). Only
+    a context's own client is cached; a fake one given in (tests) is asked."""
+    import time
+    if ctx._comfy is not None and not isinstance(ctx._comfy, J.Comfy):
+        return ctx.comfy.object_info()
+    hit = _INFO.get(ctx.comfy_url)
+    if hit and not fresh:
+        if time.monotonic() - hit[0] < READY_TTL:
+            return hit[1]
+        if REFRESH_BEHIND:
+            _refresh_behind(("info", ctx.comfy_url), lambda: comfy_object_info(ctx, fresh=True))
+            return hit[1]
+    gen = _GEN[0]
+    info = ctx.comfy.object_info()
+    if gen == _GEN[0]:                                    # not from before an install
+        _INFO[ctx.comfy_url] = (time.monotonic(), info)
+    return info
+
+
+def missing_on_comfy(ctx: Context, not_ready) -> list[str]:
+    """not_ready(object_info) on this ComfyUI: the kept answer first, and asked
+    again before anything is reported missing (it may have just gone in). 502
+    when ComfyUI doesn't answer."""
+    for fresh in (False, True):
+        try:
+            info = comfy_object_info(ctx, fresh=fresh)
+        except Exception as e:
+            raise ApiError(502, f"ComfyUI didn't answer: {e}")
+        missing = not_ready(info)
+        if not missing:
+            break
+    return missing
+
+
+def forget_comfy() -> None:
+    """Drop what was kept of every ComfyUI (readiness, /object_info): a file or
+    node pack went in, so the next answer asks again."""
+    _GEN[0] += 1
+    _READY.clear()
+    _INFO.clear()
 
 
 def target_graphs(ctx: Context, refresh: bool = False) -> dict:
@@ -2351,8 +2428,12 @@ def target_graphs(ctx: Context, refresh: bool = False) -> dict:
     graph itself, for readiness' node check; the route strips it."""
     import time
     hit = _GRAPHS.get(ctx.comfy_url)
-    if hit and not refresh and time.monotonic() - hit[0] < READY_TTL:
-        return hit[1]
+    if hit and not refresh:
+        if time.monotonic() - hit[0] < READY_TTL:
+            return hit[1]
+        if REFRESH_BEHIND:
+            _refresh_behind(("graphs", ctx.comfy_url), lambda: target_graphs(ctx, refresh=True))
+            return hit[1]
     graphs = E.target_graphs(TG.list_targets(), ctx.comfy_url)
     _GRAPHS[ctx.comfy_url] = (time.monotonic(), graphs)
     return graphs
@@ -2363,6 +2444,7 @@ def forget_graphs(ctx: Context) -> None:
     graph itself, and readiness (its node check reads that graph)."""
     _GRAPHS.pop(ctx.comfy_url, None)
     _READY.pop(ctx.comfy_url, None)
+    _INFO.pop(ctx.comfy_url, None)
 
 
 @handler
@@ -2848,22 +2930,37 @@ def target_readiness(ctx: Context) -> dict:
     global _READY_LOCK
     if _READY_LOCK is None:
         _READY_LOCK = threading.Lock()
+    hit = _READY.get(ctx.comfy_url)
+    if hit and time.monotonic() - hit[0] >= READY_TTL and REFRESH_BEHIND:
+        _refresh_behind(("ready", ctx.comfy_url), lambda: _make_readiness(ctx, fresh=True))
+        return hit[1]
     with _READY_LOCK:
         hit = _READY.get(ctx.comfy_url)
         if hit and time.monotonic() - hit[0] < READY_TTL:
             return hit[1]
-        try:
-            info, error = ctx.comfy.object_info(), ""
-        except Exception as e:
-            info, error = None, f"ComfyUI didn't answer /object_info: {e}"
-        rd = E.readiness(TG.list_targets(), info, ctx.model_resolve, ctx.model_cache,
-                         error=error, graph_of=E.graph_lookup(target_graphs(ctx)))
-        # an unanswered ComfyUI isn't worth remembering
-        if info is not None:
-            _READY[ctx.comfy_url] = (time.monotonic(), rd)
-            if DETECT_DEFAULTS:
-                remember_defaults(rd)
-        return rd
+        return _make_readiness(ctx, locked=True)
+
+
+def _make_readiness(ctx: Context, fresh: bool = False, locked: bool = False) -> dict:
+    """target_readiness worked out now and kept; `fresh` asks ComfyUI again for
+    what it was built from (a refresh behind a kept answer)."""
+    import time
+    if not locked:
+        with _READY_LOCK:
+            return _make_readiness(ctx, fresh, locked=True)
+    gen = _GEN[0]
+    try:
+        info, error = comfy_object_info(ctx, fresh=fresh), ""
+    except Exception as e:
+        info, error = None, f"ComfyUI didn't answer /object_info: {e}"
+    rd = E.readiness(TG.list_targets(), info, ctx.model_resolve, ctx.model_cache,
+                     error=error, graph_of=E.graph_lookup(target_graphs(ctx, refresh=fresh)))
+    # an unanswered ComfyUI isn't worth remembering, nor one from before an install
+    if info is not None and gen == _GEN[0]:
+        _READY[ctx.comfy_url] = (time.monotonic(), rd)
+        if DETECT_DEFAULTS:
+            remember_defaults(rd)
+    return rd
 
 
 # whether readiness answers update the settings' detected_targets (the

@@ -41,6 +41,7 @@ from seriesmith import targets as TG
 from seriesmith.core import ir
 from seriesmith.core.ir import stable_seed
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith.targets.video.ltx2.compile import model_duration, put_model_duration
 
 from .prompt import build_prompt, with_keyframes
 
@@ -81,11 +82,14 @@ class Ctx:
         self.absent = set(absent or ())
 
 
-def _duration(shot: ir.Shot, pace: str) -> tuple[float, bool]:
-    """(seconds, from a recording window) as the script asks."""
+def _duration(ctx: Ctx, shot: ir.Shot, pace: str) -> tuple[float, bool]:
+    """(seconds, from a recording window) as the script asks; `dur: model`
+    renders the estimate (H3 can't predict a length)."""
     t = shot.timing or {}
     if "audio_in" in t:
         return t["audio_out"] - t["audio_in"], True
+    if t.get("model"):
+        return model_duration(ctx, shot, pace)[0], False
     if t.get("auto"):
         if not shot.dialogue:
             raise ValueError(f"shot {shot.id}: `dur: auto` needs dialogue to measure. "
@@ -112,7 +116,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     pace = shot.pace or series_cfg.get("speech", {}).get("pace", "normal")
     if pace not in SPEECH_RATE:
         raise ValueError(f"series.json speech.pace '{pace}' must be one of {sorted(SPEECH_RATE)}")
-    dur, windowed = _duration(shot, pace)
+    dur, windowed = _duration(ctx, shot, pace)
     fps = ctx.fps
     req = max(1, round(dur * fps))
     raw = template.snap(req)
@@ -187,6 +191,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
         entry["audio_in"], entry["audio_out"] = t["audio_in"], t["audio_out"]
     else:
         entry["duration"] = round(dur, 3)
+    put_model_duration(ctx, shot, pace, entry)
     return entry
 
 

@@ -148,17 +148,25 @@ def consumers(graph: dict, nid: str) -> list[tuple[str, str]]:
 
 
 def text_widget(object_info: dict, graph: dict, nid: str) -> str | None:
-    """The name of the node's own text widget, if it has one."""
+    """The name of the node's own text widget, if it has one. A node with
+    several (a StringConcatenate: NetaYume Lumina's system prompt in string_a,
+    the prompt in string_b) takes the prompt in the LAST: a fixed prefix comes
+    first, the text it introduces after it (text_fields says there were more)."""
+    fields = text_fields(object_info, graph, nid)
+    return fields[-1] if fields else None
+
+
+def text_fields(object_info: dict, graph: dict, nid: str) -> list[str]:
+    """The node's own text widgets (not fed by a link): the named prompt
+    fields when it has one, else every multiline one, in the node's order."""
     have = graph[nid].get("inputs") or {}
     specs = widget_specs(object_info, graph[nid]["class_type"])
     for field in TEXT_FIELDS:
         spec = specs.get(field)
         if spec and spec[0] == "STRING" and not J.is_link(have.get(field)):
-            return field
-    for field, spec in specs.items():
-        if spec[0] == "STRING" and spec[1].get("multiline") and not J.is_link(have.get(field)):
-            return field
-    return None
+            return [field]
+    return [field for field, spec in specs.items()
+            if spec[0] == "STRING" and spec[1].get("multiline") and not J.is_link(have.get(field))]
 
 
 def walk_to_text(object_info: dict, graph: dict, start: str, depth: int = 8):
@@ -357,11 +365,39 @@ _FRAME_WIDGETS = ("length", "num_frames", "frame_count", "video_frames", "frames
 # ---------------------------------------------------------------------------
 
 def _spec(graph: dict, nid: str, field: str, many: list[str] | None = None) -> dict:
-    """A widget spec for target.json, narrowed by title when the class repeats."""
+    """A widget spec for target.json. When the class repeats it's narrowed so it
+    picks this node alone: by its title when no other node of the class shares
+    it, else by what it feeds, else both. Two un-renamed nodes share their
+    class's own title, so a title alone often isn't enough. When nothing tells
+    it apart the title stays, and binding_problems says to rename one."""
     out = {"class_type": graph[nid]["class_type"], "field": field}
-    if many and len(many) > 1 and title_of(graph, nid):
-        out["title"] = title_of(graph, nid)
+    if not many or len(many) < 2:
+        return out
+    title, feeds = title_of(graph, nid), _feeds(graph, nid)
+    fed = consumers(graph, nid)
+    named = feeds + [title_of(graph, fed[0][0])] if feeds and title_of(graph, fed[0][0]) else []
+    tries = ([{"title": title}] if title else []) + ([{"feeds": feeds}] if feeds else []) \
+        + ([{"title": title, "feeds": feeds}] if title and feeds else []) \
+        + ([{"feeds": named}] if named else [])
+    for narrow in tries:
+        if _picks(graph, dict(out, **narrow)) == [nid]:
+            return dict(out, **narrow)
+    if title:
+        out["title"] = title
     return out
+
+
+def _picks(graph: dict, spec: dict) -> list[str]:
+    try:
+        return J.select_nodes(graph, spec)
+    except ValueError:
+        return []
+
+
+def binding_problems(proposal: dict, graph: dict) -> list[str]:
+    """validate_spec's binding check on a proposal, said when the workflow is
+    inspected rather than only when it's saved."""
+    return [p for p in validate_spec(proposal, graph) if p.startswith("binding.params.")]
 
 
 def widget_candidates(object_info: dict, graph: dict, names: tuple,
@@ -458,6 +494,12 @@ def detect_prompt(object_info: dict, graph: dict) -> tuple[dict, dict, list]:
             many = nodes_of(graph, graph[nid]["class_type"])
             params[param] = _spec(graph, nid, field, many)
             matched[param] = f"{graph[nid]['class_type']}.{field}"
+            others = [f for f in text_fields(object_info, graph, nid) if f != field]
+            if others:
+                warnings.append(f"{param}: {graph[nid]['class_type']} has text in "
+                                f"{', '.join(others)} too, kept as the graph has it (a fixed "
+                                f"prefix, as a system prompt); the {param} goes in {field}. "
+                                f"Check that's the right one.")
         else:
             warnings.append(f"{param}: {len(nodes)} different text nodes feed the samplers "
                             f"({', '.join(sorted(graph[n]['class_type'] for n in nodes))}); "
@@ -900,6 +942,7 @@ def inspect_graph(data: dict, object_info: dict, model_list=None, target_id: str
                         + ", ".join(sorted({f"{u['class_type']}.{u['field']}" for u in unbound}))
                         + ". Bind one in binding.params if a shot should set it.")
     warnings.insert(0, saving_note(graph, saver, saver_node))
+    problems += [p for p in binding_problems(proposal, graph) if p not in problems]
     return with_notes({"proposal": proposal, "matched": matched, "ambiguous": ambiguous,
                        "warnings": warnings, "models": report, "nodes": unknown,
                        "unbound": unbound, "problems": problems})
@@ -1017,6 +1060,7 @@ def _inspect_image(data: dict, ui, graph: dict, problems: list, saver: dict, sav
                         + ", ".join(sorted({f"{u['class_type']}.{u['field']}" for u in unbound}))
                         + ". Bind one in binding.params if a ref should set it.")
     warnings.insert(0, saving_note(graph, saver, saver_node))
+    problems += [p for p in binding_problems(proposal, graph) if p not in problems]
     return {"proposal": proposal, "matched": matched, "ambiguous": ambiguous,
             "warnings": warnings, "models": report, "nodes": unknown,
             "unbound": unbound, "problems": problems}

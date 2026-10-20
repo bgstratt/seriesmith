@@ -171,6 +171,31 @@ class ReadyTest(unittest.TestCase):
                                                                  "missing": []}))
 
 
+class TranscriptCacheTest(unittest.TestCase):
+    """The transcript cached beside a recording: used when whole and newer than
+    the recording; a damaged one (an align cut short mid-write) is ignored."""
+
+    def test_only_a_whole_newer_cache_is_used(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            rec, cache = os.path.join(d, "take.wav"), os.path.join(d, "take.wav.words.json")
+            open(rec, "wb").close()
+            self.assertIsNone(AL.cached_words(cache, rec))                 # none yet
+            words = [{"word": "hi", "start": 0.1, "end": 0.3}]
+            T.write_json(cache, words)
+            os.utime(rec, (1, 1))
+            self.assertEqual(AL.cached_words(cache, rec), words)
+            with open(cache, "w", encoding="utf-8") as fh:
+                fh.write('[{"word": "hi", "sta')                           # cut short
+            self.assertIsNone(AL.cached_words(cache, rec))
+            T.write_json(cache, {"not": "a list"})
+            self.assertIsNone(AL.cached_words(cache, rec))
+            T.write_json(cache, words)
+            os.utime(rec, None)                                             # re-recorded since
+            os.utime(cache, (1, 1))
+            self.assertIsNone(AL.cached_words(cache, rec))
+
+
 class TrackTest(ApiTest):
     """POST /seriesmith/track."""
 

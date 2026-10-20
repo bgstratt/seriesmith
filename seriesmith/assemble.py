@@ -97,18 +97,59 @@ def have(tool: str) -> bool:
     return FF.have(tool)
 
 
+SIG_KEYS = ("codec_name", "profile", "level", "pix_fmt", "width", "height",
+            "r_frame_rate", "time_base", "sample_aspect_ratio")
+
+# Everything assemble reads of a file, asked of ffprobe in one run per file
+# (it was one run per field: 34 for a 5-shot cut, a third of its time), kept
+# while the file's size and mtime hold: a file this run writes again has a new
+# mtime, and ffmpeg can't rewrite one at the same size within a clock tick.
+PROBE_ENTRIES = ("stream=" + ",".join(dict.fromkeys(
+    ("codec_type", "nb_frames", "color_space", "start_time", "duration", "sample_rate",
+     "channels", "extradata") + SIG_KEYS)) + ":format=start_time")
+_PROBES: dict = {}
+_PROBES_MAX = 512
+
+
+def probe(path: str) -> dict:
+    """ffprobe's streams and format start of `path` ({"streams": [...],
+    "format": {...}}), or {} when it can't be read (that isn't kept)."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    key = (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
+    if key in _PROBES:
+        return _PROBES[key]
+    r = run([*FF.tool("ffprobe"), "-v", "error", "-show_data", "-show_entries", PROBE_ENTRIES,
+             "-of", "json", path], timeout=60)
+    try:
+        d = json.loads(r.stdout.decode("utf-8", "replace")) if r.returncode == 0 else {}
+    except ValueError:
+        d = {}
+    if not isinstance(d, dict) or not d.get("streams"):
+        return {}
+    if len(_PROBES) >= _PROBES_MAX:
+        _PROBES.clear()
+    _PROBES[key] = d
+    return d
+
+
+def _stream(path: str, kind: str) -> dict:
+    """The first stream of `kind` ("video", "audio") in probe(path), or {}."""
+    return next((s for s in probe(path).get("streams") or [] if s.get("codec_type") == kind), {})
+
+
 def frame_count(path: str) -> int:
     """The clip's video frames. An mp4 header records its sample count, which is
     read without decoding anything; `-count_frames` decodes the whole stream
     (minutes on a master) and is only the fallback, for a file whose header
     has no count."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=nb_frames", "-of", "csv=p=0", path], timeout=60)
     try:
-        n = int(r.stdout.decode().strip())
+        n = int(_stream(path, "video").get("nb_frames"))
         if n > 0:
             return n
-    except (ValueError, AttributeError):
+    except (TypeError, ValueError):
         pass
     r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-count_frames",
              "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", path],
@@ -121,10 +162,8 @@ def frame_count(path: str) -> int:
 
 def frame_rate(path: str) -> float | None:
     """The clip's frame rate (ffprobe's r_frame_rate), or None."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", path], timeout=60)
     try:
-        num, _, den = r.stdout.decode().strip().partition("/")
+        num, _, den = str(_stream(path, "video").get("r_frame_rate") or "").partition("/")
         v = float(num) / float(den or 1)
         return v if v > 0 else None
     except (ValueError, ZeroDivisionError, AttributeError):
@@ -150,10 +189,6 @@ def episode_fps(root: str, doc: dict) -> float:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else 24.0
 
 
-SIG_KEYS = ("codec_name", "profile", "level", "pix_fmt", "width", "height",
-            "r_frame_rate", "time_base", "sample_aspect_ratio")
-
-
 def stream_sig(path: str) -> tuple[tuple | None, tuple[int, int] | None, float]:
     """(the first video stream's parameters and H.264 headers, the first audio
     stream's (sample rate, channels), how many seconds the sound runs past the
@@ -162,17 +197,12 @@ def stream_sig(path: str) -> tuple[tuple | None, tuple[int, int] | None, float]:
     for every clip in it. The third must be nothing: the demuxer starts the next
     clip where the longer stream ends, so sound that overruns leaves a hole in
     the picture's timing (sh1360's upscale, 2026-10-04: 22 ms)."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-show_data", "-show_entries",
-             "stream=codec_type,sample_rate,channels,duration,extradata," + ",".join(SIG_KEYS),
-             "-of", "default", path], timeout=60)
     video = audio = None
     vdur = adur = None
-    for block in r.stdout.decode("utf-8", "replace").split("[STREAM]")[1:]:
-        block = block.split("[/STREAM]")[0]
-        head, _, data = block.partition("extradata=")
-        f = dict(ln.split("=", 1) for ln in head.splitlines() if "=" in ln)
+    for f in probe(path).get("streams") or []:
         if f.get("codec_type") == "video" and video is None:
-            video = tuple(f.get(k) for k in SIG_KEYS) + (data.strip(),)
+            video = tuple(None if f.get(k) is None else str(f[k]) for k in SIG_KEYS) \
+                + (str(f.get("extradata") or "").strip(),)
             vdur = _float(f.get("duration"))
         elif f.get("codec_type") == "audio" and audio is None:
             try:
@@ -198,9 +228,7 @@ OVERRUN_S = 0.001
 
 def video_duration(path: str) -> float | None:
     """The first video stream's duration from the file's header."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=duration", "-of", "csv=p=0", path], timeout=60)
-    return _float(r.stdout.decode().strip())
+    return _float(_stream(path, "video").get("duration"))
 
 
 def standard_sig(p: dict, fps: float, quality: str) -> tuple | None:
@@ -225,13 +253,13 @@ def picture_offset(path: str) -> float:
     a little after its sound (the B-frame delay), and a file of picture alone
     starts with it: seeking by the picture's own start time, or by none, lands a
     frame off in one case or the other."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
-             "stream=start_time:format=start_time", "-of", "json", path], timeout=60)
+    v = _stream(path, "video")
+    if not v:
+        return 0.0
     try:
-        d = json.loads(r.stdout.decode())
-        return (float(d["streams"][0].get("start_time") or 0)
-                - float(d.get("format", {}).get("start_time") or 0))
-    except (ValueError, KeyError, IndexError):
+        return (float(v.get("start_time") or 0)
+                - float(probe(path).get("format", {}).get("start_time") or 0))
+    except (TypeError, ValueError):
         return 0.0
 
 
@@ -279,24 +307,20 @@ def timing_gap(out: str, frames: int, fps: float) -> str | None:
 
 
 def video_size(path: str) -> tuple[int, int] | None:
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0",
-             "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path],
-            timeout=60)
+    v = _stream(path, "video")
     try:
-        w, h = r.stdout.decode().strip().split("x")[:2]
-        return int(w), int(h)
-    except (ValueError, AttributeError):
+        return int(v["width"]), int(v["height"])
+    except (KeyError, TypeError, ValueError):
         return None
 
 
 def audio_format(path: str) -> tuple[int, int] | None:
     """(sample rate, channels) of a file's first audio stream, or None."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "a:0", "-show_entries",
-             "stream=sample_rate,channels", "-of", "csv=p=0", path], timeout=60)
+    a = _stream(path, "audio")
     try:
-        rate, ch = r.stdout.decode().strip().splitlines()[0].split(",")[:2]
-        return (int(rate), int(ch)) if int(rate) > 0 and int(ch) > 0 else None
-    except (ValueError, IndexError, AttributeError):
+        rate, ch = int(a["sample_rate"]), int(a["channels"])
+        return (rate, ch) if rate > 0 and ch > 0 else None
+    except (KeyError, TypeError, ValueError):
         return None
 
 
@@ -398,9 +422,7 @@ BT709_TAGS = "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspac
 
 def color_matrix(path: str) -> str:
     """The first video stream's colour matrix tag ("bt709", "unknown", ...)."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
-             "stream=color_space", "-of", "csv=p=0", path], timeout=60)
-    return (r.stdout.decode().strip() or "unknown") if r.returncode == 0 else "unknown"
+    return str(_stream(path, "video").get("color_space") or "unknown")
 
 
 def to_bt709(matrix: str) -> list[str]:

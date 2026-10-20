@@ -100,6 +100,30 @@ class QueueTest(unittest.TestCase):
         self.q.cancel(a.id)
         wait_for(lambda: a.status == "canceled")
 
+    def test_a_cancel_asked_while_staging_stops_the_run_once_it_starts(self):
+        """Cancel before the work has a run to stop (it's uploading, staging):
+        the run is stopped as soon as it starts, not left to render to the end.
+        Asked after it started: stopped then. Either way, once."""
+        for early in (True, False):
+            with self.subTest(early=early):
+                staging, armed, stops = threading.Event(), threading.Event(), []
+
+                def work(job, report):
+                    staging.set()
+                    if early:
+                        wait_for(lambda: job.cancel_asked)        # still staging
+                    self.q.arm_cancel(job, lambda: stops.append(1))
+                    armed.set()
+                    wait_for(lambda: job.cancel_asked)
+                    return "canceled"
+                j = self.job(work)
+                staging.wait(5)
+                if not early:
+                    armed.wait(5)
+                self.q.cancel(j.id)
+                wait_for(lambda: j.status == "canceled")
+                self.assertEqual(stops, [1])
+
     def test_move_and_pause(self):
         g = Gate()
         self.q.pause("local")

@@ -36,12 +36,19 @@ try:
         when done left the next ones on this machine's real settings -- and
         its models for every show (a user's Wan workflow, saved beside them,
         turned up in the built-in lists, 2026-10-12). The targets' cache is
-        dropped too: its listing doesn't know which settings it was made on."""
+        dropped too: its listing doesn't know which settings it was made on;
+        and what was kept of ComfyUI (readiness, /object_info: api.forget_comfy)."""
         os.environ.update(_PINNED)
+        from seriesmith import api as A
         from seriesmith import targets as TG
+        from seriesmith import takes as T
         TG.forget_targets()
+        A.forget_comfy()
+        T.forget_kept()
         yield
         os.environ.update(_PINNED)
         TG.forget_targets()
+        A.forget_comfy()
+        T.forget_kept()
 except ImportError:                                      # pragma: no cover (unittest alone)
     pass

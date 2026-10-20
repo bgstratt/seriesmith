@@ -625,7 +625,7 @@ def picked_view_file(s: Series, subject: str, view: str) -> str | None:
     ref = next((r for r in series_refs(s) if r.id == f"subject:{subject}"), None)
     if ref is None:
         return None
-    n = picked_take(load_picks(ref.home), ref.id, view)
+    n = picked_take(read_picks(ref.home), ref.id, view)
     if n is None:
         return None
     t = next((t for t in list_takes(ref, view) if t.take == n), None)
@@ -1218,7 +1218,7 @@ def check_override_value(name: str, v):
 
 
 def load_overrides(home: str) -> dict:
-    data = T.read_json(os.path.join(home, OVERRIDES_FILE)) or {}
+    data = T.read_json_copy(os.path.join(home, OVERRIDES_FILE)) or {}
     data.setdefault("refs", {})
     return data
 
@@ -1346,10 +1346,22 @@ def override_view(s: Series, ref: Ref, view: str | None, data: dict,
 # sha1 is the live file's as the pick (or stitch) wrote it.
 
 def load_picks(home: str) -> dict:
-    data = T.read_json(os.path.join(home, PICKS_FILE)) or {}
+    data = T.read_json_copy(os.path.join(home, PICKS_FILE)) or {}
     data.setdefault("version", 1)
     data.setdefault("refs", {})
     return data
+
+
+def read_picks(home: str) -> dict:
+    """load_picks for reading only: the kept parse itself, shared, so never
+    changed (load_picks gives a copy to change and save)."""
+    try:
+        data = T.read_json_kept(os.path.join(home, PICKS_FILE))
+    except FileNotFoundError:
+        data = None
+    if isinstance(data, dict) and "version" in data and "refs" in data:
+        return data
+    return {"version": 1, "refs": {}, **(data if isinstance(data, dict) else {})}
 
 
 def save_picks(home: str, data: dict) -> None:
@@ -1511,7 +1523,7 @@ def auto_pick(s: Series, ref: Ref, mksheet: str | None = None) -> list[PickResul
         return []
     out = []
     for v in (VIEW_TAGS if ref.has_views else [None]):
-        picks = load_picks(ref.home)
+        picks = read_picks(ref.home)
         if picked_take(picks, ref.id, v) is not None or is_cleared(picks, ref.id, v):
             continue
         ok = [t for t in list_takes(ref, v)
@@ -1625,7 +1637,7 @@ def discard_take(s: Series, ref: Ref, view: str | None, take: int) -> DiscardRes
         raise T.StillQueued(f"{ref.id}{' ' + view if view else ''} t{take:02d} is queued: "
                             f"let it finish first")
     cleared = None
-    if picked_take(load_picks(ref.home), ref.id, view) == take and (ref.path or not ref.is_audio):
+    if picked_take(read_picks(ref.home), ref.id, view) == take and (ref.path or not ref.is_audio):
         cleared = clear_pick(s, ref, view)
     files = set(T.stem_files(takes_dir(ref), f"{take_base(ref, view)}_t{take:02d}"))
     for p in (t.paths.sidecar, t.paths.image):
@@ -1754,7 +1766,7 @@ def voice_from_take(s: Series, ref: Ref, shot: str, take: int, pass_: str = "pro
     picked = False
     live = ref.file
     if pick or (pick is None and not (live and os.path.isfile(live))
-                and not is_cleared(load_picks(ref.home), ref.id)):
+                and not is_cleared(read_picks(ref.home), ref.id)):
         pick_take(s, ref, None, t.take)
         picked = True
     return VoiceClipResult(ref, t, picked, source)
@@ -2175,7 +2187,7 @@ def keyframe_from_take(s: Series, shot: str, which: str = "first",
     t, source = frame_into(s, ref, None, src, src_pass, frame, note)
     picked = False
     if pick or (pick is None and not os.path.isfile(ref.file)
-                and not is_cleared(load_picks(ref.home), ref.id)):
+                and not is_cleared(read_picks(ref.home), ref.id)):
         pick_take(s, ref, None, t.take)
         picked = True
     return KeyframeResult(ref, t, picked, source)
@@ -2190,7 +2202,7 @@ def keyframe_freshness(s: Series, shot: str, which: str, pass_: str) -> dict:
     wasn't cut from a take: imported or generated, the user's choice), or
     "unknown" (the neighbour has no usable take to compare with: `why`)."""
     ref = keyframe_ref(s.ep, shot, which)
-    picks = load_picks(ref.home)
+    picks = read_picks(ref.home)
     if is_cleared(picks, ref.id):
         return {"state": "cleared", "why": "cleared", "cut_from": None, "wants": None}
     try:
@@ -3589,7 +3601,7 @@ def generate_and_wait(s: Series, req: GenRequest, comfy, base=None, timeout: flo
         if status == "ok":
             done.append(t)
     if done and (pick or (pick is None and not (ref.file and os.path.isfile(ref.file))
-                          and not is_cleared(load_picks(ref.home), ref.id))):
+                          and not is_cleared(read_picks(ref.home), ref.id))):
         for t in done if ref.has_views else done[:1]:
             pick_take(s, ref, t.view, t.take)
             log(f"  -> picked t{t.take:02d}: {ep_rel(s.ep, ref.file)}")
@@ -3704,7 +3716,7 @@ def missing_keyframes(s: Series) -> list[tuple[str, str, dict]]:
         if need["need"] != "required" and not (need["script"] and need["script"] != "none"):
             continue
         ref = keyframe_ref(s.ep, shot, which)
-        if os.path.isfile(ref.file) or is_cleared(load_picks(ref.home), ref.id):
+        if os.path.isfile(ref.file) or is_cleared(read_picks(ref.home), ref.id):
             continue
         out.append((shot, which, need))
     return out
@@ -3740,7 +3752,7 @@ def missing_series(s: Series, pass_: str = "proxy") -> tuple[list[tuple[Ref, str
         if why:
             skipped.append({"ref": ref.id, "reason": why})
             continue
-        picks = load_picks(ref.home)
+        picks = read_picks(ref.home)
         if is_cleared(picks, ref.id):
             skipped.append({"ref": ref.id, "reason": "cleared: pick a candidate to use one"})
             continue
@@ -4090,7 +4102,7 @@ def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
     if sib is None:
         return []
     other = dataclasses.replace(ref, home=sib)
-    picks = load_picks(sib)
+    picks = read_picks(sib)
     out = []
     for view in ([SHEET_VIEW, *VIEW_TAGS] if ref.has_views else [None]):
         live = picked_take(picks, ref.id, view)
@@ -4106,7 +4118,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
              view_size=VIEW_SIZE, needs: dict | None = None, ready=None,
              defaults: dict | None = None, shared: dict | None = None) -> dict:
     ov_data = ov_data if ov_data is not None else load_overrides(ref.home)
-    picks = picks if picks is not None else load_picks(ref.home)
+    picks = picks if picks is not None else read_picks(ref.home)
     if defaults is None:
         try:
             defaults = image_defaults(s, ready)
@@ -4248,7 +4260,7 @@ def _refs_listing(ep: str, view_size, ready) -> dict:
     out = []
     for r in refs:
         if r.home not in cache:
-            cache[r.home] = (load_overrides(r.home), load_picks(r.home))
+            cache[r.home] = (load_overrides(r.home), read_picks(r.home))
         ov, pk = cache[r.home]
         out.append(ref_json(s, r, usage, ov, pk, view_size, needs, ready, defaults, shared))
     return {"refs": out, "defaults": defaults}
@@ -4680,7 +4692,7 @@ def _recorded_sha1s(ep: str) -> set[str]:
     if hit and hit[0] == sig:
         return hit[1]
     out = set()
-    for block in (load_picks(home).get("refs") or {}).values():
+    for block in (read_picks(home).get("refs") or {}).values():
         if not isinstance(block, dict):
             continue
         out.update(x for x in [block.get("sha1")] if x)

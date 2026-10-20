@@ -8,7 +8,7 @@ lane paused; a running one cancelled; a finished one retried.
 A job is a description (what it is, for the Jobs window) and a `work`
 function that does it: work(job, report) -> "succeeded" | "failed" |
 "canceled", where report(...) updates its progress and log, and
-job.cancel_run, set by the work once it has something to cancel, stops it.
+job.cancel_run, given by the work once it has something to cancel (arm_cancel), stops it.
 
 Every change goes out as the event "seriesmith.job" (the job's to_json());
 progress also goes out in ComfyUI's shapes ("progress", "execution_start",
@@ -192,6 +192,20 @@ class Queue:
         except (OSError, ValueError):
             return {}
 
+    def arm_cancel(self, job: Job, cancel: Callable[[], None]) -> None:
+        """What stops a running job, given once the work has started its run. A
+        cancel (or the time limit) asked before then, while it was still
+        staging, is carried out now; it was lost before, and the run went on to
+        the end. Under the lock with cancel(): exactly one of them calls it."""
+        with self._lock:
+            job.cancel_run = cancel
+            asked = job.cancel_asked
+        if asked:
+            try:
+                cancel()
+            except Exception as e:                       # noqa: BLE001  best effort
+                job.log.append(f"cancel: {e}")
+
     # -- time limits --------------------------------------------------------
 
     def _overtime(self, job_id: str) -> None:
@@ -329,15 +343,17 @@ class Queue:
                 cancelled_waiting = False
             else:
                 return job
+            # read under the lock, as arm_cancel sets it: one of the two calls it
+            cancel = job.cancel_run
         if cancelled_waiting:
             self.write_journal()
             if job.on_cancel is not None:
                 job.on_cancel(job)
             self._emit("execution_interrupted", {"prompt_id": job.id})
             self._changed(job)
-        elif job.cancel_run is not None:
+        elif cancel is not None:
             try:
-                job.cancel_run()
+                cancel()
             except Exception as e:                       # noqa: BLE001  best effort
                 job.log.append(f"cancel: {e}")
         return job

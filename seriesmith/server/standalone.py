@@ -391,6 +391,7 @@ def detect_models(make_context) -> str:
     (api.remember_defaults, through a readiness check), for a host to call
     once ComfyUI answers. Returns what it found, as a line for the log."""
     A.DETECT_DEFAULTS = True          # and on every readiness check from now on
+    A.REFRESH_BEHIND = True           # a kept answer is given while it's asked again
     A.target_readiness(make_context())
     from seriesmith import targets as TG
     return "default models: " + ", ".join(f"{k} {TG.machine_default(k)}" for k in ("video", "image"))

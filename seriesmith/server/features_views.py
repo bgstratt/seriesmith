@@ -57,8 +57,8 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
         return INS.place_from_url(settings.local_comfyui, settings.comfyui_dir)
 
     def changed():
-        # a file or pack went in: readiness asks ComfyUI again
-        A._READY.clear()
+        # a file or pack went in: readiness and /object_info ask ComfyUI again
+        A.forget_comfy()
 
     installer = INS.Installer(place, token=lambda: settings.hf_token, on_change=changed)
 
@@ -70,7 +70,7 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
         except Exception:                                 # noqa: BLE001  ComfyUI away
             readiness = {}
         try:
-            info = ctx.comfy.object_info()
+            info = A.comfy_object_info(ctx)
         except Exception:                                 # noqa: BLE001
             info = None
         env = INS.env_for(p, readiness, info)
@@ -118,7 +118,7 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
             except Exception:                             # noqa: BLE001
                 readiness = {}
             try:
-                info = ctx.comfy.object_info()
+                info = A.comfy_object_info(ctx)
             except Exception:                             # noqa: BLE001
                 info = None
             items, skipped = FT.resolve(body.get("features") or [], body.get("files") or [],

@@ -92,7 +92,6 @@ import os
 import subprocess
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 STAGES = ("align", "build", "check", "refs", "render", "assemble", "all")
 EDIT = ("takes", "pick", "override", "keyframe", "discard", "cut")   # in-process, see edit.py
 # `targets` (readiness) runs in-process too, with the episode optional
@@ -186,28 +185,24 @@ def main() -> int:
     if argv and argv[0] == "new":
         # the folder is the show's, its last part the new episode's name; the
         # template is the newest episode already there, else examples/starter
-        sys.path.insert(0, HERE)
         from seriesmith import source as SRC
         return SRC.cmd_new(argv[1:])
     if argv and argv[0] == "issues":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith issues <episode> [--proxy] "
                      "[--add <shot> <note> | --export | --clear | --resolve <id>]")
-        sys.path.insert(0, HERE)
         from seriesmith import issues as ISS
         return ISS.cmd_issues(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] == "supply":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith supply <episode> <file-or-folder>... "
                      "[--ref id[:view]] [--no-pick] [--dry-run]")
-        sys.path.insert(0, HERE)
         from seriesmith import refs as R
         return R.cmd_supply(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] == "upscale":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith upscale <episode> [--only sh020,...] [--take N] "
                      "[--start-step N] [--vae] [--redo] [--check] [--prune-latents]")
-        sys.path.insert(0, HERE)
         from seriesmith import upscale as U
         return U.main(argv[1:])
     if argv and argv[0] == "post":
@@ -215,46 +210,39 @@ def main() -> int:
             sys.exit("  !! usage: seriesmith post <episode> [--only sh020,...] [--take N] "
                      "[--enhance draft|production|cinematic|pixel|seedvr2|supir|none] "
                      "[--strength 0.2] [--blur 0.25] [--recipe] [--redo] [--check]")
-        sys.path.insert(0, HERE)
         from seriesmith import post as P
         return P.main(argv[1:])
     if argv and argv[0] == "master":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith master <episode> [<episode> ...] [--check] [--wait] "
                      "[--conform] [--allow-gaps] [--prores]")
-        sys.path.insert(0, HERE)
         from seriesmith import master as M
         return M.main(argv[1:])
     if argv and argv[0] == "publish":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith publish <episode> [--proxy] [--input FILE] "
                      "[--out FILE] [--quality review|master] [--check]")
-        sys.path.insert(0, HERE)
         from seriesmith import publish as PUB
         return PUB.main(argv[1:])
     if argv and argv[0] == "targets":
         # the episode is optional: it adds its series config (pass blocks,
         # model_families) and marks its target
-        sys.path.insert(0, HERE)
         from seriesmith import edit as E
         rest = argv[1:]
         ep = os.path.abspath(rest.pop(0)) if rest and not rest[0].startswith("-") else None
         return E.cmd_targets(ep, rest)
     if argv and argv[0] == "target-from-workflow":
-        sys.path.insert(0, HERE)
         from seriesmith import edit as E
         return E.cmd_target_from_workflow(argv[1:])
     if argv and argv[0] == "promote":
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit("  !! usage: seriesmith promote <episode> [<shot>] [--all | --item ID ...] "
                      "[--dry-run]")
-        sys.path.insert(0, HERE)
         from seriesmith import promote as PRM
         return PRM.cmd_promote(os.path.abspath(argv[1]), argv[2:])
     if argv and argv[0] in EDIT:
         if len(argv) < 2 or argv[1].startswith("-"):
             sys.exit(f"  !! usage: seriesmith {argv[0]} <episode> ...")
-        sys.path.insert(0, HERE)
         from seriesmith import edit as E
         return E.COMMANDS[argv[0]](os.path.abspath(argv[1]), argv[2:])
     if not argv or argv[0] in ("-h", "--help") or argv[0] not in STAGES:
