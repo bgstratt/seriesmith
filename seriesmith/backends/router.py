@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import base64
 import copy
-import json
 import os
 import time
 import shutil
@@ -23,7 +22,8 @@ import urllib.parse
 import urllib.request
 from typing import Any, Callable, Iterable
 
-from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in, patiently, tls, transient
+from seriesmith.backends import (Backend, BackendError, HTTPFailure, Output, Progress, Run, files_in,
+                                 http_json, patiently, tls, transient)
 from seriesmith.backends.comfy import sdk_client
 from seriesmith.core import fileio as F
 
@@ -250,15 +250,10 @@ class RouterBackend(Backend):
         return RequestHandle(low, model, _request_id_of(out), models._retry), served
 
     def _api(self, method: str, path: str, body: dict | None = None) -> dict:
-        req = urllib.request.Request(
-            API_BASE + path, method=method,
-            data=json.dumps(body).encode("utf-8") if body is not None else None,
-            headers={"X-API-KEY": self.api_key, "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=60, context=tls()) as r:
-                return json.load(r)
-        except urllib.error.HTTPError as e:
-            raise BackendError(f"{method} {path}: {e.code} {e.read().decode('utf-8', 'replace')[:300]}")
+            return http_json(API_BASE + path, method, body, {"X-API-Key": self.api_key})
+        except HTTPFailure as e:
+            raise BackendError(f"{method} {path}: {e.status} {e.text[:300]}") from None
 
     def seedance_asset(self, path: str, url: str, wait: float = 600.0) -> str:
         """`path` (uploaded, at `url`) in this account's Seedance virtual

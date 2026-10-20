@@ -68,6 +68,38 @@ def tls():
     return _TLS
 
 
+class HTTPFailure(Exception):
+    """An HTTP answer that isn't a success: its status and the start of its body."""
+
+    def __init__(self, status: int, text: str):
+        super().__init__(f"{status} {text}".strip())
+        self.status, self.text = status, text
+
+
+def http_json(url: str, method: str = "GET", body=None, headers: dict | None = None,
+              timeout: float = 60.0):
+    """The JSON a request answers (seriesmith's own calls to Comfy's APIs:
+    Router, its catalog and schemas, Cloud's node list), over tls() for https.
+    `body`, when given, is sent as JSON. HTTPFailure for an error status;
+    URLError / OSError (no answer) and ValueError (not JSON) as they come, for
+    the caller to say in its own words."""
+    import json
+    import urllib.error
+    import urllib.request
+    hdrs = dict(headers or {})
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        hdrs.setdefault("Content-Type", "application/json")
+    req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout,
+                                    context=tls() if url.startswith("https") else None) as r:
+            return json.loads(r.read().decode("utf-8") or "null")
+    except urllib.error.HTTPError as e:
+        raise HTTPFailure(e.code, e.read().decode("utf-8", "replace")[:1000]) from None
+
+
 def transient(exc: BaseException) -> bool:
     """Whether `exc` is the network or the service hiccupping (worth asking
     again) rather than an answer (a 4xx: not found, unauthorized, no credits).

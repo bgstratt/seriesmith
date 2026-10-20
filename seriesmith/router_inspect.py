@@ -41,16 +41,14 @@ def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
     """The model's openapi.json from Router."""
     if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", model or ""):
         raise RouterInspectError(f"{model!r} isn't a Router model id (provider/model)")
-    req = urllib.request.Request(f"{API_BASE}/v2/models/{model}/openapi.json",
-                                 headers={"X-API-Key": api_key})
+    from seriesmith.backends import HTTPFailure, http_json
     try:
-        from seriesmith.backends import tls
-        with urllib.request.urlopen(req, timeout=timeout, context=tls()) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+        return http_json(f"{API_BASE}/v2/models/{model}/openapi.json",
+                         headers={"X-API-Key": api_key}, timeout=timeout)
+    except HTTPFailure as e:
+        if e.status == 404:
             raise RouterInspectError(f"Router has no model {model}") from None
-        raise RouterInspectError(f"Router answered {e.code} for {model}'s schema") from None
+        raise RouterInspectError(f"Router answered {e.status} for {model}'s schema") from None
     except (urllib.error.URLError, OSError, ValueError) as e:
         raise RouterInspectError(f"Router's schema for {model} couldn't be read: {e}") from None
 
@@ -92,17 +90,16 @@ def fetch_catalog(api_key: str, timeout: float = 30.0) -> list[str]:
     hit = _CATALOG.get(api_key)
     if hit and time.monotonic() - hit[0] < CATALOG_TTL:
         return list(hit[1])
-    from seriesmith.backends import tls
+    from seriesmith.backends import HTTPFailure, http_json
     ids: list[str] = []
     cursor = None
     for _ in range(50):
         q = "?limit=100" + (f"&cursor={urllib.parse.quote(cursor)}" if cursor else "")
-        req = urllib.request.Request(f"{API_BASE}/v2/models{q}", headers={"X-API-Key": api_key})
         try:
-            with urllib.request.urlopen(req, timeout=timeout, context=tls()) as r:
-                page = json.load(r)
-        except urllib.error.HTTPError as e:
-            raise RouterInspectError(f"Router answered {e.code} for its model list") from None
+            page = http_json(f"{API_BASE}/v2/models{q}", headers={"X-API-Key": api_key},
+                             timeout=timeout)
+        except HTTPFailure as e:
+            raise RouterInspectError(f"Router answered {e.status} for its model list") from None
         except (urllib.error.URLError, OSError, ValueError) as e:
             raise RouterInspectError(f"Router's model list couldn't be read: {e}") from None
         ids += [str(m.get("id")) for m in page.get("data") or [] if m.get("id")]

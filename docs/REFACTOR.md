@@ -422,11 +422,22 @@ filter. **Into ff.py** (extends 1.10): `run`, `probe`, `duration(source=)`,
   scratch show's `_titles`); finish's and peaks' probes identical on 6 real takes.
   Suite 1547 passed.
 
-#### 2.4 HTTP JSON in one place ☐
+#### 2.4 HTTP JSON in one place ✅
 7 urllib+TLS copies (router, router_inspect ×2, cloud, comfy health, features, installer)
 with different TLS, error and User-Agent handling. **One** `backends.http_json`.
 - **Live check:** Settings → backends answer; Features lists sizes; nothing paid is
   called (Router/Cloud paths are covered by their tests with fakes only).
+- **Done:** `backends.http_json(url, method, body, headers, timeout)` (tls() for https,
+  `HTTPFailure(status, text)` for an error status, no answer / not JSON as they come)
+  under the four that were the same job: Router's `_api`, router_inspect's schema and
+  catalog, Cloud's node list; each still says its errors in its own words. The other
+  three aren't JSON calls and stay: the health check (reads a status, tells a refused key
+  from a missing route), `head_size` (a HEAD), the installer's downloads (streamed).
+  Router's header now spelled `X-API-Key` like the others (HTTP ignores case).
+- Live, read-only (no renders, nothing billed): Router's catalog (252 models), a
+  Seedance schema, a missing model's error, Cloud's node list (3,796): identical old vs
+  new. The Seedance library POST is a paid render's step, so only its local-server test
+  (`tests/test_http.py`) covers it. Suite 1552 passed.
 
 #### 2.5 Take records: `mark_failed` / `mark_queued` ☐
 The same failed/queued sidecar update in jobs, refs, finishing, upscale and post;
