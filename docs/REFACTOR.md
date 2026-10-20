@@ -126,7 +126,7 @@ them (expected: none; the modules are imported as `seriesmith.x`).
   exits as before (most say usage with exit 1: 3.6's business), and `takes`, `cut --show`,
   `issues --export`, `promote` on Ballroom-refactor print byte-identical output.
 
-#### 1.4 The align transcript cache is written safely ☐
+#### 1.4 The align transcript cache is written safely ✅
 `align.py:498-510` reads the cache with unclosed `open()`s and writes it in place, so
 an interrupted align leaves half a JSON file that the next run trusts. **Change:**
 `takes.write_json` (temp file + replace), `with` blocks, and a damaged cache is
@@ -135,6 +135,11 @@ transcribed again instead of crashing.
 - **Live check:** none needed beyond the test unless you use align on a show; if you
   do, **(you)** run Align on a recorded-dialogue episode copy and compare the shots
   it times with before.
+- **Done:** `align.cached_words` (whole, a list, at least as new as the recording, else
+  None) and `takes.write_json` for the cache. Live on a copy of ArchTest (the one show
+  with a cached transcript): `align --dry-run` output identical before/after; with the
+  cache cut short, before crashed with a JSONDecodeError traceback, after goes to
+  transcribe again (here: "no Whisper installed", the venv has none).
 
 #### 1.5 Queue actions run off the event loop ☐
 `server/queue_views.py`: cancel, move, pause and the Settings save run on the event

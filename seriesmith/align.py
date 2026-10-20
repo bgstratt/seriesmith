@@ -65,6 +65,7 @@ sys.path.insert(0, HERE)
 from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 from seriesmith import ff as FF  # noqa: E402
+from seriesmith import takes as T  # noqa: E402  (write_json: atomic)
 
 SR = 16000
 LEAD = 0.25      # seconds of air kept before a line's first word
@@ -451,7 +452,8 @@ def main() -> int:
     series_cfg_p, md_p = episode_files(ep)
     if args.script:
         md_p = args.script
-    series_cfg = json.load(open(series_cfg_p, encoding="utf-8"))
+    with open(series_cfg_p, encoding="utf-8") as fh:
+        series_cfg = json.load(fh)
     fps = float(series_cfg.get("series", {}).get("fps", 24))
 
     rec = args.recording or series_cfg.get("audio", {}).get("track")
@@ -493,21 +495,22 @@ def main() -> int:
 
     # transcript
     cache = rec_abs + ".words.json"
+    cached = None if args.words or args.retranscribe else cached_words(cache, rec_abs)
     if args.words:
         progress(prog, "transcribe", 10, f"reading {os.path.basename(args.words)}")
-        words = json.load(open(args.words, encoding="utf-8"))
-    elif os.path.isfile(cache) and not args.retranscribe \
-            and os.path.getmtime(cache) >= os.path.getmtime(rec_abs):
+        with open(args.words, encoding="utf-8") as fh:
+            words = json.load(fh)
+    elif cached is not None:
         progress(prog, "transcribe", 10, f"using the cached transcript "
                                          f"{os.path.basename(cache)}")
-        words = json.load(open(cache, encoding="utf-8"))
+        words = cached
         print(f"  using cached transcript {cache}")
     else:
         progress(prog, "transcribe", 10, f"transcribing {os.path.basename(rec_abs)} with "
                                          f"Whisper {args.model} (this takes a while)")
         prompt = " ".join(l["text"] for l in lines)[:600]
         words = transcribe(rec_abs, args.model, args.device, args.language, prompt)
-        json.dump(words, open(cache, "w", encoding="utf-8"), indent=1)
+        T.write_json(cache, words)
         print(f"  cached transcript -> {cache}")
     if not words:
         sys.exit("  !! the transcript is empty")
@@ -582,6 +585,20 @@ def main() -> int:
     progress(prog, "write", 100, "written")
     write_result(args.json_out, result)
     return 0
+
+
+def cached_words(cache: str, recording: str) -> list | None:
+    """The transcript cached beside the recording, when it's at least as new as
+    the recording and whole; None otherwise, so a damaged one (an align cut
+    short while writing it) is transcribed again rather than trusted."""
+    try:
+        if os.path.getmtime(cache) < os.path.getmtime(recording):
+            return None
+        with open(cache, encoding="utf-8") as fh:
+            words = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return words if isinstance(words, list) else None
 
 
 def write_result(path: str | None, result: dict) -> None:
