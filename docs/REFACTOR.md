@@ -100,7 +100,7 @@ does, with the "renders at the estimate" warning.
   Live: sh020 as fl2va `dur: model 2-4` built at 4.00 s / 107 frames, check warned "H3
   FL2V can't predict", the editor showed it; the script restored after.
 
-#### 1.2 Saving Settings refreshes every field ☐
+#### 1.2 Saving Settings refreshes every field ✅ (your check pending)
 `server/queue_views.py:102` copies a hand-written field list into the live settings
 after a save, missing `enabled_drafts` and `target_limits`; the reply, Settings and
 `/info` show the old values until a restart. **Change:** copy `settings.FIELDS` (plus
@@ -108,6 +108,9 @@ after a save, missing `enabled_drafts` and `target_limits`; the reply, Settings 
 - **Tests:** a settings PUT test asserting every field in FIELDS round-trips.
 - **Live check (you):** Settings: switch a built-in draft on, save; the window shows it
   on without a restart; switch it back.
+- **Done:** test failed first (`[] != ['some_draft']`), passes now. Live through the API on
+  the restarted server: `seedance_2_0_fast` enabled showed at once in the reply and
+  `/info`; reverted.
 
 #### 1.3 `commands.py` stops adding the package folder to `sys.path` ☐
 `commands.main` inserts `seriesmith/` itself on `sys.path` in 11 branches, after which

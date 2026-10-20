@@ -113,6 +113,24 @@ class StandaloneTest(unittest.TestCase):
             self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
                                              "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
 
+    def test_a_save_refreshes_every_setting(self):
+        """Every field a PUT saves is what the reply and GET /settings say at once,
+        not after a restart (enabled_drafts and target_limits were left stale)."""
+        from seriesmith.settings import FIELDS
+        changes = {"paid_limit": 0, "enabled_drafts": ["some_draft"],
+                   "target_limits": {"ltx2": {"duration": {"max": 8}}}, "local_via": "proxy",
+                   "default_targets": {"video": "ltx2"}}
+
+        async def body(client, app):
+            put = await (await client.put("/seriesmith/settings", json=changes)).json()
+            got = await (await client.get("/seriesmith/settings")).json()
+            return put, got
+        put, got = self.run_app(body)
+        for reply in (put, got):
+            for k, v in changes.items():
+                self.assertEqual(reply["settings"][k], v, k)
+        self.assertLessEqual(set(FIELDS), set(put["settings"]))
+
     def test_stop_and_restart_from_this_machine_only(self):
         """POST /seriesmith/server/stop: the editor's Stop / Restart. Restart's
         exit code (3) is what run_seriesmith*.bat starts it again on."""
