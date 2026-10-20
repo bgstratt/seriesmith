@@ -43,7 +43,6 @@ Stdlib only.
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass
 
 from seriesmith import targets as TG
@@ -51,6 +50,7 @@ from seriesmith.core import framing, ir
 from seriesmith.core.ir import stable_seed
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 from seriesmith.targets.video.ltx2.compile import _duration, _lines, put_model_duration, shotlist_extra
+from seriesmith.core import paths as P
 
 SILENT = "silent"
 PLATE = "plate"                      # the absent-set name of the plate
@@ -105,7 +105,7 @@ def default_policy(target) -> str:
 
 def keyframe_path(recipe: dict, shot_id: str, end: str) -> str:
     """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
-    return recipe["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
+    return recipe["keyframe_path"].format(shot=P.safe_id(shot_id),
                                           end=end)
 
 

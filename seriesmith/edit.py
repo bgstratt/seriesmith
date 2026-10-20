@@ -80,33 +80,17 @@ from seriesmith import jobs as J
 from seriesmith import peaks as PK
 from seriesmith import takes as T
 from seriesmith import upscale as U
+from seriesmith.core import paths as P  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
 # status: what the editor's shot bin shows
 # ---------------------------------------------------------------------------
 
-SCRIPT_SKIP = ("refs_todo", "readme", "notes", "align_report")
-
-
-def episode_script(root: str) -> str | None:
-    """The episode's script: <folder name>.md, else the only other .md there."""
-    base = os.path.basename(os.path.normpath(root))
-    md = os.path.join(root, f"{base}.md")
-    if os.path.isfile(md):
-        return md
-    cands = [f for f in os.listdir(root) if f.lower().endswith(".md")
-             and not f.lower().startswith(SCRIPT_SKIP)]
-    return os.path.join(root, cands[0]) if len(cands) == 1 else None
-
-
-def episode_series_config(root: str) -> str | None:
-    """series.json in the episode folder, else in its parent (a series folder)."""
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        p = os.path.join(d, "series.json")
-        if os.path.isfile(p):
-            return p
-    return None
+# where an episode's files are (core/paths), under the names the editor uses
+SCRIPT_SKIP = P.SCRIPT_SKIP
+episode_script = P.episode_script
+episode_series_config = P.series_config_path
 
 
 def find_episodes(roots: list[str], depth: int = 2) -> list[dict]:
@@ -703,8 +687,7 @@ def refs_used(root: str, job: J.Job) -> list[dict]:
     from seriesmith.core.series_config import variant_of
     variants = variant_of(cfg)
     plates = {}
-    home = next((d for d in (root, os.path.dirname(os.path.normpath(root)))
-                 if os.path.isfile(os.path.join(d, "series.json"))), root)
+    home = P.series_home(root) or root
     for lid, loc in (cfg.get("locations") or {}).items():
         if isinstance(loc, dict) and loc.get("plate"):
             plates[os.path.normcase(os.path.normpath(os.path.join(home, loc["plate"])))] = lid

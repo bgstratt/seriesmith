@@ -73,6 +73,7 @@ from seriesmith import jobs as J  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
+from seriesmith.core import paths as P  # noqa: E402
 
 NOT_RENDERED = "not rendered"
 # --progress: one line per step for whoever runs this (master, through
@@ -174,17 +175,15 @@ def episode_fps(root: str, doc: dict) -> float:
     """The cut's frame rate: the series config's `series.fps` (the episode's
     folder, then its parent, as edit finds it), else the shotlist's, else 24.
     Every clip is converted to it."""
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        p = os.path.join(d, "series.json")
-        if os.path.isfile(p):
-            try:
-                with open(p, encoding="utf-8") as fh:
-                    v = (json.load(fh).get("series") or {}).get("fps")
-                if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
-                    return float(v)
-            except (OSError, ValueError, AttributeError):
-                pass
-            break
+    p = P.series_config_path(root)
+    if p:
+        try:
+            with open(p, encoding="utf-8") as fh:
+                v = (json.load(fh).get("series") or {}).get("fps")
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+                return float(v)
+        except (OSError, ValueError, AttributeError):
+            pass
     v = doc.get("defaults", {}).get("fps")
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else 24.0
 

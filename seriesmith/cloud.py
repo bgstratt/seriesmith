@@ -27,7 +27,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import re
 import shutil
 import tempfile
 import threading
@@ -37,6 +36,7 @@ import urllib.request
 import wave
 
 from seriesmith.backends import BackendError, File, tls
+from seriesmith.core import paths as P
 
 # how long Cloud's node list is trusted before it is asked again
 TTL = 600.0
@@ -89,8 +89,7 @@ def forget() -> None:
 # lower: a portable graph as Cloud's nodes alone
 # ---------------------------------------------------------------------------
 
-def _safe(s: str, fallback: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s)) or fallback
+_safe = P.safe_id
 
 
 def _is_link(v) -> bool:

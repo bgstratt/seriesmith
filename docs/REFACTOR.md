@@ -377,7 +377,7 @@ default, want=dict)`, `file_digest`, `stat_key`. Standard library only (build us
 - Found: Ballroom ep01's sh040 prompt override holds `â€”` for an em dash (UTF-8 read
   as cp1252 somewhere, before this pass). Traced in 2.6.
 
-#### 2.2 `core/paths.py`: the series config and ids ☐
+#### 2.2 `core/paths.py`: the series config and ids ✅
 11 ways to find `series.json` (episode folder then parent), three ways to parse it, 7
 `safe_id` copies (three without the empty-id fallback). `align` and the commands look
 in the episode folder only. **One module:** `series_home`, `series_config_path`,
@@ -386,6 +386,16 @@ in the episode folder only. **One module:** `series_home`, `series_config_path`,
   like everything else.
 - **Live check:** `seriesmith takes`/`cut`/`align --help` on a show whose series.json is
   in the parent folder (Ballroom-refactor).
+- **Done:** `seriesmith/core/paths.py` (stdlib): `series_home`, `series_config_path`,
+  `episode_script`, `episode_files` (says what's missing), `safe_id(text, fallback)`.
+  edit's two finders are its aliases; jobs (5 copies), assemble, the targets' show folder,
+  edit's plate home, align and the commands use it; the safe-id copies in takes, cloud,
+  jobs, finishing and three targets' keyframe paths (each keeps its own fallback).
+- Reproduced first: `seriesmith build` of an episode whose series.json is in its series
+  folder said "series.json not found" (the editor built it). Now it builds, `--each`
+  takes such episodes (and skips a folder with no script, as `refs/`), and align finds
+  its files. The episode list, Refs listings and `/episode` of five shows: byte-identical
+  old vs new (6.9 MB). Suite 1542 passed.
 
 #### 2.3 `ff.py`: probe and run ☐
 Two `video_duration`s that mean different things (stream vs container), two frame

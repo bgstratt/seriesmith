@@ -30,6 +30,7 @@ from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith.backends import File
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 SAVER = "SeriesmithSaveUpscale"
 H3_SAVER = "H3SaveUpscale"
@@ -95,7 +96,7 @@ def take_input_files(take: T.Take, root: str) -> dict[str, str]:
 
 
 def run_name(fin: Finish) -> str:
-    ep = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(os.path.normpath(fin.root)))
+    ep = P.safe_id(os.path.basename(os.path.normpath(fin.root)))
     return f"{ep}_{fin.take.pass_}_{fin.take.paths.stem}_{fin.kind}_{uuid.uuid4().hex[:8]}"
 
 
