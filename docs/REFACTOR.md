@@ -67,13 +67,16 @@ connect to a closed local port ~2 s; benchmarks use `127.0.0.1`.
 
 ## Phase 0 — measuring
 
-### 0.1 `tools/bench.py` ☐
+### 0.1 `tools/bench.py` ✅
 The benchmark used for the baseline, kept so every speed item is measured the same
 way: times each read route on `127.0.0.1:8190` twice (first, then repeat) per
 episode, with sizes; `--ep` limits it to named shows; `--profile ROUTE EP` runs a
 handler in-process under cProfile. Also `--assemble EP`: counts and times the
 ffmpeg/ffprobe runs of an assemble of a scratch copy. Not a test; nothing imports it.
-- **Live check:** run it; the numbers match the baseline within noise.
+- **Live check:** run it; the numbers match the baseline within noise. Done: Porchlights
+  ep01 `/refs` 2.3 / 2.4 s, FRTEST `/episode` 0.60 / 0.50 s, upscale/post options 0.96 /
+  0.93 s; assemble of Ballroom-refactor ep01 3.8 s, 34 ffprobe runs, and its output is
+  byte-identical run to run (sha1 358a3dcb…), so 1.10 can compare by hash.
 
 ---
 
