@@ -78,6 +78,7 @@ from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
+from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers  # noqa: F401
 
 # The default video target's binding, under the names render and the routes
 # have always imported. Job code reads the job's own target instead.
@@ -1881,10 +1882,6 @@ def ref_slots(doc: dict, shot: dict) -> list[dict]:
     return shotlist_target(doc).ref_slots(doc, shot)
 
 
-def _abs(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(root, p)
-
-
 def missing_refs(root: str, doc: dict, shot: dict) -> list[dict]:
     """The references `shot` needs that aren't on disk (see ref_slots). An
     `optional` one (an LTX keyframe) is never missing: without it the shot
@@ -1992,12 +1989,11 @@ def place_staged(job: Job, take: T.Take) -> None:
 
 
 def mark_queued(take: T.Take, prompt_id: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, comfy_prompt_id=prompt_id)
+    take.sidecar = T.record_queued(take.paths.sidecar, prompt_id)
 
 
 def mark_failed(take: T.Take, why: str) -> None:
-    take.sidecar = T.update_sidecar(take.paths.sidecar, status="failed",
-                                    finished=T.now(), save_notes=why)
+    take.sidecar = T.record_failed(take.paths.sidecar, why)
 
 
 def finish_job(take: T.Take) -> str:
@@ -2170,11 +2166,6 @@ def draft_of(sidecar: dict | None) -> dict | None:
 
 DEFAULT_LORA_SPEC = {"class_type": LORA, "name": "lora_name", "strength": "strength_model",
                      "input": "model", "chain": True}
-
-
-def _consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
-    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
-            if val == [nid, slot]]
 
 
 def _next_id(g: dict) -> int:

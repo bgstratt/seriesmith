@@ -215,6 +215,25 @@ forget_kept = F.forget_kept
 write_json = F.write_json
 
 
+# A record (a take's, a ref's, an upscale's, a post's, a finish's sidecar) as its
+# job goes: the same three fields closing any of them as failed, and the prompt
+# id once a backend has the job. Five modules each wrote their own.
+
+def record_queued(path: str, prompt_id: str) -> dict:
+    return update_sidecar(path, comfy_prompt_id=prompt_id)
+
+
+def record_failed(path: str, why: str) -> dict:
+    return update_sidecar(path, status="failed", finished=now(), save_notes=why)
+
+
+def settings_hash(settings: dict) -> str:
+    """A short hash of a recipe's settings (an upscale's, a post's), stored in
+    its record to tell later whether the recipe changed. Never change it: every
+    record made before would read as changed."""
+    return hashlib.sha1(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
+
+
 def now() -> str:
     return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
 

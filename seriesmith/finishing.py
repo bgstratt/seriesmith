@@ -208,7 +208,7 @@ def portable(fin: Finish) -> tuple[dict, dict]:
 
 
 def mark_failed(fin: Finish, why: str) -> None:
-    T.update_sidecar(fin.sidecar, status="failed", finished=T.now(), save_notes=why)
+    T.record_failed(fin.sidecar, why)
 
 
 def collect(fin: Finish, run, saver: str, status: str, extra: dict | None = None) -> str:

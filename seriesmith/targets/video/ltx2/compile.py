@@ -54,6 +54,7 @@ from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacin
 
 from .prompt import build_prompt
 from seriesmith.core import paths as P
+from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers, of as _of, new_id as _new_id  # noqa: F401
 
 ID = "ltx2"
 TARGET = TG.load_target(ID, "video")
@@ -355,10 +356,6 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
 # queue time: the sampling schedule, then the reference sheet
 # ---------------------------------------------------------------------------
 
-def _abs(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(root, p)
-
-
 def sampling_mode(model: str, sheet: bool = False) -> tuple[str, dict]:
     """(the name of the sampling mode `model` wants, its settings) from
     recipe.sampling: the first mode whose `match` globs the file name, else
@@ -566,25 +563,9 @@ def _stage_sheet(target, job, comfy=None) -> dict:
 # the graph: keyframes in, or the image path out
 # ---------------------------------------------------------------------------
 
-def _consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
-    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
-            if val == [nid, slot]]
-
-
-def _of(g: dict, ctype: str) -> list[str]:
-    return [k for k, v in g.items() if v["class_type"] == ctype]
-
-
 def _src(g: dict, nid: str, name: str):
     v = g[nid]["inputs"].get(name)
     return v[0] if isinstance(v, list) and len(v) == 2 else None
-
-
-def _new_id(g: dict, stem: str) -> str:
-    i = 1
-    while f"{stem}{i}" in g:
-        i += 1
-    return f"{stem}{i}"
 
 
 def _stages(g: dict) -> dict:

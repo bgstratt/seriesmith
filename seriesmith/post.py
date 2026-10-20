@@ -31,8 +31,6 @@ Stdlib only.
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import sys
 import time
@@ -125,8 +123,7 @@ class PostJob:
         return f"{self.shot} t{self.take.take:02d}"
 
 
-def rel(root: str, path: str) -> str:
-    return U.rel(root, path)
+rel = U.rel
 
 
 # ---------------------------------------------------------------------------
@@ -211,8 +208,7 @@ def settings_of(job: PostJob) -> dict:
     return d
 
 
-def settings_hash(settings: dict) -> str:
-    return hashlib.sha1(json.dumps(settings, sort_keys=True).encode()).hexdigest()[:12]
+settings_hash = T.settings_hash
 
 
 def describe_recipe(kw: dict) -> str:
@@ -448,12 +444,11 @@ def start(job: PostJob) -> None:
 
 
 def mark_queued(job: PostJob, pid: str) -> None:
-    T.update_sidecar(job.take.paths.post_sidecar, comfy_prompt_id=pid)
+    T.record_queued(job.take.paths.post_sidecar, pid)
 
 
 def mark_failed(job: PostJob, why: str) -> None:
-    T.update_sidecar(job.take.paths.post_sidecar, status="failed", finished=T.now(),
-                     save_notes=why)
+    T.record_failed(job.take.paths.post_sidecar, why)
 
 
 # ---------------------------------------------------------------------------

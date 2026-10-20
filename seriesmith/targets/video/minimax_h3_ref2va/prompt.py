@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from seriesmith.core import framing
 from seriesmith.core.series_config import members
+from seriesmith.targets.prose import join_and as _and  # noqa: F401
 
 
 COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
@@ -35,12 +36,6 @@ COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
 
 def _count(n: int) -> str:
     return COUNT_WORDS.get(n, str(n))
-
-
-def _and(items: list[str]) -> str:
-    if len(items) <= 1:
-        return "".join(items)
-    return ", ".join(items[:-1]) + (", and " if len(items) > 2 else " and ") + items[-1]
 
 
 def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,

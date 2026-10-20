@@ -32,13 +32,14 @@ class PictureError(ValueError):
     pass
 
 
-def shrink(path: str) -> bytes:
-    """A picture file as a tile: JPEG bytes, PICTURE px on its long side."""
-    from PIL import Image
+def shrink(path: str, size: int = PICTURE) -> bytes:
+    """A picture file as a tile: JPEG bytes, `size` px on its long side, the
+    way up it was shot (a phone photo's orientation tag read)."""
+    from PIL import Image, ImageOps
     try:
-        with Image.open(path) as im:
-            im = im.convert("RGB")
-            im.thumbnail((PICTURE, PICTURE))
+        with Image.open(path) as src:
+            im = ImageOps.exif_transpose(src).convert("RGB")
+            im.thumbnail((size, size))
             out = io.BytesIO()
             im.save(out, "JPEG", quality=85)
     except OSError as e:
