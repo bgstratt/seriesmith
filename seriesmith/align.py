@@ -52,7 +52,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import glob
 import json
 import math
 import os
@@ -67,6 +66,7 @@ from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _his
 from seriesmith import ff as FF  # noqa: E402
 from seriesmith import takes as T  # noqa: E402  (write_json: atomic)
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P  # noqa: E402
 
 SR = 16000
 LEAD = 0.25      # seconds of air kept before a line's first word
@@ -79,20 +79,12 @@ SCALE_OK = (0.6, 1.8)   # silent-shot stretch the pause may impose without a war
 # inputs
 
 def episode_files(ep: str) -> tuple[str, str]:
-    series_cfg = os.path.join(ep, "series.json")
-    if not os.path.isfile(series_cfg):
-        sys.exit(f"  !! {series_cfg} not found")
-    base = os.path.basename(os.path.normpath(ep))
-    md = os.path.join(ep, f"{base}.md")
-    if not os.path.isfile(md):
-        cands = [p for p in glob.glob(os.path.join(ep, "*.md"))
-                 if not os.path.basename(p).lower().startswith(("refs_todo", "readme",
-                                                                "notes", "align_report"))]
-        if len(cands) != 1:
-            sys.exit(f"  !! can't tell which script to use in {ep}: "
-                     f"{[os.path.basename(c) for c in cands]}")
-        md = cands[0]
-    return series_cfg, md
+    """(series.json, the script): the series config in the episode folder or
+    its parent, as everywhere else (core/paths)."""
+    try:
+        return P.episode_files(ep)
+    except ValueError as e:
+        sys.exit(f"  !! {e}")
 
 
 def shot_grids(series_cfg_path: str, script_text: str):

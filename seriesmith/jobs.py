@@ -77,6 +77,7 @@ from dataclasses import dataclass, field
 from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 # The default video target's binding, under the names render and the routes
 # have always imported. Job code reads the job's own target instead.
@@ -1342,12 +1343,11 @@ def series_config(root: str) -> dict | None:
 
 
 def _series_config(root: str) -> dict | None:
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        p = os.path.join(d, "series.json")
-        if os.path.isfile(p):
-            cfg = T.read_json(p)
-            return cfg if isinstance(cfg, dict) else None
-    return None
+    p = P.series_config_path(root)
+    if not p:
+        return None
+    cfg = T.read_json(p)
+    return cfg if isinstance(cfg, dict) else None
 
 
 LATENT_MODES = ("final", "always", "never")
@@ -1426,9 +1426,7 @@ def script_sla(root: str) -> dict[str, str | None]:
     else the series config's `series.sla`. {} when the story can't be read.
     Cached per file version, as script_targets."""
     sj = os.path.join(root, "shotlist", "shots.json")
-    cfg_path = next((os.path.join(d, "series.json")
-                     for d in (root, os.path.dirname(os.path.normpath(root)))
-                     if os.path.isfile(os.path.join(d, "series.json"))), None)
+    cfg_path = P.series_config_path(root)
     try:
         key = (os.path.normcase(os.path.abspath(root)), os.stat(sj).st_mtime_ns,
                os.stat(cfg_path).st_mtime_ns if cfg_path else None)
@@ -1472,9 +1470,7 @@ def script_targets(root: str) -> dict[str, str | None] | None:
         key = (os.path.normcase(os.path.abspath(root)), os.stat(sj).st_mtime_ns)
     except OSError:
         return None
-    cfg_path = next((os.path.join(d, "series.json")
-                     for d in (root, os.path.dirname(os.path.normpath(root)))
-                     if os.path.isfile(os.path.join(d, "series.json"))), None)
+    cfg_path = P.series_config_path(root)
     try:
         key += (os.stat(cfg_path).st_mtime_ns,) if cfg_path else (None,)
     except OSError:
@@ -1765,10 +1761,9 @@ def episode_story(root: str):
     from seriesmith.core.series_config import load_series_config
     with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
         story = ir.Episode.loads(fh.read())
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        p = os.path.join(d, "series.json")
-        if os.path.isfile(p):
-            return story, load_series_config(p)
+    p = P.series_config_path(root)
+    if p:
+        return story, load_series_config(p)
     raise FileNotFoundError(f"no series.json in {root} or its parent folder")
 
 
@@ -2578,7 +2573,7 @@ def shot_files(job: Job) -> list[str]:
 def run_name(job: Job, take: T.Take) -> str:
     """The saver's folder for one job, unique even when one take is tried
     twice: <episode>_<pass>_<stem>_<8 hex>."""
-    ep = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(os.path.normpath(job.root)))
+    ep = P.safe_id(os.path.basename(os.path.normpath(job.root)))
     return f"{ep}_{job.pass_}_{take.paths.stem}_{uuid.uuid4().hex[:8]}"
 
 
@@ -2868,11 +2863,8 @@ def model_resolver():
 def series_model_families(root: str) -> dict:
     """The model_families of the series config beside the episode (or in its
     parent folder), {} without one. ValueError on a malformed block."""
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        p = os.path.join(d, "series.json")
-        if os.path.isfile(p):
-            return TG.series_model_families(F.read_json_or(p, {}, want=dict))
-    return {}
+    p = P.series_config_path(root)
+    return TG.series_model_families(F.read_json_or(p, {}, want=dict)) if p else {}
 
 
 def model_values(job: Job) -> dict[str, str]:

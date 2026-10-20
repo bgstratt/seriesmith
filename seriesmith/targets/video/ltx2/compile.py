@@ -45,7 +45,6 @@ Stdlib only.
 from __future__ import annotations
 
 import os
-import re
 import uuid
 
 from seriesmith import targets as TG
@@ -54,6 +53,7 @@ from seriesmith.core.ir import stable_seed
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 
 from .prompt import build_prompt
+from seriesmith.core import paths as P
 
 ID = "ltx2"
 TARGET = TG.load_target(ID, "video")
@@ -65,7 +65,7 @@ SAMPLING = dict(RECIPE.get("sampling") or {})
 
 def keyframe_path(shot_id: str, end: str) -> str:
     """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
-    return RECIPE["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
+    return RECIPE["keyframe_path"].format(shot=P.safe_id(shot_id),
                                           end=end)
 
 

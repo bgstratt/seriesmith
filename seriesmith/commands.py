@@ -76,8 +76,9 @@ seriesmith's stage and editing commands (ported from h3pipe's h3.py; the
     seriesmith targets  --install-workflow ltx2    # copy its graph into ComfyUI, to edit on
                                                     # the canvas (--revert-workflow undoes it)
 
-The episode can be a folder (any name) holding series.json and one script .md,
-or several folders at once, or a parent with --each:
+The episode can be a folder (any name) holding one script .md and series.json
+(or a series folder above it holding the series.json its episodes share), or
+several folders at once, or a parent with --each:
 
     seriesmith build Shows --each              # every episode folder under Shows
 
@@ -87,10 +88,10 @@ understood by assemble (it picks the proxy shotlist and renders_proxy/).
 """
 from __future__ import annotations
 
-import glob
 import os
 import subprocess
 import sys
+from seriesmith.core import paths as PATHS
 
 STAGES = ("align", "build", "check", "refs", "render", "assemble", "all")
 EDIT = ("takes", "pick", "override", "keyframe", "discard", "cut")   # in-process, see edit.py
@@ -101,19 +102,12 @@ OTHER = ("new", "issues", "supply", "upscale", "post", "master", "publish", "tar
 
 
 def episode_files(ep: str) -> tuple[str, str]:
-    series_cfg = os.path.join(ep, "series.json")
-    if not os.path.isfile(series_cfg):
-        sys.exit(f"  !! {series_cfg} not found")
-    base = os.path.basename(os.path.normpath(ep))
-    md = os.path.join(ep, f"{base}.md")
-    if not os.path.isfile(md):
-        cands = [p for p in glob.glob(os.path.join(ep, "*.md"))
-                 if not os.path.basename(p).lower().startswith(("refs_todo", "readme", "notes", "align_report"))]
-        if len(cands) != 1:
-            sys.exit(f"  !! can't tell which script to use in {ep}: "
-                     f"{[os.path.basename(c) for c in cands] or 'no .md found'}")
-        md = cands[0]
-    return series_cfg, md
+    """(series.json, the script): the series config in the episode folder or
+    its parent, as everywhere else (core/paths)."""
+    try:
+        return PATHS.episode_files(ep)
+    except ValueError as e:
+        sys.exit(f"  !! {e}")
 
 
 def run(cmd: list[str]) -> int:
@@ -270,7 +264,7 @@ def main() -> int:
         sys.exit("  !! give an episode folder, e.g. Shows\\ep05")
     if each:
         eps = sorted(p for parent in eps for p in episode_folders(parent)
-                     if os.path.isfile(os.path.join(p, "series.json")))
+                     if PATHS.series_config_path(p) and PATHS.episode_script(p))
 
     failed = []
     for ep in eps:

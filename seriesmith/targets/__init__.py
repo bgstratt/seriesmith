@@ -84,6 +84,7 @@ from dataclasses import dataclass, field
 
 from . import modelid
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
 KINDS = ("video", "image", "audio")
@@ -892,10 +893,7 @@ def show_folder(root: str) -> str:
     series.json — the episode folder, else its parent, as every other reader of
     the series config looks for it."""
     root = os.path.abspath(root)
-    for d in (root, os.path.dirname(os.path.normpath(root))):
-        if os.path.isfile(os.path.join(d, "series.json")):
-            return d
-    return root
+    return P.series_home(root) or root
 
 
 def use_roots(*roots: str):

@@ -44,6 +44,7 @@ from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacin
 from seriesmith.targets.video.ltx2.compile import model_duration, put_model_duration
 
 from .prompt import build_prompt, with_keyframes
+from seriesmith.core import paths as P
 
 ID = "minimax_h3_fl2va"
 TARGET = TG.load_target(ID, "video")
@@ -55,7 +56,7 @@ DUB = ("dub", "dub_keep_foley")
 
 def keyframe_path(shot_id: str, end: str) -> str:
     """Where a shot's keyframe lives (refs' `shot:<id>:<end>` ref)."""
-    return RECIPE["keyframe_path"].format(shot=re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id),
+    return RECIPE["keyframe_path"].format(shot=P.safe_id(shot_id),
                                           end=end)
 
 

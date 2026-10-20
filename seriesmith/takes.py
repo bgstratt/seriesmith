@@ -64,6 +64,7 @@ import time
 from dataclasses import dataclass, field
 
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 SIDECAR_VERSION = 1
 DEFAULT_TARGET = "minimax_h3_ref2va"
@@ -85,7 +86,7 @@ class StillQueued(Exception):
 
 def safe_id(shot_id: str) -> str:
     """The folder/file-safe form of a shot id. Same rule as the node and render."""
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", shot_id) or "shot"
+    return P.safe_id(shot_id, "shot")
 
 
 def pass_subfolder(pass_: str) -> str:
