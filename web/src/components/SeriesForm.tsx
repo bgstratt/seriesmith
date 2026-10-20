@@ -247,8 +247,10 @@ function LookField({ value, onChange, textarea, parts, onParts }: {
   const [open, setOpen] = useState(false);
   const cur = parts ?? {};
   const built = composeLook(rows, cur);
-  // the line is the builder's while it says what the picks say (or is empty)
-  const ours = !value.trim() || value.trim() === built;
+  // the line is the builder's while it says what the picks say, or is a look preset's
+  // own line as picked (its picks came with it), or is empty: a pick rewrites it then.
+  // Only a line typed by hand is left alone.
+  const ours = !value.trim() || value.trim() === built || looks.some((l) => l.text === value.trim());
   const setParts = (next: LookParts) => {
     onParts?.(next);
     if (ours) onChange(composeLook(rows, next));
