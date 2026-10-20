@@ -550,17 +550,21 @@ class FrameCountTest(unittest.TestCase):
         p = os.path.join(self.dir, "c.mp4")
         make_clip(p, 39, "32x32")
         seen = []
-        real = self.A.run
+        real, real_json = self.A.run, FF.probe_json
 
         def spy(cmd, *a, **k):
             seen.append(cmd)
             return real(cmd, *a, **k)
 
-        self.A.run = spy
+        def spy_json(path, *args, **k):                  # assemble.probe's one ask
+            seen.append(list(args))
+            return real_json(path, *args, **k)
+
+        self.A.run, FF.probe_json = spy, spy_json
         try:
             self.assertEqual(self.A.frame_count(p), 39)
         finally:
-            self.A.run = real
+            self.A.run, FF.probe_json = real, real_json
         self.assertEqual(len(seen), 1)
         self.assertNotIn("-count_frames", seen[0])
         self.assertEqual(probe_frames(p), 39)

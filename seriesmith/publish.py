@@ -170,11 +170,11 @@ def default_input(root: str, pass_: str) -> str | None:
 def probe(path: str) -> dict:
     """The picture's stream (plus `extradata`, its H.264 headers), frame count,
     duration and whether there is sound."""
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-count_packets", "-show_streams", "-show_data",
-             "-show_entries", "format=duration", "-of", "json", path], timeout=600)
-    if r.returncode != 0:
-        raise PublishError(f"ffprobe can't read {path}: {r.stderr.strip()}")
-    d = json.loads(r.stdout)
+    try:
+        d = FF.probe_json(path, "-count_packets", "-show_streams", "-show_data",
+                          "-show_entries", "format=duration", timeout=600)
+    except FF.FFError as e:
+        raise PublishError(f"ffprobe can't read {path}: {e}") from None
     streams = d.get("streams", [])
     v = next((s for s in streams if s.get("codec_type") == "video"), None)
     if not v:
@@ -224,8 +224,7 @@ def titled(label: str, out: str, sub: dict, w: int, h: int, fps: float,
     `tags` sets the picture's aspect and colour tags (see cut_tags); `matrix` is
     the title clip's own colour matrix, converted to BT.709 when it isn't."""
     glow = max(0.5, sub["glow_size"] * h)
-    conv = "" if matrix == "bt709" else (
-        "scale=in_color_matrix=bt601:out_color_matrix=bt709:in_range=tv:out_range=tv,")
+    conv = "" if matrix == "bt709" else ASM.BT601_TO_709 + ","
     return [
         f"[{label}]{conv}scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
         f"fps={fps:g},format=yuv420p[{out}b]",
@@ -350,14 +349,11 @@ def encode_title(clip: str, dst: str, tmp: str, cut: dict, sub: dict, alpha: str
 
 def frame_hashes(path: str, first: int, count: int, info: dict) -> list[str]:
     """framemd5 of `count` decoded frames from frame `first` on."""
-    at = ASM.picture_offset(path) + (first - 0.5) / info["fps"]
-    r = run([*FF.tool("ffmpeg"), "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
-             "-map", "0:v:0", "-frames:v", str(count), "-f", "framemd5", "-"], timeout=600)
-    if r.returncode != 0 or r.stderr.strip():
+    try:
+        return FF.frame_md5s(path, ASM.picture_offset(path) + (first - 0.5) / info["fps"], count)
+    except FF.FFError as e:
         raise PublishError(f"{os.path.basename(path)} doesn't decode cleanly at frame {first}: "
-                           f"{r.stderr.strip()[-300:]}")
-    return [ln.rsplit(",", 1)[1].strip() for ln in r.stdout.splitlines()
-            if ln and not ln.startswith("#")]
+                           f"{str(e)[-300:]}") from None
 
 
 def check_joins(out: str, pieces: list[tuple[str, dict]]) -> str | None:
