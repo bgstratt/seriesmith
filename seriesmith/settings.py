@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from seriesmith.core import fileio as F
 
 LOCAL_URL = "http://127.0.0.1:8189"
 LOCAL_VIA = ("comfyui", "proxy")
@@ -263,10 +264,5 @@ def save_settings(updates: dict, path: str | None = None) -> str:
         if k not in ("api_key", "hf_token") and not v.startswith(("http://", "https://")):
             raise ValueError(f"{k}: a URL starting with http:// or https://")
         data[k] = v if k in ("api_key", "hf_token") else v.rstrip("/")
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2)
-        fh.write("\n")
-    os.replace(tmp, path)
+    F.write_json(path, data, ensure_ascii=True)
     return path

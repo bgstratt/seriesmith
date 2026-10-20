@@ -35,6 +35,7 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import upscale as U  # noqa: E402
 from seriesmith import track as K  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core import fileio as F
 
 HOME = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 # kept for the hosts' sake: always None now that the pipeline is a package
@@ -1005,10 +1006,9 @@ def thumb_file(ctx: Context, full: str, width: int) -> str | None:
                 im = flat
             elif im.mode != "RGB":
                 im = im.convert("RGB")
-            os.makedirs(os.path.dirname(out), exist_ok=True)
-            tmp = f"{out}.{os.getpid()}.tmp"
+            tmp = F.temp_beside(out, ".jpg")          # its own: two threads may make one
             im.save(tmp, "JPEG", quality=84)
-        os.replace(tmp, out)
+        F.replace(tmp, out)
         return out
     except Exception:                                     # noqa: BLE001 -- the original will do
         return None

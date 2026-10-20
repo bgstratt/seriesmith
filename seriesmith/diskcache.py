@@ -18,6 +18,7 @@ import atexit
 import json
 import os
 import threading
+from seriesmith.core import fileio as F
 
 _LOCK = threading.Lock()
 _STORES: dict[str, dict] = {}            # the store's file -> its entries
@@ -41,12 +42,7 @@ def store(name: str) -> dict:
     with _LOCK:
         data = _STORES.get(path)
         if data is None:
-            try:
-                with open(path, encoding="utf-8") as fh:
-                    data = json.load(fh)
-            except (OSError, ValueError):
-                data = {}
-            _STORES[path] = data = data if isinstance(data, dict) else {}
+            _STORES[path] = data = F.read_json_or(path, {}, want=dict)
         return data
 
 
@@ -71,11 +67,7 @@ def save() -> None:
         _DIRTY.clear()
     for path, text in todo:
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            tmp = f"{path}.{os.getpid()}.tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                fh.write(text)
-            os.replace(tmp, path)
+            F.write_text(path, text)
         except OSError:
             pass                                  # a cache that can't be written is just slower
 

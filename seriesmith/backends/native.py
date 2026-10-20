@@ -17,7 +17,6 @@ live progress over /ws; without it a run is followed by polling alone.
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import os
 import time
@@ -26,6 +25,7 @@ from typing import Callable
 
 from seriesmith.backends import (TERMINAL, Backend, BackendError, File, Output, Progress, Run,
                                  files_in, patiently)
+from seriesmith.core import fileio as F
 
 # ComfyUI's ui output key -> the output's type (comfy-api-proxy's _OUTPUT_KIND)
 OUTPUT_KIND = {"images": "image", "gifs": "video", "audio": "audio", "text": "text",
@@ -244,10 +244,7 @@ class NativeRun(Run):
         def fetcher(ref):
             def fetch(path: str) -> None:
                 data = patiently(lambda: comfy.view(ref))
-                tmp = path + ".part"
-                with open(tmp, "wb") as fh:
-                    fh.write(data)
-                os.replace(tmp, path)
+                F.write_bytes(path, data)
             return fetch
         return [Output(node, name, kind, fetcher(ref))
                 for node, name, kind, ref in outputs_of(self._entry)]
@@ -256,12 +253,8 @@ class NativeRun(Run):
 def upload_name(path: str) -> str:
     """Where an input file goes in ComfyUI's input folder: named by its
     content, so the same file is sent once and two files never clash."""
-    h = hashlib.sha1()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
     ext = os.path.splitext(path)[1].lower()
-    return f"{UPLOAD_FOLDER}/{h.hexdigest()[:20]}{ext}"
+    return f"{UPLOAD_FOLDER}/{F.file_digest(path)[:20]}{ext}"
 
 
 class ComfyUIBackend(Backend):

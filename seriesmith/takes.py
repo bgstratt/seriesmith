@@ -53,17 +53,17 @@ Stdlib only.
 """
 from __future__ import annotations
 
-import copy
 import datetime as _dt
 import glob
 import hashlib
 import json
 import os
 import re
-import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
+
+from seriesmith.core import fileio as F
 
 SIDECAR_VERSION = 1
 DEFAULT_TARGET = "minimax_h3_ref2va"
@@ -195,7 +195,7 @@ def discard_files(files: list[str], trash: str) -> list[str]:
     out = []
     for f in files:
         to = os.path.join(dst, os.path.basename(f))
-        os.replace(f, to)
+        F.replace(f, to)
         out.append(to)
     return out
 
@@ -204,98 +204,14 @@ def discard_files(files: list[str], trash: str) -> list[str]:
 # JSON files
 # ---------------------------------------------------------------------------
 
-# Windows: a file being replaced (os.replace) can't be opened for a moment,
-# and one held open by a reader can't be replaced -- PermissionError, both
-# ways. seriesmith's queue writes a take's record on its own threads while the
-# editor's routes read it, so each side waits that moment out and tries again.
-_SHARING_TRIES, _SHARING_WAIT = 80, 0.025          # about 2 s
-
-
-def _shared(fn):
-    for i in range(_SHARING_TRIES):
-        try:
-            return fn()
-        except PermissionError:
-            if i == _SHARING_TRIES - 1:
-                raise
-            time.sleep(_SHARING_WAIT)
-
-
-def read_json(path: str, default=None):
-    def read():
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    try:
-        return _shared(read)
-    except FileNotFoundError:
-        return default
-
-
-# Files read over and over in one request and between them (a shotlist: one
-# Refs listing of a 324-shot episode parsed it 378 times, a second of its 2.7).
-# Kept parsed while size and mtime hold, as file_sha1 keeps its hashes, and not
-# while it may still be written to (RACY_S). The parsed value is SHARED by every
-# caller: read it, never change it (copy.deepcopy first, as frozen_shotlist does).
-_KEPT: dict[str, tuple[int, int, object]] = {}
-_KEPT_MAX = 256
-_KEPT_LOCK = threading.Lock()
-
-
-def read_json_kept(path: str):
-    """The JSON in `path`, parsed once while the file is unchanged; the same
-    object to every caller, so read-only. FileNotFoundError when it's gone,
-    ValueError when it doesn't parse (neither is kept), as json.load."""
-    st = os.stat(path)
-    key = os.path.normcase(os.path.abspath(path))
-    with _KEPT_LOCK:
-        hit = _KEPT.get(key)
-    if hit and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
-        return hit[2]
-
-    def read():
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    data = _shared(read)
-    if time.time() - st.st_mtime_ns / 1e9 > RACY_S:
-        with _KEPT_LOCK:
-            if len(_KEPT) >= _KEPT_MAX:
-                _KEPT.clear()
-            _KEPT[key] = (st.st_size, st.st_mtime_ns, data)
-    return data
-
-
-def read_json_copy(path: str, default=None):
-    """read_json, for a small file read often and then changed and saved
-    (overrides, picks, the cut): its own copy of the kept parse, which is
-    cheaper than opening and parsing the file again. `default` when it's gone;
-    ValueError when it doesn't parse, as read_json."""
-    try:
-        return copy.deepcopy(read_json_kept(path))
-    except FileNotFoundError:
-        return default
-
-
-def forget_kept() -> None:
-    with _KEPT_LOCK:
-        _KEPT.clear()
-
-
-def write_json(path: str, data) -> None:
-    """Atomic: a reader never sees a half-written file."""
-    d = os.path.dirname(os.path.abspath(path))
-    os.makedirs(d, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=d)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
-            fh.write("\n")
-        _shared(lambda: os.replace(tmp, path))
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
+# Writing and reading files safely lives in core/fileio; these are the names
+# the rest of seriesmith has always used for it.
+_shared = F.shared
+read_json = F.read_json
+read_json_kept = F.read_json_kept
+read_json_copy = F.read_json_copy
+forget_kept = F.forget_kept
+write_json = F.write_json
 
 
 def now() -> str:
@@ -316,7 +232,7 @@ def content_hash(obj) -> str:
 # (Windows stamps writes at timer resolution); those are hashed every time.
 _SHA1_CACHE: dict[str, tuple[int, int, str]] = {}
 _SHA1_CACHE_MAX = 20000
-RACY_S = 2.0
+RACY_S = F.RACY_S
 
 
 def file_sha1(path: str) -> str | None:
@@ -337,13 +253,9 @@ def file_sha1(path: str) -> str | None:
         _SHA1_CACHE[key] = (st.st_size, st.st_mtime_ns, hit[2])
         return hit[2]
     try:
-        h = hashlib.sha1()
-        with open(path, "rb") as fh:
-            for chunk in iter(lambda: fh.read(1 << 20), b""):
-                h.update(chunk)
+        sha = F.file_digest(path)
     except FileNotFoundError:
         return None
-    sha = h.hexdigest()
     if time.time() - st.st_mtime_ns / 1e9 > RACY_S:
         if len(_SHA1_CACHE) >= _SHA1_CACHE_MAX:
             _SHA1_CACHE.clear()

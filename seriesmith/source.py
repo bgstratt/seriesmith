@@ -29,10 +29,9 @@ import json
 import os
 import re
 import sys
-import tempfile
-import time
 
 from seriesmith import edit as E  # noqa: E402
+from seriesmith.core import fileio as F
 
 FILES = ("script", "series")
 HISTORY = "_history"
@@ -481,29 +480,9 @@ def prune_history(ep: str, name: str, keep: int = HISTORY_KEEP) -> None:
             pass
 
 
-def atomic_write(path: str, data: bytes) -> None:
-    """Write `data` to `path` through a temp file beside it and os.replace. A
-    file held open elsewhere (Windows) is retried briefly."""
-    d = os.path.dirname(os.path.abspath(path))
-    fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=os.path.splitext(path)[1], dir=d)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        for attempt in range(5):
-            try:
-                os.replace(tmp, path)
-                break
-            except PermissionError:
-                if attempt == 4:
-                    raise
-                time.sleep(0.1 * (attempt + 1))
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
-
+# a file written whole or not at all (core/fileio), under the name the editor's
+# saves use
+atomic_write = F.write_bytes
 
 def write_source(src: Source, text: str) -> str:
     """Write `text` over `src` (history copy first, atomic, the file's line

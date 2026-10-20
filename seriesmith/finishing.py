@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith.backends import File
+from seriesmith.core import fileio as F
 
 SAVER = "SeriesmithSaveUpscale"
 H3_SAVER = "H3SaveUpscale"
@@ -237,7 +238,7 @@ def collect(fin: Finish, run, saver: str, status: str, extra: dict | None = None
             continue
         part = dst + ".part"
         out.save(part)
-        T._shared(lambda: os.replace(part, dst))
+        F.replace(part, dst)
         got.append(n)
     if not isinstance(record, dict):
         mark_failed(fin, "the job finished but its saver reported no record "

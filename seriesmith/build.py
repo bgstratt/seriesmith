@@ -24,7 +24,6 @@ parses, reports and writes.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from typing import Callable
@@ -50,6 +49,7 @@ from seriesmith.core.story import (META_KEYS, OS_TOKENS, SIZES, VO_TOKENS,  # no
 # ---------------------------------------------------------------------------
 
 from seriesmith.targets.video.minimax_h3_ref2va import compile as _h3  # noqa: E402
+from seriesmith.core import fileio as F
 
 # Checks for the series config's stage recipes, by block name ("upscale",
 # "post"): each takes the block's `master` and returns warnings. Imported only
@@ -454,12 +454,10 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     sfx = "_proxy" if args.proxy else ""
     sl = os.path.join(args.out, "shotlist", f"shotlist{sfx}.json")
     written = [sl]
-    with open(sl, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, ensure_ascii=False, indent=2)
+    F.write_json(sl, doc, end="")
     for t, tdoc, _ in built[1:]:
         p = os.path.join(args.out, "shotlist", f"shotlist.{t.id}{sfx}.json")
-        with open(p, "w", encoding="utf-8") as fh:
-            json.dump(tdoc, fh, ensure_ascii=False, indent=2)
+        F.write_json(p, tdoc, end="")
         written.append(p)
     # a target no shot uses any more leaves no stale file behind
     keep = {os.path.basename(p) for p in written}
@@ -469,27 +467,24 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             os.remove(os.path.join(args.out, "shotlist", n))
     # The story IR: model-free and pass-free, so both passes write the same file.
     ir_path = os.path.join(args.out, "shotlist", "shots.json")
-    with open(ir_path, "w", encoding="utf-8") as fh:
-        json.dump(story.to_json(), fh, ensure_ascii=False, indent=2)
+    F.write_json(ir_path, story.to_json(), end="")
     # Suffix the proxy's work order the way the shotlist is suffixed. A proxy
     # pass can legitimately need fewer assets (generated voices need no
     # samples), and letting it overwrite the canonical list would quietly drop
     # items the final pass still requires.
     sfx = "_proxy" if args.proxy else ""
     todo = os.path.join(args.out, f"refs_todo{sfx}.md")
-    with open(todo, "w", encoding="utf-8") as fh:
-        fh.write(render_todo(report, args.out))
+    F.write_text(todo, render_todo(report, args.out))
 
     # machine-readable twin, for driving a batch image run
     todo_json = os.path.join(args.out, f"refs_todo{sfx}.json")
-    with open(todo_json, "w", encoding="utf-8") as fh:
-        json.dump([
+    F.write_json(todo_json, [
             {"path": p, "kind": v["kind"], "prompt": v["prompt"],
              "size_hint": report.get("size_hints", SIZE_HINT).get(v["kind"], ""),
              "exists": os.path.isfile(os.path.join(args.out, p)),
              "blocks_shots": report.get("blocked_shots", {}).get(p, [])}
             for p, v in report["needed"].items()
-        ], fh, ensure_ascii=False, indent=2)
+        ], end="")
 
     for p in written:
         print(f"  -> {p}")

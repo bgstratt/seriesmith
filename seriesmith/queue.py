@@ -28,14 +28,13 @@ Resilience (docs/PLAN.md, step 11):
 from __future__ import annotations
 
 import itertools
-import json
-import os
 import threading
 import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable
+from seriesmith.core import fileio as F
 
 STATUSES = ("queued", "running", "succeeded", "failed", "canceled")
 DONE = ("succeeded", "failed", "canceled")
@@ -173,24 +172,15 @@ class Queue:
                     for j in self.jobs.values()
                     if j.status not in DONE and (j.record or (j.resume or {}).get("step"))}
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(self.journal)), exist_ok=True)
-            tmp = self.journal + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(live, fh, indent=1, default=str)
-            os.replace(tmp, self.journal)
+            F.write_json(self.journal, live, indent=1, end="", ensure_ascii=True, default=str)
         except OSError:
             pass                                          # best effort: never fail a job for it
 
     def read_journal(self) -> dict:
         """What the journal listed when the server last stopped ({} if none)."""
-        if not self.journal or not os.path.isfile(self.journal):
+        if not self.journal:
             return {}
-        try:
-            with open(self.journal, encoding="utf-8") as fh:
-                data = json.load(fh)
-            return data if isinstance(data, dict) else {}
-        except (OSError, ValueError):
-            return {}
+        return F.read_json_or(self.journal, {}, want=dict)
 
     def arm_cancel(self, job: Job, cancel: Callable[[], None]) -> None:
         """What stops a running job, given once the work has started its run. A

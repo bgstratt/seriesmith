@@ -42,6 +42,9 @@ user's side.
 - Run ffmpeg and ffprobe through `seriesmith/ff.py` (`FF.tool("ffmpeg")`, `FF.have`), never
   a bare `"ffmpeg"`: it finds imageio-ffmpeg's binary and PyAV's ffprobe stand-in when
   PATH has none (the node pack: `comfy_nodes/_ff.py`).
+- Write files through `seriesmith/core/fileio.py` (`write_json`, `write_bytes`, `replace`,
+  `read_json_or`, ...): atomic, LF, the Windows retry. Never a bare `open(path, "w")` for
+  a file something else reads, nor a bare `os.replace`.
 - Tests: `.venv\Scripts\python -m pytest` (the whole suite takes ~8 minutes;
   run the files you touched first). `tests/conftest.py` points every test at empty
   settings and unreachable backends; keep it that way. This machine's own models

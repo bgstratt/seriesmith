@@ -83,6 +83,7 @@ import time
 from dataclasses import dataclass, field
 
 from . import modelid
+from seriesmith.core import fileio as F
 
 HERE =os.path.dirname(os.path.abspath(__file__))
 KINDS = ("video", "image", "audio")
@@ -979,11 +980,7 @@ def _targets_in(d: str) -> list[tuple[str, str, str]]:
         p = os.path.join(d, name, "target.json")
         if not os.path.isfile(p):
             continue
-        try:
-            with open(p, encoding="utf-8") as fh:
-                kind = json.load(fh).get("kind")
-        except (OSError, ValueError):
-            continue
+        kind = F.read_json_or(p, {}, want=dict).get("kind")
         if kind in KINDS:
             out.append((kind, name, os.path.join(d, name)))
     return out

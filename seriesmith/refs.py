@@ -97,6 +97,7 @@ from seriesmith.targets.image.krea2.prompt import (  # noqa: E402,F401
     VIEW_DESC, VIEW_TAGS, VIEW_TMPL, VIEWS, angle_prompt, group_prompt, object_prompt,
     plate_prompt, sheet_prompt, view_edit_prompt, view_prompt)
 from seriesmith.core.series_config import members  # noqa: E402
+from seriesmith.core import fileio as F
 
 IMAGE_TARGET = TG.load_target(TG.DEFAULT_IMAGE_TARGET, "image")
 NEW_SEED_BITS = 53         # as jobs: a browser can hold these as numbers
@@ -1113,35 +1114,8 @@ def close_take(take: RefTake, data: bytes | None = None, notes: str = "",
     return "failed"
 
 
-def _atomic_write(path: str, data: bytes) -> None:
-    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    tmp = os.path.join(os.path.dirname(os.path.abspath(path)),
-                       f".tmp_{uuid.uuid4().hex}_{os.path.basename(path)}")
-    try:
-        with open(tmp, "wb") as fh:
-            fh.write(data)
-        T._shared(lambda: os.replace(tmp, path))
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
-
-
-def _atomic_copy(src: str, dst: str) -> None:
-    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
-    tmp = os.path.join(os.path.dirname(os.path.abspath(dst)),
-                       f".tmp_{uuid.uuid4().hex}_{os.path.basename(dst)}")
-    try:
-        shutil.copyfile(src, tmp)
-        T._shared(lambda: os.replace(tmp, dst))
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
+_atomic_write = F.write_bytes                              # core/fileio
+_atomic_copy = F.copy
 
 
 # ---------------------------------------------------------------------------
@@ -1668,7 +1642,7 @@ def stitch_sheet(views: list[str], out: str, panel_height: int = 1024,
                 raise StitchError(f"stitching a sheet needs PIL, and {sys.executable} can't "
                                   f"import it (pip install pillow)")
             raise StitchError("mksheet failed: " + (se.strip() or so.strip())[-600:])
-        os.replace(tmp, out)
+        F.replace(tmp, out)
     finally:
         if os.path.isfile(tmp):
             try:
@@ -1751,7 +1725,7 @@ def voice_from_take(s: Series, ref: Ref, shot: str, take: int, pass_: str = "pro
             "comfy_prompt_id": None, "seed": None, "seed_source": None,
             "prompt": None, "model": None, "loras": None, "steps": None,
             "width": None, "height": None, "note": note}, ext=".wav")
-        os.replace(tmp, t.paths.image)
+        F.replace(tmp, t.paths.image)
     finally:
         if os.path.isfile(tmp):
             try:
@@ -2013,7 +1987,7 @@ def frame_into(s: Series, ref: Ref, view: str | None, src: T.Take, src_pass: str
             "source_sha1": source["sha1"], "comfy_prompt_id": None, "seed": None,
             "seed_source": None, "prompt": None, "model": None, "loras": None,
             "steps": None, "note": note})
-        os.replace(tmp, t.paths.image)
+        F.replace(tmp, t.paths.image)
     finally:
         if os.path.isfile(tmp):
             try:
@@ -2131,7 +2105,7 @@ def frame_from_video(s: Series, ref: Ref, view: str | None, video: str, seconds,
             "source_sha1": T.file_sha1(video), "comfy_prompt_id": None, "seed": None,
             "seed_source": None, "prompt": None, "model": None, "loras": None,
             "steps": None, "note": note})
-        os.replace(tmp, t.paths.image)
+        F.replace(tmp, t.paths.image)
     finally:
         if os.path.isfile(tmp):
             try:
@@ -3332,7 +3306,7 @@ def compose_composite(s: Series, job: GenJob) -> None:
     try:
         SH.compose(spec, tmp)
         out = os.path.join(d, f"{T.file_sha1(tmp)}.png")
-        os.replace(tmp, out)
+        F.replace(tmp, out)
         comp["path"] = out
     except SH.SheetError as e:
         # a view cut from a sheet needs PIL too: an uncut figure, else the plate

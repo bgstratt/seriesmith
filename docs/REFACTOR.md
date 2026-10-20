@@ -347,7 +347,7 @@ Unchanged on purpose: `/router/models` (2 s once, then kept an hour: Router's ca
 Plain consolidation: each replaces near-copies with one function and settles their
 differences on purpose (listed). Live checks are the flows that use each helper.
 
-#### 2.1 `core/fileio.py`: safe writes and reads ☐
+#### 2.1 `core/fileio.py`: safe writes and reads ✅
 About 14 atomic-write copies (`takes.write_json` the best; others without the Windows
 share-retry, with fixed `.tmp` names two threads can collide on, or writing CRLF), about
 15 read-with-default blocks, 5 file hashers, 8 stat-key shapes. **One module:**
@@ -357,6 +357,25 @@ default, want=dict)`, `file_digest`, `stat_key`. Standard library only (build us
   now on (their content is unchanged).
 - **Live check:** change a setting, save a preset, pick a take, Build, edit an
   override; each file reads back.
+- **Done:** `seriesmith/core/fileio.py` (stdlib): `write_json` / `write_text` /
+  `write_bytes` / `copy` (atomic, LF, a temp name of each writer's own, removed on
+  failure), `replace` and `shared` (the Windows retry), `temp_beside`, `read_json`,
+  `read_json_or` (a default for a missing, unreadable or broken cache / journal / lock),
+  `read_json_kept` / `read_json_copy` (from 1.8), `file_digest` (chunked). Moved onto
+  it: takes (its names kept as aliases), settings, presets, the inspector's target
+  save, the queue journal, diskcache, the modelid cache, peaks, source's saves, refs'
+  two private copies, the thumbnail (its temp name was per process: the two thumbnail
+  threads could share it), native's output fetch, the build's outputs (written in place
+  before: a reader could see half a shotlist), align's result; every swap of a file a
+  tool wrote (refs, runner, jobs, finishing, installer, the trash) gets the retry; three
+  hashers (one read a whole video into memory for sha256). Each JSON file keeps its
+  layout; what changes is line ends (LF everywhere; the goldens normalise them).
+- Live: settings saved (LF, reads back); Ballroom-refactor built (every output LF and
+  the same content as the original's); align's readiness probe; a ref generated locally,
+  picked, picked back (the queue journal LF); an override set and cleared (and the file
+  restored). No `.tmp_` left anywhere. Suite 1537 passed.
+- Found: Ballroom ep01's sh040 prompt override holds `â€”` for an em dash (UTF-8 read
+  as cp1252 somewhere, before this pass). Traced in 2.6.
 
 #### 2.2 `core/paths.py`: the series config and ids ☐
 11 ways to find `series.json` (episode folder then parent), three ways to parse it, 7

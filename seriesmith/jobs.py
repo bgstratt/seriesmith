@@ -76,6 +76,7 @@ from dataclasses import dataclass, field
 
 from seriesmith import takes as T
 from seriesmith import targets as TG
+from seriesmith.core import fileio as F
 
 # The default video target's binding, under the names render and the routes
 # have always imported. Job code reads the job's own target instead.
@@ -1981,7 +1982,7 @@ def place_staged(job: Job, take: T.Take) -> None:
     made = []
     for f in job.staged:
         dst = os.path.join(take.paths.dir, take.paths.stem + f["suffix"])
-        os.replace(f["tmp"], dst)
+        F.replace(f["tmp"], dst)
         # a portable render uploads it from where it now is
         for name, p in list(job.input_files.items()):
             if p == f["tmp"]:
@@ -2870,12 +2871,7 @@ def series_model_families(root: str) -> dict:
     for d in (root, os.path.dirname(os.path.normpath(root))):
         p = os.path.join(d, "series.json")
         if os.path.isfile(p):
-            try:
-                with open(p, encoding="utf-8") as fh:
-                    cfg = json.load(fh)
-            except (OSError, ValueError):
-                return {}
-            return TG.series_model_families(cfg if isinstance(cfg, dict) else {})
+            return TG.series_model_families(F.read_json_or(p, {}, want=dict))
     return {}
 
 
