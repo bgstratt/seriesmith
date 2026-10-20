@@ -1443,7 +1443,9 @@ open, and what was added:
     `max_size` (`{long_side, pixels}`) and `size_fit: "snap"`.
   - `widgets` values are always single specs (for a param patched into several widgets,
     the first). An `ltx2` widget spec may carry `feeds` ([class, input]: which of several
-    nodes of that class), `all` or `scale`; a picker only needs `class_type` and `field`.
+    nodes of that class; [class, input, title]: feeding a node of that class with that
+    title, as a prompt and a negative that both feed a CLIPTextEncode), `all` or `scale`;
+    a picker only needs `class_type` and `field`.
     `ltx2` has no `steps` widget: its sampling schedule is fixed in the workflow.
 - **Take sidecars** may add `built_target` (retargeted), `inputs` (`{role: name in   ComfyUI's input folder}` of the keyframes used) and `notes` (a list of strings: audio
   fallbacks, an ignored prompt override, a `steps` value the target doesn't use). An `ltx2`
@@ -3505,7 +3507,7 @@ inspect_graph(data, object_info, model_list, target_id=, label=, workflow_name=,
 | what | how it is found |
 |---|---|
 | saver | the terminal node, matched against the savers the shipped targets replace (`CreateVideo`, `SaveVideo`, `SaveImage`, `SaveAudio`), taken from the targets themselves so it can't drift |
-| prompt / negative | walk each sampler's or guider's `positive` / `negative` conditioning back to the node holding the text |
+| prompt / negative | walk each sampler's or guider's `positive` / `negative` conditioning back to the node holding the text; a node with several text fields (a StringConcatenate after a system prompt) takes it in the last, and says so. Two such nodes of one class are told apart by their titles, else by what they feed and that node's title (the Positive / Negative Prompt encoders) |
 | widgets | by name: `seed`/`noise_seed`, `steps`, `cfg`, `sampler_name`, `scheduler`, `shift`, `denoise`, `width`, `height`, `length`, `fps`. Several of one class with equal values become `all: true`; several that disagree are an **ambiguity** for the author. A widget fed by another node still counts — a render cuts that link (LTX's resolution picker) — and says so |
 | the saver's own | `fps`, `shot_id`, `audio_policy` are bound to the saver whenever it has them |
 | models | every combo widget whose choices are a models folder's files. The **folder** is found by asking which folder lists that file, the **param name** from the loader class (then the folder, then the widget name), the **family** by running the file name through the patterns every shipped target declares (`known_families`). Two loaders of one class are told apart by what they feed (`feeds`: a VAE into `VAEDecodeAudio` is the audio VAE) or by their titles (Wan's high / low noise). One file loaded by several nodes becomes one param with a list of widgets (LTX 2.3) |
