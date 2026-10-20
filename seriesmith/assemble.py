@@ -122,13 +122,11 @@ def probe(path: str) -> dict:
     key = (os.path.normcase(os.path.abspath(path)), st.st_size, st.st_mtime_ns)
     if key in _PROBES:
         return _PROBES[key]
-    r = run([*FF.tool("ffprobe"), "-v", "error", "-show_data", "-show_entries", PROBE_ENTRIES,
-             "-of", "json", path], timeout=60)
     try:
-        d = json.loads(r.stdout.decode("utf-8", "replace")) if r.returncode == 0 else {}
-    except ValueError:
-        d = {}
-    if not isinstance(d, dict) or not d.get("streams"):
+        d = FF.probe_json(path, "-show_data", "-show_entries", PROBE_ENTRIES)
+    except FF.FFError:
+        return {}
+    if not d.get("streams"):
         return {}
     if len(_PROBES) >= _PROBES_MAX:
         _PROBES.clear()
@@ -265,13 +263,10 @@ def picture_offset(path: str) -> float:
 def frame_md5s(path: str, first: int, count: int, fps: float) -> list[str]:
     """framemd5 of `count` decoded frames from frame `first` on, or [] when they
     don't decode cleanly."""
-    at = max(0.0, picture_offset(path) + (first - 0.5) / fps)
-    r = run([*FF.tool("ffmpeg"), "-v", "error", "-ss", f"{at:.6f}", "-i", path, "-map", "0:v:0",
-             "-frames:v", str(count), "-f", "framemd5", "-"], timeout=600)
-    if r.returncode != 0 or r.stderr.strip():
+    try:
+        return FF.frame_md5s(path, picture_offset(path) + (first - 0.5) / fps, count)
+    except FF.FFError:
         return []
-    return [ln.rsplit(",", 1)[1].strip() for ln in r.stdout.decode().splitlines()
-            if ln and not ln.startswith("#")]
 
 
 def joins_ok(out: str, clips: list[tuple[str, int]], around: set[int],
@@ -417,6 +412,7 @@ def normalise(src: str, dst: str, audio_wav: str | None, fps: float,
 # the H.264 headers, so an untagged clip never matches the standard and is
 # never copied unconverted beside converted ones.
 BT709_TAGS = "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+BT601_TO_709 = "scale=in_color_matrix=bt601:out_color_matrix=bt709:in_range=tv:out_range=tv"
 
 
 def color_matrix(path: str) -> str:
@@ -427,8 +423,7 @@ def color_matrix(path: str) -> str:
 def to_bt709(matrix: str) -> list[str]:
     """The filters that make a clip with colour matrix `matrix` BT.709: an
     untagged or BT.601 clip is converted, a BT.709 one only tagged."""
-    conv = [] if matrix == "bt709" else [
-        "scale=in_color_matrix=bt601:out_color_matrix=bt709:in_range=tv:out_range=tv"]
+    conv = [] if matrix == "bt709" else [BT601_TO_709]
     return conv + ["format=yuv420p", BT709_TAGS]
 
 

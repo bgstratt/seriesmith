@@ -397,7 +397,7 @@ in the episode folder only. **One module:** `series_home`, `series_config_path`,
   its files. The episode list, Refs listings and `/episode` of five shows: byte-identical
   old vs new (6.9 MB). Suite 1542 passed.
 
-#### 2.3 `ff.py`: probe and run ☐
+#### 2.3 `ff.py`: probe and run ✅ (smaller than planned)
 Two `video_duration`s that mean different things (stream vs container), two frame
 counters, three JSON probes, five run wrappers, three "is ffmpeg here" checks; frame
 hashes and join checks in both assemble and publish; publish rebuilding the BT.709
@@ -406,6 +406,21 @@ filter. **Into ff.py** (extends 1.10): `run`, `probe`, `duration(source=)`,
 (they run without the package).
 - **Live check (you):** Publish a Ballroom-refactor master; a ref from a video frame;
   peaks on the timeline.
+- **Done, and why it's smaller than planned:** read closely, the probes weren't copies.
+  Each asks for different fields at a different exactness (finish and refs decode every
+  frame on purpose: a provider's mp4 can carry an edit list that makes the header's count
+  wrong; assemble and peaks trust the header), once per operation, with its own error
+  policy. Folding them into one probe would trade correctness for tidiness. What was
+  copied: running ffprobe for JSON and parsing it (now `ff.probe_json`, under assemble,
+  publish, finish and peaks, each keeping its flags and messages) and the framemd5 run
+  (now `ff.frame_md5s`, under assemble and publish, each keeping its error policy);
+  publish's title clips use assemble's BT.601 → 709 filter text (`BT601_TO_709`).
+- Checked first: 1.10's single probe answers the same through the PyAV ffprobe stand-in
+  (a ComfyUI-only machine), field for field, and assembles byte-identically there.
+- Live: Ballroom-refactor ep01 / ep02 assemble byte-identically (358a3dcb…, d486e3d2…);
+  ep01 publishes byte-identically old vs new (0c77dfc1…, with test title clips in the
+  scratch show's `_titles`); finish's and peaks' probes identical on 6 real takes.
+  Suite 1547 passed.
 
 #### 2.4 HTTP JSON in one place ☐
 7 urllib+TLS copies (router, router_inspect ×2, cloud, comfy health, features, installer)

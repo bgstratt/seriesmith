@@ -9,7 +9,6 @@ Needs ffmpeg and ffprobe on PATH. Stdlib otherwise.
 """
 from __future__ import annotations
 
-import json
 import subprocess
 
 from seriesmith import ff as FF
@@ -36,8 +35,12 @@ def _run(cmd: list[str]) -> bytes:
 
 def probe(mp4: str) -> dict:
     """{"frames", "fps", "width", "height", "audio"} of a video file."""
-    out = json.loads(_run([*FF.tool("ffprobe"), "-v", "error", "-count_frames", "-show_streams",
-                           "-of", "json", mp4]))
+    try:
+        out = FF.probe_json(mp4, "-count_frames", "-show_streams", timeout=600)
+    except FileNotFoundError:
+        raise FinishError("ffprobe is not on PATH") from None
+    except FF.FFError as e:
+        raise FinishError(f"ffprobe failed: {str(e)[-200:]}") from None
     video = next((s for s in out.get("streams", []) if s.get("codec_type") == "video"), None)
     if video is None:
         raise FinishError(f"{mp4} has no video stream")

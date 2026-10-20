@@ -139,13 +139,8 @@ def _ffprobe(path: str) -> dict | None:
     if not FF.have("ffprobe"):
         return None
     try:
-        r = subprocess.run([*FF.tool("ffprobe"), "-v", "error", "-show_entries",
-                            "format=duration:stream=codec_type,sample_rate",
-                            "-of", "json", path], capture_output=True, timeout=60)
-        data = json.loads(r.stdout.decode("utf-8", "replace") or "{}")
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return None
-    if r.returncode != 0:
+        data = FF.probe_json(path, "-show_entries", "format=duration:stream=codec_type,sample_rate")
+    except (OSError, FF.FFError, subprocess.SubprocessError):
         return None
     audio = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
     try:

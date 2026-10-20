@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import glob
 import importlib.util
+import json
 import os
 import shutil
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -115,4 +117,42 @@ def where(name: str) -> str:
     return f"{name}: {got[0]}" if len(got) == 1 else f"{name}: PyAV ({os.path.basename(got[1])})"
 
 
-__all__ = ["find", "forget", "have", "managed", "tool", "where"]
+class FFError(RuntimeError):
+    """ffprobe or ffmpeg ran and failed; the message is what it said."""
+
+
+def probe_json(path: str, *args: str, timeout: float = 60) -> dict:
+    """ffprobe's JSON for `path`, asked with `args` (each caller its own:
+    "-show_entries", "-count_frames", "-show_data", ...). FFError when it
+    fails or says something that isn't JSON; FileNotFoundError when there is
+    no ffprobe at all (tool() is then the bare name)."""
+    r = subprocess.run([*tool("ffprobe"), "-v", "error", *args, "-of", "json", path],
+                       capture_output=True, timeout=timeout)
+    err = r.stderr.decode("utf-8", "replace").strip()
+    if r.returncode != 0:
+        raise FFError(err or f"ffprobe exited {r.returncode}")
+    try:
+        d = json.loads(r.stdout.decode("utf-8", "replace") or "{}")
+    except ValueError:
+        raise FFError(f"ffprobe's answer isn't JSON: {r.stdout[:200]!r}") from None
+    if not isinstance(d, dict):
+        raise FFError(f"ffprobe's answer isn't an object: {r.stdout[:200]!r}")
+    return d
+
+
+def frame_md5s(path: str, at: float, count: int, timeout: float = 600) -> list[str]:
+    """framemd5 of `count` decoded frames of `path`'s picture from `at` seconds
+    (input seeking: a caller works out `at` from the frame it wants). FFError
+    when they don't decode cleanly (anything on stderr counts)."""
+    r = subprocess.run([*tool("ffmpeg"), "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
+                        "-map", "0:v:0", "-frames:v", str(count), "-f", "framemd5", "-"],
+                       capture_output=True, timeout=timeout)
+    err = r.stderr.decode("utf-8", "replace").strip()
+    if r.returncode != 0 or err:
+        raise FFError(err or f"ffmpeg exited {r.returncode}")
+    return [ln.rsplit(",", 1)[1].strip() for ln in r.stdout.decode("utf-8", "replace").splitlines()
+            if ln and not ln.startswith("#")]
+
+
+__all__ = ["FFError", "find", "forget", "frame_md5s", "have", "managed", "probe_json", "tool",
+           "where"]
