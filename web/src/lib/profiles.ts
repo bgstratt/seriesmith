@@ -118,3 +118,32 @@ export function profileRunPatch(p: Profile, prompt: string, lockPrompt: boolean,
   }
   return out;
 }
+
+/** The shot form's keys a profile can carry (with `sla:`, which the form keeps
+ * among its other lines). */
+const SHOT_PROFILE_KEYS = ["lens", "target", "model", "lora", "steps"] as const;
+const SLA_LINE = /^sla\s*:\s*(on|off)\s*$/i;
+
+/** A profile made from a shot's own settings (the shot form's "Save as profile…"):
+ * its lens, video model, model file, LoRAs, steps and `sla:`. Empty when it sets none. */
+export function profileFromShot(keys: Record<string, string>, other: string[] = []): Profile {
+  const p: Profile = {};
+  const v = (k: string) => (keys[k] ?? "").trim();
+  if (v("lens")) p.lens = v("lens");
+  if (v("target")) p.target = v("target");
+  if (v("model")) p.model = v("model");
+  if (v("lora")) p.loras = lorasValue(v("lora"));
+  const steps = parseInt(v("steps"), 10);
+  if (Number.isFinite(steps) && steps > 0) p.steps = steps;
+  const sla = other.map((l) => l.trim().match(SLA_LINE)).find(Boolean);
+  if (sla) p.sla = sla[1].toLowerCase() as "on" | "off";
+  return p;
+}
+
+/** The shot's form on profile `name`: `profile:` set, and the lines the profile now
+ * carries taken off the shot (they would otherwise still win over it). */
+export function shotOnProfile<F extends { keys: Record<string, string>; other: string[] }>(form: F, name: string): F {
+  const keys: Record<string, string> = { ...form.keys, profile: name };
+  for (const k of SHOT_PROFILE_KEYS) delete keys[k];
+  return { ...form, keys, other: form.other.filter((l) => !SLA_LINE.test(l.trim())) };
+}

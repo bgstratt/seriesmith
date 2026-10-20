@@ -24,6 +24,7 @@ import { LengthPicker } from "./LengthPicker";
 import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
 
 const RECT_KEY = "seriesmith.shotform.rect";
@@ -123,6 +124,21 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const cast = useMemo(() => castOf(sc.base, refs), [sc.base, refs]);
   const block = form ? writeShot(form) : [];
   const dirty = !!form && block.join("\n") !== orig;
+
+  /** "Save as profile…": this shot's own lens and render settings as a profile in the
+   * series config (saved now), and the shot put on it (saved with the shot). */
+  async function saveAsProfile() {
+    if (!form || !sc.base) return;
+    const p = profileFromShot(form.keys, form.other);
+    const name = window.prompt("Name the profile (what shots name with profile:), e.g. flashback", "")?.trim();
+    if (!name) return;
+    if (!profileNameOk(name)) {
+      setError("A profile's name takes letters, digits, _ and - only.");
+      return;
+    }
+    if (profilesOf(sc.base)[name] && !window.confirm(`Replace the profile “${name}” with this shot's settings?`)) return;
+    if (await sc.save(setProfile(sc.base, name, p), `Profile “${name}”`)) setForm(shotOnProfile(form, name));
+  }
 
   /** the script with this shot as the form has it */
   function scriptText(): string | null {
@@ -363,14 +379,23 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                       <option value="">the series'</option><option value="slow">slow</option><option value="normal">normal</option><option value="fast">fast</option>
                     </select>
                   </Row>
-                  {cast.profiles.length > 0 && (
-                    <Row label="Profile" help="A render profile from the series config.">
-                      <select className="h3-in" value={form.keys.profile ?? ""} onChange={(e) => set("profile", e.target.value)}>
-                        <option value="">—</option>
-                        {cast.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </Row>
-                  )}
+                  <Row label="Profile" help="A profile from the series config: look words, a lens and render settings, shared by the shots that name it. Save as profile… makes one from this shot's own lens, model, LoRAs, steps and sla.">
+                    <span className="h3-row" style={{ gap: 6 }}>
+                      {cast.profiles.length > 0 && (
+                        <select className="h3-in" value={form.keys.profile ?? ""} onChange={(e) => set("profile", e.target.value)}>
+                          <option value="">—</option>
+                          {cast.profiles.map((p) => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      )}
+                      <button type="button" className="h3-btn h3-small" disabled={busy || !Object.keys(profileFromShot(form.keys, form.other)).length}
+                        title={Object.keys(profileFromShot(form.keys, form.other)).length
+                          ? "Keep this shot's lens, video model, model file, LoRAs, steps and sla as a profile in the series config, and put this shot on it"
+                          : "Set a lens, a video model, LoRAs or steps on this shot first: those are what a profile keeps"}
+                        onClick={() => void saveAsProfile()}>
+                        <i className="pi pi-bookmark" /> Save as profile…
+                      </button>
+                    </span>
+                  </Row>
                 </div>
               )}
             </>

@@ -804,7 +804,9 @@ shown as pictures, each filling a text that stays editable.
       settings; a relight edits the shipped bases, `presets/img/base/`), a frame of a shot's
       take or a ref's picture, or a picture you import. `POST /seriesmith/presets/own/picture`
       and `/own/render`; the list makes a finished render the tile.
-- [ ] Maybe: "Save as profile…" from the shot form.
+- [x] "Save as profile…" from the shot form (2026-10-19): the shot's lens, video model, model
+      file, LoRAs, steps and `sla:` as a profile (`lib/profiles.ts` profileFromShot), the
+      series config saved, the shot put on it with those lines taken off (shotOnProfile).
 - [x] A per-shot `lens:` (2026-10-19; also under a `#` header): the look builder's Lens row
       and `deep` (core/framing.py LENSES, a test keeps them equal to look_builder.json). The
       IR shot's action opens with the lens sentence, so every target reads it with no code of

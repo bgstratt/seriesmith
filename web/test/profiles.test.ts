@@ -37,3 +37,19 @@ describe("profiles", () => {
     expect(profileRunPatch(p, "Ada waits.", true).prompt).toBeUndefined();   // the model's own prompt
   });
 });
+
+import { profileFromShot, shotOnProfile } from "../src/lib/profiles";
+
+describe("a profile from a shot", () => {
+  const keys = { size: "ms", lens: "shallow", target: "minimax_h3_ref2va", lora: "none", steps: "20", model: "" };
+  it("takes the shot's own settings", () => {
+    expect(profileFromShot(keys, ["sla: off", "// a note"])).toEqual({
+      lens: "shallow", target: "minimax_h3_ref2va", loras: ["none"], steps: 20, sla: "off" });
+    expect(profileFromShot({ size: "ms" })).toEqual({});
+  });
+  it("puts the shot on it, without the lines it now carries", () => {
+    const f = shotOnProfile({ id: "sh010", keys, other: ["sla: off", "keep: me"] }, "full");
+    expect(f.keys).toEqual({ size: "ms", profile: "full" });
+    expect(f.other).toEqual(["keep: me"]);
+  });
+});
