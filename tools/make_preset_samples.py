@@ -7,6 +7,8 @@ itself on a scratch episode (the starter series, built into --work):
   (look.json's text), on the image target (--look-target, default krea2);
 - relight/<id>-place.jpg: a base plate (BASE_PLACE, in BASE_LOOK) relit by the
   preset's `place` wording, on the edit target (--edit-target);
+- base/place.jpg and base/subject.jpg: those two bases, whole (presets.BASE), which a
+  relight of yours is rendered on (seriesmith/preset_pictures.py);
 - relight/<id>-subject.jpg: a base figure (BASE_FIGURE: Ada's three-quarter
   view, standing on the sample street in plain daylight) relit by its `subject`
   wording, the street behind her asked into the same light (SUBJECT_SCENE);
@@ -52,8 +54,7 @@ SIZE = 480
 PLATE, FIGURE, FIGURE_VIEW = "location:porch", "subject:ada", "01_threequarter"
 
 # the scene every look is drawn in: a figure in a place, so a look shows on both
-LOOK_SCENE = ("A woman in her thirties with short dark hair and a red wool coat waits at a tram stop "
-              "on a city street at dusk, a lit cafe window behind her, a streetlamp just coming on")
+LOOK_SCENE = PR.LOOK_SCENE
 # what the relights start from: plain, even light, so each preset's change shows
 BASE_LOOK = "prestige_35mm"
 BASE_PLACE = ("A quiet city street corner: a cafe front with a striped awning and a glass door, a "
@@ -77,7 +78,15 @@ BASE_FIGURE = ("A full-body three-quarter view of a woman in her thirties with s
                "soft even late-morning daylight, no other people")
 # a figure's wording relights the figure; in a sample the street behind her is
 # asked into the same light, or she'd stand lit by neon in a daylit street
-SUBJECT_SCENE = "; the street behind her in the same light, as one picture"
+SUBJECT_SCENE = PR.SUBJECT_SCENE
+
+
+def keep_base(src: str, dest: str) -> None:
+    """A relight sample's base picture, whole, as the presets ship it."""
+    from PIL import Image
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with Image.open(src) as im:
+        im.convert("RGB").save(dest, quality=90)
 
 
 def look_text(pid: str) -> str:
@@ -265,14 +274,19 @@ def main(argv=None) -> int:
             and (args.redo or not PR.image_path(PR.image_name("relight", p["id"], w)))]
     if todo:
         base = look_text(BASE_LOOK)
+        # each base is also kept as presets.BASE: what a relight of yours renders on
         if any(w == "place" for _, w in todo):
             print("base plate")
-            if not mk.generate(PLATE, None, f"{base}. {BASE_PLACE}", args.look_target, pick=True):
+            got = mk.generate(PLATE, None, f"{base}. {BASE_PLACE}", args.look_target, pick=True)
+            if not got:
                 return 1
+            keep_base(got, PR.BASE["place"])
         if any(w == "subject" for _, w in todo):
             print("base figure")
-            if not mk.generate(FIGURE, FIGURE_VIEW, f"{base}. {BASE_FIGURE}", args.look_target, pick=True):
+            got = mk.generate(FIGURE, FIGURE_VIEW, f"{base}. {BASE_FIGURE}", args.look_target, pick=True)
+            if not got:
                 return 1
+            keep_base(got, PR.BASE["subject"])
         for p, w in todo:
             print(f"relight {p['id']} ({w})")
             ref, view = (PLATE, None) if w == "place" else (FIGURE, FIGURE_VIEW)

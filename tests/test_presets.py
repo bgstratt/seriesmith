@@ -170,7 +170,7 @@ class OwnPresetTest(unittest.TestCase):
         p = PR.save_own("relight", "Flashback haze", {"place": "Change only the light: hazy amber memory"},
                         picture=b"\xff\xd8jpeg")
         self.assertEqual(p["for"], ["place"])
-        self.assertEqual(p["images"]["place"], "own/relight/flashback_haze.jpg")
+        self.assertTrue(p["images"]["place"].startswith("own/relight/flashback_haze.jpg?v="))
         self.assertTrue(PR.image_path(p["images"]["place"]).endswith("flashback_haze.jpg"))
         self.assertEqual(RL.instruction("flashback_haze"), "Change only the light: hazy amber memory")
         self.assertEqual(RL.default_suffix("flashback_haze"), "flashback_haze")

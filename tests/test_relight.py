@@ -143,7 +143,7 @@ class OwnRelightApiTest(RelightApiTest):
             p = self.ok(A.post_preset_own(self.ctx, {
                 "kind": "relight", "label": "Amber memory", "place": "Change only the light: an amber haze",
                 "picture": {"ep": self.ep, "ref": "location:street"}}))
-            self.assertEqual(p["images"], {"place": "own/relight/amber_memory.jpg"})
+            self.assertTrue(p["images"]["place"].startswith("own/relight/amber_memory.jpg?v="))
             data = self.ok(self.relight(locations=["street"], relight="amber_memory", dry_run=True))
             self.assertEqual(data["locations"][0]["id"], "street_amber_memory")
             self.assertIn("An amber haze.", data["locations"][0]["entry"]["description"])

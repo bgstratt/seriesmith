@@ -28,6 +28,17 @@ EXT = {"camera": ".mp4"}
 WORDING = {"location": "place", "character": "subject", "prop": "subject", "vehicle": "subject"}
 
 
+# the sample scene every look is drawn in (tools/make_preset_samples.py, and a
+# look of yours rendered by preset_pictures): a figure in a place, so a look shows on both
+LOOK_SCENE = ("A woman in her thirties with short dark hair and a red wool coat waits at a tram stop "
+              "on a city street at dusk, a lit cafe window behind her, a streetlamp just coming on")
+# a figure's relight wording relights the figure; on the sample the street behind
+# her is asked into the same light, or she'd stand lit by neon in a daylit street
+SUBJECT_SCENE = "; the street behind her in the same light, as one picture"
+# what a relight sample edits: the sample street (place) and the woman on it (subject)
+BASE = {"place": os.path.join(HERE, "img", "base", "place.jpg"),
+        "subject": os.path.join(HERE, "img", "base", "subject.jpg")}
+
 OWN_KINDS = ("look", "relight")
 OWN_GROUP = "yours"
 OWN_IMG = "own"                     # an own preset's picture name: own/<kind>/<id>.jpg
@@ -121,11 +132,43 @@ def save_own(kind: str, label: str, fields: dict, pid: str | None = None,
     data[kind] = mine
     _write_own(data)
     if picture is not None:
-        folder = os.path.join(own_dir(), "presets", kind)
-        os.makedirs(folder, exist_ok=True)
-        with open(os.path.join(folder, f"{pid}.jpg"), "wb") as fh:
-            fh.write(picture)
+        set_own_picture(kind, pid, picture)
     return next(p for p in listing(kind) if p["id"] == pid)
+
+
+def own_preset(kind: str, pid: str) -> dict:
+    """One of your presets, or PresetError."""
+    p = next((p for p in own(kind) if p["id"] == pid), None)
+    if p is None:
+        raise PresetError(f"you have no {kind} preset {pid!r}")
+    return p
+
+
+def set_own_picture(kind: str, pid: str, picture: bytes) -> None:
+    """`picture` (JPEG bytes) as the tile of one of your presets."""
+    own_preset(kind, pid)
+    folder = os.path.join(own_dir(), "presets", kind)
+    os.makedirs(folder, exist_ok=True)
+    tmp = os.path.join(folder, f".{pid}.tmp")
+    with open(tmp, "wb") as fh:
+        fh.write(picture)
+    os.replace(tmp, os.path.join(folder, f"{pid}.jpg"))
+
+
+def set_own_field(kind: str, pid: str, key: str, value) -> None:
+    """Set (or with None drop) one field of one of your presets: its picture's
+    render while it is being made (`render`)."""
+    data = _own_all()
+    mine = [p for p in (data.get(kind) or []) if isinstance(p, dict)]
+    hit = next((p for p in mine if p.get("id") == pid), None)
+    if hit is None:
+        raise PresetError(f"you have no {kind} preset {pid!r}")
+    if value is None:
+        hit.pop(key, None)
+    else:
+        hit[key] = value
+    data[kind] = mine
+    _write_own(data)
 
 
 def delete_own(kind: str, pid: str) -> None:
@@ -151,8 +194,11 @@ def _write_own(data: dict) -> None:
 
 
 def _own_image(kind: str, pid: str) -> str | None:
+    """Its picture's name, with the file's time on it so a new picture isn't
+    served from a cache under the old name."""
     name = f"{OWN_IMG}/{kind}/{pid}.jpg"
-    return name if image_path(name) else None
+    path = image_path(name)
+    return f"{name}?v={int(os.path.getmtime(path))}" if path else None
 
 
 def _load(kind: str) -> list[dict]:
@@ -192,6 +238,7 @@ def image_name(kind: str, pid: str, wording: str | None = None) -> str:
 def image_path(name: str) -> str | None:
     """The file of a sample picture named as image_name names it, or None
     (not made yet, or a name that isn't one)."""
+    name = name.split("?", 1)[0]              # an own picture's ?v= (its time)
     parts = name.replace("\\", "/").split("/")
     if len(parts) == 3 and parts[0] == OWN_IMG:
         kind, file = parts[1], parts[2]
@@ -243,15 +290,18 @@ def listing(kind: str) -> list[dict]:
                     "images": {w: n for w, n in images.items() if image_path(n)}})
     for p in own(kind):
         pic = _own_image(kind, p["id"])
+        # a picture being rendered for it (preset_pictures.render), or why the last one failed
+        extra = {**({"rendering": True} if p.get("render") else {}),
+                 **({"picture_error": p["picture_error"]} if p.get("picture_error") else {})}
         if kind == "look":
             out.append({"id": p["id"], "label": p.get("label") or p["id"], "group": OWN_GROUP,
                         "text": p.get("text", ""), "parts": p.get("parts") or {}, "own": True,
-                        **({"image": pic} if pic else {})})
+                        **({"image": pic} if pic else {}), **extra})
         else:
             words = [w for w in ("place", "subject") if p.get(w)]
             out.append({"id": p["id"], "label": p.get("label") or p["id"], "group": OWN_GROUP,
                         "for": words, "texts": {w: p[w] for w in words}, "own": True,
-                        "images": {w: pic for w in words} if pic else {}})
+                        "images": {w: pic for w in words} if pic else {}, **extra})
     return out
 
 
