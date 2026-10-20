@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../host";
-import { deleteOwnPreset, loadPresets } from "../actions";
+import { deleteOwnPreset, loadPresets, openPresetPicture } from "../actions";
 import { useApp } from "../store";
 import type { RelightWording } from "../types";
 
@@ -21,8 +21,8 @@ export interface PresetTile {
   sub?: string;
   /** the sample's name (GET /seriesmith/presets/image), when made: .jpg, or a camera move's .mp4 */
   image?: string;
-  /** one of yours: it can be removed */
-  own?: { kind: "look" | "relight" };
+  /** one of yours: it can be removed, and given a picture */
+  own?: { kind: "look" | "relight"; rendering?: boolean; error?: string };
 }
 
 const GROUP_LABEL: Record<string, string> = {
@@ -46,14 +46,14 @@ export function useRelightTiles(kind: string): PresetTile[] {
   return (presets?.relight ?? [])
     .filter((p) => p.for.includes(wording) && p.texts[wording])
     .map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.texts[wording]!, image: p.images[wording],
-      ...(p.own ? { own: { kind: "relight" as const } } : {}) }));
+      ...(p.own ? { own: { kind: "relight" as const, rendering: p.rendering, error: p.picture_error } } : {}) }));
 }
 
 /** The look presets, as tiles. */
 export function useLookTiles(): PresetTile[] {
   const presets = usePresets();
   return (presets?.look ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.text, image: p.image,
-    ...(p.own ? { own: { kind: "look" as const } } : {}) }));
+    ...(p.own ? { own: { kind: "look" as const, rendering: p.rendering, error: p.picture_error } } : {}) }));
 }
 
 /** The framings: picking one hands over the `size:` value (its id). */
@@ -143,6 +143,15 @@ export function PresetPicker({ tiles, value, onPick, square = false, title, open
                         background: "linear-gradient(135deg, var(--h3-chip), transparent)" }}>{t.text}</div>}
                   <div className="h3-small h3-row" style={{ padding: "3px 6px", gap: 4 }}>
                     <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{t.label}</span>
+                    {t.own?.rendering && <i className="pi pi-spin pi-spinner h3-muted" title="Its picture is rendering" />}
+                    {t.own && (
+                      <span role="button" tabIndex={0} className="h3-link"
+                        title={t.own.error ? `The last render failed: ${t.own.error}. Give it a picture…` : `Give “${t.label}” a picture: render it, take one from your work, or import one`}
+                        onClick={(e) => { e.stopPropagation(); openPresetPicture(t.own!.kind, t.id, t.label); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); openPresetPicture(t.own!.kind, t.id, t.label); } }}>
+                        <i className={`pi pi-image${t.own.error ? " h3-warn" : ""}`} />
+                      </span>
+                    )}
                     {t.own && (
                       <span role="button" tabIndex={0} className="h3-link" title={`Remove your ${t.own.kind} “${t.label}”`}
                         onClick={(e) => { e.stopPropagation(); void deleteOwnPreset(t.own!.kind, t.id, t.label); }}

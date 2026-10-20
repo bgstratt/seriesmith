@@ -21,7 +21,7 @@ import type {
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
-  LookPreset, OwnPresetRequest, RelightPreset } from "./types";
+  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset } from "./types";
 import { comboChoices } from "./lib/targets";
 
 /** A ref take as the import routes return it. */
@@ -197,6 +197,12 @@ export interface Api {
   presetSaveOwn(req: OwnPresetRequest): Promise<LookPreset | RelightPreset>;
   /** POST /seriesmith/presets/own/delete */
   presetDeleteOwn(req: { kind: "look" | "relight"; id: string }): Promise<{ ok: boolean }>;
+  /** POST /seriesmith/presets/own/picture: its picture from your work */
+  presetPicture(req: { kind: "look" | "relight"; id: string; from: PresetPictureSource }): Promise<LookPreset | RelightPreset>;
+  /** the same, a picture file of yours (multipart) */
+  presetPictureUpload(req: { kind: "look" | "relight"; id: string; file: Blob; name?: string }): Promise<LookPreset | RelightPreset>;
+  /** POST /seriesmith/presets/own/render: its picture rendered on the sample scene */
+  presetRender(req: { kind: "look" | "relight"; id: string; target: string; backend?: string }): Promise<{ ref: string; take: number }>;
   /** A picture made small (GET /seriesmith/thumb): `width` px wide, rounded up to
    * 128 / 256 / 512 / 1024. For a picture shown small; the file itself for one shown whole. */
   thumbUrl(ep: string, path: string, width: number, version?: string | null): string;
@@ -586,6 +592,16 @@ export function createHttpApi(t: Transport): Api {
     presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
     presetSaveOwn: (req) => call("POST", "/seriesmith/presets/own", req),
     presetDeleteOwn: (req) => call("POST", "/seriesmith/presets/own/delete", req),
+    presetPicture: (req) => call("POST", "/seriesmith/presets/own/picture", req),
+    presetPictureUpload: (req) => {
+      const form = new FormData();
+      form.append("kind", req.kind);
+      form.append("id", req.id);
+      const name = req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "picture.png");
+      form.append("file", req.file, name);
+      return postForm("/seriesmith/presets/own/picture", form);
+    },
+    presetRender: (req) => call("POST", "/seriesmith/presets/own/render", req),
     thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {

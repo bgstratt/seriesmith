@@ -52,7 +52,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
-| `GET /seriesmith/presets`, `GET /seriesmith/presets/image`, `POST /seriesmith/presets/own`, `/presets/own/delete` | Presets as pictures |
+| `GET /seriesmith/presets`, `GET /seriesmith/presets/image`, `POST /seriesmith/presets/own`, `/presets/own/picture`, `/presets/own/render`, `/presets/own/delete` | Presets as pictures |
 | `PUT /seriesmith/episode-target` | Readiness, requirement tiers, and the episode target |
 | `POST /seriesmith/refs/keyframe` | Continuity keyframes |
 | `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
@@ -3821,7 +3821,9 @@ made by `tools/make_preset_samples.py`).
   the sample is a short silent clip.
 - `images` / `image` name a sample picture only once it is made. `group` is for grouping the
   tiles. `kind` answers with that list alone; another kind is 400.
-- Your own looks and relights follow the shipped ones, in the group `yours` with `"own":   true`; their pictures are named `own/<kind>/<id>.jpg`.
+- Your own looks and relights follow the shipped ones, in the group `yours` with `"own":   true`; their pictures are named `own/<kind>/<id>.jpg?v=<time>`. One whose picture is being
+  rendered has `"rendering": true`, one whose render failed `"picture_error"`; listing them
+  makes a finished render the tile.
 
 ### `POST /seriesmith/presets/own`
 Body `{"kind": "look" | "relight", "label", "id"?, "text"?, "parts"?, "place"?, "subject"?, "picture"?: {"ep", "ref", "view"?, "take"?}}`: keep one of your own presets for every show on
@@ -3832,6 +3834,21 @@ made unique against the shipped presets and yours. `picture` (a ref's take, or i
 picture without `take`) becomes its tile, a JPEG 480 px on its long side. Returns the preset
 as the list gives it. 400 for another kind, no name, no text or instruction, or an `id` you
 don't have; 404 for an unknown ref.
+
+### `POST /seriesmith/presets/own/picture`
+A picture for one of your presets (`preset_pictures.py`): `{"kind", "id", "from": {"ep", "ref", "view"?, "take"?}}` (a ref's take, or its live picture), `{"kind", "id", "from": {"ep", "pass", "shot", "take", "time"}}` (the frame at `time` seconds into a shot's take), or multipart
+`kind`, `id` and `file` (a picture of yours: png, jpg, webp). Kept as a JPEG 480 px on its
+long side. Returns the preset as the list gives it. 400 for a preset you don't have or no
+picture given; 404 for an unknown ref.
+
+### `POST /seriesmith/presets/own/render`
+Body `{"kind", "id", "target", "backend"?}`: render the picture of one of your presets on the
+sample scene, as the shipped ones are: a look drawn on the woman in red at the tram stop, on
+`target` (an image model); a relight as an edit of the sample street (a `place` wording) or
+of the woman on it (a `subject` one), on `target` (an edit model; another is 400). It runs on
+the queue in a scratch episode beside the settings (`presets/_work`); the list gives the
+preset `rendering: true` until it lands. Nothing renders unless this is asked. Returns the
+queued take.
 
 ### `POST /seriesmith/presets/own/delete`
 Body `{"kind", "id"}`: forget one of your own presets and its picture. 400 when you have no

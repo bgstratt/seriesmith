@@ -185,7 +185,13 @@ short wizard:
    leave it alone, and **Use the built line** puts theirs back. The picks are kept in the
    series config (`style.look_parts`). **Save as a preset…** under the line keeps it (and
    its picks) as a look of yours: it is offered under **Yours** in every show on this
-   machine, and its ✕ removes it.
+   machine, and its ✕ removes it. Until it has a picture its tile shows its words; the
+   picture button on the tile gives it one, three ways, none of them automatic: **Render
+   it** on the sample scene on a model you pick (the woman in red at the tram stop, as the
+   built-in looks are, so the tiles compare), take it **from your work** (a frame of the shot
+   take selected in Shots, at the second you say, or the picture selected in Refs), or
+   **import a picture** of your own. A relight of yours gets one the same ways; rendered,
+   it's an edit of the sample street or of the woman on it, on an edit model.
 3. **Cast and places**: who and where the episode is about — a character (name, design,
    voice), a location (a short name and its description), a prop or vehicle —
    each with its picture path filled in from the show's layout. A next episode carries its

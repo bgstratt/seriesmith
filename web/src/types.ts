@@ -1962,7 +1962,9 @@ export interface LookPreset { id: string; label: string; group: string; text: st
   /** the preset in the look builder's rows ({row: option id}) */
   parts?: Record<string, string>;
   /** one of yours (kept beside this machine's settings), group "yours" */
-  own?: boolean }
+  own?: boolean;
+  /** one of yours: its picture is being rendered, or why the last render failed */
+  rendering?: boolean; picture_error?: string }
 /** A row of the look builder (medium, camera, lens, film, light, grade): each option a clause of the look line */
 export interface LookBuilderRow {
   id: string; label: string;
@@ -1978,7 +1980,14 @@ export interface RelightPreset {
   texts: Partial<Record<RelightWording, string>>; images: Partial<Record<RelightWording, string>>;
   /** one of yours (kept beside this machine's settings), group "yours" */
   own?: boolean;
+  /** one of yours: its picture is being rendered, or why the last render failed */
+  rendering?: boolean; picture_error?: string;
 }
+
+/** Where one of your presets' pictures comes from (POST /seriesmith/presets/own/picture) */
+export type PresetPictureSource =
+  | { ep: string; ref: string; view?: string | null; take?: number | null }
+  | { ep: string; pass: Pass; shot: string; take: number; time: number };
 
 /** POST /seriesmith/presets/own: one of your own looks or relights, kept for every show */
 export interface OwnPresetRequest {

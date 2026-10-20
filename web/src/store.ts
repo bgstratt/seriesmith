@@ -135,6 +135,13 @@ export interface MasterAsk {
   pass: Pass;
 }
 
+/** the Picture window for one of your presets */
+export interface PresetPictureAsk {
+  kind: "look" | "relight";
+  id: string;
+  label: string;
+}
+
 /** the sequence relight dialog: the sequence whose plates it relights */
 export interface RelightAsk {
   sequence: string;
@@ -317,6 +324,7 @@ export interface AppState {
   postAsk: PostAsk | null;
   masterAsk: MasterAsk | null;
   relightAsk: RelightAsk | null;
+  presetPictureAsk: PresetPictureAsk | null;
   /** the episode's master job: being assembled, or the last one (null: none known) */
   masterJob: MasterJob | null;
   /** refs by episode (GET /seriesmith/refs) */
@@ -487,6 +495,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     postAsk: null,
     masterAsk: null,
     relightAsk: null,
+    presetPictureAsk: null,
     masterJob: null,
     refs: {},
     refsError: {},

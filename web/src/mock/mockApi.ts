@@ -1608,6 +1608,18 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait();
       return { ok: true };
     },
+    async presetPicture(req) {
+      await wait();
+      return { id: req.id, label: req.id, group: "yours", text: "", own: true };
+    },
+    async presetPictureUpload(req) {
+      await wait();
+      return { id: req.id, label: req.id, group: "yours", text: "", own: true };
+    },
+    async presetRender() {
+      await wait();
+      throw new Error("the mock doesn't render");
+    },
     thumbUrl(_ep, path) {
       // the mock has no small copies: the picture itself, as refFileUrl finds it
       return refs.image(path) ?? media + path.split("/").pop();

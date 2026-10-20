@@ -799,8 +799,12 @@ shown as pictures, each filling a text that stays editable.
       and `lens`: `parse_story(styles=series_config.profile_styles(cfg))` opens each shot's
       action with them (shot line, shot profile, sequence line, sequence profile). Series
       settings' **Profiles** section edits them; New take's **Profile…** applies one to a take.
-- [ ] Maybe: a picture for a saved look (render it on the sample scene, as the shipped ones
-      are), and "Save as profile…" from the shot form.
+- [x] Pictures for your presets (2026-10-19), only when asked (`preset_pictures.py`):
+      rendered on the sample scene on a model you pick (a scratch episode beside the
+      settings; a relight edits the shipped bases, `presets/img/base/`), a frame of a shot's
+      take or a ref's picture, or a picture you import. `POST /seriesmith/presets/own/picture`
+      and `/own/render`; the list makes a finished render the tile.
+- [ ] Maybe: "Save as profile…" from the shot form.
 - [x] A per-shot `lens:` (2026-10-19; also under a `#` header): the look builder's Lens row
       and `deep` (core/framing.py LENSES, a test keeps them equal to look_builder.json). The
       IR shot's action opens with the lens sentence, so every target reads it with no code of

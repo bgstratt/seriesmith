@@ -30,7 +30,7 @@ import type {
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
-  OwnPresetRequest,
+  OwnPresetRequest, PresetPictureSource,
 } from "./types";
 
 const set = store.set;
@@ -402,6 +402,52 @@ export async function deleteOwnPreset(kind: "look" | "relight", id: string, labe
   }
 }
 
+/** The Picture window for one of your presets. */
+export function openPresetPicture(kind: "look" | "relight", id: string, label: string) {
+  set({ presetPictureAsk: { kind, id, label } });
+}
+
+export function closePresetPicture() {
+  set({ presetPictureAsk: null });
+}
+
+let presetPoll: ReturnType<typeof setTimeout> | null = null;
+
+/** While a picture of yours is rendering, read the presets again every few seconds
+ * (the list makes a finished render the tile). */
+function pollPresetRenders() {
+  if (presetPoll) return;
+  // loadPresets calls this again while one is still rendering
+  presetPoll = setTimeout(() => {
+    presetPoll = null;
+    void reloadPresets();
+  }, 4000);
+}
+
+/** A picture for one of your presets: from your work or a file of yours (`from` a
+ * PresetPictureSource or a File), or rendered on the sample scene on `target`. */
+export async function setPresetPicture(kind: "look" | "relight", id: string,
+                                       how: { from: PresetPictureSource } | { file: File } | { target: string }): Promise<boolean> {
+  try {
+    if ("target" in how) {
+      const backend = get().renderBackend || undefined;
+      await api().presetRender({ kind, id, target: how.target, ...(backend ? { backend } : {}) });
+      host().toast("info", "Rendering its picture", "It shows on the tile when it's done.");
+      await reloadPresets();
+      pollPresetRenders();
+    } else {
+      await ("file" in how
+        ? api().presetPictureUpload({ kind, id, file: how.file })
+        : api().presetPicture({ kind, id, from: how.from }));
+      await reloadPresets();
+    }
+    return true;
+  } catch (e) {
+    report("Couldn't set the picture", e);
+    return false;
+  }
+}
+
 /** Read the presets again (after one of yours changed). */
 export function reloadPresets(): Promise<void> {
   set({ presets: null });
@@ -412,7 +458,9 @@ export function loadPresets(): Promise<void> {
   if (get().presets || presetsLoading) return presetsLoading ?? Promise.resolve();
   presetsLoading = (async () => {
     try {
-      set({ presets: await api().presets() });
+      const presets = await api().presets();
+      set({ presets });
+      if ([...presets.look, ...presets.relight].some((x) => x.rendering)) pollPresetRenders();
     } catch {
       set({ presets: { relight: [], look: [], framing: [], camera: [], look_builder: [] } });
     } finally {

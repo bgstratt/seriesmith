@@ -2995,9 +2995,11 @@ def get_presets(ctx: Context, query: dict):
     relight presets of the edit window, the series form's looks, the shot
     form's framings and camera moves, each with its sample's name for GET
     /seriesmith/presets/image when made. `kind` answers with that one alone."""
+    from seriesmith import preset_pictures as PP
     from seriesmith import presets as PR
     kinds = [query["kind"]] if query.get("kind") else list(PR.KINDS)
     try:
+        PP.finish()                     # a render of one of your presets' pictures, done
         return 200, {k: PR.listing(k) for k in kinds}
     except PR.PresetError as e:
         raise ApiError(400, str(e))
@@ -3054,6 +3056,84 @@ def _preset_picture(path: str) -> bytes:
     except OSError as e:
         raise ApiError(400, f"the preset's picture can't be read: {e}")
     return out.getvalue()
+
+
+@handler
+def post_preset_own_picture(ctx: Context, body):
+    """A picture for one of your presets (seriesmith/preset_pictures.py), as you
+    choose: `{kind, id, from: {ep, ref, view?, take?}}` (a ref's picture or
+    take), `{kind, id, from: {ep, pass, shot, take, time}}` (a frame of a
+    shot's take), or a multipart `file` (a picture of your own). Returns the
+    preset as the list gives it."""
+    from seriesmith import preset_pictures as PP
+    from seriesmith import presets as PR
+    body = body_dict(body)
+    kind, pid = body.get("kind"), body.get("id")
+    up = body.get("file")
+    src = body.get("from")
+    try:
+        PR.own_preset(kind, pid)
+        if isinstance(up, Upload):
+            if up.size > MAX_UPLOAD:
+                raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB")
+            if os.path.splitext(up.filename or "")[1].lower() not in R.IMAGE_EXTS:
+                raise ApiError(400, f"a preset's picture is an image ({', '.join(R.IMAGE_EXTS)})")
+            PP.from_file(kind, pid, up.path)
+        elif up is not None:
+            raise ApiError(400, "file must be sent as multipart/form-data")
+        elif isinstance(src, dict) and src.get("shot") is not None:
+            ep = check_ep(ctx, src.get("ep"))
+            seconds = src.get("time", 0)
+            if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds < 0:
+                raise ApiError(400, "from.time must be a number of seconds")
+            PP.from_shot(kind, pid, ep, check_pass(src.get("pass")), check_shot(src.get("shot")),
+                         check_take(src.get("take")), seconds)
+        elif isinstance(src, dict):
+            ep = check_ep(ctx, src.get("ep"))
+            s = _series(ep)
+            ref = _ref(s, src.get("ref"))
+            PP.from_ref(kind, pid, ep, ref.id, _view(ref, src.get("view")),
+                        check_take(src.get("take"), "from.take", nullable=True))
+        else:
+            raise ApiError(400, 'give the picture: from {ep, ref, view?, take?}, from {ep, pass, shot, '
+                                'take, time}, or a file')
+        return 200, next(p for p in PR.listing(kind) if p["id"] == pid)
+    except (PR.PresetError, PP.PictureError) as e:
+        raise ApiError(400, str(e))
+    except R.UnknownRef as e:
+        raise ApiError(404, str(e))
+
+
+@handler
+def post_preset_own_render(ctx: Context, body):
+    """Render the picture of one of your presets on the sample scene, as the
+    shipped ones are (preset_pictures.render): `{kind, id, target, backend?}`,
+    `target` an image model for a look, an edit model for a relight. It goes on
+    the queue; the list gives the preset `rendering: true` until it lands."""
+    from seriesmith import preset_pictures as PP
+    from seriesmith import presets as PR
+    body = body_dict(body)
+    kind, pid = body.get("kind"), body.get("id")
+    target = _opt_image_target(body, "target")
+    if not target:
+        raise ApiError(400, "target is required: the model to render the picture on")
+    try:
+        PR.own_preset(kind, pid)
+        if kind == "relight":
+            t = TG.load_target(target, "image")
+            if not R.is_edit_target(t):
+                raise ApiError(400, f"{t.short} draws from text only: a relight's picture is an edit, "
+                                    f"so pick an edit model")
+        try:
+            base, _ = R.resolve_workflow(ctx.comfy_url)
+        except Exception as e:
+            raise ApiError(500, f"{R.REFS_WORKFLOW} can't be read: {e}")
+        q = PP.render(kind, pid, target, ctx.comfy, base, ctx.runner,
+                      listing=J.model_lister(ctx.comfy, ctx.model_choices), resolve=ctx.model_resolve,
+                      cache=ctx.model_cache, backend=_opt_backend(ctx, body))
+    except (PR.PresetError, PP.PictureError, TG.TargetError) as e:
+        raise ApiError(400, str(e))
+    return 200, seeds_out(q)
 
 
 @handler
@@ -4215,6 +4295,8 @@ ROUTES = [
     ("GET", "/seriesmith/presets/image", get_preset_image, "query"),
     ("POST", "/seriesmith/presets/own", post_preset_own, "body"),
     ("POST", "/seriesmith/presets/own/delete", post_preset_own_delete, "body"),
+    ("POST", "/seriesmith/presets/own/picture", post_preset_own_picture, "form"),
+    ("POST", "/seriesmith/presets/own/render", post_preset_own_render, "body"),
     ("POST", "/seriesmith/render", post_render, "body"),
     ("POST", "/seriesmith/cancel", post_cancel, "body"),
     ("POST", "/seriesmith/discard", post_discard, "body"),
