@@ -407,21 +407,23 @@ def script_actions(root: str) -> dict[str, str]:
     return out
 
 
-def episode_status(root: str, pass_: str, folder: str | None = None) -> dict:
+def episode_status(root: str, pass_: str, folder: str | None = None,
+                   listed: dict | None = None) -> dict:
     """Every shot in cut order with its takes, the take the cut uses, and its
     override. Plain data, ready to serve as JSON. Shots come from every
     target's shotlist; each says the target its next render uses (`target`:
     overrides.json may retarget it) and the one the build compiled it for
     (`built_target`). One load (targets.one_load): the targets and the series
-    config are read once for it, not once per shot."""
+    config are read once for it, not once per shot. `listed` {shot: its takes}
+    is a listing just made (sweep_takes'), used rather than made again."""
     from seriesmith import diskcache as DC
     with J.TG.one_load():
-        out = _episode_status(root, pass_, folder)
+        out = _episode_status(root, pass_, folder, listed or {})
     DC.save()                          # what it learned is kept for the next run
     return out
 
 
-def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
+def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> dict:
     docs = J.load_shotlists(root, pass_)
     doc0 = docs[0]
     fps = episode_fps(root)
@@ -439,7 +441,7 @@ def _episode_status(root: str, pass_: str, folder: str | None) -> dict:
         doc, shot = shots.get(e.shot, (doc0, None))
         built_target = J.shotlist_target(doc).id
         target, target_source = J.target_choice(ov, e.shot, built_target, root=root)
-        takes = T.list_takes(root, pass_, e.shot, folder) if shot else []
+        takes = (listed[e.shot] if e.shot in listed else T.list_takes(root, pass_, e.shot, folder))             if shot else []
         chosen, chosen_take, chosen_ok = cut_take(root, e, takes)
         o = T.shot_override(ov, e.shot, pass_, target)
         # what the next render reads: the retargeted entry when retargeted
@@ -1351,7 +1353,8 @@ def override_view(ov: dict, shot_id: str, built: dict[str, dict],
     return out
 
 
-def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None) -> list[T.Take]:
+def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None,
+                listed: dict | None = None) -> list[T.Take]:
     """Close every queued take whose ComfyUI job is gone; return the takes changed.
 
     `comfy` is a jobs.Comfy (anything with alive() and history()). The
@@ -1361,20 +1364,28 @@ def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None) -> list
     closed from what is on disk (finish_job, for a saver that didn't); anything
     else goes to sweep_queued. A take whose job is still pending or running is
     left alone. With ComfyUI away only the takes seriesmith's queue ran are
-    swept (whether their job is still there doesn't need ComfyUI).
+    swept (whether their job is still there doesn't need ComfyUI). `listed`,
+    when given, gets {shot: its takes} as listed here (for episode_status,
+    which then needn't list them again unless this changed any).
     """
+    listed = {} if listed is None else listed
+
+    def takes_of(sid):
+        listed[sid] = T.list_takes(root, pass_, sid, folder)
+        return listed[sid]
+
     as_of = T.now()
     try:
         alive = comfy.alive()
     except Exception:                     # noqa: BLE001  ComfyUI away: the queue's own only
         return T.sweep_queued([t for d, i in J.episode_shots(root, pass_)
-                               for t in T.list_takes(root, pass_, d["shots"][i]["id"], folder)
+                               for t in takes_of(d["shots"][i]["id"])
                                if (t.sidecar or {}).get("backend")], set(), as_of=as_of)
     changed = []
     for d, i in J.episode_shots(root, pass_):
         s = d["shots"][i]
         rest = []
-        for t in T.list_takes(root, pass_, s["id"], folder):
+        for t in takes_of(s["id"]):
             sc = t.sidecar or {}
             pid = sc.get("comfy_prompt_id")
             if sc.get("status") != "queued" or not pid or pid in alive:

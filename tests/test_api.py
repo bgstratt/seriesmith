@@ -608,6 +608,24 @@ class SweepTest(ApiTest):
         self.assertEqual(t["status"], "failed")
         self.assertIn("left the ComfyUI queue", t["save_notes"])
 
+    def test_each_shots_takes_are_listed_once(self):
+        """The sweep's listing serves the status too (it read every take's record
+        twice per load), unless the sweep closed a take: then it's listed again,
+        and the closed take shows as closed (the test above)."""
+        from unittest import mock
+        self.comfy.mode = "hold"
+        self.render("sh010")
+        listed = []
+        real = T.list_takes
+
+        def counting(root, pass_, shot_id, folder=None):
+            listed.append(shot_id)
+            return real(root, pass_, shot_id, folder)
+        with mock.patch.object(T, "list_takes", counting):
+            _, shots = self.status()
+        self.assertEqual(shots["sh010"]["takes"][0]["status"], "queued")
+        self.assertEqual(sorted(listed), sorted(set(listed)))
+
     def test_no_comfy_means_no_sweep(self):
         T.reserve_take(self.ep, "proxy", "sh010",
                        {"status": "queued", "comfy_prompt_id": "gone",

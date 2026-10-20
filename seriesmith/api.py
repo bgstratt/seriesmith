@@ -402,14 +402,17 @@ def get_episodes(ctx: Context, query: dict):
     return 200, E.find_episodes(load_roots(ctx))
 
 
-def sweep(ctx: Context, ep: str, pass_: str) -> list:
-    """Close queued takes whose job is gone (see edit.sweep_takes). A ComfyUI
-    that doesn't answer means no sweep this time, not an error."""
+def sweep(ctx: Context, ep: str, pass_: str, listed: dict | None = None) -> list:
+    """Close queued takes whose job is gone (see edit.sweep_takes; `listed`
+    gets the takes it listed). A ComfyUI that doesn't answer means no sweep
+    this time, not an error."""
     try:
-        changed = E.sweep_takes(ep, pass_, ctx.comfy)
+        changed = E.sweep_takes(ep, pass_, ctx.comfy, listed=listed)
     except FileNotFoundError:
         raise
     except Exception:
+        if listed is not None:
+            listed.clear()                    # cut short: its listing isn't to be trusted
         return []
     for t in changed:
         take_event(ctx, ep, t)
@@ -421,8 +424,10 @@ def get_episode(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     J.load_shotlist(ep, pass_)                           # 404 before touching ComfyUI
-    sweep(ctx, ep, pass_)
-    return 200, seeds_out(E.episode_status(ep, pass_))
+    listed: dict = {}
+    changed = sweep(ctx, ep, pass_, listed)
+    # the sweep's listing serves the status too, unless it closed a take
+    return 200, seeds_out(E.episode_status(ep, pass_, listed=None if changed else listed))
 
 
 @handler

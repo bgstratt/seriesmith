@@ -237,7 +237,7 @@ copy); `keyframe_refs` once per listing.
   Ballroom-refactor: a location ref generated locally (krea2, 16 s), its new take
   picked, the original picked back: the listing showed each change on the next request.
 
-#### 1.9 The Episode tab: takes read once per request ☐
+#### 1.9 The Episode tab: takes read once per request ✅ (your check pending)
 `GET /episode` lists every shot's takes twice (the sweep, then the status) and reads
 every sidecar twice (FRTEST: 846 reads of 423). **Change:** the sweep only looks at
 takes still queued and hands its listing to `episode_status`.
@@ -246,6 +246,15 @@ takes still queued and hands its listing to `episode_status`.
 - **Live check (you):** Episode tab on FRTEST and Ballroom-refactor: identical reply
   (saved JSON). Queue a local render, then stop ComfyUI's job from ComfyUI's own
   queue: on the next load the take is closed as before.
+- **Done:** `sweep_takes(listed=)` hands its listing to `episode_status(listed=)`; a sweep
+  that closed a take, or failed partway, means the status lists afresh. Each shot's takes
+  listed once per load (the test counts; twice before). The `/episode` replies of five
+  shows, both passes, are byte-identical old vs new (3.8 MB).
+- **Measured** A/B on the live server (same conditions, 4 runs each, first / again):
+  FRTEST ~700 / 650 ms → ~410 / 400 ms; Porchlights ep01 repeat loads ~205 → ~140 ms.
+  (The baseline table's FRTEST 0.57 s was taken under other load; this A/B is the fair
+  one.) A cold first load right after a server start can still take seconds while the
+  startup readiness check runs beside it.
 
 #### 1.10 Assemble probes each file once ☐
 An assemble of 5 shots runs ffprobe 34 times, field by field (start time, streams,
