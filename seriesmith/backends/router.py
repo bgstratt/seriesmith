@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import base64
 import copy
-import hashlib
 import json
 import os
 import time
@@ -26,6 +25,7 @@ from typing import Any, Callable, Iterable
 
 from seriesmith.backends import Backend, BackendError, Output, Progress, Run, files_in, patiently, tls, transient
 from seriesmith.backends.comfy import sdk_client
+from seriesmith.core import fileio as F
 
 COMPLETED = "COMPLETED"
 
@@ -264,8 +264,7 @@ class RouterBackend(Backend):
         """`path` (uploaded, at `url`) in this account's Seedance virtual
         library, once it's Active: "asset://<id>". The library de-duplicates
         by the hash (the file's sha256), so a picture is registered once."""
-        with open(path, "rb") as fh:
-            digest = hashlib.sha256(fh.read()).hexdigest()
+        digest = F.file_digest(path, "sha256")                 # read in chunks, not whole
         made = patiently(lambda: self._api("POST", VIRTUAL_LIBRARY, {"url": url, "hash": digest}))
         aid = made.get("asset_id")
         if not aid:

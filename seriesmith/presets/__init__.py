@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+from seriesmith.core import fileio as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 KINDS = ("relight", "look", "framing", "camera", "look_builder")
@@ -147,12 +148,7 @@ def own_preset(kind: str, pid: str) -> dict:
 def set_own_picture(kind: str, pid: str, picture: bytes) -> None:
     """`picture` (JPEG bytes) as the tile of one of your presets."""
     own_preset(kind, pid)
-    folder = os.path.join(own_dir(), "presets", kind)
-    os.makedirs(folder, exist_ok=True)
-    tmp = os.path.join(folder, f".{pid}.tmp")
-    with open(tmp, "wb") as fh:
-        fh.write(picture)
-    os.replace(tmp, os.path.join(folder, f"{pid}.jpg"))
+    F.write_bytes(os.path.join(own_dir(), "presets", kind, f"{pid}.jpg"), picture)
 
 
 def set_own_field(kind: str, pid: str, key: str, value) -> None:
@@ -185,12 +181,7 @@ def delete_own(kind: str, pid: str) -> None:
 
 
 def _write_own(data: dict) -> None:
-    os.makedirs(own_dir(), exist_ok=True)
-    tmp = own_file() + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
-    os.replace(tmp, own_file())
+    F.write_json(own_file(), data)
 
 
 def _own_image(kind: str, pid: str) -> str | None:

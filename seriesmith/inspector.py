@@ -45,6 +45,7 @@ import re
 
 from seriesmith import jobs as J
 from seriesmith import targets as TG
+from seriesmith.core import fileio as F
 
 KIND = "video"                       # the only kind this proposes, for now
 CORE_MODULES = ("nodes", "comfy_extras.", "comfy_api_nodes.")
@@ -1243,12 +1244,7 @@ def save_spec(root: str, spec: dict, base: str | None = None) -> str:
     targets (TG.user_folder: every show's) -- and forget the cached targets.
     Returns the path. The caller validates first (validate_spec)."""
     path = os.path.join(base, spec["id"], "target.json") if base else target_path(root, spec["id"])
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(spec, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
-    os.replace(tmp, path)
+    F.write_json(path, spec)
     TG.forget_targets()
     return path
 

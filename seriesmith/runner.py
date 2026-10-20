@@ -23,6 +23,7 @@ from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
 from seriesmith.queue import Queue
+from seriesmith.core import fileio as F
 
 # The API request being handled on this thread ({"path", "body"}; views.py
 # sets it): each job it queues keeps it, so a job still waiting in the queue
@@ -762,7 +763,7 @@ def collect_tour(s, ref, side: dict, run, status: str, hold) -> None:
         outs[0].save(tmp)
 
         def write(path):
-            os.replace(tmp, path)
+            F.replace(tmp, path)
         side.update(TR.keep_tour(s, ref, side, write, os.path.splitext(outs[0].name)[1], hold))
     finally:
         if os.path.exists(tmp):
@@ -785,7 +786,7 @@ def _to_wav(path: str) -> bool:
     try:
         subprocess.run([*exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
                        capture_output=True, check=True, timeout=120)
-        os.replace(out, path)
+        F.replace(out, path)
         return True
     except Exception:                                    # noqa: BLE001  keep what came back
         if os.path.exists(out):

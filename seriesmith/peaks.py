@@ -31,6 +31,7 @@ import tempfile
 import wave
 
 from seriesmith import ff as FF
+from seriesmith.core import fileio as F
 
 RATE = 200                       # cached peaks per second
 FF_RATE = 8000                   # ffmpeg decodes to mono s16le at this rate
@@ -345,11 +346,7 @@ def file_peaks(ep: str, path: str, rel: str) -> dict:
     data = {"version": CACHE_VERSION, "path": rel, "duration": dur, "rate": RATE,
             "silent": silent, "peaks": bytes(pk).hex()}
     try:
-        os.makedirs(os.path.dirname(cp), exist_ok=True)
-        fd, tmp = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=os.path.dirname(cp))
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh)
-        os.replace(tmp, cp)
+        F.write_json(cp, data, indent=None, end="", ensure_ascii=True)
     except OSError:
         pass                                      # a read-only episode still answers
     return {"duration": dur, "rate": RATE, "peaks": pk, "silent": silent, "cached": False}

@@ -68,6 +68,7 @@ from dataclasses import dataclass, field
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import upscale as U
+from seriesmith.core import fileio as F
 
 STATUSES = ("upscale", "post", "ok", "kept", "queued", "gap")
 # what Master does with posts: none, the fresh ones there are, or every shot by the recipe
@@ -552,12 +553,8 @@ def assembling(root: str) -> dict | None:
     """The lock of a master of this episode being assembled right now
     ({"pid", "host", "by", "started"}), or None (no lock, or a stale one)."""
     import socket
-    try:
-        with open(lock_path(root), encoding="utf-8") as fh:
-            lock = json.load(fh)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(lock, dict):
+    lock = F.read_json_or(lock_path(root), None, want=dict)
+    if lock is None:
         return None
     if lock.get("host") and lock["host"] != socket.gethostname():
         try:

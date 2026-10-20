@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from seriesmith import features as FT
+from seriesmith.core import fileio as F
 
 CHUNK = 1 << 20
 FFMPEG_BUILDS = {
@@ -176,7 +177,7 @@ def download(url: str, dest: str, token: str | None = None,
                                        context=tls() if url.startswith("https") else None)
     except urllib.error.HTTPError as e:
         if e.code == 416 and have:                        # the .part is already whole
-            os.replace(part, dest)
+            F.replace(part, dest)
             return
         if e.code in (401, 403) and "huggingface.co" in url:
             page = url.split("/resolve/")[0]
@@ -209,7 +210,7 @@ def download(url: str, dest: str, token: str | None = None,
                     progress(done, total)
     if total is not None and done < total:
         raise InstallError(f"the download ended early ({done} of {total} bytes; it resumes next time)")
-    os.replace(part, dest)
+    F.replace(part, dest)
 
 
 def run(cmd: list[str], cwd: str | None = None, timeout: int = 1800) -> str:

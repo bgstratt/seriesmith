@@ -42,6 +42,7 @@ import re
 import struct
 import tempfile
 import threading
+from seriesmith.core import fileio as F
 
 MAX_HEADER = 256 * 1024 * 1024          # a header larger than this isn't safetensors
 CACHE_VERSION = 1
@@ -540,14 +541,10 @@ class ModelIdCache:
     def _load(self) -> dict:
         if self.data is None:
             self.data = {}
-            if self.path and os.path.isfile(self.path):
-                try:
-                    with open(self.path, encoding="utf-8") as fh:
-                        raw = json.load(fh)
-                    if isinstance(raw, dict) and raw.get("version") == CACHE_VERSION:
-                        self.data = dict(raw.get("files") or {})
-                except (OSError, ValueError):
-                    self.data = {}
+            if self.path:
+                raw = F.read_json_or(self.path, {}, want=dict)
+                if raw.get("version") == CACHE_VERSION:
+                    self.data = dict(raw.get("files") or {})
         return self.data
 
     def get(self, key: str) -> dict | None:
@@ -562,11 +559,8 @@ class ModelIdCache:
             if not self.path:
                 return
             try:
-                os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-                tmp = f"{self.path}.{os.getpid()}.{threading.get_ident()}.tmp"
-                with open(tmp, "w", encoding="utf-8") as fh:
-                    json.dump({"version": CACHE_VERSION, "files": data}, fh, indent=1)
-                os.replace(tmp, self.path)
+                F.write_json(self.path, {"version": CACHE_VERSION, "files": data}, indent=1,
+                             end="", ensure_ascii=True)
             except OSError:
                 pass
 

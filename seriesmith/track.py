@@ -22,7 +22,6 @@ Stdlib only.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -36,6 +35,7 @@ import time
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith.core import fileio as F  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ALIGN_SCRIPT = os.path.join(HERE, "align.py")
@@ -199,12 +199,7 @@ def audio_name(name: str) -> str:
     return stem[:120] + ext.lower()
 
 
-def _sha1(path: str) -> str:
-    h = hashlib.sha1()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+_sha1 = F.file_digest
 
 
 def _same_file(a: str, b: str) -> bool:

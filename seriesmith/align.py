@@ -66,6 +66,7 @@ from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 from seriesmith import ff as FF  # noqa: E402
 from seriesmith import takes as T  # noqa: E402  (write_json: atomic)
+from seriesmith.core import fileio as F
 
 SR = 16000
 LEAD = 0.25      # seconds of air kept before a line's first word
@@ -604,8 +605,7 @@ def cached_words(cache: str, recording: str) -> list | None:
 def write_result(path: str | None, result: dict) -> None:
     """--json: the run as the editor reads it (track.align)."""
     if path:
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(result, fh, ensure_ascii=False, indent=1)
+        F.write_json(path, result, indent=1, end="")
 
 
 if __name__ == "__main__":
