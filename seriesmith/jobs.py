@@ -2288,25 +2288,31 @@ def job_target(job: Job) -> "TG.Target":
 def select_nodes(g: dict, spec: dict) -> list[str]:
     """The nodes a binding widget spec names (see targets.Binding): its
     class_type, narrowed by `title` and `feeds` ([class, input]: the node whose
-    output feeds that input of a node of that class). Exactly one, unless
+    output feeds that input of a node of that class; [class, input, title]: of
+    that node titled so, which tells apart a prompt and a negative that both
+    feed a CLIPTextEncode's text). Exactly one, unless
     `all` (then one or more). ValueError otherwise, naming the spec."""
     ctype = spec["class_type"]
     ids = [k for k, v in g.items() if v["class_type"] == ctype]
     if spec.get("title"):
         ids = [k for k in ids if (g[k].get("_meta") or {}).get("title") == spec["title"]]
     if spec.get("feeds"):
-        cls, inp = spec["feeds"]
+        cls, inp, *to = spec["feeds"]
         fed = {v["inputs"].get(inp)[0] for v in g.values()
-               if v["class_type"] == cls and isinstance(v["inputs"].get(inp), list)}
+               if v["class_type"] == cls and isinstance(v["inputs"].get(inp), list)
+               and (not to or (v.get("_meta") or {}).get("title") == to[0])}
         ids = [k for k in ids if k in fed]
     what = ctype + (f" titled {spec['title']!r}" if spec.get("title") else "") + (
-        f" feeding {spec['feeds'][0]}.{spec['feeds'][1]}" if spec.get("feeds") else "")
+        f" feeding {spec['feeds'][0]}.{spec['feeds'][1]}" if spec.get("feeds") else "") + (
+        f" (titled {spec['feeds'][2]!r})" if len(spec.get("feeds") or ()) > 2 else "")
     if spec.get("all"):
         if not ids:
             raise ValueError(f"workflow must contain a {what} node")
         return ids
     if len(ids) != 1:
-        raise ValueError(f"workflow must contain exactly one {what} node (found {len(ids)})")
+        hint = (": give the one seriesmith should use a title of its own in ComfyUI (right-click "
+                "it, Title), save the workflow and inspect it again") if len(ids) > 1 else ""
+        raise ValueError(f"workflow must contain exactly one {what} node (found {len(ids)}){hint}")
     return ids
 
 

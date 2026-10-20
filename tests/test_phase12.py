@@ -616,3 +616,96 @@ class ShippedDraftTest(ApiTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepeatedNodeSpecTest(unittest.TestCase):
+    """A class that repeats (two StringConcatenate building the prompt and the
+    negative) is narrowed so its spec picks one node. Un-renamed nodes share
+    their class's own title, so a title alone often can't; when nothing tells
+    them apart, inspecting says to rename one (it failed only at save)."""
+
+    def graph(self, t1="Concatenate", t2="Concatenate", into=("CLIPTextEncode", "CLIPTextEncode")):
+        return {
+            "1": {"class_type": "StringConcatenate", "_meta": {"title": t1},
+                  "inputs": {"string_a": "a", "string_b": "b", "delimiter": " "}},
+            "2": {"class_type": "StringConcatenate", "_meta": {"title": t2},
+                  "inputs": {"string_a": "c", "string_b": "d", "delimiter": " "}},
+            "3": {"class_type": into[0], "inputs": {"text": ["1", 0]}},
+            "4": {"class_type": into[1], "inputs": {"text": ["2", 0]}},
+        }
+
+    def test_a_shared_title_is_passed_over_for_what_it_feeds(self):
+        from seriesmith import inspector as IN
+        g = self.graph(into=("CLIPTextEncode", "TextEncodeQwen"))
+        spec = IN._spec(g, "1", "string_a", ["1", "2"])
+        self.assertEqual(spec.get("feeds"), ["CLIPTextEncode", "text"])
+        self.assertNotIn("title", spec)
+        self.assertEqual(J.select_nodes(g, spec), ["1"])
+
+    def test_a_title_of_its_own_is_used(self):
+        from seriesmith import inspector as IN
+        g = self.graph(t1="Prompt")
+        self.assertEqual(IN._spec(g, "1", "string_a", ["1", "2"]).get("title"), "Prompt")
+
+    def test_nothing_tells_them_apart_says_rename_one(self):
+        from seriesmith import inspector as IN
+        g = self.graph()
+        spec = IN._spec(g, "1", "string_a", ["1", "2"])
+        with self.assertRaises(ValueError) as cm:
+            J.select_nodes(g, spec)
+        self.assertIn("a title of its own", str(cm.exception))
+        proposal = {"id": "mine", "kind": "video",
+                    "binding": {"workflow_name": "mine.json",
+                                "saver": {"class_type": "SaveVideo"},
+                                "params": {"prompt": spec}}}
+        problems = IN.binding_problems(proposal, g)
+        self.assertEqual(len(problems), 1)
+        self.assertTrue(problems[0].startswith("binding.params.prompt:"), problems)
+
+
+class SystemPromptTest(unittest.TestCase):
+    """NetaYume Lumina's shape: each text is a StringConcatenate of a fixed
+    system prompt (string_a) and the prompt (string_b), the positive and the
+    negative each into a CLIPTextEncode titled for its side."""
+
+    INFO = {"StringConcatenate": {"input": {"required": {
+                "string_a": ["STRING", {"multiline": True}],
+                "string_b": ["STRING", {"multiline": True}],
+                "delimiter": ["STRING", {"multiline": False}]}}, "output": ["STRING"]},
+            "CLIPTextEncode": {"input": {"required": {"text": ["STRING", {"multiline": True}],
+                                                      "clip": ["CLIP"]}},
+                               "output": ["CONDITIONING"]},
+            "KSampler": {"input": {"required": {"positive": ["CONDITIONING"],
+                                                "negative": ["CONDITIONING"]}},
+                         "output": ["LATENT"]}}
+
+    def graph(self):
+        cat = {"class_type": "StringConcatenate", "_meta": {"title": "StringConcatenate"}}
+        return {
+            "1": dict(cat, inputs={"string_a": "You are an assistant... <Prompt Start> ",
+                                   "string_b": "a castle", "delimiter": ""}),
+            "2": dict(cat, inputs={"string_a": "You are an assistant (low quality) ",
+                                   "string_b": "blurry", "delimiter": ""}),
+            "3": {"class_type": "CLIPTextEncode", "_meta": {"title": "Positive Prompt"},
+                  "inputs": {"text": ["1", 0]}},
+            "4": {"class_type": "CLIPTextEncode", "_meta": {"title": "Negative Prompt"},
+                  "inputs": {"text": ["2", 0]}},
+            "5": {"class_type": "KSampler", "inputs": {"positive": ["3", 0],
+                                                       "negative": ["4", 0]}},
+        }
+
+    def test_the_prompt_goes_after_the_system_prompt_and_each_side_is_told_apart(self):
+        from seriesmith import inspector as IN
+        g = self.graph()
+        params, _, warnings = IN.detect_prompt(self.INFO, g)
+        self.assertEqual(params["prompt"]["field"], "string_b")
+        self.assertEqual(params["prompt"]["feeds"], ["CLIPTextEncode", "text", "Positive Prompt"])
+        self.assertEqual(J.select_nodes(g, params["prompt"]), ["1"])
+        self.assertEqual(J.select_nodes(g, params["negative"]), ["2"])
+        self.assertTrue(any("string_a" in w for w in warnings), warnings)
+
+    def test_a_two_part_feeds_still_means_what_it_did(self):
+        g = self.graph()
+        self.assertEqual(sorted(J.select_nodes(
+            g, {"class_type": "StringConcatenate", "feeds": ["CLIPTextEncode", "text"], "all": True})),
+            ["1", "2"])
