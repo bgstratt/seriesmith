@@ -1869,6 +1869,10 @@ def target_graphs(targets, comfy_url: str | None = None) -> dict[str, dict]:
     if comfy_url:
         try:
             saved = set(J.Comfy(comfy_url).list_userdata("workflows"))
+        except OSError:
+            # ComfyUI isn't there: none of its workflows can be read, so none is
+            # asked for (one per target took ~2 s each to fail on Windows)
+            saved = set()
         except Exception:
             saved = None                                  # ask per target instead
     out = {}

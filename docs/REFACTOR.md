@@ -184,7 +184,7 @@ installed mid-session must be seen.
   the same models and readiness as before. Install-state change: in Features, a
   missing item still shows missing then present after Refresh.
 
-#### 1.7 Target workflows: stop after ComfyUI doesn't answer ☐
+#### 1.7 Target workflows: stop after ComfyUI doesn't answer ✅
 `edit.target_graphs` asks ComfyUI's userdata for each target's workflow, one request
 per target (46), even after `list_userdata` showed ComfyUI isn't answering: ~96 s
 with ComfyUI down, 46 sequential requests with it up. **Change:** fetch only the
@@ -196,6 +196,12 @@ today).
 - **Live check:** stop ComfyUI briefly (or point a scratch setting at a dead port),
   open the targets list: answers in seconds, marks targets unchecked as before. With
   ComfyUI back, a workflow saved in ComfyUI's user folder still wins over the repo's.
+- **Done:** the listing already existed to save the per-target requests, but any failure
+  fell back to asking per target; now a connection failure (OSError) means none is asked,
+  any other keeps the fallback. Old code: 47 requests with ComfyUI away (the test lists
+  them), now 1. Live, all 47 targets: ComfyUI up 0.37 → 0.33 s, identical answer (the 3
+  workflows saved in ComfyUI still win); a dead port 98.4 → 2.35 s, identical answer.
+  `test_readiness::test_route` 96 → 2.3 s.
 
 #### 1.8 The Refs tab: each file read once per request ☐
 `GET /refs` on Porchlights ep01 makes 3,200 JSON reads: the shotlist is parsed 378
