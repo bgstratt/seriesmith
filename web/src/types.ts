@@ -1960,7 +1960,9 @@ export interface ModelList {
 /** A look preset (GET /seriesmith/presets): a series' look line, with its sample picture when made */
 export interface LookPreset { id: string; label: string; group: string; text: string; image?: string;
   /** the preset in the look builder's rows ({row: option id}) */
-  parts?: Record<string, string> }
+  parts?: Record<string, string>;
+  /** one of yours (kept beside this machine's settings), group "yours" */
+  own?: boolean }
 /** A row of the look builder (medium, camera, lens, film, light, grade): each option a clause of the look line */
 export interface LookBuilderRow {
   id: string; label: string;
@@ -1974,6 +1976,22 @@ export type RelightWording = "place" | "subject";
 export interface RelightPreset {
   id: string; label: string; group: string; for: RelightWording[];
   texts: Partial<Record<RelightWording, string>>; images: Partial<Record<RelightWording, string>>;
+  /** one of yours (kept beside this machine's settings), group "yours" */
+  own?: boolean;
+}
+
+/** POST /seriesmith/presets/own: one of your own looks or relights, kept for every show */
+export interface OwnPresetRequest {
+  kind: "look" | "relight";
+  label: string;
+  /** replace that one of yours */
+  id?: string | null;
+  text?: string;
+  parts?: Record<string, string>;
+  place?: string;
+  subject?: string;
+  /** its tile: a ref's take (or its live picture) */
+  picture?: { ep: string; ref: string; view?: string | null; take?: number | null } | null;
 }
 /** A framing preset: a shot's `size:` (its id), how much the frame holds, its sample picture when made */
 export interface FramingPreset { id: string; label: string; group: string; hint: string; image?: string }

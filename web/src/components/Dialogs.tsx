@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { closeRedo, closeSidecar, copyText, loadDetail, runRedo, takePrompt, type RedoSeed } from "../actions";
+import { closeRedo, closeSidecar, copyText, loadDetail, loadPresets, runRedo, takePrompt, type RedoSeed } from "../actions";
 import { errText, parseSeed } from "../api";
 import { api } from "../host";
 import { absPath, shortName, tn } from "../lib/format";
@@ -11,6 +11,8 @@ import { SizePicker } from "./SizePicker";
 import { useApp } from "../store";
 import type { Pass, ShotDetail, TakeDetail, TargetList } from "../types";
 import { DiffView, LoraEditor, ModelSelect } from "./Fields";
+import { profileRunPatch, profilesOf } from "../lib/profiles";
+import { useSeriesConfig } from "./useSeriesConfig";
 import { useDetail, useDetailError, useShotStatus } from "./hooks";
 import { MissingRefsNote } from "./MissingRefs";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
@@ -168,6 +170,29 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
   const set = (p: Partial<RedoForm>) => {
     setErr(null);
     setF((x) => ({ ...x, ...p }));
+  };
+  // a profile of the series config, applied to this take: its model settings, and
+  // its look words and lens opening the prompt
+  const ep = useApp((s) => s.ep) ?? "";
+  const profiles = profilesOf(useSeriesConfig(ep).base);
+  const lensRow = useApp((s) => s.presets?.look_builder)?.find((r) => r.id === "lens");
+  const [profile, setProfile] = useState("");
+  useEffect(() => { void loadPresets(); }, []);
+  const applyProfile = (name: string) => {
+    setProfile(name);
+    const p = profiles[name];
+    if (!p) return;
+    const clause = p.lens ? lensRow?.options.find((o) => o.id === p.lens)?.clause : undefined;
+    const patch = profileRunPatch(p, f.prompt, lockPrompt, clause);
+    const next: Partial<RedoForm> = {};
+    if (patch.target && patch.target !== (f.target || current)) {
+      Object.assign(next, { target: patch.target === current ? "" : patch.target, ...presetForm(list, patch.target, f.pass) });
+    }
+    if (patch.model) next.model = patch.model;
+    if (patch.steps) next.steps = patch.steps;
+    if (patch.loras) { next.loras = patch.loras.map(loraRow); next.lorasOn = true; }
+    if (patch.prompt) next.prompt = patch.prompt;
+    set(next);
   };
   const pt = d.takes.find((t) => t.take === f.parent);
   const parentSeed = pt?.sidecar?.seed ?? null;
@@ -391,6 +416,13 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
                 <SizePicker value={f.size} onChange={(size) => set({ size })} own={effSize} ownLabel="the shot's" rule={rule} />
               </span>
               {f.size && <span className="h3-small h3-muted">this take only</span>}
+              {Object.keys(profiles).length > 0 && (
+                <select className="h3-in" value={profile} onChange={(e) => applyProfile(e.target.value)}
+                  title="Apply a profile of the series config to this take: its model, steps and LoRAs, and its look words and lens at the start of the prompt (sla: off is the script's to set)">
+                  <option value="">Profile…</option>
+                  {Object.keys(profiles).map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              )}
               <span className="h3-grow" />
               <span className="h3-seg" title="Which pass this take is for">
                 {(["proxy", "final"] as Pass[]).map((p) => (

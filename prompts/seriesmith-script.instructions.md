@@ -736,7 +736,22 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
 ```
 
 - Every key is optional: `target`, `model`, `loras` (a list of LoRA names; `name:0.6`
-  sets a strength, `"none"` means no LoRA) and `steps`.
+  sets a strength, `"none"` means no LoRA), `steps`, `sla`, and two that change the
+  picture rather than the render: `look`, words added to the series look for these shots,
+  and `lens`, a `lens:` value. Each shot's prompt opens with them (the look words, then the
+  lens), so every model reads them. A shot's own `lens:` line still wins over its profile's.
+- **A flashback, a dream sequence:** a profile is how a stretch of the story looks
+  different without touching the series look:
+
+  ```json
+  "profiles": { "flashback": { "look": "a faded, desaturated memory with soft halation",
+                               "lens": "vintage" },
+                "dream":     { "look": "a hazy dreamlike glow, soft focus at the edges",
+                               "lens": "shallow" } }
+  ```
+
+  then `profile: flashback` under the sequence's `#` header. Pair it with a sequence
+  relight (the editor's **Relight…**) for plates in the flashback's light.
 - A profile applies to both passes, like a shot's own `model:` line.
 - **What wins**, from weakest to strongest: the series config's `series` / `proxy` block →
   the sequence's profile → the sequence's own `model:` / `lora:` / `steps:` lines → the

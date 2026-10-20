@@ -183,7 +183,9 @@ short wizard:
    Film away. A look preset sets the rows too, so you can start from one and change a part.
    The picks rewrite the line only while it's still theirs: once you edit it by hand they
    leave it alone, and **Use the built line** puts theirs back. The picks are kept in the
-   series config (`style.look_parts`).
+   series config (`style.look_parts`). **Save as a preset…** under the line keeps it (and
+   its picks) as a look of yours: it is offered under **Yours** in every show on this
+   machine, and its ✕ removes it.
 3. **Cast and places**: who and where the episode is about — a character (name, design,
    voice), a location (a short name and its description), a prop or vehicle —
    each with its picture path filled in from the show's layout. A next episode carries its
@@ -453,6 +455,16 @@ exported. A locked clip can still be flagged. Each pass's cut keeps its own flag
 seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show lists them
 ```
 
+### A profile for one take
+
+New take… has **Profile…** beside the output's size when the series config has
+profiles: picking one sets this take's model, steps and LoRAs from it and opens the
+prompt with its look words and lens, as `profile:` would in the script. It changes this take
+only (tick **Save these as the shot's override** to keep the model settings); to give a shot
+or a sequence the profile for good, set it in the shot form or write `profile:` in the script.
+Series settings' **Profiles** section makes and edits them: each has its look words, a lens,
+the video model, steps, sla off, and LoRAs.
+
 ### Keeping a take's frames
 
 **New take like this one…** (and the Inspector's **New take…**, which is the same dialog) has
@@ -670,6 +682,11 @@ script call for is listed here.
   with the same seeds, so only what you changed (a relight, a character's new sheet) differs.
   Your takes stay; pick the new ones as usual. **Re-render stale** above the list does the
   same for every shot whose inputs changed, across the episode.
+- **Relights of your own.** **Save as a relight…** under the edit window's Relight keeps the
+  instruction you've written; on an edited take, **save as a relight…** beside its instruction
+  keeps it with that take's picture as its tile. Yours are offered under **Yours** in every
+  show (the edit window's Relight and a sequence's Relight…), for a plate or a figure as you
+  saved them; ✕ on the tile removes one.
 - **A whole sequence under another light**: **Relight…** on a sequence's header (Shots tab)
   relights every plate the sequence uses at once, for a flashback, a dream or a night
   version. Pick a relight picture or say it in your own words. Each plate becomes a new

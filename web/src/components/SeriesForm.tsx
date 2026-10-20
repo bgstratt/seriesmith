@@ -7,7 +7,7 @@
 // (SubjectCard.tsx).
 
 import { Fragment, useEffect, useState } from "react";
-import { loadTargets, openSeriesForm, openSource, openSubjectCard } from "../actions";
+import { loadTargets, openSeriesForm, openSource, openSubjectCard, saveOwnPreset } from "../actions";
 import {
   CARD_KINDS, DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardKindOf, getPath, parsed, serialize, setPath,
   setSize, shapeNote, shown, sizeOf, slug, type CardKind, type Field, type Raw,
@@ -22,6 +22,7 @@ import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { PresetPicker, useLookTiles } from "./PresetPicker";
 import { composeLook, togglePart, visibleRows, type LookParts } from "../lib/lookBuilder";
 import { MasterRecipe } from "./MasterRecipe";
+import { ProfilesSection } from "./Profiles";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
@@ -160,6 +161,8 @@ function SeriesForm({ ep }: { ep: string }) {
                 })}
               </div>
             )}
+            <ProfilesSection raw={draft} onChange={(next) => sc.setDraft(() => next)}
+              videoTargets={list.filter((t) => t.kind === "video")} />
             <CastList raw={draft} />
             <CheckMessages sc={sc} />
           </>
@@ -280,6 +283,13 @@ function LookField({ value, onChange, textarea, parts, onParts }: {
         </div>
       )}
       {textarea}
+      {value.trim() && (
+        <button type="button" className="h3-link h3-small" style={{ alignSelf: "flex-start" }}
+          title="Keep this look line (and its builder picks) as a preset of yours, offered in every show under Yours"
+          onClick={() => void saveOwnPreset({ kind: "look", text: value.trim(), parts: cur })}>
+          <i className="pi pi-bookmark" /> Save as a preset…
+        </button>
+      )}
     </div>
   );
 }

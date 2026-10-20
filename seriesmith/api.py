@@ -3003,6 +3003,71 @@ def get_presets(ctx: Context, query: dict):
         raise ApiError(400, str(e))
 
 
+PRESET_PICTURE = 480                    # an own preset's tile, its long side
+
+
+@handler
+def post_preset_own(ctx: Context, body):
+    """Keep one of your own presets for every show on this machine
+    (presets.save_own): `{kind: "look" | "relight", label, id?, text?, parts?,
+    place?, subject?, picture?: {ep, ref, view?, take?}}`. `id` replaces that
+    one of yours; `picture` (a ref's take, or its live picture) becomes its
+    tile. Returns the preset as GET /seriesmith/presets lists it."""
+    from seriesmith import presets as PR
+    body = body_dict(body)
+    kind, label = body.get("kind"), body.get("label")
+    pid = body.get("id")
+    if pid is not None and (not isinstance(pid, str) or not pid):
+        raise ApiError(400, "id must be one of your presets' ids, or null")
+    pic = body.get("picture")
+    data = None
+    if pic is not None:
+        if not isinstance(pic, dict):
+            raise ApiError(400, 'picture must be {"ep", "ref", "view"?, "take"?} or null')
+        ep = check_ep(ctx, pic.get("ep"))
+        s = _series(ep)
+        ref = _ref(s, pic.get("ref"))
+        view = _view(ref, pic.get("view"))
+        take = check_take(pic.get("take"), "picture.take", nullable=True)
+        try:
+            path = R._picture_of(s, ref, view, take, "the preset's picture")["path"]
+        except R.RefError as e:
+            raise ApiError(400, str(e))
+        data = _preset_picture(path)
+    try:
+        return 200, PR.save_own(kind, label, body, pid, data)
+    except PR.PresetError as e:
+        raise ApiError(400, str(e))
+
+
+def _preset_picture(path: str) -> bytes:
+    """A picture as an own preset's tile: a JPEG, its long side PRESET_PICTURE."""
+    import io
+
+    from PIL import Image
+    try:
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            im.thumbnail((PRESET_PICTURE, PRESET_PICTURE))
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=85)
+    except OSError as e:
+        raise ApiError(400, f"the preset's picture can't be read: {e}")
+    return out.getvalue()
+
+
+@handler
+def post_preset_own_delete(ctx: Context, body):
+    """Forget one of your own presets: `{kind, id}`."""
+    from seriesmith import presets as PR
+    body = body_dict(body)
+    try:
+        PR.delete_own(body.get("kind"), body.get("id"))
+    except PR.PresetError as e:
+        raise ApiError(400, str(e))
+    return 200, {"ok": True}
+
+
 @handler
 def get_preset_image(ctx: Context, query: dict):
     """A preset's sample (a JPEG, a camera move's an mp4), by the name GET
@@ -4148,6 +4213,8 @@ ROUTES = [
     ("GET", "/seriesmith/thumb", get_thumb, "query"),
     ("GET", "/seriesmith/presets", get_presets, "query"),
     ("GET", "/seriesmith/presets/image", get_preset_image, "query"),
+    ("POST", "/seriesmith/presets/own", post_preset_own, "body"),
+    ("POST", "/seriesmith/presets/own/delete", post_preset_own_delete, "body"),
     ("POST", "/seriesmith/render", post_render, "body"),
     ("POST", "/seriesmith/cancel", post_cancel, "body"),
     ("POST", "/seriesmith/discard", post_discard, "body"),

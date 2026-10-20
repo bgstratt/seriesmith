@@ -141,3 +141,57 @@ class ListingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnPresetTest(unittest.TestCase):
+    """Your own looks and relights, kept beside this machine's settings."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        env = mock.patch.dict(os.environ, {"SERIESMITH_SETTINGS":
+                                           os.path.join(self._tmp.name, "settings.json")})
+        env.start()
+        self.addCleanup(env.stop)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_a_look_of_yours(self):
+        p = PR.save_own("look", "Neon noir", {"text": "my noir line", "parts": {"medium": "live_action"}})
+        self.assertEqual((p["id"], p["group"], p["own"]), ("neon_noir_2", "yours", True))  # the shipped id kept
+        looks = PR.listing("look")
+        self.assertEqual(looks[-1]["text"], "my noir line")
+        self.assertEqual(len([x for x in looks if x.get("own")]), 1)
+        PR.save_own("look", "Neon noir", {"text": "changed"}, pid="neon_noir_2")
+        self.assertEqual([x["text"] for x in PR.listing("look") if x.get("own")], ["changed"])
+        PR.delete_own("look", "neon_noir_2")
+        self.assertFalse(any(x.get("own") for x in PR.listing("look")))
+
+    def test_a_relight_of_yours_relights(self):
+        from seriesmith import relight as RL
+        p = PR.save_own("relight", "Flashback haze", {"place": "Change only the light: hazy amber memory"},
+                        picture=b"\xff\xd8jpeg")
+        self.assertEqual(p["for"], ["place"])
+        self.assertEqual(p["images"]["place"], "own/relight/flashback_haze.jpg")
+        self.assertTrue(PR.image_path(p["images"]["place"]).endswith("flashback_haze.jpg"))
+        self.assertEqual(RL.instruction("flashback_haze"), "Change only the light: hazy amber memory")
+        self.assertEqual(RL.default_suffix("flashback_haze"), "flashback_haze")
+        self.assertEqual(PR.relight_text("flashback_haze", "location"),
+                         "Change only the light: hazy amber memory")
+
+    def test_what_is_refused(self):
+        for kind, label, fields, why in (("framing", "x", {}, "not a 'framing'"),
+                                         ("look", " ", {"text": "t"}, "needs a name"),
+                                         ("look", "x", {}, "look line"),
+                                         ("relight", "x", {}, "instruction")):
+            with self.subTest(why), self.assertRaisesRegex(PR.PresetError, why):
+                PR.save_own(kind, label, fields)
+        with self.assertRaisesRegex(PR.PresetError, "no look preset 'nope'"):
+            PR.save_own("look", "x", {"text": "t"}, pid="nope")
+        self.assertIsNone(PR.image_path("own/look/../../settings.json"))
+
+    def test_the_routes(self):
+        ctx = mock.Mock()
+        code, p = A.post_preset_own(ctx, {"kind": "look", "label": "Mine", "text": "a look"})
+        self.assertEqual((code, p["id"]), (200, "mine"))
+        self.assertEqual(A.post_preset_own(ctx, {"kind": "look", "label": "Mine"})[0], 400)
+        self.assertEqual(A.post_preset_own_delete(ctx, {"kind": "look", "id": "mine"})[0], 200)
+        self.assertEqual(A.post_preset_own_delete(ctx, {"kind": "look", "id": "mine"})[0], 400)

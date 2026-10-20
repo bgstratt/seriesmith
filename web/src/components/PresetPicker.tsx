@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../host";
-import { loadPresets } from "../actions";
+import { deleteOwnPreset, loadPresets } from "../actions";
 import { useApp } from "../store";
 import type { RelightWording } from "../types";
 
@@ -21,11 +21,13 @@ export interface PresetTile {
   sub?: string;
   /** the sample's name (GET /seriesmith/presets/image), when made: .jpg, or a camera move's .mp4 */
   image?: string;
+  /** one of yours: it can be removed */
+  own?: { kind: "look" | "relight" };
 }
 
 const GROUP_LABEL: Record<string, string> = {
   time: "Time of day", weather: "Weather", light: "Light", portrait: "Portrait light",
-  "live action": "Live action", genre: "Genre", animation: "Animation", illustration: "Illustration",
+  yours: "Yours", "live action": "Live action", genre: "Genre", animation: "Animation", illustration: "Illustration",
   close: "Close", medium: "Medium", wide: "Wide", angle: "Angle",
   frame: "Still", dolly: "Dolly", lens: "Zoom", pivot: "Pan and tilt", slide: "Truck and pedestal",
   orbit: "Around", handheld: "Handheld and roll", lenses: "Lens",
@@ -43,13 +45,15 @@ export function useRelightTiles(kind: string): PresetTile[] {
   const wording: RelightWording = kind === "location" ? "place" : "subject";
   return (presets?.relight ?? [])
     .filter((p) => p.for.includes(wording) && p.texts[wording])
-    .map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.texts[wording]!, image: p.images[wording] }));
+    .map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.texts[wording]!, image: p.images[wording],
+      ...(p.own ? { own: { kind: "relight" as const } } : {}) }));
 }
 
 /** The look presets, as tiles. */
 export function useLookTiles(): PresetTile[] {
   const presets = usePresets();
-  return (presets?.look ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.text, image: p.image }));
+  return (presets?.look ?? []).map((p) => ({ id: p.id, label: p.label, group: p.group, text: p.text, image: p.image,
+    ...(p.own ? { own: { kind: "look" as const } } : {}) }));
 }
 
 /** The framings: picking one hands over the `size:` value (its id). */
@@ -133,8 +137,20 @@ export function PresetPicker({ tiles, value, onPick, square = false, title, open
                   className={`sm-preset${on ? " h3-on" : ""}`}
                   style={{ flex: "0 0 auto", width: w, padding: 0, border: `2px solid ${on ? "var(--h3-primary)" : "var(--h3-border)"}`,
                     borderRadius: 8, overflow: "hidden", background: "var(--h3-card, transparent)", cursor: "pointer", textAlign: "left" }}>
-                  <Sample name={t.image} w={w} h={h} hover={hover === t.id} />
-                  <div className="h3-small" style={{ padding: "3px 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.label}</div>
+                  {t.image || !t.own
+                    ? <Sample name={t.image} w={w} h={h} hover={hover === t.id} />
+                    : <div className="h3-small h3-muted" style={{ width: w, height: h, padding: 4, overflow: "hidden", lineHeight: 1.2,
+                        background: "linear-gradient(135deg, var(--h3-chip), transparent)" }}>{t.text}</div>}
+                  <div className="h3-small h3-row" style={{ padding: "3px 6px", gap: 4 }}>
+                    <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{t.label}</span>
+                    {t.own && (
+                      <span role="button" tabIndex={0} className="h3-link" title={`Remove your ${t.own.kind} “${t.label}”`}
+                        onClick={(e) => { e.stopPropagation(); void deleteOwnPreset(t.own!.kind, t.id, t.label); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); void deleteOwnPreset(t.own!.kind, t.id, t.label); } }}>
+                        ✕
+                      </span>
+                    )}
+                  </div>
                   {t.sub && <div className="h3-small h3-muted" style={{ padding: "0 6px 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.sub}</div>}
                 </button>
               );

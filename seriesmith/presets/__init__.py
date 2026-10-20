@@ -8,6 +8,11 @@ Each preset's sample is under img/ (made by tools/make_preset_samples.py,
 with seriesmith itself): a JPEG, or for a camera move a short silent clip;
 one not made yet is simply left out of the answer.
 
+Your own looks and relights (OWN_KINDS) are kept for every show on this
+machine, beside its settings file: presets.json ({kind: [preset]}, the same
+shape as the shipped ones) and their pictures under presets/<kind>/. They are
+listed after the shipped ones in the group "yours", with `own: true`.
+
 Standard library only.
 """
 from __future__ import annotations
@@ -23,8 +28,131 @@ EXT = {"camera": ".mp4"}
 WORDING = {"location": "place", "character": "subject", "prop": "subject", "vehicle": "subject"}
 
 
+OWN_KINDS = ("look", "relight")
+OWN_GROUP = "yours"
+OWN_IMG = "own"                     # an own preset's picture name: own/<kind>/<id>.jpg
+
+
 class PresetError(ValueError):
     pass
+
+
+def own_dir() -> str:
+    """The folder beside this machine's settings file."""
+    from seriesmith.settings import settings_path
+    return os.path.dirname(os.path.abspath(settings_path()))
+
+
+def own_file() -> str:
+    return os.path.join(own_dir(), "presets.json")
+
+
+def _own_all() -> dict:
+    try:
+        with open(own_file(), encoding="utf-8") as fh:
+            d = json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as e:
+        raise PresetError(f"{own_file()} can't be read: {e}") from None
+    return d if isinstance(d, dict) else {}
+
+
+def own(kind: str) -> list[dict]:
+    """Your own presets of `kind` (none for a kind that can't have them)."""
+    if kind not in OWN_KINDS:
+        return []
+    return [p for p in (_own_all().get(kind) or []) if isinstance(p, dict) and p.get("id")]
+
+
+def presets_of(kind: str) -> list[dict]:
+    """The shipped presets of `kind`, then your own."""
+    return _load(kind) + own(kind)
+
+
+def _slug(label: str) -> str:
+    s = "".join(c if c.isalnum() else "_" for c in label.strip().lower())
+    return "_".join(x for x in s.split("_") if x)[:40] or "preset"
+
+
+def save_own(kind: str, label: str, fields: dict, pid: str | None = None,
+             picture: bytes | None = None) -> dict:
+    """Keep one of your own presets: a look ({"text", "parts"?}) or a relight
+    ({"place"?, "subject"?}). `pid` replaces that one of yours; without it the
+    id comes from the label, made unique against the shipped ones and yours.
+    `picture` (JPEG bytes) becomes its tile. Returns it as listing() does."""
+    if kind not in OWN_KINDS:
+        raise PresetError(f"you can save a {' or a '.join(OWN_KINDS)}, not a {kind!r}")
+    if not isinstance(label, str) or not label.strip():
+        raise PresetError("a preset needs a name")
+    if kind == "look":
+        text = fields.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise PresetError("a look preset needs its look line (text)")
+        parts = fields.get("parts") or {}
+        if not isinstance(parts, dict) or not all(isinstance(v, str) for v in parts.values()):
+            raise PresetError("parts must be {row: option id}")
+        body = {"text": text.strip(), **({"parts": parts} if parts else {})}
+    else:
+        body = {}
+        for w in ("place", "subject"):
+            v = fields.get(w)
+            if v is not None and (not isinstance(v, str) or not v.strip()):
+                raise PresetError(f"{w} must be the instruction, as text")
+            if v:
+                body[w] = v.strip()
+        if not body:
+            raise PresetError("a relight preset needs its instruction for a place or a subject")
+    data = _own_all()
+    mine = [p for p in (data.get(kind) or []) if isinstance(p, dict)]
+    if pid is not None:
+        if not any(p.get("id") == pid for p in mine):
+            raise PresetError(f"you have no {kind} preset {pid!r} to replace")
+    else:
+        taken = {p["id"] for p in _load(kind)} | {p.get("id") for p in mine}
+        base = pid = _slug(label)
+        n = 2
+        while pid in taken:
+            pid, n = f"{base}_{n}", n + 1
+    entry = {"id": pid, "label": label.strip(), "group": OWN_GROUP, **body}
+    mine = [entry if p.get("id") == pid else p for p in mine]
+    if not any(p is entry for p in mine):
+        mine.append(entry)
+    data[kind] = mine
+    _write_own(data)
+    if picture is not None:
+        folder = os.path.join(own_dir(), "presets", kind)
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{pid}.jpg"), "wb") as fh:
+            fh.write(picture)
+    return next(p for p in listing(kind) if p["id"] == pid)
+
+
+def delete_own(kind: str, pid: str) -> None:
+    """Forget one of your own presets (and its picture)."""
+    data = _own_all()
+    mine = [p for p in (data.get(kind) or []) if isinstance(p, dict)]
+    if not any(p.get("id") == pid for p in mine):
+        raise PresetError(f"you have no {kind} preset {pid!r}")
+    data[kind] = [p for p in mine if p.get("id") != pid]
+    _write_own(data)
+    pic = os.path.join(own_dir(), "presets", kind, f"{pid}.jpg")
+    if os.path.isfile(pic):
+        os.remove(pic)
+
+
+def _write_own(data: dict) -> None:
+    os.makedirs(own_dir(), exist_ok=True)
+    tmp = own_file() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    os.replace(tmp, own_file())
+
+
+def _own_image(kind: str, pid: str) -> str | None:
+    name = f"{OWN_IMG}/{kind}/{pid}.jpg"
+    return name if image_path(name) else None
 
 
 def _load(kind: str) -> list[dict]:
@@ -65,6 +193,13 @@ def image_path(name: str) -> str | None:
     """The file of a sample picture named as image_name names it, or None
     (not made yet, or a name that isn't one)."""
     parts = name.replace("\\", "/").split("/")
+    if len(parts) == 3 and parts[0] == OWN_IMG:
+        kind, file = parts[1], parts[2]
+        if kind not in OWN_KINDS or not file.endswith(".jpg") or file.startswith(".") \
+                or any(c in file for c in ":"):
+            return None
+        p = os.path.join(own_dir(), "presets", kind, file)
+        return p if os.path.isfile(p) else None
     if (len(parts) != 2 or parts[0] not in KINDS or not parts[1].endswith(EXT.get(parts[0], ".jpg"))
             or any(c in parts[1] for c in "/\\:") or parts[1].startswith(".")):
         return None
@@ -106,13 +241,24 @@ def listing(kind: str) -> list[dict]:
         out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),
                     "for": words, "texts": {w: p[w] for w in words},
                     "images": {w: n for w, n in images.items() if image_path(n)}})
+    for p in own(kind):
+        pic = _own_image(kind, p["id"])
+        if kind == "look":
+            out.append({"id": p["id"], "label": p.get("label") or p["id"], "group": OWN_GROUP,
+                        "text": p.get("text", ""), "parts": p.get("parts") or {}, "own": True,
+                        **({"image": pic} if pic else {})})
+        else:
+            words = [w for w in ("place", "subject") if p.get(w)]
+            out.append({"id": p["id"], "label": p.get("label") or p["id"], "group": OWN_GROUP,
+                        "for": words, "texts": {w: p[w] for w in words}, "own": True,
+                        "images": {w: pic for w in words} if pic else {}})
     return out
 
 
 def relight_text(pid: str, ref_kind: str) -> str:
     """A relight preset's instruction for a ref of `ref_kind`."""
     wording = WORDING.get(ref_kind, "subject")
-    for p in _load("relight"):
+    for p in presets_of("relight"):
         if p["id"] == pid:
             text = p.get(wording)
             if not text:

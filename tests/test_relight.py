@@ -131,3 +131,25 @@ class RelightApiTest(ApiTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnRelightApiTest(RelightApiTest):
+    """A relight of yours, saved from the edit window with its picture, then
+    used for a sequence relight."""
+
+    def test_saved_with_its_picture_and_used(self):
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"SERIESMITH_SETTINGS": os.path.join(self.tmp, "settings.json")}):
+            p = self.ok(A.post_preset_own(self.ctx, {
+                "kind": "relight", "label": "Amber memory", "place": "Change only the light: an amber haze",
+                "picture": {"ep": self.ep, "ref": "location:street"}}))
+            self.assertEqual(p["images"], {"place": "own/relight/amber_memory.jpg"})
+            data = self.ok(self.relight(locations=["street"], relight="amber_memory", dry_run=True))
+            self.assertEqual(data["locations"][0]["id"], "street_amber_memory")
+            self.assertIn("An amber haze.", data["locations"][0]["entry"]["description"])
+            self.err(A.post_preset_own(self.ctx, {"kind": "relight", "label": "x", "place": "p",
+                                                  "picture": {"ep": self.ep, "ref": "location:nowhere"}}), 404)
+
+    # the parent's tests needn't run twice
+    test_a_sequence_and_its_plates = test_relight_and_repoint = None
+    test_the_edit_starts_from_the_source_plate = test_refused = None

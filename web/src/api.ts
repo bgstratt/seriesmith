@@ -20,7 +20,8 @@ import type {
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
-  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult } from "./types";
+  PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
+  LookPreset, OwnPresetRequest, RelightPreset } from "./types";
 import { comboChoices } from "./lib/targets";
 
 /** A ref take as the import routes return it. */
@@ -192,6 +193,10 @@ export interface Api {
   presets(): Promise<PresetList>;
   /** A preset's sample picture (GET /seriesmith/presets/image), by the name presets gave. */
   presetImageUrl(name: string): string;
+  /** POST /seriesmith/presets/own: keep one of your own looks or relights */
+  presetSaveOwn(req: OwnPresetRequest): Promise<LookPreset | RelightPreset>;
+  /** POST /seriesmith/presets/own/delete */
+  presetDeleteOwn(req: { kind: "look" | "relight"; id: string }): Promise<{ ok: boolean }>;
   /** A picture made small (GET /seriesmith/thumb): `width` px wide, rounded up to
    * 128 / 256 / 512 / 1024. For a picture shown small; the file itself for one shown whole. */
   thumbUrl(ep: string, path: string, width: number, version?: string | null): string;
@@ -579,6 +584,8 @@ export function createHttpApi(t: Transport): Api {
         look_builder: list(r?.look_builder) };
     },
     presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
+    presetSaveOwn: (req) => call("POST", "/seriesmith/presets/own", req),
+    presetDeleteOwn: (req) => call("POST", "/seriesmith/presets/own/delete", req),
     thumbUrl: (ep, path, width, version) => t.url(`/seriesmith/thumb?${qs({ ep, path, w: String(Math.round(width)), v: version || undefined })}`),
     refsGenerate: (req) => {
       if (req.seed !== null && !isSeed(req.seed)) {

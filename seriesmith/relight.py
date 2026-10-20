@@ -38,7 +38,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
 def _preset(relight: str) -> dict | None:
-    return next((p for p in PR._load("relight") if p["id"] == relight), None)
+    return next((p for p in PR.presets_of("relight") if p["id"] == relight), None)
 
 
 def instruction(relight: str) -> str:

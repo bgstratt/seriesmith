@@ -1340,7 +1340,7 @@ def target_for_workflow(name: str) -> Target | None:
 # profiles and target selection
 # ---------------------------------------------------------------------------
 
-PROFILE_KEYS = ("target", "model", "loras", "steps", "sla")
+PROFILE_KEYS = ("target", "model", "loras", "steps", "sla", "look", "lens")
 
 
 def normalize_loras(value, where: str) -> list[dict]:
@@ -1406,6 +1406,8 @@ def series_profiles(series_cfg: dict) -> dict[str, dict]:
             if p["sla"] not in ("on", "off"):
                 raise ValueError(f"{where}: sla must be on or off")
             prof["sla"] = p["sla"]
+        # look and lens reach the prompt, not the render (core.story, via
+        # series_config.profile_styles, which checks them)
         out[name] = prof
     return out
 

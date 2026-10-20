@@ -790,8 +790,17 @@ shown as pictures, each filling a text that stays editable.
       (the genre's setting around the same woman in red); the look line stays light, lens,
       grade and stock, so a series' own locations decide the setting. The genre-like looks
       (neo-noir, sci-fi, period, documentary, b&w noir, 70s) got scenes too.
-- [ ] Next: your own presets saved and applied (profiles carrying look/lens/grade, saved
-      relights and looks).
+- [x] Your own presets (2026-10-19). Looks and relights of yours for every show on this
+      machine: `presets.json` beside the settings file, pictures under `presets/<kind>/`
+      (`presets.save_own`, `POST /seriesmith/presets/own` and `/own/delete`), listed under
+      **Yours**. Saved from the look field (with its builder picks), the edit window's Relight,
+      or an edited take (its picture becomes the tile); a sequence relight offers them too.
+      Profiles, per series in its series config, now carry `look` (words added to the look)
+      and `lens`: `parse_story(styles=series_config.profile_styles(cfg))` opens each shot's
+      action with them (shot line, shot profile, sequence line, sequence profile). Series
+      settings' **Profiles** section edits them; New take's **Profile…** applies one to a take.
+- [ ] Maybe: a picture for a saved look (render it on the sample scene, as the shipped ones
+      are), and "Save as profile…" from the shot form.
 - [x] A per-shot `lens:` (2026-10-19; also under a `#` header): the look builder's Lens row
       and `deep` (core/framing.py LENSES, a test keeps them equal to look_builder.json). The
       IR shot's action opens with the lens sentence, so every target reads it with no code of

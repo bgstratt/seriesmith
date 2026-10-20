@@ -6,6 +6,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSPropertie
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
   openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
+  saveOwnPreset,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import { useView } from "../lib/viewPref";
@@ -538,6 +539,17 @@ function Selection({ r }: { r: Ref }) {
               <span title={t.edit.wrap === false ? "Sent as typed" : "The instruction, with the rest of the picture named as fixed"}>
                 {editSourceText(t.edit)}: “{t.edit.instruction}”
                 {t.edit.with?.length ? ` · with ${t.edit.with.map((w) => `${w.ref}${w.view ? ` (${viewLabel(w.view)})` : ""}`).join(", ")}` : ""}
+                {t.status === "ok" && !isAudioRef(r) && (
+                  <>
+                    {" "}
+                    <button type="button" className="h3-link h3-small"
+                      title="Keep this instruction as a relight of yours, with this picture as its tile, offered in every show under Yours"
+                      onClick={() => void saveOwnPreset({ kind: "relight", [r.kind === "location" ? "place" : "subject"]: t.edit!.instruction },
+                        "", { ref: r.id, view: sel.view, take: t.take })}>
+                      <i className="pi pi-bookmark" /> save as a relight…
+                    </button>
+                  </>
+                )}
               </span>
             </>
           )}

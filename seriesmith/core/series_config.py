@@ -84,6 +84,7 @@ def series_config_from(series_cfg: dict) -> dict:
     _check_required(series_cfg)
     _check_groups(series_cfg["subjects"])
     _check_angles(series_cfg["locations"])
+    profile_styles(series_cfg)                 # a profile's look and lens, checked
     _check_continuous(series_cfg)
     return series_cfg
 
@@ -136,6 +137,35 @@ def _check_angles(locations: dict) -> None:
         if master.get("of") and not relight:
             raise ValueError(f"location '{lid}' is an angle of '{of}', which is itself an angle "
                              f"(of '{master['of']}'): name the master, '{master['of']}'")
+
+
+def profile_styles(series_cfg: dict) -> dict[str, dict]:
+    """{profile: {"look"?, "lens"?}}: what each of the series config's
+    `profiles` adds to its shots' prompts (core.story.parse_story's
+    `styles`). `look` is words added to the series look for those shots (a
+    flashback's "faded, desaturated, soft halation"); `lens` a `lens:` value.
+    ValueError for a lens that isn't one (core.framing.LENSES); the rest of a
+    profile is checked where it renders (targets.series_profiles)."""
+    from . import framing
+    out = {}
+    for name, p in (series_cfg.get("profiles") or {}).items():
+        if name.startswith("_") or not isinstance(p, dict):
+            continue
+        st = {}
+        if p.get("look") is not None:
+            if not isinstance(p["look"], str):
+                raise ValueError(f"series.json profile '{name}': look must be text")
+            if p["look"].strip():
+                st["look"] = p["look"].strip()
+        if p.get("lens") is not None:
+            lens = framing.lens(p["lens"]) if isinstance(p["lens"], str) else None
+            if lens is None:
+                raise ValueError(f"series.json profile '{name}': lens {p['lens']!r} must be one "
+                                 f"of {', '.join(framing.LENSES)}")
+            st["lens"] = lens
+        if st:
+            out[name] = st
+    return out
 
 
 def location_master(series_cfg: dict, lid: str) -> str:

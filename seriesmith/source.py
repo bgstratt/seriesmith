@@ -333,9 +333,10 @@ def check_text(ep: str, file: str, text: str) -> dict:
     shots = [{"id": k, "line": a, "end_line": b}
              for k, (a, b) in sorted(spans.items(), key=lambda kv: kv[1][0])]
     try:
-        from seriesmith.core.series_config import series_info
+        from seriesmith.core.series_config import profile_styles, series_info
         subjects, chars, variants = _ids(cfg)
-        story = parse_story(script_text, subjects, chars, series_info(cfg), variants)
+        story = parse_story(script_text, subjects, chars, series_info(cfg), variants,
+                            profile_styles(cfg))
     except ScriptError as e:
         errors.append({"file": "script", "line": e.line_no, "message": e.msg})
         return result(shots)
@@ -381,7 +382,7 @@ def preview_shot(ep: str, text: str, shot: str, pass_: str = "proxy") -> dict:
     or the build refuses it (the message is the one `check` gives)."""
     from seriesmith import build as B
     from seriesmith import targets as TG
-    from seriesmith.core.series_config import series_info
+    from seriesmith.core.series_config import profile_styles, series_info
     from seriesmith.core.story import ScriptError, parse_story
 
     cfg = _load_cfg(ep)
@@ -391,7 +392,8 @@ def preview_shot(ep: str, text: str, shot: str, pass_: str = "proxy") -> dict:
     TG.add_thread_root(ep)
     try:
         subjects, chars, variants = _ids(cfg)
-        story = parse_story(text, subjects, chars, series_info(cfg), variants)
+        story = parse_story(text, subjects, chars, series_info(cfg), variants,
+                            profile_styles(cfg))
     except ScriptError as e:
         return {"ok": False, "error": e.msg, "line": e.line_no}
     ir_shot = next((s for sq in story.sequences for s in sq.shots if s.id == shot), None)

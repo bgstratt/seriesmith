@@ -1599,6 +1599,15 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     presetImageUrl(name) {
       return media + name.split("/").pop();
     },
+    async presetSaveOwn(req) {
+      await wait();
+      return { id: req.id ?? req.label.toLowerCase().replace(/\W+/g, "_"), label: req.label, group: "yours",
+        text: req.text ?? "", own: true };
+    },
+    async presetDeleteOwn() {
+      await wait();
+      return { ok: true };
+    },
     thumbUrl(_ep, path) {
       // the mock has no small copies: the picture itself, as refFileUrl finds it
       return refs.image(path) ?? media + path.split("/").pop();
