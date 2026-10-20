@@ -65,4 +65,34 @@ describe("the Look field", () => {
     expect(parts).toEqual({ medium: "live", grade: "warm" });
     expect(line).toBe("a live-action film; a warm grade");
   });
+
+  it("rewrites a preset's line when a pick changes, as the builder's own", async () => {
+    act(() => root.render(createElement(Harness)));
+    await act(async () => { resolve(PRESETS); });
+    const tile = (label: string) => [...host.querySelectorAll("button.sm-preset")].find((b) => b.textContent?.includes(label))! as HTMLButtonElement;
+    act(() => tile("Neon noir").click());                      // a look preset: its own sentence
+    expect(line).toBe("a neon noir");
+    expect(parts).toEqual({ medium: "live" });
+    const open = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Build the look"))!;
+    act(() => open.click());
+    expect(host.textContent).not.toContain("edited by hand");   // a preset's line isn't
+    act(() => tile("Warm").click());
+    expect(line).toBe("a live-action film; a warm grade");
+  });
+
+  it("leaves a line typed by hand alone", async () => {
+    act(() => root.render(createElement(Harness)));
+    await act(async () => { resolve(PRESETS); });
+    const ta = host.querySelector("textarea")!;
+    const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+    act(() => { set.call(ta, "my own look"); ta.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(line).toBe("my own look");
+    const open = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("Build the look"))!;
+    act(() => open.click());
+    const tile = (label: string) => [...host.querySelectorAll("button.sm-preset")].find((b) => b.textContent?.includes(label))! as HTMLButtonElement;
+    act(() => tile("Live action").click());
+    act(() => tile("Warm").click());
+    expect(line).toBe("my own look");
+    expect(host.textContent).toContain("edited by hand");
+  });
 });
