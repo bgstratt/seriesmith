@@ -106,8 +106,9 @@ after a save, missing `enabled_drafts` and `target_limits`; the reply, Settings 
 `/info` show the old values until a restart. **Change:** copy `settings.FIELDS` (plus
 `path`) so a new field can't be missed again.
 - **Tests:** a settings PUT test asserting every field in FIELDS round-trips.
-- **Live check (you):** Settings: switch a built-in draft on, save; the window shows it
-  on without a restart; switch it back.
+- **Live check (you):** the Models window (Model: → Add / validate models…), Hosted models
+  to try: **Enable** a draft; Settings shows it among `enabled_drafts` without a restart;
+  **Back to draft**. (Not Probe: that's a paid Router run.)
 - **Done:** test failed first (`[] != ['some_draft']`), passes now. Live through the API on
   the restarted server: `seedance_2_0_fast` enabled showed at once in the reply and
   `/info`; reverted.
@@ -276,6 +277,41 @@ minutes on a master).
   byte-identical to the old code's: Ballroom-refactor ep01 (sha1 358a3dcb…, 3 clips
   re-encoded) and ep02 (d486e3d2…, every clip copied). ffprobe runs 34 → 12 (ep01) and
   32 → 11 (ep02); ep01 3.8 → 3.3 s, ep02 1.84 → 0.75 s.
+
+#### 1.11 Opening an episode doesn't wait on readiness or repeat itself ✅ (your check pending)
+Found by your check of 1.6 / 1.9 ("the first load of an episode still takes several
+seconds"), with a per-request timing log on the live server: opening an episode sent
+`/episodes` four times (0.3-0.45 s each) and `/episode` twice, and `/targets?ready=1`
+took 1.6-2.5 s whenever its 30 s cache had lapsed (`/object_info` again, then every
+target's workflow); all of it at once, so each waited on the others (Python's lock):
+Porchlights ep01's `/episode` ran 5.0 s on the server, 0.28 s alone. **Change:**
+- The page: `ensureEpisodes()`, one request for the episode list however many pickers
+  ask for it while it's coming (each answer had opened the episode again, the doubled
+  `/episode`). An explicit reload (after a save, a new episode) is `loadEpisodes()` as
+  before.
+- The server (`api.REFRESH_BEHIND`, set by both hosts): readiness, `/object_info` and the
+  targets' workflows past READY_TTL are answered from what was kept while a thread asks
+  ComfyUI again (one per kind at a time, with the request's shows in force); an install
+  (`forget_comfy`) still makes the next answer wait, and a refresh started before an
+  install isn't kept. Off for tests and the CLI.
+- **Measured:** `/targets?ready=1` with its cache lapsed 1.6-2.5 s → 0.025 s.
+
+#### 1.12 A workflow with a system prompt imports as a model ✅ (your check pending)
+Found by your check: adding `image_netayume_lumina_t2i` failed at save ("binding.params.prompt:
+workflow must contain exactly one StringConcatenate titled 'StringConcatenate'"). Two
+things were wrong. Its prompt and negative are each a StringConcatenate of a fixed system
+prompt (string_a) and the text (string_b); both nodes keep the class's own title, so the
+title the inspector narrowed by matched both. And it chose string_a: every render would
+have written the prompt over the system prompt. **Change:**
+- `inspector._spec` narrows by whatever picks the node alone: its title if no other shares
+  it, else what it feeds, else both, else what it feeds and that node's title (a `feeds`
+  selector may be `[class, input, title]`: the Positive / Negative Prompt encoders).
+- `text_widget` puts the prompt in a node's last text field when it has several (a prefix
+  first, the text after), and the inspector says which it chose.
+- What still can't be told apart is a problem when the workflow is inspected, not only at
+  save, and `select_nodes`' error says to give the node a title of its own.
+- Live: the Lumina workflow inspects with no problems: prompt → string_b of the positive
+  concatenation, negative → string_b of the negative one, the system prompts kept.
 
 Phase 1 ends with the whole bench rerun, the table above filled with after-numbers,
 and one PR.

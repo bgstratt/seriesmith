@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, loadEpisodes, loadIssues, openBrowse, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -50,7 +50,7 @@ export function EpisodeSelect({ compact }: { compact?: boolean }) {
   const ep = useApp((s) => s.ep);
   useEffect(() => {
     // the Refs tab or the timeline may be opened before the Shots tab
-    if (episodes == null && !episodesError) void loadEpisodes();
+    if (episodes == null && !episodesError) void ensureEpisodes();
   }, [episodes, episodesError]);
   return (
     <select
@@ -89,7 +89,7 @@ export function EpisodeHead({ side }: { side?: React.ReactNode }) {
   const episodesError = useApp((s) => s.episodesError);
   const ep = useApp((s) => s.ep);
   useEffect(() => {
-    if (episodes == null && !episodesError) void loadEpisodes();
+    if (episodes == null && !episodesError) void ensureEpisodes();
   }, [episodes, episodesError]);
   const cur = episodes?.find((e) => e.ep === ep);
   const name = cur ? `${cur.name}${cur.title && cur.title !== cur.series ? ` — ${cur.title}` : ""}`

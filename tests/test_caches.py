@@ -139,9 +139,9 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class ObjectInfoCacheTest(unittest.TestCase):
-    """/object_info is a second and megabytes: asked once per ComfyUI for
-    READY_TTL, again when told (fresh, forget_comfy), never kept when it fails."""
+class _InfoFixture:
+    """A ComfyUI whose /object_info is `self.answer` (None: away), each ask
+    counted in `self.asked`."""
 
     def setUp(self):
         from unittest import mock
@@ -162,6 +162,11 @@ class ObjectInfoCacheTest(unittest.TestCase):
 
     def ctx(self, url="http://127.0.0.1:8188"):
         return A.Context(self._tmp.name, url, env={}, model_resolve=None)
+
+
+class ObjectInfoCacheTest(_InfoFixture, unittest.TestCase):
+    """/object_info is a second and megabytes: asked once per ComfyUI for
+    READY_TTL, again when told (fresh, forget_comfy), never kept when it fails."""
 
     def test_asked_once_per_comfyui_while_fresh(self):
         a = A.comfy_object_info(self.ctx())
@@ -267,3 +272,59 @@ class KeptJsonTest(unittest.TestCase):
         self.assertNotIn("version", T.read_json_kept(p))
         self.assertEqual(R.read_picks(os.path.join(self._tmp.name, "nowhere")),
                          {"version": 1, "refs": {}})
+
+
+class RefreshBehindTest(_InfoFixture, unittest.TestCase):
+    """On a server (REFRESH_BEHIND), an answer past READY_TTL is given at once
+    and asked again behind it; an install (forget_comfy) still waits."""
+
+    def setUp(self):
+        super().setUp()
+        A.REFRESH_BEHIND = True
+        self.addCleanup(setattr, A, "REFRESH_BEHIND", False)
+
+    def age(self, url="http://127.0.0.1:8188"):
+        t, info = A._INFO[url]
+        A._INFO[url] = (t - A.READY_TTL - 1, info)
+
+    def settle(self):
+        for t in [t for t in __import__("threading").enumerate() if t.name == "seriesmith-refresh"]:
+            t.join(5)
+
+    def test_an_old_answer_is_given_and_asked_again_behind_it(self):
+        first = A.comfy_object_info(self.ctx())
+        self.age()
+        self.answer = {"KSampler": {}, "SeedVR2": {}}
+        self.assertIs(A.comfy_object_info(self.ctx()), first)    # at once: the kept one
+        self.settle()
+        self.assertEqual(len(self.asked), 2)
+        self.assertIn("SeedVR2", A.comfy_object_info(self.ctx()))  # the refreshed one
+        self.assertEqual(len(self.asked), 2)
+
+    def test_after_an_install_the_next_answer_waits(self):
+        A.comfy_object_info(self.ctx())
+        self.age()
+        A.forget_comfy()
+        self.answer = {"KSampler": {}, "SeedVR2": {}}
+        self.assertIn("SeedVR2", A.comfy_object_info(self.ctx()))
+
+    def test_a_refresh_from_before_an_install_is_not_kept(self):
+        import threading
+        A.comfy_object_info(self.ctx())
+        self.age()
+        gate, started = threading.Event(), threading.Event()
+        real = self.answer
+
+        def slow(comfy):
+            started.set()
+            gate.wait(5)
+            return {"Old": {}}
+        from unittest import mock
+        with mock.patch.object(J.Comfy, "object_info", slow):
+            A.comfy_object_info(self.ctx())                      # starts the refresh
+            started.wait(5)
+            A.forget_comfy()                                     # an install meanwhile
+            gate.set()
+            self.settle()
+        self.assertNotIn("http://127.0.0.1:8188", A._INFO)       # its old answer dropped
+        self.answer = real

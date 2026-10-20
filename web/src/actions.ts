@@ -72,7 +72,7 @@ export async function start() {
   wireEvents();
   await loadConfig();
   void loadTargets();
-  await loadEpisodes();
+  await ensureEpisodes();
 }
 
 // ---------------------------------------------------------------------------
@@ -549,6 +549,21 @@ export async function saveRoots(roots: string[]) {
       return false;
     }
   });
+}
+
+let episodesLoading: Promise<void> | null = null;
+
+/**
+ * The episode list when it isn't loaded yet: the request already on its way
+ * when there is one (the page's start and every episode picker on screen ask
+ * at once; each asking for its own sent four, and each answer opened the
+ * episode again), else nothing when it's loaded. loadEpisodes reads it again.
+ */
+export function ensureEpisodes(): Promise<void> {
+  if (episodesLoading) return episodesLoading;
+  if (get().episodes) return Promise.resolve();
+  episodesLoading = loadEpisodes().finally(() => { episodesLoading = null; });
+  return episodesLoading;
 }
 
 export async function loadEpisodes() {
