@@ -24,7 +24,7 @@ import argparse
 import os
 import sys
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 TARGET_H = 1024          # per-panel height before H3's max-mode upscale
 MIN_SHORT = 1024         # warn below this: max mode would be upscaling from mush
@@ -32,8 +32,9 @@ PANEL_NAMES = ["three-quarter body", "side profile", "back view", "facial close-
 
 
 def load_flat(path: str, bg: tuple[int, int, int]) -> Image.Image:
-    """Open an image and flatten transparency onto a solid background."""
-    img = Image.open(path)
+    """Open an image, the way up it was shot (a phone photo's orientation tag),
+    and flatten transparency onto a solid background."""
+    img = ImageOps.exif_transpose(Image.open(path))
     if img.mode in ("RGBA", "LA", "P"):
         img = img.convert("RGBA")
         plate = Image.new("RGB", img.size, bg)

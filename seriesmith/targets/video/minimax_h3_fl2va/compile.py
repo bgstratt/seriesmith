@@ -45,6 +45,7 @@ from seriesmith.targets.video.ltx2.compile import model_duration, put_model_dura
 
 from .prompt import build_prompt, with_keyframes
 from seriesmith.core import paths as P
+from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers, of as _of, new_id as _new_id  # noqa: F401
 
 ID = "minimax_h3_fl2va"
 TARGET = TG.load_target(ID, "video")
@@ -314,10 +315,6 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
 # queue time: the keyframes in the prompt, the dub slice
 # ---------------------------------------------------------------------------
 
-def _abs(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(root, p)
-
-
 def present_keyframes(job) -> tuple[str, ...]:
     """The keyframe roles on disk for this job, in first/last order."""
     have = set()
@@ -376,22 +373,6 @@ def stage_inputs(target, job, comfy=None) -> dict:
 # ---------------------------------------------------------------------------
 # the graph
 # ---------------------------------------------------------------------------
-
-def _consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
-    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
-            if val == [nid, slot]]
-
-
-def _of(g: dict, ctype: str) -> list[str]:
-    return [k for k, v in g.items() if v["class_type"] == ctype]
-
-
-def _new_id(g: dict, stem: str) -> str:
-    i = 1
-    while f"{stem}{i}" in g:
-        i += 1
-    return f"{stem}{i}"
-
 
 def _one(g: dict, ctype: str) -> str:
     ids = _of(g, ctype)

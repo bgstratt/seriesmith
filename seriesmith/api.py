@@ -989,15 +989,21 @@ def thumb_file(ctx: Context, full: str, width: int) -> str | None:
         st = os.stat(full)
     except OSError:
         return None
+    # "upright": thumbnails made before a phone photo's orientation was read
+    # came out sideways, and are made again rather than served
     key = hashlib.sha1(f"{os.path.normcase(os.path.abspath(full))}|{st.st_mtime_ns}|{st.st_size}|{width}"
-                       .encode("utf-8")).hexdigest()
+                       f"|upright".encode("utf-8")).hexdigest()
     out = os.path.join(ctx.user_dir, "default", "seriesmith", "thumbs", key[:2], key + ".jpg")
     if os.path.isfile(out):
         return out
     try:
-        from PIL import Image
-        with Image.open(full) as im:
-            im.draft("RGB", (width, width * 4))          # a JPEG decodes small to begin with
+        from PIL import Image, ImageOps
+        with Image.open(full) as src:
+            # a JPEG decodes small to begin with; a photo shot sideways (its
+            # orientation tag 5-8) is turned after, so its sides swap
+            sideways = src.getexif().get(0x0112) in (5, 6, 7, 8)
+            src.draft("RGB", (width * 4, width) if sideways else (width, width * 4))
+            im = ImageOps.exif_transpose(src)            # a phone photo, the way up it was shot
             im.thumbnail((width, width * 4))
             if im.mode in ("RGBA", "LA", "P"):
                 im = im.convert("RGBA")
@@ -3112,6 +3118,7 @@ def post_preset_own(ctx: Context, body):
     place?, subject?, picture?: {ep, ref, view?, take?}}`. `id` replaces that
     one of yours; `picture` (a ref's take, or its live picture) becomes its
     tile. Returns the preset as GET /seriesmith/presets lists it."""
+    from seriesmith import preset_pictures as PP
     from seriesmith import presets as PR
     body = body_dict(body)
     kind, label = body.get("kind"), body.get("label")
@@ -3132,27 +3139,14 @@ def post_preset_own(ctx: Context, body):
             path = R._picture_of(s, ref, view, take, "the preset's picture")["path"]
         except R.RefError as e:
             raise ApiError(400, str(e))
-        data = _preset_picture(path)
+        try:
+            data = PP.shrink(path, PRESET_PICTURE)
+        except PP.PictureError as e:
+            raise ApiError(400, str(e).replace("the picture", "the preset's picture", 1))
     try:
         return 200, PR.save_own(kind, label, body, pid, data)
     except PR.PresetError as e:
         raise ApiError(400, str(e))
-
-
-def _preset_picture(path: str) -> bytes:
-    """A picture as an own preset's tile: a JPEG, its long side PRESET_PICTURE."""
-    import io
-
-    from PIL import Image
-    try:
-        with Image.open(path) as im:
-            im = im.convert("RGB")
-            im.thumbnail((PRESET_PICTURE, PRESET_PICTURE))
-            out = io.BytesIO()
-            im.save(out, "JPEG", quality=85)
-    except OSError as e:
-        raise ApiError(400, f"the preset's picture can't be read: {e}")
-    return out.getvalue()
 
 
 @handler

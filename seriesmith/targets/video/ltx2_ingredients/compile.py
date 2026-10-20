@@ -60,6 +60,7 @@ from seriesmith.targets.video.ltx2.compile import (_consumers, _duration, _lines
 
 from . import sheet as S
 from .prompt import build_prompt
+from seriesmith.targets.graph import abs_path as _abs  # noqa: F401
 
 ID = "ltx2_ingredients"
 TARGET = TG.load_target(ID, "video")
@@ -384,10 +385,6 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # queue time: the sheet
 # ---------------------------------------------------------------------------
-
-def _abs(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(root, p)
-
 
 def sheet_panels(job) -> tuple[list[dict], list[dict]]:
     """(panels whose file is on disk, panels whose file isn't) of the entry

@@ -25,34 +25,7 @@ Stdlib only.
 from __future__ import annotations
 
 from seriesmith.core import framing
-from seriesmith.core.series_config import members
-
-
-def _subject_sentence(name: str, design: str, entry: dict) -> str:
-    """"<Name> is <design>", or for a group (`members: N`) "<Name> are N
-    different people, each appearing once: <design>"."""
-    n = members(entry)
-    if n:
-        return f"{name} are {n} different people, each appearing once: {design}"
-    return f"{name} is {design}"
-
-
-def _sentence(text: str) -> str:
-    text = (text or "").strip()
-    if not text:
-        return ""
-    text = text[0].upper() + text[1:]
-    return text if text[-1] in ".!?\"'" else text + "."
-
-
-def _and(items: list[str]) -> str:
-    if len(items) <= 1:
-        return "".join(items)
-    return ", ".join(items[:-1]) + (", and " if len(items) > 2 else " and ") + items[-1]
-
-
-def _article(phrase: str) -> str:
-    return ("an " if phrase[:1].lower() in "aeiou" else "a ") + phrase
+from seriesmith.targets.prose import subject_sentence as _subject_sentence, sentence as _sentence, join_and as _and, article as _article  # noqa: F401
 
 
 def build_prompt(shot, seq, series_cfg: dict) -> str:

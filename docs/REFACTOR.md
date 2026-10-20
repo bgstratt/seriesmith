@@ -374,8 +374,9 @@ default, want=dict)`, `file_digest`, `stat_key`. Standard library only (build us
   the same content as the original's); align's readiness probe; a ref generated locally,
   picked, picked back (the queue journal LF); an override set and cleared (and the file
   restored). No `.tmp_` left anywhere. Suite 1537 passed.
-- Found: Ballroom ep01's sh040 prompt override holds `â€”` for an em dash (UTF-8 read
-  as cp1252 somewhere, before this pass). Traced in 2.6.
+- ~~Found: Ballroom ep01's sh040 prompt override holds `â€”` for an em dash.~~ Withdrawn
+  in 2.6: the file holds proper em dashes; my own check read it without
+  `encoding="utf-8"` (Windows then reads cp1252) and made the `â€”` itself.
 
 #### 2.2 `core/paths.py`: the series config and ids ✅
 11 ways to find `series.json` (episode folder then parent), three ways to parse it, 7
@@ -459,7 +460,7 @@ The same failed/queued sidecar update in jobs, refs, finishing, upscale and post
   deleted the shared episode but kept pointing at it); the suite passed only by running
   them alphabetically. Fixed in the test.
 
-#### 2.6 Small copies ☐
+#### 2.6 Small copies ✅
 Prompt helpers (`_sentence`, `_and`, `_article`, `_subject_sentence`, 4 copies) into
 `targets/prose.py`; graph helpers (`_consumers`, `_new_id`, …, 7 copies) into one module;
 `assemble.say` and `publish.say` onto `edit.progress_line`; `api._preset_picture` onto
@@ -467,6 +468,23 @@ Prompt helpers (`_sentence`, `_and`, `_article`, `_subject_sentence`, 4 copies) 
 from phone photos stop coming out sideways).
 - **Goldens:** prompts must be byte-identical.
 - **Live check (you):** an upright phone photo uploaded as a ref shows upright.
+- **Done:**
+  - Phone photos: the editor's thumbnails, a preset's tile and mksheet's sheets now read
+    the orientation tag (only the sheet composer did; ComfyUI turns it itself, so renders
+    were right). Reproduced first: a tagged 400x200 photo came out 160x80 / 400x200
+    sideways, now portrait. Thumbnails are keyed `upright`, so sideways ones are remade;
+    untagged pictures' thumbnails are pixel-identical (48 of 24 real pictures, both widths).
+    `api._preset_picture` is `preset_pictures.shrink(path, size)`.
+  - `targets/prose.py` (sentence, join_and, article, subject_sentence: 4 copies) and
+    `targets/graph.py` (of, consumers, new_id, abs_path: 7 copies; inspector's consumers,
+    finishing's _abs and jobs' _next_id differ on purpose and stay). Goldens identical.
+  - Not done: assemble.say onto edit.progress_line, which would load the whole editor
+    into every assemble for one print.
+- Live: three real episodes (DeanStories ep05, Porchlights ep01, Ballroom ep01) rebuilt in
+  scratch on main and on this branch: every shotlist, prompt and refs_todo identical. A
+  local render of Ballroom-refactor sh010 through the editor: ok in 57 s, mp4 with audio,
+  record, thumbnail and strip saved. Suite 1557 passed (it caught one bug of mine, a
+  missing import, fixed).
 
 ---
 

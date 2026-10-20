@@ -31,6 +31,8 @@ import re
 from seriesmith.core import framing as sizes   # this module has its own framing()
 from seriesmith.core.series_config import members
 from seriesmith.targets.image.krea2 import prompt as KP
+from seriesmith.targets.prose import sentence as _sentence, join_and as _and, article as _article  # noqa: F401
+from seriesmith.targets.graph import consumers as _consumers  # noqa: F401
 
 FACE_SIZES = ("cu", "mcu", "ecu")          # core/framing.py names; any spelling matches
 
@@ -44,24 +46,6 @@ def ref_prompt(target, req, series_cfg: dict) -> str:
 # ---------------------------------------------------------------------------
 # the keyframe prompt
 # ---------------------------------------------------------------------------
-
-def _sentence(text: str) -> str:
-    text = (text or "").strip()
-    if not text:
-        return ""
-    text = text[0].upper() + text[1:]
-    return text if text[-1] in ".!?\"'" else text + "."
-
-
-def _and(items: list[str]) -> str:
-    if len(items) <= 1:
-        return "".join(items)
-    return ", ".join(items[:-1]) + (", and " if len(items) > 2 else " and ") + items[-1]
-
-
-def _article(phrase: str) -> str:
-    return ("an " if phrase[:1].lower() in "aeiou" else "a ") + phrase
-
 
 def sentences(text: str) -> list[str]:
     """Prose split into sentences (on . ! ? followed by a space)."""
@@ -277,11 +261,6 @@ CHAIN_PREFIX = "Reference 1"
 
 def _title(node: dict) -> str:
     return (node.get("_meta") or {}).get("title") or ""
-
-
-def _consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
-    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
-            if val == [nid, slot]]
 
 
 def chain_nodes(g: dict, n: int = 1) -> dict[str, str]:

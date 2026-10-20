@@ -51,6 +51,7 @@ from seriesmith.core.ir import stable_seed
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 from seriesmith.targets.video.ltx2.compile import _duration, _lines, put_model_duration, shotlist_extra
 from seriesmith.core import paths as P
+from seriesmith.targets.graph import of, consumers, new_id  # noqa: F401
 
 SILENT = "silent"
 PLATE = "plate"                      # the absent-set name of the plate
@@ -469,11 +470,6 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
 # the graph
 # ---------------------------------------------------------------------------
 
-def of(g: dict, ctype: str, title: str | None = None) -> list[str]:
-    return [k for k, v in g.items() if v["class_type"] == ctype
-            and (title is None or (v.get("_meta") or {}).get("title") == title)]
-
-
 def one(g: dict, ctype: str, title: str | None = None, what: str = "the") -> str:
     ids = of(g, ctype, title)
     if len(ids) != 1:
@@ -482,16 +478,7 @@ def one(g: dict, ctype: str, title: str | None = None, what: str = "the") -> str
     return ids[0]
 
 
-def consumers(g: dict, nid: str, slot: int = 0) -> list[tuple[str, str]]:
-    return [(k, name) for k, v in g.items() for name, val in v["inputs"].items()
-            if val == [nid, slot]]
 
-
-def new_id(g: dict, stem: str) -> str:
-    i = 1
-    while f"{stem}{i}" in g:
-        i += 1
-    return f"{stem}{i}"
 
 
 def split_stages(target, g: dict, job) -> int:
