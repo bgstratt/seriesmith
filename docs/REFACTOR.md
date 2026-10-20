@@ -280,6 +280,26 @@ minutes on a master).
 Phase 1 ends with the whole bench rerun, the table above filled with after-numbers,
 and one PR.
 
+### Phase 1 results (2026-10-20, branch `refactor-fixes-speed`)
+
+Suite: 1522 passed, 14 skipped (1503 before; 19 new tests), 10:28 (12:15 before).
+Bench on the live server, restarted on the final commit (first / again):
+
+| What | Before | After |
+|---|---|---|
+| `/refs`, Porchlights ep01 | 2.27 / 2.39 s | 1.03 / 1.19 s |
+| `/refs`, FRTEST | 0.41 / 0.54 s | 0.36 / 0.45 s |
+| `/episode`, FRTEST (A/B, same load) | ~0.70 / 0.65 s | ~0.41 / 0.40 s |
+| `/episode`, Porchlights ep01 | 0.17 / 0.16 s | 0.16 / 0.11 s |
+| `/upscale/options` | 0.96 s | 0.004 s |
+| `/post/options` | 0.93 s | 0.003 s |
+| `/targets?ready=1`, ComfyUI down | ~98 s | ~2.4 s |
+| assemble, Ballroom-refactor ep01 / ep02 | 3.8 / 1.84 s | 3.3 / 0.75 s |
+| `test_readiness::test_route` | 96 s | 2.3 s |
+
+Unchanged on purpose: `/router/models` (2 s once, then kept an hour: Router's catalog),
+`/episodes` (0.26 s), `/promote` (0.5 s on Porchlights: a candidate for Phase 2/3).
+
 ---
 
 ## Phase 2 — shared helpers (one PR each)
