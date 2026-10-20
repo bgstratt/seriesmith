@@ -54,8 +54,12 @@ def built_episode() -> str:
 
 
 def tearDownModule():
+    # forgotten as well as deleted: test_ref_queue builds on it too, and run
+    # after this module it was handed the deleted folder
+    global _BUILT
     if _BUILT:
         shutil.rmtree(os.path.dirname(_BUILT), ignore_errors=True)
+        _BUILT = None
 
 
 class RefsTest(unittest.TestCase):
