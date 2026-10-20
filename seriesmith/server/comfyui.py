@@ -19,7 +19,7 @@ import logging
 import os
 
 from seriesmith import api as A
-from seriesmith.server.views import routes
+from seriesmith.server.routes import all_paths, all_routes
 
 log = logging.getLogger("seriesmith")
 REGISTERED = False
@@ -50,7 +50,7 @@ def taken(server) -> list[str]:
     (h3pipe's node pack serves the same API): registering them twice would
     break ComfyUI's startup, so seriesmith then stays out of the way."""
     have = {getattr(r, "path", None) for r in getattr(server, "routes", [])}
-    return [path for _, path, _, _ in A.ROUTES if path in have]
+    return sorted(path for path in all_paths() if path in have)
 
 
 def register(server, wait: float = 120.0) -> bool:
@@ -65,11 +65,11 @@ def register(server, wait: float = 120.0) -> bool:
                     "pack?) -- %s; seriesmith's editor stays off in this ComfyUI", clash[0])
         return False
 
-    make_context, extra = start(server, wait=wait)
-    for method, path, view in routes(make_context):
-        server.routes.route(method, path)(view)
-    # the queue's own (Jobs, Render on, Settings, info), as `seriesmith serve` has them
-    for method, path, view in extra:
+    make_context, settings, runner = start(server, wait=wait)
+    # every route (server/routes.py, as `seriesmith serve` has them); ComfyUI
+    # answers each under /api itself
+    for method, path, view in all_routes(make_context, settings, runner, lambda: True,
+                                         in_comfyui=True):
         server.routes.route(method, path)(view)
     REGISTERED = True
     return True
@@ -78,9 +78,10 @@ def register(server, wait: float = 120.0) -> bool:
 def start(server, settings=None, wait: float = 120.0):
     """seriesmith's queue on this ComfyUI (standalone.start_queue), and, in
     the background once the server answers: comfy-api-proxy for the local
-    backend, then what the journal had. Returns (make_context, the queue's
-    own routes: server/queue_views.py). Without a queue (it can't start) the
-    editor still works, rendering as h3pipe did, and there are none."""
+    backend, then what the journal had. Returns (make_context, settings, the
+    runner). Without a queue (it can't start) the editor still works, rendering
+    as h3pipe did: the runner is None, and only the queue's own routes are left
+    out (the Features window doesn't need it)."""
     import threading
     import time
 
@@ -92,6 +93,11 @@ def start(server, settings=None, wait: float = 120.0):
         server.send_sync(event, data)
     try:
         settings = settings or load_settings()
+    except Exception as e:                                # noqa: BLE001  the editor still loads
+        log.warning("seriesmith: the settings can't be read (%s): the defaults for now", e)
+        from seriesmith.settings import Settings
+        settings = Settings()
+    try:
         # local renders go to this ComfyUI, on whatever port it was started
         settings.host_url = url
         runner, make_context, recover_all = start_queue(settings, user_dir(), emit, comfy_url=url,
@@ -99,7 +105,7 @@ def start(server, settings=None, wait: float = 120.0):
     except Exception as e:                                # noqa: BLE001  the editor still loads
         log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
                     "straight to ComfyUI", e)
-        return (lambda: A.Context(user_dir(), url, emit)), []
+        return (lambda: A.Context(user_dir(), url, emit)), settings, None
 
     # a Comfy API key already set (Settings, COMFY_API_KEY) but no comfy-sdk in
     # ComfyUI's Python: put it in, in the background (seriesmith.sdk)
@@ -127,10 +133,7 @@ def start(server, settings=None, wait: float = 120.0):
             log.exception("seriesmith: picking up the last session's jobs failed")
     if wait:
         threading.Thread(target=when_up, daemon=True, name="seriesmith-start").start()
-    from seriesmith.server.features_views import feature_routes
-    from seriesmith.server.queue_views import queue_routes
-    return make_context, (queue_routes(settings, runner, lambda: True)
-                          + feature_routes(settings, make_context, in_comfyui=True))
+    return make_context, settings, runner
 
 
 def register_on_prompt_server() -> bool:

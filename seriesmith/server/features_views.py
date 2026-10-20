@@ -46,6 +46,11 @@ def head_size(url: str, token: str | None) -> int | None:
         return None
 
 
+# what feature_routes registers (server/routes.all_paths)
+PATHS = [("GET", "/seriesmith/features"), ("GET", "/seriesmith/features/sizes"),
+         ("POST", "/seriesmith/features/install"), ("POST", "/seriesmith/features/cancel")]
+
+
 def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tuple]:
     """[(method, path, handler)] over this host's settings; `make_context()`
     gives an api.Context (readiness, ComfyUI's /object_info)."""

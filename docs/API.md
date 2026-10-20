@@ -967,8 +967,8 @@ model family; see **Model families** at the end.)
 - **`PUT /seriesmith/cut`:** duplicate shots and unknown entry fields answer 400.
 - **Not handled yet:** ComfyUI multi-user mode (config always lives in `default/`),
   and a TLS-fronted ComfyUI (self-queueing uses `http://`).
-- **Aliases:** every route also answers under `/api/seriesmith/...` (under `seriesmith
-  serve`, the queue's routes excepted: see the Route index).
+- **Aliases:** every route also answers under `/api/seriesmith/...`, on both hosts (inside
+  ComfyUI, ComfyUI serves every route there itself; `seriesmith serve` does the same).
 
 ## Round 2 additions
 

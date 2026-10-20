@@ -24,7 +24,6 @@ import sys
 from aiohttp import ClientSession, WSMsgType, web
 
 from seriesmith import api as A
-from seriesmith.server.views import routes
 from seriesmith.settings import load_settings, settings_path
 
 log = logging.getLogger("seriesmith")
@@ -216,9 +215,12 @@ def make_app(roots: list[str] | None = None, settings=None,
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
     app["make_context"] = make_context
-    for method, path, view in routes(make_context):
+    # every route of the editor (server/routes.py, as ComfyUI's host has them),
+    # each under /api too, as ComfyUI serves every route registered on it
+    from seriesmith.server.routes import all_routes
+    for method, path, view in all_routes(make_context, settings, runner,
+                                         lambda: app["comfy_connected"]):
         app.router.add_route(method, path, view)
-        # as ComfyUI serves them too, under /api
         app.router.add_route(method, "/api" + path, view)
 
     async def ws_view(request: web.Request) -> web.WebSocketResponse:
@@ -276,14 +278,6 @@ def make_app(roots: list[str] | None = None, settings=None,
         return web.json_response({"queue_running": running, "queue_pending": pending})
 
     app.router.add_get("/ws", ws_view)
-    # the queue's own: Jobs, Render on, Settings, info (shared with ComfyUI's host)
-    from seriesmith.server.queue_views import queue_routes
-    for method, path, view in queue_routes(settings, runner, lambda: app["comfy_connected"]):
-        app.router.add_route(method, path, view)
-    # the Features window: what can be added, and the installer
-    from seriesmith.server.features_views import feature_routes
-    for method, path, view in feature_routes(settings, make_context):
-        app.router.add_route(method, path, view)
     # ComfyUI's model lists (GET /models, /models/{folder}: loras, checkpoints,
     # upscale_models, ...), as the page asks for them inside ComfyUI: passed
     # on to this machine's ComfyUI, an empty list when it doesn't answer

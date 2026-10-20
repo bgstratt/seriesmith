@@ -20,6 +20,13 @@ from seriesmith.settings import load_settings, settings_path
 SDK_KINDS = ("cloud", "deployment", "router")
 
 
+# what queue_routes registers (server/routes.all_paths: known before the queue starts)
+PATHS = [("GET", "/seriesmith/info"), ("GET", "/seriesmith/jobs"),
+         ("POST", "/seriesmith/jobs/{action}"), ("GET", "/seriesmith/backends"),
+         ("GET", "/seriesmith/settings"), ("PUT", "/seriesmith/settings"),
+         ("POST", "/seriesmith/sdk/install")]
+
+
 def queue_routes(settings, runner, connected=lambda: False) -> list[tuple]:
     """[(method, path, handler)] over this host's `settings` and `runner`;
     connected() says whether the page's ComfyUI answers (for /info)."""
