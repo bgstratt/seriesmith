@@ -839,6 +839,7 @@ TOOL_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 class NotUsable(Exception):
     """A pick of a take the cut can't use (queued, failed, or no mp4)."""
+    http_status = 409               # api.handler answers it with this
 
     def __init__(self, take: T.Take):
         super().__init__(f"{take.shot} t{take.take:02d} is {take.status}"
@@ -848,14 +849,17 @@ class NotUsable(Exception):
 
 class NotQueued(Exception):
     """Cancel of a take that isn't queued any more."""
+    http_status = 409               # api.handler answers it with this
 
 
 class Locked(Exception):
     """A pick (or a CLI move or trim) of a shot whose cut entry is locked."""
+    http_status = 409               # api.handler answers it with this
 
 
 class CutError(ValueError):
     """A cut edit that can't be made: a bad trim, an unknown shot (400)."""
+    http_status = 400               # api.handler answers it with this
 
 
 def pick_take(root: str, pass_: str, shot_id: str, take: int | None,

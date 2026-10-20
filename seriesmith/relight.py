@@ -31,7 +31,7 @@ from seriesmith import source as H
 
 
 class RelightError(ValueError):
-    pass
+    http_status = 400               # api.handler answers it with this
 
 
 ID_RE = re.compile(r"^[A-Za-z0-9_]+$")

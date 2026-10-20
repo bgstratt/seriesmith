@@ -46,7 +46,7 @@ OWN_IMG = "own"                     # an own preset's picture name: own/<kind>/<
 
 
 class PresetError(ValueError):
-    pass
+    http_status = 400               # api.handler answers it with this
 
 
 def own_dir() -> str:

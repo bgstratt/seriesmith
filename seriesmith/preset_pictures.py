@@ -29,7 +29,7 @@ PLATE, FIGURE, FIGURE_VIEW = "location:porch", "subject:ada", "01_threequarter"
 
 
 class PictureError(ValueError):
-    pass
+    http_status = 400               # api.handler answers it with this
 
 
 def shrink(path: str, size: int = PICTURE) -> bytes:
