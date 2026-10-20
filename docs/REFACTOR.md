@@ -141,7 +141,7 @@ transcribed again instead of crashing.
   cache cut short, before crashed with a JSONDecodeError traceback, after goes to
   transcribe again (here: "no Whisper installed", the venv has none).
 
-#### 1.5 Queue actions run off the event loop ☐
+#### 1.5 Queue actions run off the event loop ✅ (your check pending)
 `server/queue_views.py`: cancel, move, pause and the Settings save run on the event
 loop; cancel makes a network call to ComfyUI or the cloud there, so every open editor
 freezes until it returns. **Change:** run them in the executor (as every `api.py`
@@ -150,6 +150,10 @@ route already is).
   concurrent `GET /jobs`.
 - **Live check (you):** queue two short local renders in Ballroom-refactor; cancel the
   running one; the editor stays responsive, the take says canceled, the second starts.
+- **Done:** cancel/move/pause/retry and the Settings save run in the executor; the new
+  backends are made before the old are swapped out. The test (a 1.5 s cancel) held the
+  whole server 1.50 s before, not at all after. (A ValueError past the save itself now
+  answers 400, not 500.)
 
 ### Speed
 

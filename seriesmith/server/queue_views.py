@@ -39,19 +39,19 @@ def queue_routes(settings, runner, connected=lambda: False) -> list[tuple]:
             body = await request.json()
         except ValueError:
             return web.json_response({"error": "the body must be JSON"}, status=400)
+        acts = {"cancel": lambda: queue.cancel(str(body["id"])),
+                "move": lambda: queue.move(str(body["id"]), int(body["index"])),
+                "pause": lambda: queue.pause(str(body["lane"]), bool(body.get("paused", True))),
+                "retry": lambda: queue.retry(str(body["id"]))}
+        if what == "paid-reset":
+            queue.paid_count = 0
+            return web.json_response(queue.list())
+        if what not in acts:
+            return web.json_response({"error": f"no action {what!r}"}, status=404)
         try:
-            if what == "cancel":
-                queue.cancel(str(body["id"]))
-            elif what == "move":
-                queue.move(str(body["id"]), int(body["index"]))
-            elif what == "pause":
-                queue.pause(str(body["lane"]), bool(body.get("paused", True)))
-            elif what == "retry":
-                await asyncio.get_running_loop().run_in_executor(None, queue.retry, str(body["id"]))
-            elif what == "paid-reset":
-                queue.paid_count = 0
-            else:
-                return web.json_response({"error": f"no action {what!r}"}, status=404)
+            # off the event loop: a cancel asks ComfyUI or the cloud to stop the
+            # run, and every action writes the journal
+            await asyncio.get_running_loop().run_in_executor(None, acts[what])
         except KeyError as e:
             return web.json_response({"error": f"no such job or field: {e}"}, status=404)
         except (ValueError, TypeError) as e:
@@ -94,20 +94,24 @@ def queue_routes(settings, runner, connected=lambda: False) -> list[tuple]:
             return web.json_response({"error": "the body must be JSON"}, status=400)
         if not isinstance(body, dict):
             return web.json_response({"error": "the body must be an object"}, status=400)
-        try:
+
+        def save():                               # files and the SDK check: off the event loop
             save_settings({k: v for k, v in body.items() if k in FIELDS})
             fresh = load_settings()
+            for k in FIELDS + ("path",):          # every one, so a new field can't go stale
+                setattr(settings, k, getattr(fresh, k))
+            queue.paid_limit = settings.paid_limit
+            from seriesmith import ff as FF
+            FF.forget()                                   # ffmpeg_dir may have changed
+            made = available(settings)            # made first: never an empty set in between
+            backends.clear()
+            backends.update(made)
+            # a key set, and comfy-sdk not here (ComfyUI's Python): put it in now
+            return SDK.ensure(settings)
+        try:
+            sdk = await asyncio.get_running_loop().run_in_executor(None, save)
         except ValueError as e:
             return web.json_response({"error": str(e)}, status=400)
-        for k in FIELDS + ("path",):              # every one, so a new field can't go stale
-            setattr(settings, k, getattr(fresh, k))
-        queue.paid_limit = settings.paid_limit
-        from seriesmith import ff as FF
-        FF.forget()                                       # ffmpeg_dir may have changed
-        backends.clear()
-        backends.update(available(settings))
-        # a key set, and comfy-sdk not here (ComfyUI's Python): put it in now
-        sdk = SDK.ensure(settings)
         return web.json_response({"settings": settings.describe(), "file": settings_path(),
                                   "from_env": from_env(), "sdk": sdk})
 

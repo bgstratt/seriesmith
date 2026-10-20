@@ -113,6 +113,44 @@ class StandaloneTest(unittest.TestCase):
             self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
                                              "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
 
+    def test_a_slow_cancel_does_not_hold_up_the_editor(self):
+        """Cancelling a running job asks its backend to stop it (a network call);
+        that runs off the event loop, so other requests answer meanwhile."""
+        import threading
+        import time
+        from seriesmith.queue import Job
+        release = threading.Event()
+
+        def work(job, report):
+            release.wait(10)
+            return "canceled"
+
+        def slow_cancel():
+            time.sleep(1.5)                     # a backend that's slow to answer
+            release.set()
+
+        async def body(client, app):
+            job = Job(kind="render", lane="local", title="t", work=work)
+            job.cancel_run = slow_cancel
+            app["queue"].submit(job)
+            for _ in range(50):
+                if job.status == "running":
+                    break
+                await asyncio.sleep(0.05)
+            self.assertEqual(job.status, "running")
+            # the client shares the server's event loop: a blocked loop shows as
+            # this whole stretch taking the cancel's 1.5 s
+            t = time.monotonic()
+            cancel = asyncio.ensure_future(client.post("/seriesmith/jobs/cancel",
+                                                       json={"id": job.id}))
+            await asyncio.sleep(0.2)            # the cancel is under way
+            listed = await client.get("/seriesmith/jobs")
+            took = time.monotonic() - t
+            return took, listed.status, (await cancel).status
+        took, listed, cancelled = self.run_app(body)
+        self.assertEqual((listed, cancelled), (200, 200))
+        self.assertLess(took, 1.0)
+
     def test_a_save_refreshes_every_setting(self):
         """Every field a PUT saves is what the reply and GET /settings say at once,
         not after a restart (enabled_drafts and target_limits were left stale)."""
