@@ -286,14 +286,48 @@ DANGLING = {"a", "an", "the", "and", "or", "of", "with", "into", "in", "on", "un
             "to", "for", "from", "at", "by", "her", "his", "their", "its"}
 
 
-def features(text: str, most: int = DEFINE_WORDS) -> str:
+# what a subject's definition leaves out: its body, which identifies no one and
+# which BytePlus refused at the head of a prompt (content_policy_violation,
+# 2026-10-21, a prompt that had passed without the definition line); the guide
+# asks for "clothing, hairstyle, appearance, or category"
+BODY = re.compile(r"\b(breasts?|bust|cleavage|chest|nipples?|curves|hips?|thighs?|"
+                  r"buttocks?|butt|waist|belly|navel|crotch|groin|legs)\b", re.I)
+# a body word that only describes ("a curvy woman"): the word itself goes
+BODY_ADJ = re.compile(r"\b(curvy|busty|buxom|voluptuous|shapely|leggy|big-breasted|"
+                      r"large-breasted|full-figured)\s+", re.I)
+PERSON = re.compile(r"\b(woman|man|girl|boy|lady|gentleman|child|teenager|teen|person|"
+                    r"women|men|girls|boys)\b", re.I)
+
+
+def unbodied(clause: str) -> str:
+    """A design clause without what describes a body: each "with ..." part that
+    does is dropped, the first one kept as far as its category ("a young woman
+    large round breasts ... with blonde hair" -> "a young woman with blonde hair")."""
+    parts = re.split(r"\s+with\s+", BODY_ADJ.sub("", clause))
+    kept = []
+    for i, part in enumerate(parts):
+        hit = BODY.search(part)
+        if not hit:
+            kept.append(part)
+        elif i == 0:
+            who = list(PERSON.finditer(part[:hit.start()]))
+            if who:
+                kept.append(part[:who[-1].end()])
+    return " with ".join(p.strip() for p in kept if p.strip())
+
+
+def features(text: str, most: int = DEFINE_WORDS, body: bool = True) -> str:
     """A design or a place's description cut to its opening clause(s): whole
     comma-separated clauses up to `most` words, else the first `most` words.
-    Seedance's guide asks for 2-3 stable features that tell the subject apart."""
+    Seedance's guide asks for 2-3 stable features that tell the subject apart;
+    without `body`, what describes a body is left out (unbodied)."""
     head = re.split(r"[:;]", str(text or "").strip(), maxsplit=1)[0]     # a list after a colon is detail
     words = 0
     out = []
-    for clause in [c.strip() for c in head.rstrip(".").split(",") if c.strip()]:
+    clauses = [c.strip() for c in head.rstrip(".").split(",") if c.strip()]
+    if not body:
+        clauses = [c for c in (unbodied(c) for c in clauses) if c]
+    for clause in clauses:
         n = len(clause.split())
         if out and words + n > most:
             break
@@ -325,7 +359,7 @@ def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
         sub = subjects.get(what) or {}
         base = subjects.get(sub.get("of")) or {} if sub.get("of") else {}
         name = sub.get("name") or base.get("name") or str(what).replace("_", " ").title()
-        look = features(sub.get("design") or base.get("design") or "")
+        look = features(sub.get("design") or base.get("design") or "", body=False)
         defs.append(f"{look} in @Image {n} as {name}" if look else f"the subject in @Image {n} as {name}")
     line = ("Define " + ", and define ".join(defs) + ".") if defs else ""
     return " ".join([x for x in [line, *scenes] if x])

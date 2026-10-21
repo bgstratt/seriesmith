@@ -115,6 +115,27 @@ class DefinitionsTest(unittest.TestCase):
         self.assertEqual(RV.features("an empty palace ballroom by candlelight: cream walls, gilt mirrors"),
                          "an empty palace ballroom by candlelight")
 
+    def test_a_subject_is_defined_by_what_it_wears_not_its_body(self):
+        """BytePlus refused a prompt opening with a body description
+        (content_policy_violation, 2026-10-21); the guide asks for clothing,
+        hairstyle, appearance or category."""
+        from seriesmith.targets.generic import router_video as RV
+        cases = {
+            "a young woman large round breasts pushing out of the top of her dress with blonde hair "
+            "swept up into a loose bun, a small silver tiara, a pale-blue gown":
+                "a young woman with blonde hair swept up into a loose bun, a small silver tiara, "
+                "a pale-blue gown",
+            "a curvy woman in a red dress, a straw hat": "a woman in a red dress, a straw hat",
+            "a tall man, broad chest, a grey suit": "a tall man, a grey suit",
+            "a busty redhead with freckles, a green coat": "a redhead with freckles, a green coat",
+            "a stocky teenage boy with a shaved head, an oversized green bomber jacket":
+                "a stocky teenage boy with a shaved head, an oversized green bomber jacket",
+        }
+        for design, want in cases.items():
+            self.assertEqual(RV.features(design, body=False), want)
+        cfg = {"subjects": {"cy": {"name": "Cy", "design": "a busty woman, a purple raincoat"}}}
+        self.assertNotIn("busty", RV.definitions([("references", "c.png", "cy")], {"panels": []}, cfg))
+
     def test_each_picture_by_its_place_a_variant_by_its_name(self):
         from seriesmith.targets.generic import router_video as RV
         cfg = {"subjects": {"ada": {"name": "Ada", "design": "a tall woman, a mustard apron"},
