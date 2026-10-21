@@ -410,8 +410,8 @@ def write_series_track(series_cfg_p: str, ep: str, raw: dict, rec_rel: str,
     return HS.write_source(src, HS.dump_series(raw, src.text))
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="seriesmith align", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("episode", help="episode folder (holds series.json and the script)")
     ap.add_argument("recording", nargs="?",
@@ -436,7 +436,7 @@ def main() -> int:
                     help="print a `##align {json}` line per stage (for the editor)")
     ap.add_argument("--json", dest="json_out", metavar="PATH",
                     help="write the result (windows, notes, report, hashes) as JSON")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     prog = args.progress
 
     ep = args.episode

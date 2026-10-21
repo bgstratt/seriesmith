@@ -562,8 +562,8 @@ def choose_take(root: str, e: T.CutEntry, folder: str | None,
     return None, f"{why_unusable(t, n)} (picked by {src})"
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="seriesmith assemble", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-o", "--out", default=".", help="project root")
     ap.add_argument("--shotlist", default="shotlist/shotlist.json",
@@ -608,7 +608,7 @@ def main() -> int:
     ap.add_argument("--size", default=None, metavar="WxH",
                     help="the cut's size (every clip scaled, letterboxed if its aspect "
                          "differs), e.g. 1920x1080")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     pass_ = args.pass_ or ("proxy" if "_proxy" in os.path.basename(args.shotlist)
                            else "final")

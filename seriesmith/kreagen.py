@@ -267,8 +267,8 @@ def discard(s, ep: str, specs: list[str]) -> int:
     return 1 if failed else 0
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="seriesmith refs", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--project-root", default=".",
                     help="episode folder holding refs_todo.json (series.json here or "
@@ -360,7 +360,7 @@ def main() -> int:
                     help="strength for --lora, model and clip (default %(default)s)")
     ap.add_argument("--no-lora-clip", action="store_true",
                     help="reproduce the base graph's unwired LoRA CLIP")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     root = args.project_root
     ep = os.path.abspath(root)

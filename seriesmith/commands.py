@@ -1,80 +1,14 @@
 #!/usr/bin/env python3
 """
-seriesmith's stage and editing commands (ported from h3pipe's h3.py; the
-`seriesmith` command, seriesmith/cli.py, hands them here):
+The `seriesmith` command: every subcommand in one table (COMMANDS), each with
+its usage, its one-line help and what runs it. `seriesmith` (or --help) lists
+them; `seriesmith <command> --help` gives a command's usage and flags; the
+examples are in docs/COMMANDS.md.
 
-    seriesmith new      Shows\\ep02            # a new episode: series.json + ep02.md that build
-    seriesmith supply   Shows\\ep05 C:\\sheets   # pictures you already have into their ref slots
-                                                    # (a folder is matched by file name; --dry-run
-                                                    #  prints the table, --ref id[:view] names one)
-    seriesmith issues   Shows\\ep05 --proxy     # the notepad for the pass you are reviewing:
-                                                    # --add sh0140 "the truck is on the wrong side",
-                                                    # --export to paste into an assistant, --clear
-    seriesmith align    Shows\\ep05 audio\\ep05_dialogue.wav   # align: time the script to a recording
-    seriesmith build    Shows\\ep05            # build: shotlist + refs_todo (final AND proxy)
-    seriesmith check    Shows\\ep05            # build --check and --pace, writes nothing
-    seriesmith refs     Shows\\ep05 --list     # kreagen: generate missing reference images
-    seriesmith render   Shows\\ep05 --proxy    # render: queue shots on ComfyUI
-    seriesmith assemble Shows\\ep05 --proxy    # assemble: join renders into one mp4
-    seriesmith upscale  Shows\\ep05            # upscale: the final cut's takes at 2x
-                                                    # (--only sh020, --take N, --start-step N,
-                                                    #  --vae, --redo, --check, --prune-latents)
-    seriesmith post     Shows\\ep05 --enhance production
-                                                    # post: the cut's upscales finished
-                                                    # (--enhance draft|production|cinematic,
-                                                    #  --blur 0.25, --recipe: post.master)
-    seriesmith assemble Shows\\ep05 --upscaled # the final cut from its upscales
-    seriesmith master   Shows\\ep05 [Shows\\ep06 ...] --wait
-                                                    # the series recipe (upscale.master) on every
-                                                    # shot of the cut, then the master assembled
-                                                    # into ep05\\master\\, with the show's
-                                                    # _titles\\INTRO.mp4 / OUTRO.mp4 when there
-                                                    # (--check: the plan only,
-                                                    #  --conform, --allow-gaps, --prores)
-    seriesmith publish  Shows\\ep05            # the same intro + outro around the review
-                                                    # cut, the episode title written under the
-                                                    # series title, into ep05\\publish\\
-    seriesmith all      Shows\\ep05 --proxy    # build -> refs -> render -> assemble
-    seriesmith all      Shows\\ep05 --proxy --skip-build
-                                                    # refs -> render -> assemble, using the
-                                                    # shotlists already on disk (keeps hand edits)
-
-    seriesmith takes    Shows\\ep05 [--proxy]      # every take: status, seed, why stale, which is in the cut
-    seriesmith pick     Shows\\ep05 sh020 3        # the cut uses sh020 take 3 (cut.json)
-    seriesmith pick     Shows\\ep05 sh020 latest   # back to the newest usable take
-    seriesmith override Shows\\ep05 sh020 --seed 1234 --prompt-file p.txt
-                                                    # overrides.json: used by the next render/redo
-    seriesmith keyframe Shows\\ep05 sh020 --from-prev
-                                                    # sh020's first keyframe = the previous
-                                                    # shot's last frame (continuity)
-    seriesmith override Shows\\ep05 --episode-target ltx2
-                                                    # every shot the script gives no target
-                                                    # renders on ltx2 (built: back to series.json's)
-    seriesmith discard  Shows\\ep05 sh020 3 [--proxy]
-                                                    # move sh020 take 3 to renders/_trash/sh020/
-                                                    # (a cut pick of it goes back to latest)
-    seriesmith cut      Shows\\ep05 [--proxy] --move sh050 --before sh020
-                                                    # edit the cut: --show, --order, --move,
-                                                    # --trim SH IN OUT, --lock/--unlock SH,
-                                                    # --reset order|trims|audio|all,
-                                                    # --copy-from final|proxy
-                                                    #     [order|trims|audio|all],
-                                                    # --audio SH take SH:N | file PATH
-                                                    #     | none | own
-                                                    #     [--from S] [--at S] [--gain G]
-    (see edit.py for every takes/pick/override/keyframe/discard/cut flag)
-
-    seriesmith promote  Shows\\ep05 [sh020]        # the plan: which overrides can move into
-                                                    # the script / series config, the diffs
-    seriesmith promote  Shows\\ep05 --all          # move them, drop those overrides, rebuild
-    seriesmith promote  Shows\\ep05 --item shot:sh020:steps [--item ...] [--dry-run]
-                                                    # (see promote.py for what maps where)
-
-    seriesmith targets  [Shows\\ep05] [--json]     # which targets the running ComfyUI can
-                                                    # render, what to download for the rest,
-                                                    # and the workflow each one renders
-    seriesmith targets  --install-workflow ltx2    # copy its graph into ComfyUI, to edit on
-                                                    # the canvas (--revert-workflow undoes it)
+A stage (build, check, refs, render, assemble, and so `all`) runs in this
+process; align keeps a subprocess (it can need another Python: the one with a
+Whisper, track.align_python). A usage mistake exits 2 with the usage line on
+stderr, as argparse's own errors do.
 
 The episode can be a folder (any name) holding one script .md and series.json
 (or a series folder above it holding the series.json its episodes share), or
@@ -82,24 +16,44 @@ several folders at once, or a parent with --each:
 
     seriesmith build Shows --each              # every episode folder under Shows
 
-Anything after the episode is passed straight through to the underlying
-script, so every flag those scripts take still works here. `--proxy` is also
-understood by assemble (it picks the proxy shotlist and renders_proxy/).
+Anything after the episode is passed straight through to the stage, so every
+flag it takes works here. `--proxy` is also understood by assemble (it picks
+the proxy shotlist and renders_proxy/).
 """
 from __future__ import annotations
 
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
+from typing import Callable
+
+from seriesmith import __version__
 from seriesmith.core import paths as PATHS
 
-STAGES = ("align", "build", "check", "refs", "render", "assemble", "all")
-EDIT = ("takes", "pick", "override", "keyframe", "discard", "cut")   # in-process, see edit.py
-# `targets` (readiness) runs in-process too, with the episode optional
-# the commands main() handles itself, before the stages
-OTHER = ("new", "issues", "supply", "upscale", "post", "master", "publish", "targets",
-         "target-from-workflow", "promote")
+HELP_FLAGS = ("-h", "--help")
 
+
+class UsageError(Exception):
+    """A command asked for wrongly: main() says why with its usage, exit 2."""
+
+
+@dataclass(frozen=True)
+class Command:
+    name: str
+    args: str                          # what follows the name on its usage line
+    help: str                          # one line, for `seriesmith --help`
+    run: Callable[[list[str]], int]
+    own_help: bool = False             # its own parser answers `<command> --help`
+
+
+def usage(c: Command) -> str:
+    return f"usage: seriesmith {c.name} {c.args}".rstrip()
+
+
+# ---------------------------------------------------------------------------
+# stages, in this process
+# ---------------------------------------------------------------------------
 
 def episode_files(ep: str) -> tuple[str, str]:
     """(series.json, the script): the series config in the episode folder or
@@ -110,33 +64,72 @@ def episode_files(ep: str) -> tuple[str, str]:
         sys.exit(f"  !! {e}")
 
 
+def call(what: str, fn, args: list[str]) -> int:
+    """fn(args) in this process, said first; a SystemExit (argparse, a
+    sys.exit("!! ...")) is its exit code, as it was from a subprocess."""
+    print("  > " + what + " " + " ".join(f'"{a}"' if " " in a else a for a in args), flush=True)
+    try:
+        return int(fn(args) or 0)
+    except SystemExit as e:
+        if isinstance(e.code, str):
+            print(e.code, file=sys.stderr)
+            return 1
+        return int(e.code or 0)
+
+
 def run(cmd: list[str]) -> int:
+    """A subprocess (align), said first."""
     print("  $ " + " ".join(f'"{c}"' if " " in c else c for c in cmd), flush=True)
     return subprocess.call(cmd)
 
 
+def _build(args):
+    from seriesmith import build
+    return build.main(args, prog="seriesmith build")
+
+
+def _check(args):
+    from seriesmith import build
+    return build.main(args, prog="seriesmith check")
+
+
+def _refs(args):
+    from seriesmith import kreagen
+    return kreagen.main(args)
+
+
+def _render(args):
+    from seriesmith import render
+    return render.main(args)
+
+
+def _assemble(args):
+    from seriesmith import assemble
+    return assemble.main(args)
+
+
 def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int:
-    py = sys.executable
     proxy = "--proxy" in extra
     if name in ("build", "check"):
         series_cfg, md = episode_files(ep)
-        base = [py, "-m", "seriesmith.build", series_cfg, md]
+        base = [series_cfg, md]
         if name == "check":
-            return run(base + ["--check"]) or run(base + ["--pace"])
+            return call("check", _check, base + ["--check"]) or call("check", _check, base + ["--pace"])
         rest = [a for a in extra if a != "--proxy"]
-        return run(base + ["-o", ep] + rest) or run(base + ["-o", ep, "--proxy"] + rest)
+        return (call("build", _build, base + ["-o", ep] + rest)
+                or call("build", _build, base + ["-o", ep, "--proxy"] + rest))
     if name == "align":
-        return run([py, "-m", "seriesmith.align", ep] + extra)
+        return run([sys.executable, "-m", "seriesmith.align", ep] + extra)
     if name == "refs":
-        return run([py, "-m", "seriesmith.kreagen", "--project-root", ep] + extra)
+        return call("refs", _refs, ["--project-root", ep] + extra)
     if name == "render":
-        return run([py, "-m", "seriesmith.render", ep] + extra)
+        return call("render", _render, [ep] + extra)
     if name == "assemble":
         rest = [a for a in extra if a != "--proxy"]
         if proxy:
             rest = ["--shotlist", "shotlist/shotlist_proxy.json",
                     "--subfolder", "renders_proxy"] + rest
-        return run([py, "-m", "seriesmith.assemble", "-o", ep] + rest)
+        return call("assemble", _assemble, ["-o", ep] + rest)
     if name == "all":
         # refs and build take no render flags; keep only --proxy for them
         steps = [("build", []), ("refs", []), ("build", []),
@@ -159,7 +152,7 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
                 print(f"  !! {s} failed for {ep} (exit {rc}); stopping this episode")
                 return rc
         return 0
-    sys.exit(f"  !! unknown stage {name}")
+    raise ValueError(f"unknown stage {name}")
 
 
 def episode_folders(parent: str) -> list[str]:
@@ -174,107 +167,290 @@ def episode_folders(parent: str) -> list[str]:
             if not n.startswith((".", "_")) and os.path.isdir(os.path.join(parent, n))]
 
 
-def main() -> int:
-    argv = sys.argv[1:]
-    if argv and argv[0] == "new":
-        # the folder is the show's, its last part the new episode's name; the
-        # template is the newest episode already there, else examples/starter
-        from seriesmith import source as SRC
-        return SRC.cmd_new(argv[1:])
-    if argv and argv[0] == "issues":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith issues <episode> [--proxy] "
-                     "[--add <shot> <note> | --export | --clear | --resolve <id>]")
-        from seriesmith import issues as ISS
-        return ISS.cmd_issues(os.path.abspath(argv[1]), argv[2:])
-    if argv and argv[0] == "supply":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith supply <episode> <file-or-folder>... "
-                     "[--ref id[:view]] [--no-pick] [--dry-run]")
-        from seriesmith import refs as R
-        return R.cmd_supply(os.path.abspath(argv[1]), argv[2:])
-    if argv and argv[0] == "upscale":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith upscale <episode> [--only sh020,...] [--take N] "
-                     "[--start-step N] [--vae] [--redo] [--check] [--prune-latents]")
-        from seriesmith import upscale as U
-        return U.main(argv[1:])
-    if argv and argv[0] == "post":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith post <episode> [--only sh020,...] [--take N] "
-                     "[--enhance draft|production|cinematic|pixel|seedvr2|supir|none] "
-                     "[--strength 0.2] [--blur 0.25] [--recipe] [--redo] [--check]")
-        from seriesmith import post as P
-        return P.main(argv[1:])
-    if argv and argv[0] == "master":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith master <episode> [<episode> ...] [--check] [--wait] "
-                     "[--conform] [--allow-gaps] [--prores]")
-        from seriesmith import master as M
-        return M.main(argv[1:])
-    if argv and argv[0] == "publish":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith publish <episode> [--proxy] [--input FILE] "
-                     "[--out FILE] [--quality review|master] [--check]")
-        from seriesmith import publish as PUB
-        return PUB.main(argv[1:])
-    if argv and argv[0] == "targets":
-        # the episode is optional: it adds its series config (pass blocks,
-        # model_families) and marks its target
-        from seriesmith import edit as E
-        rest = argv[1:]
-        ep = os.path.abspath(rest.pop(0)) if rest and not rest[0].startswith("-") else None
-        return E.cmd_targets(ep, rest)
-    if argv and argv[0] == "target-from-workflow":
-        from seriesmith import edit as E
-        return E.cmd_target_from_workflow(argv[1:])
-    if argv and argv[0] == "promote":
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit("  !! usage: seriesmith promote <episode> [<shot>] [--all | --item ID ...] "
-                     "[--dry-run]")
-        from seriesmith import promote as PRM
-        return PRM.cmd_promote(os.path.abspath(argv[1]), argv[2:])
-    if argv and argv[0] in EDIT:
-        if len(argv) < 2 or argv[1].startswith("-"):
-            sys.exit(f"  !! usage: seriesmith {argv[0]} <episode> ...")
-        from seriesmith import edit as E
-        return E.COMMANDS[argv[0]](os.path.abspath(argv[1]), argv[2:])
-    if not argv or argv[0] in ("-h", "--help") or argv[0] not in STAGES:
-        print(__doc__)
-        return 0 if argv[:1] in (["-h"], ["--help"], []) else 2
-    name, rest = argv[0], argv[1:]
+def on_episodes(name: str, rest: list[str]) -> int:
+    """A stage on each episode folder named (or each under a parent, --each),
+    every one run even when one fails."""
     each = "--each" in rest
     skip_build = any(a in ("--skip-build", "--no-build") for a in rest)
     rest = [a for a in rest if a not in ("--each", "--skip-build", "--no-build")]
     if skip_build and name != "all":
-        sys.exit("  !! --skip-build only applies to `all` (the other stages never build)")
-
+        raise UsageError("--skip-build only applies to `all` (the other stages never build)")
     eps, extra = [], []
-    if name == "align":
-        # one episode, then the recording path and flags go straight to align
-        if not rest or rest[0].startswith("-"):
-            sys.exit("  !! usage: seriesmith align <episode> [recording.wav] [flags]")
-        return 1 if stage(name, rest[0], rest[1:]) else 0
     for i, a in enumerate(rest):
         if a.startswith("-"):
             extra = rest[i:]
             break
         eps.append(a)
     if not eps:
-        sys.exit("  !! give an episode folder, e.g. Shows\\ep05")
+        raise UsageError("give an episode folder, e.g. Shows\\ep05")
     if each:
         eps = sorted(p for parent in eps for p in episode_folders(parent)
                      if PATHS.series_config_path(p) and PATHS.episode_script(p))
-
     failed = []
     for ep in eps:
         print(f"\n=== {name}: {ep}")
-        if stage(name, ep, extra, skip_build):
+        try:
+            rc = stage(name, ep, extra, skip_build)
+        except SystemExit as e:              # episode_files: no series config / script
+            if isinstance(e.code, str):
+                print(e.code, file=sys.stderr)
+            rc = 1 if isinstance(e.code, str) or e.code is None else int(e.code)
+        if rc:
             failed.append(ep)
     if len(eps) > 1:
         print(f"\n  {len(eps) - len(failed)}/{len(eps)} ok"
               + (f"; failed: {', '.join(failed)}" if failed else ""))
     return 1 if failed else 0
+
+
+def _stage_cmd(name: str, own: Callable | None = None):
+    """A stage over episodes; `<stage> --help` is the stage's own parser's."""
+    def go(rest: list[str]) -> int:
+        if own is not None and rest[:1] and rest[0] in HELP_FLAGS:
+            try:
+                return int(own(["--help"]) or 0)
+            except SystemExit as e:
+                return int(e.code or 0)
+        return on_episodes(name, rest)
+    return go
+
+
+def _folder_or_files(name: str, own: Callable):
+    """build / check: on episode folders (their series config and script
+    found), else build's own arguments (series.json ep01.md -o <folder>)."""
+    def go(rest: list[str]) -> int:
+        if rest and os.path.isdir(rest[0]):
+            return on_episodes(name, rest)
+        args = rest + (["--check"] if name == "check" and "--check" not in rest else [])
+        try:
+            return int(own(args) or 0)
+        except SystemExit as e:
+            return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    return go
+
+
+def _align(rest: list[str]) -> int:
+    if rest[:1] and rest[0] in HELP_FLAGS:
+        return subprocess.call([sys.executable, "-m", "seriesmith.align", "--help"])
+    # one episode, then the recording path and flags go straight to align
+    if not rest or rest[0].startswith("-"):
+        raise UsageError("give the episode folder first")
+    return 1 if stage("align", rest[0], rest[1:]) else 0
+
+
+# ---------------------------------------------------------------------------
+# the rest
+# ---------------------------------------------------------------------------
+
+def episode_first(fn):
+    """A command of `(episode, rest)`: the episode checked and made absolute."""
+    def go(rest: list[str]) -> int:
+        if not rest or rest[0].startswith("-"):
+            raise UsageError("give the episode folder first")
+        return fn(os.path.abspath(rest[0]), rest[1:])
+    return go
+
+
+def _edit(name: str):
+    def go(ep: str, rest: list[str]) -> int:
+        from seriesmith import edit as E
+        return E.COMMANDS[name](ep, rest)
+    return episode_first(go)
+
+
+def _issues(ep, rest):
+    from seriesmith import issues as ISS
+    return ISS.cmd_issues(ep, rest)
+
+
+def _supply(ep, rest):
+    from seriesmith import refs as R
+    return R.cmd_supply(ep, rest)
+
+
+def _promote(ep, rest):
+    from seriesmith import promote as PRM
+    return PRM.cmd_promote(ep, rest)
+
+
+def _new(rest):
+    from seriesmith import source as SRC
+    return SRC.cmd_new(rest)
+
+
+def _targets(rest):
+    # the episode is optional: it adds its series config (pass blocks,
+    # model_families) and marks its target
+    from seriesmith import edit as E
+    ep = os.path.abspath(rest[0]) if rest and not rest[0].startswith("-") else None
+    return E.cmd_targets(ep, rest[1:] if ep else rest)
+
+
+def _target_from_workflow(rest):
+    from seriesmith import edit as E
+    return E.cmd_target_from_workflow(rest)
+
+
+def _module_main(module: str):
+    def go(rest: list[str]) -> int:
+        import importlib
+        return importlib.import_module(module).main(rest)
+    return go
+
+
+def _serve(rest):
+    from seriesmith.server import standalone
+    return standalone.main(rest)
+
+
+def _stop(rest):
+    from seriesmith.server import standalone
+    return standalone.stop_main(rest)
+
+
+def backends_cmd(argv: list[str]) -> int:
+    import argparse
+
+    from seriesmith import backends as B
+    from seriesmith.settings import load_settings
+    ap = argparse.ArgumentParser(prog="seriesmith backends",
+                                 description="List the backends this machine is set up for "
+                                             "and whether each answers.")
+    ap.add_argument("--try", dest="try_", metavar="NAME",
+                    help="run a small round trip on that ComfyUI backend (a picture up, "
+                         "inverted, and back)")
+    args = ap.parse_args(argv)
+    try:
+        settings = load_settings()
+    except ValueError as e:
+        print(f"seriesmith: {e}", file=sys.stderr)
+        return 1
+    found = B.available(settings)
+    print(f"  settings  {settings.path or '(no settings file; defaults and environment)'}")
+    print(f"  api key   {'set' if settings.api_key else 'not set (cloud, router and deployments need COMFY_API_KEY)'}")
+    print()
+    for name, b in found.items():
+        why = b.ping()
+        where = getattr(b, "base_url", None) or getattr(b, "cloud_url", "")
+        print(f"  {name:28} {'ok ' if why is None else 'no '} {where}"
+              + (f"\n  {'':28}     {why}" if why else ""))
+    if not args.try_:
+        return 0
+    b = found.get(args.try_)
+    if b is None:
+        print(f"\nseriesmith: no backend called {args.try_!r} ({', '.join(found)})",
+              file=sys.stderr)
+        return 1
+    from seriesmith.backends.smoke import round_trip
+    print(f"\n  round trip on {b.name}...")
+    try:
+        out = round_trip(b, on_progress=lambda p: print(f"    {p.value:4.0%}"),
+                         on_status=lambda s: print(f"    {s}"))
+    except B.BackendError as e:
+        print(f"  failed: {e}", file=sys.stderr)
+        return 1
+    print(f"  ok: {out}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# the table
+# ---------------------------------------------------------------------------
+
+_TABLE = [
+    Command("new", "<show>\\<name> [--title T] [--series-id ID]",
+            "a new episode (series.json + script) that builds", _new),
+    Command("build", "<episode>... [--each] [--proxy]  |  series.json ep01.md -o <folder>",
+            "the script and series config into the shotlists and refs_todo (final and proxy)",
+            _folder_or_files("build", _build), own_help=True),
+    Command("check", "<episode>... [--each]  |  series.json ep01.md [--pace]",
+            "build --check and --pace: errors, warnings, crammed lines; writes nothing",
+            _folder_or_files("check", _check), own_help=True),
+    Command("refs", "<episode>... [--each] [--list] [--only ID] [--voices]",
+            "reference pictures (and voice samples) for what refs_todo lists",
+            _stage_cmd("refs", _refs), own_help=True),
+    Command("supply", "<episode> <file-or-folder>... [--ref id[:view]] [--no-pick] [--dry-run]",
+            "pictures you already have, into their ref slots", episode_first(_supply)),
+    Command("render", "<episode>... [--proxy] [--only sh010,...] [--redo] [--backend NAME]",
+            "each shot as a take, on its backend", _render, own_help=True),
+    Command("takes", "<episode> [--proxy]", "every take: status, seed, why stale, the cut's",
+            _edit("takes")),
+    Command("pick", "<episode> <shot> <take|latest> [--proxy]", "the take the cut uses",
+            _edit("pick")),
+    Command("override", "<episode> [<shot>] [--seed N] [--prompt-file F] [--target ID] ...",
+            "a shot's settings for its next render (overrides.json)", _edit("override")),
+    Command("keyframe", "<episode> <shot> [--from-prev] ...",
+            "a shot's first or last keyframe", _edit("keyframe")),
+    Command("discard", "<episode> <shot> <take> [--proxy]",
+            "a take into renders/_trash/", _edit("discard")),
+    Command("cut", "<episode> [--proxy] [--show | --move SH --before SH | --trim SH IN OUT ...]",
+            "the cut: order, trims, locks, sound", _edit("cut")),
+    Command("promote", "<episode> [<shot>] [--all | --item ID ...] [--dry-run]",
+            "overrides moved into the script or the series config", episode_first(_promote)),
+    Command("issues", "<episode> [--proxy] [--add <shot> <note> | --export | --clear | --resolve <id>]",
+            "the pass's notepad", episode_first(_issues)),
+    Command("align", "<episode> [recording.wav] [flags]",
+            "the script timed against a dialogue recording", _align, own_help=True),
+    Command("assemble", "<episode>... [--each] [--proxy] [--upscaled] [--partial]",
+            "the review cut", _stage_cmd("assemble", _assemble), own_help=True),
+    Command("upscale", "<episode> [--only sh020,...] [--take N] [--redo] [--check]",
+            "the final cut's takes upscaled", _module_main("seriesmith.upscale"), own_help=True),
+    Command("post", "<episode> [--enhance draft|production|cinematic|...] [--recipe] [--check]",
+            "the cut's upscales post-processed", _module_main("seriesmith.post"), own_help=True),
+    Command("master", "<episode>... [--check] [--wait] [--conform] [--allow-gaps] [--prores]",
+            "the series recipe on every shot, then the master assembled",
+            _module_main("seriesmith.master"), own_help=True),
+    Command("publish", "<episode> [--proxy] [--input FILE] [--out FILE] [--check]",
+            "the intro and outro around the review cut", _module_main("seriesmith.publish"),
+            own_help=True),
+    Command("all", "<episode>... [--each] [--proxy] [--skip-build] [render flags]",
+            "build -> refs -> build -> render -> assemble", _stage_cmd("all")),
+    Command("targets", "[<episode>] [--json] [--install-workflow ID]",
+            "which models the running ComfyUI can render, what to download for the rest",
+            _targets, own_help=True),
+    Command("target-from-workflow", "<workflow> [<episode>] [--save]",
+            "a ComfyUI workflow proposed as a model", _target_from_workflow, own_help=True),
+    Command("backends", "[--try NAME]", "where jobs can run on this machine, and whether each answers",
+            backends_cmd, own_help=True),
+    Command("serve", "[--root FOLDER] [--port N] [--host H]", "the editor in your browser (port 8190)",
+            _serve, own_help=True),
+    Command("stop", "[--restart]", "stop (or restart) that editor's server cleanly",
+            _stop, own_help=True),
+]
+COMMANDS: dict[str, Command] = {c.name: c for c in _TABLE}
+
+
+def help_text() -> str:
+    width = max(len(c.name) for c in _TABLE) + 2
+    lines = ["seriesmith: series config + episode scripts into finished episodes.", "",
+             "usage: seriesmith <command> [<episode>] [flags]", ""]
+    lines += [f"  {c.name:<{width}}{c.help}" for c in _TABLE]
+    lines += ["", "`seriesmith <command> --help` gives a command's usage and flags; the "
+                  "examples are in docs/COMMANDS.md."]
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv[0] in HELP_FLAGS + ("help",):
+        print(help_text())
+        return 0
+    if argv[0] in ("-V", "--version"):
+        print(f"seriesmith {__version__}")
+        return 0
+    c = COMMANDS.get(argv[0])
+    if c is None:
+        print(f"seriesmith: unknown command {argv[0]!r}\n\n{help_text()}", file=sys.stderr)
+        return 2
+    rest = argv[1:]
+    if rest[:1] and rest[0] in HELP_FLAGS and not c.own_help:
+        print(f"{usage(c)}\n\n  {c.help}")
+        return 0
+    try:
+        return int(c.run(rest) or 0)
+    except UsageError as e:
+        print(f"seriesmith {c.name}: {e}\n{usage(c)}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
