@@ -479,6 +479,20 @@ class AlignRouteTest(ApiTest):
         self.assertEqual(self.events_of("seriesmith.align"), [])
 
 
+class AlignImportsTest(unittest.TestCase):
+    def test_align_leaves_the_standard_library_alone(self):
+        """align runs as seriesmith.align with the package's parent on sys.path
+        (edit.RUN_MODULE); it put the package's own folder there too, so
+        Whisper's `import queue` found seriesmith/queue.py and every
+        transcription failed ("module 'queue' has no attribute 'SimpleQueue'")."""
+        import subprocess
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); import seriesmith.align; "
+                "import queue; print(hasattr(queue, 'SimpleQueue'))")
+        out = subprocess.run([sys.executable, "-c", code, E.PACKAGE_PARENT],
+                             capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.stdout.strip(), "True", out.stderr)
+
+
 class AlignArgsTest(ApiTest):
     """What the route passes align (track.align builds the command line)."""
 
