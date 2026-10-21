@@ -21,6 +21,11 @@ Reference slots
     <Picture 1..3>  the shot's subjects, characters first then props/vehicles
     <Picture 4>     the location plate, always
 
+A target with more subject sockets (FastH3 Omni: eight, the shotlist's
+`defaults.subject_slots`) takes subjects 4-8 from `ref_4`..`ref_8`, the last
+outputs (so every earlier output keeps its place), and the plate is the
+picture after them; on Ref2VA those outputs are None.
+
 There is no style reference image. Style is already carried by every sheet and
 plate (all drawn in it) and stated in the prompt text, so slot 4 buys concrete
 layout, palette, lighting direction and depth instead -- and keeps one location
@@ -308,6 +313,10 @@ def save_audio(audio: dict, path: str) -> None:
 MAX_FILES = 24
 
 
+# subject sockets past Ref2VA's three (FastH3 Omni's 4-8): the loader's last outputs
+EXTRA_SUBJECTS = 5
+
+
 def file_input(i: int) -> str:
     return f"file_{i:02d}"
 
@@ -344,6 +353,7 @@ class SeriesmithShotLoader:
         "AUDIO", "AUDIO", "AUDIO",
         "INT", "INT", "INT", "INT", "INT",
         "STRING", "STRING", "INT",
+        "IMAGE", "IMAGE", "IMAGE", "IMAGE", "IMAGE",
     )
     RETURN_NAMES = (
         "shot_id", "prompt",
@@ -351,6 +361,7 @@ class SeriesmithShotLoader:
         "ref_audio_1", "ref_audio_2", "ref_audio_3",
         "width", "height", "length", "steps", "seed",
         "audio_policy", "info", "shot_count",
+        *(f"ref_{i}" for i in range(4, 4 + EXTRA_SUBJECTS)),
     )
     FUNCTION = "load"
     CATEGORY = "seriesmith"
@@ -419,6 +430,7 @@ class SeriesmithShotLoader:
             audio_refs[0], audio_refs[1], audio_refs[2],
             plan["width"], plan["height"], plan["length"], plan["steps"], plan["seed"],
             plan["policy"], info, plan["count"],
+            *(refs[3:] + [None] * (3 + EXTRA_SUBJECTS - len(refs))),
         )
 
 

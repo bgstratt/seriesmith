@@ -67,6 +67,7 @@ for its new target when it is queued; no rebuild.
 | Video target | Label | Runs on |
 |---|---|---|
 | `minimax_h3_ref2va` (default) | MiniMax H3 Ref2VA | a ComfyUI: local, Comfy Cloud, a deployment |
+| `fasth3_omni` | FastH3 Omni: FastVideo's 8-step H3, up to eight subjects a shot | a ComfyUI |
 | `minimax_h3_fl2va` | MiniMax H3 FL2VA (first/last frames) | a ComfyUI |
 | `ltx2` | LTX-2.5 distilled (text / keyframes to video + audio) | a ComfyUI |
 | `ltx2_ingredients` | LTX-2.3 ingredients (character/plate refs) | a ComfyUI |
@@ -84,7 +85,10 @@ for its new target when it is queued; no rebuild.
 | `flux2_klein_edit` (default for keyframes, when installed) | FLUX.2 Klein 9B edit (uses reference images) |
 | `flux_kontext` | FLUX.1 Kontext dev (edit, one reference) |
 | `minimax_h3_still` | MiniMax H3 as an image model: renders 5 frames, keeps the first, up to 9 references |
+| `fasth3_omni_still` | FastH3 Omni as an image model, as `minimax_h3_still` |
 | `qwen_image_21` | Qwen-Image 2.1: text to image, or an edit of up to 16 reference images |
+| `fibo2_dev` | Fibo 2.0 Dev: text to image, or an edit of up to 4 references (non-commercial licence) |
+| `fibo2_edit_turbo` | Fibo 2.0 Edit Turbo: 4-step edits only (non-commercial licence) |
 | `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 references |
 | `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
 

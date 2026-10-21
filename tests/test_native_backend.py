@@ -326,7 +326,7 @@ class DetectDefaultsTest(unittest.TestCase):
 
     def test_the_candidates_are_local_in_order(self):
         video = [t.id for t in TG.default_candidates("video")]
-        self.assertEqual(video[:2], ["minimax_h3_ref2va", "ltx2"])
+        self.assertEqual(video[:3], ["minimax_h3_ref2va", "fasth3_omni", "ltx2"])
         self.assertTrue(all(not TG.load_target(i, "video").spec.get("router") for i in video))
         self.assertEqual(TG.default_candidates("image")[0].id, "krea2")
 

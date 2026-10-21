@@ -128,7 +128,9 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
 
     # ---- references ------------------------------------------------------
     # Slots 1-3 are the shot's subjects (characters first, then props and
-    # vehicles). Slot 4 is ALWAYS the location plate. There is no style
+    # vehicles). Slot 4 is ALWAYS the location plate. (A target with more
+    # subject sockets says how many, `defaults.subject_slots`: FastH3 Omni's
+    # eight, its plate <Picture 9>; the rest of this reads 3 and 4.) There is no style
     # reference: the style is already carried by every sheet and plate,
     # which are all drawn in it, and by the text prefix. Spending slot 4 on
     # the background instead buys concrete layout, palette, lighting
@@ -137,6 +139,8 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
     subject_ids = shot.get("subjects") or shot.get("cast") or []
     size = (shot.get("size") or "medium").lower()
     panels_total = int(defaults.get("sheet_panels", 4))
+    n_slots = int(defaults.get("subject_slots", 3))
+    plate = f"Picture {n_slots + 1}"
 
     # `missing_refs: blank` (set by jobs when a render is asked for anyway)
     # turns a missing picture into flat grey and a missing audio reference
@@ -150,10 +154,10 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         if not render_anyway:
             raise FileNotFoundError(
                 f"shot {shot.get('id')}: background plate not found at "
-                f"{bg_path or '<unset>'}. Every shot needs one -- it is <Picture 4>."
+                f"{bg_path or '<unset>'}. Every shot needs one -- it is <{plate}>."
             )
         bg = {"neutral": [height, width]}
-        blanked.append("Picture 4")
+        blanked.append(plate)
     else:
         bg = {"path": bg_path, "panels": 1, "keep": []}
 
@@ -175,7 +179,7 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         mode_used, keep = panels_for("auto", len(subject_ids), size)
 
     refs: list[dict] = []
-    for sid in subject_ids[:3]:
+    for sid in subject_ids[:n_slots]:
         entry = book.get(sid, {})
         kind = entry.get("kind", "character")
         path = resolve(entry.get("sheet", ""))
@@ -199,10 +203,10 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         else:
             refs.append({"path": path, "panels": 1, "keep": [], "label": label, "how": "whole"})
 
-    if len(subject_ids) > 3:
+    if len(subject_ids) > n_slots:
         raise ValueError(
-            f"shot {shot.get('id')}: {len(subject_ids)} subjects but only 3 slots "
-            f"-- slot 4 is the background. Drop {len(subject_ids) - 3}."
+            f"shot {shot.get('id')}: {len(subject_ids)} subjects but only {n_slots} slots "
+            f"-- slot {n_slots + 1} is the background. Drop {len(subject_ids) - n_slots}."
         )
 
     # A shot with fewer than three subjects fills those sockets with a 32x32
@@ -215,11 +219,11 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
     # placeholder costs a 2x2 latent and a few vision tokens, not the plate's
     # thousands (padding with the plate itself, before 2026-09-22, did).
     n_sub = len(refs)
-    while len(refs) < 3:
+    while len(refs) < n_slots:
         refs.append({"neutral": [PLACEHOLDER_SIZE, PLACEHOLDER_SIZE], "placeholder": True})
     bg_note = (f"background {os.path.basename(bg_path or '') or '(none)'}"
-               f"{' MISSING -> flat grey' if 'Picture 4' in blanked else ''} -> <Picture 4>"
-               + (f" (slots {n_sub + 1}-3 placeholders)" if n_sub < 3 else ""))
+               f"{' MISSING -> flat grey' if plate in blanked else ''} -> <{plate}>"
+               + (f" (slots {n_sub + 1}-{n_slots} placeholders)" if n_sub < n_slots else ""))
 
     # ---- audio -----------------------------------------------------------
     policy = (shot.get("audio_policy") or defaults.get("audio_policy") or "generate")

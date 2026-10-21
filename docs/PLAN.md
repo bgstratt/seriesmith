@@ -872,6 +872,32 @@ about a second (Porchlights ep01's final pass: 7.4 s before), Master and Align a
 jobs with Cancel, the command line keeps the paid limit, and every align that had to
 transcribe works again.
 
+## FastH3 Omni and Fibo 2.0 (2026-10-20)
+
+- [x] `fasth3_omni`: FastVideo's 8-step distilled H3 (FastH3-Omni-Comfy) as a target of its
+      own, compiled by Ref2VA's code with the node's nine picture sockets: eight subjects
+      and the plate as `<Picture 9>`. Ref2VA keeps three and `<Picture 4>`; the compile
+      reads the slots from the target it is given, the shotlist's
+      `defaults.subject_slots` tells the shot plan (only when not 3, so Ref2VA's shotlists
+      are unchanged), and the Shot Loader's extra subjects are its last outputs
+      (`ref_4`..`ref_8`), so no existing output moves. No turbo LoRA; shift 12 / 3; ComfyUI's
+      `BlockSparseAttention` in `vsa` mode at 10% in place of SLA (the checkpoint carries
+      VSA's gate tensors, which also tell it apart from the other H3 files).
+- [x] `fasth3_omni_still`: the same model as an image target, as `minimax_h3_still`.
+- [x] `fibo2_dev` / `fibo2_edit_turbo`: Bria's Fibo 2.0 on ComfyUI's native support
+      (TextEncodeFibo2; ComfyUI after 2026-10-20). Dev is text to image and edits (so
+      relights) at 50 steps / cfg 5; the Edit Turbo is edits only at 4 / cfg 1 and refuses
+      a job with no picture. Non-commercial licence.
+- [x] Live, 2026-10-21: an Omni shot with four subjects (two characters, a prop, a vehicle
+      through the loader's `ref_4`) and an Omni still, on local ComfyUI.
+- [ ] Live: a Fibo 2.0 relight (waits on the Qwen3-VL 4B encoder).
+- [x] Seedance takes what it can: 2.5 up to 30 reference pictures (BytePlus: 30 images,
+      10 videos, 10 audio clips), the 2.0 family 9 (`tools/make_router_targets.py`), where
+      both sent four subjects and the plate. A shot's extra subjects past the cap still
+      drop silently.
+- [ ] Seedance's prompt names no picture: with many, say which is whom ("Image 3 is
+      Voss."), as Kling's `mention` does — to try on a paid take.
+
 ## Step 15 — models behind other APIs (next)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

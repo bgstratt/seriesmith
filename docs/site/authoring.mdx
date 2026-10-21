@@ -190,13 +190,14 @@ shot 93. So:
 | target | what pins the look | sound | keyframes | length grid | good for |
 |---|---|---|---|---|---|
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
+| `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | always generated | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | always generated | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
-| hosted models on Comfy Router (`seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, `minimax_h3`, …) | your refs as pictures (one panel of a sheet, then the plate) or the keyframes, plus words | generated (Runway: none) | first, and last on most | whole seconds, each model's range | trying a shot on another model with no install; a Comfy API key, paid per take |
+| hosted models on Comfy Router (`seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, `minimax_h3`, …) | your refs as pictures (one panel of a sheet, then the plate; Seedance 2.5 up to 30 pictures, 2.0 up to 9, most others 3–10) or the keyframes, plus words | generated (Runway: none) | first, and last on most | whole seconds, each model's range | trying a shot on another model with no install; a Comfy API key, paid per take |
 
 - **Leave the target out** unless the choice is a decision about the film. Shots with no
   `target:` render on the episode's target (set in the editor) or the series config's
@@ -207,7 +208,7 @@ shot 93. So:
   LTX to choose (`dur: model`). A `continuous: first` shot moves to H3 FL2VA by itself (see
   **Continuous shots**).
 - **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
-  workflow targets (`minimax_h3_ref2va`, `minimax_h3_fl2va`). Wan acts the lines silently.
+  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
   `wan22_ti2v`; `wan22_vace` takes the sheets but not the plate), the `design` and location
   `description` sentences are what the model knows about the look, apart from any
@@ -859,6 +860,9 @@ config can say which:
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
 | `flux3_klein` | FLUX.3 Image Klein — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 10 reference images. Takes a real negative prompt |
 | `flux3_klein_turbo` | FLUX.3 Image Klein step-distilled: the same as `flux3_klein` in 16 steps, over twice as fast, without a negative prompt |
+| `fasth3_omni_still` | FastH3 Omni as an image model, as `minimax_h3_still`: up to 9 reference images, 8 steps, no turbo LoRA |
+| `fibo2_dev` | Bria's Fibo 2.0 Dev: text to image, or an edit of up to 4 reference images (relights too); 50 steps at cfg 5. Non-commercial licence (CC BY-NC 4.0) |
+| `fibo2_edit_turbo` | Fibo 2.0 Edit Turbo: edits only (it needs a picture to start from), 4 steps at cfg 1. Non-commercial licence |
 | `moss_image_sft` | MOSS-Image SFT, text to image: strong on lettering and layout, 50 steps at cfg 3 with a real negative prompt |
 | `moss_image_base` | MOSS-Image Base: the model the SFT is tuned from, for LoRAs trained on the base |
 | `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 reference images |
@@ -1215,7 +1219,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
