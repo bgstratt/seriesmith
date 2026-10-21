@@ -35,7 +35,7 @@ user's side.
 - `run_seriesmith.bat` / `run_seriesmith_ext.bat` / `run_seriesmith.sh` — launchers (this PC / the network, `--host 0.0.0.0`); they make the repo's `.venv` on first start and start the server again on exit code 3
 - `web/` — the editor (React/Vite); `npm run build:standalone` writes `seriesmith/server/static/`, `npm run build` the ComfyUI page `comfy_nodes/web/seriesmith-editor.js`; commit both
 - `docs/` — DESIGN, PLAN, REFACTOR (the refactor's record), QUICKSTART, FULL_SETUP, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN; `docs/site/` the Mintlify docs site (docs.seriesmith.com; Mintlify's monorepo path): `docs.json`, `index.mdx` and the logos by hand, every other page generated from INSTALL.md and the user docs (never DESIGN or PLAN). The marketing site (seriesmith.com) is its own repo, `../seriesmith-site`
-- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`), `make_site_docs.py` (docs/site/'s pages from the user docs), `make_preset_samples.py` (the presets' sample pictures, rendered with seriesmith on a scratch episode); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
+- `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `make_refs_md.py` (AUTHORING.md's table of what each model takes in pictures), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`), `make_site_docs.py` (docs/site/'s pages from the user docs), `make_preset_samples.py` (the presets' sample pictures, rendered with seriesmith on a scratch episode); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
 
 ## Rules
 
@@ -51,11 +51,11 @@ user's side.
   run the files you touched first). `tests/conftest.py` points every test at empty
   settings and unreachable backends; keep it that way. This machine's own models
   (`targets\` beside the settings file) must never reach a test or a generated file
-  (`tools/make_models_md.py` reads the shipped targets only).
+  (`tools/make_models_md.py` and `tools/make_refs_md.py` read the shipped targets only).
 - Never hand-edit generated files (`shotlist/`, `refs_todo.*`, `prompts/`, INSTALL.md's
-  model block, `seriesmith/server/static/`, `comfy_nodes/web/seriesmith-editor.js`, the
+  model block, AUTHORING.md's pictures table, `seriesmith/server/static/`, `comfy_nodes/web/seriesmith-editor.js`, the
   Router models' target.json, docs/site/'s generated pages); change the script, the series config, the docs or the
-  code and regenerate (`python tools/make_prompts.py`, `python tools/make_models_md.py`,
+  code and regenerate (`python tools/make_prompts.py`, `python tools/make_models_md.py`, `python tools/make_refs_md.py`,
   `python tools/make_router_targets.py`, `python tools/make_site_docs.py`, `npm run build:standalone`
   and `npm run build`).
 - Refactors keep the golden outputs byte-identical (`python -m pytest`) unless the

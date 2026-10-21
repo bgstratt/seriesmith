@@ -217,6 +217,36 @@ def panels(ctx: Ctx, shot: ir.Shot, loc_key: str) -> list[dict]:
     return out
 
 
+def capped(pics: list[dict], target) -> tuple[list[dict], list[dict]]:
+    """(the panels a hosted model is sent, the ones it isn't), by the rule
+    router_video.pictures sends them: the subjects up to its `max`, then the
+    plate, all of it cut to its `max_total`. Everything for a local target."""
+    refs = (((target.spec.get("router") or {}).get("inputs") or {}).get("references")
+            if isinstance(target.spec.get("router"), dict) else None)
+    if not refs:
+        return list(pics), []
+    most = refs.get("max") or target.capabilities().get("max_subjects") or 99
+    subjects = [p for p in pics if p.get("subject")]
+    sent = subjects[:most] + [p for p in pics if not p.get("subject")]
+    if refs.get("max_total"):
+        sent = sent[:refs["max_total"]]
+    return sent, [p for p in pics if p not in sent]
+
+
+def unsent_warning(ctx: Ctx, shot: ir.Shot, pics: list[dict]) -> str | None:
+    """What --check says when a hosted model takes fewer pictures than the
+    shot has: who isn't sent (the prose still describes them)."""
+    sent, dropped = capped(pics, ctx.target)
+    if not dropped:
+        return None
+    book = ctx.series_cfg.get("subjects") or {}
+    names = [(book.get(p["subject"]) or {}).get("name", p["subject"]) if p.get("subject")
+             else "the plate" for p in dropped]
+    return (f"{shot.id}: {ctx.target.short} takes {len(sent)} picture(s); "
+            f"{', '.join(names)} not sent as pictures (the prose still describes "
+            f"{'them' if any(p.get('subject') for p in dropped) else 'the place'})")
+
+
 # ---------------------------------------------------------------------------
 # the compile
 # ---------------------------------------------------------------------------
@@ -246,6 +276,9 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
                           for end in TG.keyframe_ends(ctx.recipe, shot, sq)}
     if ctx.recipe.get("reference_image"):
         entry["panels"] = panels(ctx, shot, loc_key)
+        note_ = unsent_warning(ctx, shot, entry["panels"])
+        if note_:
+            ctx.warnings.append(note_)
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 

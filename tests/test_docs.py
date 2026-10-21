@@ -82,6 +82,22 @@ class TestSiteDocs(unittest.TestCase):
         self.assertFalse(sources & {"docs/DESIGN.md", "docs/PLAN.md"})
 
 
+class TestPicturesBlock(unittest.TestCase):
+    """AUTHORING.md's table of what each model takes in pictures is what
+    tools/make_refs_md.py emits from the targets today."""
+
+    def test_up_to_date(self):
+        import make_refs_md as RM
+        with open(RM.AUTHORING, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn(RM.BEGIN, text)
+        got = text[text.index(RM.BEGIN):text.index(RM.END) + len(RM.END)]
+        self.assertEqual(got, RM.block(), "AUTHORING.md's pictures table is out of date: run "
+                                          "`python tools/make_refs_md.py` and commit the result")
+        self.assertIn("| `seedance_2_5` |", got)
+        self.assertIn("| `minimax_h3_ref2va` |", got)
+
+
 class TestModelsBlock(unittest.TestCase):
     def setUp(self):
         with open(M.INSTALL, encoding="utf-8") as fh:
