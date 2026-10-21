@@ -607,13 +607,86 @@ job; the dialogs follow the same events.
   restart to load this); each in Jobs with progress and Cancel; reopen the Recording
   window (or reload) mid-align and it is still followed.
 
-#### 3.4 One cache module ☐
-About 20 hand-rolled module caches with different keys, bounds and locking (some
-unbounded, some unlocked). **`seriesmith/memo.py`**: `stamp`, `FileMemo`, `TTLMemo`
-(locked, bounded), one `forget_all()` for tests and a Settings change. Absorbs 1.6 and
-1.8's caches.
-- **Live check:** the bench (no slower); edit a script, a series config and a take
-  outside the editor; each shows on the next load.
+#### 3.4 Loads that don't redo unchanged work ✅ (decided 2026-10-20)
+**What's there.** Opening Porchlights ep01 (final pass, 324 shots, 1,773 takes) after a
+restart: `GET /episode` 4.1 s on the live server (2.9 s alone; 7.4 s before the refactor),
+`GET /refs` 2.1 s beside it; no request is made twice (headless Chrome against a traced
+copy of the server). Every load re-derives every take from its files: ~2,500 sidecars read,
+~20,000 paths checked, each take's staleness, sound and upscale recipe worked out again,
+though almost nothing changed since the last load. The answer is 1.7 MB, nearly all of it
+per-take detail (upscale record 203 KB, save notes 136 KB, ids, times) that the shots list
+doesn't draw and `GET /shot` already gives when a shot is opened.
+
+**Change: a take's entry is kept until something it depends on changes.**
+- **One listing per shot folder.** `os.scandir` of the shot's renders folder gives every
+  file's name, size and mtime in one call (on Windows the stat comes with the listing):
+  ~324 calls, not ~20,000 `isfile`s. A take's files (sidecar, mp4, thumb, strip, `_h3.wav`,
+  its upscale's and post's records and outputs) are looked up in it.
+- **A take's entry is cached on what it is made from:** the (name, size, mtime) of each of
+  its files from that listing; its shot's built entry (story hash, length, target) and
+  override; the target the shot renders on; and a small episode-wide stamp (the series
+  config, which holds the upscale recipe and audio; the episode's fps; the targets'
+  catalog stamp). Same key, same entry; anything different and that take alone is worked
+  out again. Nothing relies on folder mtimes or on writes going through seriesmith: a take
+  deleted, a sidecar edited by hand or an upscale written by ComfyUI changes its files'
+  stats, so it's seen on the next load.
+- **Kept on disk** (`diskcache`, as media probes are): a restart starts warm. Bounded (the
+  last few episodes per pass), dropped whole on a version change of the entry's shape.
+- **Per-shot fields stay computed each time** (cut, override, target, missing refs): they
+  are cheap and depend on files the listing doesn't cover.
+- **`/refs` the same way** (per ref folder: its takes and picks), measured first and done
+  only where the profile says the time is.
+- **The page:** the remembered episode is asked for at once (not after the episodes list),
+  and refs after the shots are in, not beside them (they share one Python and slowed each
+  other: 2.9 s alone, 4.1 s together).
+- **Folds in the original 3.4** where it touches: the new cache is a `memo` primitive
+  (`FileMemo`-style, locked, bounded, `forget_all()` for tests and Settings); the other
+  hand-rolled caches move onto it only where they're on this path.
+- **Not in this item:** slimming the answer (per-take detail only in `GET /shot`). Smaller
+  and faster again, but the timeline, Master planning, cut playback and the badges may
+  read those fields from the episode today; it needs that audit first, as its own item.
+
+**What you'll see:** an episode opens in well under a second after a restart when nothing
+changed (target: Porchlights ep01 final under 0.6 s, from 4.1); a change shows on the next
+load whoever made it.
+- **Evidence:** `/episode` and `/refs` answers byte-identical with the cache on and off,
+  cold and warm, on Porchlights ep01/ep02, DeanStories ep05, Ballroom-refactor; tests that
+  change a take outside the editor (delete it, edit its sidecar, add an upscale, change the
+  recipe, an override, the target) and see it on the next load; the headless page load
+  timed before and after.
+- **Live check (you):** restart, open Porchlights ep01 and a couple of others; render,
+  upscale and pick takes and see each show; edit a script and rebuild.
+- **Done:** `seriesmith/takefiles.py`: `listing` (one scandir per shot folder),
+  `take_facts` (sidecar, upscale and post records with `fresh`, which file plays the
+  sound) kept on the (size, mtime) of the take's nine possible files, `list_takes` from
+  them; per episode-pass diskcache stores, the newest 24 kept, a version stamp. `Take`
+  answers `has_video` / `exists` from its listing. The status and sweep list through it;
+  `take_rel`, `take_audio`, `upscale_summary`, `post_summary` read the facts. Ref takes:
+  one listing per folder within an answer (`takefiles.looked`), sidecars kept the same
+  way (the show's "refs" store); `GET /refs` within `cut_memo` and `takes.one_look` (each
+  reference file's sha1 looked up once per answer, not once per take).
+- **How the key came out:** the design note keyed a whole take entry on its files, its
+  shot's build entry, override, target and an episode stamp. Staleness, the chain check
+  and the recipe match also read the cut, the neighbouring shots' takes and the refs, so
+  caching them on that key could answer stale. Kept instead: what a take's *files* say
+  (the I/O, keyed on those files alone, nothing else needed); the judgments are worked
+  out each time from it. Same promise: anything changed shows on the next load.
+- **Page:** the remembered episode is asked for as the page starts (loadEpisodes leaves
+  it be while it loads); refs wait for the shots (`afterShots`: the Refs tab, a switch).
+- **Measured** (Porchlights ep01, final pass, 324 shots / 1,773 takes):
+  - In-process, a fresh process with the disk cache: `/episode` 2.1 -> 0.79 s, `/refs`
+    1.3 -> 0.97 s; ep02 0.5 -> 0.21 s.
+  - The page, headless Chrome on a traced copy of the server, cold process: the episode
+    asked at 0.02 s (0.22), answered in 1.01 s (2.88); shots on screen at ~1.0 s (~3.1);
+    thumbnails done 1.97 s (3.68); refs after, done 2.3 s, no longer slowing the shots.
+  - Missed the 0.6 s target: what's left is the judgments (~0.5 s: staleness with
+    retargeted entries, the upscale recipe check), worked out each time by design.
+- **Evidence:** every answer byte-identical to main: Porchlights ep01 / ep02, DeanStories
+  ep05, Ballroom-refactor ep01, `/episode` both passes and `/refs`, twice each (24).
+  `tests/test_takefiles.py`: a sidecar edited by hand, an mp4 deleted, an upscale written
+  elsewhere, a take deleted each read on the next load; queued and just-written files not
+  kept; a caller changing its copy leaves the kept one; an old store version dropped; the
+  status the same with the cache, without it, and after a hand edit.
 
 #### 3.5 The backend interface ☐
 Callers rely on methods only some backends have (`object_info`, `choices`, `has_node`,

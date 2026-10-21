@@ -53,6 +53,8 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import datetime as _dt
 import glob
 import hashlib
@@ -256,7 +258,32 @@ _SHA1_CACHE_MAX = 20000
 RACY_S = F.RACY_S
 
 
+# a file's sha1 looked up once while one answer is made (one_look)
+_LOOK: contextvars.ContextVar[dict | None] = contextvars.ContextVar("one_look", default=None)
+
+
+@contextlib.contextmanager
+def one_look():
+    """Within it, a file's sha1 is asked of the disk once: an episode's status
+    checks every take's reference pictures, the same few files hundreds of
+    times."""
+    token = _LOOK.set({})
+    try:
+        yield
+    finally:
+        _LOOK.reset(token)
+
+
 def file_sha1(path: str) -> str | None:
+    memo = _LOOK.get()
+    if memo is None:
+        return _file_sha1(path)
+    if path not in memo:
+        memo[path] = _file_sha1(path)
+    return memo[path]
+
+
+def _file_sha1(path: str) -> str | None:
     try:
         st = os.stat(path)
     except FileNotFoundError:
@@ -298,16 +325,27 @@ class Take:
     pass_: str
     paths: TakePaths
     sidecar: dict | None = None
+    # its folder's listing ({name: (size, mtime_ns)}, takefiles.listing) when it
+    # was listed from one: what is there is read from it, not asked of the disk
+    files: dict | None = field(default=None, repr=False, compare=False)
+    # what its files say, when listed by takefiles ({"sidecar", "up", "post", "audio"})
+    facts: dict | None = field(default=None, repr=False, compare=False)
+
+    def exists(self, path: str) -> bool:
+        """Whether one of the take's files is there (from its listing, if any)."""
+        if self.files is not None and os.path.dirname(path) == self.paths.dir:
+            return os.path.basename(path) in self.files
+        return os.path.isfile(path)
 
     @property
     def status(self) -> str:
         if self.sidecar is not None:
             return self.sidecar.get("status", "queued")
-        return "ok" if os.path.isfile(self.paths.mp4) else "failed"
+        return "ok" if self.exists(self.paths.mp4) else "failed"
 
     @property
     def has_video(self) -> bool:
-        return os.path.isfile(self.paths.mp4)
+        return self.exists(self.paths.mp4)
 
     @property
     def usable(self) -> bool:

@@ -74,6 +74,7 @@ from dataclasses import dataclass, field
 
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
+from seriesmith import takefiles as TF  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith.core import framing  # noqa: E402
 from seriesmith.core import series_config as SC  # noqa: E402
@@ -1004,22 +1005,24 @@ def _take_from(ref: Ref, view: str | None, n: int, data: dict | None) -> RefTake
                                              os.path.join(d, name)), data)
 
 
-def take_numbers(ref: Ref, view: str | None) -> list[int]:
-    """Every take number with a sidecar or a file, ascending."""
-    d, base = takes_dir(ref), take_base(ref, view)
-    nums = set()
-    for p in glob.glob(os.path.join(d, f"{base}_t*")):
-        m = re.fullmatch(rf"{re.escape(base)}_t(\d+)\.[A-Za-z0-9]+", os.path.basename(p))
-        if m:
-            nums.add(int(m.group(1)))
-    return sorted(nums)
+def take_numbers(ref: Ref, view: str | None, files: dict | None = None) -> list[int]:
+    """Every take number with a sidecar or a file, ascending (`files`: the
+    takes folder's listing, takefiles.looked)."""
+    base = take_base(ref, view)
+    files = TF.looked(takes_dir(ref)) if files is None else files
+    pat = re.compile(rf"{re.escape(base)}_t(\d+)\.[A-Za-z0-9]+")
+    return sorted({int(m.group(1)) for n in files if (m := pat.fullmatch(n))})
 
 
 def list_takes(ref: Ref, view: str | None = None) -> list[RefTake]:
+    """Every take of (ref, view), from one listing of its folder; each
+    sidecar kept (takefiles, the show's "refs" store) while it is unchanged."""
+    files = TF.looked(takes_dir(ref))
+    name, kept = TF.store(ref.home, "refs")
     out = []
-    for n in take_numbers(ref, view):
+    for n in take_numbers(ref, view, files):
         t = _take_from(ref, view, n, None)
-        out.append(_take_from(ref, view, n, T.read_sidecar(t.paths.sidecar)))
+        out.append(_take_from(ref, view, n, TF.sidecar(t.paths.sidecar, files, kept, name)))
     return out
 
 

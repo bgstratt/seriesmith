@@ -4,7 +4,7 @@
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import {
-  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, openBrowse,
+  clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
   openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
   saveOwnPreset,
 } from "../actions";
@@ -1314,7 +1314,8 @@ export function RefsTab() {
   const { list: targetsList } = useTargets();
 
   useEffect(() => {
-    if (ep) void loadRefs(ep);
+    // after the shots: the page's first answer, which refs slowed when asked beside it
+    if (ep) void loadRefsAfterShots(ep);
   }, [ep]);
 
   const groups = useMemo(() => groupRefs(refs ?? [], filter, pass), [refs, filter, pass]);

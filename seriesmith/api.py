@@ -3429,7 +3429,9 @@ def get_refs(ctx: Context, query: dict):
     s = _series(ep)
     if not ctx.sweep_later:
         sweep_refs(ctx, s)
-    out = seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
+    # one listing per folder, one resolution of each cut, one look at each file
+    with T.one_look(), E.cut_memo():
+        out = seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
     if ctx.sweep_later:
         # a server closes the takes whose job is gone (every take's record
         # read, ComfyUI asked) after the listing has gone, not before it: what

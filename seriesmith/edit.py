@@ -80,6 +80,7 @@ import sys
 
 from seriesmith import jobs as J
 from seriesmith import peaks as PK
+from seriesmith import takefiles as TF
 from seriesmith import takes as T
 from seriesmith import upscale as U
 from seriesmith.core import paths as P  # noqa: E402
@@ -428,7 +429,7 @@ def episode_status(root: str, pass_: str, folder: str | None = None,
     config are read once for it, not once per shot. `listed` {shot: its takes}
     is a listing just made (sweep_takes'), used rather than made again."""
     from seriesmith import diskcache as DC
-    with J.TG.one_load(), cut_memo():
+    with J.TG.one_load(), cut_memo(), T.one_look():
         out = _episode_status(root, pass_, folder, listed or {})
     DC.save()                          # what it learned is kept for the next run
     return out
@@ -448,11 +449,13 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     actions = script_actions(root)
     resolved = T.resolve_cut(cut, pass_, list(shots))
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
+    name, kept = TF.store(root, pass_)
     for order, e in enumerate(resolved):
         doc, shot = shots.get(e.shot, (doc0, None))
         built_target = J.shotlist_target(doc).id
         target, target_source = J.target_choice(ov, e.shot, built_target, root=root)
-        takes = (listed[e.shot] if e.shot in listed else T.list_takes(root, pass_, e.shot, folder))             if shot else []
+        takes = (listed[e.shot] if e.shot in listed
+                 else TF.list_takes(root, pass_, e.shot, folder, kept, name)) if shot else []
         chosen, chosen_take, chosen_ok = cut_take(root, e, takes)
         o = T.shot_override(ov, e.shot, pass_, target)
         # what the next render reads: the retargeted entry when retargeted
@@ -532,9 +535,9 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "from_draft": (t.sidecar or {}).get("from_draft"),
                 "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache)
                 if shot else [],
-                "thumb": rel(root, t.paths.thumb),
-                "strip": rel(root, t.paths.strip),
-                "mp4": rel(root, t.paths.mp4),
+                "thumb": take_rel(root, t, t.paths.thumb),
+                "strip": take_rel(root, t, t.paths.strip),
+                "mp4": take_rel(root, t, t.paths.mp4),
                 # whose sound the cut plays for it (assemble's --audio auto)
                 "audio": take_audio(root, t),
                 "queued": (t.sidecar or {}).get("queued"),
@@ -579,8 +582,34 @@ def take_audio(root: str, t: T.Take) -> str | None:
     """The file whose sound the cut plays for a take, relative to the
     episode: its mp4 if that has an audio stream, else its _h3.wav, else None
     (peaks.clip_audio, the rule of assemble's --audio auto)."""
+    if t.facts is not None:
+        which = t.facts["audio"]
+        p = t.paths.mp4 if which == "mp4" else t.paths.h3_wav if which == "h3" else None
+        return os.path.relpath(p, root).replace(os.sep, "/") if p else None
     p = PK.clip_audio(t.paths.mp4, t.paths.h3_wav)
     return rel(root, p) if p else None
+
+
+def take_rel(root: str, t: T.Take, path: str) -> str | None:
+    """rel() for one of a take's files, asked of its listing when it has one."""
+    if not t.exists(path):
+        return None
+    if os.path.dirname(path) == t.paths.dir:
+        return _dir_rel(root, t.paths.dir) + "/" + os.path.basename(path)
+    return os.path.relpath(path, root).replace(os.sep, "/")
+
+
+_DIR_REL: dict = {}
+
+
+def _dir_rel(root: str, d: str) -> str:
+    """A shot folder relative to its episode (forward slashes), worked out once."""
+    key = (root, d)
+    if key not in _DIR_REL:
+        if len(_DIR_REL) > 20000:
+            _DIR_REL.clear()
+        _DIR_REL[key] = os.path.relpath(d, root).replace(os.sep, "/")
+    return _DIR_REL[key]
 
 
 def words_cache(recording: str) -> str:
@@ -1383,9 +1412,10 @@ def sweep_takes(root: str, pass_: str, comfy, folder: str | None = None,
     which then needn't list them again unless this changed any).
     """
     listed = {} if listed is None else listed
+    name, kept = TF.store(root, pass_)
 
     def takes_of(sid):
-        listed[sid] = T.list_takes(root, pass_, sid, folder)
+        listed[sid] = TF.list_takes(root, pass_, sid, folder, kept, name)
         return listed[sid]
 
     as_of = T.now()
@@ -1660,9 +1690,14 @@ def upscale_summary(root: str, t: T.Take, cache: dict | None = None) -> dict | N
     """A take's upscale for the editor (None: it has none): status, whether
     it is fresh (made from the take as it is now), its size and file, Keep,
     and how it stands against the series' master recipe (Phase 13e)."""
-    if not os.path.isfile(t.paths.up_sidecar):
+    if t.facts is not None:
+        if t.facts["up"] is None:
+            return None
+        up = t.facts["up"]
+    elif not os.path.isfile(t.paths.up_sidecar):
         return None
-    up = T.upscale_of(t) or {}
+    else:
+        up = T.upscale_of(t) or {}
     cache = {} if cache is None else cache
     if "master_recipe" not in cache:
         cache["master_recipe"] = U.master_recipe(root)
@@ -1683,20 +1718,25 @@ def upscale_summary(root: str, t: T.Take, cache: dict | None = None) -> dict | N
             "encoder": up.get("encoder"), "precision": up.get("precision"),
             "finish": up.get("finish"),
             "comfy_prompt_id": up.get("comfy_prompt_id"),
-            "mp4": rel(root, t.paths.up_mp4) if os.path.isfile(t.paths.up_mp4) else None,
+            "mp4": take_rel(root, t, t.paths.up_mp4),
             "save_notes": up.get("save_notes", "")}
 
 
 def post_summary(root: str, t: T.Take) -> dict | None:
     """A take's post for the editor (None: it has none): status, whether it is
     fresh (made from its upscale as it is now), what it did, its size and file."""
-    if not os.path.isfile(t.paths.post_sidecar):
+    if t.facts is not None:
+        if t.facts["post"] is None:
+            return None
+        po = t.facts["post"]
+    elif not os.path.isfile(t.paths.post_sidecar):
         return None
-    po = T.post_of(t) or {}
+    else:
+        po = T.post_of(t) or {}
     return {"status": po.get("status", "queued"), "fresh": bool(po.get("fresh")),
             "recipe": po.get("recipe"), "width": po.get("width"), "height": po.get("height"),
             "comfy_prompt_id": po.get("comfy_prompt_id"),
-            "mp4": rel(root, t.paths.post_mp4) if os.path.isfile(t.paths.post_mp4) else None,
+            "mp4": take_rel(root, t, t.paths.post_mp4),
             "save_notes": po.get("save_notes", "")}
 
 
