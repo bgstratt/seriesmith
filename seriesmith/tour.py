@@ -50,7 +50,7 @@ TAIL = (" Nothing in the place moves except the camera: no people, no animals, n
 
 
 class TourError(ValueError):
-    pass
+    http_status = 400               # api.handler answers it with this
 
 
 def tours_dir(ref: R.Ref) -> str:

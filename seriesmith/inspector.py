@@ -84,6 +84,7 @@ NEGATIVE_INPUTS = ("negative", "negative_conditioning")
 
 class InspectError(ValueError):
     """The graph can't be read, or isn't one this can propose a target for."""
+    http_status = 400               # api.handler answers it with this
 
 
 # ---------------------------------------------------------------------------

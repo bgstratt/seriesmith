@@ -82,6 +82,7 @@ TRASH = "_trash"            # discarded takes: <renders>/_trash/<shot>/, refs/_t
 
 class StillQueued(Exception):
     """Discard of a take that is still queued (cancel it first)."""
+    http_status = 409               # api.handler answers it with this
 
 
 def safe_id(shot_id: str) -> str:

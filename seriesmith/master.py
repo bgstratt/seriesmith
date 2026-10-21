@@ -87,7 +87,7 @@ def post_mode(post) -> str:
 
 
 class MasterError(ValueError):
-    pass
+    http_status = 409               # api.handler answers it with this
 
 
 class MasterBusy(MasterError):

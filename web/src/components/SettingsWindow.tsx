@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { loadTargets, openFeatures, openSettings, setBackends } from "../actions";
+import { api } from "../host";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
@@ -35,7 +36,7 @@ interface SdkState {
 }
 
 async function call(method: "GET" | "PUT", body?: unknown): Promise<SettingsView> {
-  const r = await fetch("/seriesmith/settings", {
+  const r = await api().fetch("/seriesmith/settings", {
     method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));
@@ -45,7 +46,7 @@ async function call(method: "GET" | "PUT", body?: unknown): Promise<SettingsView
 
 async function refreshBackends() {
   try {
-    const r = await fetch("/seriesmith/backends");
+    const r = await api().fetch("/seriesmith/backends");
     if (r.ok) setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
   } catch {
     /* the server is away */
@@ -83,7 +84,7 @@ function ServerSection() {
     setErr(null);
     setState(restart ? "restarting" : "stopping");
     try {
-      const r = await fetch("/seriesmith/server/stop", {
+      const r = await api().fetch("/seriesmith/server/stop", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restart }),
       });
       if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error || r.statusText);
@@ -100,7 +101,7 @@ function ServerSection() {
     await new Promise((res) => setTimeout(res, 1500));
     for (let i = 0; i < 60; i++) {
       try {
-        const r = await fetch("/seriesmith/config", { cache: "no-store" });
+        const r = await api().fetch("/seriesmith/config", { cache: "no-store" });
         if (r.ok) {
           location.reload();
           return;
@@ -180,7 +181,7 @@ function SettingsBody({ server }: { server: boolean }) {
   async function installSdk() {
     setError(null);
     try {
-      const r = await fetch("/seriesmith/sdk/install", { method: "POST" });
+      const r = await api().fetch("/seriesmith/sdk/install", { method: "POST" });
       const data = (await r.json()) as { sdk?: SdkState; error?: string };
       if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
       if (data.sdk) setSdk(data.sdk);

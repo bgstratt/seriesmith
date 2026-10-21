@@ -119,10 +119,12 @@ def parse_size(target: str, default=(1024, 1024)) -> tuple[int, int]:
 
 class RefError(ValueError):
     """A request that makes no sense for this ref (400)."""
+    http_status = 400               # api.handler answers it with this
 
 
 class UnknownRef(LookupError):
     """No such ref, view or take (404)."""
+    http_status = 404               # api.handler answers it with this
 
 
 class NotUsable(Exception):

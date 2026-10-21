@@ -189,9 +189,14 @@ def handler(fn):
             return fn(*args, **kw)
         except ApiError as e:
             return e.status, dict({"error": str(e)}, **e.data)
-        except FileNotFoundError as e:
-            return 404, {"error": str(e)}
         except Exception as e:                            # the message is for a person
+            # an error that always means the same answer says which (http_status:
+            # refs' RefError 400, UnknownRef 404, master's MasterError 409, ...)
+            status = getattr(type(e), "http_status", None)
+            if status is not None:
+                return status, {"error": str(e)}
+            if isinstance(e, FileNotFoundError):
+                return 404, {"error": str(e)}
             # the modules that carry their own HTTP status (source's Conflict,
             # issues' refusals) answer with it rather than a 500
             if P is not None and isinstance(e, P.H.SourceError):
@@ -804,18 +809,15 @@ def post_refs_video(ctx: Context, body):
     s = _series(ep)
     up = body.get("file")
     src = body.get("source_path")
-    try:
-        if isinstance(up, Upload):
-            if up.size > MAX_UPLOAD:
-                raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB: "
-                                    "pick it from this machine's folders instead")
-            return 200, R.import_video(s, up.path, up.filename or "")
-        if up is not None:
-            raise ApiError(400, "file must be sent as multipart/form-data")
-        if isinstance(src, str) and src.strip():
-            return 200, R.import_video(s, src.strip())
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    if isinstance(up, Upload):
+        if up.size > MAX_UPLOAD:
+            raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB: "
+                                "pick it from this machine's folders instead")
+        return 200, R.import_video(s, up.path, up.filename or "")
+    if up is not None:
+        raise ApiError(400, "file must be sent as multipart/form-data")
+    if isinstance(src, str) and src.strip():
+        return 200, R.import_video(s, src.strip())
     raise ApiError(400, "send source_path (a video on this machine) or a multipart `file`")
 
 
@@ -1801,18 +1803,12 @@ def post_master(ctx: Context, body):
     order = body.get("order") or "cut"
     if order not in M.ORDERS:
         raise ApiError(400, "order must be cut or target")
-    try:
-        plan = M.plan_master(ep, pass_, flags["conform"], flags["post"])
-    except M.MasterError as e:
-        raise ApiError(409, str(e))
+    plan = M.plan_master(ep, pass_, flags["conform"], flags["post"])
     out: dict = {}
     if action == "queue":
-        try:
-            backend = finish_backend(ctx, body)
-            queued, errors = M.queue_master(plan, ctx.comfy, ctx.comfy_url, order,
-                                            runner=ctx.runner, backend=backend)
-        except M.MasterError as e:
-            raise ApiError(409, str(e))
+        backend = finish_backend(ctx, body)
+        queued, errors = M.queue_master(plan, ctx.comfy, ctx.comfy_url, order,
+                                        runner=ctx.runner, backend=backend)
         for r in queued:
             if r.job is not None:                      # this run queued its upscale
                 upscale_event(ctx, ep, r.shot, r.take.take, "queued")
@@ -1862,10 +1858,7 @@ def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dic
     `seriesmith.master` events), and answer with what it made. 409 while another
     run is assembling this episode's master, from this editor or not."""
     key = _master_key(ep)
-    try:
-        M.check_assemble(plan, flags["allow_gaps"])
-    except M.MasterError as e:
-        raise ApiError(409, str(e))
+    M.check_assemble(plan, flags["allow_gaps"])
     with _MASTER_GUARD:
         current = master_job(M, ep)
         if current and current["state"] == "running":
@@ -2119,10 +2112,7 @@ def put_cut(ctx: Context, body):
         if e["shot"] in seen:
             raise ApiError(400, f"{e['shot']} is in the cut twice")
         seen.add(e["shot"])
-    try:
-        cut = E.replace_cut(ep, pass_, clean)
-    except E.CutError as e:
-        raise ApiError(400, str(e))
+    cut = E.replace_cut(ep, pass_, clean)
     episode_event(ctx, ep)
     return 200, {"cut": cut}
 
@@ -2142,10 +2132,7 @@ def post_cut_reset(ctx: Context, body):
     pass_ = check_pass(body.get("pass"))
     what = _cut_what(body.get("what"))
     J.load_shotlist(ep, pass_)                           # 404: not built
-    try:
-        cut = E.reset_cut(ep, pass_, what)
-    except E.CutError as e:
-        raise ApiError(400, str(e))
+    cut = E.reset_cut(ep, pass_, what)
     episode_event(ctx, ep)
     return 200, {"cut": cut}
 
@@ -2165,10 +2152,7 @@ def post_cut_copy(ctx: Context, body):
         raise ApiError(400, "from and to must be different passes")
     J.load_shotlist(ep, src)                             # 404: not built
     J.load_shotlist(ep, dst)
-    try:
-        cut = E.copy_cut(ep, src, dst, what)
-    except E.CutError as e:
-        raise ApiError(400, str(e))
+    cut = E.copy_cut(ep, src, dst, what)
     episode_event(ctx, ep)
     return 200, {"cut": cut}
 
@@ -3101,11 +3085,8 @@ def get_presets(ctx: Context, query: dict):
     from seriesmith import preset_pictures as PP
     from seriesmith import presets as PR
     kinds = [query["kind"]] if query.get("kind") else list(PR.KINDS)
-    try:
-        PP.finish()                     # a render of one of your presets' pictures, done
-        return 200, {k: PR.listing(k) for k in kinds}
-    except PR.PresetError as e:
-        raise ApiError(400, str(e))
+    PP.finish()                     # a render of one of your presets' pictures, done
+    return 200, {k: PR.listing(k) for k in kinds}
 
 
 PRESET_PICTURE = 480                    # an own preset's tile, its long side
@@ -3135,18 +3116,12 @@ def post_preset_own(ctx: Context, body):
         ref = _ref(s, pic.get("ref"))
         view = _view(ref, pic.get("view"))
         take = check_take(pic.get("take"), "picture.take", nullable=True)
-        try:
-            path = R._picture_of(s, ref, view, take, "the preset's picture")["path"]
-        except R.RefError as e:
-            raise ApiError(400, str(e))
+        path = R._picture_of(s, ref, view, take, "the preset's picture")["path"]
         try:
             data = PP.shrink(path, PRESET_PICTURE)
         except PP.PictureError as e:
             raise ApiError(400, str(e).replace("the picture", "the preset's picture", 1))
-    try:
-        return 200, PR.save_own(kind, label, body, pid, data)
-    except PR.PresetError as e:
-        raise ApiError(400, str(e))
+    return 200, PR.save_own(kind, label, body, pid, data)
 
 
 @handler
@@ -3232,10 +3207,7 @@ def post_preset_own_delete(ctx: Context, body):
     """Forget one of your own presets: `{kind, id}`."""
     from seriesmith import presets as PR
     body = body_dict(body)
-    try:
-        PR.delete_own(body.get("kind"), body.get("id"))
-    except PR.PresetError as e:
-        raise ApiError(400, str(e))
+    PR.delete_own(body.get("kind"), body.get("id"))
     return 200, {"ok": True}
 
 
@@ -3310,10 +3282,7 @@ def _view(ref, v, required: bool = False, sheet: bool = False):
     it, the ones that generate or word a view do not."""
     if v is not None and not isinstance(v, str):
         raise ApiError(400, "view must be a view name or null")
-    try:
-        return R.check_view(ref, v, required=required, allow_sheet=sheet)
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    return R.check_view(ref, v, required=required, allow_sheet=sheet)
 
 
 def ref_event(ctx: Context, ep: str, ref_id: str, view, take, status: str) -> None:
@@ -3379,10 +3348,7 @@ def get_refs_owner_takes(ctx: Context, query: dict):
     "takes"}; an empty list when this episode is the owner or there is none."""
     ep = check_ep(ctx, query.get("ep"))
     s = _series(ep)
-    try:
-        ref = R.find_ref(s, query.get("ref"))
-    except R.UnknownRef as e:
-        raise ApiError(404, str(e))
+    ref = R.find_ref(s, query.get("ref"))
     live = ref.file
     sha = T.file_sha1(live) if live and os.path.isfile(live) else None
     owner = R.shared_context(ep)["owner"].get(sha) if sha else None
@@ -3413,11 +3379,8 @@ def put_refs_defaults(ctx: Context, body):
     if not fields:
         raise ApiError(400, "give target, keyframe_target and/or voice_target (a target id "
                             "of that kind, or null to clear it)")
-    try:
-        R.set_image_defaults(ep, fields)
-        d = R.image_defaults(s, image_ready(ctx))
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    R.set_image_defaults(ep, fields)
+    d = R.image_defaults(s, image_ready(ctx))
     episode_event(ctx, ep)
     return 200, {"defaults": d}
 
@@ -3432,10 +3395,7 @@ def delete_refs_pick(ctx: Context, query: dict):
     s = _series(ep)
     ref = _ref(s, query.get("ref"))
     view = _view(ref, query.get("view") or None, sheet=True)
-    try:
-        res = R.clear_pick(s, ref, view)
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    res = R.clear_pick(s, ref, view)
     ref_event(ctx, ep, ref.id, view, res.was, "cleared")
     episode_event(ctx, ep)
     return 200, seeds_out(R.ref_json(s, ref, R.used_by(s, [ref]), ready=image_ready(ctx)))
@@ -3485,16 +3445,10 @@ def post_refs_generate(ctx: Context, body):
         raise ApiError(400, "cfg must be a number or null")
     size = body.get("size")
     if size is not None:
-        try:
-            R.parse_override_size(size)
-        except R.RefError as e:
-            raise ApiError(400, str(e))
+        R.parse_override_size(size)
     params = body.get("params")
     if params is not None:
-        try:
-            R.check_override_value("params", params)
-        except R.RefError as e:
-            raise ApiError(400, str(e))
+        R.check_override_value("params", params)
     pano = body.get("pano")
     if pano is not None and not isinstance(pano, dict):
         raise ApiError(400, 'pano must be {"with": [location ids]} or null')
@@ -3555,11 +3509,8 @@ def post_refs_tour(ctx: Context, body):
     backend = finish_backend(ctx, body)
     # each tour a job on seriesmith's queue: its plate uploaded, its holds
     # found when the video comes back
-    try:
-        ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
-               TR.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
-    except (TR.TourError, R.RefError) as e:
-        raise ApiError(400, str(e))
+    ids = [ctx.runner.enqueue_tour(s, ref, side, g, backend) for side, g in
+           TR.plan_tours(s, ref, body.get("move") or "", None, seconds, count, seed)]
     episode_event(ctx, ep)
     return 200, {"queued": [{"tour": n, "comfy_prompt_id": i} for n, i in ids]}
 
@@ -3574,10 +3525,7 @@ def post_refs_tour_frame(ctx: Context, body):
     s = _series(ep)
     ref = _ref(s, body.get("ref"))
     tour = check_take(body.get("tour"), "tour")
-    try:
-        t = TR.grab_frame(s, ref, tour, body.get("seconds"))
-    except (TR.TourError, R.RefError) as e:
-        raise ApiError(400, str(e))
+    t = TR.grab_frame(s, ref, tour, body.get("seconds"))
     ref_event(ctx, ep, ref.id, R.TOUR_VIEW, t.take, "ok")
     episode_event(ctx, ep)
     return 200, R.take_json(ep, ref, t)
@@ -3644,21 +3592,15 @@ def post_refs_relight(ctx: Context, body):
     if repoint and sequence is None:
         raise ApiError(400, "repoint is for a sequence: its shots are what get re-pointed")
     s = _series(ep)
-    try:
-        if sequence is not None:
-            locations = RL.sequence_locations(ep, sequence)
-        planned = RL.plan(s, locations, relight, suffix or None)
-    except RL.RelightError as e:
-        raise ApiError(400, str(e))
+    if sequence is not None:
+        locations = RL.sequence_locations(ep, sequence)
+    planned = RL.plan(s, locations, relight, suffix or None)
     out = {"locations": [{"source": p["source"], "id": p["id"], "exists": p["exists"],
                           "entry": p["entry"]} for p in planned],
            "queued": [], "errors": [], "repointed": []}
     if dry_run:
         return 200, out
-    try:
-        RL.write_locations(s, planned)
-    except RL.RelightError as e:
-        raise ApiError(400, str(e))
+    RL.write_locations(s, planned)
     s = _series(ep)
     try:
         base, _ = R.resolve_workflow(ctx.comfy_url)
@@ -3684,10 +3626,7 @@ def post_refs_relight(ctx: Context, body):
         out["queued"] += result["queued"]
         out["errors"] += result["errors"]
     if repoint:
-        try:
-            out["repointed"] = RL.repoint(ep, sequence, {p["from"]: p["id"] for p in planned})
-        except RL.RelightError as e:
-            raise ApiError(400, str(e))
+        out["repointed"] = RL.repoint(ep, sequence, {p["from"]: p["id"] for p in planned})
         if out["repointed"]:
             E.build_episode(ep)
     episode_event(ctx, ep)
@@ -3772,10 +3711,7 @@ def post_refs_import(ctx: Context, body):
         if up.size > MAX_UPLOAD:
             raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB")
         src, name = up.path, up.filename or ""
-        try:
-            R.check_import_type(ref, name)
-        except R.RefError as e:
-            raise ApiError(400, str(e))
+        R.check_import_type(ref, name)
     elif up is not None:
         raise ApiError(400, "file must be sent as multipart/form-data")
     else:
@@ -3784,11 +3720,8 @@ def post_refs_import(ctx: Context, body):
             raise ApiError(400, "source_path is required: the file's absolute path on this "
                                 "machine (or upload it as multipart `file`)")
         src = src.strip()
-    try:
-        t = R.import_take(s, ref, view, src, note=_opt_str(body, "note") or "",
-                          original_name=name)
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    t = R.import_take(s, ref, view, src, note=_opt_str(body, "note") or "",
+                      original_name=name)
     ref_event(ctx, ep, ref.id, view, t.take, t.status)
     if pick:
         try:
@@ -4068,11 +4001,8 @@ def put_refs_override(ctx: Context, body):
             v = fields[k]
             clean[k] = None if v in ("", {}) else v
     ov = R.load_overrides(ref.home)
-    try:
-        R.set_ref_override(ov, ref, view, clean,
-                           R.prompt_hash(R.built_prompt(s, ref, view)))
-    except R.RefError as e:
-        raise ApiError(400, str(e))
+    R.set_ref_override(ov, ref, view, clean,
+                       R.prompt_hash(R.built_prompt(s, ref, view)))
     R.save_overrides(ref.home, ov)
     episode_event(ctx, ep)
     return 200, seeds_out({"override": _ref_override_json(s, ref, view)})
@@ -4358,6 +4288,13 @@ def get_issues_export(ctx: Context, query: dict):
 
 # (method, path, handler, what it takes: "query", "body" (JSON) or "form" (JSON, or
 # multipart/form-data whose file field arrives as an Upload))
+# how a route answers, read by server/views.make_view: these three stream a file
+# (`reply`), and thumbnails (CPU: shrinking pictures) have threads of their own
+# (`pool`), so a Refs tab asking for hundreds never holds up the other requests
+for _fn in (get_file, get_thumb, get_preset_image):
+    _fn.reply = "file"
+get_thumb.pool = "thumb"
+
 ROUTES = [
     ("GET", "/seriesmith/config", get_config, "query"),
     ("PUT", "/seriesmith/config", put_config, "body"),

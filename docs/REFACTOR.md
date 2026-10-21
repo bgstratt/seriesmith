@@ -528,7 +528,7 @@ hold). Reference-sheet staging and panel picking: not moved (render-time, per mo
   sound), Wan 2.2 5B on the prose path (sh050, 18 s, 73 frames, mute as it should be):
   each take's mp4, record, thumbnail and strip saved. Suite 1563 passed.
 
-#### 3.2 Server: one route list, one error standard ☐
+#### 3.2 Server: one route list, one error standard ✅ (decided 2026-10-20)
 Three route tables registered differently by the two hosts (`/api/seriesmith/jobs` is
 404 standalone, fine under ComfyUI; ComfyUI's clash check sees only one table; a queue
 failure drops the features routes too); 77 hand-written `except X: raise
@@ -540,6 +540,28 @@ startup sequence (proxy, detect, recover) for both hosts.
 - **Live check (you):** every window of the editor on the standalone server, then the
   same through ComfyUI's page (`/seriesmith` in ComfyUI): Jobs, Settings, Features,
   Refs, Episode, Upscale, Post, Master. Error messages read as before.
+- **Done:** `server/routes.py`: the API's, the queue's (Jobs, backends, Settings, SDK)
+  and Features' routes in one list, which both hosts register once each at its path and
+  under `/api` (17 standalone `/api` paths that were 404 now answer; ComfyUI's clash
+  check sees all of them). The queue, Settings and Features routes are `@handler`
+  functions served by `make_view` like the API's (JSON, gzip, executor, the error body in
+  one place); `get_file`/`get_thumb`/`get_preset_image` say `reply = "file"` and the thumb
+  pool on themselves. Thirteen domain errors carry `http_status` (RefError 400,
+  UnknownRef 404, MasterError 409, ...) and the handler answers by it: 25 pass-through
+  `except X: raise ApiError(...)` blocks gone from `api.py`.
+- **Changed on purpose** (approved): a Jobs action missing its id answers 400 "id is
+  required" (404 before), an unknown job 404 "no such job: 'x'", an unknown action names
+  the valid ones, a bad body reads "the request body must be JSON" everywhere.
+- **Found and fixed:** inside ComfyUI a queue that failed to start took the Features
+  routes down with it (they now register on their own); Jobs, Settings and Features
+  called a bare `fetch("/seriesmith/...")`, which misses `api.fetchApi`'s prefix and a
+  ComfyUI served under a sub-path: they go through the host now (`Api.fetch`).
+- Not done: one startup sequence (proxy, detect, recover) for both hosts; each host's
+  start differs where it must (ComfyUI owns its loop and port) and the rest is already
+  shared calls.
+- Evidence: a probe of 84 requests (every read route and malformed requests, bare and
+  `/api`) on main and after each commit: only the changes above, the last two commits
+  84 of 84 identical.
 
 #### 3.3 Long work goes on the queue ☐
 Master assembly keeps its own registry and events; `POST /assemble`, `/align`, `/track`

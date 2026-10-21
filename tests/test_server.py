@@ -113,6 +113,22 @@ class StandaloneTest(unittest.TestCase):
             self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
                                              "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
 
+    def test_every_route_answers_under_api_too(self):
+        """As inside ComfyUI: the queue's, Settings' and Features' routes were
+        left out (/api/seriesmith/jobs was a 404 here, a 200 there)."""
+        from seriesmith.server import features_views as FV
+        from seriesmith.server import queue_views as QV
+
+        async def body(client, app):
+            have = {(r.method, r.resource.canonical) for r in app.router.routes()}
+            jobs = await client.get("/api/seriesmith/jobs")
+            return have, jobs.status
+        have, jobs = self.run_app(body)
+        self.assertEqual(jobs, 200)
+        for method, path in QV.PATHS + FV.PATHS + [(m, p) for m, p, _f, _t in A.ROUTES]:
+            self.assertIn((method, path), have)
+            self.assertIn((method, "/api" + path), have)
+
     def test_a_slow_cancel_does_not_hold_up_the_editor(self):
         """Cancelling a running job asks its backend to stop it (a network call);
         that runs off the event loop, so other requests answer meanwhile."""
@@ -234,7 +250,10 @@ class ComfyHostTest(unittest.TestCase):
         self.assertTrue(comfyui.register(server, wait=0))
         # the API, the queue's own routes (Jobs, Render on, Settings, the SDK's
         # Install, info) and the Features window's four
-        self.assertEqual(len(added), len(A.ROUTES) + 11)
+        from seriesmith.server import features_views as FV
+        from seriesmith.server import queue_views as QV
+        self.assertEqual(len(added), len(A.ROUTES) + len(QV.PATHS) + len(FV.PATHS))
+        self.assertEqual(sorted(added[len(A.ROUTES):]), sorted(QV.PATHS + FV.PATHS))
         self.assertIn(("GET", "/seriesmith/jobs"), added)
         self.assertIn(("PUT", "/seriesmith/settings"), added)
         self.assertIn(("POST", "/seriesmith/sdk/install"), added)
@@ -246,6 +265,25 @@ class ComfyHostTest(unittest.TestCase):
 
     def test_it_stays_off_when_another_pack_serves_the_api(self):
         server, added = self.server(["/seriesmith/episodes"])
+        with self.assertLogs("seriesmith", "WARNING"):
+            self.assertFalse(comfyui.register(server, wait=0))
+        self.assertEqual(added, [])
+
+    def test_features_stay_when_the_queue_cant_start(self):
+        """The Features window doesn't need the queue: it was dropped with it."""
+        from unittest import mock
+        server, added = self.server()
+        with mock.patch.object(standalone, "start_queue", side_effect=RuntimeError("no")), \
+                self.assertLogs("seriesmith", "WARNING"):
+            self.assertTrue(comfyui.register(server, wait=0))
+        paths = {p for _, p in added}
+        self.assertIn("/seriesmith/features", paths)
+        self.assertIn("/seriesmith/episodes", paths)
+        self.assertNotIn("/seriesmith/jobs", paths)
+
+    def test_a_clash_on_any_route_keeps_it_off(self):
+        """Not only the API's: a queue or Features path another pack has too."""
+        server, added = self.server(["/seriesmith/features"])
         with self.assertLogs("seriesmith", "WARNING"):
             self.assertFalse(comfyui.register(server, wait=0))
         self.assertEqual(added, [])
