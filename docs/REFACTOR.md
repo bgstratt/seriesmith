@@ -688,14 +688,51 @@ load whoever made it.
   kept; a caller changing its copy leaves the kept one; an old store version dropped; the
   status the same with the cache, without it, and after a hand edit.
 
-#### 3.5 The backend interface ☐
-Callers rely on methods only some backends have (`object_info`, `choices`, `has_node`,
-`without_missing`), so `render.py`/`runner.py`/`queue.py` branch on `kind == "cloud"`,
-`!= "router"`, `lane == "local"`. **Change:** the base class grows `where`,
-`object_info`, `choices`, `shares_disk`, `serial`, `prepare(graph, job, take)`; the cloud
-lowering moves into the Comfy backend; runner's four enqueue methods share one skeleton.
-- **Live check (you):** local renders of a ref, a shot, an upscale and a post; the Cloud
-  and Router paths are covered by their fake-backed tests only (paid limit stays 0).
+#### 3.5 The backend interface ✅ (decided 2026-10-20)
+**What's there.** The base `Backend` promises ping, submit, call and attach; everything
+else callers find out by its kind: ~11 checks of `kind == "local"` / `"cloud"` /
+`run.backend != "router"` across `render.py`, `runner.py` and `edit.py`, and the queue
+makes a lane serial by its name. How Comfy Cloud differs is split: `render.py` lowers a
+graph to Cloud's nodes (`cloud.lower` with Cloud's object_info) and lists Cloud's model
+files; `backends/comfy.py` has the rest. The runner's four enqueue methods (render, ref,
+finish, tour) repeat the same steps: the backend looked up ("isn't set up"), disk room,
+a paid run charged before anything is reserved, the progress adapter, Cancel armed and
+"on X: run id" logged when the run starts, the ending mapped to the queue's status.
+
+**Change** (no speed change: dispatch is microseconds next to a render):
+- **Named questions on the backend instead of its kind:** `shares_disk` (this machine's
+  ComfyUI: reads the episode folder, probed for its nodes and files), `serial` (one job
+  at a time; the queue asks it for a backend's lane), `own_models` (its model files are
+  its own: Comfy Cloud), `prepare(graph, job, take)` (the graph as it runs there, and
+  what collecting it needs), and a run's `reports_position` (Router). Each gives today's
+  answer for each backend.
+- **Cloud's lowering moves into the Cloud backend** (`ComfyBackend.prepare`); `render.py`
+  asks the backend.
+- **The enqueue methods share plain helpers** for the repeated steps; each keeps its own
+  staging and collecting (a take, a ref picture, an upscale/post, a tour differ there).
+- **Evidence:** every Router golden and Cloud test unchanged; the requests and the lowered
+  Cloud graph captured offline on main and the branch, identical. Live, local (free): a
+  render, a ref, an upscale, a post, a tour. Live, paid, the limit raised to exactly 3 and
+  back to 0: one Comfy Cloud render (cheapest target, shortest shot), one Router image,
+  one Seedance video (its asset registration). A deployment only if one is set up.
+- **Live check (you):** a render on each backend you use; Jobs shows where each ran.
+- **Done:** `Backend.shares_disk`, `serial`, `own_models`, `prepare()`, `Run.reports_position`
+  (RouterRun); `ComfyBackend.prepare` lowers for Comfy Cloud; `render.py`, `runner.py`
+  and `edit.py` ask them (no `kind ==` left outside the backends); the server's queue asks
+  a backend's lane whether it is serial. Runner: `backend_for`, `reserve` (disk room, then
+  the paid charge before anything is reserved), `started` (Cancel armed, where it runs and
+  the backend's notes logged), `progress_to`, `ending`, used by render, ref, finish, tour
+  and the restart re-attach. Line count about flat (the helpers are documented); each rule
+  is in one place instead of four or five.
+- **Evidence:** `render.prepare` on the test fixture's 15 shots for Cloud, local and a
+  deployment (graphs, Cloud's notes and the uploaded files' bytes; 45 cases): identical to
+  main, before and after the runner change. Suite 1579 passed. Live, local (free): render
+  33 s, ref 23 s, upscale 92 s, post 222 s, tour 31 s (1 hold), each on `local` through the
+  new code. Live, paid (the limit raised to allow exactly one each, back to 0 after):
+  Seedream 5.0 image on Router (a 2544x1456 ballroom ref, 43 s); Seedance 2.5 on Router
+  (sh010 with Cindy's and Ella's pictures through the Seedance library: 97 frames with
+  sound, 126 s); Wan 2.2 5B on Comfy Cloud (sh020 lowered to Cloud's nodes: 41 frames,
+  mute as it should be, 47 s). Three paid runs in all.
 
 #### 3.6 One command registry ☐
 `cli.py` runs some stages in-process, `commands.py` re-launches others as subprocesses,
