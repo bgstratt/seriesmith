@@ -147,7 +147,7 @@ class DiscardTakeTest(ApiTest):
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "t01", "--proxy"]), 0)
             self.assertEqual(E.COMMANDS["discard"](self.ep, ["sh010", "1", "--proxy"]), 1)
         self.assertIn("moved", out.getvalue())
-        self.assertIn("discard", __import__("seriesmith.commands", fromlist=["EDIT"]).EDIT)
+        self.assertIn("discard", __import__("seriesmith.commands", fromlist=["COMMANDS"]).COMMANDS)
 
 
 # ---------------------------------------------------------------------------

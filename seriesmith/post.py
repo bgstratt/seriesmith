@@ -510,7 +510,7 @@ def check_recipe(recipe) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
+    ap = argparse.ArgumentParser(prog="seriesmith post", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("episode", help="episode folder")
     ap.add_argument("--proxy", action="store_true", help="the proxy pass's takes and cut")

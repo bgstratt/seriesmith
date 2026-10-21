@@ -734,12 +734,62 @@ a paid run charged before anything is reserved, the progress adapter, Cancel arm
   sound, 126 s); Wan 2.2 5B on Comfy Cloud (sh020 lowered to Cloud's nodes: 41 frames,
   mute as it should be, 47 s). Three paid runs in all.
 
-#### 3.6 One command registry ☐
-`cli.py` runs some stages in-process, `commands.py` re-launches others as subprocesses,
-with three entry signatures and two usage-error conventions. **Change:** one
-`COMMANDS` table; stages in-process unless isolation is needed; usage errors exit 2.
-- **Live check:** every command's `--help`; `seriesmith all` on Ballroom-refactor with
-  local renders.
+#### 3.6 One command registry ✅ (decided 2026-10-20)
+**What's there.** Two dispatchers: `cli.main` handles build, check, backends, render,
+serve and stop, and hands the rest to `commands.main` (h3pipe's `h3.py`, ported) by
+swapping `sys.argv`. Commands are reached three ways: a module's `main(argv)` (build,
+render, upscale, post, master, publish), a `cmd_x(ep, rest)` (issues, supply, promote,
+targets and edit's takes / pick / override / keyframe / discard / cut), and `cmd_new(argv)`.
+Usage errors exit 1 with a `!! usage:` line (`sys.exit("...")`); an unknown command and
+argparse's own errors exit 2. The command list is written out twice (cli's docstring,
+commands' docstring), and `seriesmith build <folder>` / `check <folder>` / `all` / `refs`
+/ `align` / `assemble` start `python -m seriesmith.<stage>` as a subprocess each: `all`
+on one episode is 7 Python starts (build twice per pass, refs, render, assemble).
+- **Found:** the command line's queue (`render.py`, `runner.cli_runner`) and the API's
+  fallback runner are `Queue()`s with no paid limit: `seriesmith render` / `all` /
+  `upscale` / `master` ignore Settings' paid limit; only the server applies it.
+
+**Change:**
+- **One `COMMANDS` table** in `commands.py`: each entry its name, one-line help, usage,
+  whether it takes an episode first, and `run(argv) -> int`; the `cmd_x(ep, rest)`
+  functions are reached through it (the episode checked and made absolute once).
+  `cli.main` dispatches everything through it; `seriesmith --help` and `seriesmith <cmd>
+  --help` come from it, so the list exists once.
+- **Usage errors exit 2** (argparse's convention), the usage line on stderr.
+- **Stages in-process** (build, check, refs, render, assemble, and so `all`): one Python
+  for the whole run. Align keeps its subprocess (it can need another Python, the one with
+  Whisper). `--each` runs every episode even when one fails, as now.
+- **Every queue gets Settings' paid limit**, the command line's included (a paid run past
+  it is refused with the same message as the editor's).
+
+**What you'll see:** `seriesmith --help` lists every command once; `seriesmith all` starts
+faster (no Python per stage); a usage mistake exits 2; a CLI render on a paid backend
+stops at your limit as the editor does.
+- **Evidence:** every command's `--help` and a usage error, before and after; `seriesmith
+  build/check` on real episodes writes the same shotlists and reports as main; `seriesmith
+  all ep01 --proxy --only sh010,sh020 --backend local` on Ballroom-refactor (local only: sh040
+  is Seedance) timed before and after; a CLI render to `router` with the limit at 0 refused
+  before anything is reserved (nothing paid).
+- **Live check (you):** a few commands you use; `seriesmith all` on the scratch show.
+- **Done:** `runner.queue_for(settings)` makes every queue (the server's, `seriesmith render`,
+  `cli_runner`, the API's fallback) with Settings' paid limit. `commands.COMMANDS` (a
+  `Command`: name, usage, help, run, own_help); `cli.py` is its entry point; stages through
+  `call()` in this process, a SystemExit their exit code; `UsageError` -> exit 2 with the
+  usage line. kreagen, assemble and align take `argv`; six parsers say "seriesmith <cmd>".
+  CLAUDE.md and COMMANDS.md updated.
+- **Changed on purpose:** `<command> --help` shows usage for every command (most were a
+  usage error, exit 1; `new --help` "unknown flag"); a bare `takes`, `upscale`, `refs`, ...
+  exits 2 (was 1); the step lines read `> build ...` (was `$ python -m seriesmith.build ...`).
+- **Evidence:** before/after capture of every command's `--help` and bare call, the global
+  forms and build/check on three scratch episodes (Ballroom ep01, DeanStories ep05,
+  Porchlights ep01): the 18 files written identical, the build/check reports identical.
+  `seriesmith all <ep> --proxy --list` on Ballroom-refactor: 1.9-2.5 s -> 0.6 s, the same
+  output apart from the step lines. Live: `seriesmith render` sh040 to Router with the limit
+  at 0 refused with the editor's message, nothing reserved (main would have sent it);
+  `seriesmith all --only sh010 --backend local` rendered in-process (assemble then refuses
+  the incomplete proxy cut, as main does). `tests/test_commands.py` (the table, the docs'
+  list, --help for every command, exit 2, in-process stages) and a test that the command
+  line keeps the paid limit (fails on main). Suite 1586 passed.
 
 ---
 

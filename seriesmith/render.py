@@ -306,14 +306,13 @@ def main(argv: list[str] | None = None) -> int:
     # one at a time and waited for: its inputs are staged as it starts, so a
     # `continuous: latent` shot holds the take rendered just before it
     from seriesmith import runner as RN
-    from seriesmith.queue import Queue
     shown = {"t0": time.time()}
 
     def heard(event, data):
         if event == "progress":
             print(f"\r     {data.get('value', 0):4d}%  [{fmt(time.time() - shown['t0'])}]   ",
                   end="", flush=True)
-    runner = RN.Runner(Queue(heard), backends)
+    runner = RN.Runner(RN.queue_for(settings, heard), backends)
     current = None
     try:
         for root, jobs in plans:

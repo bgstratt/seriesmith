@@ -285,6 +285,28 @@ class RenderOnCloudTest(Episode):
         take = T.list_takes(self.root, "final", self.shot_id)[-1]
         self.assertEqual((take.sidecar["status"], take.sidecar["backend"]), ("ok", "cloud"))
 
+    def test_the_command_line_keeps_the_paid_limit(self):
+        """`seriesmith render` on a paid backend with Settings' paid limit at 0:
+        refused before anything is reserved, nothing sent (the editor's queue
+        always kept the limit; the command line's didn't)."""
+        from seriesmith import runner as RN
+        from seriesmith.settings import Settings
+        _, _, g = self.portable()
+        fb = FakeCloud(info=cloud_info(g))
+        before = T.list_takes(self.root, "final", self.shot_id)
+        with mock.patch.object(render, "available", return_value={fb.name: fb}), \
+                mock.patch.object(render, "load_settings", return_value=Settings(paid_limit=0)), \
+                mock.patch("builtins.print") as said:
+            code = render.main([self.root, "--only", self.shot_id, "--redo", "--backend", "cloud"])
+        self.assertEqual(code, 1)
+        self.assertEqual(fb.submitted, [])
+        self.assertEqual(T.list_takes(self.root, "final", self.shot_id), before)
+        self.assertIn("paid run", " ".join(str(c) for c in said.call_args_list))
+        # and the command line's runner (refs, upscale, post, master, tours)
+        self.assertEqual(RN.queue_for(Settings(paid_limit=2)).paid_limit, 2)
+        with mock.patch("seriesmith.backends.available", return_value={fb.name: fb}):
+            self.assertEqual(RN.cli_runner("cloud", Settings(paid_limit=0)).queue.paid_limit, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

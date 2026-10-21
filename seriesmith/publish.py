@@ -571,7 +571,7 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Intro + cut + outro, titled, into <episode>/publish/.")
+    ap = argparse.ArgumentParser(prog="seriesmith publish", description="Intro + cut + outro, titled, into <episode>/publish/.")
     ap.add_argument("episode")
     ap.add_argument("--input", default=None,
                     help="the cut to publish (default: the review cut)")

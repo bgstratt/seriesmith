@@ -3,7 +3,9 @@
 Every stage as a command, the files each one reads and writes, and how to work an
 episode from a terminal. The editor ([EDITOR.md](EDITOR.md)) does the same through its own
 server; both write the same files. `seriesmith` with no arguments lists every command, and
-each has `--help`.
+`seriesmith <command> --help` gives each one's usage and flags. A command asked for wrongly
+(no episode, an unknown flag) exits 2 with its usage line, as argparse does; one that ran and
+failed exits 1.
 
 ## Every command
 

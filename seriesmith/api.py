@@ -109,9 +109,11 @@ class Context:
         out through `emit`."""
         if self._runner is None:
             from seriesmith.backends import available
-            from seriesmith.queue import Queue
-            from seriesmith.runner import Runner
-            self._runner = Runner(Queue(self.emit), available(), emit=self.emit)
+            from seriesmith.runner import Runner, queue_for
+            from seriesmith.settings import load_settings
+            settings = load_settings()
+            self._runner = Runner(queue_for(settings, self.emit), available(settings),
+                                  emit=self.emit)
         return self._runner
 
     @runner.setter
