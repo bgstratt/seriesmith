@@ -852,6 +852,15 @@ def wait(queue: Queue, ids, timeout: float | None = None, poll: float = 0.25) ->
         time.sleep(poll)
 
 
+def queue_for(settings, emit=None, **kw) -> Queue:
+    """A queue that keeps this machine's paid limit (Settings: `paid_limit`, None
+    no cap): the editor's server and the command line alike, so a paid run past
+    it is refused before anything is reserved wherever it is asked for."""
+    q = Queue(emit, **kw)
+    q.paid_limit = settings.paid_limit
+    return q
+
+
 def cli_runner(backend: str | None = None, settings=None, log=print) -> Runner:
     """A queue and runner of the command line's own, on the backends the
     settings set up. When the work will run on this machine's ComfyUI
@@ -871,4 +880,4 @@ def cli_runner(backend: str | None = None, settings=None, log=print) -> Runner:
         note = ensure_proxy(s)
         if log and "not" in note:
             log(f"  ! {note}")
-    return Runner(Queue(), backends)
+    return Runner(queue_for(s), backends)

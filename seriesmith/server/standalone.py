@@ -177,15 +177,13 @@ def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env
     recover_all() picks up what the journal had when the host last stopped
     (recover), for the host to call once the backends can answer."""
     from seriesmith.backends import available
-    from seriesmith.queue import Queue
-    from seriesmith.runner import LOCAL_LANE, Runner
+    from seriesmith.runner import LOCAL_LANE, Runner, queue_for
     backends = backends if backends is not None else available(settings)
     # a backend's lane runs one job at a time when the backend says so (your
     # own ComfyUI); the cpu lane (a master, align) always does
-    queue = Queue(emit, journal=os.path.join(user_dir, journal),
-                  serial=lambda lane: lane == LOCAL_LANE
-                  or (lane in backends and backends[lane].serial))
-    queue.paid_limit = settings.paid_limit
+    queue = queue_for(settings, emit, journal=os.path.join(user_dir, journal),
+                      serial=lambda lane: lane == LOCAL_LANE
+                      or (lane in backends and backends[lane].serial))
     runner = Runner(queue, backends, emit)
     url = comfy_url or settings.comfyui_url
 
