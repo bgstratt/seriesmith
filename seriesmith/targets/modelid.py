@@ -60,6 +60,10 @@ FAMILIES: dict[str, dict] = {
                           "names": ["*ref2v*", "*ref_2v*"]},
     "minimax-h3-fl2va": {"label": "MiniMax H3 FL2VA", "parent": "minimax-h3",
                          "names": ["*fl2v*", "*fl_2v*"]},
+    # FastVideo's 8-step distilled reference model (targets/video/fasth3_omni):
+    # its attention carries VSA's coarse-branch gates, which the header shows
+    "fasth3-omni": {"label": "FastH3 Omni (FastVideo's 8-step H3)", "parent": "minimax-h3",
+                    "names": ["*fasth3*", "*omniref*"]},
     "minimax-h3-video-vae": {"label": "MiniMax H3 video VAE"},
     "minimax-h3-audio-vae": {"label": "MiniMax H3 audio VAE"},
     "qwen3vl-32b": {"label": "Qwen3-VL 32B (MiniMax H3's text encoder)"},
@@ -106,7 +110,13 @@ FAMILIES: dict[str, dict] = {
     "umt5-xxl": {"label": "UMT5-XXL (Wan's text encoder)"},
     # Krea 2
     "krea2": {"label": "Krea 2"},
-    "qwen3vl-4b": {"label": "Qwen3-VL 4B (Krea 2's and FLUX.3 Klein's text encoder)"},
+    "qwen3vl-4b": {"label": "Qwen3-VL 4B (Krea 2's, FLUX.3 Klein's and Fibo 2.0's text encoder)"},
+    # Bria's Fibo 2.0 (targets/image/fibo2_dev, fibo2_edit_turbo): the two share
+    # every tensor, so the name tells them apart
+    "fibo2": {"label": "Fibo 2.0"},
+    "fibo2-dev": {"label": "Fibo 2.0 Dev", "parent": "fibo2", "names": ["*fibo*2*dev*"]},
+    "fibo2-edit-turbo": {"label": "Fibo 2.0 Edit Turbo", "parent": "fibo2",
+                         "names": ["*fibo*2*edit*turbo*", "*fibo*2*turbo*"]},
     # the image targets of Phase 8.5: Z-Image, FLUX.2 Klein, FLUX.1 Kontext
     "z-image": {"label": "Z-Image"},
     "z-image-turbo": {"label": "Z-Image Turbo", "parent": "z-image", "names": ["*turbo*"]},
@@ -167,6 +177,7 @@ SIGNATURES: list[dict] = [
      "all": ["adaln_t_table", "video_patch_proj.weight", "audio_patch_proj.weight",
              "condition_proj.weight", "token_refiner.final_norm.weight",
              "final_layer.video_out.weight", "blocks.0."],
+     "variants": [{"family": "fasth3-omni", "all": ["blocks.0.attn.to_gate_compress."]}],
      "same": "H3 Ref2VA and FL2VA have the same tensors (names, shapes and dtypes)"},
     {"family": "minimax-h3-video-vae", "meta_key": "minimax_h3_video_vae",
      "all": ["decoder.register_tokens", "decoder.mask_token", "quant_conv.weight",
@@ -273,6 +284,10 @@ SIGNATURES: list[dict] = [
      "variants": [
          {"family": "flux1-dev", "all": ["guidance_in.in_layer.weight"]},
          {"family": "flux1-schnell", "none": ["guidance_in.in_layer.weight"]}]},
+    {"family": "fibo2",
+     "all": ["perceiver.latent_queries", "perceiver.layers.0.cross_attention.to_kv.weight",
+             "noise_refiner.0.feed_forward.w13.weight", "layers.0.attention.qkv.weight"],
+     "same": "Fibo 2.0 Dev and Edit Turbo have the same tensors"},
     {"family": "qwen3vl-4b",
      "all": ["model.embed_tokens.weight", "model.layers.35.", "model.visual.merger."],
      "none": ["model.layers.36."],

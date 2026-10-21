@@ -1,0 +1,311 @@
+{
+  "id": "fasth3_omni",
+  "kind": "video",
+  "label": "FastH3 Omni (8-step H3, up to 8 subjects)",
+  "default_rank": 15,
+  "short": "Omni",
+  "code": "compile.py",
+  "template": {
+    "_note": "H3 renders 17k+5 frames, at most 3592; width and height must be multiples of 32.",
+    "fps": 24,
+    "frames": {
+      "step": 17,
+      "base": 5,
+      "max": 3592
+    },
+    "size_multiple": 32
+  },
+  "continuous": {
+    "_note": "docs/CONTINUOUS.md. `latent`: the previous take's last `overlap` frames (rounded up to 17j+5) held at the head of the render, video and audio, by H3ChainLatent between `sampler`'s `input` and its source; it reads the previous take's kept latent, else encodes its last frames through the VAEs. The held frames are trimmed off before the saver (H3ChainTrim). `continuous: first` needs a first keyframe, which Omni doesn't read: such a shot builds on `first` (H3 FL2VA) instead, unless it names its own target.",
+    "modes": [
+      "latent"
+    ],
+    "first": "minimax_h3_fl2va",
+    "latent": {
+      "overlap": 39,
+      "hold_audio": true,
+      "sampler": {
+        "class_type": "SamplerCustomAdvanced",
+        "input": "latent_image"
+      }
+    }
+  },
+  "recipe": {
+    "_note": "As Ref2VA's (its compile and prompt are Ref2VA's, minimax_h3_ref2va/compile.py), with the node's nine picture sockets: Pictures 1-8 are the shot's subjects (characters first, then props and vehicles, in script order), Picture 9 is always the location plate. A shot with fewer subjects fills the rest with 32x32 grey placeholders (comfy_nodes/shotplan.py), so the plate stays <Picture 9>. Each character is fed ONE panel of its 4-panel sheet, as on Ref2VA. Clone mode feeds one voice sample per speaker, at most 3.",
+    "subject_slots": [
+      "Picture 1",
+      "Picture 2",
+      "Picture 3",
+      "Picture 4",
+      "Picture 5",
+      "Picture 6",
+      "Picture 7",
+      "Picture 8"
+    ],
+    "plate_slot": "Picture 9",
+    "voice_slots": [
+      "Audio 1",
+      "Audio 2",
+      "Audio 3"
+    ],
+    "sheet_panels": 4,
+    "panels": 1,
+    "face_sizes": [
+      "close",
+      "cu",
+      "mcu",
+      "ecu"
+    ],
+    "policies": [
+      "generate",
+      "dub",
+      "dub_keep_foley",
+      "clone"
+    ],
+    "retention": {
+      "_note": "H3's audio retention markers, and the IR's neutral `preserve` mapped onto them. fully_copy makes a dub slice the whole soundtrack; partially_copy copies the voices and lets H3 add foley; reference only borrows timbre and timing.",
+      "values": [
+        "fully_copy",
+        "partially_copy",
+        "reference"
+      ],
+      "default": {
+        "dub": "fully_copy",
+        "dub_keep_foley": "partially_copy"
+      },
+      "from_preserve": {
+        "strict": "fully_copy",
+        "loose": "partially_copy",
+        "style": "reference"
+      }
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      },
+      "voice": {
+        "kind": "voice sample",
+        "shape": "voice"
+      }
+    },
+    "size_hints": {
+      "character sheet": "4096x1024 or larger (horizontal 4-panel strip)",
+      "prop reference": "1024x1024 or larger",
+      "vehicle reference": "1024x1024 or larger",
+      "background plate": "1344x768 (the render resolution)",
+      "voice sample": "5-15 seconds of clean speech, mono wav"
+    }
+  },
+  "binding": {
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_fasth3_omni.json",
+    "env": "SERIESMITH_FASTH3_OMNI_WORKFLOW",
+    "loader": {
+      "class_type": "H3ShotListLoader",
+      "inputs": {
+        "root": "project_root",
+        "shotlist": "shotlist_file",
+        "index": "index"
+      }
+    },
+    "saver": {
+      "class_type": "H3SaveShot",
+      "inputs": {
+        "root": "project_root",
+        "subfolder": "subfolder",
+        "take": "take",
+        "sidecar": "sidecar"
+      },
+      "latent": {
+        "class_type": "SamplerCustomAdvanced",
+        "output": 0
+      }
+    },
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true,
+        "insert_after": {
+          "class_type": "UNETLoader",
+          "output": 0
+        }
+      },
+      "steps": {
+        "via": "loader"
+      },
+      "seed": {
+        "via": "loader"
+      },
+      "sampler": {
+        "class_type": "KSamplerSelect",
+        "field": "sampler_name"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "video_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecode",
+          "vae"
+        ]
+      },
+      "audio_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecodeAudio",
+          "vae"
+        ]
+      },
+      "ref_image_size": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "ref_image_size"
+      }
+    },
+    "review_nodes": [
+      "SaveVideo",
+      "CreateVideo"
+    ],
+    "bypass_if_missing": {
+      "BlockSparseAttention": "model"
+    },
+    "_note": "Ref2VA's workflow with FastH3's model chain: the Omni checkpoint, no turbo LoRA (LoRAs a shot names go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3 (FastVideo's video and audio shifts: the conversion notes say not to reuse V2's 10), and ComfyUI's own BlockSparseAttention in `vsa` mode at 10% (the checkpoint carries VSA's to_gate_compress layers, trained at 10) in place of the SLA node Ref2VA's turbo LoRAs want. The Shot Loader's ref_4..ref_8 (its last outputs) feed ref_image_3..7 and ref_bg ref_image_8. Guider CFG 1 (BasicGuider), as FastVideo's guidance_scale 1.0."
+  },
+  "models": {
+    "_note": "The family each model param must be (targets/modelid.py). FastH3 Omni is told from the other H3 checkpoints by its VSA gate tensors, so a Ref2VA or FL2VA file is refused here (and this one there). No turbo LoRA: the model is distilled to 8 steps itself. text_encoder / video_vae / audio_vae are H3's own, shared with Ref2VA (`default`).",
+    "model": {
+      "family": "fasth3-omni",
+      "patterns": [
+        "*fasth3*",
+        "*omniref*"
+      ],
+      "tier": "required"
+    },
+    "text_encoder": {
+      "family": "qwen3vl-32b",
+      "patterns": [
+        "*qwen3*vl*32b*"
+      ],
+      "tier": "required",
+      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+    },
+    "video_vae": {
+      "family": "minimax-h3-video-vae",
+      "patterns": [
+        "*h3*video*vae*"
+      ],
+      "tier": "required",
+      "default": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "audio_vae": {
+      "family": "minimax-h3-audio-vae",
+      "patterns": [
+        "*h3*audio*vae*"
+      ],
+      "tier": "required",
+      "default": "minimax_h3_audio_vae_fp32.safetensors"
+    }
+  },
+  "presets": {
+    "_note": "FastVideo's recipe (the FastH3-Omni-Comfy model card and its receipt's source_contract): 8 steps, guidance 1.0, video shift 12, audio shift 3 (the shifts are the workflow's). The proxy keeps all 8 steps (a step-distilled model does best at its own count) and saves its time on size and `ref_image_size: match`, as Ref2VA's does.",
+    "final": {
+      "model": "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "lora": "",
+      "ref_image_size": "max",
+      "steps": 8,
+      "width": 1344,
+      "height": 768
+    },
+    "proxy": {
+      "lora": "",
+      "ref_image_size": "match",
+      "steps": 8,
+      "width": 512,
+      "height": 288
+    }
+  },
+  "upscale": {
+    "_note": "h3upscale.py: a final take re-sampled at `scale` from `start` (a fraction of its own schedule: 0.875 is step 7 of 8), its latent's video upscaled by `upscaler` (the LBH-123-AI Comfyui_Minimax_h3_latent_Upscaler pack, not the Plus fork: temporal chunking must stay on). The loader's resolution_override carries the new size into the conditioning.",
+    "scale": 2,
+    "start": 0.875,
+    "size": {
+      "class_type": "H3ShotListLoader",
+      "field": "resolution_override"
+    },
+    "windows": {
+      "_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (h3upscale.windowed): obvpm's H3 Context Windowing (comfyui-obvpm-timeline), MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536, about twice the pixels of the 1920x1088 the pack measured at ~7 GB of activations per 5 s window) fits 32 GB. The series' upscale recipe's `window` overrides the length (0: off).",
+      "class_type": "H3ContextWindows",
+      "pack": "comfyui-obvpm-timeline",
+      "seconds": 5.5,
+      "overlap": 1.25
+    },
+    "upscaler": {
+      "class_type": "MinimaxH3LatentUpscaler3D",
+      "latent": "latent",
+      "scale": "mode.scale",
+      "align": 32,
+      "inputs": {
+        "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "mode": "scale by multiplier",
+        "align": 32,
+        "enable_temporal_chunking": true,
+        "force_unload": true,
+        "device": "cuda",
+        "precision": "fp16"
+      }
+    }
+  },
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "fasth3_omniref_8step_pruned_int8_convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "source": "the Hugging Face repo FastVideo/FastH3-Omni-Comfy (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "fasth3_omniref_8step_pruned_bf16.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_bf16.safetensors",
+      "source": "the Hugging Face repo FastVideo/FastH3-Omni-Comfy (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_video_vae_fp16.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_audio_vae_fp32.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_latent_upscaler_3d_fp16.safetensors": {
+      "folder": "latent_upscale_models",
+      "url": "https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+      "source": "the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render."
+    }
+  }
+}

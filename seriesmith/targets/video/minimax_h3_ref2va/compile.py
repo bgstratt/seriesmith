@@ -52,6 +52,14 @@ VOICE_SLOTS = list(RECIPE["voice_slots"])
 GENERATE_MODES = ("generate", "generated", "generated_audio")
 
 
+def slots(target) -> tuple[list[str], str, list[str]]:
+    """A target's (subject slots, plate slot, voice slots): Ref2VA's three
+    subjects and <Picture 4>, or another H3 target's own (FastH3 Omni: eight
+    and <Picture 9>). The plate is always the slot after the last subject's."""
+    r = target.recipe
+    return list(r["subject_slots"]), r["plate_slot"], list(r["voice_slots"])
+
+
 # ---------------------------------------------------------------------------
 # Story IR -> the episode dict the compile code reads
 #
@@ -209,6 +217,7 @@ class Ctx:
         self.image = TG.image_target(series_cfg)
         self.profiles = TG.series_profiles(series_cfg)
         self.absent = set(absent or ())
+        self.subject_slots, self.plate_slot, self.voice_slots = slots(target)
 
     # -- refs --------------------------------------------------------------
 
@@ -242,8 +251,8 @@ class Ctx:
         if not entry.get("plate"):
             raise ValueError(
                 f"location '{key}': needs a `plate` path. The background "
-                f"plate is <{PLATE_SLOT}> in every shot there.")
-        req = plate_request(key, entry)
+                f"plate is <{self.plate_slot}> in every shot there.")
+        req = plate_request(key, entry, self.plate_slot)
         self.need(req.path, req.kind, self.wording(req), shot_id)
         return entry
 
@@ -282,10 +291,10 @@ def _hint(kind: str) -> str:
     return RECIPE["size_hints"].get(kind, "")
 
 
-def plate_request(key: str, entry: dict) -> TG.RefRequest:
+def plate_request(key: str, entry: dict, slot: str = PLATE_SLOT) -> TG.RefRequest:
     r = _refs("location")
     return TG.RefRequest(entry.get("plate") or "", r["kind"], r["shape"], location=key,
-                         slot=PLATE_SLOT, entry=entry, size_hint=_hint(r["kind"]))
+                         slot=slot, entry=entry, size_hint=_hint(r["kind"]))
 
 
 def subject_request(sid: str, entry: dict, slot: str | None = None) -> TG.RefRequest:
@@ -315,8 +324,8 @@ def voice_request(sid: str, entry: dict, slot: str | None = None) -> TG.RefReque
 # ---------------------------------------------------------------------------
 
 def _subjects(shot: dict) -> list[str]:
-    # Characters first, then props/vehicles. Slots 1-3 only; slot 4 is
-    # always the location plate.
+    # Characters first, then props/vehicles, in the subject slots; the slot
+    # after them is always the location plate.
     return shot["cast"] + [p for p in shot["props"] if p not in shot["cast"]]
 
 
@@ -343,7 +352,7 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         raise ValueError(
             f"shot {shot['id']}: nothing in it. Add `who:`, `with:`, action "
             f"text, or dialogue.")
-    n_slots = len(SUBJECT_SLOTS)
+    n_slots = len(ctx.subject_slots)
     if len(subjects) > n_slots:
         over = len(subjects) - n_slots
         raise ValueError(
@@ -483,10 +492,11 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
     # and H3 renders it as multiple people -- worst on wides. The face
     # panel carries identity where it matters; the three-quarter body
     # panel carries wardrobe and proportion everywhere else.
-    panels = int(RECIPE["panels"])
+    recipe = ctx.target.recipe
+    panels = int(recipe["panels"])
     panel_view = ("face" if (len(subjects) == 1
                   and book[subjects[0]].get("kind", "character") == "character"
-                  and framing.in_sizes(shot["size"], RECIPE["face_sizes"])) else "body")
+                  and framing.in_sizes(shot["size"], recipe["face_sizes"])) else "body")
 
     for s in subjects:
         r = subject_request(s, book[s])
@@ -501,11 +511,11 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
 
     # H3 accepts at most 3 standalone audio references, and clone mode
     # spends one per speaker.
-    if policy == "clone" and len(voices) > len(VOICE_SLOTS):
+    if policy == "clone" and len(voices) > len(ctx.voice_slots):
         raise ValueError(
             f"shot {shot['id']}: {len(voices)} speakers ({', '.join(voices)}) but "
             f"clone mode feeds one voice sample each and {ctx.target.short} takes at most "
-            f"{len(VOICE_SLOTS)}. Split the shot, or move a line to a neighbouring shot.")
+            f"{len(ctx.voice_slots)}. Split the shot, or move a line to a neighbouring shot.")
 
     voice_refs = []
     if policy == "clone":
@@ -537,7 +547,8 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         "voices": voices,
         "voice_subject": voices[0] if voices else "",
         "voice_refs": voice_refs,
-        "prompt": build_prompt(shot, seq, series_cfg, panels, panel_view),
+        "prompt": build_prompt(shot, seq, series_cfg, panels, panel_view,
+                               plate_slot=ctx.plate_slot),
     }
     model = TG.layered(layers, "model")
     if model:
@@ -590,10 +601,16 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
         # assemble names the review cut from these
         "episode": ep["id"],
         "title": ep.get("title", ""),
+        # whose shotlist this is: a shotlist without one is the default
+        # target's (jobs.shotlist_target), so only another target says
+        **({"target": target.id} if target.id != TG.DEFAULT_VIDEO_TARGET else {}),
         "prompt_prefix": "",
         "defaults": {
             "width": width, "height": height, "steps": steps,
-            "model": model, "lora": lora, "sheet_panels": int(RECIPE["sheet_panels"]),
+            "model": model, "lora": lora, "sheet_panels": int(target.recipe["sheet_panels"]),
+            # the loader's subject sockets when not Ref2VA's three (the plate
+            # is the one after them: comfy_nodes/shotplan.py)
+            **({"subject_slots": len(ctx.subject_slots)} if len(ctx.subject_slots) != 3 else {}),
             # How big H3 encodes each reference: `match` puts it on the render's
             # own latent grid, `max` scales it toward 2048 on the short side.
             # It is a per-pass cost, measured 2026-09-22: at 1344x768 the two
@@ -646,7 +663,7 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
         "policies": {p: sum(1 for s in shots_out if s["audio_policy"] == p)
                      for p in sorted({s["audio_policy"] for s in shots_out})},
         "needed": ctx.needed, "blocked_shots": ctx.blocked, "warnings": warnings,
-        "target": target.id, "size_hints": dict(RECIPE["size_hints"]),
+        "target": target.id, "size_hints": dict(target.recipe["size_hints"]),
     }
     return doc, report
 
@@ -700,12 +717,13 @@ def compile_without(target, story: ir.Episode, series_cfg: dict, pass_: str,
         raise ValueError(f"{entry['id']} is not in shots.json")
     if compile_shot(target, shot_ir, series_cfg, pass_, {"episode": story}) != entry:
         raise ValueError(f"{entry['id']}: the build is out of date (rebuild the episode)")
-    by_slot = dict(zip(SUBJECT_SLOTS, entry.get("subjects") or []))
+    subject_slots, plate_slot, _ = slots(target)
+    by_slot = dict(zip(subject_slots, entry.get("subjects") or []))
     absent = set()
     for r in missing:
         if r.get("kind") == "audio":
             absent.add("audio")
-        elif r.get("slot") == PLATE_SLOT:
+        elif r.get("slot") == plate_slot:
             absent.add("plate")
         elif r.get("slot") in by_slot:
             absent.add(by_slot[r["slot"]])
@@ -721,14 +739,15 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     c = Ctx(target, "", series_cfg, ctx.get("pass", "final"))
     shot = legacy_shot(shot_ir)
     book = series_cfg["subjects"]
+    subject_slots, plate_slot, voice_slots = slots(target)
     out = [subject_request(s, book[s], slot)
-           for s, slot in zip(_subjects(shot), SUBJECT_SLOTS)]
+           for s, slot in zip(_subjects(shot), subject_slots)]
     key = shot_ir.plate or (ctx["sequence"].location if ctx.get("sequence") else "")
     if key in series_cfg["locations"] and series_cfg["locations"][key].get("plate"):
-        out.append(plate_request(key, series_cfg["locations"][key]))
+        out.append(plate_request(key, series_cfg["locations"][key], plate_slot))
     if c.policy(shot) == "clone":
         out += [voice_request(v, book[v], slot)
-                for v, slot in zip(_voices(shot), VOICE_SLOTS)]
+                for v, slot in zip(_voices(shot), voice_slots)]
     return out
 
 
@@ -737,18 +756,19 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     "audio"), path, subject?}. Paths as the shotlist writes them (relative to
     the episode unless absolute); an empty path means the series config names none."""
     book = doc.get("subjects", {})
+    subject_slots, plate_slot, voice_slots = slots(target)
     out = []
-    for slot, sid in zip(SUBJECT_SLOTS, shot.get("subjects") or []):
+    for slot, sid in zip(subject_slots, shot.get("subjects") or []):
         out.append({"slot": slot, "kind": "image", "subject": sid,
                     "path": book.get(sid, {}).get("sheet", "")})
     if not shot.get("text_place"):
-        out.append({"slot": PLATE_SLOT, "kind": "image", "path": shot.get("background", "")})
+        out.append({"slot": plate_slot, "kind": "image", "path": shot.get("background", "")})
     policy = shot.get("audio_policy", "")
     if policy == "clone":
-        for slot, r in zip(VOICE_SLOTS, shot.get("voice_refs") or []):
+        for slot, r in zip(voice_slots, shot.get("voice_refs") or []):
             out.append({"slot": slot, "kind": "audio",
                         "subject": r.get("subject", ""), "path": r.get("sample", "")})
     elif policy in ("dub", "dub_keep_foley"):
-        out.append({"slot": VOICE_SLOTS[0], "kind": "audio", "path": shot.get("audio_file")
+        out.append({"slot": voice_slots[0], "kind": "audio", "path": shot.get("audio_file")
                     or doc.get("defaults", {}).get("master_track", "")})
     return out

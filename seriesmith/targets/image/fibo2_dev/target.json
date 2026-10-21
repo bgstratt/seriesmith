@@ -1,0 +1,179 @@
+{
+  "id": "fibo2_dev",
+  "kind": "image",
+  "label": "Fibo 2.0 Dev (text to image, and edit from reference images; non-commercial licence)",
+  "default_rank": 65,
+  "short": "Fibo",
+  "code": "target.py",
+  "capabilities": {
+    "_note": "One graph, both jobs (target.py): TextEncodeFibo2 takes the prompt and up to 16 images (Bria's card: up to 4 for a multi-reference edit, which max_refs keeps) and gives both conditionings and the latent; with no images it is text to image, with one the image is cropped to the result's size and the edit lines up with it pixel for pixel. Relight and edits of a ref go through it as through any edit target.",
+    "mode": "edit",
+    "max_refs": 4
+  },
+  "template": {
+    "_note": "Sizes a series ref is generated at (as krea2's). Fibo 2.0 is trained at about 1 MP in multiples of 16 (Bria's card: 1024x1024, 1424x800, 1248x832), so a keyframe is generated at its shot's render size scaled up to at least min_pixels, as flux2_klein_edit's.",
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1424,
+      800
+    ],
+    "object_size": [
+      1024,
+      1024
+    ],
+    "size_multiple": 16,
+    "min_pixels": 786432
+  },
+  "recipe": {
+    "_note": "The prompt names each reference by its number ('image 1', 'image 2', ...; `ref_word`) and says what to take from it (targets/image/common.py reference_intro). Plain prose works, as does a Bria VGL JSON caption written by hand: TextEncodeFibo2 parses JSON first.",
+    "ref_word": "image"
+  },
+  "binding": {
+    "_note": "An API graph made for ComfyUI's native Fibo 2.0 support (comfy_extras/nodes_fibo2.py, ComfyUI after 2026-10-20; no template yet): UNETLoader, CLIPLoader type fibo2 (Qwen3-VL 4B), the FLUX.2 VAE, TextEncodeFibo2 (the prompt, an empty negative: the null caption Fibo was trained with, the references as its autogrow images.image_N, the output size) into a KSampler. The model's own sampling shift (1.15) is ComfyUI's. H3SaveRefTake takes the place of SaveImage.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_fibo2_dev.json",
+    "env": "SERIESMITH_FIBO2_DEV_WORKFLOW",
+    "saver": {
+      "class_type": "H3SaveRefTake",
+      "replace": {
+        "class_type": "SaveImage",
+        "inputs": {
+          "images": "images"
+        }
+      }
+    },
+    "prune": true,
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true,
+        "insert_after": {
+          "class_type": "UNETLoader",
+          "output": 0
+        }
+      },
+      "prompt": {
+        "class_type": "TextEncodeFibo2",
+        "field": "prompt"
+      },
+      "negative": {
+        "class_type": "TextEncodeFibo2",
+        "field": "negative_prompt"
+      },
+      "width": {
+        "class_type": "TextEncodeFibo2",
+        "field": "width"
+      },
+      "height": {
+        "class_type": "TextEncodeFibo2",
+        "field": "height"
+      },
+      "steps": {
+        "class_type": "KSampler",
+        "field": "steps"
+      },
+      "seed": {
+        "class_type": "KSampler",
+        "field": "seed"
+      },
+      "cfg": {
+        "class_type": "KSampler",
+        "field": "cfg"
+      },
+      "sampler": {
+        "class_type": "KSampler",
+        "field": "sampler_name"
+      },
+      "scheduler": {
+        "class_type": "KSampler",
+        "field": "scheduler"
+      }
+    }
+  },
+  "models": {
+    "_note": "Fibo 2.0's two checkpoints share every tensor (targets/modelid.py), so the name decides: a file named for the Edit Turbo is refused here. The text encoder is the Qwen3-VL 4B Krea 2 and FLUX.3 Klein read; the VAE is FLUX.2's.",
+    "model": {
+      "family": "fibo2-dev",
+      "patterns": [
+        "*fibo*2*dev*"
+      ],
+      "tier": "required"
+    },
+    "text_encoder": {
+      "family": "qwen3vl-4b",
+      "patterns": [
+        "*qwen3*vl*4b*"
+      ],
+      "tier": "required"
+    },
+    "vae": {
+      "family": "flux2-vae",
+      "patterns": [
+        "flux2-vae*",
+        "full_encoder_small_decoder*",
+        "*flux*2*vae*"
+      ],
+      "tier": "required"
+    }
+  },
+  "presets": {
+    "_note": "Bria's card: 50 steps at guidance 5.0 for both text to image and edits. euler/simple: Bria's pipeline is a flow-matching Euler sampler. The negative is empty (the null caption it was trained with for CFG).",
+    "final": {
+      "model": "fibo2_dev_bf16.safetensors",
+      "text_encoder": "qwen3vl_4b_int8_convrot.safetensors",
+      "vae": "flux2-vae.safetensors",
+      "lora": "",
+      "steps": 50,
+      "cfg": 5.0,
+      "sampler": "euler",
+      "scheduler": "simple",
+      "negative": ""
+    }
+  },
+  "downloads": {
+    "_note": "Comfy-Org's repack of Bria's weights (ComfyUI's key layout; the int8_convrot copies differ slightly from the originals). Licence CC BY-NC 4.0: non-commercial use only; commercial use needs an agreement with Bria.",
+    "fibo2_dev_bf16.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/Fibo-2.0/resolve/main/diffusion_models/fibo2_dev_bf16.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/Fibo-2.0 (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "fibo2_dev_int8_convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Comfy-Org/Fibo-2.0/resolve/main/diffusion_models/fibo2_dev_int8_convrot.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/Fibo-2.0 (file and name checked on the Hugging Face repo 2026-10-20): half the bf16 file's size, resolved by family"
+    },
+    "qwen3vl_4b_int8_convrot.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/Fibo-2.0/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/Fibo-2.0 (file and name checked on the Hugging Face repo 2026-10-20); the same file as FLUX.3 Klein's (the same size to the byte, 4858559240), without that repo's licence gate"
+    },
+    "qwen3vl_4b_bf16.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/Fibo-2.0/resolve/main/text_encoders/qwen3vl_4b_bf16.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/Fibo-2.0 (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "flux2-vae.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
+      "source": "ComfyUI template image_flux2_klein_9b_kv_image_edit.json (properties.models), as every FLUX.2-VAE target records it; Comfy-Org/Fibo-2.0 ships the same VAE under this name too"
+    }
+  }
+}

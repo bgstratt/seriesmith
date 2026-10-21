@@ -7,7 +7,7 @@ This is code on purpose (prompt formats are code, everything else
 about a target is data). It reads the parser-shaped shot dict compile.py
 prepares, with these compile-set keys:
 
-    _subjects      the shot's subjects in slot order (<= 3)
+    _subjects      the shot's subjects in slot order (<= the target's subject slots)
     _policy        generate | dub | dub_keep_foley | clone
     _audio_ref     True unless the policy is generate
     _retention     fully_copy | partially_copy | reference | ""
@@ -18,7 +18,7 @@ for a shot whose reference files are missing:
     _unreferenced  on-screen subjects with no picture: named and described in
                    words, never given a <Subject N> / <Picture N>
     _no_plate      the plate is missing: the location is described in words,
-                   and nothing mentions <Picture 4>
+                   and nothing mentions the plate's <Picture N>
 
 Neither is set by a build, so built prompts are exactly what they always were.
 
@@ -39,12 +39,13 @@ def _count(n: int) -> str:
 
 
 def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
-                 panel_view: str = "body") -> list[str]:
+                 panel_view: str = "body", plate_slot: str = "Picture 4") -> list[str]:
     """Ref2VA six-section prompt.
 
-    Slots 1-3 carry the shot's subjects -- characters first, then props and
-    vehicles, in script order. Slot 4 always carries the location plate. The
-    background is written as a proper <Subject> sourced from <Picture 4>,
+    The subject slots (1-3 on Ref2VA, 1-8 on FastH3 Omni) carry the shot's
+    subjects -- characters first, then props and vehicles, in script order.
+    The slot after them (`plate_slot`) always carries the location plate. The
+    background is written as a proper <Subject> sourced from that <Picture>,
     because H3's spec lists scenes and environments as Subject content; a bare
     <Picture N> means "use this exact frame as a keyframe", which is not what a
     location plate is for.
@@ -54,7 +55,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     loc = series_cfg["locations"][shot.get("plate") or seq["location_key"]]
     env = loc["description"]
 
-    subjects = shot["_subjects"]                      # ordered, <= 3
+    subjects = shot["_subjects"]                      # ordered, <= the subject slots
     subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
     pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
     bg_subj = f"<Subject {len(subjects) + 1}>"
@@ -201,7 +202,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
                     f"of one another.")
     if not no_plate:
         defs.append(
-            f"{bg_subj} is the location, defined by <Picture 4> — a background plate of {env}. "
+            f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
             f"It establishes the layout, color palette, lighting direction and depth of the "
             f"space, not a fixed camera framing.")
     # Audio references. dub/dub_keep_foley feed ONE clip -- the slice of the

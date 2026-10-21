@@ -58,9 +58,11 @@ class LoadingTest(unittest.TestCase):
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
                                ("image", "moss_image_sft"), ("image", "moss_image_base"),
                                ("image", "krea_2_router"),
+                               ("video", "fasth3_omni"), ("image", "fasth3_omni_still"),
+                               ("image", "fibo2_dev"), ("image", "fibo2_edit_turbo"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
-                         ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "seedance_2_5",
+                         ["fasth3_omni", "ltx2", "ltx2_ingredients", "minimax_h3_fl2va", H3, "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
         with self.assertRaises(TG.TargetError) as cm:
@@ -191,8 +193,8 @@ class ProfileTest(unittest.TestCase):
         self.assertIn("not a video target (known: ", str(cm.exception))
         known = str(cm.exception).split("(known: ")[1].split(")")[0].split(", ")
         self.assertEqual(sorted(set(known) - ROUTER),
-                         ["ltx2", "ltx2_ingredients", "minimax_h3_fl2va", "minimax_h3_ref2va",
-                          "seedance_2_5", "wan22_i2v", "wan22_ti2v", "wan22_vace"])
+                         ["fasth3_omni", "ltx2", "ltx2_ingredients", "minimax_h3_fl2va",
+                          "minimax_h3_ref2va", "seedance_2_5", "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         # sh320 names the series target itself, which beats its profile's; sh330
         # takes the profile's
         self.assertIn("shot sh330:", str(cm.exception))
@@ -421,7 +423,8 @@ class TargetsRouteTest(ApiTest):
                                    "flux3_klein", "flux3_klein_turbo",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
                                    "moss_image_sft", "moss_image_base",
-                                   "klein_erp_360", "ltx2_voice", "seedance_2_5", "krea_2_router"})
+                                   "klein_erp_360", "ltx2_voice", "seedance_2_5", "krea_2_router",
+                                   "fasth3_omni", "fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo"})
         for tid, label, short in (("wan22_i2v", "Wan 2.2 14B I2V", "Wan I2V"),
                                   ("wan22_ti2v", "Wan 2.2 5B TI2V", "Wan 5B"),
                                   ("wan22_vace", "Wan 2.2 14B VACE (refs)", "Wan+refs")):
@@ -478,7 +481,8 @@ class TargetsRouteTest(ApiTest):
                          {"video": H3, "image": "krea2", "audio": "ltx2_voice"})
         images = self.ok(A.get_targets(self.ctx, {"kind": "image"}))["targets"]
         self.assertEqual([t["id"] for t in images if t["id"] not in ROUTER],
-                         ["flux2_klein", "flux2_klein_edit", "flux3_klein", "flux3_klein_turbo",
+                         ["fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo",
+                          "flux2_klein", "flux2_klein_edit", "flux3_klein", "flux3_klein_turbo",
                           "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
                           "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
                           "qwen_rapid_aio", "z_image_turbo"])

@@ -1,0 +1,167 @@
+{
+  "id": "fasth3_omni_still",
+  "kind": "image",
+  "label": "FastH3 Omni (a still: the first frame of a 5-frame render)",
+  "default_rank": 75,
+  "short": "Omni still",
+  "code": "target.py",
+  "capabilities": {
+    "_note": "As minimax_h3_still, on FastH3 Omni: the shortest clip the node allows, frame 0 kept, up to 9 reference images (the node's autogrow maximum).",
+    "mode": "edit",
+    "max_refs": 9
+  },
+  "template": {
+    "_note": "Sizes a series ref is generated at (as krea2's). H3 wants multiples of 32 on both axes and draws its own frame, so a keyframe is generated at the shot's render size with no upscale.",
+    "view_size": [
+      1024,
+      1024
+    ],
+    "plate_size": [
+      1344,
+      768
+    ],
+    "object_size": [
+      1024,
+      1024
+    ],
+    "size_multiple": 32
+  },
+  "binding": {
+    "_note": "minimax_h3_still's graph with FastH3's model chain (as fasth3_omni's): the Omni checkpoint, no turbo LoRA (LoRAs go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3, and ComfyUI's BlockSparseAttention in `vsa` mode at 10% in place of the SLA node (a 5-frame still is usually under its min_tokens, so it runs dense).",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_fasth3_omni_still.json",
+    "env": "SERIESMITH_FASTH3_OMNI_STILL_WORKFLOW",
+    "saver": {
+      "class_type": "H3SaveRefTake",
+      "replace": {
+        "class_type": "SaveImage",
+        "inputs": {
+          "images": "images"
+        }
+      }
+    },
+    "prune": true,
+    "bypass_if_missing": {
+      "BlockSparseAttention": "model"
+    },
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true,
+        "insert_after": {
+          "class_type": "UNETLoader",
+          "output": 0
+        }
+      },
+      "steps": {
+        "class_type": "BasicScheduler",
+        "field": "steps"
+      },
+      "seed": {
+        "class_type": "RandomNoise",
+        "field": "noise_seed"
+      },
+      "sampler": {
+        "class_type": "KSamplerSelect",
+        "field": "sampler_name"
+      },
+      "prompt": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "prompt"
+      },
+      "width": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "width"
+      },
+      "height": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "height"
+      },
+      "length": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "length"
+      },
+      "ref_image_size": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "ref_image_size"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "video_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecode",
+          "vae"
+        ]
+      }
+    }
+  },
+  "models": {
+    "_note": "As fasth3_omni's: the Omni checkpoint is told from the other H3 files by its VSA gate tensors; no turbo LoRA; the text encoder and video VAE are H3's own (`default`).",
+    "model": {
+      "family": "fasth3-omni",
+      "patterns": [
+        "*fasth3*",
+        "*omniref*"
+      ],
+      "tier": "required"
+    },
+    "text_encoder": {
+      "family": "qwen3vl-32b",
+      "patterns": [
+        "*qwen3*vl*32b*"
+      ],
+      "tier": "required",
+      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+    },
+    "video_vae": {
+      "family": "minimax-h3-video-vae",
+      "patterns": [
+        "*h3*video*vae*"
+      ],
+      "tier": "required",
+      "default": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "presets": {
+    "_note": "FastVideo's recipe: 8 steps at CFG 1 (the shifts are the workflow's). `length` 5 and `ref_image_size` 'max' as minimax_h3_still's.",
+    "final": {
+      "model": "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "lora": "",
+      "steps": 8,
+      "sampler": "euler",
+      "length": 5,
+      "ref_image_size": "max",
+      "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "video_vae": "minimax_h3_video_vae_fp16.safetensors"
+    }
+  },
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "fasth3_omniref_8step_pruned_int8_convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "source": "the Hugging Face repo FastVideo/FastH3-Omni-Comfy (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_video_vae_fp16.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    }
+  }
+}
