@@ -45,7 +45,7 @@ class RouterTargetTest(unittest.TestCase):
     def test_a_hosted_model_runs_on_router_and_promises_no_repeat(self):
         c = TG.load_target("seedance_2_5", "video").capabilities()
         self.assertEqual((c["backends"], c["reproducible"]), (["router"], False))
-        self.assertEqual(c["max_subjects"], 4)
+        self.assertEqual(c["max_subjects"], 30)                 # BytePlus: up to 30 pictures
         self.assertEqual(c["continuous"], ["first"])
         self.assertFalse(c["latents"])
 
