@@ -27,7 +27,10 @@ export type HostEvent =
   /** seriesmith: a job of its queue changed (standalone page) */
   | "seriesmith.job"
   /** seriesmith: the queue's lanes changed (an order, a pause) */
-  | "seriesmith.queue";
+  | "seriesmith.queue"
+  /** seriesmith: something to tell the user once ({level, title, text, key}): a
+   * local ComfyUI rendering without seriesmith's node pack */
+  | "seriesmith.notice";
 
 export type Severity = "success" | "info" | "warn" | "error";
 /** Docked surfaces (sidebar tabs and the bottom panel). The inspector and the

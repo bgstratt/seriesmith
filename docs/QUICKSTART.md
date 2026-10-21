@@ -28,6 +28,12 @@ ln -s ~/seriesmith/comfy_nodes /path/to/ComfyUI/custom_nodes/seriesmith
 The paths are only examples. Link the folder rather than copying it: seriesmith finds
 the rest of itself through the link, and a `git pull` updates what ComfyUI loads.
 
+Running the editor on a page of its own (below) beside a ComfyUI you'd rather not touch?
+Its **Features** window can make this link for you (**seriesmith's node pack**, under
+Tools; ComfyUI restarts to load it). Without the pack, shots still render on that
+ComfyUI through its own nodes, and seriesmith says so once: what you lose is latent
+continuity, kept latents, upscales and posts.
+
 ## 2. Start ComfyUI
 
 seriesmith shows up in ComfyUI:

@@ -21,6 +21,10 @@ alone (`lower`):
 What can't go: a `continuous: latent` shot (it holds the take before it through
 the chain nodes); and a take rendered there keeps no latent, no PNG frames and
 no foley bed (its record says so).
+
+A local ComfyUI without seriesmith's node pack is lowered the same way
+(`without_pack`): its shots still render, through ComfyUI's own nodes, with
+the same limits; linking the pack (Features: seriesmith's node pack) lifts them.
 """
 from __future__ import annotations
 
@@ -47,10 +51,16 @@ OUT_PICTURES = (2, 3, 4, 5)                  # ref_1..ref_3, ref_bg
 OUT_SOUNDS = (6, 7, 8)                       # ref_audio_1..3
 OUT_NUMBERS = {9: "width", 10: "height", 11: "length", 12: "steps", 13: "seed"}
 OUT_POLICY, OUT_INFO, OUT_COUNT = 14, 15, 16
+OUT_MORE_PICTURES = (17, 18, 19, 20, 21)     # ref_4..ref_8 (FastH3 Omni's subjects 4-8)
 
 CHAIN_NODES = ("SeriesmithChainLatent", "SeriesmithChainTrim")
 CRF = 16                                     # the saver's (comfy_nodes/shot.py _encode)
 VIDEO, AUDIO = "seriesmith_video", "seriesmith_audio"
+CLOUD = "Comfy Cloud"
+LOCAL = "this ComfyUI (without seriesmith's node pack)"
+PACK_NOTE = ("rendered through ComfyUI's own nodes: seriesmith's node pack isn't in this "
+             "ComfyUI, so no latent was kept and no PNG frames or foley bed made (Features: "
+             "link seriesmith's node pack, then restart ComfyUI)")
 
 
 def object_info(base_url: str, api_key: str | None, timeout: float = 120.0) -> dict:
@@ -106,25 +116,29 @@ def _relink(g: dict, nid: str, out: dict) -> None:
                     ins[k] = new
 
 
-def lower(g: dict, job, take, info: dict) -> tuple[dict, dict]:
+def lower(g: dict, job, take, info: dict, where: str = CLOUD) -> tuple[dict, dict]:
     """(the graph Comfy Cloud runs, what `collect` needs to make the take).
-    `g` is the portable graph (jobs.graph_for(portable=True)); `info` Cloud's
-    object_info. NotPortable when it needs what Cloud hasn't."""
+    `g` is the portable graph (jobs.graph_for(portable=True)); `info` the
+    backend's object_info; `where` names it in what it says. NotPortable when
+    it needs what the backend hasn't."""
     from seriesmith import jobs as J
     from seriesmith.targets import bypassable
 
     g = copy.deepcopy(g)
     notes: list[str] = []
     if any(v.get("class_type") in CHAIN_NODES for v in g.values()):
-        raise J.NotPortable("a continuous: latent shot holds the take before it through "
-                            "seriesmith's chain nodes, which Comfy Cloud hasn't: render it on local")
+        raise J.NotPortable(
+            "a continuous: latent shot holds the take before it through seriesmith's chain "
+            "nodes, which " + (f"{where} hasn't: render it on local" if where == CLOUD else
+                               "need seriesmith's node pack in this ComfyUI (Features: link "
+                               "seriesmith's node pack, then restart ComfyUI)"))
     # a continuity shot's first frame, cut when its job started: the picture itself
     for v in g.values():
         if v.get("class_type") == "H3ContinuityFrame":
             v["class_type"], v["inputs"] = "LoadImage", {"image": v["inputs"]["image"]}
     present = {v.get("class_type") for v in g.values()}
     gone = {c: via for c, via in bypassable().items() if c in present and c not in info}
-    notes += [f"{c} isn't on Comfy Cloud: rendered without it" for c in J.bypass_nodes(g, gone)]
+    notes += [f"{c} isn't on {where}: rendered without it" for c in J.bypass_nodes(g, gone)]
 
     staging = tempfile.mkdtemp(prefix="seriesmith_cloud_")
     try:
@@ -133,11 +147,27 @@ def lower(g: dict, job, take, info: dict) -> tuple[dict, dict]:
         plan = _lower_saver(g, J.node_of(g, J.PORTABLE_SAVER), job, shot, notes)
         missing = sorted({v["class_type"] for v in g.values()} - set(info))
         if missing:
-            raise J.NotPortable(f"Comfy Cloud hasn't {', '.join(missing)}: render it on local")
+            raise J.NotPortable(f"{where} hasn't {', '.join(missing)}"
+                                + (": render it on local" if where == CLOUD else ""))
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    plan.update(staging=staging, notes=notes)
+    plan.update(staging=staging, notes=notes, where=where)
+    return g, plan
+
+
+def without_pack(backend, graph: dict, job, take) -> tuple[dict, dict] | None:
+    """A local ComfyUI's prepare: the portable graph as it is when seriesmith's
+    node pack is there (None), else lowered to ComfyUI's own nodes as for Comfy
+    Cloud, the take saying so (PACK_NOTE). `backend.without_pack` says which
+    the last shot was (the runner tells the page once)."""
+    from seriesmith import jobs as J
+    if J.node_of(graph, J.PORTABLE_SAVER) is None or backend.has_node(J.PORTABLE_SAVER):
+        backend.without_pack = False
+        return None
+    g, plan = lower(graph, job, take, backend.object_info(), where=LOCAL)
+    plan["notes"].insert(0, PACK_NOTE)
+    backend.without_pack = True
     return g, plan
 
 
@@ -166,7 +196,11 @@ def _lower_loader(g: dict, nid: str, staging: str) -> dict:
                  OUT_COUNT: plan["count"]}
     out.update({k: plan[name] for k, name in OUT_NUMBERS.items()})
     sizes = []
-    for i, (k, spec) in enumerate(zip(OUT_PICTURES, [*plan["refs"], plan["bg"]])):
+    n_sub = len(plan["refs"])
+    # the plan's pictures in <Picture N> order (subjects, then the plate),
+    # each with the output it was read from
+    outs = [*OUT_PICTURES[:3], *OUT_MORE_PICTURES][:n_sub] + [OUT_PICTURES[3]]
+    for i, (k, spec) in enumerate(zip(outs, [*plan["refs"], plan["bg"]])):
         path, wh = picture(sp, spec, os.path.join(staging, f"picture_{i + 1}.png"))
         sizes.append(None if "neutral" in spec else wh)
         node = f"{nid}_picture_{i + 1}"
@@ -182,12 +216,14 @@ def _lower_loader(g: dict, nid: str, staging: str) -> dict:
                    "inputs": {"audio": File(sound(spec, os.path.join(staging, f"audio_{i + 1}.wav")))},
                    "_meta": {"title": f"<Audio {i + 1}>"}}
         out[k] = [node, 0]
-    out[OUT_INFO] = sp.info_text(plan, sizes[:3])
+    for k in [*OUT_PICTURES[:3], *OUT_MORE_PICTURES][n_sub:]:
+        out[k] = None
+    out[OUT_INFO] = sp.info_text(plan, sizes[:n_sub])
     _relink(g, nid, out)
     del g[nid]
     return {"id": plan["id"], "policy": plan["policy"], "fps": plan["fps"],
             "loaded_refs": ([f"RENDERED WITHOUT: {', '.join(plan['blanked'])} (missing refs)"]
-                            if plan["blanked"] else []) + sp.ref_notes(plan, sizes[:3])}
+                            if plan["blanked"] else []) + sp.ref_notes(plan, sizes[:n_sub])}
 
 
 def picture(sp, spec: dict, path: str) -> tuple[str, tuple[int, int]]:
@@ -326,7 +362,7 @@ def collect(take, run, status: str, plan: dict) -> str:
     except (OSError, F.FinishError) as e:
         J.mark_failed(take, f"the video didn't come back whole: {e}")
         return "failed"
-    notes.insert(0, f"mp4 from Comfy Cloud ({'with audio' if info['audio'] else 'mute'}, "
+    notes.insert(0, f"mp4 from {plan.get('where') or CLOUD} ({'with audio' if info['audio'] else 'mute'}, "
                     f"{info['width']}x{info['height']})")
     sounds = [o for o in outs if plan.get("audio") and o.node == plan["audio"]]
     if sounds:

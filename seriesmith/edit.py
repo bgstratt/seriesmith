@@ -1804,6 +1804,10 @@ def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dic
     return need
 
 
+PACK_FEATURE = ("seriesmith's node pack (without it: no latent continuity, kept latents, "
+                "upscales or posts; shots render through ComfyUI's own nodes)")
+
+
 def readiness(targets, object_info: dict | None, resolve=None, cache=None,
               extra: dict | None = None, series_cfg: dict | None = None,
               error: str = "", graph_of=None) -> dict[str, dict]:
@@ -1866,6 +1870,10 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
         for cls, spec in target_nodes(t, *(graph_of(t) if graph_of else (None, ""))).items():
             if cls in object_info:
                 continue
+            if cls in (J.PORTABLE_LOADER, J.PORTABLE_SAVER):
+                # without seriesmith's node pack the shot is lowered to ComfyUI's
+                # own nodes (cloud.without_pack): it renders, with less kept
+                spec = {"tier": "optional", "feature": PACK_FEATURE}
             nodes_missing.append(cls)
             if spec["tier"] == "optional":
                 if spec["feature"] and spec["feature"] not in features_off:

@@ -813,6 +813,12 @@ progress in ComfyUI's shapes — `execution_start`, `progress` (`{prompt_id, val
   more when it is `done` or `failed`.
 - **`seriesmith.issues`**, `{"ep", "pass", ...}`, when an issue is added or removed;
   **`seriesmith.align`**, `{"ep", "stage", "pct", ...}`, an alignment's progress (Phase 9c).
+- **`seriesmith.notice`**, `{"level", "title", "text", "key"}`: something to tell the user
+  once, shown as a toast (the page shows each `key` once). Sent the first time a local
+  ComfyUI renders a shot without seriesmith's node pack (`key` `no-pack:<backend>`): the shot
+  is lowered to ComfyUI's own nodes as for Comfy Cloud (`cloud.without_pack`), its take noting
+  what wasn't kept, and readiness reports the pack's loader and saver as optional
+  (`degraded`, the feature "seriesmith's node pack").
 
 ## The queue
 

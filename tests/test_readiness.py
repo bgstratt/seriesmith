@@ -488,7 +488,10 @@ class ReadinessTest(unittest.TestCase):
     def test_nodes(self):
         r = self.ready(fake_object_info(drop_nodes={"LTXVDurationPredictor", "SeriesmithSaveTake"}))
         self.assertEqual(r["ltx2"]["nodes_missing"], ["SeriesmithSaveTake", "LTXVDurationPredictor"])
-        self.assertEqual(r["ltx2"]["status"], "not_ready")                   # the saver
+        # without seriesmith's node pack a shot is lowered to ComfyUI's own nodes
+        # (cloud.without_pack): it renders, with less kept
+        self.assertEqual(r["ltx2"]["status"], "degraded")
+        self.assertIn(E.PACK_FEATURE, r["ltx2"]["features_off"])
         r = self.ready(fake_object_info(drop_nodes={"LTXVDurationPredictor"}))
         self.assertEqual((r["ltx2"]["status"], r["ltx2"]["features_off"]),
                          ("degraded", ["dur: model (duration head)"]))

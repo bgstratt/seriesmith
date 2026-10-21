@@ -365,6 +365,8 @@ class Installer:
             return self._model(item, place)
         if item.kind == "pack":
             return self._pack(item, place)
+        if item.kind == "link":
+            return self._link(item, place)
         if item.kind == "pip":
             return self._pip(item, place)
         if item.kind == "ffmpeg":
@@ -413,6 +415,27 @@ class Installer:
         with self._lock:
             self.restart = True
         return note or "cloned"
+
+    def _link(self, item: FT.Item, place: Place) -> str | None:
+        """seriesmith's own node pack: <custom_nodes>/seriesmith made a link to
+        this repo's comfy_nodes (a junction on Windows: no administrator rights;
+        a symlink elsewhere), so ComfyUI loads it from here and a git pull
+        updates it. Nothing goes into ComfyUI's Python."""
+        if not place.custom_nodes:
+            raise InstallError(place.why_not or "ComfyUI's custom_nodes folder isn't known here "
+                                                "(set where ComfyUI is in Settings)")
+        src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "comfy_nodes")
+        dest = os.path.join(place.custom_nodes, item.name)
+        if os.path.lexists(dest):
+            return "already there"
+        if os.name == "nt":
+            self._run(["cmd", "/c", "mklink", "/J", dest, src], timeout=60)
+        else:
+            os.symlink(src, dest, target_is_directory=True)
+        with self._lock:
+            self.restart = True
+        return f"linked {dest} -> {src}"
 
     def _pip(self, item: FT.Item, place: Place) -> str | None:
         py = which_python(item.where, place)

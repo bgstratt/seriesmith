@@ -266,6 +266,8 @@ class ComfyUIBackend(Backend):
         self.api_key = None
         self.client_id = f"seriesmith-{uuid.uuid4().hex[:12]}"
         self._has: dict[str, tuple[bool, float]] = {}
+        self._info: tuple[float, dict] | None = None
+        self.without_pack = False            # the last shot went without seriesmith's nodes
 
     def has_node(self, ctype: str) -> bool:
         """Whether this ComfyUI knows `ctype` (asked once a minute at most;
@@ -279,6 +281,21 @@ class ComfyUIBackend(Backend):
             return True
         self._has[ctype] = (ok, time.monotonic())
         return ok
+
+    def object_info(self) -> dict:
+        """Every node class this ComfyUI has, with its inputs (asked once a
+        minute at most)."""
+        if self._info and time.monotonic() - self._info[0] < 60:
+            return self._info[1]
+        info = _client(self.base_url, self.client_id).object_info()
+        self._info = (time.monotonic(), info)
+        return info
+
+    def prepare(self, graph: dict, job, take) -> tuple[dict, dict | None]:
+        """The portable graph as it is; without seriesmith's node pack in this
+        ComfyUI, lowered to ComfyUI's own nodes (cloud.without_pack)."""
+        from seriesmith import cloud as C
+        return C.without_pack(self, graph, job, take) or (graph, None)
 
     def without_missing(self, g: dict) -> list[str]:
         """The nodes in `g` a target can do without that this ComfyUI hasn't,
