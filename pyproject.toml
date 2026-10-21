@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seriesmith"
-version = "0.1.0"
+version = "0.1.1"
 description = "A series config and episode scripts in, finished episodes out: any shot on any model, local or on Comfy's cloud."
 readme = "README.md"
 requires-python = ">=3.10"
