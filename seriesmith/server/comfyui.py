@@ -106,6 +106,10 @@ def start(server, settings=None, wait: float = 120.0):
         log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
                     "straight to ComfyUI", e)
         return (lambda: A.Context(user_dir(), url, emit)), settings, None
+    # ComfyUI exiting: the journal kept as the jobs stand, a master or align
+    # running stopped rather than left going without us (Queue.close)
+    import atexit
+    atexit.register(runner.queue.close)
 
     # a Comfy API key already set (Settings, COMFY_API_KEY) but no comfy-sdk in
     # ComfyUI's Python: put it in, in the background (seriesmith.sdk)

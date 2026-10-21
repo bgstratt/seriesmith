@@ -50,6 +50,30 @@ class QueueResilienceTest(unittest.TestCase):
         self.assertIn("time limit", job.error)
         self.assertEqual(stopped, [1])                    # its run was asked to stop
 
+    def test_closing_keeps_the_journal_and_stops_local_work(self):
+        """The server stopping (Queue.close): a master or align running is
+        stopped, not left going with no server, and stays in the journal as
+        running, for the next start to list; a render is left to its backend."""
+        g, r = Gate(), Gate()
+        killed = []
+        local = Job(kind="master", lane="cpu", title="ks01 master", work=g.work(),
+                    resume={"kind": "local", "task": "master", "params": {}})
+        render = Job(kind="render", lane="local", title="sh010", work=r.work(),
+                     record="r.json", resume={"kind": "render"})
+        self.q.submit(local)
+        self.q.submit(render)
+        g.started.wait(5)
+        r.started.wait(5)
+        self.q.arm_cancel(local, lambda: (killed.append("master"), g.go.set()))
+        self.q.arm_cancel(render, lambda: killed.append("render"))
+        self.q.close()
+        self.assertEqual(killed, ["master"])
+        wait_for(lambda: local.status in DONE, 5)
+        live = json.load(open(self.journal, encoding="utf-8"))
+        self.assertEqual({e["title"]: e["status"] for e in live.values()},
+                         {"ks01 master": "running", "sh010": "running"})
+        r.go.set()
+
     def test_the_journal_lists_live_jobs_with_a_record(self):
         g = Gate()
         a = self.q.submit(Job(kind="render", lane="local", title="a", work=g.work(),

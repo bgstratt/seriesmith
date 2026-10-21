@@ -332,12 +332,13 @@ def make_app(roots: list[str] | None = None, settings=None,
     async def closing(app: web.Application) -> None:
         # before the server waits on requests in flight: the editor's live
         # connections closed (they never end by themselves), the queue's
-        # journal written, so the next start picks up where this one stopped
+        # journal written, so the next start picks up where this one stopped,
+        # and a master or align running stopped, not left going without us
         app["relay"].cancel()
         for ws in list(events.sockets):
             await ws.close(code=1001, message=b"seriesmith is stopping")
         try:
-            queue.write_journal()
+            queue.close()
         except OSError:
             pass
 

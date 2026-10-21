@@ -184,6 +184,25 @@ class Queue:
         except OSError:
             pass                                          # best effort: never fail a job for it
 
+    def close(self, stop_lanes=("cpu",)) -> None:
+        """The server stopping: the journal written as the jobs stand and kept
+        so (a job running now is listed running, for the next start to say so),
+        and the runs on `stop_lanes` (work on this machine: a master, align)
+        stopped rather than left going with no server to follow them. A render
+        runs in its backend and is found again; it is left alone."""
+        self.write_journal()
+        with self._lock:
+            self.journal = None
+            stop = [j for j in self.jobs.values()
+                    if j.status == "running" and j.lane in stop_lanes and j.cancel_run]
+            for j in stop:
+                j.cancel_asked = True
+        for j in stop:
+            try:
+                j.cancel_run()
+            except Exception:                            # noqa: BLE001  best effort
+                pass
+
     def read_journal(self) -> dict:
         """What the journal listed when the server last stopped ({} if none)."""
         if not self.journal:
