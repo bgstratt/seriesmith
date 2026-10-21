@@ -29,6 +29,7 @@ Resilience (docs/PLAN.md, step 11):
 from __future__ import annotations
 
 import itertools
+import os
 import threading
 import time
 import uuid
@@ -179,6 +180,8 @@ class Queue:
                     for j in self.jobs.values()
                     if j.status not in DONE and (j.record or (j.resume or {}).get("step")
                                                  or (j.resume or {}).get("kind") == "local")}
+        if not live and not os.path.exists(self.journal):
+            return                                        # nothing to keep: no file made for it
         try:
             F.write_json(self.journal, live, indent=1, end="", ensure_ascii=True, default=str)
         except OSError:
