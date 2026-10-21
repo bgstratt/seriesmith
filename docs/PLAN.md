@@ -890,13 +890,18 @@ transcribe works again.
       a job with no picture. Non-commercial licence.
 - [x] Live, 2026-10-21: an Omni shot with four subjects (two characters, a prop, a vehicle
       through the loader's `ref_4`) and an Omni still, on local ComfyUI.
-- [ ] Live: a Fibo 2.0 relight (waits on the Qwen3-VL 4B encoder).
+- [x] Live, 2026-10-21: a Fibo 2.0 Dev relight of Ballroom ep02's right-of-way plate to fog:
+      it works well; 50 steps is slow, worth it where quality or style matter.
 - [x] Seedance takes what it can: 2.5 up to 30 reference pictures (BytePlus: 30 images,
       10 videos, 10 audio clips), the 2.0 family 9 (`tools/make_router_targets.py`), where
       both sent four subjects and the plate. A shot's extra subjects past the cap still
       drop silently.
-- [ ] Seedance's prompt names no picture: with many, say which is whom ("Image 3 is
-      Voss."), as Kling's `mention` does — to try on a paid take.
+- [ ] Seedance's prompt names no picture: with many, say which is whom, as Kling's `mention`
+      does. ByteDance's convention (the Ark tutorial and prompt guide): `@Image 1`, `@Video 1`,
+      `@Audio 1`, numbered from 1 within each type in the request's content order, a space
+      before the number, a noun after it rather than a verb ("Voss, from @Image 3, ...";
+      "the scene is from @Image 4"); asset ids can't be used in the text. A `mention` for the
+      Seedance targets (tools/make_router_targets.py), to try on a paid take.
 
 ## Step 15 — models behind other APIs (next)
 
