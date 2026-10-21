@@ -122,6 +122,29 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
     if (!refs) void loadRefs(ep);
   }, [ep]);
   const cast = useMemo(() => castOf(sc.base, refs), [sc.base, refs]);
+  // a card saved a new character or place (+ Character, + Location): the series
+  // config again, so it can be picked without reopening the form
+  const sourceN = useApp((s) => s.sourceN);
+  useEffect(() => {
+    if (sourceN) void sc.reload();
+  }, [sourceN]);
+  // ... and one added from this form goes straight into the field it was added from
+  const card = useApp((s) => s.subjectCard);
+  const adding = useRef<{ kind: string; put: (id: string) => void } | null>(null);
+  const addFrom = (kind: "character" | "prop" | "location", put: (id: string) => void) => {
+    adding.current = { kind, put };
+    openSubjectCard({ kind, id: null });
+  };
+  useEffect(() => {
+    const a = adding.current;
+    if (!a) return;
+    if (!card || card.kind !== a.kind) {
+      adding.current = null;                       // closed without saving one
+    } else if (card.id) {
+      adding.current = null;
+      a.put(card.id);
+    }
+  }, [card]);
   const block = form ? writeShot(form) : [];
   const dirty = !!form && block.join("\n") !== orig;
 
@@ -253,7 +276,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                             value={newSeq.id} onChange={(e) => setNewSeq({ ...newSeq, id: e.target.value.trim() })} />
                           <PlacePick ep={ep} value={newSeq.location} places={cast.places} empty="its location…"
                             onChange={(v) => setNewSeq({ ...newSeq, location: v })} />
-                          <button className="h3-btn h3-add" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Location</button>
+                          <button className="h3-btn h3-add"
+                            onClick={() => addFrom("location", (id) => setNewSeq((n) => ({ ...n, location: id })))}>+ Location</button>
                         </>
                       )}
                     </div>
@@ -265,13 +289,18 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                 <div className="sm-form">
                   <Tip label="Who" help="The characters on screen, in this order (on H3 they are the shot's pictures 1 to 3). Someone who only speaks off screen isn't here: give their line V.O. or O.S." />
                   <Chips ep={ep} value={listOf(form.keys.who)} options={cast.chars.filter((c) => c.onScreen)}
-                    onChange={(v) => set("who", v.join(", "))} add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Character" />
+                    onChange={(v) => set("who", v.join(", "))} addLabel="+ Character"
+                    add={() => addFrom("character", (id) => setForm((f) => (f ? { ...f, keys: { ...f.keys, who: [...listOf(f.keys.who), id].join(", ") } } : f)))} />
                   <Tip label="With" help="Props and vehicles whose exact look matters and recurs (each takes a picture slot). A generic mug is better in the action." />
                   <Chips ep={ep} value={listOf(form.keys.with)} options={cast.things}
-                    onChange={(v) => set("with", v.join(", "))} add={() => openSubjectCard({ kind: "prop", id: null })} addLabel="+ Prop" />
+                    onChange={(v) => set("with", v.join(", "))} addLabel="+ Prop"
+                    add={() => addFrom("prop", (id) => setForm((f) => (f ? { ...f, keys: { ...f.keys, with: [...listOf(f.keys.with), id].join(", ") } } : f)))} />
                   <Tip label="Where" help="The location behind this shot. Empty: the sequence's location." />
-                  <PlacePick ep={ep} value={form.keys.plate ?? ""} places={cast.places} empty="the sequence's location"
-                    onChange={(v) => set("plate", v)} />
+                  <span className="h3-row" style={{ gap: 6 }}>
+                    <PlacePick ep={ep} value={form.keys.plate ?? ""} places={cast.places} empty="the sequence's location"
+                      onChange={(v) => set("plate", v)} />
+                    <button className="h3-btn h3-add" onClick={() => addFrom("location", (id) => set("plate", id))}>+ Location</button>
+                  </span>
                 </div>
               </div>
 

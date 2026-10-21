@@ -11,6 +11,8 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import re
+
 from seriesmith.core.series_config import members
 
 # A character sheet is generated as four square views and stitched (a 4096x1024
@@ -70,6 +72,48 @@ VIEW_TMPL = ("A single character reference view on a plain flat neutral backgrou
              "no scene and no props, {frame}: {view}. {design}.{caveat} Drawn as "
              "{look}. Output {w}x{h}.")
 
+# What a head-and-shoulders view can't show, and draws anyway when the design
+# names it: a design's "scuffed brown boots" put the boots into the face view
+# (beside the head, or the figure pulled back to fit them), whatever its
+# framing said. The close-up is told the design without them (unshod).
+FOOTWEAR = re.compile(r"\b(shoes?|boots?|sneakers?|trainers?|heels|high[- ]heels|stilettos?|"
+                      r"sandals?|loafers?|slippers?|flip[- ]flops?|clogs?|moccasins?|brogues?|"
+                      r"pumps|footwear|socks?|stockings?|tights|barefoot(?:ed)?|bare feet|feet)\b",
+                      re.I)
+# where a design's list splits: commas, semicolons, "and", "with"
+LIST_SEP = re.compile(r"(,\s*|;\s*|\s+and\s+|\s+with\s+)")
+
+
+def unshod(design: str) -> str:
+    """A design sentence without the parts of its lists that name footwear
+    ("a man in a grey coat, black jeans and scuffed brown boots" -> "a man in a
+    grey coat, black jeans"). The first part names who it is, so it is kept,
+    only a "barefoot" taken out of it."""
+    text = str(design or "").strip()
+    end = "." if text.endswith(".") else ""
+    pieces = LIST_SEP.split(text.rstrip("."))
+    parts, seps = pieces[0::2], pieces[1::2]
+    if not any(FOOTWEAR.search(p) for p in parts):
+        return text
+    keep = [True] * len(parts)
+    for i, p in enumerate(parts):
+        if i and FOOTWEAR.search(p):
+            keep[i] = False
+    out = re.sub(r"\bbarefoot(?:ed)?\s+", "", parts[0], flags=re.I)
+    for i in range(1, len(parts)):
+        if keep[i]:
+            out += seps[i - 1] + parts[i]
+        elif i + 1 < len(parts) and keep[i + 1]:
+            # "a coat with boots and a hat": the next part takes this one's "with"
+            seps[i] = seps[i - 1]
+    return out.strip() + end
+
+
+def view_design(view: str, design: str) -> str:
+    """The design as one view of a sheet is told it: the close-up without
+    footwear (unshod), the others as written."""
+    return unshod(design) if view == "04_face" else design
+
 
 def view_prompt(view: str, design: str, look: str, w: int, h: int) -> str:
     """The prompt for one view of a character sheet (`view` is a VIEWS tag).
@@ -78,9 +122,10 @@ def view_prompt(view: str, design: str, look: str, w: int, h: int) -> str:
     for the two views that can't show one. The view's caveat (VIEW_KEEP) says
     so, or the back view comes back with the character turned around to make
     the description true. The framing is the view's too (VIEW_FRAME): the
-    close-up is the one view that must NOT hold the whole figure."""
-    return VIEW_TMPL.format(view=VIEW_DESC[view], design=design, look=look, w=w, h=h,
-                            caveat=VIEW_KEEP[view][1], frame=VIEW_FRAME[view])
+    close-up is the one view that must NOT hold the whole figure, and it is
+    told the design without footwear (view_design)."""
+    return VIEW_TMPL.format(view=VIEW_DESC[view], design=view_design(view, design), look=look,
+                            w=w, h=h, caveat=VIEW_KEEP[view][1], frame=VIEW_FRAME[view])
 
 
 def view_edit_prompt(view: str, design: str, look: str, w: int, h: int,
@@ -100,7 +145,8 @@ def view_edit_prompt(view: str, design: str, look: str, w: int, h: int,
     keep, caveat = VIEW_KEEP[view]
     return (f"The {word} is {base_name}: {VIEW_DESC[view]}. Redraw that same character in "
             f"that same view and at the same scale, keeping {keep} exactly as they are in "
-            f"the {word}, and changing only what this description changes: {design}."
+            f"the {word}, and changing only what this description changes: "
+            f"{view_design(view, design)}."
             f"{caveat} Keep the plain flat neutral background, no scene and no props, "
             f"{VIEW_FRAME[view]}. Drawn as {look}. Output {w}x{h}.")
 

@@ -417,6 +417,31 @@ class DerivedViewsTest(unittest.TestCase):
         self.assertIn("framed close on the head and shoulders", edit)
         self.assertNotIn("the whole figure inside the frame", edit)
 
+    def test_the_close_up_is_not_told_the_shoes(self):
+        """A design's footwear put the shoes into the head-and-shoulders view,
+        whatever its framing said: the close-up is told the design without it,
+        each list item on its own (the coat stays), the other views as written."""
+        from seriesmith.targets.image.krea2 import prompt as KP
+        design = "a tall man in a grey coat, black jeans and scuffed brown boots"
+        face = KP.view_prompt("04_face", design, "l", 1024, 1024)
+        self.assertIn("a tall man in a grey coat, black jeans.", face)
+        self.assertNotIn("boots", face)
+        self.assertIn("boots", KP.view_prompt("01_threequarter", design, "l", 1024, 1024))
+        self.assertNotIn("boots", KP.view_edit_prompt("04_face", design, "l", 1024, 1024, "Gina"))
+        self.assertEqual(KP.unshod("a man in a coat with boots and a hat"),
+                         "a man in a coat with a hat")
+        self.assertEqual(KP.unshod("a barefoot girl in a white nightgown"),
+                         "a girl in a white nightgown")
+        self.assertEqual(KP.unshod("a woman in an oxford shirt"), "a woman in an oxford shirt")
+
+    def test_a_face_drawn_from_the_first_view_keeps_only_what_it_shows(self):
+        """Told to keep their "build, clothes", the face view drawn from the
+        whole figure kept the whole figure, shoes and all."""
+        face = R.view_from("04_face")
+        self.assertIn("cropped at the chest", face)
+        self.assertNotIn("build, clothes", face)
+        self.assertEqual(R.view_from("02_side"), R.VIEW_FROM["02_side"] + R.KEEP_SAME)
+
     def test_the_cold_path_says_it_too(self):
         """The same contradiction sits in a plain character's back view, with
         no variant involved."""

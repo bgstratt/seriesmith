@@ -2147,6 +2147,19 @@ VIEW_FROM = {
 KEEP_SAME = (" Replace the entire background with flat, plain, even light grey: nothing else "
              "at all. Keep their face, hair, build, clothes and colours exactly the same, in the "
              "same style.")
+# the close-up keeps only what it shows: told to keep "build, clothes", the face
+# view was drawn from the whole figure with its shoes in frame
+KEEP_FACE = (" Replace the entire background with flat, plain, even light grey: nothing else "
+             "at all. Framed close on the head and shoulders and cropped at the chest, the head "
+             "filling most of the frame, not the whole figure. Keep their face, hair, the "
+             "clothes at their neck and shoulders, and the colours exactly the same, in the "
+             "same style.")
+
+
+def view_from(view: str) -> str:
+    """What a character's `view` is drawn from its first one with, on an edit
+    model (VIEW_FROM, then what to keep)."""
+    return VIEW_FROM[view] + (KEEP_FACE if view == "04_face" else KEEP_SAME)
 
 
 def keyframe_from_take(s: Series, shot: str, which: str = "first",
