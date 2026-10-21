@@ -5,7 +5,9 @@ any shot on any model, local ComfyUI or Comfy's cloud (Comfy API, Router, via th
 Comfy SDK). Successor to h3pipe (`../h3pipe`), ported from it step by step.
 
 The design is `docs/DESIGN.md` and the work list `docs/PLAN.md`; keep them current
-when a decision changes. `docs/AUTHORING.md` is the script/series config format (the
+when a decision changes. `docs/REFACTOR.md` is the record of the 2026-10-20 refactor pass
+(complete): why things are as they are, what was left alone, and the evidence; read the
+item before redoing one. `docs/AUTHORING.md` is the script/series config format (the
 source of `prompts/` and the script-writing skill); `docs/API.md` the editor's HTTP
 contract; `docs/QUICKSTART.md` (the thirty-second install), `docs/FULL_SETUP.md` (what each
 feature needs), `INSTALL.md`, `docs/SETUP.md`, `docs/EDITOR.md`, `docs/COMMANDS.md` the
@@ -32,7 +34,7 @@ user's side.
 - `seriesmith/server/` — `seriesmith serve` (`standalone.py`: the editor page, its API, the queue, the installed models found (`detect_models`), comfy-api-proxy started when renders go through it, `POST /seriesmith/server/stop` for `seriesmith stop` and Settings' Stop / Restart, exit code 3 to restart), `views.py` (the API on aiohttp), `queue_views.py` (Jobs, backends, Settings: registered by both hosts), `comfyui.py` (the same app on a ComfyUI's own server, loaded by the node pack from the repo it's linked from — nothing installed in ComfyUI's Python — its own journal `queue-comfyui.json`); `static/` is the built page
 - `run_seriesmith.bat` / `run_seriesmith_ext.bat` / `run_seriesmith.sh` — launchers (this PC / the network, `--host 0.0.0.0`); they make the repo's `.venv` on first start and start the server again on exit code 3
 - `web/` — the editor (React/Vite); `npm run build:standalone` writes `seriesmith/server/static/`, `npm run build` the ComfyUI page `comfy_nodes/web/seriesmith-editor.js`; commit both
-- `docs/` — DESIGN, PLAN, QUICKSTART, FULL_SETUP, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN; `docs/site/` the Mintlify docs site (docs.seriesmith.com; Mintlify's monorepo path): `docs.json`, `index.mdx` and the logos by hand, every other page generated from INSTALL.md and the user docs (never DESIGN or PLAN). The marketing site (seriesmith.com) is its own repo, `../seriesmith-site`
+- `docs/` — DESIGN, PLAN, REFACTOR (the refactor's record), QUICKSTART, FULL_SETUP, SETUP, AUTHORING, SCRIPT_CONVERSION, EDITOR, COMMANDS, API, H3_TARGET, CONTINUOUS, POST_PROCESSING, RECORDED_DIALOGUE, KREAGEN; `docs/site/` the Mintlify docs site (docs.seriesmith.com; Mintlify's monorepo path): `docs.json`, `index.mdx` and the logos by hand, every other page generated from INSTALL.md and the user docs (never DESIGN or PLAN). The marketing site (seriesmith.com) is its own repo, `../seriesmith-site`
 - `tools/` — `make_prompts.py` (prompts/ and the skill from AUTHORING.md), `make_models_md.py` (INSTALL.md's model list), `sync_starter_doc.py` (AUTHORING.md's first example is `examples/starter/`), `make_router_targets.py` (the Comfy Router video and image models in `seriesmith/targets/{video,image}/`, from the schemas in `tests/fixtures/router_schemas/`), `make_site_docs.py` (docs/site/'s pages from the user docs), `make_preset_samples.py` (the presets' sample pictures, rendered with seriesmith on a scratch episode); `tests/test_docs.py`, `tests/test_new_episode.py` and `tests/test_router_inspect.py` check them
 
 ## Rules

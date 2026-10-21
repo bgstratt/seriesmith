@@ -1,5 +1,10 @@
 # seriesmith — refactor pass
 
+> **Complete (2026-10-20).** Every item below is done and merged (PRs #16-#28). The
+> architecture it arrived at is in [DESIGN.md](DESIGN.md); this file is the record: what
+> each item found, why it was done the way it was (and what was left alone), and the
+> evidence for each.
+
 A pass over the whole codebase (started 2026-10-20): fix what the survey found broken,
 make the slow paths fast, combine duplicated code, and standardize the architecture.
 Behaviour stays the same unless an item says otherwise. Tick items off as they land;
@@ -795,6 +800,13 @@ stops at your limit as the editor does.
 
 ## Not doing (for now)
 
+- **Slimming the episode answer** (per-take detail only in `GET /shot`), after 3.4.
+  Measured 2026-10-20 on Porchlights ep01 (final, warm, `/episode` 0.73 s): the upscale
+  recipe match is 0.21 s for 362 takes, but 323 of them are the shots' cut takes, which
+  would still need it; the others cost 0.02 s. What's left is real per-shot work, and the
+  page reads the per-take fields in many places (the context menu, Upscale, the Viewer,
+  cut playback, Master, the failed-take notes, queued takes' progress): a few tenths of a
+  second at most, for a wide page change. Left alone.
 - **Import time.** The server's 0.5 s is aiohttp; `api` importing all of edit/refs/jobs
   eagerly costs ~120 ms. Not worth the churn.
 - **The node pack's own copies** (`fit_size`, the encoder, strip indices) stay: the pack
