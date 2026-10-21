@@ -70,6 +70,8 @@ Stdlib only.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import contextvars
 import copy
 import os
 import re
@@ -293,10 +295,35 @@ def cut_take(root: str, e: T.CutEntry,
     return chosen, (chosen.take if chosen else None), chosen is not None
 
 
+# a pass's cut resolved once while one answer is made (cut_memo)
+_CUT_MEMO: contextvars.ContextVar[dict | None] = contextvars.ContextVar("cut_memo", default=None)
+
+
+@contextlib.contextmanager
+def cut_memo():
+    """Within it, a pass's cut is read and resolved once, not once per ask:
+    episode_status asks for each take's neighbour in the cut (an upscale's
+    `continuous: latent` chain), 350 resolutions of one cut on a long
+    episode. Only for reading: nothing in it writes the cut."""
+    token = _CUT_MEMO.set({})
+    try:
+        yield
+    finally:
+        _CUT_MEMO.reset(token)
+
+
 def cut_entries(root: str, pass_: str) -> list[T.CutEntry]:
     """One pass's cut, reconciled with the script (every target's shots)."""
+    memo = _CUT_MEMO.get()
+    key = (os.path.normcase(os.path.abspath(root)), pass_)
+    if memo is not None and key in memo:
+        return list(memo[key])
     order = [d["shots"][i]["id"] for d, i in J.episode_shots(root, pass_)]
-    return T.resolve_cut(T.load_cut(root), pass_, order)
+    entries = T.resolve_cut(T.load_cut(root), pass_, order)
+    if memo is not None:
+        memo[key] = entries
+        return list(entries)
+    return entries
 
 
 def cut_neighbour(root: str, pass_: str, shot_id: str, step: int) -> T.CutEntry | None:
@@ -401,7 +428,7 @@ def episode_status(root: str, pass_: str, folder: str | None = None,
     config are read once for it, not once per shot. `listed` {shot: its takes}
     is a listing just made (sweep_takes'), used rather than made again."""
     from seriesmith import diskcache as DC
-    with J.TG.one_load():
+    with J.TG.one_load(), cut_memo():
         out = _episode_status(root, pass_, folder, listed or {})
     DC.save()                          # what it learned is kept for the next run
     return out
