@@ -63,6 +63,17 @@ def room(folder: str, kind: str) -> None:
 LOCAL_LANE = "cpu"                   # long work of seriesmith's own (local_job)
 
 
+def progress_to(report):
+    """A backend's Progress handed to the queue's report()."""
+    return lambda p: report(p.value, p.step, p.steps)
+
+
+def ending(qjob: QJob, ok: bool) -> str:
+    """The queue's status for a job that ended ok or not (canceled when Cancel
+    was asked)."""
+    return "succeeded" if ok else ("canceled" if qjob.cancel_asked else "failed")
+
+
 def stopped(qjob: QJob) -> str:
     """What a stopped job's record says: the queue's reason (a time limit) or
     "canceled" (the user)."""
@@ -84,6 +95,32 @@ class Runner:
     def backend(self, name: str):
         return self.backends.get(name)
 
+    # -- what every job on a backend does (render, ref, finish, tour) --------
+
+    def backend_for(self, name: str):
+        """The backend `name`; ValueError when it isn't set up here (asked
+        before anything is reserved)."""
+        backend = self.backends.get(name)
+        if backend is None:
+            raise ValueError(f"{name} isn't set up on this machine (seriesmith backends)")
+        return backend
+
+    def reserve(self, backend, root: str, kind: str) -> None:
+        """Before a job's take or record is reserved: room on the disk for what
+        it makes, and a paid run counted (PaidLimit past Settings' limit), so a
+        refusal leaves nothing behind."""
+        room(root, kind)
+        if backend.paid:
+            self.queue.charge(backend.name)
+
+    def started(self, qjob: QJob, run, backend, report) -> None:
+        """A job's run started on its backend: Cancel stops it from now on, and
+        the job's log says where it runs and what the backend changed."""
+        self.queue.arm_cancel(qjob, run.cancel)
+        report(line=f"on {backend.name}: {run.id}")
+        for n in run.notes:
+            report(line=n)
+
     def enqueue_render(self, job: J.Job, base: dict | None, backend_name: str,
                        probe=None, continuity: dict | None = None,
                        after: str | None = None,
@@ -102,13 +139,9 @@ class Runner:
 
         from seriesmith import render as RD
 
-        backend = self.backends.get(backend_name)
-        if backend is None:
-            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
-        local_probe = probe if backend.kind == "local" else None
-        room(job.root, "render")
-        if backend.paid:
-            self.queue.charge(backend.name)              # before anything is reserved
+        backend = self.backend_for(backend_name)
+        local_probe = probe if backend.shares_disk else None
+        self.reserve(backend, job.root, "render")
         # the continuity node of h3pipe's way (H3ContinuityFrame) isn't used:
         # the first frame is cut when the job starts, below
         job.continuity = None
@@ -144,14 +177,10 @@ class Runner:
                 **({"notes": list(job.notes)} if job.notes else {}))
 
         def work(qjob: QJob, report) -> str:
-            def progress(p):
-                report(p.value, p.step, p.steps)
+            progress = progress_to(report)
 
             def got_run(run):
-                self.queue.arm_cancel(qjob, run.cancel)
-                report(line=f"on {backend.name}: {run.id}")
-                for n in run.notes:
-                    report(line=n)
+                self.started(qjob, run, backend, report)
                 if run.notes:
                     had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
                     T.update_sidecar(take.paths.sidecar, notes=list(had) + list(run.notes))
@@ -175,8 +204,7 @@ class Runner:
                 J.mark_failed(take, stopped(qjob))
             report(line=f"take {status}")
             self._take_event(ep, take)
-            return "succeeded" if status == "ok" else (
-                "canceled" if qjob.cancel_asked else "failed")
+            return ending(qjob, status == "ok")
 
         def cancelled(qjob: QJob) -> None:
             J.mark_failed(take, "canceled before it ran")
@@ -220,7 +248,7 @@ class Runner:
         said = {"text": None}
 
         def on_status(run, status):
-            if run.backend != "router" or status not in ("queued", "running"):
+            if not run.reports_position or status not in ("queued", "running"):
                 return
             pos = getattr(run, "position", None)
             text = ("running on Router" if status == "running"
@@ -248,13 +276,9 @@ class Runner:
 
         from seriesmith import refs as R
 
-        backend = self.backends.get(backend_name)
-        if backend is None:
-            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        backend = self.backend_for(backend_name)
         hosted = bool(job.target.spec.get("router"))
-        room(s.ep, "ref")
-        if backend.paid:
-            self.queue.charge(backend.name)              # before anything is reserved
+        self.reserve(backend, s.ep, "ref")
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
         if not hosted:
             R.stage_references(s, job, collector)
@@ -286,14 +310,10 @@ class Runner:
                "model": call[0] if hosted else None, "asked": asked()}
 
         def work(qjob: QJob, report) -> str:
-            def progress(p):
-                report(p.value, p.step, p.steps)
+            progress = progress_to(report)
             try:
                 run = backend.call(*call) if hosted else backend.submit(g)
-                self.queue.arm_cancel(qjob, run.cancel)
-                report(line=f"on {backend.name}: {run.id}")
-                for n in run.notes:
-                    report(line=n)
+                self.started(qjob, run, backend, report)
                 T.update_sidecar(take.paths.sidecar, backend_job=run.id)
                 remote = self._remote(qjob, take.paths.sidecar, report)
                 status = run.watch(on_progress=progress, on_status=lambda st: remote(run, st))
@@ -306,8 +326,7 @@ class Runner:
             self._emit("seriesmith.ref", {"ep": ep, "ref": job.ref.id, "view": job.view,
                                       "take": take.take, "status": result})
             self._emit("seriesmith.episode", {"ep": ep})
-            return "succeeded" if result == "ok" else (
-                "canceled" if qjob.cancel_asked else "failed")
+            return ending(qjob, result == "ok")
 
         def cancelled(qjob: QJob) -> None:
             R.mark_failed(take, "canceled before it ran")
@@ -334,12 +353,8 @@ class Runner:
         shot's upscale this one starts from). Returns the queue's job id."""
         from seriesmith import finishing as F
 
-        backend = self.backends.get(backend_name)
-        if backend is None:
-            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
-        room(fin.root, fin.kind)
-        if backend.paid:
-            self.queue.charge(backend.name)
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, fin.root, fin.kind)
         ep, take = fin.root, fin.take
         event = F.EVENTS[fin.kind]
 
@@ -348,8 +363,7 @@ class Runner:
             self._emit("seriesmith.episode", {"ep": ep})
 
         def work(qjob: QJob, report) -> str:
-            def progress(p):
-                report(p.value, p.step, p.steps)
+            progress = progress_to(report)
             try:
                 g, extra = F.portable(fin)
                 from seriesmith.shotnodes import uses_h3pipe
@@ -358,10 +372,7 @@ class Runner:
                 for n in fin.notes:
                     report(line=n)
                 run = backend.submit(g)
-                self.queue.arm_cancel(qjob, run.cancel)
-                report(line=f"on {backend.name}: {run.id}")
-                for n in run.notes:
-                    report(line=n)
+                self.started(qjob, run, backend, report)
                 T.update_sidecar(fin.sidecar, backend_job=run.id)
                 qjob.resume.update(saver=J.node_of(g, F.SAVER), extra=extra)
                 self.queue.write_journal()
@@ -378,8 +389,7 @@ class Runner:
                 F.mark_failed(fin, stopped(qjob))
             report(line=f"{fin.kind} {result}")
             tell(result)
-            return "succeeded" if result == "ok" else (
-                "canceled" if qjob.cancel_asked else "failed")
+            return ending(qjob, result == "ok")
 
         def cancelled(qjob: QJob) -> None:
             F.mark_failed(fin, "canceled before it ran")
@@ -410,16 +420,12 @@ class Runner:
         from seriesmith import tour as TR
         from seriesmith.backends import File
 
-        backend = self.backends.get(backend_name)
-        if backend is None:
-            raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
+        backend = self.backend_for(backend_name)
         start = TR.tour_source(s, ref) or ref.file            # an angle: its place's plate
         for v in graph.values():
             if v["class_type"] == "LoadImage":
                 v["inputs"]["image"] = File(start)
-        room(s.ep, "tour")
-        if backend.paid:
-            self.queue.charge(backend.name)
+        self.reserve(backend, s.ep, "tour")
         ep, n = s.ep, side["tour"]
 
         def hold(take) -> None:
@@ -427,14 +433,10 @@ class Runner:
                                       "take": take.take, "status": "ok"})
 
         def work(qjob: QJob, report) -> str:
-            def progress(p):
-                report(p.value, p.step, p.steps)
+            progress = progress_to(report)
             try:
                 run = backend.submit(graph)
-                self.queue.arm_cancel(qjob, run.cancel)
-                report(line=f"on {backend.name}: {run.id}")
-                for n in run.notes:
-                    report(line=n)
+                self.started(qjob, run, backend, report)
                 side.update(backend_job=run.id)
                 TR.save_side(ref, side)
                 status = run.watch(on_progress=progress)
@@ -564,8 +566,7 @@ class Runner:
         kind, ep = res["kind"], res.get("ep")
 
         def work(qjob: QJob, report) -> str:
-            def progress(p):
-                report(p.value, p.step, p.steps)
+            progress = progress_to(report)
             report(line=f"{why}: run {run_id} on {backend.name}")
             try:
                 run = backend.attach(run_id, res.get("model"))
@@ -583,8 +584,7 @@ class Runner:
                 take = T.get_take(ep, res["pass"], res["shot"], res["take"])
                 if take is not None:
                     self._take_event(ep, take)
-            return "succeeded" if result == "ok" else (
-                "canceled" if qjob.cancel_asked else "failed")
+            return ending(qjob, result == "ok")
 
         qjob = QJob(kind=kind, lane=backend.name, title=f"{title} (found again)", work=work,
                     info={k: res.get(k) for k in ("ep", "pass", "shot", "take", "ref", "view", "tour")

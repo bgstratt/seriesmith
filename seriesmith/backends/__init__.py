@@ -195,6 +195,8 @@ class Run:
     id: str = ""
     backend: str = ""
     error: str | None = None
+    # it says where it waits in the provider's line (`position`): Router
+    reports_position: bool = False
     # what the backend changed to run it (a node it hasn't, spliced out), for
     # the job's log
     notes: tuple = ()
@@ -250,6 +252,31 @@ class Backend:
     def paid(self) -> bool:
         """Whether a run here is billed (Comfy Cloud, Router, a deployment)."""
         return self.kind != "local"
+
+    # What callers ask of a backend rather than its kind (docs/REFACTOR.md 3.5).
+
+    @property
+    def shares_disk(self) -> bool:
+        """It is this machine's own ComfyUI: a graph may read the episode
+        folder, and this ComfyUI is what's probed for nodes and model files."""
+        return self.kind == "local"
+
+    @property
+    def serial(self) -> bool:
+        """It runs one job at a time, in the order seriesmith's queue gives (a
+        ComfyUI of your own: the proxy can't reorder its queue)."""
+        return self.kind == "local"
+
+    @property
+    def own_models(self) -> bool:
+        """Its model files are its own, not this machine's (Comfy Cloud): a job
+        resolves its models against what it lists (jobs.model_lister)."""
+        return self.kind == "cloud"
+
+    def prepare(self, graph: dict, job, take) -> tuple[dict, dict | None]:
+        """The portable graph as this backend runs it, and what collecting the
+        run needs (None: it runs as it is)."""
+        return graph, None
 
 
 def files_in(value: Any) -> Iterable[tuple[Any, Any, File]]:
