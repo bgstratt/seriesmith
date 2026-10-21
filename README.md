@@ -20,15 +20,15 @@ kept with the exact settings that made it.
 
 seriesmith is the successor to h3pipe, which did all this on one local ComfyUI.
 
-New here? **[The thirty-second install](docs/QUICKSTART.md)** gets it running in ComfyUI on
-the models you already have; **[docs/AUTHORING.md](docs/AUTHORING.md)** is the script and
+New here? **[Getting started](docs/QUICKSTART.md)**: install it from ComfyUI-Manager and
+it runs in ComfyUI on the models you already have; **[docs/AUTHORING.md](docs/AUTHORING.md)** is the script and
 series config format.
 
 ### The documents
 
 | | What it is | Read it when |
 |---|---|---|
-| **[docs/QUICKSTART.md](docs/QUICKSTART.md)** | The thirty-second install: clone, link the node pack, start ComfyUI | First |
+| **[docs/QUICKSTART.md](docs/QUICKSTART.md)** | Getting started: from ComfyUI-Manager, on a page of its own, or a linked clone | First |
 | **[docs/FULL_SETUP.md](docs/FULL_SETUP.md)** | The node packs, model files, LoRAs and software for every feature, by job: H3 at full quality, voices, upscale, post, master, 360s | Turning on a feature that says something is missing |
 | **[INSTALL.md](INSTALL.md)** | Each part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, a first episode | Setting up by hand, or a model is missing |
 | **[docs/SETUP.md](docs/SETUP.md)** | The backends: your ComfyUI, Comfy Cloud, deployments, Router; the default models; the settings file and the key | Choosing where shots render |
@@ -131,22 +131,27 @@ same.
 
 ## Install
 
-**[INSTALL.md](INSTALL.md) is the full walkthrough.** The thirty-second version:
+**[INSTALL.md](INSTALL.md) is the full walkthrough;
+[docs/QUICKSTART.md](docs/QUICKSTART.md) the short one.** Three ways, one app:
 
-```
-git clone https://github.com/bgstratt/seriesmith.git C:\path\to\seriesmith
-mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\comfy_nodes"
-```
+- **Inside ComfyUI:** **Manager → Custom Nodes Manager**, search for **seriesmith**,
+  install, restart ComfyUI (or `comfy node install seriesmith`). The editor is in its
+  sidebar and renders on it. No other node pack is needed.
+- **On a page of its own:** `git clone https://github.com/bgstratt/seriesmith.git`, then
+  `run_seriesmith.bat` (this PC; `run_seriesmith_ext.bat`: your home network too;
+  `run_seriesmith.sh` on Linux/macOS) sets itself up in the folder's `.venv` the first
+  time, opens the editor at http://127.0.0.1:8190, and starts it again after the
+  editor's **Restart**; `seriesmith stop [--restart]` stops it from a terminal. It
+  renders on a ComfyUI, or with only a Comfy API key, on Comfy's cloud.
+- **A clone linked into ComfyUI**, for following main:
+  `mklink /J "C:\path\to\ComfyUI\custom_nodes\seriesmith" "C:\path\to\seriesmith\comfy_nodes"`
+  (`ln -s` on Linux/macOS).
 
-(`ln -s` on Linux/macOS.) Start ComfyUI: the editor is in its sidebar and renders on
-it. Nothing goes into ComfyUI's Python and no other node pack is needed. Or, with
-ComfyUI running, `run_seriesmith.bat` (this PC; `run_seriesmith_ext.bat`: your home
-network too; `run_seriesmith.sh` on Linux/macOS) sets itself up in the repo's `.venv`
-the first time, opens the editor at http://127.0.0.1:8190, and starts it again after
-the editor's **Restart**; `seriesmith stop [--restart]` stops it from a terminal. The
-default models are the ones you already have: H3, else LTX-2, else Wan 2.2 for video;
+The default models are the ones you already have: H3, else LTX-2, else Wan 2.2 for video;
 Krea 2, else FLUX.2 Klein, ... for pictures (docs/SETUP.md, "The default models").
-Everything else is optional, and **Settings → Features…** installs it:
+Everything else is optional, and **Settings → Features…** lists it (downloading the
+model files and ffmpeg itself; a node pack from ComfyUI-Manager, a Python package by the
+pip command it gives):
 - more models;
 - H3's sparse attention (the PlagueKind pack: H3 renders without it, marked degraded);
 - voices;

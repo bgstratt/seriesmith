@@ -1,6 +1,6 @@
 # Full setup
 
-The [thirty-second install](QUICKSTART.md) gets you writing, rendering, cutting and
+[Getting started](QUICKSTART.md) gets you writing, rendering, cutting and
 exporting on the models you already have. This page is everything on top of that, grouped
 by what it gives you: the node packs, model files, LoRAs and other software for each
 feature.

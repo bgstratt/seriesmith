@@ -1,20 +1,76 @@
 ---
-title: "The thirty-second install"
-description: "Clone, link the node pack, start ComfyUI: seriesmith running on the models you already have."
+title: "Getting started"
+description: "Install it from ComfyUI-Manager, run it on a page of its own, or link a clone: seriesmith on the models you already have."
 ---
 
 {/* Generated from docs/QUICKSTART.md by tools/make_site_docs.py: edit that file, not this one. */}
 
-seriesmith can run inside the ComfyUI you already have. It uses the models you already have
-in it. You don't have to install anything into ComfyUI's Python, you don't need other node packs,
-and you don't need ffmpeg to get started, but they do help later.
+seriesmith runs inside the ComfyUI you already have, on the models already in it. It's
+also a page of its own, beside a ComfyUI or with none at all (Comfy's cloud). Whichever
+way you run it, it's the same app, with the same projects and settings.
 
-You need:
+| Way | Good for |
+|---|---|
+| [1. Inside ComfyUI, from ComfyUI-Manager](#1-inside-comfyui-from-comfyui-manager) | Start here: one install, the editor in ComfyUI's sidebar |
+| [2. On a page of its own](#2-on-a-page-of-its-own) | A browser tab of its own, the `seriesmith` command, a ComfyUI on another machine, or only Comfy's cloud |
+| [3. From a clone, linked into ComfyUI](#3-from-a-clone-linked-into-comfyui) | Following the newest changes, or working on seriesmith |
 
-- a ComfyUI that runs (developed against 0.38 and later);
-- git.
+Pick one way into a ComfyUI. The Manager install and a linked clone both take the folder
+`custom_nodes/seriesmith`.
 
-## 1. Clone, and link the node pack into ComfyUI
+## 1. Inside ComfyUI, from ComfyUI-Manager
+
+You need a ComfyUI that runs (developed against 0.38 and later) with ComfyUI-Manager.
+
+1. Open **Manager → Custom Nodes Manager**, search for **seriesmith**, and install it.
+   Or, with comfy-cli: `comfy node install seriesmith`.
+2. Restart ComfyUI.
+
+Manager puts in the two Python packages seriesmith needs that ComfyUI doesn't already
+have: Comfy's SDK (comfy-sdk, for Comfy Cloud and Router) and imageio-ffmpeg (an ffmpeg).
+Nothing else is required. Updates come through Manager too.
+
+seriesmith shows up in ComfyUI:
+- **seriesmith Shots** and **seriesmith Refs** in the sidebar;
+- **seriesmith Timeline** in the bottom panel.
+
+It renders on that ComfyUI. To start, open **seriesmith Shots** and choose **Simple** at
+the top of the sidebar, then **A clip**. Under **What happens?**, describe the shot, pick
+who's in it and where, and press **Generate**.
+
+## 2. On a page of its own
+
+The same editor in a browser tab of its own (http://127.0.0.1:8190), and the `seriesmith`
+command. It renders on the ComfyUI on this machine, one elsewhere, or Comfy's cloud. You
+need git and Python 3.10 or later.
+
+```
+git clone https://github.com/bgstratt/seriesmith.git C:\code\seriesmith
+```
+
+Then double-click **`run_seriesmith.bat`** in it (Linux/macOS: `./run_seriesmith.sh`;
+`run_seriesmith_ext.bat` opens it to your home network too).
+- **The first time**, it sets itself up in the folder's `.venv`. That takes a minute or
+  two.
+- **Then** it opens the editor in your browser.
+
+Installed from Manager already? `run_seriesmith.bat` is in that folder too
+(`custom_nodes\seriesmith`): no clone needed. A Manager update replaces the folder, so
+the next start sets up its `.venv` again.
+
+With ComfyUI running on this machine, its **Features** window can add seriesmith's node
+pack to that ComfyUI (**seriesmith's node pack**, under Tools). Without the pack, shots
+still render there through ComfyUI's own nodes, and seriesmith says so once: what you
+lose is latent continuity, kept latents, upscales and posts.
+
+With no ComfyUI at all, set a Comfy API key in **Settings**: shots render on Comfy Cloud
+and the hosted models through Comfy Router (Seedance, Kling, Veo, ...), billed to that
+account ([Where shots render](/setup)).
+
+## 3. From a clone, linked into ComfyUI
+
+For following the newest changes on GitHub, or working on seriesmith. Link the clone's
+`comfy_nodes` folder into `custom_nodes`, so a `git pull` updates what ComfyUI loads.
 
 Windows, in an ordinary Command Prompt (`mklink /J` needs no administrator rights):
 
@@ -30,34 +86,10 @@ git clone https://github.com/bgstratt/seriesmith.git ~/seriesmith
 ln -s ~/seriesmith/comfy_nodes /path/to/ComfyUI/custom_nodes/seriesmith
 ```
 
-The paths are only examples. Link the folder rather than copying it: seriesmith finds
-the rest of itself through the link, and a `git pull` updates what ComfyUI loads.
-
-Running the editor on a page of its own (below) beside a ComfyUI you'd rather not touch?
-Its **Features** window can make this link for you (**seriesmith's node pack**, under
-Tools; ComfyUI restarts to load it). Without the pack, shots still render on that
-ComfyUI through its own nodes, and seriesmith says so once: what you lose is latent
-continuity, kept latents, upscales and posts.
-
-## 2. Start ComfyUI
-
-seriesmith shows up in ComfyUI:
-- **seriesmith Shots** and **seriesmith Refs** in the sidebar;
-- **seriesmith Timeline** in the bottom panel.
-
-It renders on that ComfyUI. To start, open **seriesmith Shots** and choose **Simple** at
-the top of the sidebar, then **A clip**. Under **What happens?**, describe the shot, pick
-who's in it and where, and press **Generate**.
-
-## Or: the editor on a page of its own
-
-With ComfyUI running, double-click **`run_seriesmith.bat`** in the repo (Linux/macOS:
-`./run_seriesmith.sh`).
-- **The first time**, it sets itself up in the repo's `.venv`. That takes a minute or two
-  and needs Python 3.10 or later.
-- **Then** it opens http://127.0.0.1:8190 in your browser.
-
-It's the same app as the one inside ComfyUI, with the same projects and settings.
+The paths are only examples. Link the folder rather than copying it: seriesmith finds the
+rest of itself through the link. For Comfy Cloud and Router inside that ComfyUI, its
+Python needs Comfy's SDK: **Settings** gives the command once a key is set. The same clone
+runs the page of its own (2) too.
 
 ## Which models it uses
 
@@ -73,8 +105,7 @@ installed. A series that doesn't name a model renders on the first one it finds:
   series config, so they keep rendering on it.
 - **Your own pick:** choose another in **Settings** (Video model, Picture model).
 - **Paid models:** hosted Comfy Router models (Seedance, Kling, Veo, ...) are never picked
-  by themselves. Add a Comfy API key in Settings to use them (and Comfy Cloud). Saving the
-  key also installs what those need (Comfy's SDK) in the background, in a few seconds.
+  by themselves. Add a Comfy API key in Settings to use them (and Comfy Cloud).
 
 **No models yet?** Every model picker has a **What's missing** button. It lists each file
 the model needs, the ComfyUI folder it goes in, and the download link. With ComfyUI
@@ -99,5 +130,7 @@ Some things need extra node packs, model files or software:
 - matching recorded dialogue;
 - 360s of a place, and turning a character.
 
-**Settings → Features…** installs any of them for you: tick what you want and press
-Install. [Full setup](/full-setup) lists each one with what it needs.
+**Settings → Features…** lists them all. Tick what you want and press Install: it
+downloads the model files and ffmpeg itself. A node pack it needs you install with
+ComfyUI-Manager, and a Python package with the pip command it gives you to copy.
+[Full setup](/full-setup) lists each one with what it needs.

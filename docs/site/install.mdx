@@ -14,11 +14,12 @@ What you end up with: seriesmith's node pack in ComfyUI, its editor inside Comfy
 on a page of its own (`seriesmith serve`), the `seriesmith` command, and one episode
 folder holding a series config, a script, and everything seriesmith generated from them.
 
-**In a hurry?** [The thirty-second install](/quickstart): clone, link the node pack
-into ComfyUI, start ComfyUI. Nothing goes into ComfyUI's Python, no other node packs, no
-ffmpeg; it renders on the models you already have. [Full setup](/full-setup) lists
-the node packs, model files and software each extra feature needs, and **Settings →
-Features…** in the editor installs any of them for you. This page is every part in detail.
+**In a hurry?** [Getting started](/quickstart): install seriesmith from
+ComfyUI-Manager (or run it on a page of its own, or link a clone), start ComfyUI. No other
+node packs, no ffmpeg to install; it renders on the models you already have.
+[Full setup](/full-setup) lists the node packs, model files and software each extra
+feature needs, and **Settings → Features…** in the editor lists them all, downloading the
+model files itself. This page is every part in detail.
 
 1. [Requirements](#1-requirements)
 2. [seriesmith and the node pack](#2-seriesmith-and-the-node-pack)
@@ -36,7 +37,8 @@ does with it all is the [README](https://github.com/bgstratt/seriesmith/blob/mai
 ## 1. Requirements
 
 - **Python 3.10 or later**, for the editor on its own page and the `seriesmith` command
-  (inside ComfyUI, seriesmith runs on ComfyUI's own Python and needs nothing installed).
+  (inside ComfyUI, seriesmith runs on ComfyUI's own Python; ComfyUI-Manager installs the
+  two packages it needs there, comfy-sdk and imageio-ffmpeg).
   `run_seriesmith.bat` makes the repo's `.venv` and runs `pip install -e .` there the
   first time; that installs what seriesmith needs (comfy-sdk, aiohttp, Pillow, numpy,
   imageio-ffmpeg, PyAV). The build and `check` themselves need nothing beyond the
@@ -146,8 +148,18 @@ comfy-api-proxy**, or `"local_via": "proxy"` in the settings file
 `comfy_nodes/` is seriesmith's side of ComfyUI: the shot loader and saver, the
 `continuous: latent` chain, the upscale loaders and saver, and the upscale and post
 compute nodes. Everything seriesmith sends a backend runs on these; they never read or
-write an episode folder (files go up with each job and come back as its outputs). Link
-the folder into `custom_nodes`, so pulling the repo updates what ComfyUI loads.
+write an episode folder (files go up with each job and come back as its outputs).
+
+**From ComfyUI-Manager** (the usual way): **Manager → Custom Nodes Manager**, search for
+**seriesmith**, install, restart ComfyUI (or `comfy node install seriesmith`). Manager
+installs the whole of seriesmith into `custom_nodes\seriesmith`, with comfy-sdk and
+imageio-ffmpeg into ComfyUI's Python (`requirements.txt`). Nothing else is needed; the
+clone above is then only for the page of its own or the command line, and
+`run_seriesmith.bat` in that folder serves for those too.
+
+**Or link a clone** (following main, or working on seriesmith): link the clone's
+`comfy_nodes` folder into `custom_nodes`, so pulling the repo updates what ComfyUI loads.
+Not both: the two take the same folder.
 
 Windows, in an ordinary (non-elevated) Command Prompt — `mklink /J` makes a directory
 junction and needs no administrator rights:
@@ -172,13 +184,13 @@ h3pipe.
 The same pack also puts seriesmith's editor inside ComfyUI: **seriesmith Shots** and
 **seriesmith Refs** in the sidebar, **seriesmith Timeline** in the bottom panel. It's
 the same app as `seriesmith serve`, with the same project folders, settings and queue,
-and it renders on the ComfyUI it runs in. It loads seriesmith from the repo the pack is
-linked from, on ComfyUI's own Python, which already has everything it needs: nothing to
-install. (A copied rather than linked `comfy_nodes` folder can't find the repo; its
-nodes still load and the editor stays off, and ComfyUI's console says so.) Comfy Cloud,
-deployments and Router run on Comfy's SDK (comfy-sdk), which ComfyUI's Python may not
-have. Once a Comfy API key is set, **Settings** says so if it's missing and gives the
-command that puts it in ComfyUI's Python (`<ComfyUI's python> -m pip install "comfy-sdk>=0.4,<0.5"`); run it and restart ComfyUI. seriesmith never installs Python
+and it renders on the ComfyUI it runs in. It loads seriesmith from beside the pack (the
+Manager install, or the repo the pack is linked from), on ComfyUI's own Python. (A copied
+rather than linked `comfy_nodes` folder can't find the rest; its nodes still load and the
+editor stays off, and ComfyUI's console says so.) Comfy Cloud, deployments and Router run
+on Comfy's SDK (comfy-sdk): Manager installs it; a linked clone's ComfyUI may not have it.
+Once a Comfy API key is set, **Settings** says so if it's missing and gives the command
+that puts it in ComfyUI's Python (`<ComfyUI's python> -m pip install "comfy-sdk>=0.4,<0.5"`); run it and restart ComfyUI. seriesmith never installs Python
 packages itself.
 
 Inside ComfyUI, a bar on top of **seriesmith Shots** has **Render on**, the **Jobs**
