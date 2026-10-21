@@ -56,6 +56,7 @@ import copy
 import os
 import re
 
+from seriesmith.targets import moderate as MOD
 from seriesmith.targets.generic import video_prose as G
 
 compile_episode = G.compile_episode
@@ -280,6 +281,61 @@ def mentions(template: str, pics: list, shot: dict) -> str:
     return " ".join(out)
 
 
+DEFINE_WORDS = 20                     # a subject's features: its design's opening words
+# words a cut phrase mustn't end on (a definition then reads "... into in @Image 1")
+DANGLING = {"a", "an", "the", "and", "or", "of", "with", "into", "in", "on", "under", "over",
+            "to", "for", "from", "at", "by", "her", "his", "their", "its"}
+
+
+def features(text: str, most: int = DEFINE_WORDS, body: bool = True) -> str:
+    """A design or a place's description cut to its opening clause(s): whole
+    comma-separated clauses up to `most` words, else the first `most` words.
+    Seedance's guide asks for 2-3 stable features that tell the subject apart;
+    without `body`, what describes a body is left out (targets.moderate)."""
+    head = re.split(r"[:;]", str(text or "").strip(), maxsplit=1)[0]     # a list after a colon is detail
+    words = 0
+    out = []
+    clauses = [c.strip() for c in head.rstrip(".").split(",") if c.strip()]
+    if not body:
+        clauses = [c for c in (MOD.unbodied(c) for c in clauses) if c]
+    for clause in clauses:
+        n = len(clause.split())
+        if out and words + n > most:
+            break
+        out.append(clause)
+        words += n
+    cut = ", ".join(out).split()[:most]
+    while cut and cut[-1].lower() in DANGLING:                         # "...swept up into" -> "...swept up"
+        cut.pop()
+    return " ".join(cut)
+
+
+def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
+    """The line that opens a Seedance prompt (BytePlus's prompt guide: "Define
+    [core features] in <Image N> as <Subject N>", the subjects defined first
+    and then called by the same label throughout, as the prose already calls
+    them by name): each picture by its place among the request's images,
+    `@Image N`; a character or a thing as its name, from the opening of its
+    design; the plate as the scene."""
+    subjects = series_cfg.get("subjects") or {}
+    places = series_cfg.get("locations") or {}
+    plate = {p.get("location") for p in shot.get("panels") or [] if p.get("location")}
+    defs, scenes = [], []
+    for n, (_, _, what) in enumerate(pics, 1):
+        if what in plate:
+            loc = places.get(what) or {}
+            look = features(loc.get("description") or "") or str(what).replace("_", " ")
+            scenes.append(f"Define {look} in @Image {n} as the scene.")
+            continue
+        sub = subjects.get(what) or {}
+        base = subjects.get(sub.get("of")) or {} if sub.get("of") else {}
+        name = sub.get("name") or base.get("name") or str(what).replace("_", " ").title()
+        look = features(sub.get("design") or base.get("design") or "", body=False)
+        defs.append(f"{look} in @Image {n} as {name}" if look else f"the subject in @Image {n} as {name}")
+    line = ("Define " + ", and define ".join(defs) + ".") if defs else ""
+    return " ".join([x for x in [line, *scenes] if x])
+
+
 def router_call(target, job) -> tuple[str, dict]:
     """(model, arguments) for one take of `job` (a seriesmith.jobs.Job), its
     pictures as backends.File, which the Router backend uploads."""
@@ -312,9 +368,14 @@ def router_call(target, job) -> tuple[str, dict]:
     pspec = inp.get("prompt") or "prompt"
     mention = (inp.get("references") or {}).get("mention")
     tail = mentions(mention, pics, shot) if mention and mode == "references" and pics else ""
+    # the pictures defined first (Seedance: its prompt guide's "Define ... in @Image N as ...")
+    head = (definitions(pics, shot, J.series_config(job.root) or {})
+            if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
     limit = pspec.get("max_chars") if isinstance(pspec, dict) else None
     if limit:
-        text = fit(text, limit - (len(tail) + 2 if tail else 0))
+        text = fit(text, limit - sum(len(x) + 2 for x in (head, tail) if x))
+    if head:
+        text = f"{head}\n\n{text}"
     if tail:
         text = f"{text}\n\n{tail}"
 

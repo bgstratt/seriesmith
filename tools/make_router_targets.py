@@ -57,8 +57,11 @@ WAN_2_7_I2V = {"length": {"seconds": {"min": 2, "max": 15}}, "size": {"resolutio
 
 
 def seedance_ratio(p: dict) -> None:
-    """Seedance 2.0 takes a ratio alongside its frames (2.5 refuses one)."""
+    """Seedance 2.0 takes a ratio alongside its frames (2.5 refuses one), and,
+    as 2.5 does, its prompt opens by defining each picture (BytePlus's prompt
+    guide: "Define ... in @Image N as ...": router_video.definitions)."""
     p["router"]["inputs"]["ratio"]["with_frames"] = "keep"
+    p["router"]["inputs"]["references"]["define"] = True
 
 
 def runway_note(p: dict) -> None:

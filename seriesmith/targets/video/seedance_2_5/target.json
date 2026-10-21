@@ -135,6 +135,7 @@
           "role": "reference_image"
         },
         "max": 30,
+        "define": true,
         "max_total": 30
       },
       "first": {

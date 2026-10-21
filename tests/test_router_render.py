@@ -100,6 +100,54 @@ class Episode(unittest.TestCase):
                           J.RenderRequest(self.shot_id, target=SEEDANCE, **req), {})
 
 
+class DefinitionsTest(unittest.TestCase):
+    """Seedance's opening line (router_video.definitions): BytePlus's "Define
+    [core features] in <Image N> as <Subject N>"."""
+
+    def test_features_are_the_opening_clauses_never_cut_mid_phrase(self):
+        from seriesmith.targets.generic import router_video as RV
+        design = ("a young woman with blonde hair swept up into a loose bun, a small silver tiara, "
+                  "a pale-blue off-the-shoulder corseted gown")
+        self.assertEqual(RV.features(design), "a young woman with blonde hair swept up into a loose bun, "
+                                              "a small silver tiara")
+        long_ = "a young woman large round breasts pushing out of the top of her dress with blonde hair swept up into a loose bun"
+        self.assertFalse(RV.features(long_).split()[-1] in RV.DANGLING, RV.features(long_))
+        self.assertEqual(RV.features("an empty palace ballroom by candlelight: cream walls, gilt mirrors"),
+                         "an empty palace ballroom by candlelight")
+
+    def test_a_subject_is_defined_by_what_it_wears_not_its_body(self):
+        """BytePlus refused a prompt opening with a body description
+        (content_policy_violation, 2026-10-21); the guide asks for clothing,
+        hairstyle, appearance or category."""
+        from seriesmith.targets.generic import router_video as RV
+        cases = {
+            "a young woman large round breasts pushing out of the top of her dress with blonde hair "
+            "swept up into a loose bun, a small silver tiara, a pale-blue gown":
+                "a young woman with blonde hair swept up into a loose bun, a small silver tiara, "
+                "a pale-blue gown",
+            "a curvy woman in a red dress, a straw hat": "a woman in a red dress, a straw hat",
+            "a tall man, broad chest, a grey suit": "a tall man, a grey suit",
+            "a busty redhead with freckles, a green coat": "a redhead with freckles, a green coat",
+            "a stocky teenage boy with a shaved head, an oversized green bomber jacket":
+                "a stocky teenage boy with a shaved head, an oversized green bomber jacket",
+        }
+        for design, want in cases.items():
+            self.assertEqual(RV.features(design, body=False), want)
+        cfg = {"subjects": {"cy": {"name": "Cy", "design": "a busty woman, a purple raincoat"}}}
+        self.assertNotIn("busty", RV.definitions([("references", "c.png", "cy")], {"panels": []}, cfg))
+
+    def test_each_picture_by_its_place_a_variant_by_its_name(self):
+        from seriesmith.targets.generic import router_video as RV
+        cfg = {"subjects": {"ada": {"name": "Ada", "design": "a tall woman, a mustard apron"},
+                            "ada_wet": {"of": "ada", "design": "a tall woman soaked through, a wet apron"}},
+               "locations": {"street": {"description": "a wet night street, neon in the puddles"}}}
+        shot = {"panels": [{"subject": "ada_wet"}, {"location": "street"}]}
+        pics = [("references", "a.png", "ada_wet"), ("references", "b.png", "street")]
+        self.assertEqual(RV.definitions(pics, shot, cfg),
+                         "Define a tall woman soaked through, a wet apron in @Image 1 as Ada. "
+                         "Define a wet night street, neon in the puddles in @Image 2 as the scene.")
+
+
 class RouterCallTest(Episode):
     def call(self, job=None):
         job = job or self.job()
@@ -111,7 +159,14 @@ class RouterCallTest(Episode):
         self.assertEqual(model, MODEL)
         self.assertTrue(job.runs, job.error)
         text, *pictures = args["content"]
-        self.assertEqual(text, {"type": "text", "text": J._prompt_text(job.prompt)})
+        # the pictures defined first (BytePlus's prompt guide: "Define ... in @Image N
+        # as ..."), each by its place among the request's images, then the prose as it was
+        head, _, prose = text["text"].partition("\n\n")
+        self.assertEqual((text["type"], prose), ("text", J._prompt_text(job.prompt)))
+        self.assertTrue(head.startswith("Define "), head)
+        for n in range(1, len(pictures) + 1):
+            self.assertIn(f" in @Image {n} as ", head)
+        self.assertNotIn(f"@Image {len(pictures) + 1}", head)
         self.assertTrue(pictures)
         for p in pictures:
             self.assertEqual((p["type"], p["role"]), ("image_url", "reference_image"))

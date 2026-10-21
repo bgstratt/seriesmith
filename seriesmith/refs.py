@@ -89,6 +89,7 @@ from seriesmith.core import series_config as SC  # noqa: E402
 # tests read them from refs).
 
 from seriesmith import targets as TG  # noqa: E402
+from seriesmith.targets import moderate as MOD  # noqa: E402
 from seriesmith.targets import voice_prompt  # noqa: E402,F401
 from seriesmith.targets.image.krea2.graph import (  # noqa: E402,F401
     CFG, CLIP, CLIPTYPE, LORA, LORA_C, LORA_M, OBJECT_SIZE, PLATE_SIZE, PREFIX,
@@ -825,20 +826,25 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
         return plate_prompt(s.look, e["description"])
     if not e.get("design"):
         return None
+    # a hosted picture model's content filter reads it: the design without what
+    # describes a body (targets.moderate), a variant's base character's too
+    moderated = target is not None and target.moderated
+    told = MOD.moderated_config(s.series_cfg) if moderated else s.series_cfg
+    design = MOD.moderate(e["design"]) if moderated else e["design"]
     if ref.kind == "character" and members(e):
-        return group_prompt(e["design"], s.look, members(e), *gen_size(ref, target=target))
+        return group_prompt(design, s.look, members(e), *gen_size(ref, target=target))
     if ref.kind == "character":
         if view is None:
             # a variant's hand-made-sheet description says where to start from
-            return sheet_prompt(e["design"], s.look,
-                                base=s.series_cfg["subjects"].get(e.get("of")))
+            return sheet_prompt(design, s.look,
+                                base=(told.get("subjects") or {}).get(e.get("of")))
         if refs:
             # it is generated as an edit of that reference, so the brief is
             # what to change rather than what to draw
-            return view_edit_prompt(view, e["design"], s.look, *view_size,
+            return view_edit_prompt(view, design, s.look, *view_size,
                                     base_name=refs[0].get("name", "the same character"))
-        return view_prompt(view, e["design"], s.look, *view_size)
-    return object_prompt(e["design"], s.look)
+        return view_prompt(view, design, s.look, *view_size)
+    return object_prompt(design, s.look)
 
 
 def voice_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
