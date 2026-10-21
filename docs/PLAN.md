@@ -950,8 +950,12 @@ collide with the package.
       branches and PRs never publish; a merge without a version bump publishes nothing.
       VideoHelperSuite is out of Features (requirements.txt brings the imageio-ffmpeg it
       was there for).
-- [ ] **First publish:** bump the version (or Run workflow on main); then INSTALL.md,
-      QUICKSTART and SETUP lead with Manager, the link kept for working from a clone.
+- [x] **First publish** (2026-10-21): 0.1.0 by Run workflow on main. A new version is
+      Pending until the Registry's scan passes, and until then Manager can't resolve
+      `seriesmith@latest` (the node has no `latest_version`); picking 0.1.0 by number
+      installs it. QUICKSTART is now Getting started: three ways (ComfyUI-Manager, the page
+      of its own, a linked clone) in place of the thirty-second install; INSTALL, README,
+      SETUP and the docs site lead with Manager.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user

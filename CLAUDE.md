@@ -9,7 +9,7 @@ when a decision changes. `docs/REFACTOR.md` is the record of the 2026-10-20 refa
 (complete): why things are as they are, what was left alone, and the evidence; read the
 item before redoing one. `docs/AUTHORING.md` is the script/series config format (the
 source of `prompts/` and the script-writing skill); `docs/API.md` the editor's HTTP
-contract; `docs/QUICKSTART.md` (the thirty-second install), `docs/FULL_SETUP.md` (what each
+contract; `docs/QUICKSTART.md` (getting started: ComfyUI-Manager, the page of its own, a linked clone), `docs/FULL_SETUP.md` (what each
 feature needs), `INSTALL.md`, `docs/SETUP.md`, `docs/EDITOR.md`, `docs/COMMANDS.md` the
 user's side.
 
