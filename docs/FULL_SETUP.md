@@ -84,7 +84,6 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
 | Master and publish | | | a title font (ffmpeg comes with seriesmith) |
 | 360s and turned views | | 3 LoRAs | |
-| ffmpeg inside ComfyUI's Python | ComfyUI-VideoHelperSuite (optional) | | |
 
 ## Rendering video
 
@@ -240,8 +239,8 @@ Post-processing runs after the upscale: whole-frame enhancement, then motion blu
 Assemble, master and publish cut with ffmpeg. You don't need to install it:
 - **seriesmith's own install** brings a static ffmpeg build (imageio-ffmpeg) and PyAV;
 - **inside ComfyUI**, PyAV is always there. `ffmpeg` itself comes from:
-  - ComfyUI-VideoHelperSuite, if it's installed (it brings imageio-ffmpeg into ComfyUI's
-    Python);
+  - imageio-ffmpeg in ComfyUI's Python (ComfyUI-Manager installs it with seriesmith's
+    pack);
   - otherwise the repo's `.venv`, once `run_seriesmith` has made it;
   - otherwise one on PATH.
 - **Your own ffmpeg** comes first:

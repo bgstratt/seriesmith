@@ -943,10 +943,15 @@ collide with the package.
       `skipped`, never queued. The What's missing window's node Install button became the
       Manager pointer. The launchers still make the standalone's own `.venv` (a shell
       script the user runs, not the pack at runtime).
-- [ ] **Publishing:** a publisher on registry.comfy.org (its id is permanent), a publishing
-      key as the repo secret `REGISTRY_ACCESS_TOKEN`, Comfy-Org/publish-node-action on a
-      push changing pyproject.toml's version; INSTALL.md, QUICKSTART and SETUP lead with
-      Manager, the link kept for working from a clone.
+- [x] **Publishing set up:** publisher `bgstratt`, the key as the repo secret
+      `REGISTRY_ACCESS_TOKEN`; `.github/workflows/publish_action.yml` runs
+      Comfy-Org/publish-node-action only on main (a push changing pyproject.toml, which
+      publishes only when its version changed; or Run workflow, main only). Feature
+      branches and PRs never publish; a merge without a version bump publishes nothing.
+      VideoHelperSuite is out of Features (requirements.txt brings the imageio-ffmpeg it
+      was there for).
+- [ ] **First publish:** bump the version (or Run workflow on main); then INSTALL.md,
+      QUICKSTART and SETUP lead with Manager, the link kept for working from a clone.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user

@@ -137,7 +137,7 @@ GROUPS = [
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
     ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
-    ("tools", "Tools", "ffmpeg, and VideoHelperSuite for ComfyUI's own Python."),
+    ("tools", "Tools", "seriesmith's node pack, and a full ffmpeg."),
 ]
 
 
@@ -298,15 +298,12 @@ def catalog() -> list[Feature]:
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
         Feature("tools.seriesmith_nodes", "tools", "seriesmith's node pack",
                 "Its shot loader and saver, the chain, upscale and post nodes: latent continuity, "
-                "kept latents, upscales and posts. Linked from this repo into ComfyUI's custom_nodes "
-                "(nothing installed in ComfyUI's Python). Without it, shots render through "
+                "kept latents, upscales and posts. Installed with ComfyUI-Manager, or linked "
+                "from this repo into ComfyUI's custom_nodes. Without it, shots render through "
                 "ComfyUI's own nodes.", [OWN_PACK], restart=True),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
                 "(or set your own folder in Settings).", [Item("ffmpeg", "ffmpeg")]),
-        Feature("tools.vhs", "tools", "VideoHelperSuite",
-                "Brings an ffmpeg into ComfyUI's own Python (imageio-ffmpeg). seriesmith's graphs "
-                "don't use its nodes.", [_pack("ComfyUI-VideoHelperSuite")], restart=True),
     ]
     return feats
 
