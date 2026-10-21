@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "seriesmith"
 version = "0.1.1"
-description = "A series config and episode scripts in, finished episodes out: any shot on any model, local or on Comfy's cloud."
+description = "Write the show, get the episodes: an AI video editor inside ComfyUI. Script your shots, keep characters and places consistent with reference pictures, render each shot on any model (your GPU, Comfy Cloud or Router), then cut, upscale and master."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
