@@ -896,12 +896,16 @@ transcribe works again.
       10 videos, 10 audio clips), the 2.0 family 9 (`tools/make_router_targets.py`), where
       both sent four subjects and the plate. A shot's extra subjects past the cap still
       drop silently.
-- [ ] Seedance's prompt names no picture: with many, say which is whom, as Kling's `mention`
-      does. ByteDance's convention (the Ark tutorial and prompt guide): `@Image 1`, `@Video 1`,
-      `@Audio 1`, numbered from 1 within each type in the request's content order, a space
-      before the number, a noun after it rather than a verb ("Voss, from @Image 3, ...";
-      "the scene is from @Image 4"); asset ids can't be used in the text. A `mention` for the
-      Seedance targets (tools/make_router_targets.py), to try on a paid take.
+- [x] Seedance's prompt defines each picture first, as BytePlus's prompt guide asks: "Define
+      [core features] in @Image N as <label>", numbered from 1 within each type in the
+      request's content order; asset ids can't stand for a picture in the text
+      (`router_video.definitions`; `references.define` on the Seedance targets). A subject's
+      features are its design's opening clauses without what describes a body: BytePlus
+      refused a prompt that opened with one (content_policy_violation), where the same prose
+      had passed. Live 2026-10-21, Ballroom-refactor sh010 (Cindy, Ella, the ballroom) on 2.5:
+      each matches her own picture, on her own side of frame. The library keeps a picture
+      registered by its hash (the same asset id on a second registration); each take still
+      uploads and registers its pictures again, ~4-5 s each, which keeping the ids would skip.
 
 ## Step 15 — models behind other APIs (next)
 
