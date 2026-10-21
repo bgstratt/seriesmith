@@ -148,6 +148,43 @@ class DefinitionsTest(unittest.TestCase):
                          "Define a wet night street, neon in the puddles in @Image 2 as the scene.")
 
 
+class CappedTest(unittest.TestCase):
+    """video_prose.capped (what --check warns about) is what router_video.pictures
+    sends: each hosted model's subjects up to its `max`, the plate, cut to its total."""
+
+    def test_the_warning_and_the_request_agree(self):
+        import tempfile
+        import types
+        from seriesmith.targets.generic import router_video as RV
+        from seriesmith.targets.generic import video_prose as VP
+        with tempfile.TemporaryDirectory() as root:
+            pics = []
+            for s in ("ada", "bo", "cy", "dee", "eve"):
+                open(os.path.join(root, s + ".png"), "wb").close()
+                pics.append({"subject": s, "kind": "character", "path": s + ".png"})
+            open(os.path.join(root, "plate.png"), "wb").close()
+            pics.append({"location": "kitchen", "kind": "plate", "path": "plate.png"})
+            job = types.SimpleNamespace(root=root)
+            for tid in ("seedance_2_5", "seedance_2_0", "kling_v3_omni", "veo_3_1", "wan_2_7_r2v"):
+                t = TG.load_target(tid, "video")
+                inp = t.spec["router"]["inputs"]
+                _, sent = RV.pictures(t, job, {"panels": pics, "keyframes": {}}, inp)
+                want, dropped = VP.capped(pics, t)
+                self.assertEqual([os.path.basename(p) for _, p, _ in sent],
+                                 [p["path"] for p in want], tid)
+                self.assertEqual(len(want) + len(dropped), len(pics), tid)
+            # Veo takes three: two subjects and the plate go unsent, and --check says so
+            ctx = types.SimpleNamespace(target=TG.load_target("veo_3_1", "video"),
+                                        series_cfg={"subjects": {"dee": {"name": "Dee"}}})
+            note = VP.unsent_warning(ctx, types.SimpleNamespace(id="sh110"), pics)
+            self.assertIn("sh110: ", note)
+            self.assertIn("takes 3 picture(s); Dee, eve, the plate not sent", note)
+            self.assertIn("the prose still describes them", note)
+            self.assertIsNone(VP.unsent_warning(
+                types.SimpleNamespace(target=TG.load_target("seedance_2_5", "video"),
+                                      series_cfg={}), types.SimpleNamespace(id="sh1"), pics))
+
+
 class RouterCallTest(Episode):
     def call(self, job=None):
         job = job or self.job()
