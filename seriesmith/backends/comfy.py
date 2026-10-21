@@ -147,6 +147,7 @@ class ComfyBackend(Backend):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._client = None
+        self.without_pack = False            # local: the last shot went without seriesmith's nodes
 
     def __repr__(self) -> str:
         return f"<ComfyBackend {self.name} {self.base_url}>"
@@ -181,10 +182,13 @@ class ComfyBackend(Backend):
         """On Comfy Cloud the graph is lowered to Cloud's own nodes (none of
         seriesmith's: seriesmith.cloud.lower against its node list), and the
         plan says how to collect it; a deployment or a local proxy runs it as
-        it is."""
+        it is (a local one without seriesmith's node pack is lowered too:
+        cloud.without_pack)."""
+        from seriesmith import cloud as C
+        if self.kind == "local":
+            return C.without_pack(self, graph, job, take) or (graph, None)
         if self.kind != "cloud":
             return graph, None
-        from seriesmith import cloud as C
         return C.lower(graph, job, take, self.object_info())
 
     def submit(self, graph: dict) -> Run:

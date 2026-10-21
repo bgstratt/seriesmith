@@ -9,6 +9,8 @@ A feature is a few items, each of one kind:
             the constants upscale / post / refs keep beside the files they use)
     pack    a ComfyUI node pack: its folder in custom_nodes, its git repo, and
             the node classes that say it's loaded
+    link    seriesmith's own node pack (comfy_nodes/), linked into custom_nodes
+            from this repo (a junction on Windows, a symlink elsewhere)
     pip     a Python package, in ComfyUI's Python or in seriesmith's own
     ffmpeg  a full ffmpeg build, downloaded into seriesmith's folder (seriesmith.ff)
 
@@ -62,7 +64,7 @@ PACKS: dict[str, dict] = {
 
 @dataclass
 class Item:
-    kind: str                      # model | pack | pip | ffmpeg
+    kind: str                      # model | pack | link | pip | ffmpeg
     name: str                      # the file, the pack's folder, the pip spec, "ffmpeg"
     folder: str = ""               # model: its models folder
     url: str = ""                  # model: its download; pack: its repo
@@ -164,6 +166,11 @@ def _lora_of(tid: str, name: str) -> Item:
     return Item("model", name, folder=d.get("folder") or "loras", url=d.get("url") or "")
 
 
+# seriesmith's own node pack: its folder name in custom_nodes, and the classes
+# that say ComfyUI loaded it (the portable shot loader and saver)
+OWN_PACK = Item("link", "seriesmith", classes=("SeriesmithSaveTake", "SeriesmithShotLoader"))
+
+
 def _pack(folder: str) -> Item:
     p = PACKS[folder]
     return Item("pack", folder, url=p["repo"], classes=tuple(p["classes"]))
@@ -191,6 +198,10 @@ def catalog() -> list[Feature]:
                        "Wants a recent NVIDIA card (developed on 32 GB)."),
         target_feature("video.h3_fl2va", "video", "minimax_h3_fl2va", "MiniMax H3 FL2VA",
                        "Shots that carry on from the one before (continuous: first), and the location tours."),
+        Feature("video.fasth3_omni", "video", "FastH3 Omni",
+                "FastVideo's 8-step H3: up to eight characters and things per shot, no turbo LoRA. "
+                "Also a picture model (Omni still). Shares H3's text encoder and VAEs.",
+                _merge(_target_items("fasth3_omni"), _target_items("fasth3_omni_still"))),
         target_feature("video.ltx2", "video", "ltx2", "LTX-2.5",
                        "Quick, and makes its own sound. Gated: accept the licence on Hugging Face."),
         target_feature("video.ltx2_ingredients", "video", "ltx2_ingredients", "LTX-2.3 ingredients",
@@ -213,6 +224,10 @@ def catalog() -> list[Feature]:
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
+        Feature("pictures.fibo2", "pictures", "Fibo 2.0",
+                "Bria's Fibo 2.0: text to image and edits (relights too), with a 4-step edit turbo. "
+                "Non-commercial licence (CC BY-NC 4.0).",
+                _merge(_target_items("fibo2_dev"), _target_items("fibo2_edit_turbo"))),
         target_feature("pictures.moss_image_sft", "pictures", "moss_image_sft", "MOSS-Image SFT",
                        "Text to image, strong on lettering and layout (Apache 2.0). 50 steps."),
         target_feature("pictures.moss_image_base", "pictures", "moss_image_base", "MOSS-Image Base",
@@ -269,6 +284,11 @@ def catalog() -> list[Feature]:
         Feature("refs.turn", "refs", "Turn a character",
                 "Qwen-Image 2.1's multiple-angles LoRA (and Qwen-Image 2.1 itself).",
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
+        Feature("tools.seriesmith_nodes", "tools", "seriesmith's node pack",
+                "Its shot loader and saver, the chain, upscale and post nodes: latent continuity, "
+                "kept latents, upscales and posts. Linked from this repo into ComfyUI's custom_nodes "
+                "(nothing installed in ComfyUI's Python). Without it, shots render through "
+                "ComfyUI's own nodes.", [OWN_PACK], restart=True),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
                 "(or set your own folder in Settings).", [Item("ffmpeg", "ffmpeg")]),
@@ -319,7 +339,7 @@ def item_status(item: Item, env: Env) -> str:
                     for m in rd.get("missing") or []):
                 return "installed"
         return "missing" if got is False or env.readiness else "unknown"
-    if item.kind == "pack":
+    if item.kind in ("pack", "link"):
         loaded = env.node_classes is not None and any(c in env.node_classes for c in item.classes)
         if loaded:
             return "installed"
@@ -383,6 +403,8 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
 
 
 def pack_for_class(cls: str) -> Item | None:
+    if cls in OWN_PACK.classes:
+        return OWN_PACK
     for folder, p in PACKS.items():
         if cls in p["classes"]:
             return _pack(folder)

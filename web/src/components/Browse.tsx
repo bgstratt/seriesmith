@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, loadEpisodes, openEpisodeAt, refLabel, removeRoot, selectEpisode,
+  addRoot, attachTrack, closeBrowse, openWizard, importRef, importSeries, loadEpisodes, openEpisodeAt, pickFolder, refLabel, removeRoot, selectEpisode,
   useClipAudioFile, usePictureFile,
 } from "../actions";
 import { errText } from "../api";
@@ -68,6 +68,8 @@ function BrowseBody({ b }: { b: BrowseState }) {
   const forClip = b.purpose === "clip-audio";
   // a picture for a form's field (a keyframe, a sheet, a plate): the path only, relative to the episode
   const forKey = b.purpose === "picture";
+  // a folder for a setting (Settings' ComfyUI folder, ffmpeg folder): the path goes back to its field
+  const forFolder = b.purpose === "folder";
   const ep = useApp((s) => s.ep);
   // Phase 9c-A: picking the episode's recording works like an import, but the
   // file goes to POST /seriesmith/track instead of becoming a ref candidate
@@ -147,7 +149,9 @@ function BrowseBody({ b }: { b: BrowseState }) {
   }
 
 
-  const title = forKey && b.files === "video"
+  const title = forFolder
+    ? <>{b.what ?? "Choose a folder"} <span className="h3-muted h3-small">select it, or browse into it</span></>
+    : forKey && b.files === "video"
     ? <>A video for {b.what ?? "the field"} <span className="h3-muted h3-small">it's copied into the show's refs</span></>
     : forKey
     ? <>A picture for {b.what ?? "the field"} <span className="h3-muted h3-small">inside the episode or its refs</span></>
@@ -166,7 +170,16 @@ function BrowseBody({ b }: { b: BrowseState }) {
       wide
       footer={
         <>
-          {importing ? (
+          {forFolder ? (
+            <>
+              <span className="h3-muted h3-small h3-grow h3-ell">{rootTarget ?? "Browse to the folder"}</span>
+              <button className="h3-btn" onClick={closeBrowse}>Cancel</button>
+              <button className="h3-btn h3-primary" disabled={!rootTarget}
+                onClick={() => rootTarget && pickFolder(b.key ?? "", rootTarget)}>
+                <i className="pi pi-check" /> Use this folder
+              </button>
+            </>
+          ) : importing ? (
             <>
               <span className="h3-muted h3-small h3-grow h3-ell">
                 {selFile ? selFile.path : forKey ? (b.files === "video" ? "Pick a video" : "Pick a picture") : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
@@ -253,8 +266,8 @@ function BrowseBody({ b }: { b: BrowseState }) {
             aria-selected={selDir?.path === d.path}
             className={`h3-browse-item${selDir?.path === d.path ? " h3-sel" : ""}${d.episode ? " h3-episode" : ""}`}
             onClick={() => setSel({ kind: "dir", d })}
-            onDoubleClick={() => (d.episode && !importing ? void openEpisode(d, here || null) : void go(d.path))}
-            title={d.episode && !importing ? `${d.path}\nDouble-click to open this episode` : d.path}
+            onDoubleClick={() => (d.episode && !importing && !forFolder ? void openEpisode(d, here || null) : void go(d.path))}
+            title={d.episode && !importing && !forFolder ? `${d.path}\nDouble-click to open this episode` : d.path}
           >
             <i className={d.episode ? "h3-ico-film" : "pi pi-folder"} />
             <span className="h3-grow h3-ell">{d.name}</span>

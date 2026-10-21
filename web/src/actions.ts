@@ -1,7 +1,7 @@
 // Everything that talks to the API and changes the store. Components call these.
 
 import { ApiError, UPLOAD_LIMIT, errText } from "./api";
-import { api, host } from "./host";
+import { api, host, type Severity } from "./host";
 import { audioOf } from "./lib/audioSource";
 import { epRelative, reachable, sameDir } from "./lib/browse";
 import { absPath, promptText, sameEp, tn } from "./lib/format";
@@ -1401,6 +1401,9 @@ export async function relightSequence(req: Omit<RelightRequest, "ep">): Promise<
 
 /** GET /seriesmith/master/job: the episode's master as it is now (the Master
  * dialog asks on opening, so a run started before it was closed shows). */
+/** notices already shown on this page (seriesmith.notice's `key`) */
+const toldNotices = new Set<string>();
+
 export function showMasterJob(job: MasterJob): void {
   if (sameEp(job.ep, get().ep)) set({ masterJob: job });
 }
@@ -1906,6 +1909,13 @@ export function wireEvents() {
     if (j.state === "done") host().toast("success", prores ? "ProRes .mov made" : "Master assembled", (prores ? j.mov : j.output) ?? undefined);
     if (j.state === "failed" && j.error) host().toast("error", prores ? "The ProRes .mov wasn't made" : "The master wasn't assembled", j.error);
   });
+  h.on("seriesmith.notice", (d) => {
+    const n = (d ?? {}) as { level?: Severity; title?: string; text?: string; key?: string };
+    if (!n.title) return;
+    if (n.key && toldNotices.has(n.key)) return;
+    if (n.key) toldNotices.add(n.key);
+    host().toast(n.level ?? "warn", n.title, n.text);
+  });
   h.on("seriesmith.align", (d) => {
     const a = (d ?? {}) as AlignEvent;
     if (!sameEp(a.ep, get().ep)) return;
@@ -2063,6 +2073,16 @@ export function openBrowse(b: BrowseState) {
 
 export function closeBrowse() {
   set({ browse: null });
+}
+
+/** The browser's folder (purpose "folder") handed to the field that asked for it. */
+export function pickFolder(key: string, path: string) {
+  set({ folderPicked: { key, path }, browse: null });
+}
+
+/** The field took the folder it asked for. */
+export function tookFolder() {
+  set({ folderPicked: null });
 }
 
 export async function addRoot(path: string): Promise<boolean> {

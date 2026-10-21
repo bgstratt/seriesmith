@@ -9,7 +9,7 @@ export type FeatureStatus = ItemStatus | "partial" | "unavailable";
 
 export interface FeatureItem {
   key: string;
-  kind: "model" | "pack" | "pip" | "ffmpeg";
+  kind: "model" | "pack" | "link" | "pip" | "ffmpeg";
   name: string;
   folder?: string;
   url?: string;
@@ -119,7 +119,7 @@ export function itemsLine(f: Feature): string {
   const parts: string[] = [];
   const files = n("model");
   if (files) parts.push(`${files} file${files === 1 ? "" : "s"}`);
-  const packs = n("pack");
+  const packs = n("pack") + n("link");
   if (packs) parts.push(`${packs} node pack${packs === 1 ? "" : "s"}`);
   const pips = n("pip");
   if (pips) parts.push(`${pips} Python package${pips === 1 ? "" : "s"}`);

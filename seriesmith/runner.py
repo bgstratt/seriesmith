@@ -91,6 +91,7 @@ class Runner:
         self.ask = None
         # takes this runner owns are checked against its queue, not ComfyUI's
         T.MANAGED = queue.alive
+        self._told: set[str] = set()         # backends the page was told have no node pack
 
     def backend(self, name: str):
         return self.backends.get(name)
@@ -120,6 +121,18 @@ class Runner:
         report(line=f"on {backend.name}: {run.id}")
         for n in run.notes:
             report(line=n)
+        if getattr(backend, "without_pack", False):
+            report(line="without seriesmith's node pack: through ComfyUI's own nodes")
+            if backend.name not in self._told:
+                # once per backend while this server runs: a toast, not a note per take
+                self._told.add(backend.name)
+                self._emit("seriesmith.notice", {
+                    "level": "warn", "key": f"no-pack:{backend.name}",
+                    "title": "Rendering without seriesmith's node pack",
+                    "text": "This ComfyUI hasn't seriesmith's nodes, so shots render through "
+                            "ComfyUI's own nodes: no latent continuity, kept latents, upscales "
+                            "or posts. Link it in Features (seriesmith's node pack), then "
+                            "restart ComfyUI."})
 
     def enqueue_render(self, job: J.Job, base: dict | None, backend_name: str,
                        probe=None, continuity: dict | None = None,
