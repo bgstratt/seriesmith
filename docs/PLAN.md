@@ -863,10 +863,14 @@ shown as pictures, each filling a text that stays editable.
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
 
-## Refactor pass (2026-10-20, in progress)
+## Refactor pass ✅ (2026-10-20)
 
 Fixes, speed, duplicated code combined and the architecture standardized, item by item
-with a live check each: [REFACTOR.md](REFACTOR.md).
+with a live check each (PRs #16-#28): the record is [REFACTOR.md](REFACTOR.md), the
+architecture it arrived at is in DESIGN.md. Among what it changed: an episode opens in
+about a second (Porchlights ep01's final pass: 7.4 s before), Master and Align are queue
+jobs with Cancel, the command line keeps the paid limit, and every align that had to
+transcribe works again.
 
 ## Step 15 — models behind other APIs (next)
 

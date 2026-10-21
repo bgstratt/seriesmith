@@ -82,6 +82,14 @@ That only works when ComfyUI shares the disk. In seriesmith a workflow saves its
 outputs the normal way, the backend hands them back, and seriesmith writes the take
 and its record. This is what makes every backend possible.
 
+**Callers ask a backend what it can do, never what kind it is** (REFACTOR.md 3.5).
+`Backend` answers `shares_disk` (this machine's ComfyUI: a graph may read the episode
+folder, and it is what's probed for nodes and model files), `serial` (one job at a time),
+`own_models` (its model files are its own: Comfy Cloud) and `prepare(graph, job, take)`
+(the graph as it runs there: Comfy Cloud's lowering to its own nodes is
+`ComfyBackend.prepare`); a run says `reports_position` (Router). A new kind of backend
+answers these in its own file; nothing in render, runner or edit checks `kind`.
+
 ### 2. Capabilities: what a target can do
 
 A target declares what it accepts and returns:
@@ -171,20 +179,32 @@ a backend, outputs. Each is ported as its own step. Stages that need latents (th
 H3 latent upscale, chained takes) only run where latents exist: local or a
 deployment.
 
+The command line is one table (`commands.COMMANDS`: each command's usage, help and what
+runs it; REFACTOR.md 3.6). `seriesmith` and `seriesmith <command> --help` come from it; a
+stage runs in the same process (align keeps a subprocess: it can need the Python with a
+Whisper); a usage mistake exits 2 with the usage line.
+
 ### 6. The queue
 
 seriesmith owns the queue (`queue.py`, fed by `runner.py`). Its server keeps the
 job list, one lane per backend, dispatches each job to its backend, and sends
 progress to the editor as events. Local ComfyUI runs one job at a time (so order,
-reorder and pause are ours); Cloud, Router and deployments run up to four at once.
+reorder and pause are ours: the queue asks each backend whether it is `serial`); Cloud,
+Router and deployments run up to four at once. Long work of seriesmith's own on this
+machine (a master, align) is a job too, on a serial `cpu` lane beside the renders
+(`Runner.local_job`; REFACTOR.md 3.3): it shows in Jobs with progress, Cancel kills the
+tool it is running, and the route that asks for it answers at once with the job.
 A job's inputs are staged when it starts, so a continuity shot reads the take it
 follows as it is by then, and a job can wait for the one it continues (`after`).
 The command line runs the same queue in-process (`runner.cli_runner`).
 
 It survives a restart: live jobs are journaled, a job that reached its backend is
-reattached by its run id and collected, and one still waiting is asked for again.
-A hung job is stopped at its time limit; paid runs (Cloud, Router, deployments) are
-counted, confirmed in batches and capped by an optional limit in Settings. While
+reattached by its run id and collected, and one still waiting is asked for again. A
+master or align that was running died with the server, so it is listed failed for
+Retry; a server that stops (`Queue.close`) stops their tools rather than leaving them
+running. A hung job is stopped at its time limit; paid runs (Cloud, Router, deployments)
+are counted, confirmed in batches and capped by an optional limit in Settings, on every
+queue: the editor's and the command line's (`runner.queue_for`; REFACTOR.md 3.6). While
 Router holds a job in line, the Jobs window says where it is.
 
 ### 7. The editor, in two hosts
@@ -234,6 +254,25 @@ The standalone layout:
 New beside h3pipe's editor: series and season import (a series config and a stack
 of scripts), and notes that stay on a shot (h3pipe's issues notepad, kept).
 
+Both hosts register one route list (`server/routes.py`: the API's, the queue's, Settings'
+and Features'), every route at its path and under `/api`, and the page reaches them only
+through its host (`api().fetch` inside ComfyUI is `fetchApi`). A route is a function of
+(context, query or body) -> (status, data) served by `views.make_view` (JSON, gzip, the
+executor, the error body in one place); an error that always means one answer says so
+itself (`http_status`: RefError 400, UnknownRef 404, MasterError 409, ...; REFACTOR.md 3.2).
+
+### 8. Loading an episode
+
+An episode's status describes every take of every shot. What a take's own files say
+(its sidecar, its upscale and post records and whether they're fresh, the file its sound
+plays from) is kept keyed on those files' size and modified time, from one listing of
+each shot folder, and kept on disk per episode and pass (`takefiles.py`; REFACTOR.md
+3.4): a change made anywhere, in the editor or not, is read on the next load, and a
+restart starts warm. What depends on more than the take's files (staleness, the chain, the
+upscale recipe match) is worked out each time. Within one answer a pass's cut is resolved
+once (`edit.cut_memo`) and each reference file looked at once (`takes.one_look`). The page
+asks for the episode it had open as it starts, and refs once the shots are in.
+
 ## Package layout
 
 ```
@@ -241,15 +280,18 @@ seriesmith/
   core/        script parser, story IR, series config, framing, speech pacing
   targets/     one folder per model; generic/ the code data-only models use
   build.py     script + series config -> story IR -> each target's shotlist
-  cli.py       the `seriesmith` command; commands.py the stage and editing commands
+  cli.py       the `seriesmith` entry point; commands.py every command in one table
   settings.py  this machine's settings (never the series config)
   limits.py    a model's limits in one form; router_inspect.py a Router model's schema
   backends/    local, cloud, deployments (comfy.py); router.py; a fake for tests
-  jobs.py      planning a take; takes.py its files and record; render.py
+  jobs.py      planning a take; takes.py its files and record; takefiles.py what they
+               say, kept; render.py
   queue.py     the job queue; runner.py what goes on it; finishing.py
   api.py       the editor's routes as functions
   server/      standalone.py (`serve`), views.py (aiohttp), comfyui.py (the ComfyUI host)
   helpers/     PIL/numpy helpers run as subprocesses
+  ff.py        ffmpeg / ffprobe, found once; core/fileio.py every write (atomic, LF, the
+               Windows retry); core/paths.py where an episode's series config and script are
 comfy_nodes/   seriesmith's ComfyUI node pack
 web/           the editor (React/Vite)
 tests/         golden outputs and unit tests
