@@ -621,16 +621,22 @@ def existing_master(root: str) -> str | None:
     return mp4 if os.path.isfile(mp4) else None
 
 
+def check_prores(root: str) -> str:
+    """The master ProRes would be made from, or MasterError when there is none."""
+    mp4 = existing_master(root)
+    if mp4 is None:
+        raise MasterError("there is no master of this episode at the recipe's size yet: "
+                          "master it first (ProRes then comes from that master)")
+    return mp4
+
+
 def prores_only(root: str, by: str = "seriesmith master") -> dict:
     """The ProRes 422 HQ .mov of the master already made, beside it (what
     --prores does at the end of an assembly, without assembling again), and the
     report's `prores` set. MasterError without a master; MasterBusy while one
     is being assembled. {"output", "mov"} (absolute paths)."""
     from seriesmith import assemble as ASM
-    mp4 = existing_master(root)
-    if mp4 is None:
-        raise MasterError("there is no master of this episode at the recipe's size yet: "
-                          "master it first (ProRes then comes from that master)")
+    mp4 = check_prores(root)
     lock = take_lock(root, by)
     try:
         mov = mp4[:-4] + ".mov"
@@ -658,18 +664,20 @@ def prores_only(root: str, by: str = "seriesmith master") -> dict:
 
 
 def assemble_master(plan: Plan, allow_gaps: bool = False, prores: bool = False,
-                    timeout: int = 3600, progress=None, by: str = "seriesmith master") -> dict:
+                    timeout: int = 3600, progress=None, by: str = "seriesmith master",
+                    stop=None) -> dict:
     """The cut from its upscales at the master size into <episode>/master/, and
     the report beside it. Refused while anything is still to upscale or on its
     way, and with gaps unless `allow_gaps`; MasterBusy while another run is
     assembling this episode's master. `progress(event)` hears each step:
     {"step": "assemble" | "titles", "stage", "done", "total", "text"} (the
-    stages are assemble's and publish's progress lines).
+    stages are assemble's and publish's progress lines). `stop(kill)` is
+    handed what kills the tool running (a queue job's cancel).
     {"ok", "output", "mov", "report", "error"}."""
     check_assemble(plan, allow_gaps)
     lock = take_lock(plan.root, by)
     try:
-        return _assemble(plan, plan.of("gap"), prores, timeout, progress)
+        return _assemble(plan, plan.of("gap"), prores, timeout, progress, stop)
     finally:
         release_lock(lock)
 
@@ -698,7 +706,8 @@ def _tell(progress, step: str):
     return hear
 
 
-def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> dict:
+def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress,
+              stop=None) -> dict:
     from seriesmith import edit as E
     name = master_name(plan.root, plan.size)
     sub = "renders_proxy" if plan.pass_ == "proxy" else "renders"
@@ -717,7 +726,7 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> d
     if prores and not retitle:
         args += ["--intermediate", "prores"]
     rc, out, err = E.run_tool("assemble.py", args, plan.root, timeout,
-                                   progress=_tell(progress, "assemble"))
+                              progress=_tell(progress, "assemble"), stop=stop)
     made = os.path.join(plan.root, sub, name + ".mp4")
     if rc != 0 or not os.path.isfile(made):
         return {"ok": False, "output": None, "mov": None, "report": out,
@@ -736,7 +745,7 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress) -> d
     mp4, mov = moved[".mp4"], moved.get(".mov")
     if retitle:
         mov = old_mov                       # add_titles makes it from the titled master
-    titled, why = add_titles(plan, mp4, mov, timeout, progress)
+    titled, why = add_titles(plan, mp4, mov, timeout, progress, stop)
     if mov and not os.path.isfile(mov):
         mov = None                          # the titles failed before it was made
     out += titled.get("report", "")
@@ -759,7 +768,7 @@ def _has_titles(root: str) -> bool:
 
 
 def add_titles(plan: Plan, mp4: str, mov: str | None, timeout: int = 3600,
-               progress=None) -> tuple[dict, str]:
+               progress=None, stop=None) -> tuple[dict, str]:
     """The series intro and outro around the master, in place (publish), when
     the episode has them; the .mov made again from the titled master. Returns
     ({"titles": {"intro", "outro", "picture", "why"} or None, "report"}, why it
@@ -788,7 +797,7 @@ def add_titles(plan: Plan, mp4: str, mov: str | None, timeout: int = 3600,
 
     rc, out, err = E.run_tool("publish.py", [plan.root, "--input", mp4, "--out", mp4,
                                                     "--quality", quality, "--progress"],
-                                   plan.root, timeout, progress=hear)
+                              plan.root, timeout, progress=hear, stop=stop)
     if rc != 0:
         why = next((ln.strip()[3:] for ln in out.splitlines() if ln.strip().startswith("!! ")),
                    err.strip()[-300:] or "publish failed")

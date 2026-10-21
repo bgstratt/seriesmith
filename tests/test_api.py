@@ -96,6 +96,22 @@ class ApiTest(unittest.TestCase):
         json.dumps(data)                                  # always serialisable
         return data
 
+    def waited(self, res):
+        """A master or align the route queued (it answers the job) waited out,
+        answered as the route did when it ran in the request: (200, what it
+        made) or (its status, its error)."""
+        self.settle()
+        code, data = res
+        if code != 200 or not isinstance(data.get("job"), dict) or "id" not in data["job"]:
+            return res
+        r = self.ctx.runner.queue.jobs[data["job"]["id"]].result
+        if r["state"] == "failed":
+            return r.get("status") or 500, {"error": r["error"], "job": r, "log": r.get("log", "")}
+        if "result" in r:                                 # align: its answer
+            return 200, r["result"]
+        return 200, dict(data, output=r["output"], mov=r["mov"], report=r["report"],
+                         titles=r["titles"], job=r)
+
     def err(self, res, status):
         self.settle()
         code, data = res

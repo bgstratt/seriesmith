@@ -145,7 +145,7 @@ class MasterTest(ApiTest):
         self.assertEqual(name, "ks01_master_1920x1080")
         calls = []
 
-        def fake_tool(script, args, cwd, timeout, progress=None):
+        def fake_tool(script, args, cwd, timeout, progress=None, stop=None):
             calls.append(args)
             with open(os.path.join(self.ep, "renders", name + ".mp4"), "wb") as fh:
                 fh.write(b"master")
@@ -182,7 +182,7 @@ class MasterTest(ApiTest):
             open(os.path.join(titles, f), "wb").close()
         published = []
 
-        def with_titles(script, args, cwd, timeout, progress=None, rc=0, said="  -> titled\n"):
+        def with_titles(script, args, cwd, timeout, progress=None, stop=None, rc=0, said="  -> titled\n"):
             if script == "assemble.py":
                 return fake_tool(script, args, cwd, timeout)
             published.append(args)
@@ -201,8 +201,8 @@ class MasterTest(ApiTest):
         self.assertIn("Titles: intro", open(res["report_md"], encoding="utf-8").read())
         # publish failing: not ok, the untitled master left where it is
         with mock.patch.object(E, "run_tool",
-                               lambda s, a, c, t, progress=None:
-                               with_titles(s, a, c, t, None, 1, "  !! no font\n")):
+                               lambda s, a, c, t, progress=None, stop=None:
+                               with_titles(s, a, c, t, None, None, 1, "  !! no font\n")):
             res = M.assemble_master(plan, allow_gaps=True)
         self.assertFalse(res["ok"])
         self.assertIn("titles failed: no font", res["error"])
@@ -259,7 +259,7 @@ class MasterTest(ApiTest):
             M.prores_only(self.ep)
         M.release_lock(lock)
         with mock.patch("seriesmith.assemble.prores_from", side_effect=prores):
-            res = self.ok(A.post_master(self.ctx, {"ep": self.ep, "action": "prores"}))
+            res = self.ok(self.waited(A.post_master(self.ctx, {"ep": self.ep, "action": "prores"})))
         # the master's own .mp4 into a .mov beside it, nothing assembled
         self.assertEqual(made, [(mp4, mp4[:-4] + ".mov")])
         self.assertTrue(res["mov"].endswith(name + ".mov"))
@@ -273,7 +273,7 @@ class MasterTest(ApiTest):
     def talking_tool(self, name, picture="re-encoded", why="the cut is hevc, not H.264"):
         """A run_tool stand-in: assemble writes the master and says where it
         is; publish says what it did with the picture."""
-        def tool(script, args, cwd, timeout, progress=None):
+        def tool(script, args, cwd, timeout, progress=None, stop=None):
             if script == "assemble.py":
                 progress("assemble", {"stage": "probe", "done": 0, "total": 2, "text": "sh010"})
                 progress("assemble", {"stage": "clips", "done": 1, "total": 2, "text": "sh010"})
@@ -322,7 +322,7 @@ class MasterTest(ApiTest):
         plan, name = self.ready_plan()
         calls, made = [], []
 
-        def tool(script, args, cwd, timeout, progress=None):
+        def tool(script, args, cwd, timeout, progress=None, stop=None):
             calls.append((script, args))
             return self.talking_tool(name, "copied", "")(script, args, cwd, timeout,
                                                          progress or (lambda *a: None))
@@ -353,7 +353,7 @@ class MasterTest(ApiTest):
         # the titles failing: no .mov is claimed, and the earlier one is gone
         made.clear()
 
-        def failing(script, args, cwd, timeout, progress=None):
+        def failing(script, args, cwd, timeout, progress=None, stop=None):
             if script == "publish.py":
                 return 1, "  !! no font\n", ""
             return tool(script, args, cwd, timeout, progress)
@@ -411,12 +411,18 @@ class MasterTest(ApiTest):
         from seriesmith import edit as E
         plan, name = self.ready_plan()
         self.make_titles()
-        A._MASTER_JOBS.clear()
-        self.addCleanup(A._MASTER_JOBS.clear)
         self.assertIsNone(self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"])
         body = {"ep": self.ep, "action": "assemble", "allow_gaps": True}
         with mock.patch.object(E, "run_tool", self.talking_tool(name)):
-            res = self.ok(A.post_master(self.ctx, body))
+            code, data = A.post_master(self.ctx, body)
+            # the route answers at once: the job, on the serial cpu lane
+            self.assertEqual(code, 200, data)
+            self.assertEqual(data["job"]["state"], "running")
+            self.assertIn("plan", data)
+            res = self.ok(self.waited((code, data)))
+        qjob = self.ctx.runner.queue.jobs[data["job"]["id"]]
+        self.assertEqual((qjob.kind, qjob.lane, qjob.status), ("master", "cpu", "succeeded"))
+        self.assertEqual(qjob.progress, 1.0)
         self.assertEqual(res["output"], f"master/{name}.mp4")
         self.assertEqual(res["job"]["state"], "done")
         self.assertEqual(res["titles"]["picture"], "re-encoded")
@@ -441,25 +447,88 @@ class MasterTest(ApiTest):
             self.assertTrue(data["job"]["elsewhere"])
         finally:
             M.release_lock(lock)
-        # the editor's own run still going (the request that started it hasn't
-        # answered): a second press is refused, with the job to show
-        A._MASTER_JOBS[A._master_key(self.ep)] = dict(job, state="running", elsewhere=False,
-                                                      by="the editor", stage="clips", done=212,
-                                                      total=323)
-        code, data = A.post_master(self.ctx, body)
-        self.assertEqual(code, 409, data)
-        self.assertIn("already being assembled by the editor", data["error"])
-        self.assertEqual(data["job"]["done"], 212)
         # not ready to assemble (still to upscale): refused before anything is
-        # claimed or announced
-        A._MASTER_JOBS.clear()
+        # queued or announced
         before = len(self.events_of("seriesmith.master"))
+        jobs = len(self.ctx.runner.queue.jobs)
         with mock.patch.object(M, "plan_master",
                                lambda *a, **k: M.Plan(self.ep, "final", RECIPE, (1920, 1080),
                                                       [M.Row("sh010", None, "upscale")])):
             self.err(A.post_master(self.ctx, body), 409)
         self.assertEqual(len(self.events_of("seriesmith.master")), before)
-        self.assertIsNone(self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"])
+        self.assertEqual(len(self.ctx.runner.queue.jobs), jobs)
+
+    def held_tool(self, name):
+        """A run_tool stand-in whose assemble runs until it is killed (the
+        job's cancel), having written part of a cut."""
+        import threading
+        started = threading.Event()
+
+        def tool(script, args, cwd, timeout, progress=None, stop=None):
+            killed = threading.Event()
+            stop(killed.set)
+            with open(os.path.join(self.ep, "renders", name + ".mp4"), "wb") as fh:
+                fh.write(b"part")
+            started.set()
+            killed.wait(20)
+            return 1, "", "killed"
+        return tool, started
+
+    def test_cancel_and_a_second_press(self):
+        from seriesmith import edit as E
+        plan, name = self.ready_plan()
+        body = {"ep": self.ep, "action": "assemble", "allow_gaps": True}
+        tool, started = self.held_tool(name)
+        with mock.patch.object(E, "run_tool", tool):
+            code, data = A.post_master(self.ctx, body)
+            self.assertEqual(code, 200, data)
+            self.assertTrue(started.wait(10))
+            # the editor's own run going: a second press is refused, with the job to show
+            code, again = A.post_master(self.ctx, body)
+            self.assertEqual(code, 409, again)
+            self.assertIn("already being assembled by the editor", again["error"])
+            self.assertEqual(again["job"]["id"], data["job"]["id"])
+            job = A.get_master_job(self.ctx, {"ep": self.ep})[1]["job"]   # not ok(): it settles
+            self.assertEqual((job["state"], job["stage"]), ("running", "start"))
+            # cancelled from Jobs: the tool is killed, nothing kept as the master
+            self.ctx.runner.queue.cancel(data["job"]["id"])
+            self.settle()
+        qjob = self.ctx.runner.queue.jobs[data["job"]["id"]]
+        self.assertEqual(qjob.status, "canceled")
+        job = self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"]
+        self.assertEqual((job["state"], job["error"]), ("failed", "canceled: no master was kept"))
+        self.assertIsNone(M.existing_master(self.ep))
+        self.assertIsNone(M.assembling(self.ep))           # the lock let go
+
+    def test_a_restart(self):
+        """The journal's master after a restart: one that hadn't started is
+        queued again; one that was running died with the server, so it is
+        listed failed, saying so, and Retry runs it."""
+        from seriesmith import edit as E
+        plan, name = self.ready_plan()
+        params = {"ep": self.ep, "pass": "final", "action": "assemble",
+                  "flags": {"conform": False, "allow_gaps": True, "prores": False, "post": False}}
+        entry = {"kind": "master", "title": "ks01 master", "status": "running",
+                 "resume": {"kind": "local", "task": "master", "params": params}}
+        q = self.ctx.runner.queue
+        job_id = A.rebuild_local(self.ctx, entry)
+        self.assertEqual((q.jobs[job_id].status, q.jobs[job_id].error),
+                         ("failed", "the server stopped while it ran: retry it"))
+        job = self.ok(A.get_master_job(self.ctx, {"ep": self.ep}))["job"]
+        self.assertEqual((job["state"], job["error"]),
+                         ("failed", "the server stopped while it ran: retry it"))
+        with mock.patch.object(E, "run_tool", self.talking_tool(name)):
+            new = q.retry(job_id)
+            self.settle()
+        self.assertEqual((new.kind, new.lane, new.status), ("master", "cpu", "succeeded"))
+        self.assertEqual(new.result["output"], f"master/{name}.mp4")
+        # one that hadn't started: queued again, as it was asked for
+        with mock.patch.object(E, "run_tool", self.talking_tool(name)):
+            again = A.rebuild_local(self.ctx, dict(entry, status="queued"))
+            self.settle()
+        self.assertEqual(q.jobs[again].status, "succeeded")
+        self.assertIsNone(A.rebuild_local(self.ctx, {"resume": {"kind": "local", "task": "nope",
+                                                                "params": {}}}))
 
     def test_printer(self):
         import io
@@ -563,7 +632,7 @@ class MasterTest(ApiTest):
         # the assembly is told to prefer fresh posts
         calls = []
 
-        def fake_tool(script, args, cwd, timeout, progress=None):
+        def fake_tool(script, args, cwd, timeout, progress=None, stop=None):
             calls.append(args)
             return 1, "", "stop here"
         with mock.patch("seriesmith.edit.run_tool", fake_tool):

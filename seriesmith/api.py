@@ -1784,13 +1784,8 @@ def post_master(ctx: Context, body):
         raise ApiError(400, "action must be plan, queue, assemble or prores")
     if action == "prores":
         # the .mov of the master already made: nothing is planned or assembled
-        try:
-            res = M.prores_only(ep, by="the editor")
-        except M.MasterBusy as e:
-            raise ApiError(409, str(e), job=master_job(M, ep))
-        except M.MasterError as e:
-            raise ApiError(409, str(e))
-        return 200, {"output": E.rel(ep, res["output"]), "mov": E.rel(ep, res["mov"])}
+        M.check_prores(ep)
+        return 200, start_master(ctx, M, ep, pass_, "prores", {})
     flags = {k: body.get(k, False) for k in ("conform", "allow_gaps", "prores")}
     if not all(isinstance(v, bool) for v in flags.values()):
         raise ApiError(400, "conform, allow_gaps and prores must be true or false")
@@ -1817,7 +1812,8 @@ def post_master(ctx: Context, body):
         out = {"queued": [r.shot for r in queued],
                "errors": [{"shot": r.shot, "error": e} for r, e in errors]}
     elif action == "assemble":
-        out = assemble_job(ctx, M, ep, pass_, plan, flags)
+        M.check_assemble(plan, flags["allow_gaps"])
+        out = start_master(ctx, M, ep, pass_, "assemble", flags)
     have = M.existing_master(ep)
     return 200, {"plan": plan.view(), **out,
                  "existing": ({"output": E.rel(ep, have),
@@ -1826,88 +1822,191 @@ def post_master(ctx: Context, body):
                               if have else None)}
 
 
-# The master being assembled, per episode: what the Master dialog shows when it
-# is opened again (or the page is reloaded) while the request that started it
-# is still running, and once it has finished. Lives as long as this ComfyUI.
-_MASTER_JOBS: dict = {}
-_MASTER_GUARD = threading.Lock()     # checking for a running job and claiming it, one at a time
+# ---------------------------------------------------------------------------
+# long work of seriesmith's own (a master, align): a job on the queue's serial
+# "cpu" lane (Runner.local_job), the route answering at once with it. What the
+# page follows is the job's `result`, sent as the work's own events as it goes
+# (seriesmith.master, seriesmith.align). Without a queue it runs in the request.
+# ---------------------------------------------------------------------------
+
+_LOCAL_GUARD = threading.Lock()      # looking for a live one and queuing, one at a time
 
 
-def _master_key(ep: str) -> str:
+def _ep_key(ep: str) -> str:
     return os.path.normcase(os.path.abspath(ep))
 
 
-def master_job(M, ep: str) -> dict | None:
-    """The episode's master job: this process's (running, done or failed), or
-    {"state": "running", "elsewhere": true, ...} for a run this process didn't
-    start (`seriesmith master`), from the episode's master lock; None for neither."""
-    job = _MASTER_JOBS.get(_master_key(ep))
-    if job and job["state"] == "running":
-        return dict(job)
+def _local_jobs(ctx: Context, kind: str, ep: str) -> list:
+    """This server's jobs of `kind` for the episode, newest first."""
+    if ctx.runner is None:
+        return []
+    key = _ep_key(ep)
+    jobs = [j for j in list(ctx.runner.queue.jobs.values())
+            if j.kind == kind and _ep_key(j.info.get("ep") or "") == key]
+    return sorted(jobs, key=lambda j: j.created, reverse=True)
+
+
+def _live(ctx: Context, kind: str, ep: str):
+    from seriesmith.queue import DONE
+    return next((j for j in _local_jobs(ctx, kind, ep) if j.status not in DONE), None)
+
+
+def _local(ctx: Context, kind: str, params: dict):
+    """The job doing `kind` with `params` (LOCAL), not queued yet, and its work."""
+    from seriesmith.queue import Job as QJob
+    title, info, result, work = LOCAL[kind](ctx, params)
+    if ctx.runner is None:
+        qjob = QJob(kind=kind, lane="cpu", title=title, work=None, info=info)
+    else:
+        qjob = ctx.runner.local_job(kind, title, work, info,
+                                    spec={"task": kind, "params": params},
+                                    again=lambda: _local(ctx, kind, params)[0])
+    qjob.result = dict(result, id=qjob.id)
+    return qjob, work
+
+
+def _start_local(ctx: Context, kind: str, params: dict):
+    """Queue it (answer the job), or without a queue run it here and now."""
+    qjob, work = _local(ctx, kind, params)
+    if ctx.runner is not None:
+        ctx.runner.enqueue_local(qjob)
+    else:
+        qjob.status = work(qjob, lambda **k: None, lambda kill: None)
+    return qjob
+
+
+def rebuild_local(ctx: Context, entry: dict) -> str | None:
+    """A master or align the journal kept (its `resume`: {"kind": "local",
+    "task", "params"}) after a restart: one still waiting is queued again;
+    one that was running died with the server, so it is listed failed, saying
+    so, for Retry. Its id, or None for one this version doesn't know."""
+    resume = entry.get("resume") or {}
+    kind, params = resume.get("task"), resume.get("params")
+    if kind not in LOCAL or not isinstance(params, dict) or ctx.runner is None:
+        return None
+    qjob, _work = _local(ctx, kind, params)
+    if entry.get("status") == "queued":
+        ctx.runner.enqueue_local(qjob)
+        return qjob.id
+    why = "the server stopped while it ran: retry it"
+    qjob.status, qjob.error = "failed", why
+    qjob.result.update(state="failed", error=why, finished=T.now())
+    ctx.runner.queue.add_done(qjob)
+    return qjob.id
+
+
+def master_job(ctx: Context, M, ep: str) -> dict | None:
+    """The episode's master job: this server's (waiting, running, done or
+    failed), or {"state": "running", "elsewhere": true, ...} for a run this
+    server didn't start (`seriesmith master`), from the episode's master lock;
+    None for neither."""
+    jobs = _local_jobs(ctx, "master", ep)
+    live = _live(ctx, "master", ep)
+    if live is not None:
+        return dict(live.result)
     held = M.assembling(ep)
     if held:
         return {"ep": ep, "pass": None, "state": "running", "elsewhere": True,
                 "by": held.get("by"), "started": held.get("started"), "step": None,
                 "stage": None, "done": None, "total": None, "text": "", "finished": None,
                 "output": None, "mov": None, "report": None, "titles": None, "error": ""}
-    return dict(job) if job else None
+    return dict(jobs[0].result) if jobs and jobs[0].result else None
 
 
-def assemble_job(ctx: Context, M, ep: str, pass_: str, plan, flags: dict) -> dict:
-    """Assemble the master as a job others can see (master_job, the
-    `seriesmith.master` events), and answer with what it made. 409 while another
-    run is assembling this episode's master, from this editor or not."""
-    key = _master_key(ep)
-    M.check_assemble(plan, flags["allow_gaps"])
-    with _MASTER_GUARD:
-        current = master_job(M, ep)
+def _master_fraction(job: dict) -> float:
+    """How far a master is, for Jobs' bar (as the dialog's masterFraction)."""
+    part = min(1.0, job["done"] / job["total"]) if job.get("done") is not None and job.get("total") else 0.0
+    if job.get("step") == "titles":
+        return 0.85 + 0.15 * part if job.get("stage") == "reencode" else 0.85
+    return {"probe": 0.1 * part, "clips": 0.1 + 0.7 * part, "join": 0.8, "prores": 0.82,
+            "verify": 0.82}.get(job.get("stage") or "", 0.0)
+
+
+def _master_task(ctx: Context, params: dict):
+    """A master assembled ("assemble"), or the ProRes .mov of the one made
+    ("prores"): planned again when it starts, as the episode is then."""
+    from seriesmith import master as M
+    ep, pass_, action, flags = params["ep"], params["pass"], params["action"], params["flags"]
+    job = {"ep": ep, "pass": pass_, "state": "running", "elsewhere": False, "by": "the editor",
+           "started": T.now(), "step": "assemble", "stage": "waiting", "done": None,
+           "total": None, "text": "", "finished": None, "output": None, "mov": None,
+           "report": None, "titles": None, "error": ""}
+    rel = (lambda p: E.rel(ep, p) if p else None)
+    title = f"{os.path.basename(os.path.normpath(ep))} master" + (" ProRes" if action == "prores" else "")
+
+    def work(qjob, report, stop) -> str:
+        job = qjob.result
+
+        def tell():
+            ctx.emit("seriesmith.master", dict(job))
+
+        def progress(ev: dict) -> None:
+            job.update(step=ev.get("step"), stage=ev.get("stage"), done=ev.get("done"),
+                       total=ev.get("total"), text=ev.get("text") or "")
+            report(progress=_master_fraction(job))
+            tell()
+
+        def failed(why: str) -> str:
+            job.update(state="failed", error=why, finished=T.now())
+            qjob.error = why
+            tell()
+            return "failed"
+
+        job.update(started=T.now(), stage="prores" if action == "prores" else "start")
+        tell()
+        try:
+            if action == "prores":
+                res = M.prores_only(ep, by="the editor")
+                job.update(output=rel(res["output"]), mov=rel(res["mov"]), state="done",
+                           stage="done", finished=T.now())
+                tell()
+                return "succeeded"
+            plan = M.plan_master(ep, pass_, flags["conform"], flags["post"])
+            res = M.assemble_master(plan, flags["allow_gaps"], flags["prores"], progress=progress,
+                                    by="the editor", stop=stop)
+        except M.MasterError as e:                       # busy, nothing to master, not ready
+            return failed(str(e))
+        except Exception as e:                           # noqa: BLE001  the job fails
+            return failed(f"assembling the master failed: {e}")
+        if not res["ok"] and qjob.cancel_asked:
+            # what this run left (an untitled cut) isn't the episode's master
+            for path in (res.get("output"), res.get("mov")):
+                if path and os.path.isfile(path):
+                    os.remove(path)
+            return failed("canceled: no master was kept")
+        job.update(output=rel(res.get("output")), mov=rel(res.get("mov")),
+                   report=rel(res.get("report_md")), titles=res.get("titles"), finished=T.now())
+        if not res["ok"]:
+            return failed(res["error"] if res["output"]
+                          else f"assembling the master failed: {res['error']}")
+        job.update(state="done", stage="done")
+        tell()
+        return "succeeded"
+
+    return title, {"ep": ep, "pass": pass_, "action": action}, job, work
+
+
+def start_master(ctx: Context, M, ep: str, pass_: str, action: str, flags: dict) -> dict:
+    """A master (or its ProRes) queued as a job others can see (master_job, the
+    `seriesmith.master` events): 409 while another is waiting or running for
+    this episode, from this editor or `seriesmith master`. Without a queue it
+    runs here, and the answer is what it made."""
+    with _LOCAL_GUARD:
+        current = master_job(ctx, M, ep)
         if current and current["state"] == "running":
             msg = M.busy_message({"by": current.get("by") or "the editor",
                                   "started": current["started"]})
             raise ApiError(409, msg, job=current)
-        before = _MASTER_JOBS.get(key)
-        job = {"ep": ep, "pass": pass_, "state": "running", "elsewhere": False, "by": "the editor",
-               "started": T.now(), "step": "assemble", "stage": "start", "done": None,
-               "total": None, "text": "", "finished": None, "output": None, "mov": None,
-               "report": None, "titles": None, "error": ""}
-        _MASTER_JOBS[key] = job
-
-    def tell():
-        ctx.emit("seriesmith.master", dict(job))
-
-    def progress(ev: dict) -> None:
-        job.update(step=ev.get("step"), stage=ev.get("stage"), done=ev.get("done"),
-                   total=ev.get("total"), text=ev.get("text") or "")
-        tell()
-
-    tell()
-    try:
-        res = M.assemble_master(plan, flags["allow_gaps"], flags["prores"], progress=progress,
-                                by="the editor")
-    except M.MasterBusy as e:
-        # `seriesmith master` got there first: this job never started
-        if before is None:
-            _MASTER_JOBS.pop(key, None)
-        else:
-            _MASTER_JOBS[key] = before
-        ctx.emit("seriesmith.master", dict(job, state="failed", error=str(e), finished=T.now()))
-        raise ApiError(409, str(e), job=master_job(M, ep))
-    except Exception as e:
-        job.update(state="failed", error=f"assembling the master failed: {e}", finished=T.now())
-        tell()
-        raise
-    rel = (lambda p: E.rel(ep, p) if p else None)
-    job.update(output=rel(res.get("output")), mov=rel(res.get("mov")),
-               report=rel(res.get("report_md")), titles=res.get("titles"), finished=T.now())
-    if not res["ok"]:
-        job.update(state="failed", error=res["error"] if res["output"]
-                   else f"assembling the master failed: {res['error']}")
-        tell()
-        raise ApiError(500, job["error"], job=dict(job))
-    job.update(state="done", stage="done")
-    tell()
+        qjob = _start_local(ctx, "master", {"ep": ep, "pass": pass_, "action": action,
+                                            "flags": flags})
+    job = dict(qjob.result)
+    if ctx.runner is not None:
+        return {"job": job}
+    if job["state"] == "failed":
+        busy = "already being assembled" in job["error"]
+        raise ApiError(409 if busy or action == "prores" else 500, job["error"], job=job)
     return {"output": job["output"], "mov": job["mov"], "report": job["report"],
-            "titles": job["titles"], "job": dict(job)}
+            "titles": job["titles"], "job": job}
 
 
 @handler
@@ -1916,7 +2015,7 @@ def get_master_job(ctx: Context, query: dict):
     done with what it made, failed with why; null when there is none."""
     from seriesmith import master as M
     ep = check_ep(ctx, query.get("ep"))
-    return 200, {"job": master_job(M, ep)}
+    return 200, {"job": master_job(ctx, M, ep)}
 
 
 @handler
@@ -4209,22 +4308,82 @@ def post_align(ctx: Context, body):
         if not isinstance(v, bool):
             raise ApiError(400, f"{name} must be true or false")
 
-    def progress(ev):
-        ctx.emit("seriesmith.align", {"ep": ep, "stage": ev["stage"], "pct": ev["pct"],
-                                  "text": ev["text"]})
+    K.check_align(ep, track)
+    params = {"ep": ep, "pass": pass_, "track": track, "model": (model or "").strip() or None,
+              "snap": snap, "dry_run": dry}
+    with _LOCAL_GUARD:
+        live = _live(ctx, "align", ep)
+        if live is not None:
+            raise ApiError(409, "align is already running for this episode; wait for it to "
+                                "finish (or cancel it in Jobs)", job=dict(live.result))
+        qjob = _start_local(ctx, "align", params)
+    if ctx.runner is not None:
+        return 200, {"job": dict(qjob.result)}
+    run = qjob.result
+    if run["state"] == "failed":
+        raise ApiError(run.get("status") or 500, run["error"], log=run.get("log", ""))
+    return 200, run["result"]
 
-    res = K.align(ep, track=track, model=(model or "").strip() or None, snap=snap,
-                  dry_run=dry, progress=progress)
-    build = None if dry else E.build_episode(ep)
-    if not dry:
-        episode_event(ctx, ep)
-    return 200, {"ok": bool(res.get("ok")), "dry_run": dry, "report": res.get("report", ""),
-                 "report_path": res.get("report_path"), "changes": res.get("changes", []),
-                 "notes": res.get("notes", []), "recording": res.get("recording"),
-                 "duration": res.get("duration"), "words": res.get("words"),
-                 "script_hash": res.get("script_hash"), "series_hash": res.get("series_hash"),
-                 "track": E.track_info(ep, pass_), "build": build, "log": res.get("log", "")}
 
+def _align_task(ctx: Context, params: dict):
+    """align on the episode (a subprocess), sending `seriesmith.align` as it
+    goes and once more as it ends, with the answer (`result`) or why not."""
+    ep, pass_, dry = params["ep"], params["pass"], params["dry_run"]
+    run = {"ep": ep, "state": "running", "dry_run": dry, "stage": "waiting", "pct": 0,
+           "text": "", "result": None, "error": "", "started": T.now(), "finished": None}
+    title = f"{os.path.basename(os.path.normpath(ep))} align" + (" (dry run)" if dry else "")
+
+    def work(qjob, report, stop) -> str:
+        run = qjob.result
+
+        def tell(**more):
+            ctx.emit("seriesmith.align", {"ep": ep, "stage": run["stage"], "pct": run["pct"],
+                                          "text": run["text"], "job": qjob.id, **more})
+
+        def progress(ev):
+            run.update(stage=ev["stage"], pct=ev["pct"], text=ev["text"])
+            if isinstance(ev["pct"], (int, float)):
+                report(progress=ev["pct"] / 100)
+            tell()
+
+        run.update(stage="start", text="starting (dry run)" if dry else "starting")
+        tell()
+        try:
+            res = K.align(ep, track=params["track"], model=params["model"], snap=params["snap"],
+                          dry_run=dry, progress=progress, check_deps=False, stop=stop)
+        except Exception as e:                           # noqa: BLE001  the job fails
+            why = "canceled" if qjob.cancel_asked else str(e)
+            run.update(state="failed", error=why, finished=T.now(),
+                       status=getattr(e, "status", 500), log=getattr(e, "data", {}).get("log", ""))
+            qjob.error = why
+            tell(state="failed", error=why)
+            return "failed"
+        build = None if dry else E.build_episode(ep)
+        if not dry:
+            episode_event(ctx, ep)
+        answer = {"ok": bool(res.get("ok")), "dry_run": dry, "report": res.get("report", ""),
+                  "report_path": res.get("report_path"), "changes": res.get("changes", []),
+                  "notes": res.get("notes", []), "recording": res.get("recording"),
+                  "duration": res.get("duration"), "words": res.get("words"),
+                  "script_hash": res.get("script_hash"), "series_hash": res.get("series_hash"),
+                  "track": E.track_info(ep, pass_), "build": build, "log": res.get("log", "")}
+        run.update(state="done", stage="done", pct=100, result=answer, finished=T.now())
+        tell(state="done", result=answer)
+        return "succeeded"
+
+    return title, {"ep": ep, "pass": pass_, "dry_run": dry}, run, work
+
+
+@handler
+def get_align_job(ctx: Context, query: dict):
+    """The episode's align (waiting, running, or the last one this server
+    ran, with its answer as `result`); null when there is none."""
+    ep = check_ep(ctx, query.get("ep"))
+    jobs = _local_jobs(ctx, "align", ep)
+    return 200, {"job": dict(jobs[0].result) if jobs and jobs[0].result else None}
+
+
+LOCAL = {"master": _master_task, "align": _align_task}
 
 
 # ---------------------------------------------------------------------------
@@ -4346,7 +4505,8 @@ ROUTES = [
     ("PUT", "/seriesmith/override", put_override, "body"),
     ("DELETE", "/seriesmith/override", delete_override, "query"),
     ("PUT", "/seriesmith/episode-target", put_episode_target, "body"),
-    ("POST", "/seriesmith/assemble", post_assemble, "body"),    ("GET", "/seriesmith/targets", get_targets, "query"),
+    ("POST", "/seriesmith/assemble", post_assemble, "body"),
+    ("GET", "/seriesmith/targets", get_targets, "query"),
     ("GET", "/seriesmith/models", get_models, "query"),
     ("GET", "/seriesmith/workflows", get_workflows, "query"),
     ("POST", "/seriesmith/targets/inspect", post_targets_inspect, "body"),
@@ -4386,4 +4546,5 @@ ROUTES = [
     ("POST", "/seriesmith/track", post_track, "form"),
     ("POST", "/seriesmith/audio/import", post_audio_import, "form"),
     ("POST", "/seriesmith/align", post_align, "body"),
+    ("GET", "/seriesmith/align/job", get_align_job, "query"),
 ]

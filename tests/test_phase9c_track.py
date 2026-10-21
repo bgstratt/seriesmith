@@ -375,7 +375,7 @@ class AlignRouteTest(ApiTest):
                 "ffmpeg": "ffmpeg"}
 
     def align(self, body=None, status=200):
-        res = A.post_align(self.ctx, dict({"ep": self.ep}, **(body or {})))
+        res = self.waited(A.post_align(self.ctx, dict({"ep": self.ep}, **(body or {}))))
         return self.ok(res) if status == 200 else self.err(res, status)
 
     def test_a_run(self):
@@ -391,8 +391,12 @@ class AlignRouteTest(ApiTest):
         self.assertNotIn("##align", data["log"])
         self.assertTrue(data["build"]["ok"], data["build"])
         self.assertEqual(data["track"]["path"], "audio/ks01_mix.wav")
-        self.assertEqual([(e["stage"], e["pct"]) for e in self.events_of("seriesmith.align")],
-                         [("transcribe", 10), ("match", 65), ("write", 100)])
+        # its start and end (with the answer) around align's own stages
+        seen = self.events_of("seriesmith.align")
+        self.assertEqual([(e["stage"], e["pct"]) for e in seen],
+                         [("start", 0), ("transcribe", 10), ("match", 65), ("write", 100),
+                          ("done", 100)])
+        self.assertEqual((seen[-1]["state"], seen[-1]["result"]["ok"]), ("done", True))
         self.assertEqual(self.events_of("seriesmith.align")[0]["ep"], self.ep)
         self.assertEqual(self.events_of("seriesmith.episode")[-1], {"ep": self.ep})
 
@@ -441,6 +445,31 @@ class AlignRouteTest(ApiTest):
             msg = self.align(status=500)
         self.assertIn("longer than 1s", msg)
 
+    def test_a_run_is_a_job_that_cancels(self):
+        """The route answers at once with the job (the cpu lane); a second
+        align of the episode is refused while it runs; Cancel kills it."""
+        import time
+        stub_align(self.stub, SLOW_BODY)
+        code, data = A.post_align(self.ctx, {"ep": self.ep})
+        self.assertEqual(code, 200, data)
+        q = self.ctx.runner.queue
+        qjob = q.jobs[data["job"]["id"]]
+        self.assertEqual((qjob.kind, qjob.lane), ("align", "cpu"))
+        for _ in range(200):                               # its subprocess started
+            if qjob.cancel_run is not None:
+                break
+            time.sleep(0.05)
+        code, again = A.post_align(self.ctx, {"ep": self.ep})
+        self.assertEqual(code, 409, again)
+        self.assertIn("already running", again["error"])
+        self.assertEqual(A.get_align_job(self.ctx, {"ep": self.ep})[1]["job"]["state"], "running")
+        q.cancel(qjob.id)
+        self.settle()
+        self.assertEqual(qjob.status, "canceled")
+        job = self.ok(A.get_align_job(self.ctx, {"ep": self.ep}))["job"]
+        self.assertEqual((job["state"], job["error"]), ("failed", "canceled"))
+        self.assertEqual(self.events_of("seriesmith.align")[-1]["state"], "failed")
+
     def test_bad_input(self):
         self.align({"track": "../../outside.wav"}, 400)
         self.align({"track": "audio/nope.wav"}, 404)
@@ -456,7 +485,7 @@ class AlignArgsTest(ApiTest):
     def test_command_line(self):
         seen = {}
 
-        def fake_stream(cmd, cwd, timeout, on_progress):
+        def fake_stream(cmd, cwd, timeout, on_progress, stop=None):
             seen["cmd"], seen["cwd"], seen["timeout"] = cmd, cwd, timeout
             out = cmd[cmd.index("--json") + 1]
             on_progress({"stage": "write", "pct": 100, "text": "ok"})
@@ -469,9 +498,10 @@ class AlignArgsTest(ApiTest):
         with mock.patch.object(K, "_stream", fake_stream), \
                 mock.patch.object(K, "align_ready", lambda py=None: {"ready": True,
                                                                      "missing": []}):
-            self.ok(A.post_align(self.ctx, {"ep": self.ep, "track": "audio/ks01_mix.wav",
-                                            "model": "tiny.en", "snap": False,
-                                            "dry_run": True}))
+            self.ok(self.waited(A.post_align(self.ctx, {"ep": self.ep,
+                                                        "track": "audio/ks01_mix.wav",
+                                                        "model": "tiny.en", "snap": False,
+                                                        "dry_run": True})))
         cmd = seen["cmd"]
         # the Python that has a Whisper (here: maybe not the one running the tests)
         self.assertEqual(cmd[0], K.align_python())
@@ -484,7 +514,8 @@ class AlignArgsTest(ApiTest):
         self.assertEqual(cmd[cmd.index("--model") + 1], "tiny.en")
         self.assertEqual(seen["cwd"], self.ep)
         self.assertEqual(seen["timeout"], K.ALIGN_TIMEOUT)
-        self.assertEqual([e["stage"] for e in self.events_of("seriesmith.align")], ["write"])
+        self.assertEqual([e["stage"] for e in self.events_of("seriesmith.align")],
+                         ["start", "write", "done"])
 
 
 @unittest.skipUnless(HAVE_FF and HAVE_NUMPY, "align needs ffmpeg and numpy")
@@ -607,8 +638,8 @@ class AlignWritesTest(ApiTest):
     def test_the_route_runs_it_end_to_end(self):
         with mock.patch.object(K, "align_ready", lambda py=None: {"ready": True,
                                                                   "missing": []}):
-            data = self.ok(A.post_align(self.ctx, {"ep": self.ep,
-                                                   "track": "audio/ks01_dialogue.wav"}))
+            data = self.ok(self.waited(A.post_align(self.ctx, {"ep": self.ep,
+                                                               "track": "audio/ks01_dialogue.wav"})))
         self.assertTrue(data["ok"])
         self.assertTrue(data["build"]["ok"], data["build"])
         self.assertTrue(data["track"]["words"])

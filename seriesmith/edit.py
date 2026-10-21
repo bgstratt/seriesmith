@@ -2206,14 +2206,16 @@ def progress_line(prefix: str, event: dict) -> None:
 
 
 def run_tool(script: str, args: list[str], cwd: str, timeout: int,
-             progress=None) -> tuple[int, str, str]:
+             progress=None, stop=None) -> tuple[int, str, str]:
     """Run a pipeline script beside this file with this Python: (exit code,
     stdout, stderr). With `progress`, stdout is read as it comes and every
     progress line (PROGRESS_LINE) goes to progress(tool, event) instead of
-    into stdout."""
+    into stdout. `stop(kill)` is handed what kills the run once it has started
+    (a queue job's cancel: Queue.arm_cancel)."""
     env = dict(os.environ, **TOOL_ENV)
-    if progress is not None:
-        return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout, progress)
+    if progress is not None or stop is not None:
+        return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout,
+                            progress or (lambda tool, ev: None), stop)
     try:
         r = subprocess.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
                            timeout=timeout)
@@ -2225,7 +2227,7 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
 
 
 def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
-                 progress) -> tuple[int, str, str]:
+                 progress, stop=None) -> tuple[int, str, str]:
     """run_tool with stdout read line by line (stderr drained beside it, so
     neither pipe fills and stalls the script)."""
     import json
@@ -2242,6 +2244,8 @@ def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
 
     killer = threading.Timer(timeout, kill)
     killer.start()
+    if stop is not None:
+        stop(p.kill)
     lines: list[str] = []
     try:
         for raw in p.stdout:

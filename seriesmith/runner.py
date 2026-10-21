@@ -60,6 +60,9 @@ def room(folder: str, kind: str) -> None:
                          f"{need:g} GB there. Free some space and queue it again.")
 
 
+LOCAL_LANE = "cpu"                   # long work of seriesmith's own (local_job)
+
+
 def stopped(qjob: QJob) -> str:
     """What a stopped job's record says: the queue's reason (a time limit) or
     "canceled" (the user)."""
@@ -500,6 +503,25 @@ class Runner:
                     resume=({"kind": "step", **spec} if spec else None))
         self._submit(qjob)
         return qjob.id
+
+    def local_job(self, kind: str, title: str, work, info: dict | None = None,
+                  spec: dict | None = None, again=None) -> QJob:
+        """Long work of seriesmith's own on this machine (a master, align), for
+        the serial "cpu" lane: one at a time, never in the way of the renders.
+        work(qjob, report, stop) -> "succeeded" | "failed", what it made in
+        qjob.result; stop(kill) is how the run it starts is cancelled
+        (Queue.arm_cancel). With `spec` ({"task", "params"}) it is journaled
+        (api.rebuild_local); `again()` makes it anew for Retry. Not queued yet:
+        enqueue_local."""
+        def run(qjob: QJob, report) -> str:
+            return work(qjob, report, lambda kill: self.queue.arm_cancel(qjob, kill))
+        qjob = QJob(kind=kind, lane=LOCAL_LANE, title=title, work=run, info=info or {},
+                    resume=({"kind": "local", **spec} if spec else None))
+        qjob.retry = again
+        return qjob
+
+    def enqueue_local(self, qjob: QJob) -> QJob:
+        return self.queue.submit(qjob)
 
     # -- a run found again: after a restart (recover.py), or by a retry ------
 
