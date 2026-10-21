@@ -281,22 +281,28 @@ def mentions(template: str, pics: list, shot: dict) -> str:
 
 
 DEFINE_WORDS = 20                     # a subject's features: its design's opening words
+# words a cut phrase mustn't end on (a definition then reads "... into in @Image 1")
+DANGLING = {"a", "an", "the", "and", "or", "of", "with", "into", "in", "on", "under", "over",
+            "to", "for", "from", "at", "by", "her", "his", "their", "its"}
 
 
 def features(text: str, most: int = DEFINE_WORDS) -> str:
     """A design or a place's description cut to its opening clause(s): whole
     comma-separated clauses up to `most` words, else the first `most` words.
     Seedance's guide asks for 2-3 stable features that tell the subject apart."""
+    head = re.split(r"[:;]", str(text or "").strip(), maxsplit=1)[0]     # a list after a colon is detail
     words = 0
     out = []
-    for clause in [c.strip() for c in str(text or "").strip().rstrip(".").split(",") if c.strip()]:
+    for clause in [c.strip() for c in head.rstrip(".").split(",") if c.strip()]:
         n = len(clause.split())
         if out and words + n > most:
             break
         out.append(clause)
         words += n
-    line = ", ".join(out)
-    return " ".join(line.split()[:most])
+    cut = ", ".join(out).split()[:most]
+    while cut and cut[-1].lower() in DANGLING:                         # "...swept up into" -> "...swept up"
+        cut.pop()
+    return " ".join(cut)
 
 
 def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
