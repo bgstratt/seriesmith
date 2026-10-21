@@ -237,14 +237,14 @@ def main(argv: list[str] | None = None) -> int:
             if hosted(t):
                 continue                                  # no model files to resolve
             on = backends.get(where[id(j)]) if j.runs and id(j) in where else None
-            if on is not None and on.kind == "cloud":
+            if on is not None and on.own_models:
                 # the files Comfy Cloud has, not this machine's: a missing
                 # accelerator LoRA renders the base preset there
                 if on.name not in cloud_listing:
                     cloud_listing[on.name] = J.model_lister(on)
                 use = cloud_listing[on.name]
             else:
-                if on is not None and on.kind == "local" and listing is None \
+                if on is not None and on.shares_disk and listing is None \
                         and not args.dry_run:
                     listing = J.model_lister(comfy)
                 use = listing
@@ -278,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"    [{j.action:>9}] {j.id:<8} t{j.take:02d}  {j.frames:>4}f  "
                       f"{j.target:<18} {j.shot.get('audio_policy', '')}{extra}")
     n_todo = sum(1 for _, js in plans for j in js if j.runs)
-    if any(n in backends and backends[n].kind == "local" for n in where.values()):
+    if any(n in backends and backends[n].shares_disk for n in where.values()):
         use_comfy["url"] = settings.comfyui_url
     if args.list:
         return 0
@@ -326,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     base = None if hosted(target) else base_for(j.target)[0]
                     take, qid = runner.enqueue_render(
-                        j, base, backend.name, probe=comfy if backend.kind == "local" else None,
+                        j, base, backend.name, probe=comfy if backend.shares_disk else None,
                         continuity=j.continuity, save_frames=args.save_frames,
                         review_copy=False, panel_mode=args.panel_mode)
                 except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
@@ -394,9 +394,8 @@ def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> i
             try:
                 J.stage_portable(j)
                 g = J.graph_for(base_for(j.target)[0], j, take, **gkw)
-                if backend is not None and backend.kind == "cloud":
-                    from seriesmith import cloud as C
-                    g, plan = C.lower(g, j, take, backend.object_info())
+                if backend is not None:
+                    g, plan = backend.prepare(g, j, take)
             finally:
                 if plan is None:
                     unstage(j)
@@ -433,15 +432,15 @@ def prepare(job: J.Job, take: T.Take, backend, base: dict | None, gkw: dict):
     from seriesmith.shotnodes import uses_h3pipe
     if gkw.get("portable") and uses_h3pipe(g):
         raise J.NotPortable(f"still uses h3pipe's nodes: {', '.join(uses_h3pipe(g))}")
-    if backend.kind == "cloud":
-        from seriesmith import cloud as C
-        g, plan = C.lower(g, job, take, backend.object_info())
+    g, plan = backend.prepare(g, job, take)
+    if plan is not None:
+        # lowered for where it runs (Comfy Cloud's own nodes): collected by the plan
         if plan["notes"]:
             had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
             T.update_sidecar(take.paths.sidecar, notes=list(had) + plan["notes"])
         return "cloud", (g, plan)
     bound = episode_bound(g)
-    if bound and backend.kind != "local":
+    if bound and not backend.shares_disk:
         raise J.NotPortable(f"reads the episode folder ({', '.join(bound)}): local only for now")
     return "graph", g
 

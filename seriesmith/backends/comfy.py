@@ -177,6 +177,16 @@ class ComfyBackend(Backend):
         from seriesmith.jobs import choices_in
         return choices_in(self.object_info(), ctype, field_name, strict)
 
+    def prepare(self, graph: dict, job, take) -> tuple[dict, dict | None]:
+        """On Comfy Cloud the graph is lowered to Cloud's own nodes (none of
+        seriesmith's: seriesmith.cloud.lower against its node list), and the
+        plan says how to collect it; a deployment or a local proxy runs it as
+        it is."""
+        if self.kind != "cloud":
+            return graph, None
+        from seriesmith import cloud as C
+        return C.lower(graph, job, take, self.object_info())
+
     def submit(self, graph: dict) -> Run:
         """Upload the graph's File inputs (each once, by content) and submit."""
         g = copy.deepcopy(graph)

@@ -189,7 +189,7 @@ class CollectRouterTest(Episode):
         qjob = QJob(kind="render", lane="router", title="t", work=lambda j, r: "succeeded")
         lines = []
         on = runner._remote(qjob, take.paths.sidecar, lambda *a, line=None, **k: lines.append(line))
-        run = types.SimpleNamespace(backend="router", position=2)
+        run = types.SimpleNamespace(backend="router", position=2, reports_position=True)   # as RouterRun
         on(run, "queued")
         self.assertEqual(qjob.info["remote"], "waiting at Router (#2 in line)")
         run.position = 0
@@ -198,7 +198,7 @@ class CollectRouterTest(Episode):
         self.assertEqual(lines, ["waiting at Router (#2 in line)", "running on Router"])
         self.assertEqual(T.read_sidecar(take.paths.sidecar)["remote"], "running on Router")
         self.assertEqual(T.read_sidecar(take.paths.sidecar)["status"], "queued")   # a take is queued till collected
-        on(types.SimpleNamespace(backend="local", position=None), "running")
+        on(types.SimpleNamespace(backend="local", position=None, reports_position=False), "running")
         self.assertEqual(len(lines), 2)                   # ComfyUI's runs say nothing here
 
     def test_the_returned_video_becomes_the_take(self):

@@ -1586,7 +1586,7 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         except ValueError:
             return None
         b = runner.backends.get(name)
-        if b is None or b.kind != "cloud":
+        if b is None or not b.own_models:
             return None
         if name not in clouds:
             clouds[name] = J.model_lister(b)

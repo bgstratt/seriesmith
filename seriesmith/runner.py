@@ -105,7 +105,7 @@ class Runner:
         backend = self.backends.get(backend_name)
         if backend is None:
             raise ValueError(f"{backend_name} isn't set up on this machine (seriesmith backends)")
-        local_probe = probe if backend.kind == "local" else None
+        local_probe = probe if backend.shares_disk else None
         room(job.root, "render")
         if backend.paid:
             self.queue.charge(backend.name)              # before anything is reserved
@@ -220,7 +220,7 @@ class Runner:
         said = {"text": None}
 
         def on_status(run, status):
-            if run.backend != "router" or status not in ("queued", "running"):
+            if not run.reports_position or status not in ("queued", "running"):
                 return
             pos = getattr(run, "position", None)
             text = ("running on Router" if status == "running"

@@ -92,6 +92,8 @@ def download(url: str, path: str, timeout: float = 300.0) -> None:
 
 
 class RouterRun(Run):
+    reports_position = True
+
     def __init__(self, handle, model: str):
         self.backend = "router"
         self._handle = handle

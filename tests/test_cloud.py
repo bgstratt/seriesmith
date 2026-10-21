@@ -264,6 +264,11 @@ class FakeCloud(FakeBackend):
     def choices(self, ctype, field, strict=False):
         return J.choices_in(self.info, ctype, field, strict)
 
+    def prepare(self, graph, job, take):
+        # lowered as the real Comfy Cloud backend lowers it
+        from seriesmith.backends.comfy import ComfyBackend
+        return ComfyBackend.prepare(self, graph, job, take)
+
 
 class RenderOnCloudTest(Episode):
     def test_render_makes_a_take_on_cloud(self):
