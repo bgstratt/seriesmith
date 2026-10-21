@@ -111,7 +111,14 @@ class RouterCallTest(Episode):
         self.assertEqual(model, MODEL)
         self.assertTrue(job.runs, job.error)
         text, *pictures = args["content"]
-        self.assertEqual(text, {"type": "text", "text": J._prompt_text(job.prompt)})
+        # the pictures defined first (BytePlus's prompt guide: "Define ... in @Image N
+        # as ..."), each by its place among the request's images, then the prose as it was
+        head, _, prose = text["text"].partition("\n\n")
+        self.assertEqual((text["type"], prose), ("text", J._prompt_text(job.prompt)))
+        self.assertTrue(head.startswith("Define "), head)
+        for n in range(1, len(pictures) + 1):
+            self.assertIn(f" in @Image {n} as ", head)
+        self.assertNotIn(f"@Image {len(pictures) + 1}", head)
         self.assertTrue(pictures)
         for p in pictures:
             self.assertEqual((p["type"], p["role"]), ("image_url", "reference_image"))

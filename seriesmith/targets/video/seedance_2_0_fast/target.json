@@ -93,7 +93,8 @@
           "role": "reference_image"
         },
         "max": 9,
-        "max_total": 9
+        "max_total": 9,
+        "define": true
       },
       "first": {
         "list": "content",
