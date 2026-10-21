@@ -1927,8 +1927,8 @@ def _master_task(ctx: Context, params: dict):
     ("prores"): planned again when it starts, as the episode is then."""
     from seriesmith import master as M
     ep, pass_, action, flags = params["ep"], params["pass"], params["action"], params["flags"]
-    job = {"ep": ep, "pass": pass_, "state": "running", "elsewhere": False, "by": "the editor",
-           "started": T.now(), "step": "assemble", "stage": "waiting", "done": None,
+    job = {"ep": ep, "pass": pass_, "action": action, "state": "running", "elsewhere": False,
+           "by": "the editor", "started": T.now(), "step": "assemble", "stage": "waiting", "done": None,
            "total": None, "text": "", "finished": None, "output": None, "mov": None,
            "report": None, "titles": None, "error": ""}
     rel = (lambda p: E.rel(ep, p) if p else None)

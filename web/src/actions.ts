@@ -26,7 +26,7 @@ import {
   type CompareMode, type RefTakeRef, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
-  AlignEvent, AlignMissing, AlignRequest, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
+  AlignEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
@@ -1397,6 +1397,10 @@ export async function relightSequence(req: Omit<RelightRequest, "ep">): Promise<
 
 /** GET /seriesmith/master/job: the episode's master as it is now (the Master
  * dialog asks on opening, so a run started before it was closed shows). */
+export function showMasterJob(job: MasterJob): void {
+  if (sameEp(job.ep, get().ep)) set({ masterJob: job });
+}
+
 export async function loadMasterJob(): Promise<void> {
   const ep = get().ep;
   if (!ep) return;
@@ -1894,12 +1898,22 @@ export function wireEvents() {
     const j = (d ?? null) as MasterJob | null;
     if (!j || !sameEp(j.ep, get().ep)) return;
     set({ masterJob: j });
-    if (j.state === "done") host().toast("success", "Master assembled", j.output ?? undefined);
-    if (j.state === "failed" && j.error) host().toast("error", "The master wasn't assembled", j.error);
+    const prores = j.action === "prores";
+    if (j.state === "done") host().toast("success", prores ? "ProRes .mov made" : "Master assembled", (prores ? j.mov : j.output) ?? undefined);
+    if (j.state === "failed" && j.error) host().toast("error", prores ? "The ProRes .mov wasn't made" : "The master wasn't assembled", j.error);
   });
   h.on("seriesmith.align", (d) => {
     const a = (d ?? {}) as AlignEvent;
     if (!sameEp(a.ep, get().ep)) return;
+    if (a.state) {
+      // a queued align's end: the run this page follows (one run in the request answers itself)
+      const run = get().alignRun;
+      if (run?.busy && run.job && run.job === a.job) {
+        finishAlign({ id: a.job, ep: a.ep, state: a.state, dry_run: run.dryRun, stage: a.stage, pct: num(a.pct),
+                      text: a.text ?? "", result: a.result ?? null, error: a.error ?? "", started: null, finished: null });
+      }
+      return;
+    }
     set((s) => (s.alignRun
       ? { alignRun: { ...s.alignRun, stage: a.stage || s.alignRun.stage, pct: num(a.pct), text: a.text ?? "" } }
       : {}));
@@ -3125,28 +3139,22 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
   });
   try {
     const r = await api().align(req);
-    set((s) => ({
-      alignRun: { ep, busy: false, dryRun, stage: "write", pct: 100, text: r.ok ? "done" : "finished with problems", error: null },
-      alignResult: { ...s.alignResult, [ep]: r },
-    }));
-    const n = changedShots(r).length;
-    host().toast(
-      r.ok ? "success" : "warn",
-      dryRun ? `Dry run: ${resultSummary(r)}` : `Aligned: ${resultSummary(r)}`,
-      dryRun ? "Nothing was written. Run it for real to write the windows." : `${n} shot${n === 1 ? "" : "s"} changed; the script and series.json were written (copies in _history/).`,
-    );
-    if (!dryRun) {
-      // the script changed on disk: open windows, the episode and its refs follow
-      afterAuthoredWrite(r.build ?? null);
-      set((s) => ({ trackBuild: { ...s.trackBuild, [ep]: r.build ?? null } }));
-      // align leaves align_report.md beside the script: a folder whose
-      // script isn't <folder>.md then has two .md files and won't build
-      const clash = scriptClash(r.build ?? null);
-      if (clash) host().toast("warn", "Aligned, but the rebuild couldn't start", clash);
+    if (!("ok" in r)) {
+      // queued (the cpu lane): its events follow it, and its last one has the answer
+      followAlign(r.job);
+      const { job } = await api().alignJob(ep);
+      if (job && job.id === r.job.id && job.state !== "running") finishAlign(job);
+      return true;
     }
+    alignDone(ep, dryRun, r);
     return r.ok;
   } catch (e) {
-    const data = e instanceof ApiError && e.status === 409 ? (e.data as AlignMissing | undefined) : undefined;
+    const data = e instanceof ApiError && e.status === 409 ? (e.data as (AlignMissing & { job?: AlignJob }) | undefined) : undefined;
+    if (data?.job) {
+      // one is already running for this episode: follow that one
+      followAlign(data.job);
+      return false;
+    }
     set({ alignRun: { ep, busy: false, dryRun, stage: "", pct: 0, text: "", error: errText(e) } });
     if (data) {
       // keep the readiness panel truthful: the 409 carries the same fields
@@ -3156,6 +3164,63 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
       report("Align failed", e);
     }
     return false;
+  }
+}
+
+/** The page follows an align on the queue (just asked for, or found running). */
+function followAlign(job: AlignJob) {
+  set({
+    alignRun: { ep: job.ep, busy: true, dryRun: job.dry_run, stage: job.stage, pct: num(job.pct),
+                text: job.stage === "waiting" ? "waiting its turn (another long job is running)" : job.text, error: null, job: job.id },
+  });
+}
+
+/** A queued align ended: its answer as a run in the request gives it, or why not. */
+function finishAlign(job: AlignJob) {
+  const run = get().alignRun;
+  if (!run || run.job !== job.id || !run.busy) return;
+  if (job.state === "done" && job.result) {
+    alignDone(job.ep, job.dry_run, job.result);
+    return;
+  }
+  set({ alignRun: { ep: job.ep, busy: false, dryRun: job.dry_run, stage: "", pct: 0, text: "", error: job.error || "align failed", job: job.id } });
+  if (job.error === "canceled") host().toast("info", "Align canceled", "Nothing was written.");
+  else host().toast("error", "Align failed", job.error);
+}
+
+/** GET /seriesmith/align/job: an align still running for the episode (the
+ * window opened, or the page reloaded, while it runs) is followed again. */
+export async function loadAlignJob(): Promise<void> {
+  const ep = get().ep;
+  if (!ep) return;
+  try {
+    const { job } = await api().alignJob(ep);
+    if (job && job.state === "running" && sameEp(get().ep, ep) && !get().alignRun?.busy) followAlign(job);
+  } catch {
+    /* an older server without the route: the window works as before */
+  }
+}
+
+/** An align's answer: the result shown, the toast, and after a real run the episode followed. */
+function alignDone(ep: string, dryRun: boolean, r: AlignResult) {
+  set((s) => ({
+    alignRun: { ep, busy: false, dryRun, stage: "write", pct: 100, text: r.ok ? "done" : "finished with problems", error: null },
+    alignResult: { ...s.alignResult, [ep]: r },
+  }));
+  const n = changedShots(r).length;
+  host().toast(
+    r.ok ? "success" : "warn",
+    dryRun ? `Dry run: ${resultSummary(r)}` : `Aligned: ${resultSummary(r)}`,
+    dryRun ? "Nothing was written. Run it for real to write the windows." : `${n} shot${n === 1 ? "" : "s"} changed; the script and series.json were written (copies in _history/).`,
+  );
+  if (!dryRun) {
+    // the script changed on disk: open windows, the episode and its refs follow
+    afterAuthoredWrite(r.build ?? null);
+    set((s) => ({ trackBuild: { ...s.trackBuild, [ep]: r.build ?? null } }));
+    // align leaves align_report.md beside the script: a folder whose
+    // script isn't <folder>.md then has two .md files and won't build
+    const clash = scriptClash(r.build ?? null);
+    if (clash) host().toast("warn", "Aligned, but the rebuild couldn't start", clash);
   }
 }
 

@@ -3,9 +3,9 @@
 // attached, and run align against it — with what to install when align
 // can't run, live progress, and the report it wrote.
 
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
-  attachTrack, clearTrack, closeTrackPanel, copyText, dismissAlignResult, dismissUpload, loadAlignReady, openBrowse,
+  attachTrack, clearTrack, closeTrackPanel, copyText, dismissAlignResult, dismissUpload, loadAlignJob, loadAlignReady, openBrowse,
   openTrackPanel, runAlign, uploadTrack,
 } from "../actions";
 import { fmtSeconds } from "../lib/format";
@@ -212,6 +212,8 @@ export function TrackWindow() {
   const [typed, setTyped] = useState("");
   const [model, setModel] = useState("");
   const [snap, setSnap] = useState(true);
+  // an align still running (the window reopened, the page reloaded): followed again
+  useEffect(() => { if (panel && ep) void loadAlignJob(); }, [panel, ep]);
   if (!panel || !ep) return null;
   const t = trackSummary(st?.track);
   const words = !!t?.words;

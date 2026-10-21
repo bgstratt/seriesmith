@@ -10,7 +10,7 @@
 //    `effective.prompt` read-only.
 
 import type {
-  AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
+  AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
@@ -266,7 +266,9 @@ export interface Api {
   /** POST /seriesmith/track `{track: null}`: forget the recording (the file stays). */
   clearTrack(ep: string, pass?: Pass): Promise<TrackResult>;
   /** POST /seriesmith/align: run align (a 409's ApiError.data is an AlignMissing). */
-  align(req: AlignRequest): Promise<AlignResult>;
+  align(req: AlignRequest): Promise<AlignResult | { job: AlignJob }>;
+  /** GET /seriesmith/align/job: the episode's align on the queue (or the last one), null: none */
+  alignJob(ep: string): Promise<{ job: AlignJob | null }>;
   putRefOverride(req: RefOverrideRequest): Promise<{ override: RefOverrideResult }>;
   deleteRefOverride(ep: string, ref: string, view?: string | null): Promise<{ override: RefOverrideResult }>;
   /** ComfyUI's own lists (not seriesmith routes). */
@@ -667,6 +669,7 @@ export function createHttpApi(t: Transport): Api {
       if (req.pass) body.pass = req.pass;
       return call("POST", "/seriesmith/align", body);
     },
+    alignJob: (ep) => get(`/seriesmith/align/job?${qs({ ep })}`),
     refsImport: ({ pick, ...req }) => call("POST", "/seriesmith/refs/import", pick ? { ...req, pick: true } : req),
     refsUpload: (req, onProgress) => {
       const form = new FormData();

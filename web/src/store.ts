@@ -229,6 +229,8 @@ export interface AlignRun {
   pct: number;
   text: string;
   error: string | null;
+  /** the queue's job it follows (null: one run in the request) */
+  job?: string | null;
 }
 
 /** Phase 9c-B: the "use a line from a take" window, for one voice ref. */
