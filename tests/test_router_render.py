@@ -100,6 +100,33 @@ class Episode(unittest.TestCase):
                           J.RenderRequest(self.shot_id, target=SEEDANCE, **req), {})
 
 
+class DefinitionsTest(unittest.TestCase):
+    """Seedance's opening line (router_video.definitions): BytePlus's "Define
+    [core features] in <Image N> as <Subject N>"."""
+
+    def test_features_are_the_opening_clauses_never_cut_mid_phrase(self):
+        from seriesmith.targets.generic import router_video as RV
+        design = ("a young woman with blonde hair swept up into a loose bun, a small silver tiara, "
+                  "a pale-blue off-the-shoulder corseted gown")
+        self.assertEqual(RV.features(design), "a young woman with blonde hair swept up into a loose bun, "
+                                              "a small silver tiara")
+        long_ = "a young woman large round breasts pushing out of the top of her dress with blonde hair swept up into a loose bun"
+        self.assertFalse(RV.features(long_).split()[-1] in RV.DANGLING, RV.features(long_))
+        self.assertEqual(RV.features("an empty palace ballroom by candlelight: cream walls, gilt mirrors"),
+                         "an empty palace ballroom by candlelight")
+
+    def test_each_picture_by_its_place_a_variant_by_its_name(self):
+        from seriesmith.targets.generic import router_video as RV
+        cfg = {"subjects": {"ada": {"name": "Ada", "design": "a tall woman, a mustard apron"},
+                            "ada_wet": {"of": "ada", "design": "a tall woman soaked through, a wet apron"}},
+               "locations": {"street": {"description": "a wet night street, neon in the puddles"}}}
+        shot = {"panels": [{"subject": "ada_wet"}, {"location": "street"}]}
+        pics = [("references", "a.png", "ada_wet"), ("references", "b.png", "street")]
+        self.assertEqual(RV.definitions(pics, shot, cfg),
+                         "Define a tall woman soaked through, a wet apron in @Image 1 as Ada. "
+                         "Define a wet night street, neon in the puddles in @Image 2 as the scene.")
+
+
 class RouterCallTest(Episode):
     def call(self, job=None):
         job = job or self.job()
