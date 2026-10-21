@@ -134,6 +134,16 @@ class StatusTest(unittest.TestCase):
         env.python_has = lambda where, m: False
         self.assertEqual(FT.status([self.feature()], env)[0]["status"], "partial")
 
+    def test_a_pack_or_package_missing_says_how_you_put_it_in(self):
+        env = FT.Env(model_exists=lambda f, n: True, node_classes=set(), pack_dirs=set(),
+                     python_has=lambda w, m: False, python_for=lambda w: "/comfy/python")
+        items = FT.status([self.feature()], env)[0]["items"]
+        self.assertNotIn("how", items[0])
+        self.assertTrue(items[1]["manual"])
+        self.assertIn("ComfyUI-Manager", items[1]["how"])
+        self.assertIn("https://github.com/x/y", items[1]["how"])
+        self.assertIn("/comfy/python -m pip install demucs", items[2]["how"])
+
     def test_a_pack_cloned_but_not_loaded_wants_a_restart(self):
         env = FT.Env(model_exists=lambda f, n: True, node_classes=set(), pack_dirs={"somepack"},
                      python_has=lambda w, m: True)
@@ -155,9 +165,17 @@ class ResolveTest(unittest.TestCase):
                                     classes=["H3SLAAttention", "NoSuchNode"], features=FT.catalog())
         names = [i.name for i in items]
         self.assertIn("minimax_h3_video_vae_fp16.safetensors", names)
-        self.assertIn("ComfyUI-PlagueKind-Nodes", names)
-        self.assertEqual(len(skipped), 2)
+        # a node pack is never installed by seriesmith: it comes back with how
+        self.assertNotIn("ComfyUI-PlagueKind-Nodes", names)
+        self.assertEqual(len(skipped), 3)
         self.assertTrue(any("made_up.bin" in s for s in skipped))
+        self.assertTrue(any(s.startswith("ComfyUI-PlagueKind-Nodes: Install") for s in skipped))
+
+    def test_packs_and_packages_are_never_queued(self):
+        items, skipped = FT.resolve(["sound.demucs", "upscale.h3_latent"], features=FT.catalog())
+        self.assertEqual([i.kind for i in items], ["model"])
+        self.assertTrue(any("pip install demucs" in s for s in skipped))
+        self.assertTrue(any("Comfyui_Minimax_h3_latent_Upscaler" in s for s in skipped))
 
     def test_what_is_installed_is_left_out_and_each_item_once(self):
         cat = FT.catalog()
@@ -225,10 +243,6 @@ class InstallerTest(unittest.TestCase):
 
     def runner(self, cmd, cwd=None, timeout=0):
         self.ran.append(cmd)
-        if cmd[:2] == ["git", "clone"]:
-            os.makedirs(cmd[-1])
-            with open(os.path.join(cmd[-1], "requirements.txt"), "w") as fh:
-                fh.write("einops\n")
         return ""
 
     def downloader(self, url, dest, token, progress, cancelled):
@@ -237,26 +251,24 @@ class InstallerTest(unittest.TestCase):
             fh.write(b"x" * 10)
         progress(10, 10)
 
-    def test_a_pack_a_file_and_a_package(self):
+    def test_a_file_goes_in_a_pack_or_package_never(self):
         ins = INS.Installer(lambda: self.place, runner=self.runner, downloader=self.downloader)
         items = [FT.Item("pack", "SomePack", url="https://github.com/x/SomePack", classes=("N",)),
                  FT.Item("model", "a.safetensors", folder="loras", url="https://h/a"),
                  FT.Item("pip", "demucs", where="comfyui", module="demucs")]
         st = ins.wait(ins.start(items) and 10)
-        self.assertEqual([t["status"] for t in st["tasks"]], ["done", "done", "done"], st)
-        self.assertTrue(st["restart"])
+        self.assertEqual([t["status"] for t in st["tasks"]], ["failed", "done", "failed"], st)
         self.assertTrue(os.path.isfile(os.path.join(self.root, "models", "loras", "a.safetensors")))
-        self.assertEqual(self.ran[0][:4], ["git", "clone", "--depth", "1"])
-        self.assertEqual(self.ran[1][:4], [self.place.python, "-m", "pip", "install"])
-        self.assertIn("-r", self.ran[1])
-        self.assertEqual(self.ran[2][-1], "demucs")
+        self.assertEqual(self.ran, [])
 
     def test_a_failure_says_why_and_the_rest_go_on(self):
         def failing(url, dest, token, progress, cancelled):
-            raise INS.InstallError("gated: accept the licence")
+            if url.endswith("/a"):
+                raise INS.InstallError("gated: accept the licence")
+            self.downloader(url, dest, token, progress, cancelled)
         ins = INS.Installer(lambda: self.place, runner=self.runner, downloader=failing)
         ins.start([FT.Item("model", "a.safetensors", folder="loras", url="https://h/a"),
-                   FT.Item("pip", "demucs", module="demucs")])
+                   FT.Item("model", "b.safetensors", folder="loras", url="https://h/b")])
         st = ins.wait(10)
         self.assertEqual([t["status"] for t in st["tasks"]], ["failed", "done"])
         self.assertIn("gated", st["tasks"][0]["error"])

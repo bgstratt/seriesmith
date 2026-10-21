@@ -171,11 +171,11 @@ and it renders on the ComfyUI it runs in. It loads seriesmith from the repo the 
 linked from, on ComfyUI's own Python, which already has everything it needs: nothing to
 install. (A copied rather than linked `comfy_nodes` folder can't find the repo; its
 nodes still load and the editor stays off, and ComfyUI's console says so.) Comfy Cloud,
-deployments and Router run on Comfy's SDK (comfy-sdk), which ComfyUI's Python doesn't
-have. The first time you save a Comfy API key in **Settings**, or start ComfyUI with one
-already set, seriesmith installs it there in the background (a few seconds; Settings
-shows it, and **Install** tries again if it failed). Without a key nothing is installed;
-`SERIESMITH_NO_AUTO_INSTALL=1` turns the automatic install off.
+deployments and Router run on Comfy's SDK (comfy-sdk), which ComfyUI's Python may not
+have. Once a Comfy API key is set, **Settings** says so if it's missing and gives the
+command that puts it in ComfyUI's Python (`<ComfyUI's python> -m pip install
+"comfy-sdk>=0.4,<0.5"`); run it and restart ComfyUI. seriesmith never installs Python
+packages itself.
 
 Inside ComfyUI, a bar on top of **seriesmith Shots** has **Render on**, the **Jobs**
 button and **Settings**, as the standalone page's top bar does. The ComfyUI host keeps

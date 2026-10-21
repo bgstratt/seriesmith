@@ -2,8 +2,9 @@
 The queue's own routes, for both hosts (`seriesmith serve` and ComfyUI's,
 server/comfyui.py): the Jobs window (GET /seriesmith/jobs, POST
 /seriesmith/jobs/<action>), "Render on" (GET /seriesmith/backends), the
-Settings window (GET / PUT /seriesmith/settings, POST /seriesmith/sdk/install:
-comfy-sdk put in for Cloud and Router, seriesmith.sdk) and GET /seriesmith/info.
+Settings window (GET / PUT /seriesmith/settings, with whether comfy-sdk is here
+for Cloud and Router and the command that puts it in: seriesmith.sdk) and GET
+/seriesmith/info.
 They read the host's settings and runner (standalone.start_queue), so they
 live beside the API rather than in it; they are handlers as the API's are
 ((ctx, arg) -> (status, data), api.handler), served by views.make_view: the
@@ -24,8 +25,7 @@ ACTIONS = ("cancel", "move", "pause", "retry", "paid-reset")
 PATHS = ([("GET", "/seriesmith/info"), ("GET", "/seriesmith/jobs")]
          + [("POST", f"/seriesmith/jobs/{a}") for a in ACTIONS]
          + [("POST", "/seriesmith/jobs/{action}"), ("GET", "/seriesmith/backends"),
-            ("GET", "/seriesmith/settings"), ("PUT", "/seriesmith/settings"),
-            ("POST", "/seriesmith/sdk/install")])
+            ("GET", "/seriesmith/settings"), ("PUT", "/seriesmith/settings")])
 
 
 def _field(body: dict, key: str, kind=str):
@@ -87,9 +87,7 @@ def queue_routes(settings, runner, connected=lambda: False,
     @A.handler
     def backend_list(ctx, query):
         """Each backend and whether it answers."""
-        no_sdk = None if SDK.have() else (
-            "Comfy's SDK is being installed" if SDK.state()["status"] == "installing"
-            else "Comfy's SDK isn't installed (Settings: Install)")
+        no_sdk = None if SDK.have() else "Comfy's SDK isn't installed (Settings says how)"
         return 200, {"backends": [{"name": n, "kind": b.kind,
                                    "down": (no_sdk if b.kind in SDK_KINDS else None) or b.ping(),
                                    "where": getattr(b, "base_url", None) or getattr(b, "cloud_url", "")}
@@ -101,12 +99,6 @@ def queue_routes(settings, runner, connected=lambda: False,
         from seriesmith.settings import from_env
         return 200, {"settings": settings.describe(), "file": settings_path(),
                      "from_env": from_env(), "sdk": SDK.state()}
-
-    @A.handler
-    def sdk_install(ctx, query):
-        """comfy-sdk installed into this Python, in the background (the
-        Settings window's Install): its state, to poll GET /seriesmith/settings."""
-        return 200, {"sdk": SDK.install()}
 
     @A.handler
     def settings_put(ctx, body):
@@ -128,10 +120,8 @@ def queue_routes(settings, runner, connected=lambda: False,
         made = available(settings)                # made first: never an empty set in between
         backends.clear()
         backends.update(made)
-        # a key set, and comfy-sdk not here (ComfyUI's Python): put it in now
-        sdk = SDK.ensure(settings)
         return 200, {"settings": settings.describe(), "file": settings_path(),
-                     "from_env": from_env(), "sdk": sdk}
+                     "from_env": from_env(), "sdk": SDK.state()}
 
     if make_context is None:
         make_context = lambda: A.Context(".", env={})          # noqa: E731  (unused by these)
@@ -141,6 +131,5 @@ def queue_routes(settings, runner, connected=lambda: False,
              + [("POST", "/seriesmith/jobs/{action}", no_action, "query"),
                 ("GET", "/seriesmith/backends", backend_list, "query"),
                 ("GET", "/seriesmith/settings", settings_get, "query"),
-                ("PUT", "/seriesmith/settings", settings_put, "body"),
-                ("POST", "/seriesmith/sdk/install", sdk_install, "query")])
+                ("PUT", "/seriesmith/settings", settings_put, "body")])
     return [(m, p, make_view(make_context, fn, takes)) for m, p, fn, takes in table]

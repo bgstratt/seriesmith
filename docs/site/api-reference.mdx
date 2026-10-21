@@ -834,9 +834,11 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
 `seriesmith/server/features_views.py` (the routes, on both hosts):
 
 - **`GET /seriesmith/features`** answers:
-  `{"groups": [{id, label, about}], "features": [{id, group, label, about, restart, status,   "items": [{key, kind: "model" | "pack" | "pip" | "ffmpeg", name, folder?, url?, target?,   where?, gated?, licence?, status}]}], "place": {root, custom_nodes, python, why_not},   "hf_token": bool, "job": {running, restart, "tasks": [{key, kind, name, folder, status:   "queued" | "running" | "done" | "failed" | "canceled", bytes, total, error, note}]}}`.
-  - An item's status is `installed`, `missing`, `restart` (a pack cloned, not loaded) or
-    `unknown`.
+  `{"groups": [{id, label, about}], "features": [{id, group, label, about, restart, status,   "items": [{key, kind: "model" | "pack" | "link" | "pip" | "ffmpeg", name, folder?, url?,   target?, where?, gated?, licence?, manual?, how?, status}]}], "place": {root, custom_nodes,   python, why_not},   "hf_token": bool, "job": {running, restart, "tasks": [{key, kind, name, folder, status:   "queued" | "running" | "done" | "failed" | "canceled", bytes, total, error, note}]}}`.
+  - An item's status is `installed`, `missing`, `restart` (a pack in custom_nodes, not
+    loaded yet) or `unknown`.
+  - A node pack or Python package is `manual`: you put it in, not seriesmith. While it's
+    missing, `how` says how: ComfyUI-Manager for a pack, the pip command for its Python.
   - A feature's status is `installed`, `partial`, `missing`, `restart`, `unknown` or
     `unavailable`.
   - A target's files count as installed when readiness says so, so a substitute of the
@@ -846,22 +848,19 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
 - **`POST /seriesmith/features/install`** takes `{features?: [id], files?: [file name],   classes?: [node class]}`.
   - What's already installed is left out, and each item is queued once.
   - Files are taken by name only: the server downloads only URLs the code records.
+  - A node pack or Python package is never queued: it comes back in `skipped` as
+    `"<name>: <how>"`.
   - It answers `{"job", "queued": [key], "skipped": [why]}`.
-  - It answers 409 with `place.why_not` when a file or pack has nowhere to go (a
-    ComfyUI on another machine).
+  - It answers 409 with `place.why_not` when a file has nowhere to go (a ComfyUI on
+    another machine).
 - **`POST /seriesmith/features/cancel`** stops after the current item; a download's
   `.part` is kept and resumes.
 
-### `POST /seriesmith/sdk/install`
-Installs comfy-sdk (what Comfy Cloud, deployments and Router run on) into the server's
-Python, in the background (`seriesmith/sdk.py`). Answers `{"sdk": {"status": "ready" | "missing" | "installing" | "failed", "error", "command", "python"}}`; `GET /seriesmith/settings` carries the same `sdk` to poll. PUT `/seriesmith/settings` starts it
-by itself when the settings then have a key and the SDK is missing (not again after a
-failure, and not with `SERIESMITH_NO_AUTO_INSTALL=1`). While it is missing,
-`GET /seriesmith/backends` gives `cloud`, `router` and each deployment a `down` saying so.
-
 ### `GET /seriesmith/settings` / `PUT /seriesmith/settings`
 This machine's settings (`seriesmith/settings.py`; never the series config). GET answers
-`{"settings": {"local_url", "comfyui_url", "cloud_url", "api_key": "set" | null, "deployments": {target: url}, "path", "paid_limit", "enabled_drafts", "target_limits", "local_via": "comfyui" | "proxy", "default_targets": {kind: id}, "detected_targets": {kind: id}}, "file", "from_env": {field: env var}}` — never the key itself. PUT takes any of
+`{"settings": {"local_url", "comfyui_url", "cloud_url", "api_key": "set" | null, "deployments": {target: url}, "path", "paid_limit", "enabled_drafts", "target_limits", "local_via": "comfyui" | "proxy", "default_targets": {kind: id}, "detected_targets": {kind: id}}, "file", "from_env": {field: env var}, "sdk": {status: "ready" | "missing", command, python}}`
+— never the key itself. `sdk` says whether comfy-sdk (Cloud, deployments, Router) is in the
+server's Python, with the pip command that puts it there; while it isn't, `GET /seriesmith/backends` gives those backends a `down` saying so. PUT takes any of
 `local_url`, `comfyui_url`, `cloud_url`, `api_key` (null removes it), `deployments`,
 `paid_limit` (null: no cap), `enabled_drafts`, `target_limits`, `local_via` (null: straight
 to ComfyUI), `default_targets` (`{"video": id, "image": id}`; \{\} or null clears it: what's

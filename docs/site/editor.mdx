@@ -842,7 +842,9 @@ build it). Then build and render them as any other episode.
 
 **Settings → Features…** lists what can be added to this install, grouped as
 [FULL_SETUP.md](/full-setup) has it: video and picture models, H3's sparse attention,
-voices, upscaling, post-processing, 360s and turns, ffmpeg and VideoHelperSuite.
+voices, upscaling, post-processing, 360s and turns, seriesmith's node pack and ffmpeg.
+Model files and ffmpeg it installs; a node pack or Python package it says how to put in
+(ComfyUI-Manager, or the pip command to copy).
 
 - **Each feature** has a checkbox and a status: **Installed** (ticked, greyed), **Partly
   installed**, **Not installed**, or **Restart ComfyUI** (a node pack is in, not loaded
@@ -851,14 +853,17 @@ voices, upscaling, post-processing, 360s and turns, ffmpeg and VideoHelperSuite.
   and its size. A gated file links its licence page.
 - **The foot** adds up what the ticked features still download; each file shared between
   features counts once.
-- **Install** queues them. The card on top follows each item (a download's bytes, a
-  clone, a pip install) and has **Stop**. A stopped download resumes next time. When a
-  node pack went in, it says to restart ComfyUI.
+- **A node pack or Python package** missing shows how to put it in under its feature,
+  with a copy button: ComfyUI-Manager for a pack, the pip command for a package. A
+  feature made only of those can't be ticked.
+- **Install** queues the rest. The card on top follows each item (a download's bytes)
+  and has **Stop**. A stopped download resumes next time. When seriesmith's own pack was
+  linked, it says to restart ComfyUI.
 - **Gated files** (LTX-2.5, FLUX) need a **Hugging Face token** in Settings and their
   licence accepted on Hugging Face. Without them the file fails, saying which.
-- **What's missing** has an **Install** button beside each file with a known download,
-  and beside each missing node a known pack provides. It opens Features to show the
-  progress.
+- **What's missing** has an **Install** button beside each file with a known download
+  (it opens Features to show the progress); beside a missing node it says to install the
+  pack that provides it with ComfyUI-Manager.
 
 ## Where shots render
 

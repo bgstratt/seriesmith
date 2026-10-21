@@ -111,13 +111,12 @@ def start(server, settings=None, wait: float = 120.0):
     import atexit
     atexit.register(runner.queue.close)
 
-    # a Comfy API key already set (Settings, COMFY_API_KEY) but no comfy-sdk in
-    # ComfyUI's Python: put it in, in the background (seriesmith.sdk)
+    # a Comfy API key set (Settings, COMFY_API_KEY) but no comfy-sdk in ComfyUI's
+    # Python (a pack linked from a clone; Manager's install has it): say how
     from seriesmith import sdk as SDK
-    try:
-        SDK.ensure(settings)
-    except Exception as e:                                # noqa: BLE001  never stop the load
-        log.warning("seriesmith: comfy-sdk: %s", e)
+    if settings.api_key and not SDK.have():
+        log.warning("seriesmith: Comfy Cloud and Router need comfy-sdk in ComfyUI's Python: "
+                    "run %s, then restart ComfyUI", SDK.state()["command"])
 
     def when_up():
         end = time.time() + wait

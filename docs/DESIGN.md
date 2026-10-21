@@ -227,8 +227,8 @@ places from one codebase:
 - **Inside ComfyUI** (a thin second host, `server/comfyui.py`): seriesmith's node
   pack mounts the same route table on ComfyUI's server, with its own queue and
   journal; the editor lives in its sidebar and bottom panel, as in h3pipe. The pack
-  is linked into ComfyUI's `custom_nodes` for now; a ComfyUI Manager listing comes
-  with publishing (PLAN.md, "Later").
+  is linked into ComfyUI's `custom_nodes` for now; next it's the whole repo published
+  to the Comfy Registry for ComfyUI-Manager (PLAN.md, "The ComfyUI Manager listing").
 
 The standalone layout:
 

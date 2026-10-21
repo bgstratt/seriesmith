@@ -14,6 +14,11 @@ A feature is a few items, each of one kind:
     pip     a Python package, in ComfyUI's Python or in seriesmith's own
     ffmpeg  a full ffmpeg build, downloaded into seriesmith's folder (seriesmith.ff)
 
+A pack or a pip package is put in by you, not by seriesmith (`Item.manual`):
+the Comfy Registry's rules let a node pack neither install Python packages at
+runtime nor install other packs. status() says how for each one missing
+(`how`): ComfyUI-Manager for a pack, the pip command for the right Python.
+
 A target's feature takes its files from the target itself (the required and
 accelerator files its passes load), and its status from readiness, which knows
 a renamed or re-quantized copy of the same model counts.
@@ -80,6 +85,11 @@ class Item:
         return f"{self.kind}:{self.folder + '/' if self.folder else ''}{self.name}"
 
     @property
+    def manual(self) -> bool:
+        """Put in by you (ComfyUI-Manager, pip), not by the installer."""
+        return self.kind in ("pack", "pip")
+
+    @property
     def gated(self) -> bool:
         """A Hugging Face file whose repo asks you to accept a licence (FLUX,
         LTX-2.5): it needs a token (settings hf_token)."""
@@ -87,6 +97,8 @@ class Item:
 
     def to_json(self) -> dict:
         d = {"key": self.key, "kind": self.kind, "name": self.name}
+        if self.manual:
+            d["manual"] = True
         for k in ("folder", "url", "target", "module"):
             if getattr(self, k):
                 d[k] = getattr(self, k)
@@ -125,7 +137,7 @@ GROUPS = [
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
     ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
-    ("tools", "Tools", "ffmpeg, and VideoHelperSuite for ComfyUI's own Python."),
+    ("tools", "Tools", "seriesmith's node pack, and a full ffmpeg."),
 ]
 
 
@@ -286,15 +298,12 @@ def catalog() -> list[Feature]:
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
         Feature("tools.seriesmith_nodes", "tools", "seriesmith's node pack",
                 "Its shot loader and saver, the chain, upscale and post nodes: latent continuity, "
-                "kept latents, upscales and posts. Linked from this repo into ComfyUI's custom_nodes "
-                "(nothing installed in ComfyUI's Python). Without it, shots render through "
+                "kept latents, upscales and posts. Installed with ComfyUI-Manager, or linked "
+                "from this repo into ComfyUI's custom_nodes. Without it, shots render through "
                 "ComfyUI's own nodes.", [OWN_PACK], restart=True),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
                 "(or set your own folder in Settings).", [Item("ffmpeg", "ffmpeg")]),
-        Feature("tools.vhs", "tools", "VideoHelperSuite",
-                "Brings an ffmpeg into ComfyUI's own Python (imageio-ffmpeg). seriesmith's graphs "
-                "don't use its nodes.", [_pack("ComfyUI-VideoHelperSuite")], restart=True),
     ]
     return feats
 
@@ -322,7 +331,27 @@ class Env:
     pack_dirs: set | None = None             # the folders in custom_nodes
     readiness: dict = field(default_factory=dict)   # {target id: readiness}
     python_has: Callable[[str, str], bool | None] = lambda where, module: None
+    python_for: Callable[[str], str | None] = lambda where: None   # a pip item's Python
     ffmpeg_installed: bool = False
+
+
+def pip_command(item: Item, python: str | None) -> str:
+    """The pip line that puts `item` in `python` ("python" when it isn't
+    known), quoted for this system's shell."""
+    import shlex
+    import subprocess
+    cmd = [python or "python", "-m", "pip", "install", item.name, *item.pip_args]
+    return subprocess.list2cmdline(cmd) if os.name == "nt" else shlex.join(cmd)
+
+
+def how(item: Item, env: Env) -> str:
+    """How you put in a pack or a pip package seriesmith doesn't install."""
+    if item.kind == "pack":
+        return (f"Install {item.name} with ComfyUI-Manager (Custom Nodes Manager, search "
+                f"\"{item.name}\") or clone {item.url} into custom_nodes, then restart ComfyUI.")
+    if item.kind == "pip":
+        return f"Run: {pip_command(item, env.python_for(item.where))}"
+    return ""
 
 
 def item_status(item: Item, env: Env) -> str:
@@ -363,6 +392,8 @@ def status(features: list[Feature], env: Env) -> list[dict]:
         states = []
         for i, item in zip(d["items"], f.items):
             i["status"] = item_status(item, env)
+            if item.manual and i["status"] not in ("installed", "restart"):
+                i["how"] = how(item, env)
             states.append(i["status"])
         if not states:
             d["status"] = "unavailable"
@@ -416,7 +447,8 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
     """The items to install for these feature ids, file names and node
     classes, each once, those already installed left out (with `env`).
     Returns (items, what couldn't be: unknown ids, files with no recorded
-    download, classes no known pack provides)."""
+    download, classes no known pack provides, and each pack or pip package
+    you put in yourself, with how)."""
     feats = features or catalog()
     by_id = {f.id: f for f in feats}
     items: list[Item] = []
@@ -447,6 +479,9 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
         seen.add(i.key)
         if env is not None and item_status(i, env) in ("installed", "restart"):
             continue
+        if i.manual:
+            skipped.append(f"{i.name}: {how(i, env or Env())}")
+            continue
         out.append(i)
     return out, skipped
 
@@ -457,5 +492,6 @@ def managed_ffmpeg_dir() -> str:
     return os.path.join(os.path.dirname(settings_path()), "ffmpeg")
 
 
-__all__ = ["Env", "Feature", "GROUPS", "Item", "PACKS", "catalog", "item_status",
-           "known_files", "managed_ffmpeg_dir", "pack_for_class", "resolve", "status"]
+__all__ = ["Env", "Feature", "GROUPS", "Item", "PACKS", "catalog", "how", "item_status",
+           "known_files", "managed_ffmpeg_dir", "pack_for_class", "pip_command", "resolve",
+           "status"]

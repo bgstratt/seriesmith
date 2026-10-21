@@ -12,6 +12,19 @@ license = "MIT"
 dependencies = ["comfy-sdk>=0.4,<0.5", "pillow>=10", "numpy>=1.24", "aiohttp>=3.9",
                 "imageio-ffmpeg>=0.5", "av>=17"]
 
+[project.urls]
+Repository = "https://github.com/bgstratt/seriesmith"
+Documentation = "https://docs.seriesmith.com"
+"Bug Tracker" = "https://github.com/bgstratt/seriesmith/issues"
+
+# the Comfy Registry's listing (ComfyUI-Manager): the whole repo is the node
+# pack (__init__.py), less .comfyignore; Manager installs requirements.txt
+[tool.comfy]
+PublisherId = "bgstratt"
+DisplayName = "seriesmith"
+Icon = "https://raw.githubusercontent.com/bgstratt/seriesmith/main/docs/site/favicon.png"
+includes = []
+
 [project.optional-dependencies]
 test = ["pytest"]
 

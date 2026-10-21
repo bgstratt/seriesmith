@@ -1,14 +1,15 @@
 """
 installer — puts in what the Features window asks for (seriesmith.features):
-model files downloaded into ComfyUI's models folders, node packs cloned into
-custom_nodes (their requirements pip-installed into ComfyUI's Python), pip
-packages, a full ffmpeg build. One item at a time, on a thread of its own;
-`state()` says how far it has got, for the window to poll.
+model files downloaded into ComfyUI's models folders, a full ffmpeg build,
+seriesmith's own node pack linked from this repo. One item at a time, on a
+thread of its own; `state()` says how far it has got, for the window to poll.
+Other node packs and Python packages it never installs (the Comfy Registry's
+rules): the window says how (features.how).
 
 Where things go (`Place`):
 
     inside ComfyUI      folder_paths: its own models folders, custom_nodes,
-                        and its Python (sys.executable)
+                        and its Python (sys.executable: the one a pip line names)
     the standalone      ComfyUI's GET /internal/folder_paths when it runs on
     server              this machine (settings comfyui_dir otherwise), and
                         the Python beside that ComfyUI (python_embeded, a venv)
@@ -17,7 +18,7 @@ A download goes to `<file>.part` first and is moved into place whole; a
 .part left by a stopped download is resumed (an HTTP Range request). A
 Hugging Face download sends the token from the settings (hf_token or
 HF_TOKEN); a gated file without one fails saying where to accept its licence.
-A node pack wants ComfyUI restarted, and `state()["restart"]` says so.
+Linking the node pack wants ComfyUI restarted, and `state()["restart"]` says so.
 
 Stdlib only.
 """
@@ -363,12 +364,8 @@ class Installer:
         place = self._place()
         if item.kind == "model":
             return self._model(item, place)
-        if item.kind == "pack":
-            return self._pack(item, place)
         if item.kind == "link":
             return self._link(item, place)
-        if item.kind == "pip":
-            return self._pip(item, place)
         if item.kind == "ffmpeg":
             return self._ffmpeg(item)
         raise InstallError(f"can't install a {item.kind}")
@@ -395,27 +392,6 @@ class Installer:
         self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
         return f"saved in {d}"
 
-    def _pack(self, item: FT.Item, place: Place) -> str | None:
-        if not place.custom_nodes:
-            raise InstallError(place.why_not or "ComfyUI's custom_nodes folder isn't known here")
-        dest = os.path.join(place.custom_nodes, item.name)
-        note = None
-        if os.path.isdir(dest):
-            note = "already cloned"
-        else:
-            self._run(["git", "clone", "--depth", "1", item.url, dest], timeout=900)
-        req = os.path.join(dest, "requirements.txt")
-        if os.path.isfile(req):
-            if not place.python:
-                raise InstallError(f"cloned, but its requirements need ComfyUI's Python, which "
-                                   f"isn't known here: run pip install -r \"{req}\" with it")
-            self._run([place.python, "-m", "pip", "install", "--disable-pip-version-check",
-                       "-r", req], timeout=1800)
-            note = (note + "; requirements installed") if note else "requirements installed"
-        with self._lock:
-            self.restart = True
-        return note or "cloned"
-
     def _link(self, item: FT.Item, place: Place) -> str | None:
         """seriesmith's own node pack: <custom_nodes>/seriesmith made a link to
         this repo's comfy_nodes (a junction on Windows: no administrator rights;
@@ -436,15 +412,6 @@ class Installer:
         with self._lock:
             self.restart = True
         return f"linked {dest} -> {src}"
-
-    def _pip(self, item: FT.Item, place: Place) -> str | None:
-        py = which_python(item.where, place)
-        if not py:
-            raise InstallError(place.why_not or "ComfyUI's Python isn't known here: run "
-                               f"pip install {item.name} with it")
-        self._run([py, "-m", "pip", "install", "--disable-pip-version-check", item.name,
-                   *item.pip_args], timeout=1800)
-        return f"installed in {py}"
 
     def _ffmpeg(self, item: FT.Item) -> str | None:
         url = FFMPEG_BUILDS.get("win32" if os.name == "nt" else sys.platform)
@@ -470,8 +437,8 @@ _PY_HAS: dict[tuple, tuple[bool, float]] = {}
 
 
 def which_python(where: str, place: Place) -> str | None:
-    """The Python a pip item goes in: ComfyUI's, seriesmith's, or align's (the
-    interpreter align picks: track.align_python)."""
+    """The Python a pip item belongs in: ComfyUI's, seriesmith's, or align's
+    (the interpreter align picks: track.align_python)."""
     if where == "seriesmith":
         return sys.executable
     if where == "align":
@@ -513,6 +480,7 @@ def env_for(place: Place, readiness: dict, object_info: dict | None) -> FT.Env:
         pack_dirs=place.pack_dirs(),
         readiness=readiness or {},
         python_has=lambda where, module: python_has(which_python(where, place), module),
+        python_for=lambda where: which_python(where, place),
         ffmpeg_installed=FF.managed() is not None)
 
 

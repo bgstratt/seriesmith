@@ -13,6 +13,7 @@ import { api } from "../host";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { CopyButton } from "./Readiness";
 import { ModelOptions } from "./Targets";
 
 interface SettingsView {
@@ -24,13 +25,12 @@ interface SettingsView {
   };
   file: string;
   from_env: Record<string, string>;
-  /** comfy-sdk, which Cloud and Router run on: installed when a key is set */
+  /** comfy-sdk, which Cloud and Router run on, and the command that puts it in */
   sdk?: SdkState;
 }
 
 interface SdkState {
-  status: "ready" | "missing" | "installing" | "failed";
-  error: string | null;
+  status: "ready" | "missing";
   command: string;
   python: string;
 }
@@ -174,28 +174,6 @@ function SettingsBody({ server }: { server: boolean }) {
     setHfToken("");
     setDirs({ ffmpeg_dir: v.settings.ffmpeg_dir ?? "", comfyui_dir: v.settings.comfyui_dir ?? "" });
   };
-  // while comfy-sdk installs, ask how it's going; once it's in, Cloud and Router answer
-  useEffect(() => {
-    if (sdk?.status !== "installing") return;
-    const t = setInterval(() => {
-      call("GET").then((v) => {
-        if (v.sdk) setSdk(v.sdk);
-        if (v.sdk?.status !== "installing") void refreshBackends();
-      }).catch(() => { /* the server is away */ });
-    }, 2000);
-    return () => clearInterval(t);
-  }, [sdk?.status]);
-  async function installSdk() {
-    setError(null);
-    try {
-      const r = await api().fetch("/seriesmith/sdk/install", { method: "POST" });
-      const data = (await r.json()) as { sdk?: SdkState; error?: string };
-      if (!r.ok) throw new Error(data.error ?? `HTTP ${r.status}`);
-      if (data.sdk) setSdk(data.sdk);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
   useEffect(() => {
     void loadTargets();
     call("GET").then(take).catch((e) => setError((e as Error).message));
@@ -360,22 +338,11 @@ function SettingsBody({ server }: { server: boolean }) {
           </div>
           {view?.settings.api_key && sdk && sdk.status !== "ready" && (
             <div className="h3-col" style={{ gap: 4 }}>
-              <div className="h3-row h3-wrap" style={{ gap: 8 }}>
-                <span className={`h3-status${sdk.status === "failed" ? " h3-s-failed" : ""}`}>
-                  {sdk.status === "installing" ? <><i className="pi pi-spin pi-spinner" /> Installing Comfy's SDK for Cloud and Router…</>
-                    : sdk.status === "failed" ? "Installing Comfy's SDK failed"
-                    : "Cloud and Router need Comfy's SDK"}
-                </span>
-                {sdk.status !== "installing" && (
-                  <button className="h3-btn" onClick={() => void installSdk()}>
-                    <i className="pi pi-download" /> {sdk.status === "failed" ? "Try again" : "Install"}
-                  </button>
-                )}
+              <span className="h3-status">Cloud and Router need Comfy's SDK in this Python</span>
+              <div className="h3-row h3-small" style={{ gap: 6 }}>
+                <span className="h3-grow">Run, then restart: <span className="h3-mono" style={{ wordBreak: "break-all" }}>{sdk.command}</span></span>
+                <CopyButton text={sdk.command} what="Command" />
               </div>
-              {sdk.status === "failed" && sdk.error && <pre className="h3-small h3-err" style={{ whiteSpace: "pre-wrap", margin: 0 }}>{sdk.error}</pre>}
-              {sdk.status !== "installing" && (
-                <span className="h3-small h3-muted">Or run it yourself: <span className="h3-mono">{sdk.command}</span></span>
-              )}
             </div>
           )}
           <span className="h3-small h3-muted">

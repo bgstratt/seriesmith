@@ -1,7 +1,8 @@
 """seriesmith's ComfyUI nodes: render a shot through any Comfy API surface
 (this ComfyUI, Comfy Cloud, a deployment) without touching the episode
-folder. Install by linking this folder into ComfyUI's custom_nodes
-(INSTALL.md); nothing needs installing into ComfyUI's Python."""
+folder. Loaded as the whole repo (ComfyUI-Manager installs it so: the repo's
+__init__.py) or with this folder linked into ComfyUI's custom_nodes
+(INSTALL.md)."""
 
 from .finish import NODE_CLASS_MAPPINGS as _FIN, NODE_DISPLAY_NAME_MAPPINGS as _FIN_NAMES
 from .chain import NODE_CLASS_MAPPINGS as _CHAIN, NODE_DISPLAY_NAME_MAPPINGS as _CHAIN_NAMES
@@ -13,17 +14,18 @@ NODE_DISPLAY_NAME_MAPPINGS = {**_SHOT_NAMES, **_CHAIN_NAMES, **_UP_NAMES, **_FIN
 
 
 def _find_seriesmith() -> None:
-    """The seriesmith package importable: pip-installed, else the repo this
-    folder is linked from (its parent, the link resolved), put on sys.path.
-    Everything it needs at load (aiohttp, Pillow, numpy) ComfyUI has."""
-    import importlib.util
+    """The seriesmith package importable: the one beside this folder (the repo
+    it's linked from, the link resolved, or the whole repo as ComfyUI-Manager
+    installs it), first on sys.path so an older pip-installed seriesmith can't
+    answer for it; else a pip-installed one. Everything it needs at load
+    (aiohttp, Pillow, numpy) ComfyUI has."""
     import os
     import sys
-    if importlib.util.find_spec("seriesmith") is not None:
-        return
     repo = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    if os.path.isfile(os.path.join(repo, "seriesmith", "__init__.py")) and repo not in sys.path:
-        sys.path.append(repo)
+    if os.path.isfile(os.path.join(repo, "seriesmith", "__init__.py")):
+        if repo in sys.path:
+            sys.path.remove(repo)
+        sys.path.insert(0, repo)
 
 
 # the editor, inside ComfyUI: its page (web/seriesmith-editor.js, `npm run
@@ -38,7 +40,8 @@ try:
 except Exception as _e:                                   # noqa: BLE001  never stop the nodes loading
     import logging
     logging.getLogger("seriesmith").warning(
-        "seriesmith: the editor is off in this ComfyUI (%s): link this folder from the "
-        "seriesmith repo (INSTALL.md) rather than copying it", _e)
+        "seriesmith: the editor is off in this ComfyUI (%s): install seriesmith whole "
+        "(ComfyUI-Manager), or link this folder from the seriesmith repo (INSTALL.md) "
+        "rather than copying it", _e)
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]

@@ -81,7 +81,7 @@ export function ResolvedNotes({ resolved, target, list }: {
   );
 }
 
-function CopyButton({ text, what }: { text: string; what: string }) {
+export function CopyButton({ text, what }: { text: string; what: string }) {
   return (
     <button className="h3-btn h3-icon h3-copy" title={`Copy ${what.toLowerCase()}: ${text}`} onClick={(e) => { e.stopPropagation(); void copyText(text, what); }}>
       <i className="pi pi-copy" />
@@ -407,8 +407,7 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
                 <CopyButton text={n} what="Node name" />
               </div>
               <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
-                <InstallButton ask={{ classes: [n] }} title="Install the node pack that provides it, then restart ComfyUI" />
-                <span className="h3-muted">custom node needed: the node pack that provides it, then a ComfyUI restart (ComfyUI-Manager can search by node name).</span>
+                <span className="h3-muted">custom node needed: install the node pack that provides it with ComfyUI-Manager (it can search by node name), then restart ComfyUI.</span>
               </div>
             </div>
           ))}

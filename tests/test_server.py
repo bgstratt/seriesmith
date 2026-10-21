@@ -248,15 +248,15 @@ class ComfyHostTest(unittest.TestCase):
     def test_it_registers_every_route(self):
         server, added = self.server()
         self.assertTrue(comfyui.register(server, wait=0))
-        # the API, the queue's own routes (Jobs, Render on, Settings, the SDK's
-        # Install, info) and the Features window's four
+        # the API, the queue's own routes (Jobs, Render on, Settings, info) and
+        # the Features window's four
         from seriesmith.server import features_views as FV
         from seriesmith.server import queue_views as QV
         self.assertEqual(len(added), len(A.ROUTES) + len(QV.PATHS) + len(FV.PATHS))
         self.assertEqual(sorted(added[len(A.ROUTES):]), sorted(QV.PATHS + FV.PATHS))
         self.assertIn(("GET", "/seriesmith/jobs"), added)
         self.assertIn(("PUT", "/seriesmith/settings"), added)
-        self.assertIn(("POST", "/seriesmith/sdk/install"), added)
+        self.assertNotIn(("POST", "/seriesmith/sdk/install"), added)
         # the same app as `seriesmith serve`: its queue, its own journal
         ctx = comfyui.start(server, wait=0)[0]()
         self.assertIsNotNone(ctx.runner)
