@@ -59,8 +59,6 @@ import re
 import subprocess
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
 from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 from seriesmith import ff as FF  # noqa: E402

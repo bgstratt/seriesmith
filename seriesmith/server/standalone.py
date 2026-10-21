@@ -96,7 +96,7 @@ async def comfy_relay(app: web.Application) -> None:
         wait = min(wait * 2, 30.0)
 
 
-def recover(runner, ask=None, rebuild=None) -> list[str]:
+def recover(runner, ask=None, rebuild=None, local=None) -> list[str]:
     """The jobs this server had when it last stopped (the queue's journal):
     each one that had reached its backend is found again and collected
     (Runner.reattach); one still waiting in the queue had cost nothing, so
@@ -106,12 +106,24 @@ def recover(runner, ask=None, rebuild=None) -> list[str]:
     to queue it again). A step of seriesmith's own still waiting (a clip's
     renders once its pictures are made, a frame's views) is made again by
     `rebuild(resume)` once those are asked for, so it waits on the pictures
-    as they are now. Then the journal is the live queue again. Returns what
-    was done."""
+    as they are now. Long work of seriesmith's own (a master, align) goes to
+    `local(entry)` (api.rebuild_local): queued again if it hadn't started,
+    listed as stopped if it had. Then the journal is the live queue again.
+    Returns what was done."""
     from seriesmith.runner import requeue_plan
     out, waiting, steps = [], [], []
     for job_id, entry in runner.queue.read_journal().items():
         if not isinstance(entry, dict):
+            continue
+        if (entry.get("resume") or {}).get("kind") == "local":
+            if local is not None:
+                try:
+                    if local(entry):
+                        out.append(f"{entry.get('title')}: "
+                                   + ("queued again" if entry.get("status") == "queued"
+                                      else "it was running when the server stopped; retry it"))
+                except Exception as e:                       # noqa: BLE001  one bad entry
+                    out.append(f"{entry.get('title')}: couldn't list it again ({e})")
             continue
         if (entry.get("resume") or {}).get("kind") == "step":
             if entry.get("status") == "queued" and rebuild is not None:
@@ -190,7 +202,8 @@ def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env
     runner.ask = ask
 
     def recover_all() -> list[str]:
-        out = recover(runner, ask, lambda resume: A.rebuild_step(make_context(), resume))
+        out = recover(runner, ask, lambda resume: A.rebuild_step(make_context(), resume),
+                      lambda entry: A.rebuild_local(make_context(), entry))
         for line in out:
             log.info("seriesmith: %s", line)
         return out
@@ -319,12 +332,13 @@ def make_app(roots: list[str] | None = None, settings=None,
     async def closing(app: web.Application) -> None:
         # before the server waits on requests in flight: the editor's live
         # connections closed (they never end by themselves), the queue's
-        # journal written, so the next start picks up where this one stopped
+        # journal written, so the next start picks up where this one stopped,
+        # and a master or align running stopped, not left going without us
         app["relay"].cancel()
         for ws in list(events.sockets):
             await ws.close(code=1001, message=b"seriesmith is stopping")
         try:
-            queue.write_journal()
+            queue.close()
         except OSError:
             pass
 

@@ -563,15 +563,49 @@ startup sequence (proxy, detect, recover) for both hosts.
   `/api`) on main and after each commit: only the changes above, the last two commits
   84 of 84 identical.
 
-#### 3.3 Long work goes on the queue ☐
-Master assembly keeps its own registry and events; `POST /assemble`, `/align`, `/track`
-and `/build` hold a server thread for the whole run (minutes for align). **Change:**
-each becomes a queue job in a CPU lane, the route answers `{job}` at once, progress is
-the queue's own; `_MASTER_JOBS` goes. **Visible:** these show in Jobs and survive a
-restart like renders do. Needs page changes.
-- **Live check (you):** Assemble, Master and Align in Ballroom-refactor from the editor;
-  each shows in Jobs with progress; restart the server mid-assemble and it's picked up
-  or failed with a clear reason; the editor stays responsive throughout.
+#### 3.3 Long work goes on the queue, light ✅ (decided 2026-10-20)
+**Design note, as agreed.** Master keeps a registry of its own (`_MASTER_JOBS`, a guard
+lock, its `seriesmith.master` events, `GET /master/job` for a reopened dialog); align runs
+inside its request with `seriesmith.align` events, so a reload mid-run loses it; neither
+shows in Jobs or can be cancelled. Build, track and assemble also run inside their
+request, but they are short (assemble 0.75-3.3 s on Ballroom-refactor, build well under a
+second): they stay. Master and align become queue jobs on one serial `cpu` lane, beside
+the renders; the routes check their input as before (400 / 409 at once) and answer the
+job; the dialogs follow the same events.
+- **Done:** `Runner.local_job` / `enqueue_local` (the `cpu` lane, `queue.SERIAL`);
+  `api._master_task` / `_align_task` (what runs, the result the page follows),
+  `start_master`, `GET /seriesmith/align/job`; `_MASTER_JOBS` and its guard gone (the
+  master's job is the queue's). Cancel: a `stop` hook through `edit.run_tool` and align's
+  `_stream` to `Queue.arm_cancel`, so Jobs' Cancel kills the tool running; a canceled
+  master removes what it made. Restart: journaled (`resume` kind `local`), and
+  `api.rebuild_local` lists one that was running as failed for Retry, queues again one
+  that was waiting. `Queue.close` on the server's shutdown (ComfyUI's exit too) keeps the
+  journal as it stands and kills the run, which Windows would otherwise leave going. The
+  page: Master shows a queued job at once (`stage: "waiting"` while the lane is busy), its
+  ProRes waits for the job's end; Align follows its job to the answer, and the Recording
+  window picks up an align still running after a reload. Without a queue both still run
+  in the request, as the mock does. Tidy: ROUTES' two entries on one line.
+- **Changed on purpose:** `POST /master` (assemble, prores) and `POST /align` answer
+  `{job}`; the align events open with `start` and close with `done` / `failed`; a second
+  align of an episode while one runs is 409 with the job; `prores_only`'s refusal is
+  `master.check_prores`, asked before queuing.
+- **Found and fixed:** every align that had to transcribe failed from the editor since
+  step 7b: align.py put the package's folder on sys.path (an h3pipe leftover), so Whisper's
+  `import queue` found seriesmith/queue.py ("module 'queue' has no attribute
+  'SimpleQueue'"); re-aligning from a cached transcript never imports Whisper, so it went
+  unnoticed. A test now loads align the way the runner does and checks `queue`.
+- Live, 8190, Ballroom-refactor (local only): an align episode (`ep90_align`: ep01's
+  script with three lines, a Windows TTS recording): a dry run transcribed with Whisper
+  medium.en in 20 s while a ProRes asked meanwhile waited (`stage: waiting`) and ran after;
+  a second align 409; the real run timed every shot, wrote the script, the build passed;
+  cancel mid-transcribe killed it, the script untouched; a restart mid-transcribe left no
+  align process, listed it failed, Retry aligned it in 18 s. Master on ep01 (its three
+  upscales queued from the plan first, on local ComfyUI): a second assemble 409; cancel at
+  `clips` left the earlier master byte-identical and the lock released; the full master in
+  18 s with its titles (picture copied), a local render running beside it; Jobs at 100%.
+- **Live check (you):** Master and Align from the editor on both hosts (ComfyUI needs a
+  restart to load this); each in Jobs with progress and Cancel; reopen the Recording
+  window (or reload) mid-align and it is still followed.
 
 #### 3.4 One cache module ☐
 About 20 hand-rolled module caches with different keys, bounds and locking (some

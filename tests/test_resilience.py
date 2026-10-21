@@ -50,6 +50,30 @@ class QueueResilienceTest(unittest.TestCase):
         self.assertIn("time limit", job.error)
         self.assertEqual(stopped, [1])                    # its run was asked to stop
 
+    def test_closing_keeps_the_journal_and_stops_local_work(self):
+        """The server stopping (Queue.close): a master or align running is
+        stopped, not left going with no server, and stays in the journal as
+        running, for the next start to list; a render is left to its backend."""
+        g, r = Gate(), Gate()
+        killed = []
+        local = Job(kind="master", lane="cpu", title="ks01 master", work=g.work(),
+                    resume={"kind": "local", "task": "master", "params": {}})
+        render = Job(kind="render", lane="local", title="sh010", work=r.work(),
+                     record="r.json", resume={"kind": "render"})
+        self.q.submit(local)
+        self.q.submit(render)
+        g.started.wait(5)
+        r.started.wait(5)
+        self.q.arm_cancel(local, lambda: (killed.append("master"), g.go.set()))
+        self.q.arm_cancel(render, lambda: killed.append("render"))
+        self.q.close()
+        self.assertEqual(killed, ["master"])
+        wait_for(lambda: local.status in DONE, 5)
+        live = json.load(open(self.journal, encoding="utf-8"))
+        self.assertEqual({e["title"]: e["status"] for e in live.values()},
+                         {"ks01 master": "running", "sh010": "running"})
+        r.go.set()
+
     def test_the_journal_lists_live_jobs_with_a_record(self):
         g = Gate()
         a = self.q.submit(Job(kind="render", lane="local", title="a", work=g.work(),
@@ -96,6 +120,36 @@ class QueueResilienceTest(unittest.TestCase):
         self.q.pause("steps", False)                      # a dispatch, as a finished job does
         wait_for(lambda: self.q.jobs[step].status in DONE, 5)
         self.assertEqual(ran, [1])
+
+    def test_long_local_work_is_journaled_and_handed_back_after_a_restart(self):
+        """A master or align (Runner.local_job) is journaled; after a restart
+        recover hands each entry to `local` (api.rebuild_local), saying which
+        were queued again and which had been running."""
+        from seriesmith.server.standalone import recover
+        g = Gate()
+        runner = Runner(self.q, {}, lambda e, d: None)
+        spec = {"task": "master", "params": {"ep": "x"}}
+        first = runner.enqueue_local(runner.local_job("master", "ks01 master",
+                                                      lambda j, r, stop: g.work()(j, r),
+                                                      {"ep": "x"}, spec))
+        second = runner.enqueue_local(runner.local_job("align", "ks01 align",
+                                                       lambda j, r, stop: "succeeded",
+                                                       {"ep": "x"}, dict(spec, task="align")))
+        g.started.wait(5)
+        live = self.q.read_journal()
+        self.assertEqual((live[first.id]["status"], live[second.id]["status"]),
+                         ("running", "queued"))
+        self.assertEqual(live[first.id]["resume"], {"kind": "local", **spec})
+        handed = []
+        out = recover(Runner(Queue(journal=self.journal), {}, lambda e, d: None), None,
+                      None, lambda entry: handed.append(entry) or "new-id")
+        self.assertEqual(sorted(e["title"] for e in handed), ["ks01 align", "ks01 master"])
+        said = " ".join(out)
+        self.assertIn("ks01 master: it was running when the server stopped", said)
+        self.assertIn("ks01 align: queued again", said)
+        g.go.set()
+        wait_for(lambda: second.status in DONE, 5)
+        self.assertEqual(self.q.read_journal(), {})
 
     def test_paid_runs_are_counted_and_capped(self):
         self.q.paid_limit = 2

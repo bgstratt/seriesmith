@@ -22,12 +22,14 @@ Resilience (docs/PLAN.md, step 11):
   file its result goes into) is listed there with its `resume` (what
   recover.py needs to find and collect its run again after a restart), and
   so is a step of seriesmith's own with a `resume` naming it (`step`), to be
-  made again from its parameters;
+  made again from its parameters, and long local work (`kind` "local": a
+  master, align), queued again or listed as stopped;
 - paid runs are counted (`charge`), and refused past `paid_limit`.
 """
 from __future__ import annotations
 
 import itertools
+import os
 import threading
 import time
 import uuid
@@ -39,6 +41,9 @@ from seriesmith.core import fileio as F
 STATUSES = ("queued", "running", "succeeded", "failed", "canceled")
 DONE = ("succeeded", "failed", "canceled")
 PARALLEL = 4                     # jobs at once on a backend that isn't your own ComfyUI
+# lanes that run one job at a time: your own ComfyUI, and long work of
+# seriesmith's own on this machine (a master, align: ffmpeg, Whisper)
+SERIAL = ("local", "cpu")
 LOG_LINES = 200
 KEEP_DONE = 200                  # finished jobs kept in the list
 
@@ -86,6 +91,8 @@ class Job:
     resume: dict | None = None
     # set when the queue stops it (its time limit): what the record should say
     stop_note: str = ""
+    # what it answers, for the page (a master's or align's result), as it goes
+    result: dict | None = None
 
     def to_json(self) -> dict:
         return {"id": self.id, "kind": self.kind, "lane": self.lane, "title": self.title,
@@ -93,7 +100,8 @@ class Job:
                 "info": self.info, "status": self.status, "progress": self.progress,
                 "step": self.step, "steps": self.steps, "created": self.created,
                 "started": self.started, "finished": self.finished, "error": self.error,
-                "log": self.log[-20:], "can_retry": self.retry is not None}
+                "log": self.log[-20:], "can_retry": self.retry is not None,
+                "result": self.result}
 
 
 class Lane:
@@ -109,10 +117,10 @@ class Queue:
     def __init__(self, emit: Callable[[str, object], None] | None = None,
                  serial: Callable[[str], bool] | None = None, journal: str | None = None):
         """`emit(event, data)` sends to the page; `serial(lane)` says whether a
-        lane runs one job at a time (default: the lane called "local");
+        lane runs one job at a time (default: the lanes in SERIAL);
         `journal` is the file the live jobs are listed in (none: not kept)."""
         self._emit = emit or (lambda e, d: None)
-        self._serial = serial or (lambda lane: lane == "local")
+        self._serial = serial or (lambda lane: lane in SERIAL)
         self.journal = journal
         self.paid_count = 0
         self.paid_limit: int | None = None
@@ -170,11 +178,33 @@ class Queue:
                            "record": j.record, "resume": j.resume,
                            "status": j.status, "created": j.created}
                     for j in self.jobs.values()
-                    if j.status not in DONE and (j.record or (j.resume or {}).get("step"))}
+                    if j.status not in DONE and (j.record or (j.resume or {}).get("step")
+                                                 or (j.resume or {}).get("kind") == "local")}
+        if not live and not os.path.exists(self.journal):
+            return                                        # nothing to keep: no file made for it
         try:
             F.write_json(self.journal, live, indent=1, end="", ensure_ascii=True, default=str)
         except OSError:
             pass                                          # best effort: never fail a job for it
+
+    def close(self, stop_lanes=("cpu",)) -> None:
+        """The server stopping: the journal written as the jobs stand and kept
+        so (a job running now is listed running, for the next start to say so),
+        and the runs on `stop_lanes` (work on this machine: a master, align)
+        stopped rather than left going with no server to follow them. A render
+        runs in its backend and is found again; it is left alone."""
+        self.write_journal()
+        with self._lock:
+            self.journal = None
+            stop = [j for j in self.jobs.values()
+                    if j.status == "running" and j.lane in stop_lanes and j.cancel_run]
+            for j in stop:
+                j.cancel_asked = True
+        for j in stop:
+            try:
+                j.cancel_run()
+            except Exception:                            # noqa: BLE001  best effort
+                pass
 
     def read_journal(self) -> dict:
         """What the journal listed when the server last stopped ({} if none)."""
@@ -230,6 +260,17 @@ class Queue:
         self.write_journal()
         self._changed(job)
         self._dispatch()
+        return job
+
+    def add_done(self, job: Job) -> Job:
+        """A job that ended before this queue started (one the server was
+        running when it stopped), listed as it ended, for the page to see and
+        retry."""
+        job.finished = job.finished or now()
+        with self._lock:
+            self.jobs[job.id] = job
+            self._trim()
+        self._changed(job)
         return job
 
     def _trim(self) -> None:

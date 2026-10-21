@@ -361,9 +361,31 @@ export interface AlignMissing {
 /** The `seriesmith.align` event, while a run is going. */
 export interface AlignEvent {
   ep: string;
-  stage: "transcribe" | "match" | "write" | (string & {});
+  stage: "start" | "transcribe" | "match" | "write" | "done" | (string & {});
   pct: number;
   text: string;
+  /** the queue's job (refactor 3.3: align is a job on the cpu lane) */
+  job?: string;
+  /** its last event: how it ended, with the answer or why not */
+  state?: "done" | "failed";
+  result?: AlignResult;
+  error?: string;
+}
+
+/** An align on the queue (POST /seriesmith/align's answer, GET /seriesmith/align/job). */
+export interface AlignJob {
+  id: string;
+  ep: string;
+  state: "running" | "done" | "failed";
+  dry_run: boolean;
+  /** "waiting" while another job has the cpu lane, then align's stages */
+  stage: string;
+  pct: number;
+  text: string;
+  result: AlignResult | null;
+  error: string;
+  started: string | null;
+  finished: string | null;
 }
 
 /** PUT /seriesmith/episode-target: the episode's target fields, as GET /seriesmith/episode has them. */
@@ -981,6 +1003,10 @@ export interface MasterTitles {
 /** A master being assembled, or the last one this ComfyUI assembled
  * (GET /seriesmith/master/job, and every `seriesmith.master` event). */
 export interface MasterJob {
+  /** the queue's job (absent for a run elsewhere) */
+  id?: string;
+  /** what it makes: the master, or only the ProRes .mov of the one made */
+  action?: "assemble" | "prores";
   ep: string;
   pass: Pass | null;
   state: "running" | "done" | "failed";

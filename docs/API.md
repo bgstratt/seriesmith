@@ -54,7 +54,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/discard`, `POST /seriesmith/refs/discard`, `POST /seriesmith/refs/generate-missing` | Phase 8.6 |
 | `POST /seriesmith/refs/match` | Supplying references you already have (P8) |
 | `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
-| `GET /seriesmith/align/ready`, `POST /seriesmith/track`, `POST /seriesmith/align`, `POST /seriesmith/refs/voice-from-take` | Phase 9c |
+| `GET /seriesmith/align/ready`, `POST /seriesmith/track`, `POST /seriesmith/align`, `GET /seriesmith/align/job`, `POST /seriesmith/refs/voice-from-take` | Phase 9c |
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
 | `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
@@ -640,22 +640,30 @@ pick, the other pass's take, no recipe section for its target, or a kept upscale
 another size). `queue` queues the `upscale` rows (409 when this ComfyUI can't) and adds
 `queued` / `errors`; `assemble` (409 while any are to upscale or queued, or with gaps
 unless `allow_gaps`) writes `master/<ep>_master_<WxH>.mp4` (and `.mov` with `prores`) and
-`<ep>_master.json` / `.md`, and adds `output`, `mov`, `report`, `titles`. 409 without a recipe, or
-one without `deliver`. When the episode has an intro or outro (`_titles/INTRO.mp4`,
+`<ep>_master.json` / `.md` as a **job** (below): the answer adds `job`, and the job's end
+has `output`, `mov`, `report`, `titles`. 409 without a recipe, or one without `deliver`. When the episode has an intro or outro (`_titles/INTRO.mp4`,
 `OUTRO.mp4` in the show folder, or the series config's `publish` block), the master is
 made with them, the episode's title drawn on (publish), and the `.mov` from that:
 `titles` is `{"intro", "outro", "picture", "why"}` (the clips used, either null), else null.
 `picture` is how publish laid the cut in between them: `"copied"` (only the title clips
 encoded) or `"re-encoded"` (the whole cut again, `why` says what stopped the copy: a check
 at a join, a cut assemble didn't encode); the report's `Picture:` line says the same. A
-master that assembled but couldn't be titled is a 500 saying so; the untitled master is
-left in place.
+master that assembled but couldn't be titled is a failed job saying so; the untitled master
+is left in place.
 
-`assemble` answers when the master is made, which can take a while (assemble re-encodes
-the clips that need it — trims, dialogue windows, gaps scaled up — and copies the upscales
-beside them when their H.264 headers agree, checking each join; when they don't, every clip
-is re-encoded, half an hour for a 300-shot episode), so it is also a **job**: `job` in the
-answer, `GET /seriesmith/master/job`, and the `seriesmith.master` events. Only one master of an
+Making the master can take a while (assemble re-encodes the clips that need it — trims,
+dialogue windows, gaps scaled up — and copies the upscales beside them when their H.264
+headers agree, checking each join; when they don't, every clip is re-encoded, half an hour
+for a 300-shot episode), so `assemble` answers at once with the **job** (`kind: "master"`
+on the queue's serial `cpu` lane, with align: one at a time, beside the renders): it is
+in Jobs (progress, Cancel, Retry), `GET /seriesmith/master/job` has it, and the
+`seriesmith.master` events follow it. It is planned again when it starts, as the episode
+is then. Cancelled, the tool running is killed and what it made is removed: `failed`,
+`"canceled: no master was kept"`. A master made before stays while the cut is assembled
+(it is replaced only when the new one is moved in), so a cancel then leaves it; one during
+the titles, after that move, leaves none. A server stopping stops the run too (its
+subprocess isn't left going); after the restart it is listed failed, "the server stopped
+while it ran: retry it", and one still waiting is queued again. Only one master of an
 episode is assembled at a time: `<episode>/master/.assembling.json` (`{pid, host, by,
 started}`) is held while one runs, whoever started it, the editor or `seriesmith master`, and a
 second `assemble` is a 409 `{"error": "a master of this episode is already being
@@ -664,21 +672,23 @@ is stale and taken over.
 
 `action: "prores"` makes the ProRes 422 HQ `.mov` of the master already made at the recipe's
 size, beside it, and sets the report's `prores` (`seriesmith master <ep> --prores-only`): nothing
-is planned, upscaled or assembled. `{"output", "mov"}`; 409 without a master yet, or while
-one is being assembled. Every other answer has `existing`: `{"output", "mov"}` (the master
+is planned, upscaled or assembled; a job like `assemble`'s (`{"job"}`, its end with
+`output`, `mov`), 409 at once without a master yet, or while one is being assembled. Every other answer has `existing`: `{"output", "mov"}` (the master
 already made and its `.mov`, `mov` null when there is none) or null.
 
 ### `GET /seriesmith/master/job?ep=…`
-`{"job": {...} | null}`: the master this ComfyUI is assembling for the episode, or the last
-one it assembled (kept until ComfyUI restarts):
+`{"job": {...} | null}`: the master this server is assembling (or waiting to) for the
+episode, or the last one it assembled (the queue's finished jobs: until the server
+restarts):
 ```json
-{"ep": "C:\\Shows\\MyShow\\ep01", "pass": "final", "state": "running", "elsewhere": false,
+{"id": "8f0c…", "ep": "C:\\Shows\\MyShow\\ep01", "pass": "final", "state": "running", "elsewhere": false,
  "by": "the editor", "started": "2026-10-04T08:13:32-05:00", "finished": null,
  "step": "assemble", "stage": "clips", "done": 212, "total": 323, "text": "sh2590",
  "output": null, "mov": null, "report": null, "titles": null, "error": ""}
 ```
 `state`: `running`, `done` (`output`, `mov`, `report`, `titles` as `assemble` answers them)
-or `failed` (`error`). `step` is `assemble` (assemble's stages: `probe` reading each clip,
+or `failed` (`error`); `id` is the queue's job. `stage` is `waiting` while another job
+has the `cpu` lane. `step` is `assemble` (assemble's stages: `probe` reading each clip,
 `clips` writing each, `join`, `prores` when the master has no titles, `verify` counting the
 master's frames) or `titles` (publish's: `titles` with `text` intro / outro, `join`,
 `verify` checking the joins, `reencode` with a frame count, then `prores`: with titles the
@@ -2911,6 +2921,18 @@ contract named changes shape except where marked [differs].
 - **[added]** align failing is 500 with its own last `!!` line as the message and the full
   `log` in the body. A run that outlives `track.ALIGN_TIMEOUT` (3600 s) is killed and says
   so.
+- **[changed, refactor 3.3] A job.** After the checks above (400s, the 409), align is
+  queued (`kind: "align"`, the serial `cpu` lane, with masters) and the route answers at
+  once `{"job": {"id", "ep", "state": "running", "dry_run", "stage", "pct", "text",
+  "result": null, "error", "started", "finished"}}`; a second align of the episode while
+  one waits or runs is 409 `{"error", "job"}`. The `seriesmith.align` events carry `job`
+  (its id), open with `stage: "start"` and close with `stage: "done"`, `state: "done"`,
+  `result` (the answer above) or `state: "failed"`, `error` (align's failure, or
+  `"canceled"` from Jobs: its subprocess is killed). **`GET /seriesmith/align/job?ep=`**
+  is `{"job": {...} | null}`, the same object, for a page opened (or reloaded) while it
+  runs. Stopped by a restart it is listed failed for Retry; one still waiting is queued
+  again. Without a queue (a ComfyUI whose queue didn't start) it runs in the request and
+  answers as before.
 
 **align itself**
 - **[settled] No more `.bak`.** The script and the series config are written through

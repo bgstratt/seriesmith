@@ -1286,6 +1286,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
                    output: "master/ep01_master_1920x1080.mp4", mov: null, report: "master/ep01_master.md", titles });
       return { plan, output: job.output!, mov: null, report: job.report!, titles, job: { ...job } };
     },
+    async alignJob() {
+      await wait();
+      return { job: null };   // the mock aligns in the request
+    },
     async masterJob(ep) {
       await wait();
       need(ep);

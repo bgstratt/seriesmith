@@ -374,9 +374,11 @@ def clear_track(ep: str) -> dict:
 PROGRESS_PREFIX = "##align "       # align --progress; align.PROGRESS writes them
 
 
-def _stream(cmd: list[str], cwd: str, timeout: float, on_progress) -> tuple[int, str]:
+def _stream(cmd: list[str], cwd: str, timeout: float, on_progress,
+            stop=None) -> tuple[int, str]:
     """Run `cmd`, calling on_progress({"stage", "pct", "text"}) for every
-    align progress line; (exit code, everything else it printed)."""
+    align progress line; (exit code, everything else it printed). `stop(kill)`
+    is handed what kills it (a queue job's cancel)."""
     log: list[str] = []
     stopped: list[bool] = []
     p = subprocess.Popen(cmd, cwd=cwd, env=dict(os.environ, **E.TOOL_ENV),
@@ -388,6 +390,8 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress) -> tuple[int,
 
     killer = threading.Timer(timeout, kill)
     killer.start()
+    if stop is not None:
+        stop(p.kill)
     try:
         for raw in p.stdout:
             line = raw.decode("utf-8", "replace").rstrip("\r\n")
@@ -419,30 +423,39 @@ def why(log: str, rc: int) -> str:
     return lines[-1] if lines else f"align exited {rc}"
 
 
+def check_align(ep: str, track: str | None = None, words: str | None = None,
+                python: str | None = None) -> None:
+    """TrackError 409 with `missing` when a dependency align needs isn't
+    installed (a Whisper isn't one when the recording already has a
+    transcript): asked before an align is queued, so the page hears at once."""
+    py = python or align_python()
+    ready = align_ready(py)
+    # a transcript already beside the recording (or handed over) means no
+    # Whisper is needed: align reads the cache
+    rec = recording_path(ep, track)
+    cached = bool(words) or bool(rec and E.has_words(rec))
+    need = [m for m in ready["missing"] if not (cached and m in WHISPER_NAMES)]
+    if need:
+        raise TrackError(409, "align needs " + ", ".join(need)
+                         + " (install them for the Python that runs the pipeline)",
+                         missing=need, install=ready["install"],
+                         python=ready["python"], ffmpeg=ready["ffmpeg"],
+                         words=cached)
+
+
 def align(ep: str, track: str | None = None, model: str | None = None, snap: bool = True,
           dry_run: bool = False, words: str | None = None, progress=None,
           timeout: float | None = None, python: str | None = None,
-          check_deps: bool = True) -> dict:
+          check_deps: bool = True, stop=None) -> dict:
     """Run align on `ep` in a subprocess and return what it wrote:
     {"ok", "report", "changes", "notes", "script_hash", "series_hash", ...}
-    (align --json). `progress(event)` is called per stage. TrackError 409
-    with `missing` when a dependency isn't installed (a Whisper isn't one
-    when the recording already has a transcript), 500 when align fails."""
+    (align --json). `progress(event)` is called per stage; `stop(kill)` is
+    handed what kills the run (a queue job's cancel). TrackError 409 from
+    check_align, 500 when align fails."""
     py = python or align_python()
     timeout = ALIGN_TIMEOUT if timeout is None else timeout
     if check_deps:
-        ready = align_ready(py)
-        # a transcript already beside the recording (or handed over) means no
-        # Whisper is needed: align reads the cache
-        rec = recording_path(ep, track)
-        cached = bool(words) or bool(rec and E.has_words(rec))
-        need = [m for m in ready["missing"] if not (cached and m in WHISPER_NAMES)]
-        if need:
-            raise TrackError(409, "align needs " + ", ".join(need)
-                             + " (install them for the Python that runs the pipeline)",
-                             missing=need, install=ready["install"],
-                             python=ready["python"], ffmpeg=ready["ffmpeg"],
-                             words=cached)
+        check_align(ep, track, words, py)
     with tempfile.TemporaryDirectory(prefix="h3align_") as tmp:
         out = os.path.join(tmp, "align.json")
         args = [ep]
@@ -458,7 +471,7 @@ def align(ep: str, track: str | None = None, model: str | None = None, snap: boo
         if words:
             args += ["--words", words]
         cmd = E.tool_cmd(ALIGN_SCRIPT, args, py)
-        rc, log = _stream(cmd, ep, timeout, progress)
+        rc, log = _stream(cmd, ep, timeout, progress, stop)
         if rc != 0 or not os.path.isfile(out):
             raise TrackError(500, why(log, rc), log=log)
         with open(out, encoding="utf-8") as fh:

@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import { errText } from "../api";
 import { api } from "../host";
-import { closeMaster, loadMasterJob } from "../actions";
+import { closeMaster, loadMasterJob, showMasterJob } from "../actions";
 import { clock, masterFraction, masterStageText, pictureText } from "../lib/master";
 import { statusKey, useApp } from "../store";
 import type { MasterPlan, MasterResult } from "../types";
@@ -73,14 +73,22 @@ function MasterBody() {
   // the master already made (and its .mov), from the last plan: ProRes from it
   const [existing, setExisting] = useState<{ output: string; mov: string | null } | null>(null);
   const [proresMade, setProresMade] = useState<string | null>(null);
+  // a ProRes queued from here: its job, until it ends
+  const [proresJob, setProresJob] = useState<string | null>(null);
   const prores = async () => {
     if (!ep) return;
     setBusy("prores");
     try {
       const r = await api().master({ ep, pass: ask.pass, action: "prores" });
+      setErr(null);
+      if (r.mov === undefined && r.job) {
+        // queued (the cpu lane): the job's end says what it made
+        showMasterJob(r.job);
+        setProresJob(r.job.id ?? null);
+        return;
+      }
       setProresMade(r.mov ?? null);
       setExisting((x) => (x ? { ...x, mov: r.mov ?? null } : x));
-      setErr(null);
     } catch (e) {
       setErr(errText(e));
     } finally {
@@ -95,7 +103,9 @@ function MasterBody() {
       setPlan(r.plan);
       if (r.existing !== undefined) setExisting(r.existing ?? null);
       setErr(null);
-      if (action === "assemble") setDone(r);
+      if (action === "assemble" && r.output !== undefined) setDone(r);
+      // queued (the cpu lane): shown at once, though it may wait its turn before its first event
+      else if (action === "assemble" && r.job) { setDone(null); showMasterJob(r.job); }
       if (action === "queue" && r.errors?.length) setErr(r.errors.map((e) => `${e.shot}: ${e.error}`).join("; "));
     } catch (e) {
       setErr(errText(e));
@@ -107,6 +117,14 @@ function MasterBody() {
   };
   useEffect(() => { void run("plan"); }, [ep, st, opt.conform, opt.post]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { void loadMasterJob(); }, [ep]);
+  useEffect(() => {
+    if (!proresJob || !job || job.id !== proresJob || job.state === "running") return;
+    setProresJob(null);
+    if (job.state === "done") {
+      setProresMade(job.mov ?? null);
+      setExisting((x) => (x ? { ...x, mov: job.mov ?? null } : x));
+    } else setErr(job.error);
+  }, [proresJob, job]);
   // a run this editor didn't start sends no events: ask again until it ends
   useEffect(() => {
     if (!(running && job?.elsewhere)) return;

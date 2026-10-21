@@ -82,6 +82,20 @@ class QueueTest(unittest.TestCase):
         wait_for(lambda: b.status == "succeeded")
         self.assertEqual(a.status, "succeeded")
 
+    def test_long_local_work_runs_one_at_a_time_beside_the_renders(self):
+        """The cpu lane (a master, align) is serial too, and its own: a render
+        on `local` runs while it does."""
+        g, r = Gate(), Gate()
+        a = self.job(g.work(), lane="cpu", title="master")
+        b = self.job(g.work(), lane="cpu", title="align")
+        render = self.job(r.work(), title="render")
+        g.started.wait(5)
+        r.started.wait(5)
+        self.assertEqual((a.status, b.status, render.status), ("running", "queued", "running"))
+        g.go.set()
+        r.go.set()
+        wait_for(lambda: b.status == "succeeded" and render.status == "succeeded")
+
     def test_a_cloud_lane_runs_several(self):
         g = Gate()
         jobs = [self.job(g.work(), lane="router") for _ in range(3)]

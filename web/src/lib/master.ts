@@ -5,6 +5,7 @@
 import type { MasterJob, MasterTitles } from "../types";
 
 const ASSEMBLE: Record<string, string> = {
+  waiting: "Waiting its turn (another long job is running)",
   start: "Starting",
   probe: "Reading the clips",
   clips: "Writing the clips",
