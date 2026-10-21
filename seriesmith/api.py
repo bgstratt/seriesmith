@@ -746,7 +746,7 @@ def _frame_step(ctx: Context, p: dict) -> str:
             nt = _newest_ok(ep, rid, view)
             ids += _frame_gen(ctx, p, v, {"take": None, "from_view": view} if p.get("pick") else
                               {"take": nt.take if nt else p["frame_take"], "from_view": view},
-                              R.VIEW_FROM[v] + R.KEEP_SAME)
+                              R.view_from(v))
         report(line=f"{len(ids)} view(s) asked for, from {view}")
         if p.get("pick"):
             _views_step(ctx, {"ep": ep, "ref": rid, "views": others})
