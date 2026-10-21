@@ -103,7 +103,7 @@ export type CutAudio = "clips" | "recording";
 
 /** Phase 9c-A: "track" picks the episode's dialogue recording.
  * Phase 9d: "clip-audio" picks a media file for one clip's sound. */
-export type BrowsePurpose = "roots" | "import" | "track" | "clip-audio" | "picture";
+export type BrowsePurpose = "roots" | "import" | "track" | "clip-audio" | "picture" | "folder";
 
 export interface BrowseState {
   purpose: BrowsePurpose;
@@ -119,6 +119,12 @@ export interface BrowseState {
   what?: string;
   /** picture: the path as chosen, anywhere (it will be imported), not relative to the episode */
   absolute?: boolean;
+}
+
+/** A folder chosen in the browser (purpose "folder") for the field that asked (`key`). */
+export interface FolderPicked {
+  key: string;
+  path: string;
 }
 
 export interface RenderAsk {
@@ -320,6 +326,8 @@ export interface AppState {
   inspector: boolean;
   cutPlay: CutPlayState;
   browse: BrowseState | null;
+  /** the folder the browser handed back (purpose "folder"), until its field takes it */
+  folderPicked: FolderPicked | null;
   /** the render confirmation (shots that will be skipped for missing refs) */
   renderAsk: RenderAsk | null;
   upscaleAsk: UpscaleAsk | null;
@@ -492,6 +500,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     inspector: false,
     cutPlay: { playing: false, pos: 0, seek: null },
     browse: null,
+    folderPicked: null,
     renderAsk: null,
     upscaleAsk: null,
     postAsk: null,

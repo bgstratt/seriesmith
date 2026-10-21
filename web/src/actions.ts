@@ -2075,6 +2075,16 @@ export function closeBrowse() {
   set({ browse: null });
 }
 
+/** The browser's folder (purpose "folder") handed to the field that asked for it. */
+export function pickFolder(key: string, path: string) {
+  set({ folderPicked: { key, path }, browse: null });
+}
+
+/** The field took the folder it asked for. */
+export function tookFolder() {
+  set({ folderPicked: null });
+}
+
 export async function addRoot(path: string): Promise<boolean> {
   const roots = get().config?.roots ?? [];
   if (roots.some((r) => sameDir(r, path))) {

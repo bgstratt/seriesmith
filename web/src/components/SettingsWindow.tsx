@@ -8,7 +8,7 @@
 // changed here.
 
 import { useEffect, useState } from "react";
-import { loadTargets, openFeatures, openSettings, setBackends } from "../actions";
+import { loadTargets, openBrowse, openFeatures, openSettings, setBackends, tookFolder } from "../actions";
 import { api } from "../host";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
@@ -146,6 +146,13 @@ function SettingsBody({ server }: { server: boolean }) {
   const [key, setKey] = useState("");
   const [hfToken, setHfToken] = useState("");
   const [dirs, setDirs] = useState({ ffmpeg_dir: "", comfyui_dir: "" });
+  // a folder chosen with Browse… lands in its field (saved with the rest)
+  const picked = useApp((s) => s.folderPicked);
+  useEffect(() => {
+    if (!picked || !(picked.key === "ffmpeg_dir" || picked.key === "comfyui_dir")) return;
+    setDirs((d) => ({ ...d, [picked.key]: picked.path }));
+    tookFolder();
+  }, [picked]);
   const [deps, setDeps] = useState<{ target: string; url: string }[]>([]);
   const [limit, setLimit] = useState("");
   const [viaProxy, setViaProxy] = useState(false);
@@ -281,11 +288,19 @@ function SettingsBody({ server }: { server: boolean }) {
             <summary className="h3-small">Folders (ffmpeg, ComfyUI)</summary>
             <div className="h3-form" style={{ marginTop: 6 }}>
               <label htmlFor="sm-set-ffmpeg" title="A folder holding your own ffmpeg and ffprobe: used before anything else">ffmpeg folder</label>
-              <input id="sm-set-ffmpeg" className="h3-in h3-mono" value={dirs.ffmpeg_dir} placeholder="empty: found by itself"
-                onChange={(e) => setDirs({ ...dirs, ffmpeg_dir: e.target.value })} />
+              <div className="h3-row" style={{ gap: 4 }}>
+                <input id="sm-set-ffmpeg" className="h3-in h3-mono h3-grow" value={dirs.ffmpeg_dir} placeholder="empty: found by itself"
+                  onChange={(e) => setDirs({ ...dirs, ffmpeg_dir: e.target.value })} />
+                <button className="h3-btn" title="Browse to the folder with ffmpeg and ffprobe"
+                  onClick={() => openBrowse({ purpose: "folder", key: "ffmpeg_dir", what: "The folder with ffmpeg and ffprobe" })}>Browse…</button>
+              </div>
               <label htmlFor="sm-set-comfydir" title="The folder with ComfyUI's main.py, for Features to install into when it can't ask ComfyUI">ComfyUI folder</label>
-              <input id="sm-set-comfydir" className="h3-in h3-mono" value={dirs.comfyui_dir} placeholder="empty: asked of ComfyUI"
-                onChange={(e) => setDirs({ ...dirs, comfyui_dir: e.target.value })} />
+              <div className="h3-row" style={{ gap: 4 }}>
+                <input id="sm-set-comfydir" className="h3-in h3-mono h3-grow" value={dirs.comfyui_dir} placeholder="empty: asked of ComfyUI"
+                  onChange={(e) => setDirs({ ...dirs, comfyui_dir: e.target.value })} />
+                <button className="h3-btn" title="Browse to the folder with ComfyUI's main.py"
+                  onClick={() => openBrowse({ purpose: "folder", key: "comfyui_dir", what: "ComfyUI's folder (the one with main.py)" })}>Browse…</button>
+              </div>
             </div>
           </details>
           <details open={viaProxy}>
