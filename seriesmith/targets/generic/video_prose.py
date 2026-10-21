@@ -46,6 +46,7 @@ import os
 from dataclasses import dataclass
 
 from seriesmith import targets as TG
+from seriesmith.targets import moderate as MOD
 from seriesmith.core import framing, ir
 from seriesmith.targets.video.ltx2.compile import _duration, shotlist_extra
 from seriesmith.core import paths as P
@@ -236,7 +237,10 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     ctx.intents[intent] = ctx.intents.get(intent, 0) + 1
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
-    entry["prompt"] = ctx.style.build_prompt(shot, sq, series_cfg)
+    # a hosted model's content filter reads it: its subjects' designs without
+    # what describes a body (targets.moderate; the pictures carry the look)
+    told = MOD.moderated_config(series_cfg) if ctx.target.moderated else series_cfg
+    entry["prompt"] = ctx.style.build_prompt(shot, sq, told)
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["keyframes"] = {end: keyframe_path(ctx.recipe, shot.id, end)
                           for end in TG.keyframe_ends(ctx.recipe, shot, sq)}

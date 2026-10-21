@@ -602,6 +602,18 @@ class Target:
         return [raw] if isinstance(raw, str) else list(raw)
 
     @property
+    def moderated(self) -> bool:
+        """Whether its provider's content filter reads what we send it: a hosted
+        model (it runs on Router alone), unless target.json says otherwise
+        (`capabilities.moderated`). For one, a subject's design leaves out what
+        describes a body (targets.moderate): in the prose, and in a reference
+        picture's prompt."""
+        caps = self.spec.get("capabilities") or {}
+        if "moderated" in caps:
+            return bool(caps["moderated"])
+        return self.backends == ["router"]
+
+    @property
     def reproducible(self) -> bool:
         """Whether the same seed and settings render the same take again
         (`capabilities.seed`: "fixed", the default, or "provider" for a hosted

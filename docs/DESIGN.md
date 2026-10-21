@@ -105,7 +105,11 @@ A shot asks for features and the build adapts or refuses. `continuous: first`
 reads no first keyframe renders on that target's partner (H3 Ref2VA -> H3 FL2VA);
 `continuous: latent` on a target that can't chain latents is a build error naming
 the ones that can ([CONTINUOUS.md](CONTINUOUS.md)). A take from a target whose seed
-the provider decides (`capabilities.seed`) is marked `reproducible: false`.
+the provider decides (`capabilities.seed`) is marked `reproducible: false`. A hosted
+model is `moderated` (its provider's content filter reads the request; `capabilities.moderated`
+overrides): a subject's design reaches it without what describes a body, in the prose and in a
+reference picture's prompt (`targets/moderate.py`), and a Seedance prompt opens by defining
+each picture (`Define … in @Image N as …`, BytePlus's prompt guide).
 
 Hosted models return finished video only: no latents. A Comfy API deployment
 returns whatever its workflow saves and reports: ComfyUI's /history (and the

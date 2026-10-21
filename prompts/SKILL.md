@@ -232,9 +232,10 @@ shot 93. So:
 
 Details per target are under **Rendering a shot on …** below; `seriesmith targets` says
 which ones your ComfyUI can render. A hosted model sends one call per take through Comfy
-Router: its prompt is the same prose the LTX and Wan targets get, its seed is the
-provider's (`reproducible: false`), and `seriesmith backends` says whether this machine
-has the API key for it. A show can add its own models too: another Router model, or a
+Router: its prompt is the same prose the LTX and Wan targets get, with each character's
+`design` less what describes a body (the provider's content filter refuses it; see **Writing
+the `design` sentence**), its seed is the provider's (`reproducible: false`), and `seriesmith
+backends` says whether this machine has the API key for it. A show can add its own models too: another Router model, or a
 workflow saved in ComfyUI (the editor's **Models** window; `seriesmith
 target-from-workflow`), named in `target:` like any other.
 
@@ -930,6 +931,14 @@ with specific colors, one or two distinctive accessories, line quality. Concrete
 
 Weak: *"a mischievous kid with boundless energy who never sits still"* — none of that is
 drawable, and it crowds out detail that is.
+
+Lead with who they are (*"a young woman"*), then hair, then wardrobe and accessories; keep the
+body to build and silhouette (*tall*, *stocky*, *slight*). Hosted models (Seedance, Kling,
+Veo, Seedream, …) run behind their provider's content filter, and an explicit description of
+a body is what it refuses: for those, seriesmith tells the model the design without it, in
+the shot's prose and a reference picture's prompt alike (the pictures carry the look). Your
+own ComfyUI's models get the sentence as you wrote it. A design that leads with clothes and
+hair loses nothing either way.
 
 Location descriptions work the same way and must include the light: time of day, direction,
 quality. The plate is generated from that sentence. **Name the sources**: the pendant lamp
