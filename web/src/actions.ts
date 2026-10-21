@@ -72,6 +72,10 @@ export async function start() {
   wireEvents();
   await loadConfig();
   void loadTargets();
+  // the episode open last time: its shots asked for now, beside the episodes
+  // list, not after it (loadEpisodes then leaves it be)
+  const ep = get().ep;
+  if (ep) void openOnTakes(ep);
   await ensureEpisodes();
 }
 
@@ -574,7 +578,7 @@ export async function loadEpisodes() {
     const keep = s.ep && episodes.find((e) => sameEp(e.ep, s.ep));
     const ep = keep ? keep.ep : episodes[0]?.ep ?? null;
     if (ep !== s.ep) selectEpisode(ep);
-    else if (ep && !s.status[statusKey(ep, s.pass)]) void openOnTakes(ep);
+    else if (ep && !s.status[statusKey(ep, s.pass)] && !s.statusLoading[statusKey(ep, s.pass)]) void openOnTakes(ep);
   } catch (e) {
     set({ episodesError: errText(e) });
   }
@@ -590,9 +594,9 @@ export function selectEpisode(ep: string | null) {
   }));
   if (ep) {
     const shots = openOnTakes(ep);
-    if (get().refs[ep] || refsWanted) void loadRefs(ep);
-    // and the refs once the shots are in, so the Refs tab is ready when it's opened
-    else void shots.then(() => { if (get().ep === ep && !get().refs[ep]) void loadRefs(ep); });
+    // the refs once the shots are in (so the Refs tab is ready when it's
+    // opened), not beside them: one server makes both, and they slowed each other
+    void shots.then(() => { if (get().ep === ep) void loadRefs(ep); });
     // another show may have its own targets
     void loadTargets(true);
   }
@@ -2131,8 +2135,6 @@ export async function openEpisodeAt(ep: string, parent: string | null): Promise<
 // references (Phase 5)
 // ---------------------------------------------------------------------------
 
-/** set once the Refs tab has been shown, so episode switches load refs too */
-let refsWanted = false;
 const refsInflight = new Map<string, Promise<Ref[] | undefined>>();
 
 export function refLabel(ref: string, view?: string | null): string {
@@ -2142,8 +2144,26 @@ export function refLabel(ref: string, view?: string | null): string {
   return view ? `${name} (${viewLabel(view)})` : name;
 }
 
+/** Resolves once the episode's shots are in (or couldn't be), or it isn't
+ * the open episode any more; at most `wait` ms. */
+export function afterShots(ep: string, wait = 15000): Promise<void> {
+  const done = () => get().ep !== ep || (["proxy", "final"] as Pass[]).some((p) =>
+    !!get().status[statusKey(ep, p)] || !!get().statusError[statusKey(ep, p)]);
+  if (done()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => { clearTimeout(timer); unsubscribe(); resolve(); };
+    const timer = setTimeout(finish, wait);
+    const unsubscribe = store.subscribe(() => { if (done()) finish(); });
+  });
+}
+
+/** loadRefs once the episode's shots are in (the Refs tab opening with the page). */
+export async function loadRefsAfterShots(ep: string): Promise<Ref[] | undefined> {
+  await afterShots(ep);
+  return get().ep === ep ? loadRefs(ep) : undefined;
+}
+
 export function loadRefs(ep = get().ep): Promise<Ref[] | undefined> {
-  refsWanted = true;
   if (!ep) return Promise.resolve(undefined);
   const running = refsInflight.get(ep);
   if (running) return running;
