@@ -6,12 +6,12 @@
   "code": "builtin:router_video",
   "_note": "ByteDance's Seedance 2.5 as a hosted model through Comfy Router (byteplus/dreamina-seedance-2-5-260628, docs.comfy.org/development/comfy-router/models/byteplus/dreamina-seedance-2-5-260628). No workflow: a render is one Router call (router_call in compile.py). Its prompt is prose with the spoken lines (the ltx2 writer, builtin video_prose); its references go in as separate reference images (each subject's sheet, then the plate), and a shot's first/last keyframes as first_frame/last_frame. It makes its own sound and can't be handed a recording, so every audio policy renders as generate. Not yet tried against the live service (docs/PLAN.md, step 4).",
   "capabilities": {
-    "_note": "Hosted: Router only, and the provider decides what a seed means (a take can't be promised to come out the same again). The docs give no limit on reference images; four subjects and the plate is what the compile sends.",
+    "_note": "Hosted: Router only, and the provider decides what a seed means (a take can't be promised to come out the same again). Reference images: up to 30 a request (BytePlus ModelArk and ByteDance's Seedance 2.5 announcement: 30 images, 10 videos and 10 audio clips, 50 in all; more is refused whole): subjects first, then the plate when there is room.",
     "backends": [
       "router"
     ],
     "seed": "provider",
-    "max_subjects": 4
+    "max_subjects": 30
   },
   "template": {
     "_note": "Whole seconds from 4 to 30 (Seedance 2.5's duration), at 24 fps: 96 + 24k frames. 720p by default; its sizes are named (480p, 720p, 1080p), and the picture's shape comes from the nearest of its ratios.",
@@ -133,7 +133,9 @@
             "url": "$url"
           },
           "role": "reference_image"
-        }
+        },
+        "max": 30,
+        "max_total": 30
       },
       "first": {
         "list": "content",

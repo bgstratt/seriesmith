@@ -37,8 +37,11 @@ OUT_IMAGE = os.path.join(ROOT, "seriesmith", "targets", "image")
 
 # -- corrections: limits the schemas state only in prose (seriesmith.limits) -------
 
-# "Seedance 2.0, 2.0 fast & 2.0 mini: [4,15]"; "do not support 1080p"
-SEEDANCE_2_0 = {"length": {"seconds": {"min": 4, "max": 15}}, "size": {"resolutions": ["480p", "720p"]}}
+# "Seedance 2.0, 2.0 fast & 2.0 mini: [4,15]"; "do not support 1080p"; up to 9 reference
+# images (and 3 videos, 3 audio clips: Runware's, fal's and Together's Seedance 2.0 docs),
+# where 2.5 takes 30
+SEEDANCE_2_0 = {"length": {"seconds": {"min": 4, "max": 15}}, "size": {"resolutions": ["480p", "720p"]},
+                "pictures": {"references": 9}}
 # "Veo 3/3.1: 4, 6, or 8"; "up to 3 asset images"; a prompt past ~1000 characters
 # fails (router_inspect.PROMPT_LIMITS)
 VEO = {"length": {"seconds": {"values": [4, 6, 8]}}, "pictures": {"references": 3}}
