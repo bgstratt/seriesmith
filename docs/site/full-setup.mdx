@@ -22,19 +22,26 @@ this page, grouped the same way:
 
 seriesmith then puts each piece in:
 - **model files** go into ComfyUI's `models/` folders;
-- **node packs** are cloned into `custom_nodes/`, with their requirements pip-installed
-  into ComfyUI's Python;
-- **Python packages** go into the Python that uses them;
 - **ffmpeg** is a full build downloaded into seriesmith's own folder.
 
 The window shows each item's progress. A stopped download resumes where it left off next
-time. After a node pack, restart ComfyUI to load it.
+time.
+
+Two kinds of piece you put in yourself, and the window says how for each one missing:
+- **node packs**: install them with ComfyUI-Manager (or clone the repo the window names
+  into `custom_nodes/`), then restart ComfyUI;
+- **Python packages**: the window gives the pip command for the Python that uses them,
+  to copy and run.
+
+A ComfyUI node pack may neither install Python packages while it runs nor install other
+node packs (the Comfy Registry's rules), so seriesmith doesn't.
 
 Mix and match as you like: for example, RTX Video Super Resolution instead of Real-ESRGAN
 for pixel upscales, or SeedVR2 without the H3 latent upscaler.
 
-The **What's missing** window has an **Install** button too: beside each missing file
-that has a known download, and beside each missing node that a known pack provides.
+The **What's missing** window has an **Install** button too, beside each missing file
+that has a known download. For a missing node it says to install the pack that provides
+it with ComfyUI-Manager, which can search by node name.
 
 **Gated models.** LTX-2.5 and the FLUX models are gated on Hugging Face:
 1. Accept the licence on the model's page (the window links it).

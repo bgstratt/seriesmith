@@ -9,7 +9,9 @@ added; seriesmith.installer: putting it in):
                                        asked of its server once (HEAD), apart since
                                        it's slow
     POST /seriesmith/features/install  {features: [id], files: [name], classes: [node
-                                       class]}: what isn't installed yet, queued
+                                       class]}: what isn't installed yet, queued (a node
+                                       pack or a Python package comes back in `skipped`,
+                                       with how to put it in)
     POST /seriesmith/features/cancel   stop after the current item (a download's
                                        .part is kept and resumes)
 
@@ -112,7 +114,7 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
         p, env = here(ctx)
         items, skipped = FT.resolve(body.get("features") or [], body.get("files") or [],
                                     body.get("classes") or [], env=env)
-        if items and p.why_not and any(i.kind in ("model", "pack") for i in items):
+        if items and p.why_not and any(i.kind == "model" for i in items):
             return 409, {"error": p.why_not, "skipped": skipped}
         return 200, {"job": installer.start(items) if items else installer.state(),
                      "queued": [i.key for i in items], "skipped": skipped}

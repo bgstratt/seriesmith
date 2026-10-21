@@ -1,0 +1,7 @@
+# What ComfyUI-Manager installs into ComfyUI's Python with the node pack: what
+# seriesmith needs there and ComfyUI doesn't already have (it has aiohttp,
+# Pillow, numpy and av). comfy-sdk: Comfy Cloud, deployments and Router.
+# imageio-ffmpeg: an ffmpeg where PATH has none. Optional extras are never
+# listed here; the Features window says how to add each.
+comfy-sdk>=0.4,<0.5
+imageio-ffmpeg>=0.5

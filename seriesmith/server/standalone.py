@@ -459,9 +459,10 @@ def main(argv: list[str] | None = None) -> int:
         print("  " + ensure_proxy(app["settings"]), flush=True)
         # the models a series naming none renders on: what's installed there
         detect_when_up(app["make_context"], app["settings"].comfyui_url)
-    # seriesmith's own install has comfy-sdk; an install without it, and a key: put it in
+    # seriesmith's own install has comfy-sdk; an install without it, and a key: say how
     from seriesmith import sdk as SDK
-    SDK.ensure(app["settings"])
+    if app["settings"].api_key and not SDK.have():
+        print(f"  Comfy Cloud and Router need comfy-sdk: run {SDK.state()['command']}", flush=True)
     if args.host in ("0.0.0.0", "::", ""):
         # every interface: say the addresses that open it (0.0.0.0 doesn't)
         print(f"  seriesmith editor: http://127.0.0.1:{args.port}/   (Ctrl+C stops it)", flush=True)

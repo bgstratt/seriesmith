@@ -17,6 +17,10 @@ export interface FeatureItem {
   where?: string;
   gated?: boolean;
   licence?: string;
+  /** a node pack or Python package: you put it in (ComfyUI-Manager, pip), not seriesmith */
+  manual?: boolean;
+  /** how, while it's missing */
+  how?: string;
   status: ItemStatus;
 }
 
@@ -76,6 +80,16 @@ export const startInstall = (ask: InstallAsk) =>
 /** The items of a feature still to put in. */
 export function toInstall(f: Feature): FeatureItem[] {
   return f.items.filter((i) => i.status !== "installed" && i.status !== "restart");
+}
+
+/** Of those, what seriesmith installs (files, ffmpeg, its own pack's link). */
+export function installable(f: Feature): FeatureItem[] {
+  return toInstall(f).filter((i) => !i.manual);
+}
+
+/** Of those, what you put in yourself, each with how. */
+export function yours(f: Feature): FeatureItem[] {
+  return toInstall(f).filter((i) => i.manual && i.how);
 }
 
 /** What the selected features still download, in bytes (each file once; null

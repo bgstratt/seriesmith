@@ -33,8 +33,8 @@ def sdk_client(base_url: str, api_key: str | None, *, router_url: str | None = N
         import comfy_sdk
     except ImportError:
         from seriesmith import sdk as SDK
-        raise BackendError("Comfy's SDK (comfy-sdk) isn't installed in this Python: Settings, "
-                           f"Install, or run {SDK.state()['command']}") from None
+        raise BackendError("Comfy's SDK (comfy-sdk) isn't installed in this Python: run "
+                           f"{SDK.state()['command']}, then restart") from None
     with _ENV_LOCK:
         saved = {k: os.environ.get(k) for k in (comfy_sdk.BASE_URL_ENV_VAR,
                                                 comfy_sdk.ROUTER_BASE_URL_ENV_VAR,

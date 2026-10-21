@@ -1,0 +1,9 @@
+# Left out of the Comfy Registry's copy (comfy node publish zips every tracked
+# file less these): what a ComfyUI install never reads. The editor's built
+# pages (seriesmith/server/static/, comfy_nodes/web/) and examples/ stay.
+/tests/
+/docs/
+/tools/
+/web/
+/CLAUDE.md
+/CONTRIBUTING.md

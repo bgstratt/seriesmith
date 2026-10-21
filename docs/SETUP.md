@@ -14,11 +14,11 @@ first time they run):
     pip install -e .
 
 That brings comfy-sdk, which Comfy Cloud, deployments and Router use. Inside
-ComfyUI, seriesmith installs comfy-sdk into ComfyUI's Python itself, in the
-background, once a Comfy API key is set (saved in Settings, or `COMFY_API_KEY`
-at startup); Settings shows how it went and has **Install** to try again. Only
-those backends use it. `SERIESMITH_NO_AUTO_INSTALL=1` turns the automatic
-install off.
+ComfyUI, comfy-sdk has to be in ComfyUI's Python: once a Comfy API key is set
+(saved in Settings, or `COMFY_API_KEY` at startup) and it isn't, Settings and
+ComfyUI's console give the pip command for that Python; run it and restart
+ComfyUI. Only those backends use it. seriesmith never installs Python packages
+itself.
 
 ## Your own GPU: ComfyUI
 

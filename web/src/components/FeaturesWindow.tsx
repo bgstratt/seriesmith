@@ -1,17 +1,20 @@
 // Features: everything that can be added to this install (seriesmith/features.py),
-// ticked to install: model files into ComfyUI's models folders, node packs into
-// custom_nodes, Python packages, a full ffmpeg. What's installed already shows
-// as such; the installer's progress is at the top while it runs. Opened from
-// Settings, and by the What's missing window's Install buttons.
+// ticked to install: model files into ComfyUI's models folders, a full ffmpeg,
+// seriesmith's own node pack linked. Other node packs and Python packages you put
+// in yourself (the Comfy Registry's rules): each missing one says how, to copy.
+// What's installed already shows as such; the installer's progress is at the top
+// while it runs. Opened from Settings, and by the What's missing window's Install
+// buttons.
 
 import { useEffect, useMemo, useState } from "react";
 import { closeFeatures, loadTargets, openSettings } from "../actions";
 import { useApp } from "../store";
 import {
-  STATUS_TEXT, cancelInstall, downloadSize, fmtBytes, getFeatures, getSizes, itemsLine, startInstall, toInstall,
-  type Feature, type FeaturesView, type InstallJob, type InstallTask,
+  STATUS_TEXT, cancelInstall, downloadSize, fmtBytes, getFeatures, getSizes, installable, itemsLine, startInstall,
+  toInstall, yours, type Feature, type FeaturesView, type InstallJob, type InstallTask,
 } from "../lib/features";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { CopyButton } from "./Readiness";
 
 function defaultRect(): Rect {
   const W = window.innerWidth || 1280;
@@ -31,6 +34,7 @@ function FeaturesBody() {
   const [sizes, setSizes] = useState<Record<string, number | null>>({});
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
 
@@ -70,9 +74,11 @@ function FeaturesBody() {
   async function install() {
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
       const r = await startInstall({ features: [...picked] });
-      if (r.skipped.length) setError(r.skipped.join("; "));
+      // a node pack or Python package comes back with how: you put it in
+      if (r.skipped.length) setNote(r.skipped.join("\n"));
       setPicked(new Set());
       await load();
     } catch (e) {
@@ -127,6 +133,7 @@ function FeaturesBody() {
             </section>
           );
         })}
+        {note && <div className="h3-note h3-note-info" style={{ whiteSpace: "pre-wrap" }}>{note}</div>}
         {error && <div className="h3-note h3-note-err">{error}</div>}
       </div>
       <div className="h3-dialog-foot">
@@ -149,13 +156,15 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen }: {
   f: Feature; sizes: Record<string, number | null>; checked: boolean; open: boolean; onToggle: () => void; onOpen: () => void;
 }) {
   const installed = f.status === "installed";
+  // nothing seriesmith can put in: only what you install yourself is missing
+  const onlyYours = !installed && installable(f).length === 0 && yours(f).length > 0;
   const left = downloadSize([f], sizes);
   const gated = toInstall(f).some((i) => i.gated);
   const chip = f.status === "installed" ? " h3-s-ok" : f.status === "restart" ? " h3-s-rendering" : "";
   return (
     <div className="h3-col" style={{ gap: 2, padding: "4px 0", borderTop: "1px solid var(--h3-border, #8882)" }}>
       <div className="h3-row" style={{ gap: 8 }}>
-        <input type="checkbox" checked={checked} disabled={installed || f.status === "unavailable"} onChange={onToggle}
+        <input type="checkbox" checked={checked} disabled={installed || onlyYours || f.status === "unavailable"} onChange={onToggle}
           aria-label={`Install ${f.label}`} />
         <b className="h3-grow h3-ell" title={f.label}>{f.label}</b>
         {!installed && left.bytes > 0 && <span className="h3-small h3-muted">{fmtBytes(left.bytes)}</span>}
@@ -166,15 +175,21 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen }: {
         </button>
       </div>
       <span className="h3-small h3-muted" style={{ paddingLeft: 24 }}>{f.about} <span className="h3-muted">({itemsLine(f)})</span></span>
+      {yours(f).map((i) => (
+        <div key={i.key} className="h3-row h3-small" style={{ paddingLeft: 24, gap: 6 }}>
+          <span className="h3-grow" style={{ wordBreak: "break-all" }}>{i.how}</span>
+          <CopyButton text={i.kind === "pip" ? i.how!.replace(/^Run: /, "") : i.name} what={i.kind === "pip" ? "Command" : "Node pack name"} />
+        </div>
+      ))}
       {open && (
         <ul className="h3-missing-list h3-small" style={{ paddingLeft: 40, margin: 0 }}>
           {f.items.map((i) => (
             <li key={i.key}>
               <span className="h3-mono">{i.name}</span>
               {i.folder && <span className="h3-muted"> → models/{i.folder}</span>}
-              {i.kind === "pack" && <span className="h3-muted"> → custom_nodes</span>}
+              {i.kind === "pack" && <span className="h3-muted"> → custom_nodes, with ComfyUI-Manager</span>}
               {i.kind === "link" && <span className="h3-muted"> → linked into custom_nodes from this repo</span>}
-              {i.kind === "pip" && <span className="h3-muted"> → pip, {i.where === "comfyui" ? "ComfyUI's Python" : i.where === "align" ? "align's Python" : "seriesmith's Python"}</span>}
+              {i.kind === "pip" && <span className="h3-muted"> → pip, by you, in {i.where === "comfyui" ? "ComfyUI's Python" : i.where === "align" ? "align's Python" : "seriesmith's Python"}</span>}
               {i.url && sizes[i.url] != null && <span className="h3-muted"> · {fmtBytes(sizes[i.url]!)}</span>}
               {" "}<span className={i.status === "installed" ? "h3-ok" : "h3-muted"}>{i.status === "installed" ? "✓" : i.status === "restart" ? "(restart ComfyUI)" : ""}</span>
               {i.gated && i.status !== "installed" && i.licence && (
@@ -218,7 +233,7 @@ function JobCard({ job, onCancel }: { job: InstallJob; onCancel: () => void }) {
       </div>
       {job.tasks.map((t) => <TaskLine key={t.key} t={t} />)}
       {job.restart && !job.running && (
-        <div className="h3-note h3-note-info">Restart ComfyUI to load the new node packs.</div>
+        <div className="h3-note h3-note-info">Restart ComfyUI to load seriesmith's node pack.</div>
       )}
       {job.running && <span className="h3-small h3-muted">A stopped download resumes where it left off next time.</span>}
     </section>

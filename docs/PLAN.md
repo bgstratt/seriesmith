@@ -907,7 +907,54 @@ transcribe works again.
       registered by its hash (the same asset id on a second registration); each take still
       uploads and registers its pictures again, ~4-5 s each, which keeping the ids would skip.
 
-## Step 15 — models behind other APIs (next)
+## The ComfyUI Manager listing (next; 2026-10-21)
+
+seriesmith's node pack in the Comfy Registry (registry.comfy.org), so ComfyUI-Manager
+installs it: the editor inside ComfyUI with no clone and no link. Registry rules
+(docs.comfy.org/registry: specifications, publishing, standards): the repo root is the
+pack (`comfy node publish` zips every git-tracked file, less `.comfyignore`, plus
+`[tool.comfy].includes`); pyproject `[project]` name, X.Y.Z version, repository URL and
+`[tool.comfy]` PublisherId; Manager pip-installs `requirements.txt` into ComfyUI's Python at
+install; banned: eval/exec, obfuscation, "runtime package installation through subprocess
+calls", interfering with other packs' installation. A published version can't change.
+ComfyUI loads a folder pack under its full path, so a folder named `seriesmith` doesn't
+collide with the package.
+
+- [x] **The whole repo is the pack** (not a second repo): a root `__init__.py` re-exporting
+      `comfy_nodes` (its `WEB_DIRECTORY` as `./comfy_nodes/web`); `[tool.comfy]` in the
+      existing pyproject (PublisherId `bgstratt`, DisplayName, Icon: docs/site/favicon.png
+      on GitHub); a `.comfyignore` dropping `/tests/`, `/docs/`, `/tools/`, `/web/`,
+      CLAUDE.md, CONTRIBUTING.md (anchored: a bare `web/` dropped `comfy_nodes/web/` too).
+      A root `__init__.py` leaves pytest's collection as it was (1641 tests, the same
+      names). `comfy node validate` passes (its ruff check: S102, S307, E702);
+      `comfy node pack` makes 406 files, 11.5 MB, both built editor pages in. Loaded from
+      the zip by ComfyUI's own `load_custom_node` (2026-10-21): 12 nodes, the web folder
+      found. The pack's own seriesmith now comes first on sys.path: an editable or older
+      pip-installed seriesmith (this machine has one in ComfyUI's Python) had answered
+      instead.
+- [x] **requirements.txt:** comfy-sdk and imageio-ffmpeg, what ComfyUI's Python lacks of
+      seriesmith's needs (ComfyUI's own requirements have aiohttp, Pillow, numpy, av>=17).
+- [x] **No installing at runtime in the shipped code:** `sdk.py` says whether comfy-sdk is
+      here and the command, never runs it (`POST /seriesmith/sdk/install` and the auto
+      install on a key are gone; Settings shows the command to copy). The installer
+      downloads model files and ffmpeg and links seriesmith's own pack; a node pack or a
+      pip package is `manual`: `features.status` gives each missing one its `how`
+      (ComfyUI-Manager, or the pip command for its Python), `resolve` hands it back in
+      `skipped`, never queued. The What's missing window's node Install button became the
+      Manager pointer. The launchers still make the standalone's own `.venv` (a shell
+      script the user runs, not the pack at runtime).
+- [ ] **Publishing:** a publisher on registry.comfy.org (its id is permanent), a publishing
+      key as the repo secret `REGISTRY_ACCESS_TOKEN`, Comfy-Org/publish-node-action on a
+      push changing pyproject.toml's version; INSTALL.md, QUICKSTART and SETUP lead with
+      Manager, the link kept for working from a clone.
+- [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
+      editor in the sidebar, a local render, a Router render.
+- Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
+  clicking, Manager installing); whether routes on PromptServer and a served editor page
+  are fine (the docs don't say); the icon's size (400x400 in the spec, 800x400 in
+  `comfy node init`'s template).
+
+## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
 sooner) behind their own API, a gateway (fal, Replicate, WaveSpeed, Runware), or a
@@ -924,6 +971,27 @@ self-hosted endpoint. The same data-driven model, a different transport:
 - [ ] **Pictures:** inline (base64 / data URI) where the API takes it, else a link it can
       fetch (the Comfy asset store while there's a Comfy key; a provider's own upload
       route where it has one).
+- [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21): the fourth way in, beside
+      inline, a link and an upload route. Register a fetchable URL, poll until it's Active,
+      send `asset://<id>`. Router does this already (`via="seedance"`,
+      `RouterBackend.seedance_asset`, Comfy's `/proxy/seedance/virtual-library`) because
+      BytePlus refuses a photoreal face as a plain URL; a face sent as base64 is untested.
+      Atlas Cloud exposes the same BytePlus library differently: assets on
+      `console.atlascloud.ai/api/v1/sd/assets` (register `{type, url}`, poll
+      `/sd/assets/<id>` for `Active` / `Failed` with `error_code`), generation on
+      `api.atlascloud.ai`, a public URL only (no base64; its `model/uploadMedia` gives one
+      without a Comfy key). Video and audio must be registered there; images may go inline.
+      So a preset describes the step as data (upload route, register route, status field and
+      its done/failed values, the reference's form), as the `via` on a file does today.
+      Registration validates up front (Atlas: images 300-6000 px, aspect 0.4-2.5, < 30 MB;
+      video mp4/mov 2-15 s, 24-60 fps, 409,600-927,408 px; audio wav/mp3 2-15 s): its
+      refusal is the take's error, said plainly.
+- [ ] **Keep registered asset ids**, by (provider account, file sha256): an id means nothing to
+      another provider. Skips the ~4-5 s per picture each Router Seedance take spends
+      uploading and registering again (step 14).
+- Router's Seedance 2.5 schema takes an image or audio as URL, base64 or asset id; a video as
+  URL or asset id only. Atlas's guide notes the asset step is the required way in for
+  video and audio references; expect each reseller of a model to differ in exactly this.
 - [ ] **Gateway presets** for the common shapes, so a model is a pick, not a mapping:
       fal's queue API, Replicate's predictions, OpenAI-style images, Google's Gemini /
       Vertex, then direct providers as needed (Runway, Kling, BFL).
@@ -935,8 +1003,7 @@ self-hosted endpoint. The same data-driven model, a different transport:
 
 ## Later
 
-- Publishing (after step 15): the ComfyUI Manager listing for the node pack and the
-  ComfyUI host; PyPI for the app.
+- Publishing: PyPI for the app (the Manager listing is its own step, above).
 - RTX Video Super Resolution (`rtx_vsr`, among the pixel models; 2026-10-14). Measured
   2026-10-15 on the RTX 5090, 2x of two 5 s takes (Porchlights ep02 sh2440, H3 1344x768;
   sh190, Seedance 1280x720), whole job: RealESRGAN_x2 128-159 s, VSR ULTRA 14 s warm
