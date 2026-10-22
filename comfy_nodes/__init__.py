@@ -41,7 +41,7 @@ except Exception as _e:                                   # noqa: BLE001  never 
     import logging
     logging.getLogger("seriesmith").warning(
         "seriesmith: the editor is off in this ComfyUI (%s): install seriesmith whole "
-        "(ComfyUI-Manager), or link this folder from the seriesmith repo (INSTALL.md) "
-        "rather than copying it", _e)
+        "(ComfyUI-Manager, or a git clone in custom_nodes), or link this folder from the "
+        "seriesmith repo (INSTALL.md) rather than copying it", _e)
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
