@@ -41,3 +41,9 @@ include = ["seriesmith*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# six workers (pytest-xdist, the `test` extra), never one per core; `-n 0` runs in one
+# process. Never set the worker count from a conftest hook: xdist workers run
+# pytest_cmdline_main too, and one that sets it starts workers of its own, without
+# end (a fork bomb that froze the dev PC, 2026-10-22).
+addopts = "-n 6"
+required_plugins = ["pytest-xdist"]
