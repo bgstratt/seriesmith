@@ -474,7 +474,10 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual(lt["presets"]["final"]["model"],
                          "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors")
         self.assertEqual(lt["presets"]["final"]["steps"], 8)
-        self.assertNotIn("base", lt["presets"]["final"])          # no accelerator to lose
+        # the distilled transformer is the accelerator: without it, the dev one
+        self.assertEqual(lt["presets"]["final"]["base"],
+                         {"model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
+                          "steps": 30})
         self.assertIn("ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
                       lt["downloads"])
         self.assertEqual(data["default"],
