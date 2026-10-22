@@ -13,10 +13,10 @@ import {
 } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
-import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
+import { getPath, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, placeNameProblem, shotsBlock, withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
   wordsOnlyPlace,
 } from "../lib/simple";
 import { COMMON_SIZES, fitSize } from "../lib/size";
@@ -209,9 +209,6 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3.04" }, { prompt: "", size: "medium", dur: "3.04" }]);
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
-  const [placeText, setPlaceText] = useState("");
-  // a new place: words only (renders at once), or named: kept, its picture made first
-  const [placeName, setPlaceName] = useState("");
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
@@ -244,8 +241,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   }, [raw, refs, where]);
 
   const filled = mode === "shots" ? rows.filter((r) => r.prompt.trim()) : [];
-  const nameProblem = !where && raw ? placeNameProblem(raw, placeName) : "";
-  const ready = (mode === "shots" ? filled.length > 0 : !!prompt.trim()) && !nameProblem;
+  const ready = mode === "shots" ? filled.length > 0 : !!prompt.trim();
   // one take (or picture) a click; another is another click
   const runs = mode === "shots" ? filled.length : 1;
   const paid = isPaidBackend(backend) || (picture ? imageTarget === "krea_2_router" : target === "seedance_2_5");
@@ -258,18 +254,16 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       // the script: the clip's ids after the ones there
       const script = await api().source(ep, "script");
       const { seq, shot } = nextClipIds(script.text);
-      const base = { who, where, placeText, target, dialogue: mode === "clip" ? dialogue : [] };
+      const base = { who, where, target, dialogue: mode === "clip" ? dialogue : [] };
       const specs = mode === "shots"
         ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: durFor(r.dur, tpl, fps) }))
         : [{ ...base, prompt, size, dur: durFor(dur, tpl, fps), still: picture }];
       let location = where;
       if (!location) {
-        // a place of the clip's own: words only, or named, its plate made first
+        // from description: a place of the clip's own, the prompt in words
         const series = await api().source(ep, "series");
         const cur = JSON.parse(series.text) as Raw;
-        const taken = placeNameProblem(cur, placeName);
-        if (taken) throw new Error(taken);
-        const p = placeFor(shot, specs[0], refsPrefix(cur), placeName);
+        const p = placeFor(shot, specs[0]);
         await api().putSource({ ep, file: "series", text: serialize(setPath(cur, ["locations", p.id], p.entry), series.text),
                                 base_hash: series.hash, rebuild: false });
         location = p.id;
@@ -304,8 +298,6 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       setPrompt("");
       setRows((rs) => rs.map((x) => ({ ...x, prompt: "" })));
       setDialogue([]);
-      setPlaceText("");
-      if (placeName.trim()) { setPlaceName(""); setWhere(location); }   // there to pick: picked for the next
     } catch (e) {
       host().toast("error", "The clip wasn't queued", (e as Error).message);
     } finally {
@@ -375,7 +367,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           <span className="sm-label">Who</span>
           <div className="h3-col" style={{ gap: 4 }}>
             <Chips ep={ep} value={who} options={cast.chars} onChange={setWho}
-              add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Someone" />
+              add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Create" />
             {picture && it?.capabilities?.mode !== "edit" && who.length > 0 && (
               <span className="sm-note">This model works from words: they're described, not drawn from their pictures.</span>
             )}
@@ -384,25 +376,14 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           <span className="sm-label">Where</span>
           <div className="h3-col" style={{ gap: 6 }}>
             <span className="h3-row h3-wrap" style={{ gap: 6 }}>
-              <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
+              <PlacePick ep={ep} value={where} places={cast.places} empty="from description" onChange={setWhere} />
               {where && (
                 <button className="h3-btn" title="Its pictures: make it again, edit it, or take a Tour through it for new angles"
                   onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
               )}
-              <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
+              <button className="h3-btn" title="A place to keep: its name, and a picture you have or one made from words"
+                onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Create</button>
             </span>
-            {!where && (
-              <>
-                <input className="h3-in" aria-label="The new place, in words" value={placeText}
-                  placeholder="a stone lighthouse on a cliff at dusk, storm clouds (empty: from what happens)"
-                  onChange={(e) => setPlaceText(e.target.value)} />
-                <input className="h3-in" aria-label="The new place's name" value={placeName}
-                  placeholder="its name, to keep it (empty: this clip only)"
-                  title="Named, its picture is made first, so it looks the same in every clip that picks it, and it's in Where from then on"
-                  onChange={(e) => setPlaceName(e.target.value)} />
-                {nameProblem && <span className="h3-small h3-error">{nameProblem}</span>}
-              </>
-            )}
           </div>
 
           {mode === "clip" && who.length > 0 && (

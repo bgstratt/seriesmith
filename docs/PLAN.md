@@ -388,7 +388,7 @@ check, history copy and rebuild.
       one's picture (a character's face: the sheet's last panel, since a
       three-quarter view won't read small; a group's, a one-picture character's
       or a prop's whole picture; a location's plate; initials until there is
-      one), larger on hover; add… and the location buttons pick from the
+      one), larger on hover; select… and the location buttons pick from the
       pictures. From the Refs list when it's loaded (a variant's derived sheet,
       the hash to refresh by), else the series config's paths. Checked live on
       a Porchlights episode's own sheets and plates.
@@ -471,11 +471,14 @@ multi-shot clip, or a series with episodes.
       then a step waits for them, makes them live and asks for the takes.
       Checked live (the local lane paused): the place's picture and the
       waiting step queued in order.
-- [x] A new place in words is named to be kept (2026-10-22): the name is its id
-      (refused when taken), its plate made first, and it is in Where from then
-      on. Unnamed, `c007_place`, words only, kept out of Where. Was a "Make a
-      picture of it first" box: the place it made was saved as `c007_place`
-      but hidden from Where, so it couldn't be picked again.
+- [x] Where without a place picked is **from description** (2026-10-22): the
+      clip's own `c007_place`, the prompt in words, kept out of Where. A place to
+      keep is **+ Create** (its card: a name, a picture or words), no quick form
+      beside it; one decided on later comes from a frame of the clip. Was a
+      words box and a "Make a picture of it first" box, whose place was saved as
+      `c007_place` but hidden from Where (one such, with its plate, shows again).
+      Labels: Who **select…** / **+ Create** (was add… / + Someone; select… in
+      every cast picker), Where **+ Create** (was + Place).
 - [x] A picture: the clip's first keyframe (`first: generate`, marked
       `// a picture`) on the image model picked, its candidates made live as
       they finish; an edit model waits for the people's and the place's

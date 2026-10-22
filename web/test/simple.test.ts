@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, placeNameProblem, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
 import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
-  prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "", placeText: "",
+  prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "",
   size: "wide", dur: "3.04", target: "", dialogue: [], ...p,
 });
 
@@ -13,25 +13,13 @@ describe("simple mode's clips", () => {
     expect(nextClipIds("= clips  Clips\n\n# cl001  pier\n\n## c001\n\n# cl012  x\n## c012\n").shot).toBe("c013");
   });
 
-  it("gives a clip without a place one of its own, from words or the prompt", () => {
-    // words only by default: it renders at once
-    expect(placeFor("c004", spec(), "../refs/")).toEqual({
-      id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking on the rocks." },
+  it("gives a clip without a place one of its own, from the prompt, words only", () => {
+    expect(placeFor("c004", spec({ prompt: "A lighthouse at dusk,\n  waves breaking." }))).toEqual({
+      id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking." },
     });
-    // named: kept under its name, its picture made first
-    expect(placeFor("c004", spec(), "../refs/", "The Lighthouse Gallery")).toEqual({
-      id: "lighthouse_gallery",
-      entry: { description: "A lighthouse at dusk, waves breaking on the rocks.", plate: "../refs/_bg/lighthouse_gallery.png" },
-    });
-    expect(placeFor("c004", spec({ placeText: "a rocky headland" }), "../refs/").entry.description).toBe("a rocky headland");
   });
 
-  it("refuses a place's name already taken, and keeps words-only places out of Where", () => {
-    const raw = { subjects: { mara: {} }, locations: { pier: {} } };
-    expect(placeNameProblem(raw, "")).toBe("");
-    expect(placeNameProblem(raw, "the pier")).toMatch(/already a location called pier/);
-    expect(placeNameProblem(raw, "Mara")).toMatch(/already a subject called mara/);
-    expect(placeNameProblem(raw, "Harbour wall")).toBe("");
+  it("keeps words-only places out of Where", () => {
     expect(wordsOnlyPlace("c001_place", { description: "a beach" })).toBe(true);
     expect(wordsOnlyPlace("c002_place", { description: "a gallery", plate: "../refs/_bg/c002_place.png" })).toBe(false);
     expect(wordsOnlyPlace("pier", { description: "a pier" })).toBe(false);

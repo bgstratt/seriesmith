@@ -530,7 +530,7 @@ export function Chips({ ep, value, options, onChange, add, addLabel }: {
           </Hover>
         );
       })}
-      <PicturePicker ep={ep} options={left} label={<><i className="pi pi-plus" /> add…</>} title="Pick from the cast"
+      <PicturePicker ep={ep} options={left} label={<><i className="pi pi-plus" /> select…</>} title="Pick from the cast"
         onPick={(id) => id && onChange([...value, id])} />
       <button className="h3-btn" onClick={add}>{addLabel}</button>
     </div>

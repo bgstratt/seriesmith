@@ -1,14 +1,13 @@
 // Simple mode (docs/PLAN.md, step 12): a clip is one sequence of one shot in
 // the Clips project (seriesmith/clips.py) -- `# cl007  <place>` / `## c007` --
-// written from a few fields. A clip with no place picked gets a place of its
-// own, described in words (or by the prompt): words only (it renders at once,
-// imagined its own way), or named, a place kept with a plate made before it
-// renders, so it looks the same in every clip that picks it
+// written from a few fields. A clip with no place picked (Where: from
+// description) gets a place of its own, described by the prompt, words only:
+// each clip imagines it its own way. A place to keep is made with + Create
+// (its card), and its picture before a clip that picks it renders
 // (POST /seriesmith/clip/queue).
 
 import type { TargetTemplate } from "../types";
-import { idProblem, picturePath, type Raw } from "./seriesForm";
-import { castId } from "./wizard";
+import type { Raw } from "./seriesForm";
 import { writeShot, type DialogueLine } from "./shotForm";
 import { fitSize } from "./size";
 
@@ -36,10 +35,8 @@ export function nextClipIds(script: string): { seq: string; shot: string; n: num
 export interface ClipSpec {
   prompt: string;
   who: string[];
-  /** a location id, or "" for a place of the clip's own */
+  /** a location id, or "" for a place of the clip's own, from the prompt */
   where: string;
-  /** that place, in words (empty: the prompt is the place) */
-  placeText: string;
   size: string;
   dur: string;
   /** the clip's model ("" or the series' own: none written) */
@@ -71,22 +68,14 @@ export function pictureModel(mode: string | undefined): boolean {
   return mode !== "pano";
 }
 
-/** The place a clip without one gets, described in words: unnamed, an id of
- * the clip's own and words only; named, the place under that name with a plate
- * (where the show keeps plates) to be made first, kept to pick again. */
-export function placeFor(shot: string, spec: ClipSpec, prefix: string, name = ""): { id: string; entry: Raw } {
-  const description = (spec.placeText.trim() || spec.prompt.trim()).replace(/\s+/g, " ");
-  const id = name.trim() ? castId(name) : `${shot}_place`;
-  return { id, entry: name.trim() ? { description, plate: picturePath("location", id, prefix)! } : { description } };
+/** The place a clip without one gets: an id of the clip's own, described by
+ * the prompt, words only. */
+export function placeFor(shot: string, spec: ClipSpec): { id: string; entry: Raw } {
+  return { id: `${shot}_place`, entry: { description: spec.prompt.trim().replace(/\s+/g, " ") } };
 }
 
-/** Why a new place's name can't be used ("" when fine, or when there is none). */
-export function placeNameProblem(raw: Raw, name: string): string {
-  return name.trim() ? idProblem(raw, castId(name)) : "";
-}
-
-/** A place of a clip's own, words only: kept out of Where (one named, or made
- * with a plate before names were asked for, is there to pick). */
+/** A place of a clip's own, words only: kept out of Where (one an older
+ * Simple mode made with a plate is there to pick). */
 export function wordsOnlyPlace(id: string, entry: Raw | undefined): boolean {
   return /^c\d+_place$/.test(id) && !entry?.plate;
 }
