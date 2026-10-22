@@ -72,12 +72,13 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/bgstratt/seriesmith.git
 ```
 
-Then put in the two packages Manager would have, with ComfyUI's own Python (the portable
-build's is `python_embeded\python.exe`), and restart ComfyUI:
+Restart ComfyUI. That's all it needs to render on that ComfyUI.
 
-```
-python -m pip install -r seriesmith/requirements.txt
-```
+Two packages Manager would have put in are optional here: Comfy's SDK, for Comfy Cloud
+and Router, and imageio-ffmpeg, an ffmpeg for cutting and mastering. **Settings** gives
+the command for the SDK once you set a Comfy API key, and **Features** downloads a full
+ffmpeg. To put both in at once, with ComfyUI's own Python (the portable build's is
+`python_embeded\python.exe`): `python -m pip install -r seriesmith/requirements.txt`.
 
 `git pull` in that folder updates it (restart ComfyUI after). The same clone runs the page
 of its own (2) too: `run_seriesmith.bat` is in it.

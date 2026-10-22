@@ -144,9 +144,9 @@ same.
   editor's **Restart**; `seriesmith stop [--restart]` stops it from a terminal. It
   renders on a ComfyUI, or with only a Comfy API key, on Comfy's cloud.
 - **A clone in `custom_nodes`**, for following main: `git clone
-  https://github.com/bgstratt/seriesmith.git` in ComfyUI's `custom_nodes`, then
-  `python -m pip install -r seriesmith/requirements.txt` with ComfyUI's Python. (A clone
-  kept elsewhere: link its `comfy_nodes` into `custom_nodes` instead.)
+  https://github.com/bgstratt/seriesmith.git` in ComfyUI's `custom_nodes`, and restart
+  ComfyUI. (Cloud and Router want comfy-sdk in ComfyUI's Python: Settings gives the
+  command. A clone kept elsewhere: link its `comfy_nodes` into `custom_nodes` instead.)
 
 The default models are the ones you already have: H3, else LTX-2, else Wan 2.2 for video;
 Krea 2, else FLUX.2 Klein, ... for pictures (docs/SETUP.md, "The default models").

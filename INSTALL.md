@@ -154,15 +154,18 @@ clone above is then only for the page of its own or the command line, and
 `run_seriesmith.bat` in that folder serves for those too.
 
 **Or a clone in `custom_nodes`** (following main, or working on seriesmith): the repo is
-a node pack as it stands, so clone it there and put in its two packages with ComfyUI's
-Python. `git pull` in it updates what ComfyUI loads. Not both this and Manager: the two
-take the same folder.
+a node pack as it stands, so clone it there and restart ComfyUI. `git pull` in it updates
+what ComfyUI loads. Not both this and Manager: the two take the same folder.
 
 ```
 cd C:\AI\ComfyUI\ComfyUI\custom_nodes
 git clone https://github.com/bgstratt/seriesmith.git
-C:\AI\ComfyUI\python_embeded\python.exe -m pip install -r seriesmith\requirements.txt
 ```
+
+Optional, what Manager would also have put in: comfy-sdk (Comfy Cloud and Router;
+Settings gives the command once a key is set) and imageio-ffmpeg (an ffmpeg; Features
+downloads a full one instead). Both at once, with ComfyUI's Python:
+`C:\AI\ComfyUI\python_embeded\python.exe -m pip install -r seriesmith\requirements.txt`.
 
 **Or link a clone kept elsewhere** (as `C:\code\seriesmith` above): link its `comfy_nodes`
 folder into `custom_nodes`, so pulling the repo updates what ComfyUI loads.
