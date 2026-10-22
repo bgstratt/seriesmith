@@ -153,6 +153,25 @@ class ImageWorkflowTest(unittest.TestCase):
         self.assertNotIn("references", p["binding"])
         self.assertEqual(IN.validate_spec(dict(p)), [])
 
+    def test_a_negative_zeroed_from_the_prompt_is_not_bound(self):
+        """Krea 2's workflows zero the positive for the negative
+        (ConditioningZeroOut): bound to the same CLIPTextEncode, the preset's
+        "negative" (the workflow's saved prompt) overwrote the prompt, so a
+        probe drew the workflow's own picture."""
+        g = image_graph()
+        pos = g["9"]["inputs"]["positive"][0]
+        g["40"] = {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": [pos, 0]}}
+        g["9"]["inputs"]["negative"] = ["40", 0]
+        r = inspect(g)
+        params = r["proposal"]["binding"]["params"]
+        self.assertIn("prompt", params)
+        self.assertNotIn("negative", params)
+        for preset in r["proposal"]["presets"].values():
+            if isinstance(preset, dict):
+                self.assertNotIn("negative", preset)
+        self.assertTrue(any(n["text"].startswith("negative: the sampler's negative comes from")
+                            for n in r["notes"]))
+
     def test_an_edit_workflow_takes_pictures(self):
         r = inspect(image_graph(loads=2))
         p = r["proposal"]
