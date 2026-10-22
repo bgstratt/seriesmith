@@ -5,6 +5,29 @@ import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [ROOT, os.environ.get("PYTHONPATH")]))
 
+# A test run must never take the machine from the person using it: run below
+# normal priority (on Windows a child process -- an xdist worker, the ffmpeg
+# and helper subprocesses the tests start -- inherits it), and keep the numeric
+# libraries to one thread each. Parallel workers at normal priority, each
+# starting ffmpegs that thread across every core, locked the dev PC up hard
+# (2026-10-22).
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+             "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+if os.name == "nt":
+    try:
+        import ctypes
+        _BELOW_NORMAL = 0x00004000
+        ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(),
+                                                _BELOW_NORMAL)
+    except Exception:                                    # noqa: BLE001  a nicety
+        pass
+else:
+    try:
+        os.nice(10)
+    except (AttributeError, OSError):
+        pass
+
 # No test reaches a real backend: this machine's settings file, its proxy, its
 # ComfyUI and Comfy Cloud are all pointed at nothing (port 0, refused at once: a
 # closed port such as 9 takes ~2 s to refuse on Windows).
@@ -52,12 +75,3 @@ try:
 except ImportError:                                      # pragma: no cover (unittest alone)
     pass
 
-
-def pytest_xdist_auto_num_workers(config):
-    """How many workers `-n auto` (pyproject's addopts) starts: none when the
-    run names up to three test files (starting workers costs ~3 s, more than a
-    file or two takes), else every core (the default: None)."""
-    paths = [a.split("::")[0] for a in config.args]
-    if paths and len(paths) <= 3 and all(os.path.isfile(p) for p in paths):
-        return 0
-    return None

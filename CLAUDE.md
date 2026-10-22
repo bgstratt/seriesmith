@@ -48,9 +48,11 @@ user's side.
 - Write files through `seriesmith/core/fileio.py` (`write_json`, `write_bytes`, `replace`,
   `read_json_or`, ...): atomic, LF, the Windows retry. Never a bare `open(path, "w")` for
   a file something else reads, nor a bare `os.replace`.
-- Tests: `.venv\Scripts\python -m pytest` (the whole suite in about a minute: on every core
-  by default, pytest-xdist from the `test` extra; up to three named files run in one process,
-  `-n 0` forces it). Run the files you touched first. Unreachable backends are `127.0.0.1:0`, refused at once:
+- Tests: `.venv\Scripts\python -m pytest` (six workers, pytest-xdist from the `test` extra,
+  at below-normal priority; `-n 0` for one process, as for a file or two). Run the files you
+  touched first. Never set the worker count from a conftest hook (xdist workers run
+  `pytest_cmdline_main` too: it became a fork bomb that froze the PC), and never `-n auto`
+  here (24 workers, each test starting ffmpegs). Unreachable backends are `127.0.0.1:0`, refused at once:
   a closed port such as 9 takes ~2 s to refuse on Windows, which made the serial suite 11
   minutes. `tests/conftest.py` points every test at empty
   settings and unreachable backends; keep it that way. This machine's own models
