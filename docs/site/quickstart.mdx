@@ -1,6 +1,6 @@
 ---
 title: "Getting started"
-description: "Install it from ComfyUI-Manager, run it on a page of its own, or link a clone: seriesmith on the models you already have."
+description: "Install it from ComfyUI-Manager, run it on a page of its own, or clone it into custom_nodes: seriesmith on the models you already have."
 ---
 
 {/* Generated from docs/QUICKSTART.md by tools/make_site_docs.py: edit that file, not this one. */}
@@ -13,9 +13,9 @@ way you run it, it's the same app, with the same projects and settings.
 |---|---|
 | [1. Inside ComfyUI, from ComfyUI-Manager](#1-inside-comfyui-from-comfyui-manager) | Start here: one install, the editor in ComfyUI's sidebar |
 | [2. On a page of its own](#2-on-a-page-of-its-own) | A browser tab of its own, the `seriesmith` command, a ComfyUI on another machine, or only Comfy's cloud |
-| [3. From a clone, linked into ComfyUI](#3-from-a-clone-linked-into-comfyui) | Following the newest changes, or working on seriesmith |
+| [3. A clone in custom_nodes](#3-a-clone-in-custom_nodes) | Following the newest changes on GitHub, or working on seriesmith |
 
-Pick one way into a ComfyUI. The Manager install and a linked clone both take the folder
+Pick one way into a ComfyUI. The Manager install and a clone both take the folder
 `custom_nodes/seriesmith`.
 
 ## 1. Inside ComfyUI, from ComfyUI-Manager
@@ -67,29 +67,30 @@ With no ComfyUI at all, set a Comfy API key in **Settings**: shots render on Com
 and the hosted models through Comfy Router (Seedance, Kling, Veo, ...), billed to that
 account ([Where shots render](/setup)).
 
-## 3. From a clone, linked into ComfyUI
+## 3. A clone in custom_nodes
 
-For following the newest changes on GitHub, or working on seriesmith. Link the clone's
-`comfy_nodes` folder into `custom_nodes`, so a `git pull` updates what ComfyUI loads.
-
-Windows, in an ordinary Command Prompt (`mklink /J` needs no administrator rights):
+For following the newest changes on GitHub, or working on seriesmith: clone it into
+ComfyUI's `custom_nodes`, as any node pack.
 
 ```
-git clone https://github.com/bgstratt/seriesmith.git C:\code\seriesmith
-mklink /J "C:\AI\ComfyUI\ComfyUI\custom_nodes\seriesmith" "C:\code\seriesmith\comfy_nodes"
+cd ComfyUI/custom_nodes
+git clone https://github.com/bgstratt/seriesmith.git
 ```
 
-Linux/macOS:
+Then put in the two packages Manager would have, with ComfyUI's own Python (the portable
+build's is `python_embeded\python.exe`), and restart ComfyUI:
 
 ```
-git clone https://github.com/bgstratt/seriesmith.git ~/seriesmith
-ln -s ~/seriesmith/comfy_nodes /path/to/ComfyUI/custom_nodes/seriesmith
+python -m pip install -r seriesmith/requirements.txt
 ```
 
-The paths are only examples. Link the folder rather than copying it: seriesmith finds the
-rest of itself through the link. For Comfy Cloud and Router inside that ComfyUI, its
-Python needs Comfy's SDK: **Settings** gives the command once a key is set. The same clone
-runs the page of its own (2) too.
+`git pull` in that folder updates it (restart ComfyUI after). The same clone runs the page
+of its own (2) too: `run_seriesmith.bat` is in it.
+
+Keeping your clone somewhere else? Link its `comfy_nodes` folder into `custom_nodes`
+instead (Windows: `mklink /J "<ComfyUI>\custom_nodes\seriesmith" "<clone>\comfy_nodes"` in
+an ordinary Command Prompt; elsewhere `ln -s`): seriesmith finds the rest of itself
+through the link.
 
 ## Which models it uses
 

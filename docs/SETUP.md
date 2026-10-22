@@ -2,8 +2,8 @@
 
 ## Install
 
-Inside ComfyUI: install seriesmith with ComfyUI-Manager (or link a clone's
-`comfy_nodes`, below) and it runs on ComfyUI's own Python. Manager also puts in
+Inside ComfyUI: install seriesmith with ComfyUI-Manager (or git clone it into
+`custom_nodes`) and it runs on ComfyUI's own Python. Manager also puts in
 comfy-sdk and imageio-ffmpeg, the two packages it needs there that ComfyUI doesn't
 have ([Getting started](QUICKSTART.md)).
 

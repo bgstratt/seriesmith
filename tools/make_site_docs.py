@@ -25,7 +25,7 @@ GITHUB = "https://github.com/bgstratt/seriesmith/blob/main/"
 
 # (source, page, description): the order is docs.json's
 PAGES = [
-    ("docs/QUICKSTART.md", "quickstart", "Install it from ComfyUI-Manager, run it on a page of its own, or link a clone: seriesmith on the models you already have."),
+    ("docs/QUICKSTART.md", "quickstart", "Install it from ComfyUI-Manager, run it on a page of its own, or clone it into custom_nodes: seriesmith on the models you already have."),
     ("docs/FULL_SETUP.md", "full-setup", "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."),
     ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),
     ("docs/SETUP.md", "setup", "Where shots render: your ComfyUI, Comfy Cloud, a deployment or Comfy Router, and the settings that choose."),
