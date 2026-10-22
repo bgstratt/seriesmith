@@ -51,3 +51,13 @@ try:
         T.forget_kept()
 except ImportError:                                      # pragma: no cover (unittest alone)
     pass
+
+
+def pytest_xdist_auto_num_workers(config):
+    """How many workers `-n auto` (pyproject's addopts) starts: none when the
+    run names up to three test files (starting workers costs ~3 s, more than a
+    file or two takes), else every core (the default: None)."""
+    paths = [a.split("::")[0] for a in config.args]
+    if paths and len(paths) <= 3 and all(os.path.isfile(p) for p in paths):
+        return 0
+    return None

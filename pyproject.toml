@@ -41,3 +41,8 @@ include = ["seriesmith*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# in parallel by default (pytest-xdist, the `test` extra): the whole suite on every
+# core in about a minute; a few named files run in-process (tests/conftest.py's
+# pytest_xdist_auto_num_workers); `-n 0` forces one process, `-n 8` eight
+addopts = "-n auto"
+required_plugins = ["pytest-xdist"]
