@@ -199,7 +199,7 @@ class EpisodeCase(unittest.TestCase):
         from seriesmith.settings import Settings
 
         async def go():
-            app = standalone.make_app([self.shows], Settings(comfyui_url="http://127.0.0.1:9"),
+            app = standalone.make_app([self.shows], Settings(comfyui_url="http://127.0.0.1:0"),
                                       backends={backend.name: backend})
             async with TestClient(TestServer(app)) as client:
                 return await body(client, app)

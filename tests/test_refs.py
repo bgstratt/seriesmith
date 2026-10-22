@@ -271,7 +271,7 @@ class TakesTest(RefsTest):
                                        "queued": "2026-01-01T00:00:00+00:00"})
         self.addCleanup(setattr, T, "MANAGED", None)
         T.MANAGED = lambda: set()
-        changed = R.sweep(self.s, J.Comfy("http://127.0.0.1:9"))   # nobody there
+        changed = R.sweep(self.s, J.Comfy("http://127.0.0.1:0"))   # nobody there
         self.assertEqual([t.take for t in changed], [1])
         t1, t2 = R.list_takes(kitchen)
         self.assertEqual((t1.status, t2.status), ("failed", "queued"))
@@ -584,7 +584,7 @@ class KreagenTest(RefsTest):
         return rc, out.getvalue()
 
     def test_list_and_dry_run(self):
-        r = self.run_kreagen("--list", "--comfy", "http://127.0.0.1:9", "--no-workflow")
+        r = self.run_kreagen("--list", "--comfy", "http://127.0.0.1:0", "--no-workflow")
         out = r.stdout.decode("utf-8").replace("\r\n", "\n")
         self.assertEqual(r.returncode, 0, out + r.stderr.decode())
         self.assertIn("10 asset(s)", out)
@@ -593,7 +593,7 @@ class KreagenTest(RefsTest):
         self.assertIn("1024x1024 x4  blocks 7", out)
         self.assertNotIn("sample.wav", out)
         r = self.run_kreagen("--dry-run", "--only", "ada,kitchen", "--comfy",
-                             "http://127.0.0.1:9")
+                             "http://127.0.0.1:0")
         out = r.stdout.decode("utf-8").replace("\r\n", "\n")
         self.assertEqual(r.returncode, 0, out + r.stderr.decode())
         self.assertIn(f"--- ada:02_side  seed {R.seed_for('ada')}\nA single character", out)
@@ -603,7 +603,7 @@ class KreagenTest(RefsTest):
         # --all works from the series config alone, no refs_todo needed
         os.remove(os.path.join(self.ep, "refs_todo.json"))
         self.assertEqual(self.run_kreagen("--list").returncode, 1)
-        r = self.run_kreagen("--list", "--all", "--comfy", "http://127.0.0.1:9")
+        r = self.run_kreagen("--list", "--all", "--comfy", "http://127.0.0.1:0")
         # + the narrator and ada_coat, a variant no shot uses (both "blocks 0")
         self.assertIn("12 asset(s)", r.stdout.decode("utf-8"))
 

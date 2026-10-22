@@ -26,7 +26,7 @@ Icon = "https://raw.githubusercontent.com/bgstratt/seriesmith/main/docs/site/fav
 includes = []
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-xdist"]
 
 [project.scripts]
 seriesmith = "seriesmith.cli:main"

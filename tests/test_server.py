@@ -44,7 +44,7 @@ class StandaloneTest(unittest.TestCase):
         os.environ["SERIESMITH_SETTINGS"] = os.path.join(self._tmp.name, "user", "settings.json")
         self.addCleanup(os.environ.pop, "SERIESMITH_SETTINGS", None)
         # no ComfyUI here: the relay keeps retrying quietly
-        self.settings = Settings(comfyui_url="http://127.0.0.1:9")
+        self.settings = Settings(comfyui_url="http://127.0.0.1:0")
 
     def run_app(self, body):
         async def go():

@@ -28,7 +28,7 @@ from test_cloud import Episode, cloud_info  # noqa: E402
 class Local(ComfyUIBackend):
     """This machine's ComfyUI, with or without the pack, its node list given."""
     def __init__(self, info, pack: bool):
-        super().__init__("local", "http://127.0.0.1:9")
+        super().__init__("local", "http://127.0.0.1:0")
         self.info, self.pack = info, pack
 
     def has_node(self, ctype):

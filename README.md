@@ -226,7 +226,8 @@ runs its own queue. **[docs/COMMANDS.md](docs/COMMANDS.md)** covers every comman
 
 ## Tests
 
-    python -m pytest
+    pip install -e .[test]
+    python -m pytest -n auto          # every core: about a minute
     cd web && npx vitest run
 
 The golden tests rebuild every fixture and compare the results byte for byte with

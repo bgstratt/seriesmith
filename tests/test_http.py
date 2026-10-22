@@ -75,7 +75,7 @@ class HttpJsonTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             http_json(self.base + "/text")
         with self.assertRaises((urllib.error.URLError, OSError)):
-            http_json("http://127.0.0.1:9/nothing", timeout=3)
+            http_json("http://127.0.0.1:0/nothing", timeout=3)
 
     def test_a_caller_says_it_in_its_own_words(self):
         with mock.patch.object(RI, "API_BASE", self.base):

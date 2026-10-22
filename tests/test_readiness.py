@@ -544,7 +544,7 @@ class ReadinessTest(unittest.TestCase):
             asked.append(path)
             raise urllib.error.URLError("refused")
         with mock.patch.object(J.Comfy, "_open", away):
-            graphs = E.target_graphs(TG.list_targets(), "http://127.0.0.1:9")
+            graphs = E.target_graphs(TG.list_targets(), "http://127.0.0.1:0")
         self.assertEqual(len(asked), 1, asked)
         self.assertGreater(len(graphs), 10)
         # the repo's copies still answer
@@ -556,7 +556,7 @@ class ReadinessTest(unittest.TestCase):
             raise RuntimeError("ComfyUI 500 on /api/userdata")
         asked.clear()
         with mock.patch.object(J.Comfy, "_open", broken):
-            E.target_graphs(TG.list_targets("video")[:3], "http://127.0.0.1:9")
+            E.target_graphs(TG.list_targets("video")[:3], "http://127.0.0.1:0")
         self.assertEqual(len(asked), 4)
 
     def test_route(self):
@@ -567,7 +567,7 @@ class ReadinessTest(unittest.TestCase):
                 return info
         with tempfile.TemporaryDirectory() as user:
             A._READY.clear()
-            ctx = A.Context(user, "http://127.0.0.1:9", comfy=C(), env={}, model_resolve=None)
+            ctx = A.Context(user, "http://127.0.0.1:0", comfy=C(), env={}, model_resolve=None)
             code, data = A.get_targets(ctx, {"ready": "1", "kind": "video"})
             self.assertEqual(code, 200, data)
             by = {t["id"]: t for t in data["targets"]}
