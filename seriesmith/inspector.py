@@ -484,6 +484,15 @@ def detect_prompt(object_info: dict, graph: dict) -> tuple[dict, dict, list]:
                 if hit:
                     found[param].add(hit)
                 break
+    # a negative traced back to the prompt's own text node has no text of its
+    # own (a ConditioningZeroOut of the positive, as Krea 2's workflows have
+    # it): bound, the preset's "negative" (that node's text) would overwrite
+    # the prompt, and every render would draw the workflow's saved prompt
+    if found["negative"] and {n for n, _ in found["negative"]} <= {n for n, _ in found["prompt"]}:
+        found["negative"] = set()
+        warnings.append("negative: the sampler's negative comes from the prompt's own text "
+                        "(a ConditioningZeroOut, say): there's no negative text to set, so "
+                        "none is bound; the graph keeps it as it is.")
     # a node with only `conditioning` (no negative) is a positive-only chain
     for param in ("prompt", "negative"):
         hits = sorted(found[param])
