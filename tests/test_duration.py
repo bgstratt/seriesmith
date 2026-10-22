@@ -374,7 +374,7 @@ class QueueTest(unittest.TestCase):
         self.assertIn("wasn't checked", job.duration_note)
         # re-planning replaces the note rather than piling them up
         self.assertEqual(sum("duration head" in n for n in job.notes), 1)
-        J.stage_inputs(job, J.Comfy("http://127.0.0.1:9"))   # nothing listening
+        J.stage_inputs(job, J.Comfy("http://127.0.0.1:0"))   # nothing listening
         self.assertEqual(job.length_source, "estimate")
         self.assertIn("couldn't ask ComfyUI", job.duration_note)
 

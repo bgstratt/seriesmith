@@ -646,7 +646,7 @@ class SweepTest(ApiTest):
         T.reserve_take(self.ep, "proxy", "sh010",
                        {"status": "queued", "comfy_prompt_id": "gone",
                         "queued": "2026-01-01T00:00:00+00:00"})
-        ctx = A.Context(self.user, "http://127.0.0.1:9", env={})
+        ctx = A.Context(self.user, "http://127.0.0.1:0", env={})
         data = self.ok(A.get_episode(ctx, {"ep": self.ep, "pass": "proxy"}))
         sh = next(s for s in data["shots"] if s["shot"] == "sh010")
         self.assertEqual(sh["takes"][0]["status"], "queued")
@@ -657,7 +657,7 @@ class SweepTest(ApiTest):
                         "queue": "seriesmith", "queued": "2026-01-01T00:00:00+00:00"})
         self.addCleanup(setattr, T, "MANAGED", None)
         T.MANAGED = lambda: set()
-        ctx = A.Context(self.user, "http://127.0.0.1:9", env={})
+        ctx = A.Context(self.user, "http://127.0.0.1:0", env={})
         data = self.ok(A.get_episode(ctx, {"ep": self.ep, "pass": "proxy"}))
         sh = next(s for s in data["shots"] if s["shot"] == "sh010")
         self.assertEqual(sh["takes"][0]["status"], "failed")

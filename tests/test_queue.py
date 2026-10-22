@@ -219,7 +219,7 @@ class EditorRenderTest(unittest.TestCase):
         fb = FakeBackend("deployment:minimax_h3_ref2va", "deployment", outputs=saver_outputs)
 
         async def go():
-            app = standalone.make_app([self.shows], Settings(comfyui_url="http://127.0.0.1:9"),
+            app = standalone.make_app([self.shows], Settings(comfyui_url="http://127.0.0.1:0"),
                                       backends={fb.name: fb})
             async with TestClient(TestServer(app)) as client:
                 ws = await client.ws_connect("/ws")

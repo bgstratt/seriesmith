@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seriesmith"
-version = "0.1.1"
+version = "0.1.2"
 description = "Write the show, get the episodes: an AI video editor inside ComfyUI. Script your shots, keep characters and places consistent with reference pictures, render each shot on any model (your GPU, Comfy Cloud or Router), then cut, upscale and master."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -26,7 +26,7 @@ Icon = "https://raw.githubusercontent.com/bgstratt/seriesmith/main/docs/site/fav
 includes = []
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-xdist"]
 
 [project.scripts]
 seriesmith = "seriesmith.cli:main"

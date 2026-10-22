@@ -3687,8 +3687,9 @@ Routes:
   gains `custom` and `draft`.
 
 CLI: **`seriesmith target-from-workflow <workflow> [<episode>] [--id X] [--label X] [--save]
-[--json]`** prints the proposal, what it matched, what it guessed, and with `--save` writes
-it.
+[--every-show] [--json]`** prints the proposal, what it matched, what it guessed, and with
+`--save` writes it: into the episode's show, or with `--every-show` beside the settings,
+for every show (no episode needed).
 
 ### 12c: the editor
 

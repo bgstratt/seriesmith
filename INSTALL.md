@@ -93,7 +93,7 @@ Cloud's own nodes, leaving out what a model can do without ([docs/SETUP.md](docs
 |---|---|
 | `pip install faster-whisper numpy` | `seriesmith align` / the editor's Recording window: transcribe a dialogue recording and write `audio:` windows onto every shot |
 | `pip install demucs`, for the `python` first on **ComfyUI's** PATH | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node shells out to `python -m demucs` |
-| `pip install pytest` | `python -m pytest`, the test suite |
+| `pip install -e .[test]` | `python -m pytest -n auto`, the test suite (about a minute on every core) |
 | Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built pages are committed |
 | The Comfyui_Minimax_h3_latent_Upscaler node pack and its model (**The upscaler**, below) | `seriesmith upscale` and the editor's Upscale on H3 takes |
 | The comfyui-obvpm-timeline node pack (**The upscaler**) | upscaling H3 takes longer than 5.5 s without running out of memory |
@@ -443,8 +443,8 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | required | `ltx2`, `ltx2_voice` (accelerator) | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
-| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2` (optional: the quality profile (LTX-2.5 dev transformer)), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
 
 **Gemma 4 12B with the LTX 2.5 projection** (`ltx2.5-text-encoder`)
 

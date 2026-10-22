@@ -13,8 +13,8 @@ Issues and pull requests are welcome.
   episode folder: files go up as uploads and come back as reported outputs.
 - Shot IDs, seeds and the shotlist schema are load-bearing: a change that re-seeds shots
   invalidates renders people may already have approved. Call that out in the PR.
-- Run the tests before opening a PR: `python -m pytest` (no test reaches a real
-  backend). The golden outputs in `tests/golden/` must stay byte-identical unless the
+- Run the tests before opening a PR: `python -m pytest -n auto` (about a minute on every
+  core, with `pip install -e .[test]`; no test reaches a real backend). The golden outputs in `tests/golden/` must stay byte-identical unless the
   change means to alter them; then regenerate them with
   `python tests/test_golden.py --update`, review the diff and say why in the PR. If a
   change touches rendering, say what you rendered to verify it.

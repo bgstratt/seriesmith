@@ -133,7 +133,7 @@ class NativeBackendTest(unittest.TestCase):
 
     def test_it_answers_and_says_when_it_doesnt(self):
         self.assertIsNone(self.backend.ping())
-        self.assertIn("doesn't answer", ComfyUIBackend("local", "http://127.0.0.1:9").ping())
+        self.assertIn("doesn't answer", ComfyUIBackend("local", "http://127.0.0.1:0").ping())
 
     def test_a_file_goes_up_once_by_its_content_and_the_graph_names_it(self):
         pic = temp_file(self)

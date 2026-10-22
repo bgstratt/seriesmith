@@ -116,7 +116,7 @@ class ListingTest(unittest.TestCase):
         self.assertEqual(rembrandt["for"], ["subject"])
 
     def test_the_routes(self):
-        ctx = A.Context(tempfile.mkdtemp(), "http://127.0.0.1:9", env={})
+        ctx = A.Context(tempfile.mkdtemp(), "http://127.0.0.1:0", env={})
         status, data = A.get_presets(ctx, {})
         self.assertEqual((status, set(data)), (200, set(PR.KINDS)))
         self.assertEqual(set(A.get_presets(ctx, {"kind": "look"})[1]), {"look"})

@@ -6,10 +6,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [ROOT, os.environ.get("PYTHONPATH")]))
 
 # No test reaches a real backend: this machine's settings file, its proxy, its
-# ComfyUI and Comfy Cloud are all pointed at nothing (port 9 doesn't answer).
+# ComfyUI and Comfy Cloud are all pointed at nothing (port 0, refused at once: a
+# closed port such as 9 takes ~2 s to refuse on Windows).
 # A test that wants a backend gives it one (tests/fakes.py, test_render's
 # play_runner).
-_NOWHERE = "http://127.0.0.1:9"
+_NOWHERE = "http://127.0.0.1:0"
 os.environ["SERIESMITH_SETTINGS"] = os.path.join(ROOT, "tests", "_no_settings.json")
 os.environ["SERIESMITH_LOCAL_URL"] = _NOWHERE
 os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE

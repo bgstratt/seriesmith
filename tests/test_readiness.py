@@ -184,6 +184,27 @@ class ResolveTest(unittest.TestCase):
                          [("required", "ltx-2.3-22b-dev-fp8.safetensors")])
         self.assertTrue(r["blocked"][0]["url"].startswith("https://huggingface.co/"))
 
+    def test_ltx25_without_the_distilled_transformer_renders_on_dev(self):
+        """As LTX-2.3 ingredients: the distilled transformer is the
+        accelerator, so with only the dev one installed LTX-2.5 is degraded,
+        not blocked, and the pass renders on dev at 30 steps; the dev file
+        then picks the quality profile's schedule (recipe.sampling)."""
+        from seriesmith.targets.video.ltx2 import compile as LC
+        dev = "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors"
+        for pass_ in ("final", "proxy"):
+            r = resolve("ltx2", pass_, without(everything("ltx2"),
+                        "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors"))
+            self.assertEqual(r["blocked"], [], pass_)
+            self.assertEqual(r["files"]["model"], dev)
+            self.assertEqual(r["resolved"]["model"]["how"], "base")
+            self.assertEqual(r["values"]["steps"], 30)
+            self.assertEqual([m["tier"] for m in r["missing"]], ["accelerator"])
+        self.assertEqual(LC.sampling_mode(dev)[0], "dev")
+        # ... and without the dev one either, the base's own file is required
+        r = resolve("ltx2", "final", without(everything("ltx2"),
+                    "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors", dev))
+        self.assertEqual([(m["tier"], m["want"]) for m in r["blocked"]], [("required", dev)])
+
     def test_a_series_turbo_lora_is_the_accelerator(self):
         # a series config's own turbo LoRA name, not named like the family:
         # in the pass's lora slot it is still the accelerator (base, not blocked)
@@ -523,7 +544,7 @@ class ReadinessTest(unittest.TestCase):
             asked.append(path)
             raise urllib.error.URLError("refused")
         with mock.patch.object(J.Comfy, "_open", away):
-            graphs = E.target_graphs(TG.list_targets(), "http://127.0.0.1:9")
+            graphs = E.target_graphs(TG.list_targets(), "http://127.0.0.1:0")
         self.assertEqual(len(asked), 1, asked)
         self.assertGreater(len(graphs), 10)
         # the repo's copies still answer
@@ -535,7 +556,7 @@ class ReadinessTest(unittest.TestCase):
             raise RuntimeError("ComfyUI 500 on /api/userdata")
         asked.clear()
         with mock.patch.object(J.Comfy, "_open", broken):
-            E.target_graphs(TG.list_targets("video")[:3], "http://127.0.0.1:9")
+            E.target_graphs(TG.list_targets("video")[:3], "http://127.0.0.1:0")
         self.assertEqual(len(asked), 4)
 
     def test_route(self):
@@ -546,7 +567,7 @@ class ReadinessTest(unittest.TestCase):
                 return info
         with tempfile.TemporaryDirectory() as user:
             A._READY.clear()
-            ctx = A.Context(user, "http://127.0.0.1:9", comfy=C(), env={}, model_resolve=None)
+            ctx = A.Context(user, "http://127.0.0.1:0", comfy=C(), env={}, model_resolve=None)
             code, data = A.get_targets(ctx, {"ready": "1", "kind": "video"})
             self.assertEqual(code, 200, data)
             by = {t["id"]: t for t in data["targets"]}
@@ -702,7 +723,7 @@ class DownloadsDataTest(unittest.TestCase):
         self.assertEqual({t.id for t in TG.list_targets()
                           if any(m["tier"] == "accelerator" for m in t.models.values())},
                          {"minimax_h3_ref2va", "minimax_h3_fl2va", "minimax_h3_still",
-                          "wan22_i2v", "wan22_vace", "ltx2_ingredients", "flux2_klein",
+                          "wan22_i2v", "wan22_vace", "ltx2", "ltx2_ingredients", "flux2_klein",
                           "flux2_klein_edit", "ltx2_voice"})
         self.assertEqual({p for p, m in TG.load_target("ltx2").models.items()
                           if m["tier"] == "optional"},

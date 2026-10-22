@@ -48,8 +48,11 @@ user's side.
 - Write files through `seriesmith/core/fileio.py` (`write_json`, `write_bytes`, `replace`,
   `read_json_or`, ...): atomic, LF, the Windows retry. Never a bare `open(path, "w")` for
   a file something else reads, nor a bare `os.replace`.
-- Tests: `.venv\Scripts\python -m pytest` (the whole suite takes ~8 minutes;
-  run the files you touched first). `tests/conftest.py` points every test at empty
+- Tests: `.venv\Scripts\python -m pytest -n auto` (the whole suite, about a minute across
+  every core: pytest-xdist, in the `test` extra; one file runs plainly, without `-n`). Run
+  the files you touched first. Unreachable backends are `127.0.0.1:0`, refused at once:
+  a closed port such as 9 takes ~2 s to refuse on Windows, which made the serial suite 11
+  minutes. `tests/conftest.py` points every test at empty
   settings and unreachable backends; keep it that way. This machine's own models
   (`targets\` beside the settings file) must never reach a test or a generated file
   (`tools/make_models_md.py` and `tools/make_refs_md.py` read the shipped targets only).

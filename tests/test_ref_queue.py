@@ -120,7 +120,7 @@ class KreagenBackendTest(unittest.TestCase):
         from unittest import mock
         from seriesmith import kreagen as K
         out = io.StringIO()
-        argv = ["kreagen", "--project-root", self.ep, "--comfy", "http://127.0.0.1:9",
+        argv = ["kreagen", "--project-root", self.ep, "--comfy", "http://127.0.0.1:0",
                 "--workflow", REFS_WF, "--timeout", "30", *args]
         with mock.patch.object(sys, "argv", argv), redirect_stdout(out),                 mock.patch("seriesmith.backends.available", return_value={LANE: self.fb}):
             rc = K.main()

@@ -824,7 +824,7 @@ class WorkflowLookupTest(unittest.TestCase):
             self.assertEqual(where, WORKFLOW)
             # not saved in ComfyUI, or no ComfyUI at all: the repo copy
             comfy.userdata.clear()
-            for url in (comfy.url, "http://127.0.0.1:9", None):
+            for url in (comfy.url, "http://127.0.0.1:0", None):
                 g, where = J.resolve_workflow(None, J.WORKFLOW_NAME, url)
                 self.assertEqual(os.path.normcase(where), os.path.normcase(WORKFLOW))
             self.assertEqual(J.resolve_workflow(None, "nope.json", None, required=False),

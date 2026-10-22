@@ -1295,7 +1295,9 @@ render command and the review cut treat the episode as one. What changes for an 
   ```
 
   Then `profile: quality` on a `##` shot or a `#` header. A `steps:` line on such a shot
-  wins over the profile's 30. The dev file is optional: without it installed, `seriesmith   targets` says the feature is off and everything else still renders.
+  wins over the profile's 30. The dev file is optional: without it installed, `seriesmith   targets` says the feature is off and everything else still renders. With *only* the dev
+  file installed, LTX-2.5 is degraded rather than not ready: every shot renders on it, on
+  the quality profile, and the take says so.
 
 To try a shot on LTX without touching the script, retarget it from the editor or with
 `seriesmith override <ep> sh040 --target ltx2` (`--target built` undoes it).
