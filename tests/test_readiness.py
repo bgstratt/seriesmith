@@ -375,10 +375,15 @@ class JobResolveTest(ApiTest):
 
     def test_nothing_known_changes_nothing(self):
         job = self.job()
-        before = J.sidecar_for(job)
+
+        def record():
+            # the record as it would be written, less its "queued" clock time: a
+            # second can tick over between the two calls on a loaded machine
+            return {k: v for k, v in J.sidecar_for(job).items() if k != "queued"}
+        before = record()
         self.assertEqual(J.resolve_models(job, None), {})
         J.resolve_models(job, lister({}), None, None, {})      # no folder listed
-        self.assertEqual(J.sidecar_for(job), before)
+        self.assertEqual(record(), before)
 
     def test_render_skips_a_missing_required_file_before_a_take(self):
         files = without(ref2va_files(), "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors")
