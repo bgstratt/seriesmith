@@ -443,8 +443,8 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | required | `ltx2`, `ltx2_voice` (accelerator) | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
-| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2` (optional: the quality profile (LTX-2.5 dev transformer)), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
 
 **Gemma 4 12B with the LTX 2.5 projection** (`ltx2.5-text-encoder`)
 
