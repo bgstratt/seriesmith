@@ -16,7 +16,7 @@ import { pictureOf } from "../lib/pictures";
 import { getPath, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pickCreated, pictureModel, placeFor, shotsBlock, withClip,
   wordsOnlyPlace,
 } from "../lib/simple";
 import { COMMON_SIZES, fitSize } from "../lib/size";
@@ -210,6 +210,22 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
+  // + Create: the person or place its card adds is picked (until the card closes)
+  const creating = useRef<"who" | "where" | null>(null);
+  const added = useApp((s) => s.cardAdded);
+  const cardOpen = useApp((s) => !!s.subjectCard);
+  useEffect(() => {
+    const picked = added && creating.current ? pickCreated(creating.current, added, who) : null;
+    if (!picked) return;
+    if ("who" in picked) setWho(picked.who);
+    else setWhere(picked.where);
+    creating.current = null;
+  }, [added]);
+  useEffect(() => { if (!cardOpen) creating.current = null; }, [cardOpen]);
+  const create = (kind: "character" | "location") => {
+    creating.current = kind === "character" ? "who" : "where";
+    openSubjectCard({ kind, id: null });
+  };
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
   const [busy, setBusy] = useState(false);
@@ -367,7 +383,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           <span className="sm-label">Who</span>
           <div className="h3-col" style={{ gap: 4 }}>
             <Chips ep={ep} value={who} options={cast.chars} onChange={setWho}
-              add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Create" />
+              add={() => create("character")} addLabel="+ Create" />
             {picture && it?.capabilities?.mode !== "edit" && who.length > 0 && (
               <span className="sm-note">This model works from words: they're described, not drawn from their pictures.</span>
             )}
@@ -382,7 +398,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                   onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
               )}
               <button className="h3-btn" title="A place to keep: its name, and a picture you have or one made from words"
-                onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Create</button>
+                onClick={() => create("location")}>+ Create</button>
             </span>
           </div>
 

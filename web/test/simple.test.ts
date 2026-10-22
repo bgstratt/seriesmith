@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, clipOwnSize, durFor, nextClipIds, pickCreated, placeFor, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
 import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
@@ -17,6 +17,14 @@ describe("simple mode's clips", () => {
     expect(placeFor("c004", spec({ prompt: "A lighthouse at dusk,\n  waves breaking." }))).toEqual({
       id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking." },
     });
+  });
+
+  it("picks what + Create made: a person into Who once, a place as Where", () => {
+    expect(pickCreated("who", { kind: "character", id: "mara" }, ["nell"])).toEqual({ who: ["nell", "mara"] });
+    expect(pickCreated("who", { kind: "character", id: "nell" }, ["nell"])).toEqual({ who: ["nell"] });
+    expect(pickCreated("where", { kind: "location", id: "gallery" }, [])).toEqual({ where: "gallery" });
+    expect(pickCreated("who", { kind: "location", id: "gallery" }, [])).toBeNull();
+    expect(pickCreated("where", { kind: "character", id: "mara" }, [])).toBeNull();
   });
 
   it("keeps words-only places out of Where", () => {

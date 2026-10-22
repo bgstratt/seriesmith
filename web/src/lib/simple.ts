@@ -80,6 +80,15 @@ export function wordsOnlyPlace(id: string, entry: Raw | undefined): boolean {
   return /^c\d+_place$/.test(id) && !entry?.plate;
 }
 
+/** What a + Create picks, once its card adds the entry: a person added to Who
+ * (once), a place as Where; null when the card added something else. */
+export function pickCreated(from: "who" | "where", added: { kind: string; id: string }, who: string[]):
+  { who: string[] } | { where: string } | null {
+  if (from === "who" && added.kind === "character") return { who: who.includes(added.id) ? who : [...who, added.id] };
+  if (from === "where" && added.kind === "location") return { where: added.id };
+  return null;
+}
+
 /** The clip's lines: its sequence header, then its shot. */
 export function clipBlock(seq: string, shot: string, location: string, spec: ClipSpec, seriesTarget: string): string[] {
   return [`# ${seq}  ${location}`, "", ...shotLines(shot, spec, seriesTarget)];

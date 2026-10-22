@@ -6,7 +6,7 @@
 // generate, Add and tour…); an existing one changes only its own entry.
 
 import { useEffect, useMemo, useState } from "react";
-import { afterAuthoredWrite, loadRefs, openSubjectCard } from "../actions";
+import { afterAuthoredWrite, loadRefs, noteCardAdded, openSubjectCard } from "../actions";
 import { api, host } from "../host";
 import {
   CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, refIdOf, refsPrefix, serialize, setPath, slug,
@@ -120,7 +120,10 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
       }
       if (firstStep) await first.run(ep, id);
       void loadRefs(ep);
-      if (isNew) openSubjectCard({ kind, id });
+      if (isNew) {
+        noteCardAdded({ kind, id });
+        openSubjectCard({ kind, id });
+      }
     }
   }
 
