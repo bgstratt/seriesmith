@@ -25,7 +25,7 @@ failed exits 1.
 | `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
 | `seriesmith all <episode>` | build → refs → render → assemble (`--skip-build` keeps the shotlists on disk) |
 | `seriesmith targets [<episode>]` | Which models the running ComfyUI can render, what to download for the rest |
-| `seriesmith target-from-workflow <workflow> [<episode>]` | A ComfyUI workflow proposed as a model (`--save` writes it into the show) |
+| `seriesmith target-from-workflow <workflow> [<episode>]` | A ComfyUI workflow proposed as a model (`--save` writes it into the show; `--save --every-show` for every show) |
 | `seriesmith backends` | Where jobs can run on this machine, and whether each answers (`--try local`) |
 | `seriesmith serve` / `stop` | The editor's server (below) |
 
@@ -407,14 +407,16 @@ seriesmith targets Shows\ep05 --kind video --json
 seriesmith targets --install-workflow ltx2           # its graph into ComfyUI to edit (--revert-workflow undoes it)
 seriesmith target-from-workflow my_wan.json Shows\ep05            # the proposal and its notes
 seriesmith target-from-workflow my_wan.json Shows\ep05 --save --id my_wan
+seriesmith target-from-workflow my_wan.json --save --every-show --id my_wan   # for every show
 ```
 
 - `target-from-workflow` reads a saved workflow (a name among ComfyUI's, or a `.json`
   path) against the running ComfyUI's `/object_info`, and proposes a video or image model:
   which widget takes the prompt, size, length, seed, steps and each model file, and which
-  output node saves the take. `--save` writes it into `<show>/targets/<id>/target.json`.
-- A model for every show, a Comfy Router model, limits, and switching on a built-in draft
-  are done in the editor's Models window ([EDITOR.md](EDITOR.md), "The Models window").
+  output node saves the take. `--save` writes it into `<show>/targets/<id>/target.json`;
+  `--save --every-show` into `targets/<id>/` beside the settings, for every show.
+- A Comfy Router model, limits, and switching on a built-in draft are done in the editor's
+  Models window ([EDITOR.md](EDITOR.md), "The Models window").
 
 ### Backends and the editor's server
 

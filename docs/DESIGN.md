@@ -150,7 +150,7 @@ Models live in three places (a later one can't take an earlier one's id):
 | Where | Scope | Written by |
 |---|---|---|
 | `seriesmith/targets/<kind>/<id>/` | built-in | the repo |
-| `targets/<id>/` beside the settings file | every show on this machine | the editor's Models window |
+| `targets/<id>/` beside the settings file | every show on this machine | the Models window, `seriesmith target-from-workflow --save --every-show` |
 | `<show>/targets/<id>/` | one show | the Models window, `seriesmith target-from-workflow --save` |
 
 A new or untested model is a **draft**: listed and probed, but not offered for

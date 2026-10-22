@@ -586,6 +586,8 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [a, setA] = useState<Answers | null>(null);
   // what the workflow makes: a video model, or an image model for refs (auto: read from the graph)
   const [kind, setKind] = useState<"auto" | "video" | "image">("auto");
+  // where it's kept: every show (beside seriesmith's settings), or this show's targets folder
+  const [scope, setScope] = useState<"user" | "show">("user");
 
   useEffect(() => {
     void loadWorkflows().then(setFiles);
@@ -599,7 +601,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
   };
   const save = async () => {
     if (!proposal || !a) return;
-    if (await saveCustomTarget(applyAnswers(proposal, a))) onClose();
+    if (await saveCustomTarget(applyAnswers(proposal, a), { scope })) onClose();
   };
   const unanswered = proposal?.ambiguous.filter((x) => !a?.chosen[x.param]) ?? [];
 
@@ -696,6 +698,11 @@ function Wizard({ onClose }: { onClose: () => void }) {
           )}
           <WorkflowNotes p={proposal} />
           <div className="h3-row h3-small">
+            <select className="h3-in" value={scope} onChange={(e) => setScope(e.target.value as "user" | "show")}
+              title="Every show: kept beside seriesmith's settings. This show: in its targets folder.">
+              <option value="user">for every show</option>
+              <option value="show">for this show only</option>
+            </select>
             <button className="h3-btn" disabled={saving || !a.id || !!proposal.problems.length}
                     onClick={() => void save()}>
               <i className={saving ? "pi pi-spin pi-spinner" : "pi pi-save"} /> Save as a draft
