@@ -2101,7 +2101,7 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
     """seriesmith target-from-workflow <workflow> [<episode>] [--save] ...: propose
     the target.json for one of ComfyUI's saved workflows (inspector), print what
     it could not work out, and with --save write it into the show's own
-    targets."""
+    targets (with --every-show, beside the settings: every show's)."""
     import json as _json
     from seriesmith import inspector as IN
     ap = argparse.ArgumentParser(prog="seriesmith target-from-workflow",
@@ -2111,6 +2111,9 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
     ap.add_argument("--id", help="the target id (default: from the workflow's name)")
     ap.add_argument("--label", help="how the editor names it")
     ap.add_argument("--save", action="store_true", help="write it into <show>/targets/<id>/")
+    ap.add_argument("--every-show", action="store_true",
+                    help="with --save: keep it for every show (targets/ beside the settings) "
+                         "rather than one show's; no episode needed")
     ap.add_argument("--json", action="store_true", help="print the whole answer as JSON")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188")
     args = ap.parse_args(argv)
@@ -2164,7 +2167,11 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
     else:
         prop = r["proposal"]
         print(f"\n  {name} -> target {prop['id']} ({prop['label']})")
-        print(f"      audio {prop['capabilities']['audio']}, "
+        caps = prop.get("capabilities") or {}
+        # an image model has no sound: its mode (text to image, or edit) instead
+        what = (f"audio {caps['audio']}" if "audio" in caps
+                else f"an image model ({caps.get('mode', 't2i')})")
+        print(f"      {what}, "
               f"{len(prop['binding']['params'])} widgets bound, "
               f"{len(prop['models'])} model file(s)")
         for param, how in sorted(r["matched"].items()):
@@ -2177,21 +2184,22 @@ def cmd_target_from_workflow(argv: list[str]) -> int:
             print(f"  !! {p}")
     if not args.save:
         if not args.json:
-            print("\n  nothing written (pass --save with an episode to keep it)\n")
+            print("\n  nothing written (pass --save with an episode, or --save --every-show, "
+                  "to keep it)\n")
         return 0 if not r["problems"] else 1
-    if not root:
-        print("  !! --save needs the episode (or series) folder to save into")
+    if not root and not args.every_show:
+        print("  !! --save needs the episode (or series) folder to save into, or --every-show")
         return 1
     problems = IN.validate_spec(r["proposal"], J.graph_from(data, name), info)
     if problems:
         for p in problems:
             print(f"  !! {p}")
         return 1
-    path = IN.save_spec(root, r["proposal"])
-    print(f"\n  wrote {path}")
+    path = IN.save_spec(root or ".", r["proposal"],
+                        base=J.TG.user_folder() if args.every_show else None)
+    print(f"\n  wrote {path}{'  (every show)' if args.every_show else ''}")
     print(f"      it is a draft: render one shot on it "
-          f"(render {os.path.basename(root)} --target {r['proposal']['id']}) before the "
-          f"editor offers it\n")
+          f"(render <episode> --target {r['proposal']['id']}) before the editor offers it\n")
     return 0
 
 

@@ -610,7 +610,7 @@ Save the graph in ComfyUI, then **Add a model from a workflow…**:
    (`<show>/targets/<id>/target.json`). It's a draft until enabled; **Probe** it first.
 
 `seriesmith target-from-workflow <workflow> [<episode>] --save` is the same thing without
-the UI.
+the UI (`--save --every-show` for every show).
 
 ### A character or a place from a frame
 

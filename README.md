@@ -112,7 +112,7 @@ every show (`targets/` beside the settings file) or for one show
 video model and hosted image model has a **Limits** form (length, size, prompt length,
 pictures, sound); a change to a built-in one is kept on this machine.
 From the command line, `seriesmith target-from-workflow <workflow> <episode> --save`
-saves a workflow as that show's model.
+saves a workflow as that show's model (`--save --every-show`: every show's).
 
 **Backends** are where a job runs: `local` (your own ComfyUI, straight to its
 own API), `cloud` (Comfy Cloud), `deployment:<target>` (a deployed
