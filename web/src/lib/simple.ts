@@ -2,11 +2,13 @@
 // the Clips project (seriesmith/clips.py) -- `# cl007  <place>` / `## c007` --
 // written from a few fields. A clip with no place picked gets a place of its
 // own, described in words (or by the prompt): words only (it renders at once,
-// imagined its own way), or with a plate made before it renders, so the place
-// looks the same in every clip that uses it (POST /seriesmith/clip/queue).
+// imagined its own way), or named, a place kept with a plate made before it
+// renders, so it looks the same in every clip that picks it
+// (POST /seriesmith/clip/queue).
 
 import type { TargetTemplate } from "../types";
-import { picturePath, type Raw } from "./seriesForm";
+import { idProblem, picturePath, type Raw } from "./seriesForm";
+import { castId } from "./wizard";
 import { writeShot, type DialogueLine } from "./shotForm";
 import { fitSize } from "./size";
 
@@ -69,12 +71,24 @@ export function pictureModel(mode: string | undefined): boolean {
   return mode !== "pano";
 }
 
-/** The place a clip without one gets: an id of its own, described in words;
- * with `picture`, a plate (where the show keeps plates) to be made first. */
-export function placeFor(shot: string, spec: ClipSpec, prefix: string, picture = false): { id: string; entry: Raw } {
-  const id = `${shot}_place`;
+/** The place a clip without one gets, described in words: unnamed, an id of
+ * the clip's own and words only; named, the place under that name with a plate
+ * (where the show keeps plates) to be made first, kept to pick again. */
+export function placeFor(shot: string, spec: ClipSpec, prefix: string, name = ""): { id: string; entry: Raw } {
   const description = (spec.placeText.trim() || spec.prompt.trim()).replace(/\s+/g, " ");
-  return { id, entry: picture ? { description, plate: picturePath("location", id, prefix)! } : { description } };
+  const id = name.trim() ? castId(name) : `${shot}_place`;
+  return { id, entry: name.trim() ? { description, plate: picturePath("location", id, prefix)! } : { description } };
+}
+
+/** Why a new place's name can't be used ("" when fine, or when there is none). */
+export function placeNameProblem(raw: Raw, name: string): string {
+  return name.trim() ? idProblem(raw, castId(name)) : "";
+}
+
+/** A place of a clip's own, words only: kept out of Where (one named, or made
+ * with a plate before names were asked for, is there to pick). */
+export function wordsOnlyPlace(id: string, entry: Raw | undefined): boolean {
+  return /^c\d+_place$/.test(id) && !entry?.plate;
 }
 
 /** The clip's lines: its sequence header, then its shot. */

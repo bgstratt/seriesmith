@@ -16,7 +16,8 @@ import { pictureOf } from "../lib/pictures";
 import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, placeNameProblem, shotsBlock, withClip,
+  wordsOnlyPlace,
 } from "../lib/simple";
 import { COMMON_SIZES, fitSize } from "../lib/size";
 import type { TargetTemplate } from "../types";
@@ -209,8 +210,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
   const [placeText, setPlaceText] = useState("");
-  // a new place: words only (renders at once), or a picture made first
-  const [placePicture, setPlacePicture] = useState(false);
+  // a new place: words only (renders at once), or named: kept, its picture made first
+  const [placeName, setPlaceName] = useState("");
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
@@ -235,14 +236,16 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       .filter(([, e]) => (typeof e?.kind === "string" ? e.kind : "character") === "character")
       .map(([id, e]) => ({ id, name: typeof e?.name === "string" ? e.name : id, kind: "character", onScreen: true,
         pic: pictureOf(raw, refs, "subjects", id) }));
-    const places: Named[] = Object.keys((getPath(raw ?? {}, ["locations"]) ?? {}) as object)
-      .filter((id) => !/^c\d+_place$/.test(id) || id === where)
+    const locs = (getPath(raw ?? {}, ["locations"]) ?? {}) as Record<string, Raw>;
+    const places: Named[] = Object.keys(locs)
+      .filter((id) => !wordsOnlyPlace(id, locs[id]) || id === where)
       .map((id) => ({ id, name: id.replace(/_/g, " "), pic: pictureOf(raw, refs, "locations", id) }));
     return { chars, places };
   }, [raw, refs, where]);
 
   const filled = mode === "shots" ? rows.filter((r) => r.prompt.trim()) : [];
-  const ready = mode === "shots" ? filled.length > 0 : !!prompt.trim();
+  const nameProblem = !where && raw ? placeNameProblem(raw, placeName) : "";
+  const ready = (mode === "shots" ? filled.length > 0 : !!prompt.trim()) && !nameProblem;
   // one take (or picture) a click; another is another click
   const runs = mode === "shots" ? filled.length : 1;
   const paid = isPaidBackend(backend) || (picture ? imageTarget === "krea_2_router" : target === "seedance_2_5");
@@ -261,10 +264,12 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         : [{ ...base, prompt, size, dur: durFor(dur, tpl, fps), still: picture }];
       let location = where;
       if (!location) {
-        // a place of the clip's own: words only, or its plate made first
+        // a place of the clip's own: words only, or named, its plate made first
         const series = await api().source(ep, "series");
         const cur = JSON.parse(series.text) as Raw;
-        const p = placeFor(shot, specs[0], refsPrefix(cur), placePicture);
+        const taken = placeNameProblem(cur, placeName);
+        if (taken) throw new Error(taken);
+        const p = placeFor(shot, specs[0], refsPrefix(cur), placeName);
         await api().putSource({ ep, file: "series", text: serialize(setPath(cur, ["locations", p.id], p.entry), series.text),
                                 base_hash: series.hash, rebuild: false });
         location = p.id;
@@ -300,6 +305,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       setRows((rs) => rs.map((x) => ({ ...x, prompt: "" })));
       setDialogue([]);
       setPlaceText("");
+      if (placeName.trim()) { setPlaceName(""); setWhere(location); }   // there to pick: picked for the next
     } catch (e) {
       host().toast("error", "The clip wasn't queued", (e as Error).message);
     } finally {
@@ -390,10 +396,11 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
                 <input className="h3-in" aria-label="The new place, in words" value={placeText}
                   placeholder="a stone lighthouse on a cliff at dusk, storm clouds (empty: from what happens)"
                   onChange={(e) => setPlaceText(e.target.value)} />
-                <label className="sm-check" title="Slower to start, but the place then looks the same in every clip that picks it">
-                  <input type="checkbox" checked={placePicture} onChange={(e) => setPlacePicture(e.target.checked)} />
-                  <span>Make a picture of it first (so it looks the same each time)</span>
-                </label>
+                <input className="h3-in" aria-label="The new place's name" value={placeName}
+                  placeholder="its name, to keep it (empty: this clip only)"
+                  title="Named, its picture is made first, so it looks the same in every clip that picks it, and it's in Where from then on"
+                  onChange={(e) => setPlaceName(e.target.value)} />
+                {nameProblem && <span className="h3-small h3-error">{nameProblem}</span>}
               </>
             )}
           </div>

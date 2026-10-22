@@ -471,6 +471,11 @@ multi-shot clip, or a series with episodes.
       then a step waits for them, makes them live and asks for the takes.
       Checked live (the local lane paused): the place's picture and the
       waiting step queued in order.
+- [x] A new place in words is named to be kept (2026-10-22): the name is its id
+      (refused when taken), its plate made first, and it is in Where from then
+      on. Unnamed, `c007_place`, words only, kept out of Where. Was a "Make a
+      picture of it first" box: the place it made was saved as `c007_place`
+      but hidden from Where, so it couldn't be picked again.
 - [x] A picture: the clip's first keyframe (`first: generate`, marked
       `// a picture`) on the image model picked, its candidates made live as
       they finish; an edit model waits for the people's and the place's

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, placeNameProblem, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
 import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
@@ -18,9 +18,23 @@ describe("simple mode's clips", () => {
     expect(placeFor("c004", spec(), "../refs/")).toEqual({
       id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking on the rocks." },
     });
-    // with a picture made first
-    expect(placeFor("c004", spec(), "../refs/", true).entry.plate).toBe("../refs/_bg/c004_place.png");
+    // named: kept under its name, its picture made first
+    expect(placeFor("c004", spec(), "../refs/", "The Lighthouse Gallery")).toEqual({
+      id: "lighthouse_gallery",
+      entry: { description: "A lighthouse at dusk, waves breaking on the rocks.", plate: "../refs/_bg/lighthouse_gallery.png" },
+    });
     expect(placeFor("c004", spec({ placeText: "a rocky headland" }), "../refs/").entry.description).toBe("a rocky headland");
+  });
+
+  it("refuses a place's name already taken, and keeps words-only places out of Where", () => {
+    const raw = { subjects: { mara: {} }, locations: { pier: {} } };
+    expect(placeNameProblem(raw, "")).toBe("");
+    expect(placeNameProblem(raw, "the pier")).toMatch(/already a location called pier/);
+    expect(placeNameProblem(raw, "Mara")).toMatch(/already a subject called mara/);
+    expect(placeNameProblem(raw, "Harbour wall")).toBe("");
+    expect(wordsOnlyPlace("c001_place", { description: "a beach" })).toBe(true);
+    expect(wordsOnlyPlace("c002_place", { description: "a gallery", plate: "../refs/_bg/c002_place.png" })).toBe(false);
+    expect(wordsOnlyPlace("pier", { description: "a pier" })).toBe(false);
   });
 
   it("writes a clip as a sequence of one shot, naming its model only when it isn't the series'", () => {

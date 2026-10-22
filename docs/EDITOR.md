@@ -72,9 +72,10 @@ settings and the text windows wait in Advanced. It is remembered in this browser
     if you have one, a picture of them (it is taken in and used as it is; without one it
     is made from the description).
   - **Where**: pick a place by its picture, **+ Place**, or say a new one in words (empty:
-    the prompt is the place). **Make a picture of it first (so it looks the same each
-    time)** makes its picture before the clip renders, and the place is then there to pick
-    for the next clip; left off, each clip imagines it its own way.
+    the prompt is the place). Give it a **name** to keep it: its picture is made before
+    the clip renders, so it looks the same in every clip, and it is in **Where** from then
+    on (picked for the next clip). Left unnamed, it is this clip's only, and each clip
+    imagines it its own way.
   - **Said** (a clip with people in it): the lines, under who says them.
 - The settings: **Model** (the video model, what each is good at in its tooltip, this
   machine's default marked: the one picked in Settings, else the first installed, H3 first;
