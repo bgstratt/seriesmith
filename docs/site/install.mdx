@@ -806,9 +806,10 @@ does the same.
   exercise most of the format, including shots retargeted onto other models.
 - [docs/AUTHORING.md](/authoring) is the format itself: every field, the frame
   grids, the syllable budget, how to break a scene into shots.
-- To draft with an AI assistant, `python tools/make_prompts.py` packages that guide as a
-  skill in `build/skill/seriesmith-episode-script/` — copy the folder into `.claude/skills/`
-  for Claude Code, or upload the zip beside it on claude.ai. It carries the build, so the
+- To draft with an AI assistant, the guide comes as a skill:
+  `prompts/seriesmith-episode-script.zip` (in the repo, and in a Manager install's
+  `custom_nodes\seriesmith\prompts\`). Upload it in Claude (Settings → Capabilities →
+  Skills), or unzip it into `.claude/skills/` for Claude Code. It carries the build, so the
   assistant can check a script with nothing installed.
 
 ### A first episode

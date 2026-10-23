@@ -90,11 +90,11 @@ The series config must have a `series` block, `style.look`, `subjects` (each wit
 and `design` unless they are only ever a voice), and `locations` with a `description` and a
 `plate` each. `--check` names whichever is missing.
 
-Drafting with an AI assistant: `python tools/make_prompts.py` packages the guide as a skill,
-`seriesmith-episode-script`. `build/skill/seriesmith-episode-script/` (generated, not in the repo) is the whole skill (the
-guide, a worked screenplay conversion from `docs/SCRIPT_CONVERSION.md`, and a copy of `build` to
-validate with): copy the folder into `.claude/skills/` for Claude Code, or upload
-`build/skill/seriesmith-episode-script.zip` on claude.ai. `prompts/SKILL.md` is the skill's
+Drafting with an AI assistant: the guide comes as a skill, `seriesmith-episode-script`.
+`prompts/seriesmith-episode-script.zip` is the whole skill (the guide, a worked screenplay
+conversion from `docs/SCRIPT_CONVERSION.md`, and a copy of `build` to validate with): upload it
+in Claude (Settings → Capabilities → Skills), or unzip it into `.claude/skills/` for Claude
+Code. `python tools/make_prompts.py` rebuilds it. `prompts/SKILL.md` is the skill's
 text alone, and `prompts/seriesmith-script.instructions.md` the same guide for Cursor, Copilot or
 any system prompt. Edit the docs, not the copies. Whatever writes the script, `--check`
 and `--pace` are what say it is correct.

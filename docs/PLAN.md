@@ -332,6 +332,12 @@ With the UI there to try each one:
       prompts/ and the script-writing skill, seriesmith-episode-script, which
       bundles the build (scripts/check.py) so a script can be checked with nothing
       installed.
+- [x] The skill's zip committed (2026-10-22): prompts/seriesmith-episode-script.zip,
+      so installing it is a download, not a clone and a Python tool (and a Manager
+      install has it in custom_nodes\seriesmith\prompts\). Stamped with
+      pyproject's version, not the commit, so the same sources give the same zip;
+      test_docs checks its text against AUTHORING.md, not the build it bundles
+      (refreshed by make_prompts before a release).
 - [x] The h3 names tidied away: routes /seriesmith/..., events seriesmith.*,
       seriesmith.commands (was h3cli), the h3<module> aliases, the config folder,
       SERIESMITH_* variables (each target's workflow override is

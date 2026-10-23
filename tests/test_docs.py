@@ -56,6 +56,21 @@ class TestScriptSkill(unittest.TestCase):
                     f"{rel} is out of date -- run `python tools/make_prompts.py` "
                     f"and commit the result")
 
+    def test_zip_up_to_date(self):
+        """The committed skill zip (what a user installs) says what the guide says. Only its
+        text: the build it bundles is refreshed before a release, not on every change."""
+        import zipfile
+        path = os.path.join(ROOT, "prompts", P.NAME + ".zip")
+        self.assertTrue(os.path.isfile(path), path)
+        text = P.body()
+        with zipfile.ZipFile(path) as zf:
+            for arc, want in ((f"{P.NAME}/SKILL.md", P.bundle_skill(text)),
+                              (f"{P.NAME}/references/script_conversion.md", P.bundle_breakdown())):
+                with self.subTest(file=arc):
+                    self.assertEqual(zf.read(arc).decode("utf-8"), want,
+                                     f"prompts/{P.NAME}.zip is out of date -- run "
+                                     "`python tools/make_prompts.py` and commit the result")
+
 
 class TestSiteDocs(unittest.TestCase):
     """The docs site's pages are the user docs."""
