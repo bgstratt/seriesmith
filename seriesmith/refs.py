@@ -2230,7 +2230,8 @@ def keyframe_freshness(s: Series, shot: str, which: str, pass_: str) -> dict:
     return {"state": "ok", "why": "", "cut_from": cut_from, "wants": wants}
 
 
-def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False) -> dict:
+def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False,
+                       cut_at_start: bool = False) -> dict:
     """Before a render: every `first: continuity` keyframe of `shots` (None: all)
     that a target reads. Each such shot is `live`: its render cuts its first
     frame again as it starts (continuity_at_start, the H3ContinuityFrame node),
@@ -2241,7 +2242,11 @@ def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False)
     previous shot is in the same batch or has a take rendering is `wait`: cut
     at start. An error only when there is nothing to start from, now or coming.
     Returns {"live": {shot: {after, pass}}, "cut": [{shot, from, why}], "wait":
-    [{shot, after, take?}], "errors": [{shot, error}]}; a dry run cuts nothing."""
+    [{shot, after, take?}], "errors": [{shot, error}]}; a dry run cuts nothing.
+    `cut_at_start`: the render cuts the first frame itself as it starts, before its
+    inputs are staged (seriesmith's queue, runner.enqueue_render), so a shot whose
+    previous shot has its first take coming in this run waits for it instead of
+    being held for want of a frame to wire now."""
     out = {"live": {}, "cut": [], "wait": [], "errors": []}
     batch = set(shots) if shots else None
     for (shot, which), need in keyframe_needs(s.ep).items():
@@ -2270,6 +2275,9 @@ def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False)
         if f["state"] not in ("missing", "stale"):
             continue
         if f["wants"] is None:
+            if pending and cut_at_start:
+                out["wait"].append(pending)             # cut when its render starts
+                continue
             if pending:
                 # nothing to stand in until the take ahead lands: the graph needs a frame
                 out["live"].pop(shot, None)

@@ -193,6 +193,17 @@ class KeyframeTest(unittest.TestCase):
         self.assertEqual(fresh()["state"], "own")
         self.assertEqual(R.refresh_continuity(self.s, "proxy", ["sh020"])["cut"], [])
 
+    def test_a_new_chain_waits_for_its_first_take(self):
+        # nothing rendered yet: sh010 and sh020 queued together the first time. The
+        # queue cuts sh020's frame when it starts, so it waits for sh010 (it was held:
+        # "sh010 has no take to start from (render it once, then queue the chain)")
+        res = R.refresh_continuity(self.s, "proxy", ["sh010", "sh020"], cut_at_start=True)
+        self.assertEqual((res["wait"], res["errors"]), ([{"shot": "sh020", "after": "sh010"}], []))
+        self.assertEqual(res["live"], {"sh020": {"after": "sh010", "pass": "proxy"}})
+        # a render that wires the frame now (the command line's) still can't
+        res = R.refresh_continuity(self.s, "proxy", ["sh010", "sh020"])
+        self.assertEqual([e["shot"] for e in res["errors"]], ["sh020"])
+
     def test_graph_reads_the_continuity_frame_at_start(self):
         from types import SimpleNamespace as NS
         g = {"1": {"class_type": "LoadImage", "inputs": {"image": "h3pipe/abc.png"}},
