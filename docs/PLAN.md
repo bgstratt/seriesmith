@@ -890,6 +890,14 @@ shown as pictures, each filling a text that stays editable.
       a plate's own focus can outweigh on H3.
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
+- [x] Relights light what's there (2026-10-23): a place relight that named its source
+      ("the street lamps lit", "a brazier burning") drew it in; the sources became "any …
+      already there" or off-frame, and the "add nothing new: no lamps, signs…" tail was
+      dropped again (a negation still puts the word in the prompt). Both dialogs warn.
+- [ ] Relights that name no fixture at all: dusk and night still say "any windows or lamps
+      already there", neon "as if from neon signs off-frame", streetlight "street lamps just
+      out of frame". Describe only the light ("warm pools of light", "hard orange sodium
+      light from above")? Needs a test pass across plates with and without lamps first.
 
 ## Refactor pass ✅ (2026-10-20)
 
