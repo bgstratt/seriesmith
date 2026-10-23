@@ -693,7 +693,11 @@ script call for is listed here.
   emergency red, sunbeams, a flashlight) and, for a character's view or a prop, portrait
   light (Rembrandt, rim, top light, low-key noir, soft beauty, silhouette). A plate and a
   figure each get their own wording. Picking one fills the instruction, which stays yours
-  to edit or replace; the edit model changes the light and keeps the rest.
+  to edit or replace; the edit model changes the light and keeps the rest. **Read it
+  first:** a relight names where its light comes from, and the edit model can draw in what
+  it names. The presets say "any lamps already there" or put the source off-frame, and
+  end with "add nothing new", but a model can still add a lamp, a sign or a fire: cut what
+  the picture hasn't got from the instruction, and compare the result with the original.
 - **Re-render…** on a sequence's header (Shots tab) renders all its shots again as new takes
   with the same seeds, so only what you changed (a relight, a character's new sheet) differs.
   Your takes stay; pick the new ones as usual. **Re-render stale** above the list does the

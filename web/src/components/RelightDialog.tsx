@@ -94,8 +94,9 @@ function RelightBody({ sequence }: { sequence: string }) {
       <div className="h3-col" style={{ gap: 8 }}>
         <PresetPicker tiles={tiles} value={text} onPick={setText}
           title="Relight: the same plates at another time, in other weather or light" />
+        <div className="h3-small h3-muted">A relight names its light, and the edit model may draw in what it names (a lamp, a sign, a fire) where there's none: read the instruction, cut what the picture hasn't got, and compare the result with the original.</div>
         <textarea className="h3-in" rows={3} value={text}
-          placeholder="Or say it, e.g. “the same place at night in heavy rain, lit by the street lamps”"
+          placeholder="Or say it, e.g. “the same place at night in heavy rain, its windows glowing”"
           onChange={(e) => setText(e.target.value)} />
         <div className="h3-row h3-wrap" style={{ gap: 6 }}>
           <label className="h3-small" title="The relit locations are named <plate>_<this>: the preset's id, else “relit”">

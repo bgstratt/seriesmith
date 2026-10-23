@@ -34,6 +34,10 @@ class DataTest(unittest.TestCase):
                     # the edit wrapper keeps the rest; the instruction names what goes
                     self.assertTrue(p[w].startswith("Change only"), p[w])
                 self.assertTrue(set(words) <= {"place", "subject"})
+                # a plate's relight is an edit: a light source it names as a thing in the
+                # scene gets drawn in (dusk's "street lamps lit" put streetlights in a garden)
+                if p.get("place"):
+                    self.assertTrue(p["place"].endswith("that aren't already there"), p["place"])
 
     def test_every_look_is_a_brief(self):
         for p in PR._load("look"):
