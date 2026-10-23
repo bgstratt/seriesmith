@@ -358,7 +358,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         where = (f"{frame} frames {who}{held} in {place}, showing the part of the space directly "
                  f"behind them." if who else f"{frame} frames {place}.")
     body = f"[Shot 1] {where} {shot['action']}"
-    cam = shot.get("camera", "").strip()
+    cam = framing.orbit(shot.get("camera", "").strip(), who)
     body += f" The camera {cam}." if cam else " The camera holds a static shot with fixed composition."
     desc.append(body)
     for d in shot["dialogue"]:
