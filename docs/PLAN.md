@@ -875,6 +875,14 @@ shown as pictures, each filling a text that stays editable.
       picks by semicolons, a drawn medium folding the camera rows away. The 13 look presets
       carry `parts`, so one sets the rows. Series settings and the wizard: **Build the look**;
       the picks in `style.look_parts`, rewriting the line only while it's theirs.
+- [x] No people in a look (2026-10-23): the look opens every picture's prompt, an empty
+      plate's too, and "soft rounded character design with expressive faces" drew round
+      little people into a moonlit garden. Six looks and builder clauses reworded to say how
+      things are rendered (forms, surfaces, tones); test_presets refuses characters, faces,
+      figures, skin or people in any of them; AUTHORING says so for a look of your own. The
+      ref's panel is **What the model is told, and settings**, as it holds the whole prompt.
+      A series keeps the line it copied: re-pick the look, or edit `style.look`. The sample
+      pictures weren't re-rendered (the same looks, reworded).
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
 

@@ -176,7 +176,7 @@
       "id": "romance",
       "label": "Romance",
       "group": "genre",
-      "text": "a live-action romance shot on 35mm with shallow depth of field: warm soft key light, creamy skin tones, a gentle bloom on the highlights, soft background bokeh and a warm portrait stock",
+      "text": "a live-action romance shot on 35mm with shallow depth of field: warm soft key light, creamy warm tones, a gentle bloom on the highlights, soft background bokeh and a warm portrait stock",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -227,7 +227,7 @@
       "id": "animated_3d",
       "label": "3D animated feature",
       "group": "animation",
-      "text": "a 3D animated feature film: soft rounded character design with expressive faces, subsurface-scattered skin, warm global illumination with soft bounce light, gentle depth of field and rich saturated color",
+      "text": "a 3D animated feature film: soft rounded forms and appealing stylized shapes, smooth surfaces with subsurface scattering, warm global illumination with soft bounce light, gentle depth of field and rich saturated color",
       "parts": {
         "medium": "animated_3d",
         "light": "soft"
@@ -246,7 +246,7 @@
       "id": "anime",
       "label": "Anime",
       "group": "animation",
-      "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel-shaded characters over richly painted backgrounds, luminous skies and soft atmospheric light",
+      "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel shading over richly painted backgrounds, luminous skies and soft atmospheric light",
       "parts": {
         "medium": "anime",
         "light": "soft"

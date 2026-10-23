@@ -16,7 +16,7 @@ describe("the look builder", () => {
   });
   it("leaves the camera rows out of a drawn medium, and writes nothing without one", () => {
     expect(composeLook(rows, { medium: "anime", camera: "film35", light: "soft" })).toBe(
-      "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted backgrounds; soft naturalistic window and daylight, gentle shadows");
+      "a hand-drawn Japanese anime: expressive line art, cel shading over richly painted backgrounds; soft naturalistic window and daylight, gentle shadows");
     expect(visibleRows(rows, { medium: "anime" }).map((r) => r.id)).toEqual(["medium", "light", "grade"]);
     expect(visibleRows(rows, { medium: "live_action" }).length).toBe(6);
     expect(composeLook(rows, { camera: "film35" })).toBe("");

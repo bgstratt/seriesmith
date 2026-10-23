@@ -43,6 +43,18 @@ class DataTest(unittest.TestCase):
                 self.assertNotIn("high quality", p["text"].lower())
                 self.assertGreater(len(p["text"].split()), 12)
 
+    def test_no_look_puts_people_in_a_place(self):
+        """The look opens every picture's prompt, a place's empty plate too: wording that
+        names characters, faces, figures or skin drew round little people into a moonlit
+        garden. A look says how things are rendered; the cast brings the people."""
+        import re
+        people = re.compile(r"\b(characters?|faces?|figures?|skin|people|persons?)\b", re.I)
+        clauses = [(p["id"], p["text"]) for p in PR._load("look")]
+        clauses += [(f'{r["id"]}.{o["id"]}', o["clause"]) for r in PR._load("look_builder") for o in r["options"]]
+        for name, text in clauses:
+            with self.subTest(name):
+                self.assertIsNone(people.search(text), text)
+
     def test_framing_and_camera_say_what_the_script_does(self):
         from seriesmith.core import framing as F
         for p in PR._load("framing"):
@@ -66,7 +78,7 @@ class DataTest(unittest.TestCase):
             "space, pools of light and deep soft shadow; a muted, desaturated grade with lifted blacks")
         self.assertEqual(
             PR.compose_look({"medium": "anime", "camera": "film35", "light": "soft"}),
-            "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted "
+            "a hand-drawn Japanese anime: expressive line art, cel shading over richly painted "
             "backgrounds; soft naturalistic window and daylight, gentle shadows")
         self.assertEqual(PR.compose_look({"camera": "film35"}), "")
 
