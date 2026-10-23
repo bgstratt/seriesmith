@@ -200,6 +200,10 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         defs.append(f"Exactly {_count(len(people))} characters appear in this shot: "
                     f"{_and(people)}. They are different characters, and never duplicates "
                     f"of one another.")
+    elif extras:
+        # no one named, only props or vehicles: the extras are the only people,
+        # and with no count to replace they were left out altogether
+        defs.append(f"The people in frame are {extras}: unnamed background figures.")
     if not no_plate:
         defs.append(
             f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "

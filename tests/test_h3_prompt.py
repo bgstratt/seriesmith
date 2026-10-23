@@ -100,6 +100,14 @@ class HeadcountTest(unittest.TestCase):
         self.assertTrue(line.startswith("<Subject 1> appears exactly once in this shot."), line)
         self.assertIn("nothing like that character", line)
 
+    def test_extras_with_no_one_named_still_reach_the_prompt(self):
+        """A shot of a prop with villagers behind it: no headcount to rewrite, so the
+        extras were dropped; they get a sentence of their own."""
+        line = headcount(["kettle"], extras="two customers at the counter")
+        self.assertEqual(line, None)          # still no claim about who is in the shot
+        self.assertIn("The people in frame are two customers at the counter: unnamed "
+                      "background figures.", defs_of(["kettle"], extras="two customers at the counter"))
+
     def test_a_subject_with_no_picture_still_counts(self):
         """--render-anyway: an unreferenced character is in frame, in words."""
         line = headcount(["ada"], _unreferenced=["bo"])
