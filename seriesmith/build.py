@@ -211,7 +211,9 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
         if sq.continuous:
             continue
         for a, b in zip(sq.shots, sq.shots[1:]):
-            if (b.keyframe("first", sq) or "").strip().lower() == "continuity":
+            # continuing the shot before is no cut at all: `continuous: first | latent`
+            # (or the old `first: continuity`)
+            if b.continues(sq) or (b.keyframe("first", sq) or "").strip().lower() == "continuity":
                 continue
             who_a = {person(s) for s in a.cast}
             if not who_a or who_a != {person(s) for s in b.cast}:
