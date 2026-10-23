@@ -255,6 +255,10 @@ class H3InterfaceTest(unittest.TestCase):
         self.assertEqual(img.ref_prompt(plate, self.series_cfg),
                          R.plate_prompt(look, plate.entry["description"]))
 
+    def test_plate_prompt_keeps_one_full_stop(self):
+        """A description ending in its own full stop doesn't give "moon.. No characters"."""
+        self.assertIn("a moonlit garden. No characters", R.plate_prompt("a look", "a moonlit garden."))
+
 
 class ProfileJobTest(unittest.TestCase):
     """A profile's LoRA list reaches the graph; target is recorded."""
