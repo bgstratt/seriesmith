@@ -714,6 +714,13 @@ script call for is listed here.
   and only the light changes. The dialog lists what it will make before you start. **Point
   the sequence at the relit plates** (on by default) rewrites the sequence's location and its
   shots' `plate:` lines, so the next render uses them. Pick the takes in Refs as usual.
+- **Turn** (**↻ Turn** at the top of a view's column: side, back or face) draws that view
+  from one the character already has, the three-quarter if it's picked, by turning the
+  camera around them on Qwen-Image 2.1 with the multi-angle LoRA
+  ([FULL_SETUP.md](/full-setup), "360s and turned views"). A new candidate, not picked:
+  the same character from another side, rather than four views drawn apart.
+- **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
+  Open it to look around and save a view as a new angle of the place.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

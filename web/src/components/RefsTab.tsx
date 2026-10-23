@@ -917,10 +917,10 @@ function TurnButton({ r, view, label }: { r: Ref; view: string; label: string })
   const from = picked.includes("01_threequarter") ? "01_threequarter" : picked[0];
   return (
     <button
-      className="h3-btn h3-icon"
+      className="h3-btn"
       disabled={!from || busy}
       title={from
-        ? `Draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name} (Qwen 2.1 + the multi-angle LoRA): a new candidate`
+        ? `Turn: draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name} (Qwen 2.1 + the multi-angle LoRA): a new candidate`
         : "Pick another view first: this one is drawn from it"}
       onClick={() => from && void generateRef({
         ref: r.id, view, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
@@ -928,7 +928,7 @@ function TurnButton({ r, view, label }: { r: Ref; view: string; label: string })
         edit: { take: null, from_view: from, turn: true },
       })}
     >
-      ↻
+      ↻ Turn
     </button>
   );
 }
