@@ -36,8 +36,10 @@ class DataTest(unittest.TestCase):
                 self.assertTrue(set(words) <= {"place", "subject"})
                 # a plate's relight is an edit: a light source it names as a thing in the
                 # scene gets drawn in (dusk's "street lamps lit" put streetlights in a garden)
+                # and nothing named to forbid it: a negation still puts the word in the prompt
                 if p.get("place"):
-                    self.assertTrue(p["place"].endswith("that aren't already there"), p["place"])
+                    for said in ("street lamps lit", "brazier", "Add nothing", "aren't already there"):
+                        self.assertNotIn(said, p["place"])
 
     def test_every_look_is_a_brief(self):
         for p in PR._load("look"):
