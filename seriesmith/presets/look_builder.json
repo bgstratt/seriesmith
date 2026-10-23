@@ -10,7 +10,7 @@
       {"id": "anime", "label": "Anime", "drawn": true,
        "clause": "a hand-drawn Japanese anime: expressive line art, cel shading over richly painted backgrounds"},
       {"id": "stop_motion", "label": "Stop-motion", "drawn": true,
-       "clause": "a stop-motion film of handmade clay and felt puppets on miniature sets, visible fingerprints and fabric texture"},
+       "clause": "a stop-motion film, everything handmade from clay and felt at miniature scale, visible fingerprints and fabric texture"},
       {"id": "watercolor", "label": "Watercolor", "drawn": true,
        "clause": "a watercolor illustration come to life: wet-edged washes on textured paper, loose ink outlines"},
       {"id": "graphic_novel", "label": "Graphic novel", "drawn": true,
@@ -35,7 +35,7 @@
       {"id": "deep", "label": "Deep focus", "clause": "deep focus: everything sharp from the foreground to the far distance"}
     ]},
     {"id": "film", "label": "Film / sensor", "camera_row": true, "options": [
-      {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm practicals against cool shadows, visible grain"},
+      {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm light against cool shadows, visible grain"},
       {"id": "d250", "label": "Daylight 250D", "clause": "daylight 250D stock: natural color, fine grain"},
       {"id": "portrait", "label": "Portrait stock", "clause": "a warm portrait stock: soft creamy tones, gentle contrast"},
       {"id": "slide", "label": "Slide film", "clause": "slide film: saturated color, deep contrast, crisp blacks"},
@@ -44,10 +44,10 @@
       {"id": "faded70s", "label": "Faded 70s", "clause": "1970s film stock: warm faded color, soft contrast, halation around the highlights"}
     ]},
     {"id": "light", "label": "Light", "options": [
-      {"id": "low_key", "label": "Low-key practicals", "clause": "low-key light from the practical lamps in each space, pools of light and deep soft shadow"},
-      {"id": "soft", "label": "Soft naturalistic", "clause": "soft naturalistic window and daylight, gentle shadows"},
+      {"id": "low_key", "label": "Low-key practicals", "clause": "low-key practical light, pools of light and deep soft shadow"},
+      {"id": "soft", "label": "Soft naturalistic", "clause": "soft naturalistic daylight, gentle shadows"},
       {"id": "hard_sun", "label": "Hard sun", "clause": "hard direct sunlight, crisp shadows, bright highlights"},
-      {"id": "neon", "label": "Neon night", "clause": "night light from neon signs in magenta and cyan, reflections on wet surfaces"},
+      {"id": "neon", "label": "Neon night", "clause": "saturated magenta and cyan light at night, glossy reflections"},
       {"id": "high_key", "label": "High-key", "clause": "bright high-key light, few shadows, an open airy feel"},
       {"id": "golden", "label": "Golden hour", "clause": "warm low golden-hour sun, long shadows, glowing rims"},
       {"id": "chiaroscuro", "label": "Chiaroscuro", "clause": "strong single-source light carving shapes out of darkness"}

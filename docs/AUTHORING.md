@@ -942,11 +942,14 @@ depth of field with the background falling into soft bokeh, low-key light from t
 lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine
 film grain"*.
 
-**Leave people out of it.** The look also opens every reference picture's prompt, a place's
-empty plate included. Words about characters, faces, figures or skin ("soft rounded
-character design with expressive faces") draw people into a place that should be empty:
-say how things are rendered (soft rounded forms, smooth surfaces, warm tones) and let the
-cast bring the people. A picture's whole prompt, look and all, is under **What the model is
+**Leave people and places out of it.** The look also opens every reference picture's
+prompt, a place's empty plate included, and every shot's. Words about characters, faces,
+figures or skin ("soft rounded character design with expressive faces") draw people into a
+place that should be empty; words about places or things ("night streets lit by neon
+signs", "practical lamps in each room", "luminous skies") draw those in, or fight the
+shot's own place (a lighthouse gallery asked to be a neon street). Say how things are lit
+and rendered (soft rounded forms, magenta and cyan light, warm tones) and let the cast and
+the locations bring the people and the places. A picture's whole prompt, look and all, is under **What the model is
 told** in its row in Refs.
 
 The editor's look builder (Series settings, the new-series wizard) writes such a line from

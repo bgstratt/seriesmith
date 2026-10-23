@@ -315,7 +315,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                     </select>
                   </span>
                   <span className="h3-row" style={{ gap: 6 }}>
-                    <Tip label="Lens" help="The lens this shot is shot on: the action opens with it. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry." htmlFor="sm-sf-lens" />
+                    <Tip label="Lens" help="The lens this shot is shot on: one sentence the action opens with. It changes only this shot's prompt, never the pictures. With a plate as the reference, the plate keeps its own focus and framing, so a lens shows most on models that draw the place from words (LTX-2, Wan)." htmlFor="sm-sf-lens" />
                     <select id="sm-sf-lens" className="h3-in" value={form.keys.lens ?? ""} onChange={(e) => set("lens", e.target.value)}>
                       <option value="">— (the look's)</option>
                       {lenses.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
@@ -331,6 +331,11 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                   onPick={(v) => set("size", v)} title="Framing, as pictures" open={!form.keys.size} size={0.8} />
                 <PresetPicker tiles={lenses} value={form.keys.lens ?? ""} picked={form.keys.lens || null}
                   onPick={(v) => set("lens", form.keys.lens === v ? "" : v)} title="Lens, as pictures" open={false} size={0.8} />
+                {form.keys.lens && (
+                  <span className="h3-small h3-muted">
+                    A lens is one sentence in this shot's prompt. With a plate, the plate keeps its own focus and framing, so it may show little: it shows most on models that draw the place from words (LTX-2, Wan).
+                  </span>
+                )}
                 <div className="h3-col" style={{ gap: 4 }}>
                   <span className="h3-card-title" title="What is visibly happening, present tense, concrete and physical. This shot only: the model remembers nothing of the shot before, so say it fresh. Not how anyone feels.">
                     What happens <i className="pi pi-info-circle sm-tip-i" />

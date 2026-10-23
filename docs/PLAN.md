@@ -882,7 +882,12 @@ shown as pictures, each filling a text that stays editable.
       figures, skin or people in any of them; AUTHORING says so for a look of your own. The
       ref's panel is **What the model is told, and settings**, as it holds the whole prompt.
       A series keeps the line it copied: re-pick the look, or edit `style.look`. The sample
-      pictures weren't re-rendered (the same looks, reworded).
+      pictures weren't re-rendered (the same looks, reworded). Then places and things too
+      (2026-10-23): neon noir's "night streets lit by neon signs" turned a lighthouse shot
+      into a close-up of the lighthouse; ten more looks and builder clauses reworded
+      (lamps, windows, skies, vistas, smoke, puppets, silhouettes), and the test refuses
+      those as well. The shot form's Lens says it's one sentence of the shot's prompt, which
+      a plate's own focus can outweigh on H3.
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
 

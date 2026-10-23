@@ -5,7 +5,7 @@
       "id": "prestige_35mm",
       "label": "Prestige drama",
       "group": "live action",
-      "text": "a naturalistic live-action prestige drama shot on 35mm anamorphic lenses: shallow depth of field with the background falling into soft bokeh, low-key light from the practical lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine film grain",
+      "text": "a naturalistic live-action prestige drama shot on 35mm anamorphic lenses: shallow depth of field with the background falling into soft bokeh, low-key practical light in pools, deep soft shadows with lifted blacks, muted desaturated color and fine film grain",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -18,7 +18,7 @@
       "id": "neon_noir",
       "label": "Neon noir",
       "group": "live action",
-      "text": "a live-action neo-noir thriller shot on 35mm anamorphic lenses: shallow depth of field, night streets lit by neon signs in magenta and cyan, wet surfaces full of reflections, deep black shadows, saturated color and fine film grain",
+      "text": "a live-action neo-noir thriller shot on 35mm anamorphic lenses: shallow depth of field, saturated magenta and cyan light at night, glossy reflections, deep black shadows, saturated color and fine film grain",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -76,7 +76,7 @@
       "id": "cool_scifi",
       "label": "Cool science fiction",
       "group": "live action",
-      "text": "a live-action science-fiction film shot on large-format digital with spherical lenses: clean precise focus, cool blue-teal light from practical panels and screens, crisp highlights and controlled, sterile color",
+      "text": "a live-action science-fiction film shot on large-format digital with spherical lenses: clean precise focus, cool blue-teal practical light, crisp highlights and controlled, sterile color",
       "parts": {
         "medium": "live_action",
         "camera": "large_format",
@@ -90,7 +90,7 @@
       "id": "pastoral",
       "label": "Sunlit pastoral",
       "group": "live action",
-      "text": "a live-action period drama shot on 35mm with soft vintage lenses: natural window light and golden late-afternoon sun, warm painterly color, gentle contrast and soft film grain",
+      "text": "a live-action period drama shot on 35mm with soft vintage lenses: soft natural light and golden late-afternoon sun, warm painterly color, gentle contrast and soft film grain",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -105,7 +105,7 @@
       "id": "western",
       "label": "Western",
       "group": "genre",
-      "text": "a live-action western shot on 35mm anamorphic lenses: wide open vistas, hard high sun with short black shadows, dust hanging in the air, a sun-bleached warm grade with dry ochre and faded blue, fine film grain",
+      "text": "a live-action western shot on 35mm anamorphic lenses: wide framing, hard high sun with short black shadows, a dusty haze in the light, a sun-bleached warm grade with dry ochre and faded blue, fine film grain",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -134,7 +134,7 @@
       "id": "road_movie",
       "label": "Road movie",
       "group": "genre",
-      "text": "a live-action road movie shot on 35mm: wide-angle open landscapes, warm low golden-hour sun with long shadows and lens flares, a faded warm film stock with soft contrast",
+      "text": "a live-action road movie shot on 35mm wide-angle lenses: warm low golden-hour sun with long shadows and lens flares, a faded warm film stock with soft contrast",
       "parts": {
         "medium": "live_action",
         "camera": "film35",
@@ -191,7 +191,7 @@
       "id": "war",
       "label": "War",
       "group": "genre",
-      "text": "a live-action war film shot handheld on 16mm: a bleach-bypass grade, desaturated and silvery with high contrast, smoke and dust in the air, harsh flat daylight, heavy grain",
+      "text": "a live-action war film shot handheld on 16mm: a bleach-bypass grade, desaturated and silvery with high contrast, a hazy grey air, harsh flat daylight, heavy grain",
       "parts": {
         "medium": "live_action",
         "camera": "film16",
@@ -246,7 +246,7 @@
       "id": "anime",
       "label": "Anime",
       "group": "animation",
-      "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel shading over richly painted backgrounds, luminous skies and soft atmospheric light",
+      "text": "a Japanese anime film in hand-drawn 2D: clean expressive line art, cel shading over richly painted backgrounds, luminous color and soft atmospheric light",
       "parts": {
         "medium": "anime",
         "light": "soft"
@@ -256,7 +256,7 @@
       "id": "stop_motion",
       "label": "Stop-motion",
       "group": "animation",
-      "text": "a stop-motion animated film with handmade clay and felt puppets on miniature sets: visible fingerprints and fabric texture, small practical lamps, shallow macro depth of field",
+      "text": "a stop-motion animated film, everything handmade from clay and felt at miniature scale: visible fingerprints and fabric texture, small warm practical light, shallow macro depth of field",
       "parts": {
         "medium": "stop_motion",
         "light": "low_key"
@@ -276,7 +276,7 @@
       "id": "graphic_novel",
       "label": "Graphic novel",
       "group": "illustration",
-      "text": "a graphic novel come to life: bold black ink lines and heavy spot blacks, flat limited color with halftone shading, hard dramatic light and strong silhouettes",
+      "text": "a graphic novel come to life: bold black ink lines and heavy spot blacks, flat limited color with halftone shading, hard dramatic light and bold shapes against it",
       "parts": {
         "medium": "graphic_novel",
         "light": "chiaroscuro",
