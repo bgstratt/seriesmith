@@ -62,13 +62,16 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   const kind: CardKind = !isNew && sc.base ? cardKindOf(sc.base, blockOf(asked), id0!) : asked;
   const [id, setId] = useState(id0 ?? "");
   const [idTouched, setIdTouched] = useState(false);
+  // a new entry, added: while its picture is taken in and the card reopens on it, the
+  // series config already has it (not a clash, and not an empty form to start from)
+  const [added, setAdded] = useState(false);
   const [form, setForm] = useState<Raw>({});
   const [more, setMore] = useState(false);
   // simple mode: the main fields, and a picture you have (imported on save);
   // nothing under More
   const simple = useApp((s) => s.simple);
   const [ownPic, setOwnPic] = useState("");
-  const browsePic = usePictureBrowse(`card:${asked}:${id0 ?? "new"}`, `${asked} picture`, (p) => setOwnPic(p), true);
+  const browsePic = usePictureBrowse(`card:${asked}:${id0 ?? "new"}`, `the ${asked}`, (p) => setOwnPic(p), true);
   // a new card's first picture, queued with Add (not simple mode: its picture
   // is the one you have, or made from the words when it's used)
   const first = useFirstStep({ ep, kind, of: form.of == null ? "" : String(form.of), pic: ownPic, browse: browsePic,
@@ -80,7 +83,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
 
   // the fields start from the entry as it is on disk
   useEffect(() => {
-    if (!sc.base) return;
+    if (!sc.base || added) return;
     const e = isNew ? {} : ((getPath(sc.base, [block, id0!]) ?? {}) as Raw);
     setForm(Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v !== "object")));
   }, [sc.base]);
@@ -88,7 +91,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   const fields = useMemo(() => (sc.base ? cardFields(kind, sc.base, id) : []), [sc.base, kind, id]);
 
   const prefix = sc.base ? refsPrefix(sc.base) : "../refs/";
-  const problem = isNew && sc.base ? idProblem(sc.base, id) : "";
+  const problem = isNew && !added && sc.base ? idProblem(sc.base, id) : "";
   const changed = !!sc.base && JSON.stringify(entryFor(kind, before, form, id, prefix)) !== JSON.stringify(before ?? {});
   const required = kind === "location" ? "description" : kind === "voice" ? "voice" : "design";
   const missing = isEmpty(form[required])
@@ -105,6 +108,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
     const entry = entryFor(kind, before, form, id, prefix);
     const next = setPath(sc.base, [block, id], entry);
     if (await sc.save(next, `${label} ${id}`)) {
+      if (isNew) setAdded(true);
       if (ownPic) {
         // the picture you have, as its first candidate, made live
         try {

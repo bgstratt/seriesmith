@@ -154,7 +154,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
     : forKey && b.files === "video"
     ? <>A video for {b.what ?? "the field"} <span className="h3-muted h3-small">it's copied into the show's refs</span></>
     : forKey
-    ? <>A picture for {b.what ?? "the field"} <span className="h3-muted h3-small">inside the episode or its refs</span></>
+    ? <>A picture for {b.what ?? "the field"} <span className="h3-muted h3-small">{b.absolute ? "anywhere on this machine: it's copied into the refs" : "inside the episode or its refs"}</span></>
     : forClip
     ? <>A file for {b.shot ?? "this clip"}'s audio <span className="h3-muted h3-small">inside the episode</span></>
     : forTrack
