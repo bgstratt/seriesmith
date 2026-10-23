@@ -121,6 +121,13 @@ export function ContextMenu() {
           <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
         </button>
       )}
+      {take && menu.frame == null && (
+        // the menu from a thumbnail or the timeline has no frame to take: say where it is
+        <button disabled title="Play or scrub the take in the viewer to the frame you want, then right-click the picture itself">
+          <i className="pi pi-user-plus" /> Character or place from a frame…
+          <span className="h3-muted"> (right-click the picture in the viewer)</span>
+        </button>
+      )}
       {take && menu.frame != null && (
         <button disabled={!usable}
           title={usable ? `Make a new character or place from ${frameLabel} of ${menu.shot} ${tn(take.take)}, or a new picture for one there is`

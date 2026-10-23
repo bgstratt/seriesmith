@@ -75,7 +75,8 @@ settings and the text windows wait in Advanced. It is remembered in this browser
     its own way), a place picked by its picture, or **+ Create** one to keep: a name and
     a picture you have, or one made from words, so it looks the same in every clip that
     picks it; once added, it is the clip's Where. Decided later that a place should recur? Right-click the clip at a good
-    frame, **Character or place from this frame…** ([below](#a-character-or-a-place-from-a-frame)).
+    frame in the viewer (the picture itself, not its thumbnail), **Character or place from this
+    frame…** ([below](#a-character-or-a-place-from-a-frame)).
   - **Said** (a clip with people in it): the lines, under who says them.
 - The settings: **Model** (the video model, what each is good at in its tooltip, this
   machine's default marked: the one picked in Settings, else the first installed, H3 first;
@@ -615,8 +616,10 @@ the UI (`--save --every-show` for every show).
 
 ### A character or a place from a frame
 
-Right-click a take's picture in the viewer at the moment you like, and **Character or
-place from this frame…**:
+It's in **the viewer**, the player above the timeline: double-click a take to open it there,
+play or scrub it to the moment you like, and right-click **the picture itself** →
+**Character or place from this frame…**. The same menu from a take's thumbnail, the
+timeline or the shot list has no frame to take, so there it only says where to go.
 
 - **A new character**: a name, who they are in the frame ("the woman in the red coat, on
   the left") and, if you like, what they look like (said in every shot they're in). The

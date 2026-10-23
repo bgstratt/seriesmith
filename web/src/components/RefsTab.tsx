@@ -1097,7 +1097,7 @@ export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
       {r.kind === "location" && <TourSection ep={ep} r={r} />}
       {canGenerate(r) && (
         <details className="h3-ref-settings">
-          <summary>Prompt and settings{r.override.fields.length ? ` (override: ${r.override.fields.join(", ")})` : ""}</summary>
+          <summary title="The whole prompt this picture is made from (the series look, then the words), and its model, seed and steps">What the model is told, and settings{r.override.fields.length ? ` (override: ${r.override.fields.join(", ")})` : ""}</summary>
           <RefOverrideEditor r={r} />
         </details>
       )}
