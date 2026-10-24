@@ -93,6 +93,7 @@ describe("the master recipe's per-model sections", () => {
     expect(masterLacksTargets(bare)).toBe(true);
     const full = withMasterTargets(bare) as { upscale: { master: Record<string, unknown> } };
     expect(full.upscale.master.targets).toEqual(MASTER_TARGETS);
+    expect((full.upscale.master.targets as Record<string, unknown>)["fasth3_*"]).toEqual({ method: "latent", scale: "auto" });
     expect(full.upscale.master.finish).toEqual({ frequency_split: true });
     expect(full.upscale.master.deliver).toBe("1440p");
     expect(masterLacksTargets(full)).toBe(false);
@@ -107,6 +108,7 @@ describe("a master recipe row's pattern", () => {
   it("covers a target id the way the server's fnmatch does", async () => {
     const { covers } = await import("../src/components/MasterRecipe");
     expect(covers("minimax_h3_*", "minimax_h3_ref2va")).toBe(true);
+    expect(covers("fasth3_*", "fasth3_omni")).toBe(true);
     expect(covers("ltx2*", "ltx2_ingredients")).toBe(true);
     expect(covers("wan22_*", "minimax_h3_ref2va")).toBe(false);
     expect(covers("*", "seedance_2_5")).toBe(true);

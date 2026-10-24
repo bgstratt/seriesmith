@@ -16,6 +16,7 @@ type Section = Record<string, unknown>;
 
 const FAMILIES: { value: string; label: string }[] = [
   { value: "minimax_h3_*", label: "MiniMax H3 (any)" },
+  { value: "fasth3_*", label: "FastH3 (any)" },
   { value: "ltx2*", label: "LTX-2 (any)" },
   { value: "wan22_*", label: "Wan 2.2 (any)" },
   { value: "*", label: "any other model" },

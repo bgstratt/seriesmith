@@ -259,6 +259,9 @@ export const SECTIONS: Section[] = [
  * every shot a gap, so setting Deliver at writes these when there are none. */
 export const MASTER_TARGETS = {
   "minimax_h3_*": { method: "latent", scale: "auto" },
+  // FastH3 Omni re-samples its latent as H3 does (its target's `upscale`); without its own
+  // row it fell to "*", an upscale model
+  "fasth3_*": { method: "latent", scale: "auto" },
   "ltx2*": { method: "latent", scale: 2 },
   "wan22_*": { method: "seedvr2", seedvr2_model: "7b" },
   "*": { method: "pixel", pixel_model: "RealESRGAN_x2.pth" },
