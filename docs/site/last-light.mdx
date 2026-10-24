@@ -1,0 +1,253 @@
+---
+title: "A screenplay, made into a series"
+description: "LAST LIGHT: a page and a half of screenplay, the series config and episode script made from it, and where every character, place and line went."
+---
+
+{/* Written by hand. Every titled code block is a verbatim excerpt of examples/demo/ (tests/test_docs.py checks it): change the files, then the page. */}
+
+seriesmith is driven by two files you write (or have Claude write from a screenplay):
+
+- **`series.json`, the series config:** who and what is in the show (characters, props,
+  vehicles), the places, how they look and sound, and how the show is rendered and
+  delivered. Written once, shared by every episode.
+- **`ep01.md`, the episode script:** every shot in a few lines, in order: where, who, how
+  close, how long, what happens, what is said, the camera and the sound.
+
+From those, **Build** makes the shot list; the Refs tab makes the pictures the config
+describes (each character's sheet, each prop, a plate for each place); and every shot
+renders from its lines and its pictures. Change a line, and only the shots it touched
+render again.
+
+This page follows one real scene through: **LAST LIGHT**, a rooftop chase in the rain. The
+three files are in the repo as they came out, in
+[examples/demo/](https://github.com/bgstratt/seriesmith/tree/main/examples/demo), and the
+finished episode is the [trailer](https://www.youtube.com/watch?v=Bc2VXPys6Ak).
+
+## The three files
+
+| File | What it is | Made by |
+|---|---|---|
+| `screenplay.fountain` | A spec-format screenplay: about a page and a half, three lines of dialogue | by hand |
+| `series.json` | The series config: 2 characters, 2 props, a vehicle, 13 places, the look, the render size and the master | Claude, with the script-writing skill |
+| `ep01.md` | The episode script: 10 sequences, 27 shots | the same conversion |
+
+To convert your own, see [Screenplay to episode](/tutorials/screenplay-to-episode). The
+rest of this page is what the conversion did, and why, so you can write or correct these
+files yourself.
+
+## 1. The show, once
+
+Before any shot, the series config settles how the whole show looks and is delivered.
+None of it is in the screenplay; all of it has to be right before the first take.
+
+```json series.json
+  "series": {
+    "id": "last_light",
+    "title": "Last Light",
+    "fps": 24,
+    "width": 1344,
+    "height": 768
+  },
+  "proxy": { "width": 864, "height": 480 },
+  "style": {
+    "look": "a live-action neo-noir thriller shot at night on 35mm anamorphic lenses: heavy rain catching the light, shallow depth of field with distant neon falling into soft bokeh, hard magenta and cyan neon practicals against deep black shadows, wet reflective surfaces, high contrast and fine film grain"
+  },
+  "speech": { "pace": "normal" },
+```
+
+- **`series`:** the frame rate and the render size (1344×768 is MiniMax H3's own).
+- **`proxy`:** the size of the quick draft pass, for judging the cut before the finals.
+- **`style.look`:** one sentence that opens every shot's prompt and every picture's: the
+  medium, the lens, the light, the grade. It says nothing about the story.
+- **`speech.pace`:** how fast lines are spoken, which decides how long a shot with dialogue
+  needs to be.
+
+At the end of the file, how dialogue sounds and how the master is made:
+
+```json series.json
+  "audio": { "mode": "generate" },
+  "upscale": {
+    "save_latents": "final",
+    "master": {
+      "deliver": "1080p", "fit": "crop", "quality": "master",
+```
+
+`audio.mode: generate` means the model invents each voice from its description, so nothing
+is recorded first. `upscale.master` is the recipe every shot is finished by on its way to
+a 1080p master ([Finishing](/tutorials/finishing)).
+
+## 2. Characters: what the camera can see
+
+The screenplay introduces Mara in a line:
+
+```text screenplay.fountain
+MARA KESS (20s), a courier in a cropped yellow rain jacket, hood down, braids whipping, sprints between rusted water towers. Strapped across her back: THE CASE, a battered steel briefcase with a seam of blue light pulsing along its edge.
+```
+
+and she leaves the script for the series config:
+
+```json series.json
+    "mara": {
+      "kind": "character",
+      "name": "Mara",
+      "design": "a lean woman in her twenties with dark brown skin and long black box braids worn loose, a cropped bright-yellow rain jacket with the hood down, a fitted black top, black cargo pants and scuffed black combat boots",
+      "sheet": "refs/mara/mara_sheet_4panel.png",
+      "voice": "a young woman, low and quick, a little breathless, dry and wry"
+    },
+```
+
+- **`design`** is said in every shot she's in, beside her picture, so it's what she looks
+  like and nothing else. *A courier* is her job, not her appearance: it's gone. What a
+  screenplay leaves to the costume department (her skin, her top, her trousers, her boots)
+  is spelled out, because the model has no costume department.
+- **`sheet`** is her picture: four views stitched into one, made in the Refs tab from the
+  design. It goes in with every shot she's in, so she is the same Mara in shot one and
+  shot twenty-seven.
+- **`voice`** is how her lines sound.
+
+The script then names her by her key, `mara`, and her lines by `MARA`.
+
+## 3. Props and vehicles, and a change of state
+
+THE CASE is a prop with a picture of its own, like a character. When it opens, it's a
+different picture, so the open case is a **variant** of it (`of: case`): the same case, its
+own sheet.
+
+```json series.json
+    "case": {
+      "kind": "prop",
+      "name": "the case",
+      "design": "a battered brushed-steel briefcase with dented corners and a black canvas shoulder strap, a thin seam of pulsing blue light running all the way around the edge of its closed lid",
+      "sheet": "refs/props/case.png"
+    },
+    "case_open": {
+      "of": "case",
+      "design": "a battered brushed-steel briefcase lying open with its lid raised, grey foam inside cradling a single small seedling sealed in a clear glass bulb, the seedling's leaves glowing a soft blue that lights the foam around it",
+      "sheet": "refs/props/case_open.png"
+    },
+```
+
+The drone is a `vehicle`, which works the same way. In the script, props and vehicles go
+on the `with:` line, after the characters on `who:`.
+
+## 4. Places: one angle each
+
+Each slugline becomes a location: a description, and a **plate**, the picture of the place
+behind the action. But a plate is one camera position, and a scene shot from several sides
+needs one per side. So `EXT. ROOFTOP - WATER TOWERS` became three: the roof, the stairwell
+door Voss comes out of, and the aisle Mara runs down.
+
+```json series.json
+    "water_towers_door": {
+      "of": "water_towers",
+      "description": "the same tar rooftop looking toward its stairwell: a rusted steel door in a brick bulkhead under a caged yellow bulb, rusted water towers on steel legs to either side, rain slanting through the bulb's light, magenta neon glow from the left",
+      "plate": "refs/_bg/water_towers_door.png"
+    },
+```
+
+`of: water_towers` marks it as an angle of the same place. The sequence header names the
+main location; a shot picks an angle with `plate:`.
+
+## 5. A scene becomes shots
+
+The screenplay's water-towers scene:
+
+```text screenplay.fountain
+Her boots smash through a puddle. Neon bleeds across the water.
+
+Behind her, a door BANGS open. VOSS (40s), tall, grey longcoat, mirrored visor over his eyes, steps into the rain. He doesn't run. He doesn't need to.
+
+                    VOSS
+          That case isn't yours, Kess.
+```
+
+became three shots. Every `##` is a cut:
+
+```text ep01.md
+## sh030
+who: mara
+size: ecu
+dur: 1.62
+Mara's black combat boot smashes down into a rain puddle on the tar, the magenta neon reflection bursting apart across the water.
+camera: holds a static shot
+sound: a heavy splash, rain
+
+## sh040
+who: voss
+plate: water_towers_door
+size: full
+dur: 3.04
+The rusted stairwell door bangs open and Voss steps through it into the rain, then stops on the tar, perfectly still, rain beading on his mirrored visor.
+camera: holds a static shot
+sound: a steel door slamming against brick, rain hammering, the heavy rustle of a coat
+
+## sh050
+who: voss
+plate: water_towers_door
+size: mcu
+dur: auto
+Voss walks slowly forward through the rain, unhurried, his mirrored visor turned past camera toward frame left where she runs.
+camera: pushes in with small amplitude at slow speed
+VOSS (calm, carrying easily over the rain): That case isn't yours, Kess.
+sound: rain, slow footsteps on wet tar
+```
+
+What changed on the way:
+
+- **One action, one shot.** *Her boots smash through a puddle* is a moment of its own: an
+  extreme close-up (`size: ecu`) of a second and a half.
+- **The writing became something to film.** *He doesn't run. He doesn't need to.* can't be
+  drawn; *stops on the tar, perfectly still* can.
+- **Directions on screen.** *toward frame left where she runs* keeps the chase going one
+  way across the cut.
+- **The line gets its shot and its delivery.** Voss speaks in a medium close-up (`mcu`, so
+  his face reads), `dur: auto` makes the shot as long as the line takes, and `(calm,
+  carrying easily over the rain)` is how he says it.
+- **Every shot has a camera and a sound.** The screenplay leaves both to the crew; the
+  model needs them said.
+
+The sequence header above them names the place, and the shots under it are there unless
+they pick an angle:
+
+```text ep01.md
+# sq02  water_towers
+```
+
+## 6. What stays out of the script
+
+```text ep01.md
+// Adapted from screenplay.fountain. FADE IN / SMASH CUT TO BLACK are edit decisions: cut them in the timeline.
+```
+
+Transitions are made in the edit, not rendered. So are titles and credits (the series' intro
+and outro go around the master). A `//` line is a comment.
+
+## Then
+
+<Steps>
+  <Step title="Put the two files in an episode folder">
+    `series.json` and `ep01.md` together (or import them: **Project folders → Import
+    series…**).
+  </Step>
+  <Step title="Build">
+    The shot list for both passes, with any warnings: a line too long for its shot, a name the
+    config doesn't have.
+  </Step>
+  <Step title="Make the pictures">
+    Refs → **Generate missing**: Mara's and Voss's sheets, the case, the drone, a plate for
+    each place.
+  </Step>
+  <Step title="Render the shots">
+    Shots → **Generate missing**, then **Play all**. Fix what's wrong in the script, and
+    **Re-render stale** renders only what changed.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Writing an episode" icon="book" href="/authoring">
+    Every field of both files, from a first episode to copy.
+  </Card>
+  <Card title="A scene broken into shots" icon="scissors" href="/script-conversion">
+    Another screenplay scene, worked through cut by cut.
+  </Card>
+</CardGroup>

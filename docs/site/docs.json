@@ -20,8 +20,8 @@
   },
   "navigation": {
     "groups": [
-      { "group": "Get started", "pages": ["index", "quickstart", "full-setup", "install", "setup"] },
-      { "group": "Writing episodes", "pages": ["authoring", "script-conversion"] },
+      { "group": "Get started", "pages": ["index", "quickstart"] },
+      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion"] },
       {
         "group": "Tutorials",
         "pages": [
@@ -42,6 +42,7 @@
         ]
       },
       { "group": "Using seriesmith", "pages": ["editor", "commands"] },
+      { "group": "Setup in detail", "pages": ["full-setup", "install", "setup"] },
       {
         "group": "Guides",
         "pages": ["continuous", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]

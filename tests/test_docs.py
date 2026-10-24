@@ -93,6 +93,23 @@ class TestSiteDocs(unittest.TestCase):
             nav = [p for g in json.load(fh)["navigation"]["groups"] for p in g["pages"]]
         self.assertEqual(sorted(nav), sorted(S.hand_pages() + [name for _, name, _ in S.PAGES]))
 
+    def test_last_light_quotes_the_demo(self):
+        """Every titled code block on last-light.mdx (```json series.json) is lines of that
+        file in examples/demo/, in order, so the page can't drift from the demo."""
+        import re
+        demo = os.path.join(ROOT, "examples", "demo")
+        with open(os.path.join(S.SITE, "last-light.mdx"), encoding="utf-8") as fh:
+            page = fh.read()
+        blocks = re.findall(r"^```\w+ (\S+)\n(.*?)^```", page, re.M | re.S)
+        self.assertGreater(len(blocks), 5)
+        for name, body in blocks:
+            with self.subTest(file=name, first=body.splitlines()[0][:60]):
+                with open(os.path.join(demo, name), encoding="utf-8") as fh:
+                    have = [ln.rstrip() for ln in fh.read().splitlines()]
+                want = [ln.rstrip() for ln in body.splitlines()]
+                self.assertTrue(any(have[i:i + len(want)] == want for i in range(len(have))),
+                                f"last-light.mdx quotes {name} as it no longer is")
+
     def test_no_internal_document(self):
         sources = {src for src, _, _ in S.PAGES}
         self.assertFalse(sources & {"docs/DESIGN.md", "docs/PLAN.md"})
