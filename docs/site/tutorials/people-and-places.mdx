@@ -1,0 +1,133 @@
+---
+title: "People and places"
+description: "Tutorial 2: the same face and place in every clip, someone from a picture you have, two people talking, places from words, and new takes."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 2 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 2 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  People and places: the same people again, someone of your own, places that stay.
+</Card>
+
+This picks up where [tutorial 1](/tutorials/install-to-first-clip) ended: the same Simple
+project, with Mara and the lighthouse gallery already in it. By the end you have four clips:
+Mara again, Mara with someone from a photo, two people talking, and a place made only of
+words, rendered twice.
+
+## 1. The same face, every clip
+
+Once someone is created they are kept with the project. You pick them by their picture
+instead of describing them again, so they look the same in every clip.
+
+<Steps>
+  <Step title="Start a new clip">
+    In Simple mode, with the project from tutorial 1 open, choose **A clip** and type a new
+    action in **What happens?**.
+  </Step>
+  <Step title="Pick Mara">
+    Under **Who**, press **select…** and click Mara's picture.
+  </Step>
+  <Step title="Pick the place">
+    Under **Where**, pick the lighthouse gallery by its picture the same way.
+  </Step>
+  <Step title="Generate">
+    Press **Generate**. Her views and the plate are made already, so the take starts at
+    once.
+  </Step>
+</Steps>
+
+## 2. Someone from a picture you have
+
+A photo, a portrait or a drawing can be a person. It is taken in as it is: one picture,
+nothing generated.
+
+<Steps>
+  <Step title="Create someone">
+    Under **Who**, press **+ Create**. Name him *Tomas* and write a few words about him (the
+    description is still said in every shot he's in, beside his picture).
+  </Step>
+  <Step title="Choose his picture">
+    Press **Choose…**, find the picture anywhere on this PC in the file browser, and pick it.
+  </Step>
+  <Step title="Add him">
+    Press **Add**. His picture is used as it is: no views are drawn from it. He joins **Who**.
+  </Step>
+</Steps>
+
+## 3. Two people, two lines
+
+<Steps>
+  <Step title="Both of them in Who">
+    Have **Mara** and **Tomas** in **Who**. The order matters (it's the order they're
+    described in): **‹** moves someone earlier, **×** takes them out of this clip (they stay
+    in the project). Pick the gallery under **Where** again.
+  </Step>
+  <Step title="Write the lines">
+    Under **Said**, press **+ Line** for each line, choose who says it, and type the words.
+    Add them in the order they're spoken.
+  </Step>
+  <Step title="Let the length fit the lines">
+    Set **Length** to **auto**: the clip is as long as the lines take to say, at the
+    project's speech pace.
+  </Step>
+  <Step title="Generate, then play them all">
+    Press **Generate**. When the take is in, **Play all** plays every clip in order, cut
+    together: the same Mara, the same gallery, clip after clip.
+  </Step>
+</Steps>
+
+## 4. A place from words, and a new take
+
+**Where** has a third choice besides a place you picked or created: **from description**.
+
+<Steps>
+  <Step title="Choose from description">
+    Under **Where**, choose **from description**, and describe the place inside **What
+    happens?** (a harbour, say). The words are the place: there is no plate.
+  </Step>
+  <Step title="Generate">
+    Press **Generate** and let the take finish.
+  </Step>
+  <Step title="Ask for another take">
+    Right-click the clip and choose **New take like this one…**. It re-renders the same
+    words with a new seed (the dialog's default). Press its generate button.
+  </Step>
+  <Step title="Compare the two">
+    Right-click the clip → **Compare with…** to see the takes side by side or under a wipe.
+    The harbour is different each time: from description, a place is imagined anew in every
+    take.
+  </Step>
+  <Step title="Keep the one you want">
+    **Use this take** (on the take's menu) puts it in the cut. A take you don't want:
+    **Discard take…** moves it to the episode's `_trash/` folder; nothing is deleted.
+  </Step>
+</Steps>
+
+<Tip>
+  **From description** is fine for a one-off. For a place you'll come back to, **+ Create**
+  it, as the lighthouse was, so every clip that picks it shows the same place. Already have
+  a take of the place you like? Open that take in the viewer, stop at a good frame, and
+  right-click the picture itself → **Character or place from this frame…** (shown in
+  [tutorial 5](/tutorials/references#5-a-character-from-a-frame)).
+</Tip>
+
+## Doing a take again
+
+| To | Do |
+|---|---|
+| Render the same clip with a new seed | Right-click it → **New take like this one…** |
+| Re-render with the same seed after changing the words | Change **What happens?** and press **Generate** again |
+| Pick which take plays | Right-click a take → **Use this take** |
+| Stop a take that's queued or rendering | Right-click it → **Cancel this render**, or **Cancel** in **Jobs** |
+| Get rid of a take | Right-click it → **Discard take…** (moved to `_trash/`) |
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="3 · Screenplay to episode" icon="file-lines" href="/tutorials/screenplay-to-episode">
+    A project keeps its people and places together; a series is a script, every shot of an episode.
+  </Card>
+  <Card title="The editor: Simple mode" icon="clapperboard" href="/editor#simple-mode">
+    Every control in the Make panel.
+  </Card>
+</CardGroup>

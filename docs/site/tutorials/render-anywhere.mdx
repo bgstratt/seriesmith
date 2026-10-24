@@ -1,0 +1,114 @@
+---
+title: "Render anywhere"
+description: "Tutorial 9: shots on your own GPU, on Comfy Cloud, and one shot on a hosted model through Comfy Router, with the paid-run counter and cap."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 9 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 9 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  Render anywhere: your GPU, Comfy Cloud, or another model.
+</Card>
+
+Every render is a **job**, and a job runs on a **backend**: your own ComfyUI, Comfy Cloud,
+or Comfy Router (hosted models such as Seedance, Kling and Veo). One episode can use all
+three, a shot at a time.
+
+## 1. Your GPU
+
+<Steps>
+  <Step title="Queue some shots">
+    With ComfyUI running on this PC (or set in **Settings → ComfyUI**), **Generate missing**
+    or **Render this shot** queues on it. Nothing else to set.
+  </Step>
+  <Step title="Watch Jobs">
+    **Jobs** (top right) has one lane per backend. Your own ComfyUI runs one job at a time:
+    the pictures first, then the takes. Each job shows its progress and its log; **Earlier**
+    and **Later** reorder a waiting one, **Pause** holds the lane.
+  </Step>
+  <Step title="See the graph (optional)">
+    Each shot is a ComfyUI workflow of its own: seriesmith's Shot Loader, the model, the
+    sampler, the saver. Open it on ComfyUI's canvas any time. To change how a model renders,
+    see [The graph a model renders with](/editor#the-graph-a-model-renders-with).
+  </Step>
+</Steps>
+
+## 2. Comfy Cloud
+
+No GPU needed: the same shot, on Comfy's machines.
+
+<Steps>
+  <Step title="Set a Comfy API key">
+    Get a key at platform.comfy.org, then **Settings → Comfy API key**, paste it and save.
+    It turns on Comfy Cloud and Comfy Router. (A clone in `custom_nodes` may need Comfy's SDK:
+    Settings shows the command, or an **Install** button.)
+  </Step>
+  <Step title="Render on Comfy Cloud">
+    In the top bar, **Render on** → **cloud**. Every render from this page goes there this
+    session (back to **each shot's own** to undo). Or choose it per request in the Render
+    dialog's own **Render on** row.
+  </Step>
+  <Step title="Render a shot">
+    Render as usual. Cloud doesn't have seriesmith's nodes, so the shot's graph is rebuilt from
+    Cloud's own, and its pictures go with it, cut for that shot. It runs on the **Cloud** lane
+    in Jobs.
+  </Step>
+  <Step title="Compare">
+    The take comes back beside the one from your GPU: **Compare with…**, and **Use** the one
+    you want.
+  </Step>
+</Steps>
+
+## 3. One shot on another model
+
+Any shot can render on any model, without changing the rest of the episode.
+
+<Steps>
+  <Step title="Open New take…">
+    Right-click a shot's take → **New take like this one…**.
+  </Step>
+  <Step title="Pick the model">
+    Its **Model class** list is grouped by where a model runs: **Your GPU** first, then
+    **Comfy Router (paid)**. Pick **Seedance 2.5**. This is a one-off: the shot's own model is
+    unchanged.
+  </Step>
+  <Step title="Check the size and length">
+    Under it, the size and length are that model's for this shot (its own frame grid), so
+    what it prints is what you get.
+  </Step>
+  <Step title="Generate">
+    Generate the take. It runs on the **Router** lane; Jobs says where it is at Router
+    (*waiting at Router (#2 in line)*, *running on Router*).
+  </Step>
+  <Step title="Pick one for the cut">
+    Seedance's take sits beside H3's: compare, and **Use** the one you want. Only this shot
+    changed.
+  </Step>
+</Steps>
+
+<Tip>
+  To move a shot to another model for good, set **Video model class** in its shot form (under
+  **More**), or `target:` in the script. **Model:** on the episode's card sets the episode's.
+</Tip>
+
+## 4. Paid runs
+
+Comfy Cloud and Router bill your Comfy account.
+
+- **The count:** Jobs' title counts this session's **paid runs**, with **reset**.
+- **A batch asks first:** Generate missing or Re-render stale on a paid backend confirms
+  before queuing.
+- **A cap:** **Settings → Paid runs per session** stops queuing past that number (empty is no
+  cap).
+- Hosted models are never picked by themselves: a series renders on Router only where you
+  choose a Router model.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="10 · Continuity" icon="link" href="/tutorials/continuity">
+    Two shots that carry on as one.
+  </Card>
+  <Card title="Where shots render" icon="server" href="/setup">
+    Every backend and the settings that choose.
+  </Card>
+</CardGroup>

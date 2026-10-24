@@ -14,7 +14,8 @@ The generated documentation stays in step with the code.
     instructions; build/skill/ is gitignored and rebuilt from the same source.
   - docs/site/ (the Mintlify site, docs.seriesmith.com) is what
     tools/make_site_docs.py emits from INSTALL.md and the user docs today, and
-    names no internal document (`python tools/make_site_docs.py`).
+    names no internal document (`python tools/make_site_docs.py`); every page,
+    the hand-written tutorials too, is in its navigation.
 """
 from __future__ import annotations
 
@@ -90,7 +91,7 @@ class TestSiteDocs(unittest.TestCase):
         import json
         with open(os.path.join(S.SITE, "docs.json"), encoding="utf-8") as fh:
             nav = [p for g in json.load(fh)["navigation"]["groups"] for p in g["pages"]]
-        self.assertEqual(sorted(nav), sorted(["index"] + [name for _, name, _ in S.PAGES]))
+        self.assertEqual(sorted(nav), sorted(S.hand_pages() + [name for _, name, _ in S.PAGES]))
 
     def test_no_internal_document(self):
         sources = {src for src, _, _ in S.PAGES}

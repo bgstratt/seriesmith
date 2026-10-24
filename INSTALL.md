@@ -808,8 +808,8 @@ does the same.
   grids, the syllable budget, how to break a scene into shots.
 - To draft with an AI assistant, the guide comes as a skill:
   `prompts/seriesmith-episode-script.zip` (in the repo, and in a Manager install's
-  `custom_nodes\seriesmith\prompts\`). Upload it in Claude (Settings → Capabilities →
-  Skills), or unzip it into `.claude/skills/` for Claude Code. It carries the build, so the
+  `custom_nodes\seriesmith\prompts\`). Upload it in Claude (Settings → Skills →
+  Upload a skill), or unzip it into `.claude/skills/` for Claude Code. It carries the build, so the
   assistant can check a script with nothing installed.
 
 ### A first episode

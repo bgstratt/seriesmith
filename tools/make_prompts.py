@@ -17,7 +17,7 @@ assistant expects, so the copies cannot drift from the document:
                                              where seriesmith isn't installed
     build/skill/seriesmith-episode-script.zip
                                              the folder zipped, to upload on claude.ai
-                                             (Settings > Capabilities > Skills)
+                                             (Settings > Skills > Upload a skill)
     prompts/seriesmith-episode-script.zip    the same zip, committed: what a user installs
                                              (it ships in the node pack, so a Manager
                                              install has it too)

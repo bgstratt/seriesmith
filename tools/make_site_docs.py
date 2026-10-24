@@ -7,7 +7,8 @@ Each page is its document as MDX: the title (its first heading) and a
 description (written here) in front matter, the links between the docs
 pointing at the site's pages (anything else in the repo at GitHub), and what MDX
 would read as JSX escaped outside code ({, } and <). The site's
-own pages (index.mdx) and docs.json are written by hand.
+own pages (index.mdx, the video tutorials in tutorials/) and docs.json are
+written by hand.
 
     python tools/make_site_docs.py           # write them
     python tools/make_site_docs.py --check   # exit 1 if any is out of date
@@ -41,6 +42,13 @@ PAGES = [
     ("docs/API.md", "api-reference", "The editor's HTTP API and the files behind it, for driving seriesmith from your own code."),
 ]
 PAGE_OF = {src: page for src, page, _ in PAGES}
+TUTORIALS = os.path.join(SITE, "tutorials")
+
+
+def hand_pages() -> list[str]:
+    """The pages written by hand: index and the tutorials (tutorials/<name>)."""
+    names = sorted(f[:-4] for f in os.listdir(TUTORIALS) if f.endswith(".mdx")) if os.path.isdir(TUTORIALS) else []
+    return ["index"] + ["tutorials/" + n for n in names]
 HEADER = "{/* Generated from %s by tools/make_site_docs.py: edit that file, not this one. */}\n"
 
 FENCE = re.compile(r"^\s*(```|~~~)")

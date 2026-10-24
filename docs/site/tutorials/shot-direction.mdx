@@ -1,0 +1,98 @@
+---
+title: "Shot direction"
+description: "Tutorial 8: a shot's framing picked from pictures, its camera move picked from clips, and saying what the camera moves around."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 8 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 8 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  Shot direction: how close, from where, how the camera moves.
+</Card>
+
+Directing one shot: how close the camera is, the angle it looks from, and how it moves.
+Everything here is picked from pictures and clips, and each pick writes a line of the
+script. The example is sh020 of the Dean episode.
+
+## 1. Framing, as pictures
+
+<Steps>
+  <Step title="Open the shot form">
+    Select sh020 and press the pencil in the Shots toolbar (or right-click → **Edit shot…**).
+  </Step>
+  <Step title="Open Framing, as pictures">
+    Under **Framing** and **Length**, open **Framing, as pictures**: the nine sizes as the
+    same woman on the same street, extreme close-up to extreme wide, each with how much the
+    frame holds (*chest up*, *head to toe*), and the four angles: POV, over the shoulder,
+    low, high.
+  </Step>
+  <Step title="Pick one">
+    Click **Low angle**. **What the model is told**, beside the form, changes with it.
+  </Step>
+</Steps>
+
+## 2. Camera moves, as clips
+
+<Steps>
+  <Step title="Open Camera moves, as clips">
+    Next to **Camera**, open **Camera moves, as clips**: each move as a short clip of the
+    same street, played while you point at it: push in, pull out, pan, tilt, truck, arc,
+    POV, handheld...
+  </Step>
+  <Step title="Pick a move">
+    Click **Arc around**. It starts the camera line.
+  </Step>
+  <Step title="Set its amplitude, speed and where it goes">
+    Choose the amplitude (small to large) and the speed (slow to fast). Under **where it
+    goes**, say what the move travels around, toward or reveals: *around Dean*, *toward her
+    face*, *revealing the square*. The model frames the end of the move from it.
+  </Step>
+  <Step title="Save and generate">
+    Press **Save and generate**: the camera line goes into the script (`camera: arcs around
+    Dean with small amplitude at slow speed`) and a take is queued.
+  </Step>
+</Steps>
+
+<Warning>
+  **Say what the camera moves around.** A bare *The camera arcs around.* leaves the model to
+  choose, and in the recording it went round the oak tree outside the window: the window
+  held still, and the house moved as if on wheels. seriesmith now names the shot's people
+  after a bare arc, but it's still best to say it yourself.
+</Warning>
+
+## 3. Changing one take's prompt
+
+To try a different camera line on a single take without changing the script:
+
+<Steps>
+  <Step title="New take…">
+    Right-click the take → **New take like this one…**.
+  </Step>
+  <Step title="Edit the prompt">
+    In the dialog's prompt, change the camera sentence (*The camera arcs around Dean.*). Keep
+    the seed the same to compare like with like.
+  </Step>
+  <Step title="Generate">
+    Press **Generate proxy take** (or final). Now the camera goes round Dean, and the room
+    turns behind him.
+  </Step>
+</Steps>
+
+If the change is one to keep, put it into the script (the shot form or the Script window):
+story edits belong there, not in a one-take prompt.
+
+## 4. Compare the takes
+
+Select sh020's takes and compare them two at a time (**Compare with…**, side by side or
+under a wipe), or **Use** each in turn and **Play all**: as written (medium, the camera
+still), low angle arcing around the tree, low angle arcing around Dean.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="9 · Render anywhere" icon="server" href="/tutorials/render-anywhere">
+    The same shot on another model, or another machine.
+  </Card>
+  <Card title="Camera moves" icon="book" href="/authoring#camera-moves-use-h3s-vocabulary">
+    The camera vocabulary in the script.
+  </Card>
+</CardGroup>

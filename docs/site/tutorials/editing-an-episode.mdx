@@ -1,0 +1,152 @@
+---
+title: "Editing a real episode"
+description: "Tutorial 12: the working loop on a 288-shot episode: watch it through, note and flag what's wrong, turn notes into script fixes with Claude, re-render only what changed, fix by hand, and trim."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 12 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 12 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  Editing a real episode: 288 shots, fixed without watching it all again.
+</Card>
+
+With hundreds of shots you never review the whole cut again. You mark what's wrong once,
+in one pass, fix the words, re-render only what changed, and come back only to what you
+marked. Two marks do it:
+
+| Key | Mark | For |
+|---|---|---|
+| **n** | a **note**: a sentence about what's wrong | Things the script or series config should say differently: an assistant can rewrite them |
+| **M** | a **flag**: a pink flag on the clip | Anything else to come back to: a new take, a prompt, a trim |
+
+## 1. Watch it through
+
+<Steps>
+  <Step title="Play all">
+    **Play all** in the Shots toolbar plays the cut from the top. To start elsewhere,
+    right-click a clip → **Play from here**.
+  </Step>
+  <Step title="The keys">
+    **Space** plays and pauses; **J K L** shuttle back, pause, forward; **← →** a frame (`,`
+    and `.` in the viewer), **↑ ↓** a clip. **F** is full screen.
+  </Step>
+</Steps>
+
+## 2. Note what's wrong
+
+<Steps>
+  <Step title="Press n">
+    On a clip whose words need changing, press **n**. Play all pauses, and a box opens with the
+    shot and the take it's about.
+  </Step>
+  <Step title="Write a sentence, Enter">
+    *Kell enters from the wrong side.* **Enter** saves it (Shift+Enter for a second line).
+    Press Space to carry on.
+  </Step>
+</Steps>
+
+Each note snapshots what produced that take: the script's lines for the shot, the prompt
+compiled from them, and the pictures it used. Editing the script later never rewrites it.
+
+## 3. Flag what to come back to
+
+<Steps>
+  <Step title="Press M">
+    On any clip to come back to, press **M**. Playback keeps going; a pink flag goes in the
+    clip's corner, and the count in the timeline's header goes up. **M** again unflags it.
+  </Step>
+  <Step title="Both in one pass">
+    Keep going to the end: **n** for words to change, **M** for everything else.
+  </Step>
+</Steps>
+
+## 4. Notes to fixes, with Claude
+
+<Steps>
+  <Step title="Open the notes">
+    The speech bubble in the Shots toolbar shows how many notes are open; click it for the
+    list.
+  </Step>
+  <Step title="Copy export">
+    **Copy export** puts one document on the clipboard: every note, with what made each take.
+  </Step>
+  <Step title="Paste it to Claude">
+    In a Claude chat with the seriesmith script skill
+    ([tutorial 3](/tutorials/screenplay-to-episode#1-get-the-script-writing-skill)), paste the
+    export with the script, and ask for the fixes. It edits the shots each note is about,
+    checks the script, and says what it changed, shot by shot, and why.
+  </Step>
+  <Step title="Paste the fix back">
+    Paste the changed lines into the **Script** window (or the series config into Series
+    settings) and **Save**.
+  </Step>
+</Steps>
+
+## 5. Re-render what changed
+
+<Steps>
+  <Step title="Re-render stale">
+    Press **Re-render stale**. It queues only the shots whose script or pictures changed, each
+    at its built seed, so the new take differs by your edit and nothing else. Hover the button
+    for why each counts ("12 script, 3 ref"). The other shots stay as they are.
+  </Step>
+  <Step title="Clear the notes">
+    Notes on re-rendered shots read **(addressed)**. Once you're happy, **Clear addressed** in
+    the notes list empties them.
+  </Step>
+</Steps>
+
+## 6. Fix a flagged clip by hand
+
+<Steps>
+  <Step title="Go to the next flag">
+    **Shift+M** (or click the flag count in the timeline's header) jumps to the next flagged
+    clip.
+  </Step>
+  <Step title="Edit this take's prompt">
+    Right-click → **New take like this one…**, edit the prompt for this take (*the car has
+    two backs*: rewrite the sentence that describes the car), and generate. For a change that
+    should stay with the shot, **Inspect shot** → **Render settings** → the prompt, **Save**,
+    then **Generate (new seed)**.
+  </Step>
+  <Step title="Pick and unflag">
+    **Use this take** on the new take, then **M** to clear the flag.
+  </Step>
+</Steps>
+
+<Tip>
+  **Promote** (in the Inspector) moves an override the script can say back into the script.
+  Story edits (action, camera, dialogue) belong in the script, not in a prompt override.
+</Tip>
+
+## 7. Trim it
+
+<Steps>
+  <Step title="Trim at the playhead">
+    Stop where the clip should start and press **i**; where it should end, **o**. Or drag a
+    clip's edges in the timeline, frame by frame.
+  </Step>
+  <Step title="Reorder">
+    Drag a clip to move it, or **Alt+← / Alt+→**.
+  </Step>
+  <Step title="Undo, and lock what's done">
+    **Ctrl+Z** undoes any cut edit (a flag too). The timeline's **Cut** menu has **Clear
+    trims** and **Reset order**. **Lock in the cut** (the clip's menu) freezes one you're done
+    with.
+  </Step>
+</Steps>
+
+## The loop
+
+**Shift+M** to the next flag → fix it → **M** to unflag → again. Only what you marked, every
+pass.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="13 · Finishing" icon="flag-checkered" href="/tutorials/finishing">
+    From draft to the finished master.
+  </Card>
+  <Card title="The editor" icon="clapperboard" href="/editor#noting-whats-wrong-with-a-pass">
+    Notes, flags and the timeline in detail.
+  </Card>
+</CardGroup>

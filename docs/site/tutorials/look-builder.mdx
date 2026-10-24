@@ -1,0 +1,107 @@
+---
+title: "The look builder"
+description: "Tutorial 7: a series' look picked from pictures or built from its parts, saved as a preset, and the pictures and shots made again under it."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 7 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 7 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  The look builder: the whole series, another look.
+</Card>
+
+A series' **look** is one line in its series config (`style.look`): how the whole show is
+shot or drawn. It opens every shot's prompt and every picture's. This tutorial changes the
+look of the live-action Clips project from tutorials 1 and 2 (Mara at the lighthouse).
+
+## 1. Pick a look from pictures
+
+<Steps>
+  <Step title="Open Series settings">
+    The cog in the Shots toolbar (Advanced mode) → **Series settings** → **Look**. (The
+    series wizard's **Series** step has the same row.)
+  </Step>
+  <Step title="Browse the presets">
+    Every look is a picture of the same woman in a red coat at a tram stop, so they compare:
+    live action (prestige drama, neon noir, 1970s film, documentary, black and white),
+    genres (western, thriller, horror, 80s VHS...), animation (3D animated, 2D cartoon,
+    anime, stop-motion) and illustration (watercolor, graphic novel...).
+  </Step>
+  <Step title="Pick one">
+    Click **1970s film**. It fills the look line, which is still yours to edit.
+  </Step>
+</Steps>
+
+<Note>
+  A genre's picture shows its world (a frontier town, a desert highway), but the line is
+  only the look: light, lens, grade, stock. Your locations and characters decide where the
+  story is, so a western look on a city street is a dusty, sun-bleached city.
+</Note>
+
+## 2. Build the look from its parts
+
+<Steps>
+  <Step title="Open Build the look">
+    Under the presets, **Build the look** shows a row for each part, a picture for each
+    choice: **Medium**, **Camera**, **Lens**, **Film / sensor**, **Light**, **Grade**.
+  </Step>
+  <Step title="Pick a part at a time">
+    Start with the medium, then the camera and lens, the film stock, the light and the grade.
+    Each pick adds what a director of photography would say of it (*anamorphic lenses: oval
+    bokeh, horizontal lens flares...*), and the line rewrites itself. A second click on a pick
+    clears it. A drawn or animated medium folds Camera, Lens and Film away.
+  </Step>
+  <Step title="Start from a preset, if you like">
+    A look preset sets the rows too, so you can pick *1970s film* and change only its grade.
+  </Step>
+  <Step title="Edit the line by hand (optional)">
+    Once you type into the line yourself, the picks leave it alone. **Use the built line**
+    puts theirs back.
+  </Step>
+  <Step title="Save as a preset…">
+    Press **Save as a preset…** under the line. It's offered under **Yours** in every show on
+    this machine. Give its tile a picture with the picture button on it: **Render it** on the
+    sample scene, take it **from your work** (a frame of a take, or a picture in Refs), or
+    **import a picture**.
+  </Step>
+  <Step title="Save the series settings">
+    **Save**. The look is written into `series.json`, its picks kept as `style.look_parts`.
+  </Step>
+</Steps>
+
+## 3. What it does
+
+The look goes into every picture too, and on a model that renders from pictures (H3) the
+plate and the character's views carry most of it. So make them again under the new look
+before re-rendering the shots.
+
+<Steps>
+  <Step title="Regenerate the pictures">
+    **Refs** → the place's plate and each character's views → **Generate**, then **Pick** the
+    new ones. (Or **Generate missing** after clearing them.)
+  </Step>
+  <Step title="Re-render stale">
+    The shots that used the old pictures are now `stale`. Press **Re-render stale**: each is
+    rendered at the same seed, so the new take differs by the look and nothing else.
+  </Step>
+  <Step title="Compare">
+    Right-click the new take → **Compare with…** the old: c001 before, and in the 1970s look.
+  </Step>
+</Steps>
+
+<Tip>
+  A **lens for one shot** is a field of its own (`lens:` in the script, **Lens** in the shot
+  form). It's one sentence of the prompt and never changes the pictures, so with a plate's
+  sharp focus behind it, it may show little on H3. It shows most on models that draw the place
+  from words (LTX-2, Wan).
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="8 · Shot direction" icon="video" href="/tutorials/shot-direction">
+    How close, from where, and how the camera moves.
+  </Card>
+  <Card title="Writing the look line" icon="book" href="/authoring#writing-the-look-line">
+    What a good look line says, and what it leaves out.
+  </Card>
+</CardGroup>

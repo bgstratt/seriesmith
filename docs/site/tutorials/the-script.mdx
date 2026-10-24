@@ -1,0 +1,205 @@
+---
+title: "The script in 90 seconds"
+description: "Tutorial 4: writing an episode's script by hand, line by line, what each line tells the model, the series config behind it, and the same shot in the editor's form."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 4 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 4 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  The script in 90 seconds: the script, the series config and the prompt side by side.
+</Card>
+
+Every shot in seriesmith is a few lines of a markdown script, `epNN.md`, and every
+person and place in it is described once in the series config, `series.json`. The build
+turns the two into what each video model is told. This tutorial writes a shot by hand,
+explains each line, and then edits the same shot in the editor.
+
+The example is *Dean and the Grumpy Star-Horse* (a 2D storybook episode on MiniMax H3).
+The [authoring guide](/authoring) is the full format.
+
+## 1. Make the episode's two files
+
+<Steps>
+  <Step title="Make an episode to write into">
+    In the editor: **Project folders** (the episode dropdown → **Browse and add new…**) →
+    the show's folder → **New episode…** (or **New series/project…** for a new show). Or from
+    a terminal:
+
+    ```
+    seriesmith new Shows\ep01 --title "First Light"
+    ```
+
+    Either writes a `series.json` and a script that build, to change into your own.
+  </Step>
+  <Step title="Open the script">
+    In the Shots toolbar, the file-edit icon opens the **Script** window: the episode's
+    `epNN.md` as text. The book icon opens `series.json` the same way; the cog opens it as a
+    form (**Series settings**). `Ctrl+S` saves either window.
+  </Step>
+</Steps>
+
+## 2. A shot, line by line
+
+Here is one shot, and the sequence header it sits under:
+
+```
+# sq02  purple_beach
+
+## sh040
+who: lani, dean
+size: cowboy
+dur: auto
+plate: purple_beach
+Queen Lani walks up the beach from frame right and bends to greet Dean at frame left with a kind smile. Dean looks at her in awe.
+camera: pushes in at slow speed
+LANI: Welcome, Dean. We need a helper today.
+sound: soft footsteps on sand
+```
+
+Write each line in this order, one per line:
+
+<Steps>
+  <Step title="# sq02  purple_beach: the sequence">
+    A sequence happens in one place. The word after its id is a location's key in the series
+    config, where the place is described and its plate picture named. Every shot under it is
+    there unless it says otherwise.
+  </Step>
+  <Step title="## sh040: the shot">
+    Every `##` is a cut: one shot, one clip. Number shots in tens (sh010, sh020) so there's
+    room to add sh015 later. The id also sets the shot's random seed, so a re-render of an
+    unchanged shot is the same take.
+  </Step>
+  <Step title="who: the people in it">
+    Characters' keys, in order. Each one's picture goes in with the prompt ("Exactly two
+    characters appear in this shot..."). Props go on a `with:` line after it.
+  </Step>
+  <Step title="size: how close">
+    From extreme close-up to extreme wide: `ecu`, `cu` (or `close`), `mcu`, `medium`,
+    `cowboy`, `mws`, `full`, `wide`, `ews`, or an angle: `pov`, `ots`, `low`, `high`. Cowboy
+    is mid-thigh up, and the prompt says so.
+  </Step>
+  <Step title="dur: how long">
+    Seconds (`dur: 4`), or `auto`: as long as the shot's dialogue takes to say. Each model
+    renders on its own frame grid, so the length is rounded to it.
+  </Step>
+  <Step title="plate: the picture behind them">
+    Optional. Without it, the shot uses the sequence's location. A closer angle of a place can
+    be a location of its own, named here.
+  </Step>
+  <Step title="The action">
+    Any line that isn't a field is the action: what we see, in the present tense, plainly, as
+    you'd tell a camera crew. Say where people are in the frame ("from frame right").
+  </Step>
+  <Step title="camera: one move">
+    In plain words, without "The camera": `pushes in at slow speed`, `pans left`, `holds a
+    static shot`. It becomes "The camera pushes in at slow speed."
+  </Step>
+  <Step title="LANI: a line">
+    The speaker's key in capitals, as in a screenplay, then the words. How the voice sounds is
+    the character's `voice` in the series config.
+  </Step>
+  <Step title="sound: what we hear">
+    The scene's sounds besides the lines: ambience and the sounds of the action.
+  </Step>
+</Steps>
+
+## 3. The series config behind it
+
+The script names people and places by key; `series.json` says once what they look like,
+and the build says it in every shot they're in. That's why Dean looks like himself
+throughout.
+
+```json
+{
+  "style": {
+    "look": "a warm 2D storybook cartoon style with soft clean ink outlines, flat muted colors..."
+  },
+  "subjects": {
+    "lani": {
+      "kind": "character",
+      "name": "Queen Lani",
+      "design": "a tall kind alien queen with soft lavender skin...",
+      "voice": "a warm, calm, gently musical queen's voice"
+    }
+  },
+  "locations": {
+    "purple_beach": {
+      "description": "a beach of soft purple sand on an alien planet, two orange suns low in a peach sky..."
+    }
+  }
+}
+```
+
+| Field | What it does in the prompt |
+|---|---|
+| `style.look` | One sentence of how the whole series looks. It opens every shot's prompt |
+| a character's `name` | The name the prompt uses (`LANI` in the script is "Queen Lani") |
+| a character's `design` | What they look like, said in every shot they're in, beside their picture |
+| a character's `voice` | How their lines sound, when voices are generated |
+| a location's `description` | The place, and the words its plate is made from |
+
+## 4. A few more lines
+
+```
+NARRATOR (V.O.): One sleepy Sunday morning, Dean found a shiny shell.
+music: a soft ukulele melody
+DEAN (whisper): I can hear the waves!
+extras: a few island villagers in woven wraps standing in the drizzle behind him, blurred
+```
+
+- **`(V.O.)`**: heard, not seen. The narrator is a character with a `voice` and no picture.
+  `(O.S.)` is off-screen but in the scene.
+- **`music:`**: the score, under the scene. Leave it out for none.
+- **`(whisper)`**: how a line is said. Any short direction works: `(breathless)`, `(flat)`.
+- **`extras:`**: people in the background, described so they don't look like your cast.
+
+## 5. Check and build
+
+<Steps>
+  <Step title="Save">
+    `Ctrl+S` in the Script window. A copy of the old script goes into the episode's
+    `_history/`.
+  </Step>
+  <Step title="Build">
+    Press **Build** on the episode's card. It compiles every shot for both passes and lists
+    any warnings (a line too long for its shot, a name the series config doesn't have). From
+    a terminal: `seriesmith check Shows\ep01`, then `seriesmith build Shows\ep01`.
+  </Step>
+</Steps>
+
+## 6. The same shot, in the editor's form
+
+<Steps>
+  <Step title="Edit shot">
+    Select sh040 and press the pencil in the Shots toolbar (or right-click → **Edit shot…**).
+    The form is the same lines as fields. Beside it is **What the model is told**: the prompt,
+    compiled as you type, with the dialogue's pace against the shot's length.
+  </Step>
+  <Step title="Change the framing">
+    Pick **Framing** from its list (medium → cowboy): the prompt's opening changes with it.
+  </Step>
+  <Step title="Change the action">
+    Type into **What happens** (*Dean looks at her in awe.*): the words appear in the prompt.
+  </Step>
+  <Step title="Save">
+    **Save** writes only this shot's lines into the script, keeping your comments, and
+    rebuilds. **Save and generate** also queues a take.
+  </Step>
+</Steps>
+
+<Tip>
+  A line too long for its shot shows in the form's pace line and in the build's warnings.
+  Lengthen the shot (`dur:`), set `dur: auto`, or cut words: a line has to fit the seconds
+  it's given.
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="5 · References" icon="images" href="/tutorials/references">
+    What the model is told, done. Next: the pictures it's shown.
+  </Card>
+  <Card title="Writing an episode" icon="book" href="/authoring">
+    Every field, the frame grids, and how to break a scene into shots.
+  </Card>
+</CardGroup>

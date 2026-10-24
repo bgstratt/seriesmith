@@ -1,0 +1,146 @@
+---
+title: "Continuity"
+description: "Tutorial 10: shots that carry straight on from the one before, from its last frame (continuous: first) or its held latent (continuous: latent), side by side."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 10 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 10 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  Continuity: two shots that carry on as one.
+</Card>
+
+Usually every shot starts fresh: people re-pose, the light shifts, the camera resets. For a
+shot that carries straight on from the one before (the same moment, the camera still
+running), one line says so:
+
+| Line | What it does |
+|---|---|
+| `continuous: first` | The shot opens on the last frame of the shot before. The picture carries over; the movement and sound start again |
+| `continuous: latent` | The end of the shot before is held at the start of this one, and the model carries on from it: picture, motion and sound (H3 Ref2VA and FastH3 Omni) |
+
+"The shot before" is the one before it **in the cut**: move a shot on the timeline and it
+continues from its new neighbour.
+
+## 1. Set up an episode to compare them
+
+This makes *Dean's Lullaby*: the same two moments twice, joined one way in sq01 and the other
+in sq02.
+
+<Steps>
+  <Step title="A new episode">
+    **Project folders** → the Dean show's folder → **New episode…** (`ep02`). It gets its own
+    copy of the series config and shares the show's `refs` folder.
+  </Step>
+  <Step title="Paste the script">
+    Open the **Script** window and replace what's there:
+
+    ```
+    = ep02  Dean's Lullaby
+
+    # sq01  window_seat
+
+    ## sh010
+    who: dean
+    size: medium
+    dur: 4
+    Dean sits on the window seat humming a lullaby and slowly lifts the glowing star nightlight up toward the round window.
+    camera: holds a static shot
+    sound: a small boy softly humming a lullaby, a quiet night room
+
+    ## sh020
+    who: dean
+    size: medium
+    dur: 4
+    continuous: first
+    Dean keeps humming and holds the star nightlight against the glass, its warm glow spreading across the window.
+    camera: holds a static shot
+    sound: a small boy softly humming a lullaby, a quiet night room
+
+    # sq02  window_seat
+
+    ## sh030
+    who: dean
+    size: medium
+    dur: 4
+    Dean sits on the window seat humming a lullaby and slowly lifts the glowing star nightlight up toward the round window.
+    camera: holds a static shot
+    sound: a small boy softly humming a lullaby, a quiet night room
+
+    ## sh040
+    who: dean
+    size: medium
+    dur: 4
+    continuous: latent
+    Dean keeps humming and holds the star nightlight against the glass, its warm glow spreading across the window.
+    camera: holds a static shot
+    sound: a small boy softly humming a lullaby, a quiet night room
+    ```
+
+    **Save**, then **Build**.
+  </Step>
+</Steps>
+
+## 2. continuous: first
+
+<Steps>
+  <Step title="Generate missing">
+    Press **Generate missing**. A continuing shot waits for the shot before it: in **Jobs**,
+    sh020 says it's waiting for sh010, and starts from sh010's new take once it's in.
+  </Step>
+  <Step title="Where it renders">
+    sh020 opens on sh010's last frame. FastH3 Omni and H3 Ref2VA don't read a first frame, so
+    seriesmith renders sh020 on **H3 FL2VA** by itself. (Any model that reads a first frame
+    can do `first`, hosted ones included.)
+  </Step>
+  <Step title="Play sq01">
+    Right-click sh010 → **Play from here**. The picture carries over the cut; the movement
+    and the humming start again.
+  </Step>
+</Steps>
+
+## 3. continuous: latent
+
+<Steps>
+  <Step title="Its render waits too">
+    sh040 waits for sh030 the same way.
+  </Step>
+  <Step title="What it does">
+    The end of sh030's take (39 frames by default, `overlap:` to change it) is held at the
+    start of sh040, and the model generates the rest. sh040 keeps its own pictures and
+    prompt; the held frames are trimmed after.
+  </Step>
+  <Step title="Play sq02">
+    The hum and the hand carry straight on across the cut: one movement, one sound.
+  </Step>
+</Steps>
+
+## 4. Side by side
+
+**Play all**: sq01, joined by its first frame, then sq02, by its latent. Compare each join
+with a wipe (**Compare with…**).
+
+<Note>
+  Live playback can blink at a join. The assembled episode (**Export**, or the master) is
+  seamless.
+</Note>
+
+## In the script
+
+- **On a shot:** `continuous: first` or `continuous: latent`, as above.
+- **On a sequence's `#` header:** every shot after the sequence's first continues. It stops at
+  the next `#`; `continuous: none` on a shot breaks the chain.
+- **Across a sequence boundary:** only the shot itself can say it, on the first shot of the
+  new sequence.
+- **From the editor:** a take's menu has **Use this frame as the next shot's first frame**
+  and **Use previous shot's last frame as first frame**, for a keyframe from a frame you choose.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="11 · Voices and your own dialogue" icon="microphone" href="/tutorials/voices">
+    Who says the lines, and how they sound.
+  </Card>
+  <Card title="Continuous shots" icon="link" href="/continuous">
+    The design, in detail.
+  </Card>
+</CardGroup>

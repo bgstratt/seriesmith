@@ -21,6 +21,25 @@
   "navigation": {
     "groups": [
       { "group": "Get started", "pages": ["index", "quickstart", "full-setup", "install", "setup"] },
+      {
+        "group": "Tutorials",
+        "pages": [
+          "tutorials/index",
+          "tutorials/install-to-first-clip",
+          "tutorials/people-and-places",
+          "tutorials/screenplay-to-episode",
+          "tutorials/the-script",
+          "tutorials/references",
+          "tutorials/relighting",
+          "tutorials/look-builder",
+          "tutorials/shot-direction",
+          "tutorials/render-anywhere",
+          "tutorials/continuity",
+          "tutorials/voices",
+          "tutorials/editing-an-episode",
+          "tutorials/finishing"
+        ]
+      },
       { "group": "Using seriesmith", "pages": ["editor", "commands"] },
       { "group": "Writing episodes", "pages": ["authoring", "script-conversion"] },
       {

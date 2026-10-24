@@ -1,0 +1,127 @@
+---
+title: "Relighting"
+description: "Tutorial 6: one plate relit from the preset pictures or your own words, a relight saved for every show, a whole sequence under another light, and how to keep a relight from adding things."
+---
+
+{/* Written by hand. Video: the trailer until tutorial 6 is uploaded; put its link here. */}
+
+<Card title="Watch tutorial 6 on YouTube" icon="youtube" href="https://www.youtube.com/watch?v=Bc2VXPys6Ak">
+  Relighting: the same places, under another light.
+</Card>
+
+A relight is an edit of a picture that changes its light and keeps everything else: the
+window seat at dusk, in snow, by candlelight. One plate at a time, or every plate of a
+sequence at once, and then the shots re-rendered on the same seeds so only the light
+differs.
+
+**You need:** an edit model for pictures (FLUX.2 Klein edit, Qwen-Image 2.1, FLUX.3
+Klein, Fibo 2.0...). This continues on the Dean episode.
+
+## 1. One plate, relit
+
+<Steps>
+  <Step title="Open the edit window">
+    **Refs** → the **window_seat** location → **Edit live…** (or **Edit** on a candidate).
+  </Step>
+  <Step title="Pick a relight">
+    The **Relight** row above the instruction shows the presets as pictures, each the same
+    sample place under that light: time of day (dawn to night), weather (overcast, rain, fog,
+    snow, storm) and light (neon, moonlight, streetlights, firelight, sunbeams...). Click one:
+    it fills the instruction, which stays yours to edit.
+  </Step>
+  <Step title="Read the instruction, then queue it">
+    Read the words before you run them (see part 3), then press **Queue Edit**.
+  </Step>
+  <Step title="Compare">
+    Each relight is a new candidate; the original stays. Compare them side by side, and press
+    **Pick** on the one to use.
+  </Step>
+</Steps>
+
+## 2. A relight of your own
+
+<Steps>
+  <Step title="Write the light yourself">
+    In the same edit window, type your own instruction:
+
+    ```
+    warm candlelight from a single candle on the windowsill, deep amber glow, the rest of the room in soft shadow
+    ```
+  </Step>
+  <Step title="Save as a relight…">
+    Press **Save as a relight…** under the Relight row and name it (*candlelight*). It's
+    offered under **Yours** in every show on this machine, in the edit window and on a
+    sequence's Relight…. **✕** on its tile removes it.
+  </Step>
+  <Step title="Give it a picture (optional)">
+    Until it has one, its tile shows its words. On an edited take, **save as a relight…**
+    beside its instruction keeps it with that take's picture as its tile.
+  </Step>
+</Steps>
+
+## 3. When a relight adds things
+
+A relight names where its light comes from, and the edit model can draw in what it names.
+*Firelight* that mentions candles and a brazier gets candles; *dusk* with "the street lamps
+lit" in a room with no street gets a street drawn outside; snow that "lies on every surface"
+lies on the cushions indoors.
+
+<Steps>
+  <Step title="Read what it says">
+    Before **Queue Edit**, read the instruction against the picture. Does it name a lamp, a
+    window, a fire, a street the picture hasn't got?
+  </Step>
+  <Step title="Cut the word, don't add a no">
+    Delete what isn't there. Don't add *no lamps*: that puts the word in all the same.
+  </Step>
+  <Step title="Say what's outside and what isn't">
+    For weather, say where it is: *snow is falling outside the window, the yard and the tree
+    covered in snow*, not *snow on every surface*.
+  </Step>
+  <Step title="Compare with the original">
+    Side by side, look for anything new besides the light.
+  </Step>
+</Steps>
+
+## 4. A whole sequence under another light
+
+For a flashback, a dream or a night version: every plate a sequence uses, relit at once.
+
+<Steps>
+  <Step title="Relight… on the sequence">
+    **Shots** → the sequence's header (sq01) → **Relight…**.
+  </Step>
+  <Step title="Pick the light">
+    Pick a relight picture (**Snow**, **Dusk**, one of **Yours**) or say it in your own words.
+    The dialog lists what it will make before you start.
+  </Step>
+  <Step title="Point the sequence at the relit plates">
+    Leave **Point sq01 at the relit plates** on: it rewrites the sequence's location and its
+    shots' `plate:` lines so the next render uses the new plates (the script keeps a history
+    copy). Press **Relight**.
+  </Step>
+  <Step title="Pick the new plates">
+    Each plate becomes a new location (`window_seat_dusk`), made from the plate itself, so the
+    old one is still there. Pick the takes in Refs as usual.
+  </Step>
+  <Step title="Re-render the sequence">
+    On the sequence's header, **Re-render…**: every shot again as a new take, with the same
+    seeds, so only the light has changed. Your old takes stay.
+  </Step>
+</Steps>
+
+<Tip>
+  To go back, point the sequence's header and `plate:` lines at the original location in the
+  Script window, Save, and re-render. Both versions of each shot stay among its takes.
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="7 · The look builder" icon="palette" href="/tutorials/look-builder">
+    Not one place: the whole series, another look.
+  </Card>
+  <Card title="The editor: making references" icon="clapperboard" href="/editor#making-references">
+    Relight, Save as a relight and Relight… in detail.
+  </Card>
+</CardGroup>
