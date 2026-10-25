@@ -200,6 +200,10 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         defs.append(f"Exactly {_count(len(people))} characters appear in this shot: "
                     f"{_and(people)}. They are different characters, and never duplicates "
                     f"of one another.")
+    elif extras:
+        # no one named, only props or vehicles: the extras are the only people,
+        # and with no count to replace they were left out altogether
+        defs.append(f"The people in frame are {extras}: unnamed background figures.")
     if not no_plate:
         defs.append(
             f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
@@ -354,7 +358,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         where = (f"{frame} frames {who}{held} in {place}, showing the part of the space directly "
                  f"behind them." if who else f"{frame} frames {place}.")
     body = f"[Shot 1] {where} {shot['action']}"
-    cam = shot.get("camera", "").strip()
+    cam = framing.orbit(shot.get("camera", "").strip(), who)
     body += f" The camera {cam}." if cam else " The camera holds a static shot with fixed composition."
     desc.append(body)
     for d in shot["dialogue"]:

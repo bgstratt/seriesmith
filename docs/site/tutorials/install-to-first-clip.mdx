@@ -1,0 +1,264 @@
+---
+title: "Install to first clip"
+description: "Tutorial 1: install seriesmith one of four ways, add FastH3 Omni and Krea 2 from Features, and make your first clip."
+---
+
+{/* Written by hand. */}
+
+<Card title="Watch tutorial 1 on YouTube" icon="youtube" href="https://youtu.be/_hv0-__a4FI">
+  Install to first clip: four ways in, the models, your first clip.
+</Card>
+
+From nothing to a clip made on your own PC: seriesmith installed, a video model and a
+picture model downloaded, and one shot of a person in a place saying a line.
+
+**You need:** a ComfyUI that runs (0.38 or later) on a PC with an NVIDIA GPU, or, for
+the page of its own, git and Python 3.10 or later. With no GPU at all, see
+[Render anywhere](/tutorials/render-anywhere): Comfy Cloud and Comfy Router need only a
+Comfy API key.
+
+## 1. Install seriesmith
+
+Pick **one** of these four. All of them end in the same place: the seriesmith editor
+open, either in ComfyUI's sidebar or on its own page.
+
+<Tabs>
+  <Tab title="ComfyUI-Manager">
+    The usual way, and the one to pick if you're unsure.
+
+    <Steps>
+      <Step title="Make sure Manager is there">
+        Look for the **Manager** button in ComfyUI's top bar. A new portable ComfyUI has
+        Manager built in but not installed or switched on. In the portable's folder, run:
+
+        ```
+        .\python_embeded\python.exe -m pip install -r ComfyUI\manager_requirements.txt
+        ```
+
+        Then start ComfyUI with `--enable-manager` (add it to the end of the line in
+        `run_nvidia_gpu.bat`):
+
+        ```
+        .\python_embeded\python.exe -s ComfyUI\main.py --windows-standalone-build --enable-manager
+        ```
+      </Step>
+      <Step title="Install the node pack">
+        Open **Manager → Custom Nodes Manager**, type **seriesmith** in the search box, and
+        press **Install** on its row.
+      </Step>
+      <Step title="Restart ComfyUI">
+        When Manager asks, press **Apply Changes** (or **Restart**). Reload the browser tab
+        once ComfyUI is back.
+      </Step>
+      <Step title="Check it's there">
+        **seriesmith Shots** and **seriesmith Refs** are in ComfyUI's left sidebar, and
+        **seriesmith Timeline** in the bottom panel.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="comfy-cli">
+    The same install as Manager's, from a terminal.
+
+    <Steps>
+      <Step title="Install the node pack">
+        ```
+        comfy node install seriesmith
+        ```
+      </Step>
+      <Step title="Restart ComfyUI">
+        Restart it as you usually do, or start it with comfy-cli:
+
+        ```
+        comfy launch
+        ```
+
+        seriesmith Shots, Refs and Timeline appear as they do after a Manager install.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="A clone in custom_nodes">
+    For following the newest changes on GitHub.
+
+    <Steps>
+      <Step title="Clone it into custom_nodes">
+        From your ComfyUI folder:
+
+        ```
+        cd ComfyUI\custom_nodes
+        git clone https://github.com/bgstratt/seriesmith.git
+        ```
+      </Step>
+      <Step title="Optional: its two packages">
+        Comfy's SDK (for Comfy Cloud and Router) and imageio-ffmpeg (an ffmpeg) are what a
+        Manager install would add. Put them in with **ComfyUI's own Python**; on the portable
+        build, from `custom_nodes`:
+
+        ```
+        ..\..\python_embeded\python.exe -m pip install -r seriesmith\requirements.txt
+        ```
+
+        You can skip this: Settings gives the SDK command when you set a Comfy API key, and
+        Features can download a full ffmpeg.
+      </Step>
+      <Step title="Restart ComfyUI">
+        seriesmith Shots, Refs and Timeline appear. Later, `git pull` in
+        `custom_nodes\seriesmith` updates it (restart ComfyUI after).
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="A page of its own">
+    The editor in a browser tab of its own, beside a ComfyUI, pointed at one on another PC,
+    or with no ComfyUI at all (Comfy's cloud only).
+
+    <Steps>
+      <Step title="Clone it anywhere">
+        ```
+        git clone https://github.com/bgstratt/seriesmith.git C:\code\seriesmith
+        ```
+
+        Installed from Manager already? Skip this: the same launcher is in
+        `custom_nodes\seriesmith`.
+      </Step>
+      <Step title="Start it">
+        Double-click **`run_seriesmith.bat`** in that folder, or from a terminal:
+
+        ```
+        cd C:\code\seriesmith
+        run_seriesmith.bat
+        ```
+
+        On Linux or macOS it's `./run_seriesmith.sh`. `run_seriesmith_ext.bat` opens it to
+        your home network too. The first start sets itself up in the folder's `.venv`,
+        which takes a minute or two.
+      </Step>
+      <Step title="The editor opens">
+        Your browser opens the editor at http://127.0.0.1:8190.
+      </Step>
+      <Step title="Point it at where shots render">
+        Open **Settings** (top right). With ComfyUI running on this PC there is nothing to
+        set. For a ComfyUI elsewhere, set its address under **ComfyUI**. With no ComfyUI,
+        paste a **Comfy API key** (from platform.comfy.org): shots then render on Comfy
+        Cloud and the hosted models through Comfy Router, billed to that account.
+      </Step>
+    </Steps>
+
+    <Note>
+      Rendering only on Comfy Router? Skip step 2 below (it downloads models to a local
+      ComfyUI) and go straight to step 3, picking a Router model in **Model**.
+    </Note>
+  </Tab>
+</Tabs>
+
+## 2. Add the two models
+
+FastH3 Omni makes the video (MiniMax H3 distilled to 8 steps: a 3-second take is about a
+minute) and Krea 2 makes the pictures (6 to 10 seconds each). Both are just model files: no
+other node packs, no LoRAs.
+
+<Steps>
+  <Step title="Open Features">
+    **Settings → Features…**. It lists what this install can add, grouped: video and picture
+    models, voices, upscaling, post-processing and more. Each has a status: **Installed**,
+    **Partly installed** or **Not installed**.
+  </Step>
+  <Step title="Tick FastH3 Omni and Krea 2">
+    FastH3 Omni is under the video models, Krea 2 under the picture models. The chevron on
+    a row lists its files, the folder each goes in and its size; the foot adds up what the
+    ticked features will download.
+  </Step>
+  <Step title="Install">
+    Press **Install**. The card on top follows each download and has **Stop** (a stopped
+    download resumes next time). The files go into ComfyUI's own models folders.
+  </Step>
+  <Step title="Wait for Installed">
+    Both rows read **Installed**. If these are the only models on the machine, they are now
+    its defaults (Krea 2 for pictures, FastH3 Omni for video), so there is nothing else to set.
+  </Step>
+</Steps>
+
+<Tip>
+  Already have other models? seriesmith picks the first one installed in its own order
+  (MiniMax H3 Ref2VA before FastH3 Omni, for example). Choose one yourself in **Settings →
+  Video model** and **Picture model**, or per clip with **Model** in Simple mode. A model
+  that isn't ready has a **What's missing** button listing each file and where it goes.
+</Tip>
+
+## 3. Make your first clip
+
+<Steps>
+  <Step title="Open Simple mode">
+    Open **seriesmith Shots** in ComfyUI's sidebar (or the page of its own) and choose
+    **Simple** at the top. The sidebar becomes one **Make** panel.
+  </Step>
+  <Step title="Start a project of its own (recommended)">
+    The panel's title is the project. Open its dropdown → **Browse and add new…** → **New
+    series/project…**, and give it a name (*First clip*). Its clips, people and places stay
+    together in a folder of its own. You can also just use the **Clips** project that's
+    there already.
+  </Step>
+  <Step title="Choose A clip">
+    Pick **A clip** (the others are **A picture**, **Several shots** and **A series…**).
+  </Step>
+  <Step title="Create the person">
+    Under **Who**, press **+ Create**. Give a name, *Mara*, and what she looks like:
+
+    ```
+    a lighthouse keeper in her sixties, grey braid, yellow oilskin coat, weathered face
+    ```
+
+    Leave the picture empty and press **Add**. Her picture is made from those words on
+    Krea 2: four views of her (three-quarter, side, back and face), so she looks the same in
+    every shot. She is now in **Who**.
+  </Step>
+  <Step title="Create the place">
+    Under **Where**, press **+ Create**. Name it *Lighthouse gallery* and describe it:
+
+    ```
+    the iron gallery around a lighthouse lamp at dusk, storm clouds over a dark sea
+    ```
+
+    Its picture (the place's **plate**) is made there and then, and the place becomes this
+    clip's **Where**. Both are kept for the next clip.
+  </Step>
+  <Step title="Say what happens">
+    In **What happens?**, describe the shot as you would to a camera crew: who does what,
+    in the present tense.
+
+    ```
+    Mara wipes rain off the lamp's glass, then turns to look out to sea as a ship's horn sounds in the distance.
+    ```
+  </Step>
+  <Step title="Give her a line">
+    Under **Said**, type her line under her name: *There you are.*
+  </Step>
+  <Step title="Set the length, framing and size">
+    **Length** 3 (seconds; **lengths** beside it lists what suits what), **Framing**
+    medium, and leave **Size** at the project's.
+  </Step>
+  <Step title="Generate">
+    Press **Generate**. Anything the clip still needs (Mara's views, the place's plate) is
+    made first, on the same queue, then the take. One press does both. On FastH3 Omni the
+    take takes about a minute; **Jobs** in the top bar shows where it is.
+  </Step>
+  <Step title="Play it">
+    The clip is under **Your clips**, newest first. Click it to play its take in the viewer:
+    her face, the place, her line.
+  </Step>
+</Steps>
+
+A clip is one shot. Underneath, a Simple project is an ordinary episode, and each clip is
+a shot of it, so everything in Advanced works on it too.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="2 · People and places" icon="users" href="/tutorials/people-and-places">
+    Mara again, someone from a photo, two people talking, and new takes.
+  </Card>
+  <Card title="3 · Screenplay to episode" icon="file-lines" href="/tutorials/screenplay-to-episode">
+    A whole episode from a script.
+  </Card>
+</CardGroup>
+
+More on each part: [Getting started](/quickstart), [Full setup](/full-setup) (what every
+feature needs), and the editor's [Simple mode](/editor#simple-mode).

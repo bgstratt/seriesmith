@@ -2726,6 +2726,11 @@ export function openSubjectCard(card: { kind: import("./lib/seriesForm").CardKin
   set({ subjectCard: card, menu: null });
 }
 
+/** A new cast card's entry was added (Simple's + Create picks it). */
+export function noteCardAdded(added: { kind: import("./lib/seriesForm").CardKind; id: string }) {
+  set({ cardAdded: added });
+}
+
 /** The shot form: edit `shot`, or add one after `after` (null: at the end). */
 export function openShotForm(form: { shot: string | null; after: string | null } | null) {
   set({ shotForm: form, menu: null });

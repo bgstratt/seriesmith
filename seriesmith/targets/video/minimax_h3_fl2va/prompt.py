@@ -88,7 +88,7 @@ def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
 
     if shot.action:
         parts.append(_sentence(shot.action))
-    cam = (shot.camera or "").strip().rstrip(".")
+    cam = framing.orbit((shot.camera or "").strip().rstrip("."), _and([name(s) for s in shot.cast]))
     parts.append(f"The camera {cam}." if cam else
                  "The camera holds a static shot with fixed composition.")
 

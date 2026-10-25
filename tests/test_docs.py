@@ -14,7 +14,8 @@ The generated documentation stays in step with the code.
     instructions; build/skill/ is gitignored and rebuilt from the same source.
   - docs/site/ (the Mintlify site, docs.seriesmith.com) is what
     tools/make_site_docs.py emits from INSTALL.md and the user docs today, and
-    names no internal document (`python tools/make_site_docs.py`).
+    names no internal document (`python tools/make_site_docs.py`); every page,
+    the hand-written tutorials too, is in its navigation.
 """
 from __future__ import annotations
 
@@ -56,6 +57,21 @@ class TestScriptSkill(unittest.TestCase):
                     f"{rel} is out of date -- run `python tools/make_prompts.py` "
                     f"and commit the result")
 
+    def test_zip_up_to_date(self):
+        """The committed skill zip (what a user installs) says what the guide says. Only its
+        text: the build it bundles is refreshed before a release, not on every change."""
+        import zipfile
+        path = os.path.join(ROOT, "prompts", P.NAME + ".zip")
+        self.assertTrue(os.path.isfile(path), path)
+        text = P.body()
+        with zipfile.ZipFile(path) as zf:
+            for arc, want in ((f"{P.NAME}/SKILL.md", P.bundle_skill(text)),
+                              (f"{P.NAME}/references/script_conversion.md", P.bundle_breakdown())):
+                with self.subTest(file=arc):
+                    self.assertEqual(zf.read(arc).decode("utf-8"), want,
+                                     f"prompts/{P.NAME}.zip is out of date -- run "
+                                     "`python tools/make_prompts.py` and commit the result")
+
 
 class TestSiteDocs(unittest.TestCase):
     """The docs site's pages are the user docs."""
@@ -75,7 +91,24 @@ class TestSiteDocs(unittest.TestCase):
         import json
         with open(os.path.join(S.SITE, "docs.json"), encoding="utf-8") as fh:
             nav = [p for g in json.load(fh)["navigation"]["groups"] for p in g["pages"]]
-        self.assertEqual(sorted(nav), sorted(["index"] + [name for _, name, _ in S.PAGES]))
+        self.assertEqual(sorted(nav), sorted(S.hand_pages() + [name for _, name, _ in S.PAGES]))
+
+    def test_last_light_quotes_the_demo(self):
+        """Every titled code block on last-light.mdx (```json series.json) is lines of that
+        file in examples/demo/, in order, so the page can't drift from the demo."""
+        import re
+        demo = os.path.join(ROOT, "examples", "demo")
+        with open(os.path.join(S.SITE, "last-light.mdx"), encoding="utf-8") as fh:
+            page = fh.read()
+        blocks = re.findall(r"^```\w+ (\S+)\n(.*?)^```", page, re.M | re.S)
+        self.assertGreater(len(blocks), 5)
+        for name, body in blocks:
+            with self.subTest(file=name, first=body.splitlines()[0][:60]):
+                with open(os.path.join(demo, name), encoding="utf-8") as fh:
+                    have = [ln.rstrip() for ln in fh.read().splitlines()]
+                want = [ln.rstrip() for ln in body.splitlines()]
+                self.assertTrue(any(have[i:i + len(want)] == want for i in range(len(have))),
+                                f"last-light.mdx quotes {name} as it no longer is")
 
     def test_no_internal_document(self):
         sources = {src for src, _, _ in S.PAGES}

@@ -22,8 +22,10 @@ Issues and pull requests are welcome.
   writes the page `seriesmith serve` serves (`seriesmith/server/static/`), `npm run build`
   the one inside ComfyUI (`comfy_nodes/web/seriesmith-editor.js`). Both are committed, so
   rebuild and commit them with the source; `npx vitest run` runs its tests.
-- `prompts/` and the skill in `build/skill/` are generated. Edit `docs/AUTHORING.md` (and
-  `docs/SCRIPT_CONVERSION.md`) and run `python tools/make_prompts.py`.
+- `prompts/` (with the skill's zip, `prompts/seriesmith-episode-script.zip`) is generated.
+  Edit `docs/AUTHORING.md` (and `docs/SCRIPT_CONVERSION.md`) and run
+  `python tools/make_prompts.py`; run it before a release too, since the zip bundles the
+  build (the core and the targets).
 - INSTALL.md's model list is generated too. If you change a target's `models`, `presets`
   or `downloads`, run `python tools/make_models_md.py` and commit the result;
   `tests/test_docs.py` fails when it is out of date (`--check` does the same without

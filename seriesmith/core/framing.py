@@ -160,6 +160,20 @@ def lens_sentence(name: str) -> str:
     return c[0].upper() + c[1:] + "."
 
 
+def orbit(camera: str, who: str) -> str:
+    """A camera line that arcs around nothing in particular, given what it arcs around:
+    "arcs around with small amplitude" → "arcs around Dean and Pip with small amplitude".
+    Unsaid, a model picks its own centre: a bedroom shot arced around the tree outside, the
+    window held still, as if the house were on wheels. A line that already names it
+    ("arcs around Dean") or has no one to name is left as it is."""
+    import re
+    m = re.match(r"^(arcs?|orbits?|circles?)( around)?(?=$|\s+(with|at|slowly|quickly)\b|,)", camera.strip(), re.I)
+    if not m or not who:
+        return camera
+    head = m.group(0) if m.group(2) else f"{m.group(0)} around"
+    return f"{head} {who}{camera.strip()[m.end():]}"
+
+
 def describe() -> str:
     """The sizes and their short names, for an error message."""
     short = {c: [a for a, v in ALIASES.items() if v == c and len(a) <= 6] for c in SIZES}

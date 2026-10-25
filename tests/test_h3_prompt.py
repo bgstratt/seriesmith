@@ -100,6 +100,14 @@ class HeadcountTest(unittest.TestCase):
         self.assertTrue(line.startswith("<Subject 1> appears exactly once in this shot."), line)
         self.assertIn("nothing like that character", line)
 
+    def test_extras_with_no_one_named_still_reach_the_prompt(self):
+        """A shot of a prop with villagers behind it: no headcount to rewrite, so the
+        extras were dropped; they get a sentence of their own."""
+        line = headcount(["kettle"], extras="two customers at the counter")
+        self.assertEqual(line, None)          # still no claim about who is in the shot
+        self.assertIn("The people in frame are two customers at the counter: unnamed "
+                      "background figures.", defs_of(["kettle"], extras="two customers at the counter"))
+
     def test_a_subject_with_no_picture_still_counts(self):
         """--render-anyway: an unreferenced character is in frame, in words."""
         line = headcount(["ada"], _unreferenced=["bo"])
@@ -181,3 +189,28 @@ class GroupTest(unittest.TestCase):
 
     def test_a_shot_without_a_group_is_unchanged(self):
         self.assertIn("They are different characters", headcount(["ada", "bo"]))
+
+
+class OrbitTest(unittest.TestCase):
+    """An arc is around something: unsaid, a model picks its own centre (a bedroom shot
+    arced around the tree outside, the window held still, the house as if on wheels)."""
+
+    def test_a_bare_arc_names_who_it_goes_around(self):
+        from seriesmith.core import framing as F
+        self.assertEqual(F.orbit("arcs around with small amplitude at slow speed", "Dean and Pip"),
+                         "arcs around Dean and Pip with small amplitude at slow speed")
+        self.assertEqual(F.orbit("arcs around, revealing the bed", "Dean"), "arcs around Dean, revealing the bed")
+
+    def test_an_arc_that_says_whom_or_another_move_is_left_alone(self):
+        from seriesmith.core import framing as F
+        self.assertEqual(F.orbit("arcs around Dean", "Dean and Pip"), "arcs around Dean")
+        self.assertEqual(F.orbit("pushes in", "Dean"), "pushes in")
+        self.assertEqual(F.orbit("arcs around", ""), "arcs around")
+
+    def test_the_h3_prompt_says_it(self):
+        line = [ln for ln in build_prompt(
+            {"_subjects": ["ada"], "_policy": "generate", "_audio_ref": False, "_retention": "",
+             "dialogue": [], "action": "She waits.", "size": "medium", "camera": "arcs around",
+             "sound": "", "music": "", "extras": "", "text": "", "plate": "kitchen"},
+            {"location_key": "kitchen"}, SERIES, panels=1) if "The camera" in ln][0]
+        self.assertIn("The camera arcs around <Subject 1>.", line)

@@ -13,10 +13,11 @@ import {
 } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
-import { getPath, refsPrefix, serialize, setPath, type Raw } from "../lib/seriesForm";
+import { getPath, serialize, setPath, type Raw } from "../lib/seriesForm";
 import { SIZES, type DialogueLine } from "../lib/shotForm";
 import {
-  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pictureModel, placeFor, shotsBlock, withClip,
+  IMAGE_NOTES, MODEL_NOTES, clipBlock, clipOwnSize, durFor, nextClipIds, pickCreated, pictureModel, placeFor, shotsBlock, withClip,
+  wordsOnlyPlace,
 } from "../lib/simple";
 import { COMMON_SIZES, fitSize } from "../lib/size";
 import type { TargetTemplate } from "../types";
@@ -208,10 +209,23 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
   const [rows, setRows] = useState<ShotRow[]>([{ prompt: "", size: "wide", dur: "3.04" }, { prompt: "", size: "medium", dur: "3.04" }]);
   const [who, setWho] = useState<string[]>([]);
   const [where, setWhere] = useState("");
-  const [placeText, setPlaceText] = useState("");
-  // a new place: words only (renders at once), or a picture made first
-  const [placePicture, setPlacePicture] = useState(false);
   const [dialogue, setDialogue] = useState<DialogueLine[]>([]);
+  // + Create: the person or place its card adds is picked (until the card closes)
+  const creating = useRef<"who" | "where" | null>(null);
+  const added = useApp((s) => s.cardAdded);
+  const cardOpen = useApp((s) => !!s.subjectCard);
+  useEffect(() => {
+    const picked = added && creating.current ? pickCreated(creating.current, added, who) : null;
+    if (!picked) return;
+    if ("who" in picked) setWho(picked.who);
+    else setWhere(picked.where);
+    creating.current = null;
+  }, [added]);
+  useEffect(() => { if (!cardOpen) creating.current = null; }, [cardOpen]);
+  const create = (kind: "character" | "location") => {
+    creating.current = kind === "character" ? "who" : "where";
+    openSubjectCard({ kind, id: null });
+  };
   const [size, setSize] = useState("medium");
   const [dur, setDur] = useState("3.04");
   const [busy, setBusy] = useState(false);
@@ -235,8 +249,9 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       .filter(([, e]) => (typeof e?.kind === "string" ? e.kind : "character") === "character")
       .map(([id, e]) => ({ id, name: typeof e?.name === "string" ? e.name : id, kind: "character", onScreen: true,
         pic: pictureOf(raw, refs, "subjects", id) }));
-    const places: Named[] = Object.keys((getPath(raw ?? {}, ["locations"]) ?? {}) as object)
-      .filter((id) => !/^c\d+_place$/.test(id) || id === where)
+    const locs = (getPath(raw ?? {}, ["locations"]) ?? {}) as Record<string, Raw>;
+    const places: Named[] = Object.keys(locs)
+      .filter((id) => !wordsOnlyPlace(id, locs[id]) || id === where)
       .map((id) => ({ id, name: id.replace(/_/g, " "), pic: pictureOf(raw, refs, "locations", id) }));
     return { chars, places };
   }, [raw, refs, where]);
@@ -255,16 +270,16 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       // the script: the clip's ids after the ones there
       const script = await api().source(ep, "script");
       const { seq, shot } = nextClipIds(script.text);
-      const base = { who, where, placeText, target, dialogue: mode === "clip" ? dialogue : [] };
+      const base = { who, where, target, dialogue: mode === "clip" ? dialogue : [] };
       const specs = mode === "shots"
         ? filled.map((r) => ({ ...base, prompt: r.prompt, size: r.size, dur: durFor(r.dur, tpl, fps) }))
         : [{ ...base, prompt, size, dur: durFor(dur, tpl, fps), still: picture }];
       let location = where;
       if (!location) {
-        // a place of the clip's own: words only, or its plate made first
+        // from description: a place of the clip's own, the prompt in words
         const series = await api().source(ep, "series");
         const cur = JSON.parse(series.text) as Raw;
-        const p = placeFor(shot, specs[0], refsPrefix(cur), placePicture);
+        const p = placeFor(shot, specs[0]);
         await api().putSource({ ep, file: "series", text: serialize(setPath(cur, ["locations", p.id], p.entry), series.text),
                                 base_hash: series.hash, rebuild: false });
         location = p.id;
@@ -299,7 +314,6 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
       setPrompt("");
       setRows((rs) => rs.map((x) => ({ ...x, prompt: "" })));
       setDialogue([]);
-      setPlaceText("");
     } catch (e) {
       host().toast("error", "The clip wasn't queued", (e as Error).message);
     } finally {
@@ -369,7 +383,7 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           <span className="sm-label">Who</span>
           <div className="h3-col" style={{ gap: 4 }}>
             <Chips ep={ep} value={who} options={cast.chars} onChange={setWho}
-              add={() => openSubjectCard({ kind: "character", id: null })} addLabel="+ Someone" />
+              add={() => create("character")} addLabel="+ Create" />
             {picture && it?.capabilities?.mode !== "edit" && who.length > 0 && (
               <span className="sm-note">This model works from words: they're described, not drawn from their pictures.</span>
             )}
@@ -378,24 +392,14 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
           <span className="sm-label">Where</span>
           <div className="h3-col" style={{ gap: 6 }}>
             <span className="h3-row h3-wrap" style={{ gap: 6 }}>
-              <PlacePick ep={ep} value={where} places={cast.places} empty="a new place" onChange={setWhere} />
+              <PlacePick ep={ep} value={where} places={cast.places} empty="from description" onChange={setWhere} />
               {where && (
                 <button className="h3-btn" title="Its pictures: make it again, edit it, or take a Tour through it for new angles"
                   onClick={() => openSubjectCard({ kind: "location", id: where })}>Open</button>
               )}
-              <button className="h3-btn" onClick={() => openSubjectCard({ kind: "location", id: null })}>+ Place</button>
+              <button className="h3-btn" title="A place to keep: its name, and a picture you have or one made from words"
+                onClick={() => create("location")}>+ Create</button>
             </span>
-            {!where && (
-              <>
-                <input className="h3-in" aria-label="The new place, in words" value={placeText}
-                  placeholder="a stone lighthouse on a cliff at dusk, storm clouds (empty: from what happens)"
-                  onChange={(e) => setPlaceText(e.target.value)} />
-                <label className="sm-check" title="Slower to start, but the place then looks the same in every clip that picks it">
-                  <input type="checkbox" checked={placePicture} onChange={(e) => setPlacePicture(e.target.checked)} />
-                  <span>Make a picture of it first (so it looks the same each time)</span>
-                </label>
-              </>
-            )}
           </div>
 
           {mode === "clip" && who.length > 0 && (

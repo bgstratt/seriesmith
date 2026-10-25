@@ -87,6 +87,7 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
       )}
       <PresetPicker tiles={relights} value={text} onPick={setText} square={r.kind !== "location"}
         title="Relight: the same picture at another time, in other weather or light" />
+      <div className="h3-small h3-muted">A relight names its light, and the edit model may draw in what it names (a lamp, a sign, a fire) where there's none: read the instruction, cut what the picture hasn't got, and compare the result with the original.</div>
       {text.trim() && (
         <button type="button" className="h3-link h3-small" style={{ alignSelf: "flex-start" }}
           title="Keep this instruction as a relight of yours, offered in every show under Yours (save it from the finished take instead to keep its picture as the tile)"

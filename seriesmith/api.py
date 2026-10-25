@@ -1349,7 +1349,8 @@ def continuity_before_render(ep: str, pass_: str, shots) -> dict:
         s = R.load_series(ep)
     except Exception:
         return {"live": {}, "cut": [], "wait": [], "errors": []}
-    return R.refresh_continuity(s, pass_, shots)
+    # seriesmith's queue cuts a first frame as the render starts (runner.enqueue_render)
+    return R.refresh_continuity(s, pass_, shots, cut_at_start=True)
 
 
 @handler

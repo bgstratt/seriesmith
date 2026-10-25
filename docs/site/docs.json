@@ -20,9 +20,29 @@
   },
   "navigation": {
     "groups": [
-      { "group": "Get started", "pages": ["index", "quickstart", "full-setup", "install", "setup"] },
+      { "group": "Get started", "pages": ["index", "quickstart"] },
+      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion"] },
+      {
+        "group": "Tutorials",
+        "pages": [
+          "tutorials/index",
+          "tutorials/install-to-first-clip",
+          "tutorials/people-and-places",
+          "tutorials/screenplay-to-episode",
+          "tutorials/the-script",
+          "tutorials/references",
+          "tutorials/relighting",
+          "tutorials/look-builder",
+          "tutorials/shot-direction",
+          "tutorials/render-anywhere",
+          "tutorials/continuity",
+          "tutorials/voices",
+          "tutorials/editing-an-episode",
+          "tutorials/finishing"
+        ]
+      },
       { "group": "Using seriesmith", "pages": ["editor", "commands"] },
-      { "group": "Writing episodes", "pages": ["authoring", "script-conversion"] },
+      { "group": "Setup in detail", "pages": ["full-setup", "install", "setup"] },
       {
         "group": "Guides",
         "pages": ["continuous", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]

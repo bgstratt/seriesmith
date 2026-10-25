@@ -1,0 +1,125 @@
+---
+title: "Voices and your own dialogue"
+description: "Tutorial 11: voice samples generated from words or imported, cloned voices in every shot, and lip sync to a recording of your own lines."
+---
+
+{/* Written by hand. */}
+
+<Card title="Watch tutorial 11 on YouTube" icon="youtube" href="https://youtu.be/OTTWINphNo8">
+  Voices and your own dialogue: who says the lines, and how they sound.
+</Card>
+
+How dialogue sounds is the series config's **Dialogue** setting (`audio.mode`):
+
+| Dialogue | What you get | What it needs |
+|---|---|---|
+| **generate** | The model makes up a voice from each character's `voice` words, every shot | Nothing |
+| **clone** | The written lines spoken in each character's own voice sample, the same in every shot | A voice sample for everyone who speaks |
+| **recorded track** | Each shot lip-syncs to your own recording of the lines | One recording; faster-whisper to align it |
+
+This continues on the Dean episode (four lines between Dean and Pip).
+
+## 1. A voice sample
+
+<Steps>
+  <Step title="Describe the voice">
+    A character's card (Refs, or Series settings' cast) has **Voice**, in words: *a bright,
+    gentle little boy's voice*. With **generate**, that's all the model gets, so the voice is
+    made up anew each shot.
+  </Step>
+  <Step title="Generate a sample">
+    Refs → the character's **Voice sample** row → **Generate a sample**: a few seconds of that
+    voice, made on LTX-2.5 (audio only). Generate a few and listen.
+  </Step>
+  <Step title="Or import one">
+    Drop a recording of the voice you want on the slot (or **Upload…**), or **Use a line from a
+    take…** to take it from a take you like.
+  </Step>
+  <Step title="Pick it">
+    **Pick** the one to use. It's written to `refs/voices/` and its `voice_sample` line added to
+    the series config.
+  </Step>
+</Steps>
+
+<Note>
+  Refs' **Generate missing** makes the pictures, not the voices: generate each voice from its
+  own row. Generated samples need LTX-2.5's files (**Settings → Features…**, *Voices*).
+</Note>
+
+## 2. Cloned voices
+
+<Steps>
+  <Step title="A sample for everyone who speaks">
+    Each speaking character needs a picked voice sample (part 1).
+  </Step>
+  <Step title="Turn cloning on">
+    For the whole series: **Series settings** → **Dialogue** → **clone**, and Save. For one
+    shot: `policy: clone` on its lines in the script.
+  </Step>
+  <Step title="Re-render">
+    The dialogue shots are now stale: **Re-render stale**. Same seeds, so only the voice
+    differs.
+  </Step>
+  <Step title="Compare">
+    **Compare with…** each shot's old and new take: before, a voice made up for that shot;
+    after, cloned from the sample.
+  </Step>
+</Steps>
+
+## 3. Your own recording
+
+<Steps>
+  <Step title="Install faster-whisper (once)">
+    Align transcribes the recording with Whisper. Install it into the Python that runs
+    seriesmith:
+
+    ```
+    pip install faster-whisper
+    ```
+
+    (Inside ComfyUI, that's ComfyUI's Python; for the page of its own, the repo's `.venv`.)
+  </Step>
+  <Step title="Record the lines">
+    All the episode's lines, **in script order**, in one file, with a pause between each and
+    real pauses where the script has silent shots. Dry: no music under them. A phone is fine.
+    For this episode:
+    *Are you lost, little owl?* · *I can't see my tree.* · *Follow the stars, Pip!* · *Goodnight, Pip.*
+  </Step>
+  <Step title="Attach it">
+    Open **Recording** (the speaker icon in the Shots toolbar). Under **Attach a recording**,
+    browse to the file (**Browse the ComfyUI machine…**) or type its path and **Use this
+    path**. It's copied into the episode's `audio/`, and the episode now dubs to it.
+  </Step>
+  <Step title="Dry run, then Align">
+    **Dry run** shows what align would write without writing it. Then **Align**: it transcribes
+    the recording, finds each line's window, and matches it to its shot.
+  </Step>
+  <Step title="Read the report">
+    Every line, its shot and its window. Align writes `audio: in-out` on each shot (as long as
+    you took to say it), sets the series config's dialogue to the recorded track, leaves
+    `align_report.md` beside the episode, and rebuilds. The old files go to `_history/`.
+  </Step>
+  <Step title="Re-render">
+    **Re-render stale**: each dialogue shot lip-syncs to your line, keeping the model's own
+    sound effects under it (the default, `dub_keep_foley`).
+  </Step>
+  <Step title="Play it with your voice">
+    **Play all** → **recording**: your voice under the cut.
+  </Step>
+</Steps>
+
+<Tip>
+  Frame lip-sync shots as close or medium shots: the picture's framing matters more than the
+  prompt. Replacing the recording? Attach the new one and align again.
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="12 · Editing a real episode" icon="scissors" href="/tutorials/editing-an-episode">
+    Fixing a long episode without watching it all again.
+  </Card>
+  <Card title="Recorded dialogue" icon="microphone" href="/recorded-dialogue">
+    Align's options, the audio policies, and the commands.
+  </Card>
+</CardGroup>

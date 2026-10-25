@@ -45,8 +45,9 @@ series config format.
 `prompts/SKILL.md` and `prompts/seriesmith-script.instructions.md` are **generated**
 from `docs/AUTHORING.md` by `python tools/make_prompts.py`, so an assistant drafting
 a script reads exactly what you do; the same command builds the installable
-script-writing skill (`build/skill/seriesmith-episode-script/` and its `.zip`). Edit
-the guide, never the copies — a test fails if they drift.
+script-writing skill (`prompts/seriesmith-episode-script.zip`, committed, to upload in
+Claude or unzip into `.claude/skills/`). Edit the guide, never the copies — a test fails
+if they drift.
 
 ```
   you write                     generated                                    rendered

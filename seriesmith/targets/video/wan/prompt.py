@@ -62,7 +62,8 @@ def build_prompt(shot, seq, series_cfg: dict) -> str:
 
     # the framing, where, and how the camera moves (static unless the script says)
     size = framing.term(shot.size)
-    cam = (shot.camera or "").strip().rstrip(".")
+    cam = framing.orbit((shot.camera or "").strip().rstrip("."),
+                        _and([(book.get(s) or {}).get("name", s) for s in shot.cast]))
     camera = f"the camera {cam}" if cam else "the camera remains static"
     parts.append(_sentence(f"{_article(size)}{' of ' + env if env else ''}, {camera}"))
 

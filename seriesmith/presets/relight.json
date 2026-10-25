@@ -1,18 +1,18 @@
 {
-  "about": "Relight presets for a ref's picture (the edit window's Relight): the same picture at another time of day, in other weather, or under another light. `place` is the instruction for a location plate, `subject` for a character's view or a prop. The edit wrapper (targets/image/common.py edit_prompt) names everything else as fixed. A plate's presets name the sources the light comes from (docs/AUTHORING.md: a set lit by things you can point at). The sample pictures are img/relight/<id>-place.jpg and -subject.jpg, made by tools/make_preset_samples.py.",
+  "about": "Relight presets for a ref's picture (the edit window's Relight): the same picture at another time of day, in other weather, or under another light. `place` is the instruction for a location plate, `subject` for a character's view or a prop. The edit wrapper (targets/image/common.py edit_prompt) names everything else as fixed. A plate's presets name the sources the light comes from (docs/AUTHORING.md: a set lit by things you can point at), but only as ones already in the picture or off-frame: the edit model draws in a lamp, a sign or a fire it's told about (dusk's \"street lamps lit\" put streetlights into a garden). Nothing is named to forbid it either: a negation still puts the word in the prompt. The sample pictures are img/relight/<id>-place.jpg and -subject.jpg, made by tools/make_preset_samples.py.",
   "presets": [
     {
       "id": "dawn",
       "label": "Dawn",
       "group": "time",
-      "place": "Change only the time of day and the light: it is dawn, the cool blue light just before sunrise, a pale sky, lamps still faintly lit",
+      "place": "Change only the time of day and the light: it is dawn, the cool blue light just before sunrise, a pale sky, any lamps already there still faintly lit",
       "subject": "Change only the light on the figure: cool blue dawn light from the front-left, soft and dim, with a faint warm edge where the first sun catches one side"
     },
     {
       "id": "day",
       "label": "Day",
       "group": "time",
-      "place": "Change only the time of day and the light: it is midday under a clear sky, bright neutral daylight with crisp shadows, lamps off",
+      "place": "Change only the time of day and the light: it is midday under a clear sky, bright neutral daylight with crisp shadows, any lamps off",
       "subject": "Change only the light on the figure: bright neutral midday daylight from above, crisp short shadows under the brow, nose and chin"
     },
     {
@@ -26,14 +26,14 @@
       "id": "dusk",
       "label": "Dusk",
       "group": "time",
-      "place": "Change only the time of day and the light: it is dusk, a deep blue evening sky still bright at the horizon, the windows glowing warm and the street lamps lit, soft blue shadows",
+      "place": "Change only the time of day and the light: it is dusk, a deep blue evening sky still bright at the horizon, any windows or lamps already there glowing warm, soft blue shadows",
       "subject": "Change only the light on the figure: blue dusk ambient light with a warm lamp glow on one cheek from the side"
     },
     {
       "id": "night",
       "label": "Night",
       "group": "time",
-      "place": "Change only the time of day and the light: it is night under a dark blue sky, the windows glowing warm, the street lamps lit and casting bright pools on the ground, deep shadows between them",
+      "place": "Change only the time of day and the light: it is night under a dark blue sky, any windows or lamps already there glowing warm and casting pools of light, deep shadows between them",
       "subject": "Change only the light on the figure: night, a warm practical lamp off to one side lighting that side of the face and coat, the other side in deep shadow, the background dark"
     },
     {
@@ -75,56 +75,56 @@
       "id": "neon",
       "label": "Neon",
       "group": "light",
-      "place": "Change only the light: night, lit by neon signs, magenta and cyan light pooling on the surfaces and reflecting in every wet or glossy one, deep shadows between the signs",
+      "place": "Change only the light: night, magenta and cyan light as if from neon signs off-frame, pooling on the surfaces and reflecting in every wet or glossy one, deep shadows between",
       "subject": "Change only the light on the figure: two-tone neon, magenta from one side and cyan from the other, saturated color on the skin, dark between"
     },
     {
       "id": "moonlight",
       "label": "Moonlight",
       "group": "light",
-      "place": "Change only the light: night under a bright full moon, cold silver-blue moonlight from above casting long soft shadows, no lamps",
+      "place": "Change only the light: night under a bright full moon, cold silver-blue moonlight from above casting long soft shadows, any lamps off",
       "subject": "Change only the light on the figure: cold silver-blue moonlight from above and behind, a pale rim along the shoulders and the hair, the face in soft blue shadow; the hair and clothes keep their own colors"
     },
     {
       "id": "streetlight",
       "label": "Streetlight",
       "group": "light",
-      "place": "Change only the light: night, the sodium street lamps lit and casting bright orange pools on the ground and the nearest walls beneath them, dark gaps between the pools",
+      "place": "Change only the light: night, hard orange sodium light from overhead as if from street lamps just out of frame, bright pools on the ground and the nearest walls, dark gaps between",
       "subject": "Change only the light on the figure: a sodium streetlamp overhead, hard orange top light, the eyes in shadow"
     },
     {
       "id": "firelight",
       "label": "Firelight",
       "group": "light",
-      "place": "Change only the light: night, lit by warm firelight from candles in the windows and a brazier burning on the ground nearby, flickering orange light on the nearest walls and ground, darkness beyond",
+      "place": "Change only the light: night, warm flickering firelight from low and off-frame, orange light on the nearest walls and ground, darkness beyond",
       "subject": "Change only the light on the figure: warm flickering firelight from low and in front, orange glow on the face, dark behind"
     },
     {
       "id": "police",
       "label": "Police lights",
       "group": "light",
-      "place": "Change only the light: night, red and blue police lights flashing across the walls and surfaces, hard colored light and moving shadows",
+      "place": "Change only the light: night, red and blue light from off-frame, as from police lights, flashing across the walls and surfaces, hard colored light and moving shadows",
       "subject": "Change only the light on the figure: red light from one side and blue from the other, hard, as from police lights at night"
     },
     {
       "id": "emergency",
       "label": "Emergency red",
       "group": "light",
-      "place": "Change only the light: the power is out, the space lit only by dim red emergency lights, deep red shadows",
+      "place": "Change only the light: the power is out, the space lit only by a dim red glow, as from emergency lights, deep red shadows",
       "subject": "Change only the light on the figure: dim red emergency light from above, deep red shadows, the rest in darkness"
     },
     {
       "id": "sunbeams",
       "label": "Sunbeams",
       "group": "light",
-      "place": "Change only the light: bright shafts of sunlight slant through the windows or gaps into a hazy space, visible beams, dust glowing in them",
+      "place": "Change only the light: bright shafts of sunlight slant in from one side through a hazy space, visible beams, dust glowing in them",
       "subject": "Change only the light on the figure: a single shaft of warm sunlight across the figure through haze, the rest in soft shadow"
     },
     {
       "id": "flashlight",
       "label": "Flashlight",
       "group": "light",
-      "place": "Change only the light: it is dark, and a single flashlight beam throws a bright white circle across the middle of the scene, picking out the nearest things in hard light while the rest falls into dim blue darkness",
+      "place": "Change only the light: it is dark, and a single flashlight beam from off-frame throws a bright white circle across the middle of the scene, picking out the nearest things in hard light while the rest falls into dim blue darkness",
       "subject": "Change only the light on the figure: a hard flashlight beam from in front and below, the background black"
     },
     {

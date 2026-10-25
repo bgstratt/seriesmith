@@ -332,6 +332,12 @@ With the UI there to try each one:
       prompts/ and the script-writing skill, seriesmith-episode-script, which
       bundles the build (scripts/check.py) so a script can be checked with nothing
       installed.
+- [x] The skill's zip committed (2026-10-22): prompts/seriesmith-episode-script.zip,
+      so installing it is a download, not a clone and a Python tool (and a Manager
+      install has it in custom_nodes\seriesmith\prompts\). Stamped with
+      pyproject's version, not the commit, so the same sources give the same zip;
+      test_docs checks its text against AUTHORING.md, not the build it bundles
+      (refreshed by make_prompts before a release).
 - [x] The h3 names tidied away: routes /seriesmith/..., events seriesmith.*,
       seriesmith.commands (was h3cli), the h3<module> aliases, the config folder,
       SERIESMITH_* variables (each target's workflow override is
@@ -388,7 +394,7 @@ check, history copy and rebuild.
       one's picture (a character's face: the sheet's last panel, since a
       three-quarter view won't read small; a group's, a one-picture character's
       or a prop's whole picture; a location's plate; initials until there is
-      one), larger on hover; add… and the location buttons pick from the
+      one), larger on hover; select… and the location buttons pick from the
       pictures. From the Refs list when it's loaded (a variant's derived sheet,
       the hash to refresh by), else the series config's paths. Checked live on
       a Porchlights episode's own sheets and plates.
@@ -471,6 +477,15 @@ multi-shot clip, or a series with episodes.
       then a step waits for them, makes them live and asks for the takes.
       Checked live (the local lane paused): the place's picture and the
       waiting step queued in order.
+- [x] Where without a place picked is **from description** (2026-10-22): the
+      clip's own `c007_place`, the prompt in words, kept out of Where. A place to
+      keep is **+ Create** (its card: a name, a picture or words), no quick form
+      beside it; one decided on later comes from a frame of the clip. Was a
+      words box and a "Make a picture of it first" box, whose place was saved as
+      `c007_place` but hidden from Where (one such, with its plate, shows again).
+      Labels: Who **select…** / **+ Create** (was add… / + Someone; select… in
+      every cast picker), Where **+ Create** (was + Place). What a + Create's
+      card adds is picked: the person into Who, the place as Where.
 - [x] A picture: the clip's first keyframe (`first: generate`, marked
       `// a picture`) on the image model picked, its candidates made live as
       they finish; an edit model waits for the people's and the place's
@@ -860,8 +875,29 @@ shown as pictures, each filling a text that stays editable.
       picks by semicolons, a drawn medium folding the camera rows away. The 13 look presets
       carry `parts`, so one sets the rows. Series settings and the wizard: **Build the look**;
       the picks in `style.look_parts`, rewriting the line only while it's theirs.
+- [x] No people in a look (2026-10-23): the look opens every picture's prompt, an empty
+      plate's too, and "soft rounded character design with expressive faces" drew round
+      little people into a moonlit garden. Six looks and builder clauses reworded to say how
+      things are rendered (forms, surfaces, tones); test_presets refuses characters, faces,
+      figures, skin or people in any of them; AUTHORING says so for a look of your own. The
+      ref's panel is **What the model is told, and settings**, as it holds the whole prompt.
+      A series keeps the line it copied: re-pick the look, or edit `style.look`. The sample
+      pictures weren't re-rendered (the same looks, reworded). Then places and things too
+      (2026-10-23): neon noir's "night streets lit by neon signs" turned a lighthouse shot
+      into a close-up of the lighthouse; ten more looks and builder clauses reworded
+      (lamps, windows, skies, vistas, smoke, puppets, silhouettes), and the test refuses
+      those as well. The shot form's Lens says it's one sentence of the shot's prompt, which
+      a plate's own focus can outweigh on H3.
 - [x] A per-shot lens beside framing: `lens:` (2026-10-19, under "Presets as pictures" with
       the sequence relight).
+- [x] Relights light what's there (2026-10-23): a place relight that named its source
+      ("the street lamps lit", "a brazier burning") drew it in; the sources became "any …
+      already there" or off-frame, and the "add nothing new: no lamps, signs…" tail was
+      dropped again (a negation still puts the word in the prompt). Both dialogs warn.
+- [ ] Relights that name no fixture at all: dusk and night still say "any windows or lamps
+      already there", neon "as if from neon signs off-frame", streetlight "street lamps just
+      out of frame". Describe only the light ("warm pools of light", "hard orange sodium
+      light from above")? Needs a test pass across plates with and without lamps first.
 
 ## Refactor pass ✅ (2026-10-20)
 

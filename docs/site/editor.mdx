@@ -72,13 +72,15 @@ settings and the text windows wait in Advanced. It is remembered in this browser
 - **A clip**, **A picture** or **Several shots** (or **A series…**, the series wizard).
 - **What happens?**: the prompt, as you'd describe the shot to a camera crew, and in the
   same card:
-  - **Who**: pick people by their picture, or **+ Someone**: a name, a description and,
-    if you have one, a picture of them (it is taken in and used as it is; without one it
-    is made from the description).
-  - **Where**: pick a place by its picture, **+ Place**, or say a new one in words (empty:
-    the prompt is the place). **Make a picture of it first (so it looks the same each
-    time)** makes its picture before the clip renders, and the place is then there to pick
-    for the next clip; left off, each clip imagines it its own way.
+  - **Who**: **select…** people by their picture, or **+ Create** someone: a name, a
+    description and, if you have one, a picture of them (it is taken in and used as it
+    is; without one it is made from the description). Once added, they are in Who.
+  - **Where**: **from description** (the prompt is the place, and each clip imagines it
+    its own way), a place picked by its picture, or **+ Create** one to keep: a name and
+    a picture you have, or one made from words, so it looks the same in every clip that
+    picks it; once added, it is the clip's Where. Decided later that a place should recur? Right-click the clip at a good
+    frame in the viewer (the picture itself, not its thumbnail), **Character or place from this
+    frame…** ([below](#a-character-or-a-place-from-a-frame)).
   - **Said** (a clip with people in it): the lines, under who says them.
 - The settings: **Model** (the video model, what each is good at in its tooltip, this
   machine's default marked: the one picked in Settings, else the first installed, H3 first;
@@ -342,12 +344,15 @@ in the script as fields, in cards; each field's help is on its label (point at t
   shoulder, low, high); open while the shot has no framing. **Lens** beside them (`lens:`):
   the look builder's lenses (spherical, anamorphic, vintage, wide, long, shallow focus,
   tilt-shift) and deep focus, for this shot only; **Lens, as pictures** shows each. Empty
-  leaves it to the look.
+  leaves it to the look. A lens is one sentence the shot's action opens with: it never
+  changes the pictures, and with a plate as the reference the plate keeps its own focus and
+  framing, so it may show little on H3. It shows most on models that draw the place from
+  words (LTX-2, Wan).
 
 Wherever the form (or the wizard, or the series settings' cast list) names someone or
 somewhere, it shows their picture: a character's face, cut from the last panel of their
 sheet (a whole body doesn't read that small), a group's or a prop's whole picture, a
-location's plate; initials until there is one. **add…** and the location buttons open the
+location's plate; initials until there is one. **select…** and the location buttons open the
 pictures to pick from, and pointing at a name shows it larger.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves: a move, its
@@ -618,8 +623,10 @@ the UI (`--save --every-show` for every show).
 
 ### A character or a place from a frame
 
-Right-click a take's picture in the viewer at the moment you like, and **Character or
-place from this frame…**:
+It's in **the viewer**, the player above the timeline: double-click a take to open it there,
+play or scrub it to the moment you like, and right-click **the picture itself** →
+**Character or place from this frame…**. The same menu from a take's thumbnail, the
+timeline or the shot list has no frame to take, so there it only says where to go.
 
 - **A new character**: a name, who they are in the frame ("the woman in the red coat, on
   the left") and, if you like, what they look like (said in every shot they're in). The
@@ -693,7 +700,12 @@ script call for is listed here.
   emergency red, sunbeams, a flashlight) and, for a character's view or a prop, portrait
   light (Rembrandt, rim, top light, low-key noir, soft beauty, silhouette). A plate and a
   figure each get their own wording. Picking one fills the instruction, which stays yours
-  to edit or replace; the edit model changes the light and keeps the rest.
+  to edit or replace; the edit model changes the light and keeps the rest. **Read it
+  first:** a relight names where its light comes from, and the edit model can draw in what
+  it names. The presets say "any lamps already there" or put the source off-frame, but a
+  model can still add a lamp, a sign or a fire: cut what the picture hasn't got from the
+  instruction (rather than adding "no lamps", which puts the word in all the same), and
+  compare the result with the original.
 - **Re-render…** on a sequence's header (Shots tab) renders all its shots again as new takes
   with the same seeds, so only what you changed (a relight, a character's new sheet) differs.
   Your takes stay; pick the new ones as usual. **Re-render stale** above the list does the
@@ -710,6 +722,13 @@ script call for is listed here.
   and only the light changes. The dialog lists what it will make before you start. **Point
   the sequence at the relit plates** (on by default) rewrites the sequence's location and its
   shots' `plate:` lines, so the next render uses them. Pick the takes in Refs as usual.
+- **Turn** (**↻ Turn** at the top of a view's column: side, back or face) draws that view
+  from one the character already has, the three-quarter if it's picked, by turning the
+  camera around them on Qwen-Image 2.1 with the multi-angle LoRA
+  ([FULL_SETUP.md](/full-setup), "360s and turned views"). A new candidate, not picked:
+  the same character from another side, rather than four views drawn apart.
+- **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
+  Open it to look around and save a view as a new angle of the place.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

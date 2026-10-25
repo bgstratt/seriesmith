@@ -214,7 +214,7 @@ def angle_prompt(look: str, description: str, master: str, master_description: s
 def plate_prompt(look: str, description: str) -> str:
     """A location's background plate."""
     return (f"A background plate drawn as {look}. An empty establishing "
-            f"view of {description}. No characters, no props, no figures in frame — "
+            f"view of {description.rstrip('.')}. No characters, no props, no figures in frame — "
             f"the environment only. Wide framing that shows the layout of the space.")
 
 

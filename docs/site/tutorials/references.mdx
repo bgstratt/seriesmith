@@ -1,0 +1,181 @@
+---
+title: "References"
+description: "Tutorial 5: a character's four views and fixing one, a wardrobe variant, a tour of a room, Turn and Make 360, and a new character from a frame of a take."
+---
+
+{/* Written by hand. */}
+
+<Card title="Watch tutorial 5 on YouTube" icon="youtube" href="https://youtu.be/TiBF_WlwImk">
+  References: the pictures the model is shown.
+</Card>
+
+The script is what the model is told; the references are the pictures it's shown: each
+character's sheet, each place's plate. This tutorial works on the Dean episode from
+[tutorial 3](/tutorials/screenplay-to-episode) (Dean, Pip, the window seat and the bed).
+
+**You need:** for the wardrobe change and the frame, an **edit model** for pictures
+(FLUX.2 Klein edit, Qwen-Image 2.1, FLUX.3 Klein...). Turn and Make 360 need Qwen-Image 2.1
+with its multi-angle LoRA, and the tour MiniMax H3: **Settings → Features…** lists each
+under *360s and turns*. Krea 2 alone draws from words only.
+
+## 1. Four views, and fixing one
+
+<Steps>
+  <Step title="Open a character">
+    **Refs** → click **Dean** to open his row. He has four views, three-quarter, side, back
+    and face, stitched into one **sheet**: the picture that goes in with every shot he's in.
+  </Step>
+  <Step title="Find the view that's off">
+    Click a candidate to see what made it (its model, settings and prompt); double-click it
+    to see it against the live one.
+  </Step>
+  <Step title="Regenerate only that view">
+    Set the view selector to that view (say **back**) and the count beside it to **2**, then
+    press **Generate**. Each candidate gets its own seed; the other three views are untouched.
+  </Step>
+  <Step title="Pick one">
+    Press **Pick** on the candidate you like. The sheet re-stitches by itself, and the shots
+    that used the old sheet are marked `stale: ref`, ready for **Re-render stale**.
+  </Step>
+</Steps>
+
+<Tip>
+  Have pictures of your own? Drop a file on a slot (or **Upload…**), or drop a whole
+  folder on the Refs tab: each file is matched to a slot by its name, and you see the table
+  before anything is sent.
+</Tip>
+
+## 2. A wardrobe change
+
+The same character in other clothes is a new subject, a **variant** (`of:` in the series
+config), with a sheet of its own.
+
+<Steps>
+  <Step title="Add the variant">
+    Refs → **+ Character**. Name *Dean in teal pajamas*, id `dean_teal`, and set **Variant
+    of** (among the card's further fields) to *Dean*. Its design says only what changes:
+
+    ```
+    the same boy in soft teal pajamas covered in little yellow stars, barefoot
+    ```
+  </Step>
+  <Step title="Generate its views">
+    Generate its four views and pick them. On an edit model each is drawn **from Dean's own
+    matching view**, so the face and hair stay his. Select a candidate and read its **drawn**
+    row to check: *edited from Dean (three-quarter)*.
+  </Step>
+  <Step title="Put it in a shot">
+    Edit sh040 (pencil, or right-click → **Edit shot…**), change **Who** from Dean to *Dean
+    in teal pajamas* (in the script: `who: dean_teal, pip`), and press **Save and generate**.
+  </Step>
+  <Step title="Compare">
+    Right-click the new take → **Compare with…** the old one: the same Dean, in teal.
+  </Step>
+</Steps>
+
+<Note>
+  Make the character's own views first. On a first pass every job is planned before
+  anything is picked, so a variant has nothing to edit from and is drawn cold. Pick Dean's
+  views, then regenerate the variant.
+</Note>
+
+## 3. A tour of the room
+
+A **tour** moves the camera through a place from its plate, and every frame it holds can
+become a new plate: another angle of the same room.
+
+<Steps>
+  <Step title="Open the place's Tour">
+    Refs → the **window_seat** location → **Tour**.
+  </Step>
+  <Step title="Say the move">
+    Pick a move, or write your own:
+
+    ```
+    the camera slowly turns from the round window toward the small wooden bed across the room
+    ```
+
+    Set how long it runs, and press **Run tour**.
+  </Step>
+  <Step title="Keep a frame">
+    H3 renders the move and holds; each held frame lands as one of the place's tour holds
+    (**Grab frame** in the viewer keeps another). **Use** copies a hold in as a plate
+    candidate, for this location or another (the bed, say: the same room, from where Dean
+    sits). **Use and sharpen** also queues a sharpening edit on it.
+  </Step>
+</Steps>
+
+## 4. Turn and 360
+
+<Steps>
+  <Step title="Turn a character">
+    On Pip's row, press **↻ Turn** at the top of a view's column (side, back or face). That
+    view is drawn by turning the camera around him, from a view he already has (the
+    three-quarter, if picked). It's a new candidate, not picked: pick it if you like it.
+  </Step>
+  <Step title="Make 360 of a place">
+    On a place's row, under its plate, press **Make 360**. The plate is outpainted into a
+    360 panorama.
+  </Step>
+  <Step title="Look around, and save a view">
+    Open the 360 and drag to look in every direction from where the plate stood. Aim at a
+    view you want and press **Save and sharpen**: it becomes a new plate of the place.
+  </Step>
+</Steps>
+
+## 5. A character from a frame
+
+Someone who only appeared in a take (described in `extras:`) can be kept as a character.
+
+<Steps>
+  <Step title="Make the shot">
+    Add a place, *garden* (Refs → **+ Location**, a description of its own, no **Angle
+    of**: it's a place of its own, not an angle of the window seat), generate its plate and pick it. Then add a sequence to the script and render it:
+
+    ```
+    # sq03  garden
+
+    ## sh050
+    who: pip
+    size: wide
+    dur: 4
+    extras: a big grey mother owl with soft white feathers and amber eyes, waiting on the branch
+    Pip lands on a branch of the old oak tree beside his mother, and she wraps a wing around him.
+    camera: holds a static shot
+    sound: a soft hoot, leaves rustling in the night breeze
+    ```
+  </Step>
+  <Step title="Open the take in the viewer">
+    Double-click the take, and play or scrub to the frame where she's clearest.
+  </Step>
+  <Step title="Right-click the picture itself">
+    Right-click **the picture in the viewer** (not the take's thumbnail or the timeline:
+    those have no frame to take) → **Character or place from this frame…**.
+  </Step>
+  <Step title="A new character">
+    Choose **A new character**, name her *Mama Owl*, and say who she is in the frame:
+
+    ```
+    the big grey owl beside Pip
+    ```
+
+    The edit model cuts her out onto a plain background as her three-quarter view; her other
+    views are drawn from that one, each to pick as it arrives, and stitched into her sheet.
+    She's now a character to cast in any shot.
+  </Step>
+</Steps>
+
+The same dialog makes **a new place** (the people taken out, the place left as a plate) or
+adds the frame as a new candidate **for one there is**. **Use the frame as it is** skips the
+edit.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="6 · Relighting" icon="sun" href="/tutorials/relighting">
+    The same room at dawn, in the rain, by firelight.
+  </Card>
+  <Card title="How the pictures are made" icon="images" href="/reference-images">
+    Sheets, plates, props and keyframes, in detail.
+  </Card>
+</CardGroup>

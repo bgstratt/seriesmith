@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { clipBlock, clipOwnSize, durFor, nextClipIds, placeFor, shotsBlock, snapLength, withClip, type ClipSpec } from "../src/lib/simple";
+import { clipBlock, clipOwnSize, durFor, nextClipIds, pickCreated, placeFor, shotsBlock, snapLength, withClip, wordsOnlyPlace, type ClipSpec } from "../src/lib/simple";
 import { fitSize } from "../src/lib/size";
 
 const spec = (p: Partial<ClipSpec> = {}): ClipSpec => ({
-  prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "", placeText: "",
+  prompt: "A lighthouse at dusk, waves breaking on the rocks.", who: [], where: "",
   size: "wide", dur: "3.04", target: "", dialogue: [], ...p,
 });
 
@@ -13,14 +13,24 @@ describe("simple mode's clips", () => {
     expect(nextClipIds("= clips  Clips\n\n# cl001  pier\n\n## c001\n\n# cl012  x\n## c012\n").shot).toBe("c013");
   });
 
-  it("gives a clip without a place one of its own, from words or the prompt", () => {
-    // words only by default: it renders at once
-    expect(placeFor("c004", spec(), "../refs/")).toEqual({
-      id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking on the rocks." },
+  it("gives a clip without a place one of its own, from the prompt, words only", () => {
+    expect(placeFor("c004", spec({ prompt: "A lighthouse at dusk,\n  waves breaking." }))).toEqual({
+      id: "c004_place", entry: { description: "A lighthouse at dusk, waves breaking." },
     });
-    // with a picture made first
-    expect(placeFor("c004", spec(), "../refs/", true).entry.plate).toBe("../refs/_bg/c004_place.png");
-    expect(placeFor("c004", spec({ placeText: "a rocky headland" }), "../refs/").entry.description).toBe("a rocky headland");
+  });
+
+  it("picks what + Create made: a person into Who once, a place as Where", () => {
+    expect(pickCreated("who", { kind: "character", id: "mara" }, ["nell"])).toEqual({ who: ["nell", "mara"] });
+    expect(pickCreated("who", { kind: "character", id: "nell" }, ["nell"])).toEqual({ who: ["nell"] });
+    expect(pickCreated("where", { kind: "location", id: "gallery" }, [])).toEqual({ where: "gallery" });
+    expect(pickCreated("who", { kind: "location", id: "gallery" }, [])).toBeNull();
+    expect(pickCreated("where", { kind: "character", id: "mara" }, [])).toBeNull();
+  });
+
+  it("keeps words-only places out of Where", () => {
+    expect(wordsOnlyPlace("c001_place", { description: "a beach" })).toBe(true);
+    expect(wordsOnlyPlace("c002_place", { description: "a gallery", plate: "../refs/_bg/c002_place.png" })).toBe(false);
+    expect(wordsOnlyPlace("pier", { description: "a pier" })).toBe(false);
   });
 
   it("writes a clip as a sequence of one shot, naming its model only when it isn't the series'", () => {

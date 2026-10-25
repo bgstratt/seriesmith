@@ -356,8 +356,8 @@ cost of a slightly smaller frame than 1344×768. The LTX and Wan targets snap a 
 their own grid (LTX-2's is 64: a 512×288 proxy renders there at 512×256, a little wider than
 16:9); the H3 targets refuse a size off theirs, naming the nearest.
 
-- **Render small and upscale** when the episode renders on `minimax_h3_ref2va` or
-  `minimax_h3_fl2va` with the latent upscaler installed (INSTALL.md, **The upscaler**), on
+- **Render small and upscale** when the episode renders on `minimax_h3_ref2va`,
+  `fasth3_omni` or `minimax_h3_fl2va` with the latent upscaler installed (INSTALL.md, **The upscaler**), on
   `ltx2`, which upscales with its own second stage and needs nothing extra, or on
   `ltx2_ingredients` with LTX-2.3's latent upsampler installed (INSTALL.md, **For
   upscaling**; `seriesmith targets` says `upscale ready` for each). Every take you try costs under half as much, and only the ones the cut
@@ -473,6 +473,7 @@ The series config says how, once, in `upscale.master` (the **recipe**):
     "finish": { "frequency_split": true },
     "targets": {
       "minimax_h3_*": { "method": "latent", "then": "RealESRGAN_x2.pth" },
+      "fasth3_*":     { "method": "latent" },
       "ltx2*":        { "method": "latent" },
       "wan22_*":      { "method": "seedvr2" },
       "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" } } } }
@@ -482,7 +483,8 @@ The series config says how, once, in `upscale.master` (the **recipe**):
   CRF 12, for delivery; `review` is quicker) are the whole master's: one size, one encoding.
 - `targets` has a section per video target (an id or a glob; the exact id wins, then the
   most specific glob, then `"*"`). A take is always upscaled through its own target: an H3
-  shot re-samples with H3, an LTX shot with LTX. A section takes `method` (latent, pixel,
+  shot re-samples with H3, an LTX shot with LTX. FastH3 Omni (`fasth3_omni`) re-samples as H3
+  does but isn't `minimax_h3_*`: give it its own section, or its shots fall to `"*"`. A section takes `method` (latent, pixel,
   seedvr2), `scale`, `detail`, `pixel_model`, `seedvr2_model`, `then` (an upscale model
   file, or `"seedvr2"`, after a re-sample), `then_scale`, and the finish (`keep_soft`,
   `grain`); `finish` sets those for every section. `"scale": "auto"` (a re-sample alone)
@@ -957,6 +959,16 @@ Strong: *"a naturalistic live-action prestige drama shot on 35mm anamorphic lens
 depth of field with the background falling into soft bokeh, low-key light from the practical
 lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine
 film grain"*.
+
+**Leave people and places out of it.** The look also opens every reference picture's
+prompt, a place's empty plate included, and every shot's. Words about characters, faces,
+figures or skin ("soft rounded character design with expressive faces") draw people into a
+place that should be empty; words about places or things ("night streets lit by neon
+signs", "practical lamps in each room", "luminous skies") draw those in, or fight the
+shot's own place (a lighthouse gallery asked to be a neon street). Say how things are lit
+and rendered (soft rounded forms, magenta and cyan light, warm tones) and let the cast and
+the locations bring the people and the places. A picture's whole prompt, look and all, is under **What the model is
+told** in its row in Refs.
 
 The editor's look builder (Series settings, the new-series wizard) writes such a line from
 its parts (medium, camera, lens, film, light, grade) and keeps its picks beside it in

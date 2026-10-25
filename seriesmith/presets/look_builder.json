@@ -4,13 +4,13 @@
     {"id": "medium", "label": "Medium", "options": [
       {"id": "live_action", "label": "Live action", "clause": "a live-action film"},
       {"id": "animated_3d", "label": "3D animation", "drawn": true,
-       "clause": "a 3D animated feature: soft rounded character design, subsurface-scattered skin, global illumination"},
+       "clause": "a 3D animated feature: soft rounded forms, smooth surfaces with subsurface scattering, global illumination"},
       {"id": "cartoon_2d", "label": "2D cartoon", "drawn": true,
        "clause": "a 2D hand-drawn cartoon with clean black line art, flat solid colors and cel shading"},
       {"id": "anime", "label": "Anime", "drawn": true,
-       "clause": "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted backgrounds"},
+       "clause": "a hand-drawn Japanese anime: expressive line art, cel shading over richly painted backgrounds"},
       {"id": "stop_motion", "label": "Stop-motion", "drawn": true,
-       "clause": "a stop-motion film of handmade clay and felt puppets on miniature sets, visible fingerprints and fabric texture"},
+       "clause": "a stop-motion film, everything handmade from clay and felt at miniature scale, visible fingerprints and fabric texture"},
       {"id": "watercolor", "label": "Watercolor", "drawn": true,
        "clause": "a watercolor illustration come to life: wet-edged washes on textured paper, loose ink outlines"},
       {"id": "graphic_novel", "label": "Graphic novel", "drawn": true,
@@ -35,25 +35,25 @@
       {"id": "deep", "label": "Deep focus", "clause": "deep focus: everything sharp from the foreground to the far distance"}
     ]},
     {"id": "film", "label": "Film / sensor", "camera_row": true, "options": [
-      {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm practicals against cool shadows, visible grain"},
+      {"id": "t500", "label": "Tungsten 500T", "clause": "tungsten-balanced 500T stock: warm light against cool shadows, visible grain"},
       {"id": "d250", "label": "Daylight 250D", "clause": "daylight 250D stock: natural color, fine grain"},
-      {"id": "portrait", "label": "Portrait stock", "clause": "a warm portrait stock: soft creamy skin tones, gentle contrast"},
+      {"id": "portrait", "label": "Portrait stock", "clause": "a warm portrait stock: soft creamy tones, gentle contrast"},
       {"id": "slide", "label": "Slide film", "clause": "slide film: saturated color, deep contrast, crisp blacks"},
       {"id": "bw", "label": "Black and white", "clause": "black-and-white stock: rich silver tones, deep blacks"},
       {"id": "digital_clean", "label": "Clean digital", "clause": "a clean digital sensor: no grain, wide dynamic range"},
       {"id": "faded70s", "label": "Faded 70s", "clause": "1970s film stock: warm faded color, soft contrast, halation around the highlights"}
     ]},
     {"id": "light", "label": "Light", "options": [
-      {"id": "low_key", "label": "Low-key practicals", "clause": "low-key light from the practical lamps in each space, pools of light and deep soft shadow"},
-      {"id": "soft", "label": "Soft naturalistic", "clause": "soft naturalistic window and daylight, gentle shadows"},
+      {"id": "low_key", "label": "Low-key practicals", "clause": "low-key practical light, pools of light and deep soft shadow"},
+      {"id": "soft", "label": "Soft naturalistic", "clause": "soft naturalistic daylight, gentle shadows"},
       {"id": "hard_sun", "label": "Hard sun", "clause": "hard direct sunlight, crisp shadows, bright highlights"},
-      {"id": "neon", "label": "Neon night", "clause": "night light from neon signs in magenta and cyan, reflections on wet surfaces"},
+      {"id": "neon", "label": "Neon night", "clause": "saturated magenta and cyan light at night, glossy reflections"},
       {"id": "high_key", "label": "High-key", "clause": "bright high-key light, few shadows, an open airy feel"},
       {"id": "golden", "label": "Golden hour", "clause": "warm low golden-hour sun, long shadows, glowing rims"},
-      {"id": "chiaroscuro", "label": "Chiaroscuro", "clause": "strong single-source light carving faces out of darkness"}
+      {"id": "chiaroscuro", "label": "Chiaroscuro", "clause": "strong single-source light carving shapes out of darkness"}
     ]},
     {"id": "grade", "label": "Grade", "options": [
-      {"id": "teal_orange", "label": "Teal and orange", "clause": "a teal-and-orange grade: warm skin against cool shadows"},
+      {"id": "teal_orange", "label": "Teal and orange", "clause": "a teal-and-orange grade: warm highlights against cool shadows"},
       {"id": "bleach", "label": "Bleach bypass", "clause": "a bleach-bypass grade: desaturated, silvery, high contrast"},
       {"id": "muted", "label": "Muted", "clause": "a muted, desaturated grade with lifted blacks"},
       {"id": "warm", "label": "Warm golden", "clause": "a warm golden grade"},

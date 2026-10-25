@@ -1,0 +1,239 @@
+---
+title: "Screenplay to episode"
+description: "Tutorial 3: get the script-writing skill, turn a screenplay into a series with Claude and Import series, or start from nothing with the series wizard; then make the pictures and render every shot."
+---
+
+{/* Written by hand. */}
+
+<Card title="Watch tutorial 3 on YouTube" icon="youtube" href="https://youtu.be/7Q3evxX6x8U">
+  Screenplay to episode: two ways to a series, then the whole episode rendered.
+</Card>
+
+A series is two files: the **series config** (`series.json`: the cast, the places, the
+voices, the look) and a **script** per episode (`ep01.md`: every shot in a few lines). There
+are two ways to get them without writing them yourself:
+
+- **You have a screenplay:** Claude, with seriesmith's script-writing skill, turns it into
+  the two files, and **Import series** brings them into the editor (parts 1 to 3).
+- **You're starting from nothing:** the **series wizard** asks for the cast, the places and a
+  first shot, and writes the files for you (part 4).
+
+Either way, you then make the pictures and render the episode (parts 5 and 6). To write the
+script by hand instead, see [The script in 90 seconds](/tutorials/the-script).
+
+## 1. Get the script-writing skill
+
+The skill is the whole script format, and a check, packaged for Claude. It comes with
+seriesmith: `prompts\seriesmith-episode-script.zip` in a clone, or in
+`custom_nodes\seriesmith\prompts\` for a Manager install.
+
+<Tabs>
+  <Tab title="Claude's app or claude.ai">
+    Open **Settings → Skills**, choose **Upload a
+    skill**, and pick `seriesmith-episode-script.zip`. It's then listed with your other
+    skills and used whenever you ask for seriesmith scripts.
+  </Tab>
+  <Tab title="Claude Code">
+    Unzip it into your skills folder:
+
+    ```
+    tar -xf prompts\seriesmith-episode-script.zip -C %USERPROFILE%\.claude\skills
+    ```
+
+    (On Linux or macOS: `unzip prompts/seriesmith-episode-script.zip -d ~/.claude/skills`.)
+  </Tab>
+</Tabs>
+
+The skill carries seriesmith's build, so Claude can check a script it writes with nothing
+else installed.
+
+## 2. A screenplay, with Claude
+
+<Steps>
+  <Step title="Settle the series first (if it's a new show)">
+    A page of screenplay doesn't say how the show is delivered. Decide, or tell Claude: the
+    look (live action, 3D animated, 2D cartoon...), the size you deliver at (1080p, 1440p,
+    4K), how voices are made (generated from a description, cloned, or your own recording),
+    and the video model. The authoring guide's
+    [Starting a series](/authoring#starting-a-series-what-to-settle-first) lists each choice.
+  </Step>
+  <Step title="Hand Claude the screenplay">
+    Attach or paste the pages and ask for it plainly: *make this a seriesmith series*. Add
+    what you settled above.
+  </Step>
+  <Step title="Let it work">
+    It breaks each scene into shots (where the cuts land and why), writes the series config
+    and the script, and checks the script with the build. A few pages take a few minutes.
+  </Step>
+  <Step title="Read its summary">
+    It says what it made: who is in the cast, where the scenes are, and the defaults it
+    picked. Ask for changes now, while it's cheap.
+  </Step>
+  <Step title="Save the two files">
+    `series.json` and `ep01.md`, in one folder (for example beside the screenplay). That
+    folder is what you import.
+  </Step>
+</Steps>
+
+## 3. Import series
+
+<Steps>
+  <Step title="Open Project folders">
+    In **Advanced** mode, open the episode dropdown at the top of the Shots tab → **Browse and
+    add new…**. This is **Project folders**. If the folder you keep shows in isn't listed as a
+    root yet, add it.
+  </Step>
+  <Step title="Import series…">
+    Press **Import series…**, then **Folder…** and choose the folder Claude wrote (or
+    **Files…** for the scripts themselves). Use one series config for every script, or one per
+    episode (a `series.json` beside a script, or named after it). Choose the show folder it
+    goes into.
+  </Step>
+  <Step title="The episode opens">
+    Each script becomes an episode folder, named from its header. The import says which went
+    in, and why any didn't (a script with no header, a config that doesn't build it). The
+    episode opens with every shot listed, and every person and place in Refs.
+  </Step>
+</Steps>
+
+## 4. Or start from nothing: the series wizard
+
+The example is a four-shot bedtime story, *Dean and the Little Lost Owl*, in a 3D-animated
+look.
+
+<Steps>
+  <Step title="Open the wizard">
+    In Simple mode choose **A series…**, or in Advanced: **Project folders** → browse to the
+    folder you keep shows in → **New series/project…**.
+  </Step>
+  <Step title="1. Where">
+    The series' title, *Dean's Bedtime Stories* (its show folder is made from the title), and
+    the first episode: `ep01`, titled *The Little Lost Owl*.
+  </Step>
+  <Step title="2. Series">
+    **Video model** FastH3 Omni; the sizes as they come (864×480 for proxies). Under **Look**,
+    click the **3D animated feature** picture: it fills the look line, which stays yours to
+    edit (more in [The look builder](/tutorials/look-builder)). Leave the dialogue and pace as
+    they are.
+  </Step>
+  <Step title="3. Cast and places">
+    Add each one, pasting its words on one line.
+
+    **Character** *Dean*, design:
+    ```
+    a 5-year-old boy, small and round-cheeked, with messy chestnut-brown hair, big brown eyes and a gap-toothed smile, in navy pajamas covered in little yellow stars, barefoot
+    ```
+    voice: `a bright, gentle little boy's voice`
+
+    **Character** *Pip*, design:
+    ```
+    a tiny round baby owl the size of a teacup, fluffy grey-and-white down, oversized amber eyes, a short orange beak, stubby wings and one tuft of feathers sticking up on its head
+    ```
+    voice: `a small, squeaky, sleepy voice`
+
+    **Location** `window_seat`, description:
+    ```
+    a child's bedroom window seat at night, seen from inside the room: a big round window in a white wooden frame, plump blue cushions and a folded quilt on the seat, a star-shaped nightlight glowing warm yellow on the sill, and outside a moonlit garden with an old oak tree in cool blue moonlight
+    ```
+
+    **Location** `bed`, description:
+    ```
+    a child's bed at night, seen from the foot of the bed: a small wooden bed with a blue star-patterned quilt and a fluffy pillow against a pale wall, a star-shaped nightlight glowing warm yellow on the bedside table, the round window beside it showing the moonlit oak tree, the room lit soft gold by the nightlight and cool blue by the moon
+    ```
+
+    The two places share the window, the oak and the nightlight, so a cut from one to the
+    other reads as the same room.
+  </Step>
+  <Step title="4. First shot">
+    Where *window_seat*; who Dean and Pip; size **wide**; length 4. What happens:
+
+    ```
+    Dean kneels on his window seat in his pajamas and finds a tiny owl shivering on the windowsill outside.
+    ```
+
+    Dialogue: Dean, *Are you lost, little owl?*
+  </Step>
+  <Step title="Create">
+    Press **Create**. The series config and `ep01.md` are written, the episode opens in
+    Advanced and builds, and the pictures it needs are listed as missing.
+  </Step>
+  <Step title="Add the other shots">
+    Either press **+ Shot** in the Shots toolbar for each (a form, with what the model will be
+    told beside it), or open the **Script** window (the file-edit icon) and paste them after
+    sh010, then **Save**:
+
+    ```
+    ## sh020
+    who: dean, pip
+    size: medium
+    dur: 4
+    Dean opens the window and the little owl hops onto his hand, blinking up at him.
+    PIP: I can't see my tree.
+
+    ## sh030
+    who: dean, pip
+    size: cu
+    dur: 4
+    Dean holds his star nightlight up to the glass, and its glow lights a trail of stars across the garden to the old oak tree.
+    DEAN: Follow the stars, Pip!
+
+    ## sh040
+    who: dean, pip
+    size: wide
+    dur: 5
+    plate: bed
+    Pip flies home to the oak tree as Dean snuggles into bed, his nightlight glowing softly beside him.
+    DEAN: Goodnight, Pip.
+    ```
+
+    `plate: bed` puts sh040 in front of the bed instead of the window seat.
+  </Step>
+</Steps>
+
+## 5. Make the pictures
+
+Renders wait for the pictures a shot needs, so make them first.
+
+<Steps>
+  <Step title="Open Refs">
+    The **Refs** tab lists every picture the episode calls for: each character's four views,
+    each place's plate.
+  </Step>
+  <Step title="Generate missing">
+    Press **Generate missing**. Each character gets four views (three-quarter, side, back and
+    face), stitched into the one sheet that goes in with every shot they're in, so they look
+    the same throughout. Each place gets its plate.
+  </Step>
+  <Step title="Check them">
+    Click a ref to open it. Anything off is fixed one view at a time
+    ([References](/tutorials/references) shows how); you don't have to redo all four.
+  </Step>
+</Steps>
+
+## 6. Render the whole episode
+
+<Steps>
+  <Step title="Generate missing, on the Shots tab">
+    Back on **Shots**, press **Generate missing**: every shot with no take is queued. A batch
+    of more than 8 renders, or any batch on a paid backend, asks first.
+  </Step>
+  <Step title="Watch the queue">
+    **Jobs** shows each job: the pictures first, the takes queued behind them. You can close
+    the page; the queue keeps running in the server.
+  </Step>
+  <Step title="Play it">
+    The timeline fills as the takes come in. **Play all** (the play button in the Shots
+    toolbar) plays the cut straight from the takes, nothing exported.
+  </Step>
+</Steps>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="4 · The script in 90 seconds" icon="pen-nib" href="/tutorials/the-script">
+    Every shot is a few lines of a script: how to write them.
+  </Card>
+  <Card title="A screenplay scene, worked through" icon="book-open" href="/script-conversion">
+    Where the cuts land in a real scene, and why.
+  </Card>
+</CardGroup>

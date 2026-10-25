@@ -17,15 +17,20 @@ assistant expects, so the copies cannot drift from the document:
                                              where seriesmith isn't installed
     build/skill/seriesmith-episode-script.zip
                                              the folder zipped, to upload on claude.ai
-                                             (Settings > Capabilities > Skills)
+                                             (Settings > Skills > Upload a skill)
+    prompts/seriesmith-episode-script.zip    the same zip, committed: what a user installs
+                                             (it ships in the node pack, so a Manager
+                                             install has it too)
 
-prompts/ is committed; build/ is not. Run it after editing docs/AUTHORING.md or
-docs/SCRIPT_CONVERSION.md:
+prompts/ is committed; build/ is not. The zip is stamped with the release in
+pyproject.toml, not the commit, so the same sources give the same zip. Run it after
+editing docs/AUTHORING.md or docs/SCRIPT_CONVERSION.md, and before a release (the
+zip also bundles the build: the core and the targets):
 
     python tools/make_prompts.py
-    python tools/make_prompts.py --no-bundle     # prompts/ only
+    python tools/make_prompts.py --no-bundle     # prompts/ only, not the skill
 
-For Claude Code, copy build/skill/seriesmith-episode-script/ into .claude/skills/.
+For Claude Code, unzip prompts/seriesmith-episode-script.zip into .claude/skills/.
 
 Stdlib only.
 """
@@ -34,8 +39,8 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import os
+import re
 import shutil
-import subprocess
 import sys
 import zipfile
 
@@ -157,17 +162,29 @@ def skill_text(text: str, extra: str = "") -> str:
 
 
 def version() -> str:
-    try:
-        out = subprocess.run(["git", "-C", ROOT, "describe", "--always", "--dirty"],
-                             capture_output=True, text=True, timeout=10)
-        v = out.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        v = ""
-    return f"seriesmith {v}" if v else "a snapshot of seriesmith"
+    """The release the skill is from (pyproject.toml's version): a commit's hash would
+    make the committed zip differ on every commit."""
+    m = re.search(r'^version\s*=\s*"([^"]+)"', read(os.path.join(ROOT, "pyproject.toml")), re.M)
+    return f"seriesmith {m.group(1)}" if m else "a snapshot of seriesmith"
 
 
 def skipped(name: str) -> bool:
     return any(fnmatch.fnmatch(name, pat) for pat in BUNDLE_SKIP)
+
+
+def bundle_skill(text: str) -> str:
+    """The bundled skill's SKILL.md: the skill's text and what the folder holds."""
+    return skill_text(text, BUNDLE_NOTE.replace("{version}", version()))
+
+
+def bundle_breakdown() -> str:
+    """references/script_conversion.md: the breakdown, its lede pointing at SKILL.md
+    rather than into the repo."""
+    title, _lede, rest = read(BREAKDOWN).split("\n\n", 2)
+    return (f"{title}\n\n"
+            "A worked example for SKILL.md. The input is ordinary spec-format script pages;\n"
+            "the output is the shot list. The interesting part is not the syntax, it's where\n"
+            f"the cuts land and why.\n\n{rest}")
 
 
 def bundle(text: str, out: str | None = None) -> str:
@@ -176,15 +193,8 @@ def bundle(text: str, out: str | None = None) -> str:
     folder = os.path.join(out, NAME)
     if os.path.isdir(folder):
         shutil.rmtree(folder)
-    write(os.path.join(folder, "SKILL.md"),
-          skill_text(text, BUNDLE_NOTE.replace("{version}", version())))
-    # the breakdown's lede points into the repo; in the skill it points at SKILL.md
-    title, _lede, rest = read(BREAKDOWN).split("\n\n", 2)
-    bd = (f"{title}\n\n"
-          "A worked example for SKILL.md. The input is ordinary spec-format script pages;\n"
-          "the output is the shot list. The interesting part is not the syntax, it's where\n"
-          f"the cuts land and why.\n\n{rest}")
-    write(os.path.join(folder, "references", "script_conversion.md"), bd)
+    write(os.path.join(folder, "SKILL.md"), bundle_skill(text))
+    write(os.path.join(folder, "references", "script_conversion.md"), bundle_breakdown())
 
     scripts = os.path.join(folder, "scripts")
     pkg = os.path.join(scripts, "seriesmith")
@@ -240,7 +250,9 @@ def main() -> int:
           "system prompt. Generated from docs/AUTHORING.md by tools/make_prompts.py.\n\n"
           f"{PREAMBLE}\n\n{text}")
     if not args.no_bundle:
-        bundle(text)
+        zpath = bundle(text)
+        shutil.copyfile(zpath, os.path.join(out, f"{NAME}.zip"))
+        print(f"  -> {os.path.relpath(os.path.join(out, NAME + '.zip'), ROOT)}")
     return 0
 
 

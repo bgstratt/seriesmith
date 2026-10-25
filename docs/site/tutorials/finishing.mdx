@@ -1,0 +1,119 @@
+---
+title: "Finishing"
+description: "Tutorial 13: what proxy, final, upscale and post each add, the series' finishing recipe, and the master assembled with Master."
+---
+
+{/* Written by hand. */}
+
+<Card title="Watch tutorial 13 on YouTube" icon="youtube" href="https://youtu.be/3n1fnE6NFrY">
+  Finishing: from draft to the finished master.
+</Card>
+
+An episode goes through up to four passes on its way to a master. Each is optional past the
+first final:
+
+| Pass | What it is | Made by |
+|---|---|---|
+| **proxy** | The same shots at the same seeds, rendered small (960×544, say): a quick draft to judge the cut | the **proxy / final** switch on the episode's card |
+| **final** | The real render at the series' size (1344×768 on H3) | the same switch, on **final** |
+| **upscale** | The final at 2x or to the delivery size: sharper eyes, brows, texture | a take's **Upscale (2x)…**, or Master |
+| **post** | The upscale cleaned up (an enhance step) and given a touch of motion blur | a take's **Post-process…**, or Master |
+
+The **master** is the cut delivered at one size, every shot finished the same way.
+
+**You need:** upscaling and post-processing are features of their own: **Settings →
+Features…** → *Upscaling*, *Post-processing* (each lists its files and any node pack, which
+ComfyUI-Manager installs). [Full setup](/full-setup) has the list.
+
+## 1. Proxy, then final
+
+<Steps>
+  <Step title="Judge the cut on proxies (optional)">
+    Set the episode's card to **proxy** and **Generate missing**. Use the proxy cut to check
+    the timing and that the characters hold. A proxy is no preview of its final (a different
+    size is a different draw), so many shows go straight to final.
+  </Step>
+  <Step title="Render the finals">
+    Switch to **final** and **Generate missing**. Pick the takes for the cut as usual. Each pass
+    keeps its own cut; the timeline's **Cut** menu copies the order, trims and audio from the
+    other pass.
+  </Step>
+</Steps>
+
+## 2. Set the finishing recipe
+
+The recipe says, once for the series, how every shot gets to the master.
+
+<Steps>
+  <Step title="Open Series settings → Finishing">
+    The cog in the Shots toolbar → **Series settings** → **Finishing**.
+  </Step>
+  <Step title="The master's size and encoding">
+    **Deliver at**: the master's one size (1080p, 1440p, 4K). **Fit**: crop or pad a shot that
+    isn't that shape. **Quality**: **master** (x264 CRF 12, for delivery) or **review** (quicker).
+  </Step>
+  <Step title="How each model's shots get there">
+    A row per video model. H3 and FastH3 Omni **re-sample** their own latent (more detail, the
+    same performance); other models use an upscale model (RealESRGAN) or SeedVR2. The standard
+    rows are there already; change one only for a reason.
+  </Step>
+  <Step title="Post">
+    The post step: the enhance level (**draft**, **production**, **cinematic**; production is
+    SeedVR2 7B) and **motion blur** (0.5 is a 180° shutter). Then **Save**.
+  </Step>
+</Steps>
+
+<Tip>
+  To try one shot first: its take's menu → **Upscale (2x)…**, then **Post-process…** on the
+  upscale. Each dialog follows the recipe, or **Choose for this run** for your own settings
+  (and **Save as sh020's recipe** to keep them for that shot). Compare the result with the
+  final side by side, zoomed in.
+</Tip>
+
+## 3. Master
+
+<Steps>
+  <Step title="Open Master">
+    The timeline's header → **Master** (or **Cut → Master…**). It lists every shot of the cut
+    against the recipe: upscaled already, missing, or made with other settings.
+  </Step>
+  <Step title="Choose what it does">
+    Tick **Conform to the recipe** to redo upscales made with other settings too (never one
+    marked **Keep upscale** in its take's menu). **Post-process**: **All by recipe** finishes
+    every shot by the recipe's post, **Where present** uses the posts you made by hand, off
+    masters from the upscales. **Queue** in cut order (what's done is the cut up to a point)
+    or grouped by model (faster for a batch left to run).
+  </Step>
+  <Step title="Queue">
+    Press **Queue N shots**: the upscales and posts the master needs go on the queue. You can
+    close the dialog or reload the page: Master is a job the server keeps.
+  </Step>
+  <Step title="Assemble master">
+    When they're in, **Assemble master**: the clips are written and joined into the episode's
+    `master/` folder, with the series' intro and outro around it when the show has
+    `_titles/INTRO.mp4` and `OUTRO.mp4`.
+  </Step>
+  <Step title="Play it">
+    Open the file in `master/`: the episode, finished.
+  </Step>
+</Steps>
+
+From a terminal, the same thing: `seriesmith master Shows\ep01 --wait` (`--conform` to redo
+upscales made with other settings).
+
+<Note>
+  For a quick review copy without the finishing passes, **Export** in the timeline header
+  assembles the pass's cut into one mp4 (**2x** beside it, from the takes' upscales), and
+  **Titles** puts the intro and outro around it into `publish/`.
+</Note>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Post-processing" icon="wand-magic-sparkles" href="/post-processing">
+    The post pass in detail: enhancement, faces, motion blur.
+  </Card>
+  <Card title="Masters: one recipe for every shot" icon="book" href="/authoring#masters-one-recipe-for-every-shot">
+    The recipe in the series config, field by field.
+  </Card>
+</CardGroup>

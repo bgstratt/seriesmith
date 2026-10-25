@@ -34,6 +34,12 @@ class DataTest(unittest.TestCase):
                     # the edit wrapper keeps the rest; the instruction names what goes
                     self.assertTrue(p[w].startswith("Change only"), p[w])
                 self.assertTrue(set(words) <= {"place", "subject"})
+                # a plate's relight is an edit: a light source it names as a thing in the
+                # scene gets drawn in (dusk's "street lamps lit" put streetlights in a garden)
+                # and nothing named to forbid it: a negation still puts the word in the prompt
+                if p.get("place"):
+                    for said in ("street lamps lit", "brazier", "Add nothing", "aren't already there"):
+                        self.assertNotIn(said, p["place"])
 
     def test_every_look_is_a_brief(self):
         for p in PR._load("look"):
@@ -42,6 +48,23 @@ class DataTest(unittest.TestCase):
                 self.assertNotIn("cinematic", p["text"].lower())
                 self.assertNotIn("high quality", p["text"].lower())
                 self.assertGreater(len(p["text"].split()), 12)
+
+    def test_no_look_puts_people_or_things_in_a_place(self):
+        """The look opens every picture's prompt, a place's empty plate too: wording that
+        names characters, faces, figures or skin drew round little people into a moonlit
+        garden. A look says how things are rendered; the cast brings the people."""
+        import re
+        people = re.compile(r"\b(characters?|faces?|figures?|skin|people|persons?|puppets?|silhouettes?)\b", re.I)
+        # nor a place or a thing: "night streets lit by neon signs" turned a lighthouse into
+        # a close-up of the lighthouse, and lamps, windows and skies get drawn in where none are
+        things = re.compile(r"\b(streets?|signs?|vistas?|landscapes?|roads?(?! movie)|rooms?|lamps?|windows?|"
+                            r"panels?|screens?|sky|skies|smoke|buildings?|towns?|city)\b", re.I)
+        clauses = [(p["id"], p["text"]) for p in PR._load("look")]
+        clauses += [(f'{r["id"]}.{o["id"]}', o["clause"]) for r in PR._load("look_builder") for o in r["options"]]
+        for name, text in clauses:
+            with self.subTest(name):
+                self.assertIsNone(people.search(text), text)
+                self.assertIsNone(things.search(text), text)
 
     def test_framing_and_camera_say_what_the_script_does(self):
         from seriesmith.core import framing as F
@@ -62,12 +85,12 @@ class DataTest(unittest.TestCase):
             PR.compose_look({"medium": "live_action", "camera": "film35", "lens": "anamorphic",
                              "light": "low_key", "grade": "muted"}),
             "a live-action film; shot on 35mm film; anamorphic lenses: oval bokeh, horizontal lens "
-            "flares, slight distortion at the edges; low-key light from the practical lamps in each "
-            "space, pools of light and deep soft shadow; a muted, desaturated grade with lifted blacks")
+            "flares, slight distortion at the edges; low-key practical light, pools of light and "
+            "deep soft shadow; a muted, desaturated grade with lifted blacks")
         self.assertEqual(
             PR.compose_look({"medium": "anime", "camera": "film35", "light": "soft"}),
-            "a hand-drawn Japanese anime: expressive line art, cel-shaded figures over richly painted "
-            "backgrounds; soft naturalistic window and daylight, gentle shadows")
+            "a hand-drawn Japanese anime: expressive line art, cel shading over richly painted "
+            "backgrounds; soft naturalistic daylight, gentle shadows")
         self.assertEqual(PR.compose_look({"camera": "film35"}), "")
 
     def test_every_look_preset_is_in_the_builders_rows(self):

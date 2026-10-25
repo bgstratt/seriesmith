@@ -7,7 +7,8 @@ Each page is its document as MDX: the title (its first heading) and a
 description (written here) in front matter, the links between the docs
 pointing at the site's pages (anything else in the repo at GitHub), and what MDX
 would read as JSX escaped outside code ({, } and <). The site's
-own pages (index.mdx) and docs.json are written by hand.
+own pages (index.mdx, last-light.mdx, the video tutorials in tutorials/) and docs.json are
+written by hand.
 
     python tools/make_site_docs.py           # write them
     python tools/make_site_docs.py --check   # exit 1 if any is out of date
@@ -26,13 +27,13 @@ GITHUB = "https://github.com/bgstratt/seriesmith/blob/main/"
 # (source, page, description): the order is docs.json's
 PAGES = [
     ("docs/QUICKSTART.md", "quickstart", "Install it from ComfyUI-Manager, run it on a page of its own, or clone it into custom_nodes: seriesmith on the models you already have."),
+    ("docs/AUTHORING.md", "authoring", "The script and series config format: a first episode to copy, then every field."),
+    ("docs/SCRIPT_CONVERSION.md", "script-conversion", "A spec-format screenplay scene worked all the way through to shots."),
+    ("docs/EDITOR.md", "editor", "The editor page: shots, takes, refs, the cut and the queue, every button and key."),
+    ("docs/COMMANDS.md", "commands", "Every stage as a command, the files each reads and writes, and an episode worked from a terminal."),
     ("docs/FULL_SETUP.md", "full-setup", "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."),
     ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),
     ("docs/SETUP.md", "setup", "Where shots render: your ComfyUI, Comfy Cloud, a deployment or Comfy Router, and the settings that choose."),
-    ("docs/EDITOR.md", "editor", "The editor page: shots, takes, refs, the cut and the queue, every button and key."),
-    ("docs/COMMANDS.md", "commands", "Every stage as a command, the files each reads and writes, and an episode worked from a terminal."),
-    ("docs/AUTHORING.md", "authoring", "The script and series config format: a first episode to copy, then every field."),
-    ("docs/SCRIPT_CONVERSION.md", "script-conversion", "A spec-format screenplay scene worked all the way through to shots."),
     ("docs/CONTINUOUS.md", "continuous", "Shots that carry straight on from the one before: from its last frame, or its held latent."),
     ("docs/POST_PROCESSING.md", "post-processing", "The post pass: face restore, enhancement and motion blur, per take or across a master."),
     ("docs/RECORDED_DIALOGUE.md", "recorded-dialogue", "Lip-synced episodes from real recorded lines instead of generated voices."),
@@ -41,6 +42,13 @@ PAGES = [
     ("docs/API.md", "api-reference", "The editor's HTTP API and the files behind it, for driving seriesmith from your own code."),
 ]
 PAGE_OF = {src: page for src, page, _ in PAGES}
+TUTORIALS = os.path.join(SITE, "tutorials")
+
+
+def hand_pages() -> list[str]:
+    """The pages written by hand: index, last-light and the tutorials (tutorials/<name>)."""
+    names = sorted(f[:-4] for f in os.listdir(TUTORIALS) if f.endswith(".mdx")) if os.path.isdir(TUTORIALS) else []
+    return ["index", "last-light"] + ["tutorials/" + n for n in names]
 HEADER = "{/* Generated from %s by tools/make_site_docs.py: edit that file, not this one. */}\n"
 
 FENCE = re.compile(r"^\s*(```|~~~)")
