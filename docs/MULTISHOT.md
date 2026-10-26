@@ -28,10 +28,23 @@ Ava; a cut to Charming's "Fine."; back for "Excellent."), asked to cut at 4.458 
 | LTX-2.5, text | Lightricks' multi-shot paragraph ("in three shots ... A hard cut transitions to ...") | 5.417 s, 6.708 s (its own) | lines in the right shots; identity loose (no reference) |
 | LTX-2.5 + ingredients sheet | the same, with the sheet named | none | animated the reference sheet itself, twice (two wordings) |
 | LTX-2.5 + Licon MSR + PromptRelay | PromptRelay segments of exact frame counts | none, three seeds | one continuous shot; Charming never cut to; faces generic (hair and dress kept, not identity) |
+| LTX-2.5 + Licon MSR, as its sample (`ltx-msr` branch) | 16:9 sheets (full body + face close-up; the place's plates stacked), one PromptRelay prompt with no `\|` segments: a continuity paragraph, then `Shot N (X seconds), a hard cut:` paragraphs; the sample's x2 second stage | 4.0 / 4.917 s and 4.25 / 5.25 s (two seeds; its own) | three shots as written, Charming's close-up in the middle; the people read as their pictures (one seed's Charming loose); the middle shot comes out short |
 | Seedance 2.5 (Higgsfield) | prose, a `SHOT N` block per shot | its own (13 cuts in 30 s) | the reason for this design |
 
 So: H3 cuts where it is told, within a few frames; Seedance and LTX cut where they choose;
 LTX with references doesn't cut at all. LTX stays off the multi-shot list.
+
+Revisited (2026-10-26, the `ltx-msr` branch, local): the first MSR try differed from Licon's
+sample in two ways. Its pictures: MSR's own are 16:9 sheets (full body front, a large face,
+full body back on grey; the place a grid of views), and its guide fits a tall picture whole
+into the frame with white padding, so a full-length portrait reached it with a face of about
+50 px at 832x480. And its prompt: PromptRelay splits shots only on `|`; the sample has none,
+its whole scene one prompt the model cuts by itself, where exact-length segments each held
+one shot and blended into the next. With sheets made from the full-length pictures and the
+face pictures, and one prompt, it cut; with each shot's seconds written in, exactly twice on
+both seeds (a third, stray cut and a doubled person without them). The sample's second stage
+(x2 latent upscale, the guide rebuilt, four low-noise steps) kept the cuts at 1664x960 and
+sharpened faces. LTX picks its own cut times, the middle shot short (about 1 s for 1.6 s).
 
 From the Router schemas: **Kling** v3, v3 Omni and Video O1 take a storyboard as fields
 (`multi_shot: true`, `shot_type: customize`, `multi_prompt`: up to 6 entries of `prompt`,
