@@ -544,7 +544,7 @@ class BuiltShotTest(unittest.TestCase):
         self.assertIn("soaked through and clinging", defs)
         self.assertIn("<Subject 1> (appears in [Shot 1]): fully_preserved", ret)
         # the line is the variant's own, not an invented off-screen voice
-        self.assertIn("<Subject 1> (S1) says,", desc)
+        self.assertIn("<Subject 1> (S1), flat, says,", desc)
         self.assertNotIn("a mustard apron over a striped shirt", defs)
 
     def test_the_variant_shares_the_base_voice(self):

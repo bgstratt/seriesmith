@@ -1853,6 +1853,36 @@ the plate, completely blurred into soft bokeh. On H3 Ref2VA that last is named b
 alone, without the location's description, so the model isn't asked to draw the room. That is
 why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop.
 
+**When the room still shows behind a close-up.** The blur is words, and the model follows the
+plate's picture more than the prompt: a sharp plate still comes through, windows and candles
+and all. For a close-up that must have nothing behind the face but soft bokeh, make its
+background yourself:
+
+1. Find where the subject's head sits in the plate (behind Cindy, the open doorway; behind
+   Charming, the fireplace wall).
+2. Crop a patch of the plate there, in the frame's shape: about an eighth of the plate's
+   width for an `ecu`, a fifth for a `cu`.
+3. Scale it up to the render size and blur it heavily, until nothing in it has an edge.
+4. Give it a location of its own, an angle of the place (`of:`), with a description that names
+   nothing in it, and name it with `plate:` on the shot:
+
+```json
+"hall_bokeh_cindy": {"of": "hall",
+                     "description": "a magnified, completely out-of-focus crop of the background behind the subject: a soft wash of grey daylight framed by dark shadow, nothing recognizable",
+                     "plate": "../refs/_bg/hall_bokeh_cindy.png"}
+```
+
+Don't name the room's things in that description (the fireplace, the door), even out of
+focus: on H3 the words were drawn as a sharp room over the blurred picture. A plate that is
+only a blurred patch can't show where someone stands in a two-shot, so keep it to singles.
+
+**Say how tight an extreme close-up is, in its action.** The framing's name alone gives a
+close-up of the whole face; the action says what fills the frame: "an extreme close-up of
+Cindy's face from her eyebrows to her lips", "an extreme close-up of Cindy's hand, the diamond
+ring on her finger". Keep the subject's picture an ordinary face or full-length one: a
+picture cropped to the eyes was read as part of someone to be placed in a room, and the model
+drew the room and moved her into it.
+
 ### Cutting within a location
 
 Every shot is generated on its own, so a shot never continues the one before it: it poses
