@@ -66,7 +66,7 @@ class VideoCapabilitiesTest(unittest.TestCase):
     def test_h3_takes_three_subjects_and_three_voices_and_chains_latents(self):
         c = self.caps("minimax_h3_ref2va")
         self.assertEqual((c["max_subjects"], c["max_voices"]), (3, 3))
-        self.assertEqual(c["continuous"], ["latent"])
+        self.assertEqual(c["continuous"], ["latent", "multishot"])
         self.assertTrue(c["latents"])
 
     def test_a_reference_sheet_has_no_fixed_subject_limit(self):
@@ -79,7 +79,9 @@ class VideoCapabilitiesTest(unittest.TestCase):
             with self.subTest(target=t):
                 c = self.caps(t)
                 self.assertEqual((c["max_subjects"], c["max_voices"]), (0, 0))
-                self.assertEqual(c["continuous"], ["first"])
+                # H3 FL2VA renders a multishot group too (docs/MULTISHOT.md)
+                self.assertEqual(c["continuous"],
+                                 ["first", "multishot"] if t == "minimax_h3_fl2va" else ["first"])
                 self.assertFalse(c["latents"])
 
     def test_target_json_can_say_so_itself(self):

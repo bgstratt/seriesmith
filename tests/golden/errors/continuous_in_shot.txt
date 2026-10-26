@@ -1,5 +1,5 @@
 exit 1
 
-  error in continuous_in_shot.md: line 4: `continuous: yes` must be first (open on the previous shot's last frame), latent (hold the previous take's latent) or none
+  error in continuous_in_shot.md: line 4: `continuous: yes` must be first (open on the previous shot's last frame), latent (hold the previous take's latent), multishot (one generation with the shot before) or none
     | continuous: yes
 

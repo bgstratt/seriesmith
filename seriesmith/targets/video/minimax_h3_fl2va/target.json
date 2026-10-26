@@ -13,6 +13,11 @@
     "trained_frames": 362
   },
 
+  "multishot": {
+    "_note": "H3's timed [Shot N] sections, in FL2VA's three fields (docs/MULTISHOT.md). No reference pictures: every shot's place and people in words, as for a single shot.",
+    "form": "timed",
+    "plates": 0
+  },
   "recipe": {
     "_note": "No subject pictures: H3 FL2VA has no reference slots, so subjects are written in words from the series config's `design` and the location from its `description`. Optional keyframes: shot:<id>:first is the first frame, shot:<id>:last the last (MiniMaxH3ImageToVideo's first_frame / last_frame; the text encoder sees them as <Picture 1> and <Picture 2>, in that order). A shot with neither renders text-to-video. Recorded dialogue (dub / dub_keep_foley) is the shot's slice of the series config's audio.track (or its own audio_file), uploaded to ComfyUI's input folder and anchored at frame 0 with MiniMaxH3AddGuide. clone takes no voice sample here: it renders with generate and says so.",
     "policies": ["generate", "dub", "dub_keep_foley"],

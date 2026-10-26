@@ -146,12 +146,20 @@ dur: 1.62
 
 ## Checklist
 
-- [ ] (a) The field: `continuous: multishot` parsed (shot and `#` header), groups formed,
-      `check` errors and warnings, the golden fixtures.
+- [x] (a) The field (2026-10-26): `continuous: multishot` parsed (shot and `#` header),
+      `Sequence.multishot_groups()`; a target renders it when its target.json has a
+      `multishot` form (`timed`: H3 Ref2VA, Omni, FL2VA); a group renders on its first
+      shot's target (`multishot_target`; so a group opening `continuous: first` moves to
+      FL2VA with it); `multishot_check`: errors for a group on the first shot of a sequence,
+      on a target without a form, a member naming another target, more subjects than the
+      target's slots; warnings for a second picture of one person, another plate, a group
+      opening on a first keyframe. A cut inside a group still gets the jump-cut warning.
+      tests/test_multishot.py.
 - [ ] (b) The build: a group as one shotlist entry (members, starts, union of subjects, one
       plate); the `timed` writer for H3 Ref2VA/Omni/FL2VA.
 - [ ] (c) Rendering a group on H3 Omni end to end (the proof, from a script); the take, the
-      cut and the editor showing a group as one item.
+      cut and the editor showing a group as one item; the shot form's Continues menu
+      offering `multishot` (today it lists first, latent, none).
 - [ ] (d) The `prose` writer (Seedance) and the `storyboard` writer (Kling v3), each tried
       once.
 - [ ] (e) Upscale and master of a group take.

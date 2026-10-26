@@ -128,10 +128,12 @@ class TemplateTest(unittest.TestCase):
 
     def test_continuous_modes(self):
         """docs/CONTINUOUS.md: `first` where a target reads a first keyframe;
-        H3 Ref2VA declares `latent` and FL2VA as its partner for `first`."""
-        self.assertEqual(TG.continuous_modes(TG.load_target("minimax_h3_fl2va")), {"first"})
+        H3 Ref2VA declares `latent` and FL2VA as its partner for `first`; the
+        H3 targets' `multishot` form (docs/MULTISHOT.md) adds `multishot`."""
+        self.assertEqual(TG.continuous_modes(TG.load_target("minimax_h3_fl2va")),
+                         {"first", "multishot"})
         r2v = TG.load_target(H3)
-        self.assertEqual(TG.continuous_modes(r2v), {"latent"})
+        self.assertEqual(TG.continuous_modes(r2v), {"latent", "multishot"})
         self.assertEqual(r2v.spec["continuous"]["first"], "minimax_h3_fl2va")
         self.assertIn("first", TG.continuous_modes(TG.load_target("ltx2")))
 

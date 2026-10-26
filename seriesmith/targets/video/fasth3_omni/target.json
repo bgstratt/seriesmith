@@ -30,6 +30,11 @@
       }
     }
   },
+  "multishot": {
+    "_note": "As Ref2VA's: H3's timed [Shot N] sections (docs/MULTISHOT.md; the three-shot proof, 2026-10-26, cut at 4.583 s and 6.083 s for 4.458 and 6.083). One plate a generation: the group's first shot's.",
+    "form": "timed",
+    "plates": 1
+  },
   "recipe": {
     "_note": "As Ref2VA's (its compile and prompt are Ref2VA's, minimax_h3_ref2va/compile.py), with the node's nine picture sockets: Pictures 1-8 are the shot's subjects (characters first, then props and vehicles, in script order), Picture 9 is always the location plate. A shot with fewer subjects fills the rest with 32x32 grey placeholders (comfy_nodes/shotplan.py), so the plate stays <Picture 9>. Each character is fed ONE panel of its 4-panel sheet, as on Ref2VA. Clone mode feeds one voice sample per speaker, at most 3.",
     "subject_slots": [
