@@ -998,6 +998,14 @@ collide with the package.
       plates and an ECU's tightness; the docs site's Tutorials; Simple mode's Who and Where
       from + Create; relights and looks name no places or things. Published by the merge's
       version bump (publish_action.yml); Pending until the Registry's scan passes.
+- [x] **0.1.4** (2026-10-26, `release-0.1.4`): `continuous: multishot`, a run of shots as one
+      generation (docs/MULTISHOT.md): timed `[Shot N]` sections on H3 (Ref2VA, FastH3 Omni,
+      FL2VA), prose on Seedance 2.5/2.0, one brief prompt on Kling v3 Omni, the storyboard on
+      Kling Video O1; the editor's timeline and Shots tab show a group; upscale and master
+      walk the built order. Hosted models refuse a picture of a shape they won't take
+      (0.4 to 2.5) before sending, never cropping it; WebP sizes read; Kling v3 Omni takes 7
+      pictures; an input ComfyUI holds isn't uploaded again. Kling 4 isn't on Router yet
+      (its catalog, 2026-10-26). Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
