@@ -42,7 +42,7 @@ from seriesmith.core import ir
 from seriesmith.targets import video_compile as VC
 from seriesmith.targets.video_compile import shot_duration as _duration
 
-from .prompt import build_prompt, with_keyframes
+from .prompt import build_multishot_prompt, build_prompt, with_keyframes
 from seriesmith.core import paths as P
 from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers, of as _of, new_id as _new_id  # noqa: F401
 
@@ -110,6 +110,51 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
+def _compile_group(ctx: Ctx, sq: ir.Sequence, group: list, ep_id: str) -> dict:
+    """One entry for a `continuous: multishot` group (docs/MULTISHOT.md): each
+    shot compiles as itself (its checks), then they are joined into one
+    generation: the first shot's settings and first keyframe, the last shot's
+    last keyframe, one length on the grid, the timed `[Shot N]` prompt, and
+    `multishot` (each shot and the frame it starts on)."""
+    before = ctx.total_raw
+    entries = [_compile(ctx, sq, s, ep_id) for s in group]
+    ids = f"{group[0].id}-{group[-1].id}"
+    for s, e in zip(group, entries):
+        if e["audio_policy"] != "generate":
+            raise ValueError(f"shots {ids}: a multishot group generates its sound, and {s.id} is "
+                             f"{e['audio_policy']}: a dubbed voice is one shot at a time for now. "
+                             f"Give it `policy: generate`, or break the group with "
+                             f"`continuous: none`")
+    fps = ctx.fps
+    frames = [max(1, round((e["duration"] if "duration" in e else e["audio_out"] - e["audio_in"])
+                           * fps)) for e in entries]
+    want = sum(frames)
+    raw = ctx.target.template.snap(want)
+    frames[-1] += raw - want
+    starts, at = [], 0
+    for f in frames:
+        starts.append(at)
+        at += f
+    ctx.total_raw = before + raw
+    entry = dict(entries[0])
+    for k in ("audio_in", "audio_out"):
+        entry.pop(k, None)
+    keys = dict(entries[0].get("keyframes") or {})
+    keys.pop("last", None)
+    if "last" in (entries[-1].get("keyframes") or {}):
+        keys["last"] = entries[-1]["keyframes"]["last"]
+    entry.update({
+        "subjects": list(dict.fromkeys(x for e in entries for x in e["subjects"])),
+        "length": raw,
+        "duration": round(raw / fps, 3),
+        "keyframes": keys,
+        "multishot": [{"id": s.id, "start": st, "frames": f, "size": s.size}
+                      for s, st, f in zip(group, starts, frames)],
+        "prompt": build_multishot_prompt(group, sq, ctx.series_cfg, [st / fps for st in starts]),
+    })
+    return entry
+
+
 def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
                     only: set[str] | None = None, absent=()) -> tuple[dict, dict]:
     ctx = Ctx(target, series_cfg, pass_, absent)
@@ -118,8 +163,13 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
         mine = [s for s in sq.shots if only is None or s.id in only]
         if mine:
             seqs += 1
+        groups = {g[0].id: g for g in sq.multishot_groups()}
+        grouped = {s.id for g in groups.values() for s in g[1:]}
         for s in mine:
-            shots_out.append(_compile(ctx, sq, s, story.id))
+            if s.id in groups:
+                shots_out.append(_compile_group(ctx, sq, groups[s.id], story.id))
+            elif s.id not in grouped:
+                shots_out.append(_compile(ctx, sq, s, story.id))
     p = ctx.preset
     extra = {k: v for k, v in p.extra.items() if not k.startswith("_")}
     doc = {

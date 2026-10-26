@@ -84,6 +84,7 @@ from dataclasses import dataclass, field
 
 from . import modelid
 from seriesmith.core import fileio as F
+from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
@@ -1596,8 +1597,11 @@ def multishot_check(story, series_cfg: dict) -> list[str]:
                 raise ValueError(
                     f"shots {ids}: a `continuous: multishot` group sends every shot's subjects "
                     f"in one generation, {len(sent)} ({', '.join(name(x) for x in sent)}), and "
-                    f"{t.id} takes {slots}. Split the group, or describe some of them in the "
-                    f"action instead of naming them in `who:` / `with:`")
+                    f"{t.id} takes {slots}. Split the group; or, for people in the "
+                    f"background, make them one group subject (a character with `members`: one "
+                    f"picture of them all, one slot, docs/AUTHORING.md \"A group: the same "
+                    f"extras every shot\"); or describe some in the action instead of naming "
+                    f"them in `who:` / `with:`")
             for sid_shot, sid in dropped:
                 out.append(f"shots {ids}: {sid_shot} names {sid}, but the group already sends "
                            f"{person_of[variants.get(sid, sid)]} for {name(sid)}: one picture a "
@@ -1608,9 +1612,12 @@ def multishot_check(story, series_cfg: dict) -> list[str]:
             if plates:
                 for sh in group[1:]:
                     if (sh.plate or sq.location) != first_plate:
+                        close = framing.canonical(sh.size) in ("ecu", "cu")
                         out.append(f"shots {ids}: {sh.id}'s plate, {sh.plate or sq.location}, isn't "
                                    f"sent as a picture: a {t.id} generation takes one plate, "
-                                   f"{head.id}'s ({first_plate}); {sh.id}'s place is in its words")
+                                   f"{head.id}'s ({first_plate}); "
+                                   + (f"{sh.id}, a close-up, is a blurred crop of it"
+                                      if close else f"{sh.id}'s place is in its words"))
             if head.continues(sq) == "first":
                 out.append(f"shots {ids}: the group opens on {head.id}'s first keyframe "
                            f"(`continuous: first`), so it renders on {t.id} from words and that "

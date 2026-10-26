@@ -155,8 +155,21 @@ dur: 1.62
       target's slots; warnings for a second picture of one person, another plate, a group
       opening on a first keyframe. A cut inside a group still gets the jump-cut warning.
       tests/test_multishot.py.
-- [ ] (b) The build: a group as one shotlist entry (members, starts, union of subjects, one
-      plate); the `timed` writer for H3 Ref2VA/Omni/FL2VA.
+- [x] (b) The build (2026-10-26): a group is one shotlist entry under its first shot's id,
+      each shot compiled as itself first (its pacing, pictures, policy checks), then joined:
+      the group's subjects (each person once, the first picture named; a later wardrobe
+      variant and its lines drawn as that picture), the first shot's plate, seed and
+      settings, one length on the grid (its padding the last shot's), and `multishot`
+      (each shot's id, start frame, frames, size). The `timed` writers: Ref2VA/Omni's
+      (`build_multishot_prompt`: shared subject definitions counted "in this video",
+      retention naming the shots each subject appears in, one speaker register for the
+      group, a `[Shot N] At MM:SS.mmm, the shot cuts.` section per shot; a close-up on
+      another plate is a blurred crop of the plate sent, a wider shot on one is in words)
+      and FL2VA's (its own per-shot text joined into the same sections, the look said
+      once, the speakers renumbered to the group's; the first shot's first keyframe, the
+      last shot's last). A group opening `continuous: latent` counts the held frames in
+      its cut times. Generated sound only: a dubbed or cloned shot in a group is refused
+      for now. Single shots compile byte for byte as before (the goldens).
 - [ ] (c) Rendering a group on H3 Omni end to end (the proof, from a script); the take, the
       cut and the editor showing a group as one item; the shot form's Continues menu
       offering `multishot` (today it lists first, latent, none).
