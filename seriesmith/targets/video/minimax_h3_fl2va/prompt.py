@@ -10,7 +10,7 @@ core fields, in its order:
 
     integrated_multimodal_description: [Shot 1] <look>, <a size> of <where> ...
         <Name> is <design>. <action> The camera ... <Name>, with a voice that
-        is <voice>, (S1) says, <delivery>: <d>[English] <line></d> ...
+        is <voice>, (S1), <delivery>, says: <d>[English] <line></d> ...
 
     overall_soundscape: ...
 
@@ -62,7 +62,12 @@ def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
     size = framing.term(shot.size)
     who = _and([name(s) for s in on_screen])
     if framing.family(shot.size) == "close":
-        where = (f"{_article(size)} frames {who} against a shallow, out-of-focus slice of {env}"
+        # A close-up's or an extreme close-up's background is the place cropped tight and blurred
+        # away, softer than a medium close-up's.
+        tight = framing.canonical(shot.size) in ("ecu", "cu")
+        where = (f"{_article(size)} frames {who} against a tightly cropped portion of {env}, "
+                 f"completely blurred into soft bokeh" if who and tight else
+                 f"{_article(size)} frames {who} against a shallow, out-of-focus slice of {env}"
                  if who else f"{_article(size)} holds on a detail of {env}")
     elif framing.family(shot.size) == "wide":
         where = (f"{_article(size)} takes in {env}, with {who} in it" if who
@@ -117,9 +122,10 @@ def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
         verb = {"vo": "says in an off-screen voiceover",
                 "os": "says from off-screen, outside the frame"}.get(d.mode, "says")
         deliv = (d.delivery or "").strip()
-        # A V.O./O.S. note ("on the truck radio") next to <d> gets read aloud
-        # as part of the line, so on those it goes with the speaker instead.
-        if deliv and d.mode in ("vo", "os"):
+        # A delivery note next to <d> gets read aloud as part of the line (a
+        # V.O. "on the truck radio", "crisp, without missing a beat"), so it
+        # goes with the speaker instead.
+        if deliv:
             label, deliv = f"{label}, {deliv},", ""
         mods = (["in the recorded voice"] if recorded else []) + ([deliv] if deliv else [])
         line = (f"{label} {verb}{''.join(', ' + m for m in mods)}: "

@@ -207,19 +207,39 @@ class PromptTest(unittest.TestCase):
         by = {s["id"]: s["prompt"] for s in doc["shots"]}
         # subjects in words, dialogue in H3's tags, voiceover's clause
         self.assertIn("Ada is a tall woman in her thirties", by["sh010"])
-        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1) says, warmly: "
+        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1), warmly, says: "
                       "<d>[English] You know that one whistles.</d>", by["sh020"])
-        self.assertIn("Bo (S2) says, whispering: <d>[English] That's the point.</d>", by["sh020"])
+        self.assertIn("Bo (S2), whispering, says: <d>[English] That's the point.</d>", by["sh020"])
         self.assertIn("says in an off-screen voiceover: <d>[English] Not today.</d> while their "
                       "lips remain completely closed.", by["sh030"])
         self.assertIn('Visible on-screen text reads "OPEN 24 HOURS".', by["sh010"])
         self.assertIn("non_diegetic_music: A plucky ukulele sting.", by["sh010"])
-        self.assertIn("close-up frames Ada against a shallow, out-of-focus slice", by["sh030"])
+        self.assertIn("close-up frames Ada against a tightly cropped portion of", by["sh030"])
         # recorded dialogue
         self.assertIn("says, in the recorded voice: <d>[English] Van.</d>", by["sh110"])
         self.assertIn("overall_soundscape: The only audio is the recorded dialogue", by["sh110"])
         self.assertIn("overall_soundscape: Running footsteps splashing through puddles, laid "
                       "under the recorded dialogue.", by["sh120"])
+
+    def test_close_up_background_is_blurred_away(self):
+        # A close-up's or an extreme close-up's background is the plate cropped
+        # tight and blurred into bokeh, on FL2VA and on Ref2VA alike; a medium
+        # close-up keeps the softly focused slice.
+        sq, sh = next((sq, s) for sq in self.story.sequences for s in sq.shots if s.id == "sh030")
+        env = self.cfg["locations"][sh.plate or sq.location]["description"].rstrip(".")
+        for size, tight in (("ecu", True), ("cu", True), ("mcu", False)):
+            sh.size = size
+            for tid in (FL, H3):
+                doc, _ = TG.load_target(tid).compile_episode(self.story, self.cfg, "final")
+                by = {s["id"]: s["prompt"] for s in doc["shots"]}
+                p = by["sh030"] if isinstance(by["sh030"], str) else "\n".join(by["sh030"])
+                self.assertEqual("completely blurred into soft bokeh" in p, tight, (size, tid))
+                self.assertEqual("tightly cropped portion of" in p, tight, (size, tid))
+                if tid == H3:
+                    # Ref2VA has the plate as a picture: on a close-up the room's
+                    # words would be drawn as a sharp room, so they're left out
+                    self.assertEqual(env in p, not tight, (size, tid))
+                    self.assertEqual("layout, color palette" in p, not tight, (size, tid))
 
     def test_keyframe_lines(self):
         P = self.P
