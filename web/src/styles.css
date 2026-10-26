@@ -609,6 +609,8 @@
 .h3-trimmed-mark { position: absolute; top: 0; bottom: 0; width: 3px; pointer-events: none; background: var(--h3-stale); opacity: 0.8; }
 .h3-trimmed-mark.h3-l { left: 0; }
 .h3-trimmed-mark.h3-r { right: 0; }
+/* a multishot group's cuts, as the script times them (docs/MULTISHOT.md) */
+.h3-ms-cut { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--h3-accent); opacity: 0.85; }
 .h3-trim-ghost {
   position: absolute; z-index: 5; pointer-events: none; background-color: #000; background-repeat: no-repeat;
   border-radius: 3px; box-shadow: 0 0 0 1px var(--h3-border), 0 2px 8px rgba(0, 0, 0, 0.5);

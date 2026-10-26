@@ -1271,7 +1271,7 @@ sound: running footsteps on grass, fabric movement
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
-| `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
+| `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
 | `NAME: line` | dialogue from someone on screen (the name is a character's key, in capitals) |
 | `NAME (breathless): line` | a delivery direction, written into the prompt |
@@ -1571,6 +1571,53 @@ final pass keeps them, `upscale.save_latents`); otherwise its last frames and so
 back through H3's VAEs, which works for any take, even one from another target. Both kinds
 of continuous shot render on any backend (your ComfyUI, Comfy Cloud, a deployment): what
 they need from the previous take is sent with the job.
+
+### Several shots in one generation: `continuous: multishot`
+
+`continuous: multishot` on a shot renders it **in one generation with the shot before it**.
+A run of such shots, with the shot they follow, is a **group**: the model sees the whole
+scene at once, so blocking, light and performance carry across the cuts, and the same
+people come back after a cutaway as themselves.
+
+```
+## sh040
+who: stepmother, mia, ava
+size: ms
+dur: 4.46
+...
+## sh050
+continuous: multishot
+who: charming_face
+size: cu
+dur: 1.62
+...
+## sh060
+continuous: multishot
+who: stepmother, ava, mia
+dur: 1.62
+...
+```
+
+- **Every shot stays a shot in the script**, with its own `who:`, `size:`, `dur:`, action,
+  lines and `sound:`. Under a `#` header, `continuous: multishot` groups every shot after the
+  sequence's first; `continuous: none` starts a new group. A group never crosses a `#`.
+- **It renders as one take**, under the group's first shot (`sh040`), its length the shots'
+  `dur:` together. In the cut it is one clip, marked where the script times each cut.
+- **On H3** (Ref2VA, FastH3 Omni, FL2VA), the prompt cuts at each shot's start
+  (`[Shot 2] At 00:04.458, the shot cuts.`). H3 lands its cuts within about half a second of
+  those times, not to the frame. Other models get their own forms as they are added
+  (docs/MULTISHOT.md); `seriesmith check` refuses a group on a model that has none, and says
+  which can render it.
+- **One set of pictures for the whole generation**: every person in the group once (the
+  first picture named of each: a wardrobe variant in a later shot isn't sent, and `check`
+  says so), up to the model's slots (FastH3 Omni takes eight; Ref2VA three: background people
+  can be one group subject, `members`), and **one plate**, the first shot's. A close-up on
+  another plate is drawn as a blurred crop of the plate sent; a wider shot on another plate
+  gets its place in words.
+- **A group can carry on from the shot before it**: `continuous: latent` on its first shot
+  holds the previous take's end at its head. `continuous: first` works too, but renders the
+  whole group from words and that frame, without its pictures (`check` says so).
+- **Sound is generated.** A dubbed or cloned shot in a group is refused for now.
 
 **Generating a keyframe** writes a still from the shot: the look, the framing and the
 location, who is in frame (their `design`), and the action at that moment: for `first` how

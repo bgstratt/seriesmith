@@ -197,7 +197,9 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
   the episode's `target`, `target_source`, `series_target` (The episode target) and
   `track` (Phase 9c); a shot's `target`, `target_source`, `built_target`, `profile`
   (Phase 7/8), `missing_refs`, `retarget_error`, `length_estimated`, `audio_in` /
-  `audio_out`; `cut.fps`, `order`, `script_index`, `out_of_order` (Phase 9b), `audio`,
+  `audio_out`, `multishot` (a `continuous: multishot` group's script shots, each
+  `{id, start, frames, size}`, `start` the frame it begins on in the take, as the script
+  times it: docs/MULTISHOT.md); `cut.fps`, `order`, `script_index`, `out_of_order` (Phase 9b), `audio`,
   `audio_file`, `audio_why` (Phase 9d); a take's `fps`, `width`, `height`, `target`,
   `audio`, `draft` / `from_draft` (Seedance drafts), `upscale` and `post`.
 

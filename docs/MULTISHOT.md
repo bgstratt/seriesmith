@@ -170,9 +170,17 @@ dur: 1.62
       last shot's last). A group opening `continuous: latent` counts the held frames in
       its cut times. Generated sound only: a dubbed or cloned shot in a group is refused
       for now. Single shots compile byte for byte as before (the goldens).
-- [ ] (c) Rendering a group on H3 Omni end to end (the proof, from a script); the take, the
-      cut and the editor showing a group as one item; the shot form's Continues menu
-      offering `multishot` (today it lists first, latent, none).
+- [x] (c) End to end (2026-10-26): ep04's sh040-sh060 as a group, built from the script and
+      rendered on local Omni (192 frames, 3:47): the same three women back after the cut,
+      Charming's close-up from his face picture. Its cuts landed at **4.917 s and 6.500 s**
+      for 4.458 and 6.083 (11 and 10 frames late; the hand-written proof was within 3): H3
+      cuts within about half a second of the times asked, so a later slice or splice snaps
+      to the cut found near each one (frame difference: 38.6 at both against a median of
+      0.9). The cut was already one item for a group (it is built from the shotlist's ids);
+      the editor's status carries `multishot`, the timeline clip is labelled `sh040–sh060`
+      with dashed marks where the script times the cuts, the Shots tab tile lists the
+      group's shots, and the shot form's Continues menu offers `multishot`. AUTHORING
+      ("Several shots in one generation") and API.md say how.
 - [ ] (d) The `prose` writer (Seedance) and the `storyboard` writer (Kling v3), each tried
       once.
 - [ ] (e) Upscale and master of a group take.

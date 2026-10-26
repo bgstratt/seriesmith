@@ -391,9 +391,9 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
                   {noSteps
                     ? <Row label="Steps" help="This model has no steps setting: the provider decides."><span className="h3-small h3-muted">none (the provider's)</span></Row>
                     : <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />}
-                  <Row label="Continues" help="Carries straight on from the shot before in the cut: first opens on its last frame, latent holds its last frames and goes on from them.">
+                  <Row label="Continues" help="Carries straight on from the shot before in the cut: first opens on its last frame, latent holds its last frames and goes on from them; multishot renders it in one generation with the shot before (one take for the group).">
                     <select className="h3-in" value={form.keys.continuous ?? ""} onChange={(e) => set("continuous", e.target.value)}>
-                      <option value="">no</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="none">none: break a sequence's chain</option>
+                      <option value="">no</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="multishot">multishot: one generation with the shot before</option><option value="none">none: break a sequence's chain</option>
                     </select>
                   </Row>
                   <Row label="First frame" help="The picture the shot opens on, for models that read keyframes (H3 FL2VA, LTX-2, Wan); others ignore it.">

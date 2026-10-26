@@ -479,6 +479,9 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             "seconds": round(shot["length"] / sfps, 3) if shot else None,
             "size": shot.get("size") if shot else None,
             "subjects": shot.get("subjects", []) if shot else [],
+            # a `continuous: multishot` group (docs/MULTISHOT.md): its script shots,
+            # the frame each starts on in the take, its frames and size
+            **({"multishot": shot["multishot"]} if shot and shot.get("multishot") else {}),
             # the first sentence of what happens, as the script says it (the board)
             **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,

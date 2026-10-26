@@ -269,6 +269,27 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(len(grouped["shots"]), 1)
 
 
+class StatusTest(unittest.TestCase):
+    """The editor's status shows a group as one shot, with its script shots."""
+
+    def test_the_group_and_its_shots_reach_the_editor(self):
+        import json
+        import tempfile
+        from seriesmith import edit as E
+        with tempfile.TemporaryDirectory() as tmp:
+            ep = os.path.join(tmp, "e01")
+            os.makedirs(ep)
+            with open(os.path.join(ep, "series.json"), "w", encoding="utf-8") as fh:
+                json.dump(CFG, fh)
+            with open(os.path.join(ep, "e01.md"), "w", encoding="utf-8") as fh:
+                fh.write("= e01  Test" + chr(10) + DIALOGUE)
+            self.assertTrue(E.build_episode(ep)["ok"])
+            st = E.episode_status(ep, "final")
+            self.assertEqual([x["shot"] for x in st["shots"]], ["sh010"])
+            self.assertEqual([p["id"] for p in st["shots"][0]["multishot"]], ["sh010", "sh020", "sh030"])
+            self.assertEqual([e.shot for e in E.cut_entries(ep, "final")], ["sh010"])
+
+
 class JumpCutTest(unittest.TestCase):
     def test_a_cut_inside_a_group_is_still_a_cut(self):
         """The model draws the cut the script asks for: the same two people,
