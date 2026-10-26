@@ -1608,7 +1608,8 @@ dur: 1.62
   shot, each "a hard cut" from the one before. Seedance times the cuts itself. It takes up to
   30 pictures, so every shot's plate goes in, and a group is at most 30 s (2.0: 15 s).
 - **On Kling** (v3 Omni, Video O1), a group is sent as Kling's own storyboard: each shot's
-  prose (cut to 512 characters) and whole seconds, at most 6 shots and 15 s, one plate.
+  prose (cut to 512 characters) and whole seconds, at most 6 shots and 15 s, one plate (v3
+  Omni takes 7 pictures in all, Video O1 the cast's 4 and the plate).
 - **Other models** (Veo, Runway, Wan, LTX) render one shot a call: `seriesmith check` refuses
   a group on them and says which models can render it, and rendering a group's first shot
   on one from the editor says why it can't.
@@ -1686,7 +1687,7 @@ What each model takes, local and hosted (generated from the targets by
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
 | `wan22_vace` | Wan+refs | your ComfyUI | one picture made from the subjects' sheets | first and last | by their order |
-| `kling_v3_omni` | Kling | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
+| `kling_v3_omni` | Kling | Comfy Router | up to 7: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `kling_video_o1` | Kling O1 | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `minimax_h3` | MiniMax | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | by their order |
 | `runway_gen4_turbo` | Runway | Comfy Router | none | first | — |

@@ -56,6 +56,12 @@ WAN_2_7_I2V = {"length": {"seconds": {"min": 2, "max": 15}}, "size": {"resolutio
                "pictures": {"references": 0, "needs_first": True}}
 
 
+# Kling v3 Omni: "up to 7 images or elements", 4 image elements when a reference
+# video is included (seriesmith sends no reference video): 7 pictures, the plate
+# among them (Kling's docs, 2026-10-26)
+KLING_V3_OMNI = {"pictures": {"references": 7}}
+
+
 def seedance_ratio(p: dict) -> None:
     """Seedance 2.0 takes a ratio alongside its frames (2.5 refuses one), and,
     as 2.5 does, its prompt opens by defining each picture (BytePlus's prompt
@@ -79,7 +85,7 @@ def kling_storyboard(p: dict) -> None:
     (docs/MULTISHOT.md): `multi_shot: true`, `shot_type: customize` and
     `multi_prompt`, each shot's prose (at most 512 characters) and whole
     seconds (at least 1, adding up to the call's), at most 6 shots; its
-    prompt is then unused. Four pictures in all, so one plate."""
+    prompt is then unused. One plate: the pictures are the cast's first."""
     p["multishot"] = {"_note": "Kling's own storyboard fields (its schema's multi_shot, shot_type, "
                                "multi_prompt): each shot's prose and whole seconds; at most 6 shots.",
                       "form": "storyboard", "max_shots": 6, "plates": 1}
@@ -102,7 +108,7 @@ MODELS = [
     ("byteplus/dreamina-seedance-2-0-260128", "seedance_2_0", "Seedance 2.0", "Seedance", SEEDANCE_2_0, False, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-fast-260128", "seedance_2_0_fast", "Seedance 2.0 Fast", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-mini", "seedance_2_0_mini", "Seedance 2.0 Mini", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
-    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", None, False, kling_storyboard),
+    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", KLING_V3_OMNI, False, kling_storyboard),
     ("kling/kling-video-o1", "kling_video_o1", "Kling Video O1", "Kling O1", None, False, kling_storyboard),
     ("wan/wan3.0-video", "wan_3_0", "Wan 3.0", "Wan", WAN_3_0, False, None),
     ("wan/wan3.0-video-prime", "wan_3_0_prime", "Wan 3.0 Prime", "Wan", WAN_3_0, True, None),

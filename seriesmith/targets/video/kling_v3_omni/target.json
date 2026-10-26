@@ -9,7 +9,7 @@
       "router"
     ],
     "seed": "provider",
-    "max_subjects": 4
+    "max_subjects": 7
   },
   "template": {
     "fps": 24,
@@ -92,7 +92,9 @@
         "item": {
           "image_url": "$url"
         },
-        "mention": "<<<image_{n}>>>"
+        "mention": "<<<image_{n}>>>",
+        "max": 7,
+        "max_total": 7
       },
       "ratio": {
         "name": "aspect_ratio",
