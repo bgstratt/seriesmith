@@ -992,6 +992,12 @@ collide with the package.
       installs it. QUICKSTART is now Getting started: three ways (ComfyUI-Manager, the page
       of its own, a linked clone) in place of the thirty-second install; INSTALL, README,
       SETUP and the docs site lead with Manager.
+- [x] **0.1.3** (2026-10-25, `release-0.1.3`): H3 dialogue keeps its delivery note out of
+      the spoken line; close-ups blur the plate away and leave the location's words out;
+      `seriesmith check` warns on light sources in a look; AUTHORING on blurred close-up
+      plates and an ECU's tightness; the docs site's Tutorials; Simple mode's Who and Where
+      from + Create; relights and looks name no places or things. Published by the merge's
+      version bump (publish_action.yml); Pending until the Registry's scan passes.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
