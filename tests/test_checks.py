@@ -182,5 +182,35 @@ class SharedPlateWarningTest(unittest.TestCase):
                             for w in built[0][2]["warnings"]), built[0][2]["warnings"])
 
 
+class LookLightSourcesTest(unittest.TestCase):
+    """A look that names where the light comes from asks every shot for it."""
+
+    def warn(self, c: dict) -> list[str]:
+        c = series_config_from(c)
+        st = story("= ep01 T\n\n# sq01 kitchen\n\n## sh010\nwho: ada\ndur: 3\nShe waits.\n", c)
+        return [w for w in B.story_warnings(st, c) if "light sources" in w]
+
+    def test_sources_in_the_look_warn(self):
+        w = self.warn(cfg(style__look="a period drama, practical light from the windows and candles"))
+        self.assertEqual(len(w), 1)
+        self.assertIn("style.look", w[0])
+        self.assertIn("(candles, windows)", w[0])
+        self.assertIn("location's description", w[0])
+
+    def test_a_profiles_look_too(self):
+        c = cfg()
+        c["profiles"] = {"night": {"look": "lit by a single bare bulb"}}
+        w = self.warn(c)
+        self.assertEqual(len(w), 1)
+        self.assertIn("profile 'night' look", w[0])
+
+    def test_the_lights_quality_is_quiet(self):
+        """The look builder's Light row says what the light does, never where it
+        comes from."""
+        self.assertEqual(self.warn(cfg(style__look=(
+            "a live-action film; low-key practical light, pools of light and deep soft "
+            "shadow; a muted, desaturated grade with lifted blacks"))), [])
+
+
 if __name__ == "__main__":
     unittest.main()

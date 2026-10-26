@@ -204,7 +204,16 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         # no one named, only props or vehicles: the extras are the only people,
         # and with no count to replace they were left out altogether
         defs.append(f"The people in frame are {extras}: unnamed background figures.")
-    if not no_plate:
+    if not no_plate and framing.canonical(shot["size"]) in ("ecu", "cu"):
+        # A close-up's background is the plate blurred away: the location's
+        # description (its fireplace, its stairs) and "the layout ... of the
+        # space" were drawn as a sharp room behind the face, so neither is said.
+        defs.append(
+            f"{bg_subj} is the background, defined by <{plate_slot}> — a tightly cropped, "
+            f"magnified portion of the background behind the subject, thrown completely out of "
+            f"focus. It gives only the colours and light behind the subject; no objects, "
+            f"furniture or architecture are drawn.")
+    elif not no_plate:
         defs.append(
             f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
             f"It establishes the layout, color palette, lighting direction and depth of the "
@@ -277,9 +286,18 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     # dissolves, and the sheet's pose comes with it. So a close-up keeps the
     # plate as a magnified crop -- the part of the room right behind the
     # subject, at close range -- and says the sheet's backdrop is not it.
+    # A close-up or an extreme close-up keeps that crop too, but blurred into
+    # bokeh, its objects no longer to be drawn (the description says the same).
     close = framing.family(shot["size"]) == "close"
     if no_plate:
         pass
+    elif framing.canonical(shot["size"]) in ("ecu", "cu"):
+        ret.append(
+            f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
+            f"tightly cropped, zoomed-in part of the location directly behind the subject: its "
+            f"color palette and lighting direction are retained at close range, completely "
+            f"blurred into soft bokeh, while the rest of the space falls outside the frame. The "
+            f"plain backdrop of a reference image is never used as the background.")
     elif close:
         ret.append(
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
@@ -345,10 +363,17 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     wide = framing.family(shot["size"]) == "wide"
     if close:
         fill = "" if ext and not ext.startswith("from") else ", filling most of the frame"
+        # A close-up's or an extreme close-up's background is the plate cropped tight and blurred
+        # away, not a place to draw: the room's description would ask for the
+        # room, so with a plate it is named by its picture alone.
+        if framing.canonical(shot["size"]) in ("ecu", "cu"):
+            soft = (f"a tightly cropped portion of {env if no_plate else bg_subj + ', the background plate'}"
+                    f", completely blurred into soft bokeh")
+        else:
+            soft = f"a magnified, softly focused part of {place}, recognizably the same place"
         where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
-                 f"is filled by a magnified, softly focused part of {place}, recognizably the "
-                 f"same place, never a plain studio backdrop; the rest of the space lies outside "
-                 f"the frame." if who else
+                 f"is filled by {soft}, never a plain studio backdrop; the rest of the space lies "
+                 f"outside the frame." if who else
                  f"{frame} holds on a detail of {place}; the rest of the space lies outside "
                  f"the frame.")
     elif wide:
@@ -366,10 +391,10 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         src = " in the recorded voice from <Audio 1>," if copying else ""
         label = speaker_label(d["who"])
         mode = d.get("mode", "")
-        # A V.O./O.S. note is usually where the voice comes from ("on the
-        # truck radio"). Next to <d> it was read aloud as part of the line, so
-        # on those two it rides with the speaker, before the verb.
-        pre = f",{deliv}" if mode and deliv else ""
+        # A delivery note next to <d> is read aloud as part of the line (a
+        # V.O. "on the truck radio", then "crisp, without missing a beat,
+        # Excellent."), so it rides with the speaker, before the verb.
+        pre = f",{deliv}" if deliv else ""
         if mode == "vo":
             # Exact phrase required by the spec, plus the lips-closed clause --
             # but only when the speaker is actually visible, since that clause
@@ -383,7 +408,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
             desc.append(f"{label}{pre} says from off-screen, outside the frame,{src} "
                         f"<d>[English] {d['line']}</d>")
         else:
-            desc.append(f"{label} says,{src}{deliv} <d>[English] {d['line']}</d>")
+            desc.append(f"{label}{pre} says,{src} <d>[English] {d['line']}</d>")
     if shot.get("text"):
         desc.append(f'Visible on-screen text reads "{shot["text"]}".')
 

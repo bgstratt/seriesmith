@@ -956,9 +956,8 @@ the focus, the light and the film stock do. Adjectives about quality ("cinematic
 Weak: *"a cinematic prestige drama with moody lighting"*.
 
 Strong: *"a naturalistic live-action prestige drama shot on 35mm anamorphic lenses: shallow
-depth of field with the background falling into soft bokeh, low-key light from the practical
-lamps in each room, deep soft shadows with lifted blacks, muted desaturated color and fine
-film grain"*.
+depth of field with the background falling into soft bokeh, low-key practical light with pools
+of light and deep soft shadows, lifted blacks, muted desaturated color and fine film grain"*.
 
 **Leave people and places out of it.** The look also opens every reference picture's
 prompt, a place's empty plate included, and every shot's. Words about characters, faces,
@@ -969,6 +968,17 @@ shot's own place (a lighthouse gallery asked to be a neon street). Say how thing
 and rendered (soft rounded forms, magenta and cyan light, warm tones) and let the cast and
 the locations bring the people and the places. A picture's whole prompt, look and all, is under **What the model is
 told** in its row in Refs.
+
+**Name the light's quality, not its sources.** "Practical light from the windows and candles"
+asks every shot for windows and candles, and a close-up is framed wider to fit them in or has
+them invented behind the face. In one H3 test, an extreme close-up asked for "eyes and mouth"
+came out a close-up, hairline to collar with candle flames behind, until only that clause of
+the look changed to "soft practical light". On the same seed it was then eyes to lips, with
+nothing behind but the plate's blur, and a wide of the same room lost nothing but an invented
+chandelier. The look builder's Light row is written this way ("low-key practical light, pools
+of light and deep soft shadow"); the windows, candles and lamps go in each location's
+description, where the shots that see them read them. `seriesmith check` warns when a look
+(the series' or a profile's) names a light source.
 
 The editor's look builder (Series settings, the new-series wizard) writes such a line from
 its parts (medium, camera, lens, film, light, grade) and keeps its picks beside it in
@@ -1858,9 +1868,11 @@ tall: three cells.
   face at a distance.
 
 The prompt also scales the location to the framing: a wide describes the whole place around
-the subjects, a medium the part behind them, and a close-up only a magnified, out-of-focus
-slice of it. That is why a close-up on H3 has the room behind the face, softly, and not a
-studio backdrop.
+the subjects, a medium the part behind them, a medium close-up a magnified, softly focused
+slice of it, and a close-up or an extreme close-up (`cu`, `ecu`) a tightly cropped portion of
+the plate, completely blurred into soft bokeh. On H3 Ref2VA that last is named by its picture
+alone, without the location's description, so the model isn't asked to draw the room. That is
+why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop.
 
 ### Cutting within a location
 
