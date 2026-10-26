@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from typing import Callable
 
@@ -193,6 +194,39 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
     for block, check in RECIPE_CHECKS.items():
         if "master" in ((series_cfg or {}).get(block) or {}):
             out += check(series_cfg[block]["master"])
+    out += look_light_sources(series_cfg or {})
+    return out
+
+
+# Things that give off light. A look that names them asks every shot to show
+# them: a close-up widens its frame to fit the candles in, or invents them
+# behind a face (2026-10-25, H3 Omni on one seed: "practical light from the
+# windows and candles" kept an extreme close-up a close-up until it went).
+LIGHT_SOURCES = re.compile(
+    r"\b(windows?|candles?|candlelight|candlesticks?|candelabras?|chandeliers?|lamps?|"
+    r"lamplight|lanterns?|sconces?|fireplaces?|firelight|torch(?:es)?|torchlight|"
+    r"streetlights?|street lamps?|neon signs?|light ?bulbs?|bulbs?)\b", re.I)
+
+
+def look_light_sources(series_cfg: dict) -> list[str]:
+    """A look (the series' `style.look`, or a profile's `look`) that names
+    the things the light comes from: the look opens every shot's prompt it
+    covers, so they turn up in every one of them. The light's quality belongs
+    in the look; its sources in each location's description (docs/AUTHORING.md,
+    "Writing the `look` line")."""
+    looks = [("style.look", ((series_cfg.get("style") or {}).get("look") or ""))]
+    looks += [(f"profile '{pid}' look", (p or {}).get("look") or "")
+              for pid, p in (series_cfg.get("profiles") or {}).items() if isinstance(p, dict)]
+    out = []
+    for where, look in looks:
+        found = sorted({m.group(0).lower() for m in LIGHT_SOURCES.finditer(look)})
+        if found:
+            out.append(
+                f"series.json {where} names light sources ({', '.join(found)}): the look opens "
+                f"every shot's prompt, so each one is asked to show them, and a close-up widens "
+                f"to fit them in or invents them behind a face. Say the light's quality in the "
+                f"look (\"low-key practical light, pools of light and deep soft shadow\") and "
+                f"where it comes from in each location's description.")
     return out
 
 
