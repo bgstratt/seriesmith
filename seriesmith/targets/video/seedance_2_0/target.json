@@ -166,5 +166,10 @@
       "width": 854,
       "height": 480
     }
+  },
+  "multishot": {
+    "_note": "A continuous: multishot group in prose: the look once, then a paragraph a shot, each a hard cut from the one before; the model times the cuts. Every shot's plate among the pictures.",
+    "form": "prose",
+    "plates": "all"
   }
 }

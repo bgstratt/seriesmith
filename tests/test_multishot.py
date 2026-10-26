@@ -15,6 +15,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
+sys.path.insert(0, HERE)
 
 from seriesmith import build as B  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
@@ -288,6 +289,92 @@ class StatusTest(unittest.TestCase):
             self.assertEqual([x["shot"] for x in st["shots"]], ["sh010"])
             self.assertEqual([p["id"] for p in st["shots"][0]["multishot"]], ["sh010", "sh020", "sh030"])
             self.assertEqual([e.shot for e in E.cut_entries(ep, "final")], ["sh010"])
+
+
+class RouterTest(unittest.TestCase):
+    """What a hosted model is sent for a group, offline (router_call, as
+    tests/test_router_golden.py pins single shots): nothing is sent anywhere."""
+
+    def call(self, target: str) -> tuple[dict, object]:
+        import json
+        import tempfile
+        from seriesmith import edit as E
+        from seriesmith import jobs as J
+        from test_render import png_bytes
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        ep = os.path.join(tmp.name, "e01")
+        c = copy.deepcopy(CFG)
+        c["series"]["target"] = target
+        for name, e in c["subjects"].items():
+            if e.get("sheet"):
+                e["sheet_panels"] = 1                      # a whole picture: nothing to cut
+        for path, (w, h) in [(e["sheet"], (512, 768)) for e in c["subjects"].values() if e.get("sheet")] +                 [(e["plate"], (1344, 768)) for e in c["locations"].values()]:
+            full = os.path.join(ep, path)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            with open(full, "wb") as fh:
+                fh.write(png_bytes(w, h))
+        with open(os.path.join(ep, "series.json"), "w", encoding="utf-8") as fh:
+            json.dump(c, fh)
+        with open(os.path.join(ep, "e01.md"), "w", encoding="utf-8") as fh:
+            fh.write("= e01  Test" + chr(10) + DIALOGUE)
+        self.assertTrue(E.build_episode(ep)["ok"])
+        doc, i = J.find_shot(ep, "final", "sh010")
+        job = J.plan_job(ep, "final", doc, i, J.RenderRequest("sh010"), {})
+        t = J.job_target(job)
+        _, args = t.module.router_call(t, job)
+        return args, job
+
+    def test_seedance_is_told_the_scene_in_prose(self):
+        args, job = self.call("seedance_2_5")
+        text = next(x["text"] for x in args["content"] if x.get("type") == "text")
+        self.assertIn("A scene in three shots, each a hard cut from the one before.", text)
+        self.assertIn("Shot 1: A medium shot", text)
+        self.assertIn("Shot 2, a hard cut: A close-up", text)
+        self.assertIn("Shot 3, a hard cut:", text)
+        # every person once (Ada's soaked variant is Ada), and the plate: three pictures
+        self.assertIn("@Image 1 as Ada", text)
+        self.assertIn("@Image 2 as Bo", text)
+        self.assertIn("in @Image 3 as the scene", text)
+        self.assertNotIn("@Image 4", text)
+        self.assertEqual(sum(1 for x in args["content"] if x.get("type") == "image_url"), 3)
+        # 73 + 39 + 56 frames: 7 whole seconds
+        self.assertEqual(args["duration"], 7)
+
+    def test_kling_is_sent_a_storyboard_and_no_prompt(self):
+        args, job = self.call("kling_v3_omni")
+        self.assertIs(args["multi_shot"], True)
+        self.assertEqual(args["shot_type"], "customize")
+        self.assertNotIn("prompt", args)
+        board = args["multi_prompt"]
+        self.assertEqual([b["index"] for b in board], [1, 2, 3])
+        # whole seconds, at least one each, adding up to the call's seven
+        self.assertEqual([b["duration"] for b in board], ["3", "2", "2"])
+        self.assertEqual(args["duration"], "7")
+        self.assertTrue(all(len(b["prompt"]) <= 512 for b in board))
+        self.assertIn("Traffic.", board[1]["prompt"])
+        # the pictures named, in every shot's part
+        self.assertTrue(all("<<<image_1>>> is Ada." in b["prompt"] for b in board))
+
+    def test_a_model_without_a_form_refuses_the_group(self):
+        import json
+        import tempfile
+        from seriesmith import edit as E
+        from seriesmith import jobs as J
+        with tempfile.TemporaryDirectory() as tmp:
+            ep = os.path.join(tmp, "e01")
+            os.makedirs(ep)
+            with open(os.path.join(ep, "series.json"), "w", encoding="utf-8") as fh:
+                json.dump(CFG, fh)
+            with open(os.path.join(ep, "e01.md"), "w", encoding="utf-8") as fh:
+                fh.write("= e01  Test" + chr(10) + DIALOGUE)
+            self.assertTrue(E.build_episode(ep)["ok"])
+            doc, i = J.find_shot(ep, "final", "sh010")
+            # rendered on Veo from the editor (a retarget): one shot a call, so the
+            # job can't be planned there, and says why
+            job = J.plan_job(ep, "final", doc, i, J.RenderRequest("sh010", target="veo_3_1_fast"), {})
+            self.assertIn("can't render sh010 on veo_3_1_fast", job.error)
+            self.assertIn("continuous: multishot", job.error)
 
 
 class JumpCutTest(unittest.TestCase):

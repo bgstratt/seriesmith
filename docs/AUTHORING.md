@@ -1587,9 +1587,15 @@ dur: 1.62
   `dur:` together. In the cut it is one clip, marked where the script times each cut.
 - **On H3** (Ref2VA, FastH3 Omni, FL2VA), the prompt cuts at each shot's start
   (`[Shot 2] At 00:04.458, the shot cuts.`). H3 lands its cuts within about half a second of
-  those times, not to the frame. Other models get their own forms as they are added
-  (docs/MULTISHOT.md); `seriesmith check` refuses a group on a model that has none, and says
-  which can render it.
+  those times, not to the frame.
+- **On Seedance** (2.5 and 2.0), the scene is told in prose: the look once, then a paragraph a
+  shot, each "a hard cut" from the one before. Seedance times the cuts itself. It takes up to
+  30 pictures, so every shot's plate goes in, and a group is at most 30 s (2.0: 15 s).
+- **On Kling** (v3 Omni, Video O1), a group is sent as Kling's own storyboard: each shot's
+  prose (cut to 512 characters) and whole seconds, at most 6 shots and 15 s, one plate.
+- **Other models** (Veo, Runway, Wan, LTX) render one shot a call: `seriesmith check` refuses
+  a group on them and says which models can render it, and rendering a group's first shot
+  on one from the editor says why it can't.
 - **One set of pictures for the whole generation**: every person in the group once (the
   first picture named of each: a wardrobe variant in a later shot isn't sent, and `check`
   says so), up to the model's slots (FastH3 Omni takes eight; Ref2VA three: background people

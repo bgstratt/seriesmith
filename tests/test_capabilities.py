@@ -46,7 +46,8 @@ class RouterTargetTest(unittest.TestCase):
         c = TG.load_target("seedance_2_5", "video").capabilities()
         self.assertEqual((c["backends"], c["reproducible"]), (["router"], False))
         self.assertEqual(c["max_subjects"], 30)                 # BytePlus: up to 30 pictures
-        self.assertEqual(c["continuous"], ["first"])
+        # a multishot group in prose, a paragraph a shot (docs/MULTISHOT.md)
+        self.assertEqual(c["continuous"], ["first", "multishot"])
         self.assertFalse(c["latents"])
 
 

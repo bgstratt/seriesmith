@@ -282,6 +282,101 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
+def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -> dict:
+    """One entry for a `continuous: multishot` group (docs/MULTISHOT.md) on a
+    hosted model: each shot compiled as itself (its checks), then joined into
+    one call: its pictures (each person once, the first picture named; as many
+    plates as the target's `multishot.plates`, "all" for every shot's), one
+    length on the model's grid, and the prompt in the target's form: `prose`,
+    one paragraph per shot after the look, each a hard cut from the one
+    before; `storyboard` the same prose as a fallback, and `storyboard`, each
+    shot's own prose and whole seconds (adding up to the call's), which the
+    call sends as the model's storyboard fields (router_video)."""
+    spec = ctx.target.spec.get("multishot") or {}
+    ids = f"{group[0].id}-{group[-1].id}"
+    if not spec.get("form"):
+        raise ValueError(f"shots {ids}: a `continuous: multishot` group, and {ctx.target.short} "
+                         f"renders one shot a call (no multishot form): render the group on a "
+                         f"model that has one, or break it with `continuous: none`")
+    before = ctx.total_raw
+    entries = [compile_entry(ctx, sq, s, ep_id) for s in group]
+    fps = ctx.fps
+    frames = [max(1, round((e["duration"] if "duration" in e else e["audio_out"] - e["audio_in"])
+                           * fps)) for e in entries]
+    want = sum(frames)
+    try:
+        raw = ctx.target.template.snap(want)
+    except ValueError:
+        raise ValueError(f"shots {ids}: {want / fps:.2f}s in one call, and {ctx.target.short} makes "
+                         f"at most {ctx.target.template.max / fps:.0f}s: split the group "
+                         f"(`continuous: none` on a shot starts the next one)") from None
+    most = spec.get("max_shots")
+    if most and len(group) > int(most):
+        raise ValueError(f"shots {ids}: {len(group)} shots in one call, and {ctx.target.short} "
+                         f"takes at most {most}: split the group")
+    frames[-1] += raw - want
+    starts, at = [], 0
+    for f in frames:
+        starts.append(at)
+        at += f
+    ctx.total_raw = before + raw
+
+    # the pictures: each person once (the first picture named), then the plates
+    from seriesmith.core.series_config import variant_of
+    variants = variant_of(ctx.series_cfg)
+    people, places, seen = [], [], set()
+    for e in entries:
+        for p in e.get("panels") or []:
+            if p.get("subject"):
+                who = variants.get(p["subject"], p["subject"])
+                if who not in seen:
+                    seen.add(who)
+                    people.append(p)
+            elif p not in places:
+                places.append(p)
+    plates = spec.get("plates", 1)
+    places = places if plates == "all" else places[:int(plates)]
+
+    look = ((ctx.series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
+    lead = f"Style: {look}." if look else ""
+
+    def body(e: dict) -> str:
+        text = e["prompt"]
+        return text[len(lead):].lstrip() if lead and text.startswith(lead) else text
+
+    n = len(group)
+    count = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}.get(n, str(n))
+    paras = [f"{lead} A scene in {count} shots, each a hard cut from the one before.".strip()]
+    for i, (s, e) in enumerate(zip(group, entries)):
+        text = body(e)
+        paras.append(f"Shot {i + 1}: {text}" if i == 0 else
+                     f"Shot {i + 1}, a hard cut: {text}")
+    entry = dict(entries[0])
+    for k in ("audio_in", "audio_out"):
+        entry.pop(k, None)
+    keys = dict(entries[0].get("keyframes") or {})
+    keys.pop("last", None)
+    if "last" in (entries[-1].get("keyframes") or {}):
+        keys["last"] = entries[-1]["keyframes"]["last"]
+    entry.update({
+        "subjects": list(dict.fromkeys(x for e in entries for x in e["subjects"])),
+        "length": raw,
+        "duration": round(raw / fps, 3),
+        "keyframes": keys,
+        "prompt": "\n\n".join(paras),
+        "multishot": [{"id": s.id, "start": st, "frames": f, "size": s.size}
+                      for s, st, f in zip(group, starts, frames)],
+    })
+    if "panels" in entries[0]:
+        entry["panels"] = people + places
+    if spec["form"] == "storyboard":
+        secs = [max(1, round(f / fps)) for f in frames]
+        secs[-1] = max(1, round(raw / fps) - sum(secs[:-1]))
+        entry["storyboard"] = [{"prompt": body(e), "seconds": sec}
+                               for e, sec in zip(entries, secs)]
+    return entry
+
+
 def _ids(ids: list[str], n: int = 8) -> str:
     return ", ".join(ids[:n]) + (" …" if len(ids) > n else "")
 
@@ -294,8 +389,15 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
         mine = [s for s in sq.shots if only is None or s.id in only]
         if mine:
             seqs += 1
+        # a `continuous: multishot` group compiles whole at its first shot, which
+        # is the id a retargeted render asks for (docs/MULTISHOT.md)
+        groups = {g[0].id: g for g in sq.multishot_groups()}
+        grouped = {s.id for g in groups.values() for s in g[1:]}
         for s in mine:
-            shots_out.append(compile_entry(ctx, sq, s, story.id))
+            if s.id in groups:
+                shots_out.append(compile_group(ctx, sq, groups[s.id], story.id))
+            elif s.id not in grouped:
+                shots_out.append(compile_entry(ctx, sq, s, story.id))
     p = ctx.preset
     extra = shotlist_extra(p)
     doc = {

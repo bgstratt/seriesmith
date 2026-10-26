@@ -379,8 +379,23 @@ def router_call(target, job) -> tuple[str, dict]:
     if tail:
         text = f"{text}\n\n{tail}"
 
-    # the prompt, then the pictures, in that order (a content list keeps it)
-    place(args, pspec, prompt=text)
+    # the prompt, then the pictures, in that order (a content list keeps it); a
+    # multishot group on a model that takes a storyboard sends each shot's own
+    # prose and seconds there instead (docs/MULTISHOT.md: Kling's multi_prompt)
+    board = inp.get("storyboard")
+    if board and shot.get("storyboard"):
+        most = int(board.get("max_chars") or 512)
+        put(args, board["switch"], True)
+        if board.get("type"):
+            put(args, board["type"]["name"], board["type"]["value"])
+        for n, part in enumerate(shot["storyboard"], 1):
+            words = fit(part["prompt"], most - (len(tail) + 1 if tail else 0))
+            secs = str(part["seconds"]) if board.get("seconds_as") == "str" else part["seconds"]
+            append(args, board["list"], fill(board["item"], index=n,
+                                            prompt=f"{words} {tail}" if tail else words,
+                                            seconds=secs))
+    else:
+        place(args, pspec, prompt=text)
     for role, path, _ in pics:
         place(args, inp[role], url=File(path, via=via),
               mime="image/jpeg" if path.lower().endswith((".jpg", ".jpeg")) else "image/png")

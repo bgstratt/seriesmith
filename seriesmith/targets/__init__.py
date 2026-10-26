@@ -1607,7 +1607,9 @@ def multishot_check(story, series_cfg: dict) -> list[str]:
                            f"{person_of[variants.get(sid, sid)]} for {name(sid)}: one picture a "
                            f"person in a generation, so {sid}'s isn't sent (its `design` is "
                            f"still in {sid_shot}'s words)")
-            plates = int((t.spec.get("multishot") or {}).get("plates", 1))
+            # how many plates a generation takes: "all" sends every shot's (Seedance)
+            plates = (t.spec.get("multishot") or {}).get("plates", 1)
+            plates = 0 if plates == "all" else int(plates)
             first_plate = head.plate or sq.location
             if plates:
                 for sh in group[1:]:

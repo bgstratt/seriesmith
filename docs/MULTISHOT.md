@@ -181,7 +181,21 @@ dur: 1.62
       with dashed marks where the script times the cuts, the Shots tab tile lists the
       group's shots, and the shot form's Continues menu offers `multishot`. AUTHORING
       ("Several shots in one generation") and API.md say how.
-- [ ] (d) The `prose` writer (Seedance) and the `storyboard` writer (Kling v3), each tried
-      once.
+- [x] (d) The writers (2026-10-26), offline: a group on a hosted model compiles in
+      video_prose (`compile_group`: each shot as itself, then one call: every person once,
+      the target's `multishot.plates` of plates, "all" for Seedance, one length on the
+      model's whole seconds, a group past its maximum or its `max_shots` refused). `prose`
+      (Seedance 2.5, 2.0, 2.0 fast/mini): the look once, "A scene in N shots, each a hard
+      cut from the one before.", then `Shot N, a hard cut:` paragraphs, after Seedance's own
+      "Define ... in @Image N" line. `storyboard` (Kling v3 Omni, Video O1): the entry's
+      `storyboard` (each shot's prose and whole seconds, summing to the call's), sent by
+      router_call as `multi_shot` / `shot_type: customize` / `multi_prompt` (each part at most
+      512 characters, the pictures named in each), no `prompt`. The generated targets carry
+      the forms by tools/make_router_targets.py's corrections; Seedance 2.5's by hand. A
+      group's first shot rendered from the editor on a model without a form is refused with
+      the reason. tests/test_multishot.py pins both requests (router_call, offline).
+- [ ] (d') Each tried once, live (paid: asked first): Seedance 2.5 on the ep04 beat, and
+      whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
+      question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).
 - [ ] (e) Upscale and master of a group take.
 - [ ] (f) Later: the splice (a range of a group take, bridged).

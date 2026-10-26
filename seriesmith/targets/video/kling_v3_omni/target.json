@@ -136,6 +136,21 @@
         "name": "sound",
         "on": "on",
         "off": "off"
+      },
+      "storyboard": {
+        "switch": "multi_shot",
+        "type": {
+          "name": "shot_type",
+          "value": "customize"
+        },
+        "list": "multi_prompt",
+        "max_chars": 512,
+        "seconds_as": "str",
+        "item": {
+          "index": "$index",
+          "prompt": "$prompt",
+          "duration": "$seconds"
+        }
       }
     }
   },
@@ -154,5 +169,11 @@
       "width": 1280,
       "height": 720
     }
+  },
+  "multishot": {
+    "_note": "Kling's own storyboard fields (its schema's multi_shot, shot_type, multi_prompt): each shot's prose and whole seconds; at most 6 shots.",
+    "form": "storyboard",
+    "max_shots": 6,
+    "plates": 1
   }
 }
