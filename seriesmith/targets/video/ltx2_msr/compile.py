@@ -14,9 +14,9 @@ An entry carries the neutral keys every target's entries do, LTX's
 `negative`, and MSR's own: `global_prompt` (PromptRelay's global prompt: each
 picture's `Image N:` line and the look; `prompt` is the local one, the scene)
 and `references`, the pictures in the guide's order, each {"subject", "path",
-"face"?} or {"location", "path"}. A `continuous: multishot` group is one entry
-under its first shot (docs/MULTISHOT.md), its prompt a paragraph a shot with
-its seconds, and `multishot` [{id, start, frames, size, plate}].
+"face"?} or {"location", "path"}. One shot a generation: the target has no
+`multishot` form, so the build refuses a `continuous: multishot` group on it
+(docs/MULTISHOT.md, "LTX MSR revisited").
 
 The pictures themselves are made at queue time (stage_inputs): each person or
 thing a 16:9 sheet on grey at the render size, composed by
@@ -90,55 +90,11 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
     refs = _references(ctx, [shot], sq)
-    entry["prompt"] = P.local_prompt([shot], sq, series_cfg, refs)
+    entry["prompt"] = P.shot_paragraph(shot, sq, series_cfg, refs)
     entry["global_prompt"] = P.global_prompt(refs, series_cfg)
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["references"] = refs
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
-
-
-def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -> dict:
-    """One entry for a `continuous: multishot` group: each shot compiled as
-    itself (its checks and its length), then one call: the pictures of
-    everyone in the group (each person once, the first picture named) and the
-    first shot's plate, one length on the 8k+1 grid, and one prompt, a
-    paragraph a shot headed by its seconds."""
-    ids = f"{group[0].id}-{group[-1].id}"
-    before = ctx.total_raw
-    entries = [_compile(ctx, sq, s, ep_id) for s in group]
-    fps = ctx.fps
-    frames = [max(1, round((e["duration"] if "duration" in e else e["audio_out"] - e["audio_in"])
-                           * fps)) for e in entries]
-    want = sum(frames)
-    try:
-        raw = ctx.target.template.snap(want)
-    except ValueError:
-        raise ValueError(f"shots {ids}: {want / fps:.2f}s in one call, and {ctx.target.short} makes "
-                         f"at most {ctx.target.template.max / fps:.0f}s: split the group "
-                         f"(`continuous: none` on a shot starts the next one)") from None
-    frames[-1] += raw - want
-    starts, at = [], 0
-    for f in frames:
-        starts.append(at)
-        at += f
-    ctx.total_raw = before + raw
-    refs = _references(ctx, group, sq)
-    seconds = [f / fps for f in frames]
-    entry = dict(entries[0])
-    for k in ("audio_in", "audio_out"):
-        entry.pop(k, None)
-    entry.update({
-        "subjects": list(dict.fromkeys(x for e in entries for x in e["subjects"])),
-        "length": raw,
-        "duration": round(raw / fps, 3),
-        "prompt": P.local_prompt(group, sq, ctx.series_cfg, refs, seconds),
-        "global_prompt": P.global_prompt(refs, ctx.series_cfg),
-        "references": refs,
-        "multishot": [{"id": s.id, "start": st, "frames": f, "size": s.size,
-                       "plate": s.plate or sq.location}
-                      for s, st, f in zip(group, starts, frames)],
-    })
-    return entry
 
 
 def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
@@ -149,14 +105,8 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
         mine = [s for s in sq.shots if only is None or s.id in only]
         if mine:
             seqs += 1
-        # a group compiles whole at its first shot (docs/MULTISHOT.md)
-        groups = {g[0].id: g for g in sq.multishot_groups()}
-        grouped = {s.id for g in groups.values() for s in g[1:]}
         for s in mine:
-            if s.id in groups:
-                shots_out.append(compile_group(ctx, sq, groups[s.id], story.id))
-            elif s.id not in grouped:
-                shots_out.append(_compile(ctx, sq, s, story.id))
+            shots_out.append(_compile(ctx, sq, s, story.id))
     p = ctx.preset
     doc = {
         "episode": story.id,
@@ -178,8 +128,7 @@ def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
 
 
 def compile_shot(target, shot_ir: ir.Shot, series_cfg: dict, preset, ctx=None) -> dict:
-    """One shot's entry (a group's, at its first shot), as compile_episode
-    builds it. `ctx` needs {"episode": ir.Episode}; {"absent": ...} leaves
+    """One shot's entry, as compile_episode builds it. `ctx` needs {"episode": ir.Episode}; {"absent": ...} leaves
     pictures out."""
     ctx = dict(ctx or {})
     story = ctx.get("episode")

@@ -226,7 +226,7 @@ def catalog() -> list[Feature]:
                        "LTX working from your character sheets and plates."),
         target_feature("video.ltx2_msr", "video", "ltx2_msr", "LTX-2.5 + MSR",
                        "LTX working from pictures of up to four people and the place (Licon's MSR "
-                       "LoRA), two stages; also renders a run of shots as one. Gated, as LTX-2.5.",
+                       "LoRA), two stages. Gated, as LTX-2.5.",
                        [_pack("ComfyUI-LTX2.5-MSR"), _pack("ComfyUI-PromptRelay")]),
         target_feature("video.wan22_vace", "video", "wan22_vace", "Wan 2.2 VACE 14B",
                        "Wan with reference pictures and keyframes. No sound."),

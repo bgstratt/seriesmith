@@ -46,12 +46,14 @@ both seeds (a third, stray cut and a doubled person without them). The sample's 
 (x2 latent upscale, the guide rebuilt, four low-noise steps) kept the cuts at 1664x960 and
 sharpened faces. LTX picks its own cut times, the middle shot short (about 1 s for 1.6 s).
 Started at 0.6 instead of the sample's 0.85, the second stage keeps stage 1's faces (at 0.85
-one seed's Charming came back another man). Built as the `ltx2_msr` target (the `relay`
-form). From the script, the prompt writer's own text did worse than the hand-written one on
-the same seed: named people walked into shots they weren't in, and phrases like "slide in at
-her shoulders" doubled a person; calling only a shot's own people by picture and anyone
-else "someone" took Charming out of the women's shots, not the doubling. The hand-written
-paragraphs, passed as an override, cut cleanly (plus one stray cut inside shot 1).
+one seed's Charming came back another man). Built as the `ltx2_msr` target, first with a
+multishot form: from the script, the prompt writer's own text did worse than the
+hand-written one on the same seed (named people walked into shots they weren't in, "slide
+in at her shoulders" doubled a person), where the hand-written paragraphs, passed as an
+override, cut cleanly but for one stray cut. Rendered one at a time, the same three shots
+held their people: sh040 and sh050 good, sh060 (41 frames, three people) a wide of the
+hall with one woman from behind. Decided (2026-10-26): `ltx2_msr` is a reference model for
+single shots, with no multishot form; LTX stays off the multi-shot list.
 
 From the Router schemas: **Kling** v3, v3 Omni and Video O1 take a storyboard as fields
 (`multi_shot: true`, `shot_type: customize`, `multi_prompt`: up to 6 entries of `prompt`,
@@ -117,10 +119,6 @@ dur: 1.62
     2500 characters, the look, the place and who's who (a few features each) once, then a
     paragraph a member under its whole seconds (`Shot 2 (2 s), a hard cut: ...`), from the
     storyboard's pieces (video_prose.brief_prompt).
-  - **`relay`** (LTX-2.5 + MSR, `ltx2_msr`, local): PromptRelay's global prompt names each
-    picture (`Image 1: ...`) and the look; its local prompt, with no `|` segments, is a
-    continuity paragraph and then a paragraph a member headed by its seconds, the people
-    called by their picture and anyone named off the member's shot written "someone".
   - **`storyboard`** (Kling Video O1; v3 Omni until the live tries): `multi_shot: true`, `shot_type: customize`,
     `multi_prompt` an entry per member (its prose, at most 512 characters, its duration in
     whole seconds), at most 6 members, at least 1 s each.

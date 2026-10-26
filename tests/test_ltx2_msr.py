@@ -1,9 +1,8 @@
 """
 ltx2_msr: LTX-2.5 with Licon's MSR LoRA (docs/MULTISHOT.md, "LTX MSR
-revisited"). What an entry carries (the guide's pictures, PromptRelay's two
-prompts), how a `continuous: multishot` group is written (one prompt, a
-paragraph a shot with its seconds), each person's sheet at queue time, and the
-pictures into the graph. Offline: nothing reaches a ComfyUI.
+revisited"), one shot a generation. What an entry carries (the guide's
+pictures, PromptRelay's two prompts), each person's sheet at queue time, and
+the pictures into the graph. Offline: nothing reaches a ComfyUI.
 """
 from __future__ import annotations
 
@@ -22,9 +21,12 @@ sys.path.insert(0, HERE)
 
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.targets.video.ltx2_msr import compile as M  # noqa: E402
-from test_multishot import CFG, DIALOGUE  # noqa: E402
+from test_multishot import CFG, DIALOGUE, cfg, story  # noqa: E402
 
-# Ada alone, then Bo, back to Ada: Bo is named in Ada's shot but isn't in it
+# DIALOGUE's three shots, one by one
+SINGLE = DIALOGUE.replace("continuous: multishot\n", "")
+
+# Ada alone, saying two lines; Bo is named but isn't in the shot
 LOOKS_AT = """# sq01  kitchen
 ## sh010
 who: ada
@@ -33,12 +35,6 @@ dur: 3
 Ada looks at Bo across the counter.
 ADA: You're late.
 ADA: Again.
-## sh020
-continuous: multishot
-who: bo
-size: cu
-dur: 2
-Bo shrugs.
 """
 
 
@@ -78,35 +74,32 @@ class Episode:
 
 
 class EntryTest(unittest.TestCase):
-    def test_a_group_is_one_prompt_a_paragraph_a_shot_with_its_seconds(self):
-        e = Episode(self, DIALOGUE).entry()
-        self.assertEqual([m["id"] for m in e["multishot"]], ["sh010", "sh020", "sh030"])
-        local = e["prompt"]
-        self.assertTrue(local.startswith(M.P.CONTINUITY))
-        self.assertIn("Shot 1 (3.0 seconds): A medium shot of Image 1 and Image 2, in the place "
-                      "matching Image 3. All faces clearly visible.", local)
-        self.assertIn("Shot 2 (1.6 seconds), a hard cut: A close-up of Image 2 alone, in the place "
-                      "matching Image 3. No other characters are visible.", local)
+    def test_a_shot_calls_its_people_by_their_picture(self):
+        ep = Episode(self, SINGLE)
+        local = ep.entry()["prompt"]
+        self.assertTrue(local.startswith("A medium shot of Image 1 and Image 2, in the place "
+                                         "matching Image 3. All faces clearly visible."))
         self.assertIn('Image 1 speaks with visible lip movement, flatly: "You\'re late."', local)
         self.assertIn("The others listen with their lips closed.", local)
-        self.assertNotIn("|", local)                      # one PromptRelay segment: the model cuts
+        self.assertNotIn("|", local)                      # one PromptRelay segment
+        self.assertTrue(ep.entry("sh020")["prompt"].startswith(
+            "A close-up of Image 1 alone, in the place matching Image 2. "
+            "No other characters are visible."))
 
-    def test_the_pictures_are_each_person_once_then_the_plate(self):
-        e = Episode(self, DIALOGUE).entry()
+    def test_the_pictures_are_the_people_then_the_plate(self):
+        e = Episode(self, SINGLE).entry()
         refs = e["references"]
-        self.assertEqual([r.get("subject") or r.get("location") for r in refs],
-                         ["ada", "bo", "kitchen"])        # ada_wet in sh030 is Ada: not sent again
+        self.assertEqual([r.get("subject") or r.get("location") for r in refs], ["ada", "bo", "kitchen"])
         self.assertEqual(refs[1]["face"], "refs/bo/bo_face.png")
         g = e["global_prompt"]
         self.assertIn("Image 1: Ada, ada, drawn plainly.", g)
         self.assertIn("Image 3: Scene, a cramped diner kitchen.", g)
         self.assertTrue(g.endswith("The whole video is a flat cartoon."))
 
-    def test_someone_off_this_shot_is_someone_and_a_speakers_lines_run_on(self):
+    def test_a_speakers_lines_run_on(self):
         local = Episode(self, LOOKS_AT).entry()["prompt"]
-        self.assertIn("Image 1 looks at someone across the counter.", local)
+        self.assertIn("Image 1 looks at Bo across the counter.", local)    # Bo isn't pictured
         self.assertIn('Image 1 speaks with visible lip movement: "You\'re late. Again."', local)
-        self.assertIn("Image 2 shrugs.", local)
 
     def test_a_shot_with_no_one_pictured_is_words_alone(self):
         script = "# sq01  kitchen\n## sh010\nsize: ws\ndur: 2\nSteam rises from a pot.\n"
@@ -114,9 +107,16 @@ class EntryTest(unittest.TestCase):
         self.assertEqual(e["references"], [])
         self.assertNotIn("Image", e["prompt"] + e["global_prompt"])
 
-    def test_the_group_renders_on_it(self):
-        self.assertIn("multishot", TG.continuous_modes(TG.load_target("ltx2_msr", "video")))
-        self.assertEqual(TG.subject_slots(TG.load_target("ltx2_msr", "video")), 4)
+    def test_one_shot_a_generation_four_pictures(self):
+        t = TG.load_target("ltx2_msr", "video")
+        self.assertNotIn("multishot", TG.continuous_modes(t))
+        self.assertEqual(TG.subject_slots(t), 4)
+
+    def test_a_group_on_it_is_refused(self):
+        c = cfg(target="ltx2_msr")
+        with self.assertRaises(ValueError) as cm:
+            TG.multishot_check(story(DIALOGUE, c), c)
+        self.assertIn("continuous: multishot", str(cm.exception))
 
 
 class SheetTest(unittest.TestCase):
@@ -126,14 +126,14 @@ class SheetTest(unittest.TestCase):
         return SimpleNamespace(root=root, width=1664, height=960)
 
     def test_a_strip_gives_the_body_the_face_and_the_back(self):
-        e = Episode(self, DIALOGUE, face=False)
+        e = Episode(self, SINGLE, face=False)
         spec = M.sheet_spec(self.job(e.ep), {"subject": "ada", "path": "refs/ada/ada_sheet_4panel.png"},
                             CFG["subjects"])
         self.assertEqual([p["crop"]["index"] for p in spec["panels"]], [0, 3, 2])
         self.assertEqual((spec["width"], spec["height"], spec["background"]), (1664, 960, "grey"))
 
     def test_a_face_picture_takes_the_face_panel(self):
-        e = Episode(self, DIALOGUE)
+        e = Episode(self, SINGLE)
         spec = M.sheet_spec(self.job(e.ep), e.entry()["references"][1], CFG["subjects"])
         self.assertTrue(spec["panels"][1]["path"].endswith("bo_face.png"))
         self.assertNotIn("crop", spec["panels"][1])

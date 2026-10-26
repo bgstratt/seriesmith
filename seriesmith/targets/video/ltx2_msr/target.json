@@ -2,6 +2,7 @@
   "id": "ltx2_msr",
   "kind": "video",
   "label": "LTX-2.5 + MSR (up to four people and the place as pictures)",
+  "_note": "One shot a generation: no multishot form. A run of shots as one prompt cut on its own, but put people in shots they weren't in and doubled others on the script's own wording (docs/MULTISHOT.md, 'LTX MSR revisited'); as single shots it holds them.",
   "default_rank": 25,
   "short": "LTX+MSR",
   "code": "compile.py",
@@ -9,12 +10,6 @@
   "capabilities": {
     "_note": "max_subjects: the MSR guide's four picture slots (pic1-pic4); the place is a fifth, its background slot.",
     "max_subjects": 4
-  },
-
-  "multishot": {
-    "_note": "A continuous: multishot group as ONE PromptRelay prompt with no `|` segments: a continuity paragraph, then a paragraph a shot headed by its seconds (`Shot 2 (1.6 seconds), a hard cut:`). LTX places the cuts itself, within about a second of those (docs/MULTISHOT.md, 'LTX MSR revisited'): exact-length segments each held one shot and blended into the next. One plate: the first shot's, the guide's background.",
-    "form": "relay",
-    "plates": 1
   },
 
   "template": {

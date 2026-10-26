@@ -1018,12 +1018,12 @@ collide with the package.
 A run of shots rendered as one generation on the models that take more than one shot (H3
 by timed `[Shot N]` sections, Kling v3 Omni and Seedance in prose, Kling O1 by storyboard fields), the episode
 keeping its shots. The design, what each model did on the same three-shot beat, the open
-questions and the checklist are docs/MULTISHOT.md. Merged in 0.1.4. LTX joins it as
-`ltx2_msr` (the `ltx-msr` branch, 2026-10-26): LTX-2.5 with Licon's MSR LoRA, its pictures
-16:9 sheets made at queue time and its scene one PromptRelay prompt, two stages, the
-refine from 0.6. It cuts on its own and holds the people; the prompt writer's own wording
-still does worse than hand-written paragraphs (people named or "sliding in" appear in shots
-they aren't in).
+questions and the checklist are docs/MULTISHOT.md. Merged in 0.1.4. LTX stays off the list:
+with MSR's references it cut on its own but drew people into shots they weren't in.
+`ltx2_msr` (the `ltx-msr` branch, 2026-10-26) is LTX-2.5 with Licon's MSR LoRA as a
+reference model for single shots: up to four people's 16:9 sheets made at queue time and the
+plate, one PromptRelay prompt, two stages, the refine from 0.6. Open: a short shot of three
+people (sh060, 41 frames) came out a wide of the hall; whether length or seed.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

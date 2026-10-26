@@ -190,7 +190,7 @@ shot 93. So:
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | always generated | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | always generated | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
-| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | always generated | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people; a run of shots in one generation |
+| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | always generated | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
@@ -1376,11 +1376,11 @@ or things and the place as pictures. Everything above about LTX-2 holds (generat
   the take (`<shot>_tNN_msr1.png`, ...).
 - **People are called by their picture.** The prompt opens with `Image 1: the Stepmother,
   <design>.` for each picture and the place, then the look; the shot itself calls each
-  person in it `Image N`. Someone named in the action who isn't in the shot is written as
-  "someone": named, they tend to walk into it.
-- **Write the action plainly.** MSR follows the words closely: "slide in at her shoulders"
-  or "the women behind him" can bring extra people into a shot. Say who is in frame, and
-  keep anyone else out of the sentence.
+  person in it `Image N`.
+- **Write the action plainly.** MSR follows the words closely: "the women behind him" in a
+  close-up can put them in it. Say who is in frame, and keep anyone else out of the sentence.
+- **One shot at a time.** A `continuous: multishot` group is refused on it: tried, LTX cut
+  on its own but put people in shots they weren't in.
 - **Two stages, always**: the shot at half size, then doubled and refined, both under the
   pictures. The final is 1664×960 unless the series config sets a size; below about 832×480
   for the first stage, faces in a group shot get too small to hold.
@@ -1629,11 +1629,7 @@ dur: 1.62
   512 characters) and whole seconds, which it keeps to the frame; at most 6 shots and 15 s,
   the cast's 4 pictures and one plate. (On v3 Omni the storyboard lost the people's faces:
   its short parts have no room for who's who.)
-- **On LTX-2.5 + MSR** (`ltx2_msr`, local), the scene is one prompt: a paragraph a shot under
-  its seconds (`Shot 2 (1.6 seconds), a hard cut: ...`), the people as their pictures, one
-  plate. LTX places the cuts itself, within about a second of those, and can add one of its
-  own; up to 20 s and four people.
-- **Other models** (Veo, Runway, Wan, plain LTX) render one shot a call: `seriesmith check` refuses
+- **Other models** (Veo, Runway, Wan, LTX, LTX + MSR) render one shot a call: `seriesmith check` refuses
   a group on them and says which models can render it, and rendering a group's first shot
   on one from the editor says why it can't.
 - **One set of pictures for the whole generation**: every person in the group once (the

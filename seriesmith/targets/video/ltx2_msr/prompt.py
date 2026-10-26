@@ -4,18 +4,16 @@ revisited"), as Licon's sample workflow writes them.
 
     references(shots, sq, series_cfg, slots) -> the pictures, in the guide's order
     global_prompt(refs, series_cfg)          -> "Image 1: the Stepmother, ..." per picture, the look
-    local_prompt(shots, sq, series_cfg, refs, seconds=None)
-                                             -> the scene: one paragraph a shot
+    shot_paragraph(shot, sq, series_cfg, refs) -> the shot: PromptRelay's local prompt
 
 The guide numbers its pictures consecutively, pic1..pic4 then the background,
 skipping any it isn't given, and the prompt calls each by that number: `Image
 N` in place of the person's name wherever the prose says it. Up to four
 people or things are pictures; anyone past that is left in words.
 
-A run of shots (`continuous: multishot`) is ONE prompt: a continuity paragraph
-then a paragraph a shot, each after the first `a hard cut`, each opening with
-its seconds. PromptRelay is given no `|` segments: exact-length segments each
-held one shot and blended into the next, where one prompt let the model cut.
+One shot a generation: a run of shots as one prompt cut on its own but drew
+people into shots they weren't in (docs/MULTISHOT.md, "LTX MSR revisited").
+`references` and the labels take a list of shots all the same.
 
 Stdlib only.
 """
@@ -24,10 +22,6 @@ from __future__ import annotations
 import re
 
 from seriesmith.core import framing, ir
-
-CONTINUITY = ("The camera axis remains fixed throughout the sequence. Preserve every "
-              "character's identity, clothing and screen position across every hard cut.")
-
 
 def _book(series_cfg: dict) -> dict:
     return series_cfg.get("subjects") or {}
@@ -126,15 +120,8 @@ def shot_paragraph(shot: ir.Shot, sq: ir.Sequence, series_cfg: dict, refs: list[
     background's picture), the action, the camera, each line spoken with
     visible lip movement while the others listen, the sound."""
     on = list(shot.cast) + [p for p in shot.props if p not in shot.cast]
-    # only who is in this shot is called by their picture: a picture named in
-    # the prose ("her eyes on Image 4 just off camera") draws that person in
-    here = {display_name(series_cfg, s) for s in on} | {
-        display_name(series_cfg, d.speaker) for d in shot.dialogue}
-    names = {n: v for n, v in labels(refs, series_cfg).items() if n in here}
-    # and a pictured person who isn't in this shot is "someone": named, they
-    # walk into it (a group's Charming into the women's shots, 2026-10-26)
-    away = {n: "someone" for n in labels(refs, series_cfg) if n not in here}
-    who = [names.get(display_name(series_cfg, s), display_name(series_cfg, s)) for s in on]
+    names = labels(refs, series_cfg)
+    who =[names.get(display_name(series_cfg, s), display_name(series_cfg, s)) for s in on]
     listed = (", ".join(who[:-1]) + " and " + who[-1]) if len(who) > 1 else (who[0] if who else "")
     frame = framing.article(framing.term(shot.size))
     bg = next((i for i, r in enumerate(refs, 1) if r.get("location")), None)
@@ -151,7 +138,7 @@ def shot_paragraph(shot: ir.Shot, sq: ir.Sequence, series_cfg: dict, refs: list[
     action = (shot.action or "").strip()
     if action:
         text = action if action.endswith((".", "!", "?")) else action + "."
-        parts.append(_named(_named(text, names), away))
+        parts.append(_named(text, names))
     cam = framing.orbit((shot.camera or "").strip().rstrip("."), ", ".join(who))
     if cam:
         parts.append(_named(f"The camera {cam}.", names))
@@ -175,18 +162,3 @@ def shot_paragraph(shot: ir.Shot, sq: ir.Sequence, series_cfg: dict, refs: list[
     if (shot.sound or "").strip():
         parts.append(f"Sound: {shot.sound.strip().rstrip('.')}.")
     return " ".join(parts)
-
-
-def local_prompt(shots: list[ir.Shot], sq: ir.Sequence, series_cfg: dict, refs: list[dict],
-                 seconds: list[float] | None = None) -> str:
-    """The scene PromptRelay is given: one shot's paragraph, or for a run of
-    shots the continuity paragraph and then each shot's, headed by its number
-    and seconds (`Shot 2 (1.6 seconds), a hard cut: ...`)."""
-    if len(shots) == 1:
-        return shot_paragraph(shots[0], sq, series_cfg, refs)
-    paras = [CONTINUITY]
-    for i, s in enumerate(shots):
-        sec = f" ({seconds[i]:.1f} seconds)" if seconds else ""
-        head = f"Shot {i + 1}{sec}" + (", a hard cut" if i else "")
-        paras.append(f"{head}: {shot_paragraph(s, sq, series_cfg, refs)}")
-    return "\n\n".join(paras)
