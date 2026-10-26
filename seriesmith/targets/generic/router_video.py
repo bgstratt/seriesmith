@@ -325,7 +325,14 @@ def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
         if what in plate:
             loc = places.get(what) or {}
             look = features(loc.get("description") or "") or str(what).replace("_", " ")
-            scenes.append(f"Define {look} in @Image {n} as the scene.")
+            # a multishot group with several plates: whose scene each is
+            # (docs/MULTISHOT.md), else the one scene
+            parts = shot.get("multishot") or []
+            shots = [f"Shot {i}" for i, p in enumerate(parts, 1) if p.get("plate") == what]
+            whose = (" of " + (" and ".join(shots) if len(shots) < 3 else
+                               ", ".join(shots[:-1]) + " and " + shots[-1])
+                     if len(plate) > 1 and shots else "")
+            scenes.append(f"Define {look} in @Image {n} as the scene{whose}.")
             continue
         sub = subjects.get(what) or {}
         base = subjects.get(sub.get("of")) or {} if sub.get("of") else {}
@@ -334,6 +341,37 @@ def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
         defs.append(f"{look} in @Image {n} as {name}" if look else f"the subject in @Image {n} as {name}")
     line = ("Define " + ", and define ".join(defs) + ".") if defs else ""
     return " ".join([x for x in [line, *scenes] if x])
+
+
+def board_prompt(part: dict, pics: list, series_cfg: dict, mention: str | None, most: int) -> str:
+    """One storyboard part's prompt (video_prose.board_parts) in at most
+    `most` characters: its framing and lines always, then its action, camera
+    and sound while there is room, in the order a shot reads; then the
+    pictures of who is in it and the place, named by `mention`
+    ("<<<image_{n}>>>") as the request numbers them."""
+    subjects = series_cfg.get("subjects") or {}
+    names = []
+    for n, (_, _, what) in enumerate(pics, 1):
+        if what in part.get("subjects", []):
+            e = subjects.get(what) or {}
+            name = e.get("name") or (subjects.get(e.get("of")) or {}).get("name") or what
+            names.append(f"{mention.replace('{n}', str(n))} is {name}." if mention else "")
+        elif what not in subjects and mention:
+            names.append(f"{mention.replace('{n}', str(n))} is the place.")
+    tail = " ".join(x for x in names if x)
+    room = most - (len(tail) + 1 if tail else 0)
+    keep = {"frame", "lines"}
+    order = ["frame", "camera", "action", "lines", "sound"]
+
+    def text() -> str:
+        return " ".join(part[k] for k in order if k in keep and part.get(k))
+
+    for k in ("action", "camera", "sound"):
+        keep.add(k)
+        if len(text()) > room:
+            keep.discard(k)
+    out = fit(text(), room)
+    return f"{out} {tail}" if tail else out
 
 
 def router_call(target, job) -> tuple[str, dict]:
@@ -388,11 +426,11 @@ def router_call(target, job) -> tuple[str, dict]:
         put(args, board["switch"], True)
         if board.get("type"):
             put(args, board["type"]["name"], board["type"]["value"])
+        cfg = J.series_config(job.root) or {}
         for n, part in enumerate(shot["storyboard"], 1):
-            words = fit(part["prompt"], most - (len(tail) + 1 if tail else 0))
             secs = str(part["seconds"]) if board.get("seconds_as") == "str" else part["seconds"]
             append(args, board["list"], fill(board["item"], index=n,
-                                            prompt=f"{words} {tail}" if tail else words,
+                                            prompt=board_prompt(part, pics, cfg, mention, most),
                                             seconds=secs))
     else:
         place(args, pspec, prompt=text)

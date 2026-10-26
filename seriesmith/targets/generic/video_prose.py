@@ -43,6 +43,7 @@ Stdlib only.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 
 from seriesmith import targets as TG
@@ -282,6 +283,40 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
+def board_parts(shot: ir.Shot, series_cfg: dict, sent_of: dict) -> dict:
+    """One shot of a storyboard (a model that takes each shot's own short
+    prompt, Kling's 512 characters), in pieces router_video puts together by
+    priority: `frame` (its framing and who is in it) and `lines` always, then
+    `action`, `camera` and `sound` while there is room. The place and the
+    people's looks are the pictures', so they aren't said; `subjects` are the
+    pictures in it (the ids sent), for naming them (docs/MULTISHOT.md)."""
+    book = series_cfg.get("subjects") or {}
+
+    def name(s: str) -> str:
+        e = book.get(s) or {}
+        return e.get("name") or (book.get(e.get("of")) or {}).get("name") or s
+
+    def cap(n: str) -> str:
+        return n[:1].upper() + n[1:]
+
+    on = list(shot.cast) + [p for p in shot.props if p not in shot.cast]
+    who = [name(s) for s in on]
+    frame = framing.article(framing.term(shot.size))
+    listed = (", ".join(who[:-1]) + " and " + who[-1]) if len(who) > 1 else (who[0] if who else "")
+    cam = framing.orbit((shot.camera or "").strip().rstrip("."), ", ".join(who))
+    lines = []
+    for d in shot.dialogue:
+        how = f", {d.delivery.strip()}" if (d.delivery or "").strip() else ""
+        where = {"vo": " in voiceover", "os": " from off screen"}.get(d.mode, "")
+        lines.append(f'{cap(name(d.speaker))} says{where}{how}: "{d.line.strip()}"')
+    return {"frame": f"{frame} of {listed}." if listed else f"{frame}.",
+            "camera": f"The camera {cam}." if cam else "",
+            "action": (shot.action or "").strip(),
+            "lines": " ".join(lines),
+            "sound": f"Sound: {shot.sound.strip().rstrip('.')}." if (shot.sound or "").strip() else "",
+            "subjects": list(dict.fromkeys(sent_of.get(s, s) for s in on))}
+
+
 def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -> dict:
     """One entry for a `continuous: multishot` group (docs/MULTISHOT.md) on a
     hosted model: each shot compiled as itself (its checks), then joined into
@@ -347,8 +382,27 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
     n = len(group)
     count = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}.get(n, str(n))
     paras = [f"{lead} A scene in {count} shots, each a hard cut from the one before.".strip()]
+    # said once: a place already described is "the same place" after, and a
+    # person's look (`<Name> is <design>.`) isn't said again
+    places_said, looks_said = set(), set()
     for i, (s, e) in enumerate(zip(group, entries)):
         text = body(e)
+        key = s.plate or sq.location
+        env = ((ctx.series_cfg.get("locations") or {}).get(key) or {}).get("description", "")
+        env = env.strip().rstrip(".")
+        if env and key in places_said:
+            text = text.replace(env, "the same place")
+        places_said.add(key)
+        kept = []
+        for sent in re.findall(r'[^.!?"]*(?:"[^"]*"[^.!?"]*)*[.!?]+', text):
+            sent = sent.strip()
+            look = re.match(r'^[A-Z][^"]* is [^"]*\.$', sent) and not sent.startswith(("There is", "The sound is"))
+            if look and sent in looks_said:
+                continue
+            if look:
+                looks_said.add(sent)
+            kept.append(sent)
+        text = " ".join(kept) or text
         paras.append(f"Shot {i + 1}: {text}" if i == 0 else
                      f"Shot {i + 1}, a hard cut: {text}")
     entry = dict(entries[0])
@@ -364,7 +418,8 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
         "duration": round(raw / fps, 3),
         "keyframes": keys,
         "prompt": "\n\n".join(paras),
-        "multishot": [{"id": s.id, "start": st, "frames": f, "size": s.size}
+        "multishot": [{"id": s.id, "start": st, "frames": f, "size": s.size,
+                       "plate": s.plate or sq.location}
                       for s, st, f in zip(group, starts, frames)],
     })
     if "panels" in entries[0]:
@@ -372,8 +427,15 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
     if spec["form"] == "storyboard":
         secs = [max(1, round(f / fps)) for f in frames]
         secs[-1] = max(1, round(raw / fps) - sum(secs[:-1]))
-        entry["storyboard"] = [{"prompt": body(e), "seconds": sec}
-                               for e, sec in zip(entries, secs)]
+        sent_of = {}
+        for e in entries:
+            for p in e.get("panels") or []:
+                if p.get("subject"):
+                    sent_of[p["subject"]] = next(x["subject"] for x in people
+                                                 if variants.get(x["subject"], x["subject"])
+                                                 == variants.get(p["subject"], p["subject"]))
+        entry["storyboard"] = [dict(board_parts(s, ctx.series_cfg, sent_of), seconds=sec)
+                               for s, sec in zip(group, secs)]
     return entry
 
 

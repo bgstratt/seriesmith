@@ -340,6 +340,9 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(sum(1 for x in args["content"] if x.get("type") == "image_url"), 3)
         # 73 + 39 + 56 frames: 7 whole seconds
         self.assertEqual(args["duration"], 7)
+        # a look and a place said once: shot 3 doesn't describe them again
+        self.assertEqual(text.count("Bo is bo, drawn plainly."), 1)
+        self.assertIn("Shot 3, a hard cut: A medium shot of the same place", text)
 
     def test_kling_is_sent_a_storyboard_and_no_prompt(self):
         args, job = self.call("kling_v3_omni")
@@ -353,8 +356,12 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(args["duration"], "7")
         self.assertTrue(all(len(b["prompt"]) <= 512 for b in board))
         self.assertIn("Traffic.", board[1]["prompt"])
-        # the pictures named, in every shot's part
-        self.assertTrue(all("<<<image_1>>> is Ada." in b["prompt"] for b in board))
+        # each part names the pictures of who is in it, and the place
+        self.assertIn("<<<image_1>>> is Ada.", board[0]["prompt"])
+        self.assertIn("<<<image_2>>> is Bo.", board[1]["prompt"])
+        self.assertNotIn("<<<image_1>>>", board[1]["prompt"])          # Ada isn't in sh020
+        self.assertTrue(all("<<<image_3>>> is the place." in b["prompt"] for b in board))
+        self.assertTrue(board[0]["prompt"].startswith("A medium shot of Ada and Bo."))
 
     def test_a_model_without_a_form_refuses_the_group(self):
         import json

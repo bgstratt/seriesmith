@@ -194,6 +194,15 @@ dur: 1.62
       the forms by tools/make_router_targets.py's corrections; Seedance 2.5's by hand. A
       group's first shot rendered from the editor on a model without a form is refused with
       the reason. tests/test_multishot.py pins both requests (router_call, offline).
+      Refined on the ep04 beat's dry runs (render --dry-run, nothing sent): Seedance's prose
+      says a place once ("the same place" after) and a person's look once, and with several
+      plates its "Define ... as the scene" says whose (`of Shot 1 and Shot 3`); Kling's parts
+      are built for 512 characters (video_prose.board_parts, router_video.board_prompt): the
+      framing and the lines always, then the action, camera and sound while they fit, then
+      the pictures of who is in that shot, by name. A busy shot loses its action there: three
+      lines and a long action don't fit 512 characters with the names, and a storyboard has
+      no prompt for the look or the place (the schema: "when multi_shot is true, the prompt
+      parameter is invalid").
 - [ ] (d') Each tried once, live (paid: asked first): Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
       question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).
