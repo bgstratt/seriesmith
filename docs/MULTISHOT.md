@@ -142,7 +142,10 @@ dur: 1.62
    from words, and `check` says so.
 5. **Seedance timing: decided, test once the `prose` writer exists.** It cuts where it
    chooses; whether writing each member's duration into its paragraph helps is tried then.
-6. **The Kling storyboard** is untested (one paid call): whether it holds the durations.
+6. **Kling: storyboard or prose.** Tried once each (checklist d'): the storyboard holds its
+   durations to the frame but lost the faces; one prose prompt held the faces and cut within
+   about 0.9 s of what it was asked. Which form Kling v3 Omni is built in is open; until then
+   a prose prompt reaches it as a prompt override.
 
 ## Checklist
 
@@ -223,7 +226,19 @@ dur: 1.62
       about half a second from prose alone (open question 5: no durations in the paragraphs
       needed so far), framing tighter; its "Fine." in shot 2 is faint or missing (to listen
       to). Omni holds the pictures closest and stages most plainly. All three bring the same
-      people back after the cut.
+      people back after the cut. On a closer look Kling's storyboard lost its people's faces
+      (Seedance and Omni held them).
+
+      Kling's other form, tried once (paid, asked first): the same group as one prose prompt
+      (`multi_shot` off; a prompt override of 1516 characters, 1673 with the picture names,
+      under its 2500): the look and the place once, who's who once with a short look each,
+      then `Shot N (Xs), a hard cut:` paragraphs. It cut at 4.792 / 6.875 (asked 4 / 6 s, so
+      looser than the storyboard's frame-exact cuts) and held the three women's faces, hair
+      and dresses close to their pictures, Charming's hair and coat; the storyboard parts,
+      512 characters each with no room for the look, had lost them. So the prose carries
+      identity on Kling, the storyboard only timing. router_video sends an overridden prompt
+      as one prompt (as ltx2's), which is how this was tried; whether Kling's built form
+      should become `prose` (with each shot's seconds in its paragraph) is open question 6.
 - [ ] (d'') Seedance and Kling once more, for a second sample each (paid: asked first): Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
       question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).

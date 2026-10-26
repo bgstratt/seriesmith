@@ -302,7 +302,7 @@ class RouterTest(unittest.TestCase):
     """What a hosted model is sent for a group, offline (router_call, as
     tests/test_router_golden.py pins single shots): nothing is sent anywhere."""
 
-    def call(self, target: str, plate=(1344, 768)) -> tuple[dict, object]:
+    def call(self, target: str, plate=(1344, 768), prompt=None) -> tuple[dict, object]:
         import json
         import tempfile
         from seriesmith import edit as E
@@ -328,6 +328,8 @@ class RouterTest(unittest.TestCase):
         self.assertTrue(E.build_episode(ep)["ok"])
         doc, i = J.find_shot(ep, "final", "sh010")
         job = J.plan_job(ep, "final", doc, i, J.RenderRequest("sh010"), {})
+        if prompt is not None:
+            job.prompt = prompt                            # as overrides.json's prompt arrives
         t = J.job_target(job)
         _, args = t.module.router_call(t, job)
         return args, job
@@ -369,6 +371,17 @@ class RouterTest(unittest.TestCase):
         self.assertNotIn("<<<image_1>>>", board[1]["prompt"])          # Ada isn't in sh020
         self.assertTrue(all("<<<image_3>>> is the place." in b["prompt"] for b in board))
         self.assertTrue(board[0]["prompt"].startswith("A medium shot of Ada and Bo."))
+
+    def test_kling_sends_an_overridden_prompt_as_one_prompt(self):
+        """Kling's other form (2026-10-26): the scene in one prose prompt, up to
+        2500 characters, held its people far better than the 512-character
+        storyboard parts; an override is sent as written, as ltx2's is."""
+        args, job = self.call("kling_v3_omni", prompt="Shot 1 (3 s): Ada. Shot 2 (2 s), a hard cut: Bo.")
+        self.assertNotIn("multi_shot", args)
+        self.assertNotIn("multi_prompt", args)
+        self.assertTrue(args["prompt"].startswith("Shot 1 (3 s): Ada. Shot 2 (2 s), a hard cut: Bo."))
+        self.assertIn("<<<image_1>>> is Ada.", args["prompt"])
+        self.assertEqual(args["duration"], "7")
 
     def test_a_picture_the_model_refuses_is_said_and_nothing_is_sent(self):
         """Seedance's library refuses a picture past 2.5:1 (a 3.7:1 plate,

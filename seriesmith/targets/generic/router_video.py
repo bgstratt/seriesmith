@@ -447,7 +447,10 @@ def router_call(target, job) -> tuple[str, dict]:
     # multishot group on a model that takes a storyboard sends each shot's own
     # prose and seconds there instead (docs/MULTISHOT.md: Kling's multi_prompt)
     board = inp.get("storyboard")
-    if board and shot.get("storyboard"):
+    # an override's prompt is sent as written, as one prompt (as ltx2's is)
+    built = (getattr(job, "recompiled", None) or getattr(job, "shot", None) or {}).get("prompt")
+    overridden = getattr(job, "prompt", None) not in (None, built)
+    if board and shot.get("storyboard") and not overridden:
         most = int(board.get("max_chars") or 512)
         put(args, board["switch"], True)
         if board.get("type"):
