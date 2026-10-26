@@ -147,7 +147,7 @@ def continuity_before_render(root: str, pass_: str, only, dry_run: bool = False)
         print(f"  !! {e['shot']}: {e['error']}")
     held = {e["shot"] for e in res["errors"]}
     if held:
-        only = {x for x in (only if only is not None else J.script_order(root)) if x not in held}
+        only = {x for x in (only if only is not None else J.built_order(root, pass_)) if x not in held}
     return only, res["live"]
 
 

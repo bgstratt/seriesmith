@@ -206,5 +206,15 @@ dur: 1.62
 - [ ] (d') Each tried once, live (paid: asked first): Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
       question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).
-- [ ] (e) Upscale and master of a group take.
+- [x] (e) Upscale and master of a group take (2026-10-26, the ep04 group on local Omni).
+      The upscale needed nothing: H3's latent re-sample of the 8 s take ran in 5.5 s windows,
+      each under the whole group's prompt, and kept both cuts on the take's frames (4.917 s,
+      6.5 s), 2688x1536 with the take's sound, in 207 s. The master needed two fixes: it
+      walked the script's ids (J.script_order), so a group's later shots were gaps and no
+      master was ever whole; the cut, upscale, master and render's held-back list now walk
+      the built ids (J.built_order: a group once, as the editor's cut). And a general one:
+      a second upload of an input ComfyUI still held open (the latent the first upscale read)
+      failed as a bare 500 on Windows; an input is named by its content, so one already
+      there at that name and size isn't sent again (Comfy.upload_input). The master: one
+      item, sh040, 2560x1440 with sound, its cuts at 4.958 s and 6.542 s.
 - [ ] (f) Later: the splice (a range of a group take, bridged).

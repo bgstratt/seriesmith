@@ -289,6 +289,13 @@ class StatusTest(unittest.TestCase):
             self.assertEqual([x["shot"] for x in st["shots"]], ["sh010"])
             self.assertEqual([p["id"] for p in st["shots"][0]["multishot"]], ["sh010", "sh020", "sh030"])
             self.assertEqual([e.shot for e in E.cut_entries(ep, "final")], ["sh010"])
+            # what render, upscale and master walk: the group once, not its later
+            # shots as unrendered gaps
+            from seriesmith import jobs as J
+            from seriesmith import upscale as U
+            self.assertEqual(J.built_order(ep, "final"), ["sh010"])
+            self.assertEqual(J.script_order(ep), ["sh010", "sh020", "sh030"])
+            self.assertEqual([shot for shot, _, _ in U.cut_takes(ep)], ["sh010"])
 
 
 class RouterTest(unittest.TestCase):
