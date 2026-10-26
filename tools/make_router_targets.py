@@ -102,6 +102,19 @@ def kling_storyboard(p: dict) -> None:
         "item": {"index": "$index", "prompt": "$prompt", "duration": "$seconds"}}
 
 
+def kling_prose(p: dict) -> None:
+    """Kling v3 Omni takes a `continuous: multishot` group in one short prose
+    prompt (at most 2500 characters; video_prose.brief_prompt), each shot's
+    whole seconds in its heading (docs/MULTISHOT.md: its storyboard's 512-character parts held the
+    timing to the frame but lost the faces; one prose prompt held them and cut
+    within a second, 2026-10-26). One plate: the pictures are the cast's first."""
+    p["multishot"] = {"_note": "A continuous: multishot group in one short prompt: the look, the place "
+                               "and who's who once, then a paragraph a shot with its seconds, each a "
+                               "hard cut from the one before; at most 6 shots.",
+                      "form": "brief", "max_shots": 6, "plates": 1}
+    p["router"]["picture_ratio"] = PICTURE_RATIO
+
+
 def runway_note(p: dict) -> None:
     p["_note"] = ("Image to video: every shot starts from its first keyframe (promptImage); no "
                   "reference pictures, no sound (the silent prose: Runway failed every prompt "
@@ -115,7 +128,7 @@ MODELS = [
     ("byteplus/dreamina-seedance-2-0-260128", "seedance_2_0", "Seedance 2.0", "Seedance", SEEDANCE_2_0, False, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-fast-260128", "seedance_2_0_fast", "Seedance 2.0 Fast", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-mini", "seedance_2_0_mini", "Seedance 2.0 Mini", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
-    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", KLING_V3_OMNI, False, kling_storyboard),
+    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", KLING_V3_OMNI, False, kling_prose),
     ("kling/kling-video-o1", "kling_video_o1", "Kling Video O1", "Kling O1", None, False, kling_storyboard),
     ("wan/wan3.0-video", "wan_3_0", "Wan 3.0", "Wan", WAN_3_0, False, None),
     ("wan/wan3.0-video-prime", "wan_3_0_prime", "Wan 3.0 Prime", "Wan", WAN_3_0, True, None),

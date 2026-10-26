@@ -1609,9 +1609,14 @@ dur: 1.62
 - **On Seedance** (2.5 and 2.0), the scene is told in prose: the look once, then a paragraph a
   shot, each "a hard cut" from the one before. Seedance times the cuts itself. It takes up to
   30 pictures, so every shot's plate goes in, and a group is at most 30 s (2.0: 15 s).
-- **On Kling** (v3 Omni, Video O1), a group is sent as Kling's own storyboard: each shot's
-  prose (cut to 512 characters) and whole seconds, at most 6 shots and 15 s, one plate (v3
-  Omni takes 7 pictures in all, Video O1 the cast's 4 and the plate).
+- **On Kling v3 Omni**, the scene is one short prompt: the look, the place and who's who
+  once, then a paragraph a shot under its whole seconds (`Shot 2 (2 s), a hard cut: ...`).
+  Kling lands its cuts within about a second of those. At most 6 shots and 15 s, one plate,
+  7 pictures in all.
+- **On Kling Video O1**, a group is sent as Kling's own storyboard: each shot's prose (cut to
+  512 characters) and whole seconds, which it keeps to the frame; at most 6 shots and 15 s,
+  the cast's 4 pictures and one plate. (On v3 Omni the storyboard lost the people's faces:
+  its short parts have no room for who's who.)
 - **Other models** (Veo, Runway, Wan, LTX) render one shot a call: `seriesmith check` refuses
   a group on them and says which models can render it, and rendering a group's first shot
   on one from the editor says why it can't.

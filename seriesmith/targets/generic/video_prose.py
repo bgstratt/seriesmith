@@ -324,7 +324,10 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
     plates as the target's `multishot.plates`, "all" for every shot's), one
     length on the model's grid, and the prompt in the target's form: `prose`,
     one paragraph per shot after the look, each a hard cut from the one
-    before; `storyboard` the same prose as a fallback, and `storyboard`, each
+    before; `brief` (Kling v3 Omni) the same in one shorter prompt, the look,
+    the place and who's who said once (a few features each), then each shot's
+    framing, action, lines and sound under its whole seconds (board_parts);
+    `storyboard` the prose as a fallback, and `storyboard`, each
     shot's own prose and whole seconds (adding up to the call's), which the
     call sends as the model's storyboard fields (router_video)."""
     spec = ctx.target.spec.get("multishot") or {}
@@ -355,6 +358,9 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
         starts.append(at)
         at += f
     ctx.total_raw = before + raw
+    # whole seconds a shot, at least one each, adding up to the call's
+    secs = [max(1, round(f / fps)) for f in frames]
+    secs[-1] = max(1, round(raw / fps) - sum(secs[:-1]))
 
     # the pictures: each person once (the first picture named), then the plates
     from seriesmith.core.series_config import variant_of
@@ -424,19 +430,56 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
     })
     if "panels" in entries[0]:
         entry["panels"] = people + places
+    sent_of = {}
+    for e in entries:
+        for p in e.get("panels") or []:
+            if p.get("subject"):
+                sent_of[p["subject"]] = next(x["subject"] for x in people
+                                             if variants.get(x["subject"], x["subject"])
+                                             == variants.get(p["subject"], p["subject"]))
+    if spec["form"] == "brief":
+        entry["prompt"] = brief_prompt(ctx.series_cfg, sq, group, secs, [p["subject"] for p in people],
+                                       sent_of)
     if spec["form"] == "storyboard":
-        secs = [max(1, round(f / fps)) for f in frames]
-        secs[-1] = max(1, round(raw / fps) - sum(secs[:-1]))
-        sent_of = {}
-        for e in entries:
-            for p in e.get("panels") or []:
-                if p.get("subject"):
-                    sent_of[p["subject"]] = next(x["subject"] for x in people
-                                                 if variants.get(x["subject"], x["subject"])
-                                                 == variants.get(p["subject"], p["subject"]))
         entry["storyboard"] = [dict(board_parts(s, ctx.series_cfg, sent_of), seconds=sec)
                                for s, sec in zip(group, secs)]
     return entry
+
+
+def brief_prompt(series_cfg: dict, sq: ir.Sequence, group: list[ir.Shot], secs: list[int],
+                 people: list[str], sent_of: dict) -> str:
+    """A `continuous: multishot` group as one short prompt (the `brief` form,
+    Kling v3 Omni's 2500 characters): the look, the scene's shots and place,
+    who's who with a few features each (no body: targets.moderate), then a
+    paragraph a shot under its whole seconds (board_parts). The form that held
+    Kling's faces where its 512-character storyboard lost them
+    (docs/MULTISHOT.md, 2026-10-26)."""
+    from seriesmith.targets.generic.router_video import features
+    book = series_cfg.get("subjects") or {}
+    look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
+    place = ((series_cfg.get("locations") or {}).get(group[0].plate or sq.location) or {})
+    where = features(place.get("description", ""), 14)
+
+    def name(s: str) -> str:
+        e = book.get(s) or {}
+        return e.get("name") or (book.get(e.get("of")) or {}).get("name") or s
+
+    n = len(group)
+    count = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}.get(n, str(n))
+    head = [f"{look[:1].upper()}{look[1:]}." if look else "",
+            f"A scene in {count} shots, each a hard cut from the one before"
+            + (f", in {where[:1].lower()}{where[1:]}." if where else ".")]
+    who = [f"{name(s)}: {features((book.get(s) or {}).get('design', ''), 14, body=False)}"
+           for s in people if (book.get(s) or {}).get("design")]
+    if who:
+        head.append(f"The people, the same in every shot: {'; '.join(who)}.")
+    paras = [" ".join(x for x in head if x)]
+    for i, (s, sec) in enumerate(zip(group, secs)):
+        b = board_parts(s, series_cfg, sent_of)
+        body = " ".join(x for x in (b["frame"], b["action"], b["camera"], b["lines"], b["sound"]) if x)
+        paras.append(f"Shot {i + 1} ({sec} s): {body}" if i == 0 else
+                     f"Shot {i + 1} ({sec} s), a hard cut: {body}")
+    return "\n\n".join(paras)
 
 
 def _ids(ids: list[str], n: int = 8) -> str:

@@ -93,7 +93,11 @@ dur: 1.62
     framing, action, `camera:` and lines (speaker ids shared across the group: a person is
     the same `(Sx)` in every section). `retention_analysis` names the shots each subject
     appears in. One `overall_soundscape` (the members' `sound:` lines, in order).
-  - **`storyboard`** (Kling v3, v3 Omni, O1): `multi_shot: true`, `shot_type: customize`,
+  - **`brief`** (Kling v3 Omni, since the live tries: open question 6): one prompt of at most
+    2500 characters, the look, the place and who's who (a few features each) once, then a
+    paragraph a member under its whole seconds (`Shot 2 (2 s), a hard cut: ...`), from the
+    storyboard's pieces (video_prose.brief_prompt).
+  - **`storyboard`** (Kling Video O1; v3 Omni until the live tries): `multi_shot: true`, `shot_type: customize`,
     `multi_prompt` an entry per member (its prose, at most 512 characters, its duration in
     whole seconds), at most 6 members, at least 1 s each.
   - **`prose`** (Seedance 2.0/2.5; Kling 3.0 Turbo in its own `shot n, m, ...` form): one
@@ -142,10 +146,11 @@ dur: 1.62
    from words, and `check` says so.
 5. **Seedance timing: decided, test once the `prose` writer exists.** It cuts where it
    chooses; whether writing each member's duration into its paragraph helps is tried then.
-6. **Kling: storyboard or prose.** Tried once each (checklist d'): the storyboard holds its
-   durations to the frame but lost the faces; one prose prompt held the faces and cut within
-   about 0.9 s of what it was asked. Which form Kling v3 Omni is built in is open; until then
-   a prose prompt reaches it as a prompt override.
+6. **Kling: storyboard or prose: decided, `brief` on v3 Omni.** Tried once each (checklist
+   d'): the storyboard holds its durations to the frame but lost the faces; one prose prompt
+   held the faces and voices and cut within about 0.9 s of what it was asked. Kling v3 Omni
+   is built in the `brief` form (the tried prompt's layout); Video O1, untried, keeps the
+   storyboard.
 
 ## Checklist
 
@@ -237,11 +242,11 @@ dur: 1.62
       and dresses close to their pictures, Charming's hair and coat; the storyboard parts,
       512 characters each with no room for the look, had lost them. So the prose carries
       identity on Kling, the storyboard only timing. router_video sends an overridden prompt
-      as one prompt (as ltx2's), which is how this was tried; whether Kling's built form
-      should become `prose` (with each shot's seconds in its paragraph) is open question 6.
+      as one prompt (as ltx2's), which is how this was tried. The voices were good too, so
+      Kling v3 Omni now builds that layout itself (the `brief` form; open question 6).
 - [ ] (d'') Seedance and Kling once more, for a second sample each (paid: asked first): Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
-      question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).
+      question 5); Kling v3 Omni's `brief` form as built from the script (6).
 - [x] (e) Upscale and master of a group take (2026-10-26, the ep04 group on local Omni).
       The upscale needed nothing: H3's latent re-sample of the 8 s take ran in 5.5 s windows,
       each under the whole group's prompt, and kept both cuts on the take's frames (4.917 s,

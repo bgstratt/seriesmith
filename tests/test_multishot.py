@@ -353,8 +353,26 @@ class RouterTest(unittest.TestCase):
         self.assertEqual(text.count("Bo is bo, drawn plainly."), 1)
         self.assertIn("Shot 3, a hard cut: A medium shot of the same place", text)
 
-    def test_kling_is_sent_a_storyboard_and_no_prompt(self):
+    def test_kling_v3_omni_is_sent_the_scene_in_one_brief_prompt(self):
+        """The brief form (2026-10-26): Kling's storyboard parts lost the faces,
+        one prompt with who's who said once held them."""
         args, job = self.call("kling_v3_omni")
+        self.assertNotIn("multi_shot", args)
+        self.assertNotIn("multi_prompt", args)
+        text = args["prompt"]
+        self.assertLessEqual(len(text), 2500)
+        self.assertIn("A scene in three shots, each a hard cut from the one before", text)
+        self.assertIn("The people, the same in every shot: Ada: ", text)
+        # each shot under its whole seconds, adding up to the call's seven
+        self.assertIn("Shot 1 (3 s): A medium shot of Ada and Bo.", text)
+        self.assertIn("Shot 2 (2 s), a hard cut: A close-up", text)
+        self.assertIn("Shot 3 (2 s), a hard cut:", text)
+        self.assertIn("Traffic.", text)
+        self.assertEqual(args["duration"], "7")
+        self.assertTrue(text.endswith("<<<image_1>>> is Ada. <<<image_2>>> is Bo. <<<image_3>>> is the place, Kitchen."))
+
+    def test_kling_o1_is_sent_a_storyboard_and_no_prompt(self):
+        args, job = self.call("kling_video_o1")
         self.assertIs(args["multi_shot"], True)
         self.assertEqual(args["shot_type"], "customize")
         self.assertNotIn("prompt", args)

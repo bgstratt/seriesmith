@@ -1008,7 +1008,7 @@ collide with the package.
 ## Multi-shot generations: `continuous: multishot` (designing; 2026-10-26)
 
 A run of shots rendered as one generation on the models that take more than one shot (H3
-by timed `[Shot N]` sections, Kling v3 by storyboard fields, Seedance in prose), the episode
+by timed `[Shot N]` sections, Kling v3 Omni and Seedance in prose, Kling O1 by storyboard fields), the episode
 keeping its shots. The design, what each model did on the same three-shot beat, the open
 questions and the checklist are docs/MULTISHOT.md. On the `multishot` branch; LTX stays off
 the list (with references it didn't cut at all).
