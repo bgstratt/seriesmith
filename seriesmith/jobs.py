@@ -70,6 +70,7 @@ import random
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
@@ -837,9 +838,24 @@ class Comfy:
         """Copy a local image into ComfyUI's input folder as `name` (e.g.
         "seriesmith/<sha1>.png"), overwriting; returns the name LoadImage reads.
         POST /upload/image, so it works however ComfyUI was installed, and
-        from the routes as well as the CLI."""
+        from the routes as well as the CLI.
+
+        Every name a caller gives is the file's content (input_name,
+        native.upload_name), so a file already at `name`, the same size, is
+        this file, and isn't sent again: on Windows ComfyUI can still hold the
+        last copy open (a latent a job read), and overwriting an open file
+        fails as a bare 500 ("Server got itself in trouble"; a master's second
+        upscale of a take, 2026-10-26)."""
         import uuid
         sub, _, fname = name.rpartition("/")
+        q = urllib.parse.urlencode({"filename": fname, "subfolder": sub, "type": "input"})
+        try:
+            head = urllib.request.Request(f"{self.base}/view?{q}", method="HEAD")
+            with urllib.request.urlopen(head, timeout=30) as r:
+                if r.status == 200 and int(r.headers.get("Content-Length") or -1) == os.path.getsize(path):
+                    return name
+        except (urllib.error.URLError, OSError, ValueError):
+            pass                             # not there (404), or it can't be asked: send it
         boundary = f"----h3pipe{uuid.uuid4().hex}"
         with open(path, "rb") as fh:
             data = fh.read()
@@ -1012,6 +1028,13 @@ def script_order(root: str) -> list[str]:
     except (OSError, ValueError):
         return []
     return [s["id"] for sq in ep.get("sequences", []) for s in sq.get("shots", [])]
+
+
+def built_order(root: str, pass_: str) -> list[str]:
+    """The ids a pass's build renders, in script order: every shot, but a
+    `continuous: multishot` group once, under its first shot (docs/MULTISHOT.md).
+    What the cut holds (edit.cut_entries); script_order is the script's own."""
+    return [d["shots"][i]["id"] for d, i in episode_shots(root, pass_)]
 
 
 def episode_shots(root: str, pass_: str,

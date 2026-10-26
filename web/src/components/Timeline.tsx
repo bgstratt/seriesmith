@@ -177,8 +177,16 @@ const Clip = memo(function Clip({
     s.cut.out && "h3-out", flagged && "h3-flagged",
     dragging && "h3-dragging",
   ].filter(Boolean).join(" ");
+  const group = s.multishot && s.multishot.length > 1 ? s.multishot : null;
+  const label = group ? `${group[0].id}–${group[group.length - 1].id}` : s.shot;
+  // the group's cuts as the script times them, within what the trims leave showing
+  const shown = (s.length ?? 0) - trimIn - trimOut;
+  const cuts = group && shown > 0
+    ? group.slice(1).map((p) => ({ id: p.id, at: (p.start - trimIn) / shown })).filter((c) => c.at > 0 && c.at < 1)
+    : [];
   const title = [
-    `${s.shot} · ${fmtShotSeconds(s, secs)}${s.size ? ` · ${s.size}` : ""}${lengthEstimated(s) ? `\n≈ ${ESTIMATE_TITLE}` : ""}`,
+    `${label} · ${fmtShotSeconds(s, secs)}${s.size ? ` · ${s.size}` : ""}${lengthEstimated(s) ? `\n≈ ${ESTIMATE_TITLE}` : ""}`,
+    group ? `one generation of ${group.length} shots (continuous: multishot): ${group.map((p) => `${p.id} at ${framesLabel(p.start, fps)}`).join(", ")}; the marks are where the script times the cuts, and the model lands near them` : "",
     flagged ? "flagged to come back to (M: unflag · Shift+M: the next flagged clip)" : "",
     noted ? `${noted} open note${noted > 1 ? "s" : ""} (the Shots tab's Issues list)` : "",
     s.cut.out ? "left out of the cut: Play all, assemble and Master skip it (right-click: Put back in the cut)" : "",
@@ -220,6 +228,7 @@ const Clip = memo(function Clip({
       <div className="h3-clip-fill" />
       {trimIn > 0 && <div className="h3-trimmed-mark h3-l" title={`${framesLabel(trimIn, fps)} trimmed off the head`} />}
       {trimOut > 0 && <div className="h3-trimmed-mark h3-r" title={`${framesLabel(trimOut, fps)} trimmed off the tail`} />}
+      {cuts.map((c) => <div key={c.id} className="h3-ms-cut" style={{ left: `${c.at * 100}%` }} title={`${c.id} starts here (as the script times it)`} />)}
       {height > 36 && badges.length > 0 && (
         <div className="h3-clip-top">
           <Badges badges={badges} max={width < 90 ? 1 : 3} />
@@ -229,7 +238,7 @@ const Clip = memo(function Clip({
       <div className="h3-clip-bottom">
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}
-        <b>{s.shot}</b>
+        <b>{label}</b>
         {lengthEstimated(s) && <span className="h3-est" title={ESTIMATE_TITLE}>≈</span>}
         {take && width > 60 && <span>{tn(take.take)}</span>}
         <span className="h3-grow" />

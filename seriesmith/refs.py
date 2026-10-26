@@ -1064,12 +1064,25 @@ def mark_failed(take: RefTake, why: str) -> None:
 
 
 def image_size(path: str) -> tuple[int, int] | None:
-    """(width, height) of a PNG or JPEG from its header; None otherwise."""
+    """(width, height) of a PNG, JPEG or WebP from its header; None otherwise."""
     try:
         with open(path, "rb") as fh:
             head = fh.read(32)
             if head[:8] == b"\x89PNG\r\n\x1a\n" and head[12:16] == b"IHDR":
                 return struct.unpack(">II", head[16:24])
+            if head[:4] == b"RIFF" and head[8:12] == b"WEBP" and len(head) >= 30:
+                kind = head[12:16]
+                if kind == b"VP8X":                    # extended: 24-bit sizes, less one
+                    return (1 + int.from_bytes(head[24:27], "little"),
+                            1 + int.from_bytes(head[27:30], "little"))
+                if kind == b"VP8L":                    # lossless: 14-bit sizes, less one
+                    b = head[21:25]
+                    return (1 + (((b[1] & 0x3F) << 8) | b[0]),
+                            1 + (((b[3] & 0x0F) << 10) | (b[2] << 2) | ((b[1] & 0xC0) >> 6)))
+                if kind == b"VP8 ":                    # lossy: after the frame tag
+                    w, h = struct.unpack("<HH", head[26:30])
+                    return w & 0x3FFF, h & 0x3FFF
+                return None
             if head[:2] == b"\xff\xd8":
                 fh.seek(2)
                 while True:

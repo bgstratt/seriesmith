@@ -1304,7 +1304,7 @@ def post_render(ctx: Context, body):
     held = {e["shot"] for e in cont["errors"]}
     todo = shots
     if held or cont["live"]:
-        todo = [s for s in (shots if shots is not None else J.script_order(ep)) if s not in held]
+        todo = [s for s in (shots if shots is not None else J.built_order(ep, pass_)) if s not in held]
     if cont["live"]:
         # a chain queues in cut order: each shot behind the one it continues
         order = {e.shot: n for n, e in enumerate(E.cut_entries(ep, pass_))}

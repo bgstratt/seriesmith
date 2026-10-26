@@ -9,7 +9,7 @@
       "router"
     ],
     "seed": "provider",
-    "max_subjects": 4
+    "max_subjects": 7
   },
   "template": {
     "fps": 24,
@@ -92,7 +92,9 @@
         "item": {
           "image_url": "$url"
         },
-        "mention": "<<<image_{n}>>>"
+        "mention": "<<<image_{n}>>>",
+        "max": 7,
+        "max_total": 7
       },
       "ratio": {
         "name": "aspect_ratio",
@@ -137,7 +139,11 @@
         "on": "on",
         "off": "off"
       }
-    }
+    },
+    "picture_ratio": [
+      0.4,
+      2.5
+    ]
   },
   "presets": {
     "final": {
@@ -154,5 +160,11 @@
       "width": 1280,
       "height": 720
     }
+  },
+  "multishot": {
+    "_note": "A continuous: multishot group in one short prompt: the look, the place and who's who once, then a paragraph a shot with its seconds, each a hard cut from the one before; at most 6 shots.",
+    "form": "brief",
+    "max_shots": 6,
+    "plates": 1
   }
 }

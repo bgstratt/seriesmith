@@ -114,10 +114,11 @@ def compile_groups(story: ir.Episode, series_cfg: dict, pass_: str,
     and the editor reads (source.check_text)."""
     groups = TG.episode_targets(story, series_cfg) if groups is None else groups
     check_story(story, series_cfg)
+    multishot = TG.multishot_check(story, series_cfg)     # raises for a group no target renders
     built = [(t, *t.compile_episode(story, series_cfg, pass_, only=ids)) for t, ids in groups]
     if built:
         built[0][2]["warnings"] = (list(built[0][2].get("warnings") or [])
-                                   + story_warnings(story, series_cfg))
+                                   + story_warnings(story, series_cfg) + multishot)
     return built
 
 
@@ -237,17 +238,19 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
     continuing the first, and the cut reads as people jerking or appearing.
     A continuous sequence chains its shots on purpose, and a shot opening on
     the previous one's last frame (`first: continuity`) continues it, so
-    neither is a jump cut. A warning, not an error: the action may still carry
-    the cut (a cut on movement), which the script fields can't show
-    (docs/AUTHORING.md, "Cutting within a location")."""
+    neither is a jump cut. A cut inside a `continuous: multishot` group still
+    is one: the model draws it, as the script asks. A warning, not an error:
+    the action may still carry the cut (a cut on movement), which the script
+    fields can't show (docs/AUTHORING.md, "Cutting within a location")."""
     out = []
     for sq in story.sequences:
-        if sq.continuous:
+        if sq.continuous in ir.CHAINS:
             continue
         for a, b in zip(sq.shots, sq.shots[1:]):
             # continuing the shot before is no cut at all: `continuous: first | latent`
             # (or the old `first: continuity`)
-            if b.continues(sq) or (b.keyframe("first", sq) or "").strip().lower() == "continuity":
+            if (b.continues(sq) in ir.CHAINS
+                    or (b.keyframe("first", sq) or "").strip().lower() == "continuity"):
                 continue
             who_a = {person(s) for s in a.cast}
             if not who_a or who_a != {person(s) for s in b.cast}:

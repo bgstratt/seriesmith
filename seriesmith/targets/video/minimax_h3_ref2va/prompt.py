@@ -38,41 +38,23 @@ def _count(n: int) -> str:
     return COUNT_WORDS.get(n, str(n))
 
 
-def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
-                 panel_view: str = "body", plate_slot: str = "Picture 4") -> list[str]:
-    """Ref2VA six-section prompt.
+class Speakers:
+    """The speakers of one generation: their (Sx) ids, by the order of the
+    actual vocal events (off-screen voices too: they speak, so they need one),
+    and how each is named where they speak. A multishot group shares one
+    register across its shots (docs/MULTISHOT.md), so a person keeps one id."""
 
-    The subject slots (1-3 on Ref2VA, 1-8 on FastH3 Omni) carry the shot's
-    subjects -- characters first, then props and vehicles, in script order.
-    The slot after them (`plate_slot`) always carries the location plate. The
-    background is written as a proper <Subject> sourced from that <Picture>,
-    because H3's spec lists scenes and environments as Subject content; a bare
-    <Picture N> means "use this exact frame as a keyframe", which is not what a
-    location plate is for.
-    """
-    book = series_cfg["subjects"]
-    look = series_cfg["style"]["look"]
-    loc = series_cfg["locations"][shot.get("plate") or seq["location_key"]]
-    env = loc["description"]
+    def __init__(self, shots: list[dict], book: dict, subj: dict, unref: list[str]):
+        self.book, self.subj, self.unref = book, subj, unref
+        self.spoken: list[str] = []
+        for shot in shots:
+            for d in shot["dialogue"]:
+                if d["who"] not in self.spoken:
+                    self.spoken.append(d["who"])
+        self.spk = {c: f"(S{i + 1})" for i, c in enumerate(self.spoken)}
+        self.introduced: set[str] = set()
 
-    subjects = shot["_subjects"]                      # ordered, <= the subject slots
-    subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
-    pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
-    bg_subj = f"<Subject {len(subjects) + 1}>"
-    unref = list(shot.get("_unreferenced") or [])     # render anyway only
-    no_plate = bool(shot.get("_no_plate"))            # render anyway only
-
-    # Speaker IDs are assigned by order of actual vocal events and cover
-    # off-screen voices too -- they speak, so they need an (Sx).
-    spoken: list[str] = []
-    for d in shot["dialogue"]:
-        if d["who"] not in spoken:
-            spoken.append(d["who"])
-    spk = {c: f"(S{i + 1})" for i, c in enumerate(spoken)}
-
-    introduced: set[str] = set()
-
-    def speaker_label(who: str) -> str:
+    def label(self, who: str) -> str:
         """<Subject N> for anyone on screen; a voice description otherwise.
 
         H3's spec asks that a speaker's vocal identity — timbre, pitch, rate —
@@ -85,8 +67,9 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         A speaker with no visual reference is identified by a voice description
         followed by (Sx), never by an invented Subject.
         """
-        first = who not in introduced
-        introduced.add(who)
+        book, subj, unref, spk = self.book, self.subj, self.unref, self.spk
+        first = who not in self.introduced
+        self.introduced.add(who)
         voice = (book[who].get("voice") or "").strip()
         if who in subj:
             if first and voice:
@@ -101,6 +84,13 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
             return f"An off-screen voice that is {voice} {spk[who]}"
         return f"The same off-screen voice {spk[who]}"
 
+
+def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: list[str],
+                 extras: str, panels: int, panel_view: str, scope: str = "shot") -> list[str]:
+    """subject_definitions' lines for the subjects (after its header line):
+    each one's picture and styling, those with no picture in words, then who
+    is in frame, counted once. `scope` is what the count is about: "shot", or
+    "video" for a multishot group (docs/MULTISHOT.md)."""
     # A reference image containing more than one figure gets drawn as more than
     # one person. One panel = one figure = one character on screen.
     #
@@ -110,7 +100,6 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     # person appears in this shot" — one contradiction per subject, in exactly
     # the shots where H3 resolves a contradiction by duplicating a referenced
     # character.
-    extras = (shot.get("extras") or "").strip()
     if panels == 1:
         vname = ("a head-and-shoulders facial close-up" if panel_view == "face"
                  else "a three-quarter view of the whole body")
@@ -124,7 +113,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
                       f"{views}. It is one character, not several.")
 
     # ---- subject_definitions ------------------------------------------------
-    defs = ["subject_definitions:"]
+    defs: list[str] = []
     # a character whose picture is one whole image (`sheet_panels: 1`, a
     # supplied portrait rather than a model sheet) is sent uncropped
     whole = ("a single reference image of ONE character, the whole picture of them. "
@@ -181,29 +170,128 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
                     if book[s].get("kind", "character") == "character")
         total += sum(1 for s in unref if book[s].get("kind", "character") == "character")
         if extras:
-            defs.append(f"{_and(parts)} each appear exactly once in this shot. The other "
+            defs.append(f"{_and(parts)} each appear exactly once in this {scope}. The other "
                         f"people in frame are {extras}: unnamed background figures who must "
                         f"look nothing like them and are never duplicates of them.")
         else:
-            defs.append(f"Exactly {_count(total)} characters appear in this shot: "
+            defs.append(f"Exactly {_count(total)} characters appear in this {scope}: "
                         f"{_and(parts)}. Each appears exactly once, and none is a duplicate "
                         f"of another.")
     elif people and extras:
         defs.append(f"{_and(people)} {'appears' if len(people) == 1 else 'each appear'} "
-                    f"exactly once in this shot. The other people in frame are {extras}: "
+                    f"exactly once in this {scope}. The other people in frame are {extras}: "
                     f"unnamed background figures who must look nothing like "
                     f"{'them' if len(people) > 1 else 'that character'} and are never "
                     f"duplicates of {'them' if len(people) > 1 else 'that character'}.")
     elif len(people) == 1:
-        defs.append(f"Exactly one character appears in this shot: {people[0]}.")
+        defs.append(f"Exactly one character appears in this {scope}: {people[0]}.")
     elif people:
-        defs.append(f"Exactly {_count(len(people))} characters appear in this shot: "
+        defs.append(f"Exactly {_count(len(people))} characters appear in this {scope}: "
                     f"{_and(people)}. They are different characters, and never duplicates "
                     f"of one another.")
     elif extras:
         # no one named, only props or vehicles: the extras are the only people,
         # and with no count to replace they were left out altogether
         defs.append(f"The people in frame are {extras}: unnamed background figures.")
+    return defs
+
+
+def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[str], book: dict,
+                     bg_subj: str, env: str, no_plate: bool) -> tuple[str, str]:
+    """(who is in frame, the sentence that opens the shot's description): its
+    framing in words, and only as much of the place as that framing shows."""
+    close = framing.family(shot["size"]) == "close"
+    frame = framing.article(framing.term(shot["size"]))
+    ext = framing.extent(shot["size"])
+    held = "" if not ext else (f" {ext}" if ext.startswith("from") else f", {ext}")
+    who = _and([subj[s] for s in subjects] + [book[s].get("name", s) for s in unref])
+    place = env if no_plate else f"{bg_subj}, {env}"
+    wide = framing.family(shot["size"]) == "wide"
+    if close:
+        fill = "" if ext and not ext.startswith("from") else ", filling most of the frame"
+        # A close-up's or an extreme close-up's background is the plate cropped tight and blurred
+        # away, not a place to draw: the room's description would ask for the
+        # room, so with a plate it is named by its picture alone.
+        if framing.canonical(shot["size"]) in ("ecu", "cu"):
+            soft = (f"a tightly cropped portion of {env if no_plate else bg_subj + ', the background plate'}"
+                    f", completely blurred into soft bokeh")
+        else:
+            soft = f"a magnified, softly focused part of {place}, recognizably the same place"
+        where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
+                 f"is filled by {soft}, never a plain studio backdrop; the rest of the space lies "
+                 f"outside the frame." if who else
+                 f"{frame} holds on a detail of {place}; the rest of the space lies outside "
+                 f"the frame.")
+    elif wide:
+        where = (f"{frame} takes in {place}, with {who} in it{held}." if who else
+                 f"{frame} takes in {place}.")
+    else:
+        where = (f"{frame} frames {who}{held} in {place}, showing the part of the space directly "
+                 f"behind them." if who else f"{frame} frames {place}.")
+    return who, where
+
+
+def dialogue_lines(shot: dict, speaker_label, subj: dict, copying: bool) -> list[str]:
+    """The shot's lines, each `<label>, <delivery>, says, <d>[English] ...</d>`
+    (V.O. and O.S. in the spec's own phrases)."""
+    desc: list[str] = []
+    for d in shot["dialogue"]:
+        deliv = f" {d['delivery']}," if d["delivery"] else ""
+        src = " in the recorded voice from <Audio 1>," if copying else ""
+        label = speaker_label(d["who"])
+        mode = d.get("mode", "")
+        # A delivery note next to <d> is read aloud as part of the line (a
+        # V.O. "on the truck radio", then "crisp, without missing a beat,
+        # Excellent."), so it rides with the speaker, before the verb.
+        pre = f",{deliv}" if deliv else ""
+        if mode == "vo":
+            # Exact phrase required by the spec, plus the lips-closed clause --
+            # but only when the speaker is actually visible, since that clause
+            # exists to stop H3 animating an on-screen mouth over narration.
+            line = (f"{label}{pre} says in an off-screen voiceover{src.rstrip(',')}: "
+                    f"<d>[English] {d['line']}</d>")
+            if d["who"] in subj:
+                line += " while their lips remain completely closed."
+            desc.append(line)
+        elif mode == "os":
+            desc.append(f"{label}{pre} says from off-screen, outside the frame,{src} "
+                        f"<d>[English] {d['line']}</d>")
+        else:
+            desc.append(f"{label}{pre} says,{src} <d>[English] {d['line']}</d>")
+    return desc
+
+
+def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
+                 panel_view: str = "body", plate_slot: str = "Picture 4") -> list[str]:
+    """Ref2VA six-section prompt.
+
+    The subject slots (1-3 on Ref2VA, 1-8 on FastH3 Omni) carry the shot's
+    subjects -- characters first, then props and vehicles, in script order.
+    The slot after them (`plate_slot`) always carries the location plate. The
+    background is written as a proper <Subject> sourced from that <Picture>,
+    because H3's spec lists scenes and environments as Subject content; a bare
+    <Picture N> means "use this exact frame as a keyframe", which is not what a
+    location plate is for.
+    """
+    book = series_cfg["subjects"]
+    look = series_cfg["style"]["look"]
+    loc = series_cfg["locations"][shot.get("plate") or seq["location_key"]]
+    env = loc["description"]
+
+    subjects = shot["_subjects"]                      # ordered, <= the subject slots
+    subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
+    pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
+    bg_subj = f"<Subject {len(subjects) + 1}>"
+    unref = list(shot.get("_unreferenced") or [])     # render anyway only
+    no_plate = bool(shot.get("_no_plate"))            # render anyway only
+
+    speakers = Speakers([shot], book, subj, unref)
+    spoken, spk, speaker_label = speakers.spoken, speakers.spk, speakers.label
+
+    extras = (shot.get("extras") or "").strip()
+    group = {s: members(book[s]) for s in subjects if members(book[s])}
+    defs = ["subject_definitions:"] + subject_defs(book, subjects, subj, pic, unref, extras,
+                                                     panels, panel_view)
     if not no_plate and framing.canonical(shot["size"]) in ("ecu", "cu"):
         # A close-up's background is the plate blurred away: the location's
         # description (its fireplace, its stairs) and "the layout ... of the
@@ -355,60 +443,12 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     # The in-between sizes add what the frame holds ("from the chest up"), so
     # a framing H3's guide doesn't name (cowboy, full, extreme wide) still
     # reads; close-up, medium shot and wide shot say it with the name alone.
-    frame = framing.article(framing.term(shot["size"]))
-    ext = framing.extent(shot["size"])
-    held = "" if not ext else (f" {ext}" if ext.startswith("from") else f", {ext}")
-    who = _and([subj[s] for s in subjects] + [book[s].get("name", s) for s in unref])
-    place = env if no_plate else f"{bg_subj}, {env}"
-    wide = framing.family(shot["size"]) == "wide"
-    if close:
-        fill = "" if ext and not ext.startswith("from") else ", filling most of the frame"
-        # A close-up's or an extreme close-up's background is the plate cropped tight and blurred
-        # away, not a place to draw: the room's description would ask for the
-        # room, so with a plate it is named by its picture alone.
-        if framing.canonical(shot["size"]) in ("ecu", "cu"):
-            soft = (f"a tightly cropped portion of {env if no_plate else bg_subj + ', the background plate'}"
-                    f", completely blurred into soft bokeh")
-        else:
-            soft = f"a magnified, softly focused part of {place}, recognizably the same place"
-        where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
-                 f"is filled by {soft}, never a plain studio backdrop; the rest of the space lies "
-                 f"outside the frame." if who else
-                 f"{frame} holds on a detail of {place}; the rest of the space lies outside "
-                 f"the frame.")
-    elif wide:
-        where = (f"{frame} takes in {place}, with {who} in it{held}." if who else
-                 f"{frame} takes in {place}.")
-    else:
-        where = (f"{frame} frames {who}{held} in {place}, showing the part of the space directly "
-                 f"behind them." if who else f"{frame} frames {place}.")
+    who, where = framing_sentence(shot, subjects, subj, unref, book, bg_subj, env, no_plate)
     body = f"[Shot 1] {where} {shot['action']}"
     cam = framing.orbit(shot.get("camera", "").strip(), who)
     body += f" The camera {cam}." if cam else " The camera holds a static shot with fixed composition."
     desc.append(body)
-    for d in shot["dialogue"]:
-        deliv = f" {d['delivery']}," if d["delivery"] else ""
-        src = " in the recorded voice from <Audio 1>," if copying else ""
-        label = speaker_label(d["who"])
-        mode = d.get("mode", "")
-        # A delivery note next to <d> is read aloud as part of the line (a
-        # V.O. "on the truck radio", then "crisp, without missing a beat,
-        # Excellent."), so it rides with the speaker, before the verb.
-        pre = f",{deliv}" if deliv else ""
-        if mode == "vo":
-            # Exact phrase required by the spec, plus the lips-closed clause --
-            # but only when the speaker is actually visible, since that clause
-            # exists to stop H3 animating an on-screen mouth over narration.
-            line = (f"{label}{pre} says in an off-screen voiceover{src.rstrip(',')}: "
-                    f"<d>[English] {d['line']}</d>")
-            if d["who"] in subj:
-                line += " while their lips remain completely closed."
-            desc.append(line)
-        elif mode == "os":
-            desc.append(f"{label}{pre} says from off-screen, outside the frame,{src} "
-                        f"<d>[English] {d['line']}</d>")
-        else:
-            desc.append(f"{label}{pre} says,{src} <d>[English] {d['line']}</d>")
+    desc += dialogue_lines(shot, speaker_label, subj, copying)
     if shot.get("text"):
         desc.append(f'Visible on-screen text reads "{shot["text"]}".')
 
@@ -421,6 +461,127 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         sound = f"{sound[0].lower() + sound[1:]}, laid under the copied dialogue from <Audio 1>"
     music = shot.get("music", "").strip() or "N/A"
 
+    return ["\n".join(defs), summary, "\n".join(ret), "\n".join(desc),
+            f"overall_soundscape: {sound[0].upper() + sound[1:]}.",
+            f"non_diegetic_music: {music}"]
+
+
+def _beat(shot: dict) -> str:
+    """A shot's action for the summary: its first sentence after the words its
+    action opens with (a profile's look, then the `lens:` sentence, story.py)."""
+    action = shot["action"] or "A held moment."
+    for name in framing.LENSES:
+        lead = framing.lens_sentence(name)
+        at = action.find(lead)
+        if at != -1:
+            action = action[at + len(lead):].lstrip()
+            break
+    first = action.split(". ")[0].rstrip(".")
+    return f"{first}." if first else "A held moment."
+
+
+def timecode(seconds: float) -> str:
+    """H3's cut time, MM:SS.mmm."""
+    return f"{int(seconds // 60):02d}:{seconds % 60:06.3f}"
+
+
+def build_multishot_prompt(group: dict, shots: list[dict], seq: dict, series_cfg: dict,
+                           panels: int, starts: list[float],
+                           plate_slot: str = "Picture 4") -> list[str]:
+    """The six sections for a `continuous: multishot` group (docs/MULTISHOT.md):
+    one generation, its description a `[Shot N]` section per shot of the group,
+    each after the first opened by its cut time (`starts`, seconds), as H3's
+    spec writes a multi-shot video.
+
+    `group` carries what the compile settled for the whole generation:
+    `_subjects` (every shot's subjects, each person once, in slot order),
+    `_unreferenced`, `_no_plate`, `plate` (the first shot's) and `_sent_of`
+    ({subject id named in a shot: the subject sent for that person}, so a
+    wardrobe variant named in a later shot is drawn from the picture sent).
+    The shots are the parser-shaped dicts of the group's shots, in order."""
+    book = series_cfg["subjects"]
+    look = series_cfg["style"]["look"]
+    head_key = group.get("plate") or seq["location_key"]
+    env = series_cfg["locations"][head_key]["description"]
+    subjects = group["_subjects"]
+    sent_of = group.get("_sent_of") or {}
+    subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
+    pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
+    bg_subj = f"<Subject {len(subjects) + 1}>"
+    unref = list(group.get("_unreferenced") or [])
+    no_plate = bool(group.get("_no_plate"))
+    # each shot's people and lines under the ids the generation knows them by
+    shots = [dict(sh, cast=[sent_of.get(c, c) for c in sh["cast"]],
+                  props=[sent_of.get(p, p) for p in sh["props"]],
+                  dialogue=[dict(d, who=sent_of.get(d["who"], d["who"])) for d in sh["dialogue"]])
+             for sh in shots]
+    speakers = Speakers(shots, book, subj, unref)
+    n = len(shots)
+
+    extras = "; ".join(dict.fromkeys((sh.get("extras") or "").strip() for sh in shots
+                                     if (sh.get("extras") or "").strip()))
+    defs = ["subject_definitions:"] + subject_defs(book, subjects, subj, pic, unref, extras,
+                                                     panels, "body", scope="video")
+    if not no_plate:
+        defs.append(
+            f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
+            f"It establishes the layout, color palette, lighting direction and depth of the "
+            f"space, not a fixed camera framing.")
+
+    beats = " ".join(f"[Shot {i + 1}] {_beat(sh)}" for i, sh in enumerate(shots))
+    summary = f"summary:\n[reference generation] A scene in {_count(n)} shots. {beats}"
+
+    def where_in(s: str) -> str:
+        return ", ".join(f"[Shot {i + 1}]" for i, sh in enumerate(shots)
+                         if s in sh["cast"] or s in sh["props"])
+
+    ret = ["retention_analysis:"]
+    for s in subjects:
+        e = book[s]
+        if e.get("kind", "character") == "character":
+            ret.append(f"{subj[s]} (appears in {where_in(s)}): fully_preserved - facial identity, "
+                       f"hairstyle, body proportions, wardrobe and colors are retained from "
+                       f"{pic[s]} while allowing natural poses and expressions.")
+        else:
+            ret.append(f"{subj[s]} (appears in {where_in(s)}): fully_preserved - the object's "
+                       f"design, colors, materials and proportions are retained from {pic[s]} "
+                       f"while it is handled and moved naturally.")
+    on_plate = [i for i, sh in enumerate(shots)
+                if (sh.get("plate") or seq["location_key"]) == head_key
+                or framing.canonical(sh["size"]) in ("ecu", "cu")]
+    if not no_plate:
+        ret.append(f"{bg_subj} (appears in {', '.join(f'[Shot {i + 1}]' for i in on_plate)}): "
+                   f"partially_preserved - the layout, color palette and lighting direction of the "
+                   f"location are retained while the camera framing and visible portion of the "
+                   f"space change from shot to shot.")
+
+    desc = ["detailed_description:", f"The target video is {look}."]
+    for i, sh in enumerate(shots):
+        own = [s for s in subjects if s in sh["cast"] or s in sh["props"]]
+        key = sh.get("plate") or seq["location_key"]
+        if key == head_key or framing.canonical(sh["size"]) in ("ecu", "cu"):
+            # a close-up on another plate is a blurred crop of the plate sent:
+            # the room behind a face, as on a single close-up
+            _, where = framing_sentence(sh, own, subj, [], book, bg_subj, env, no_plate)
+        else:
+            # a wider shot of another place than the plate sent: in words
+            other = series_cfg["locations"][key]["description"]
+            _, where = framing_sentence(sh, own, subj, [], book, bg_subj, other, True)
+        lead = "[Shot 1]" if i == 0 else f"[Shot {i + 1}] At {timecode(starts[i])}, the shot cuts."
+        body = f"{lead} {where} {sh['action']}"
+        cam = framing.orbit((sh.get("camera") or "").strip(), _and([subj[s] for s in own]))
+        body += f" The camera {cam}." if cam else " The camera holds a static shot with fixed composition."
+        desc.append(body)
+        desc += dialogue_lines(sh, speakers.label, subj, False)
+        if sh.get("text"):
+            desc.append(f'Visible on-screen text reads "{sh["text"]}".')
+
+    sounds = list(dict.fromkeys((sh.get("sound") or "").strip().rstrip(".") for sh in shots
+                                if (sh.get("sound") or "").strip()))
+    sound = "; then ".join(sounds) or (
+        "Continuous room tone and environmental ambience with synchronized physical action sounds")
+    music = next(((sh.get("music") or "").strip() for sh in shots if (sh.get("music") or "").strip()),
+                 "N/A")
     return ["\n".join(defs), summary, "\n".join(ret), "\n".join(desc),
             f"overall_soundscape: {sound[0].upper() + sound[1:]}.",
             f"non_diegetic_music: {music}"]

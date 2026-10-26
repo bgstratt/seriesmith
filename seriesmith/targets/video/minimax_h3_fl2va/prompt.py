@@ -216,3 +216,51 @@ def with_keyframes(prompt: str, roles, frames: int, fps: float) -> str:
     else:
         body = text.rstrip() + landing
     return alignment_line(key, frames, fps) + "\n\n" + body
+
+
+def build_multishot_prompt(shots: list, seq, series_cfg: dict, starts: list[float]) -> str:
+    """The three-field prompt for a `continuous: multishot` group (docs/MULTISHOT.md):
+    each shot's own description (build_prompt) as a `[Shot N]` section, every
+    one after the first opened by its cut time (`starts`, seconds), the look
+    said once, each speaker's (Sx) the group's (a person keeps one id across
+    the cuts), and the shots' soundscapes in order. Generated sound only."""
+    look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
+    order: list[str] = []
+    for sh in shots:
+        for d in sh.dialogue:
+            if d.speaker not in order:
+                order.append(d.speaker)
+    sections, sounds, music = [], [], ""
+    for i, sh in enumerate(shots):
+        desc, sound, mus = build_prompt(sh, seq, series_cfg).split("\n\n")
+        text = desc[len(FIELDS[0]) + 1:]                 # past the field's label
+        text = text[len("[Shot 1] "):]
+        # this shot's own (Sx), by its own speaking order, to the group's
+        mine = list(dict.fromkeys(d.speaker for d in sh.dialogue))
+        text = re.sub(r"\(S(\d+)\)", lambda m: f"(S{order.index(mine[int(m.group(1)) - 1]) + 1})", text)
+        if i == 0:
+            sections.append(f"[Shot 1] {text}")
+        else:
+            for lead in (f"{look}, ", f"{look[:1].upper()}{look[1:]}, "):
+                if look and text.startswith(lead):
+                    text = text[len(lead):]
+                    text = text[:1].upper() + text[1:]
+                    break
+            sections.append(f"[Shot {i + 1}] At {timecode(starts[i])}, the shot cuts. {text}")
+        s = sound[len(FIELDS[1]) + 1:].strip().rstrip(".")
+        if s and s not in sounds:
+            sounds.append(s)
+        m = mus[len(FIELDS[2]) + 1:].strip()
+        if not music and m != "N/A":
+            music = m
+    sound = "; then ".join(sounds[:1] + [x[:1].lower() + x[1:] for x in sounds[1:]])
+    return "\n\n".join([
+        f"{FIELDS[0]} " + " ".join(sections),
+        f"{FIELDS[1]} {_sentence(sound)}",
+        f"{FIELDS[2]} {music or 'N/A'}",
+    ])
+
+
+def timecode(seconds: float) -> str:
+    """H3's cut time, MM:SS.mmm."""
+    return f"{int(seconds // 60):02d}:{seconds % 60:06.3f}"

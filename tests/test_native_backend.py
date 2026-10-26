@@ -39,6 +39,7 @@ class FakeComfyUI:
         self.files: dict[tuple, bytes] = {}       # (subfolder, filename) -> bytes
         self.nodes = {"SaveImage", "LoadImage", "UNETLoader", "KSampler"}
         self.finish = None                        # graph -> history entry (None: stays queued)
+        self.upload_fails = False                 # True: /upload/image answers ComfyUI's bare 500
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -77,9 +78,22 @@ class FakeComfyUI:
                     return self._send(404, {"error": "no such file"})
                 self._send(404, {})
 
+            def do_HEAD(self):
+                from urllib.parse import parse_qs, urlparse
+                u = urlparse(self.path)
+                q = {k: v[0] for k, v in parse_qs(u.query).items()}
+                sub, name = q.get("subfolder", ""), q.get("filename", "")
+                data = fake.files.get((sub, name), fake.uploads.get(f"{sub}/{name}"))
+                self.send_response(200 if u.path == "/view" and data is not None else 404)
+                self.send_header("Content-Length", str(len(data or b"")))
+                self.end_headers()
+
             def do_POST(self):
                 n = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(n)
+                if self.path == "/upload/image" and fake.upload_fails:
+                    return self._send(500, b"500 Internal Server Error\n\nServer got itself in trouble",
+                                      "text/plain")
                 if self.path == "/upload/image":
                     sub = re.search(rb'name="subfolder"\r\n\r\n(.*?)\r\n', body).group(1).decode()
                     m = re.search(rb'filename="([^"]+)"\r\nContent-Type: [^\r]+\r\n\r\n(.*)\r\n--',
@@ -150,6 +164,19 @@ class NativeBackendTest(unittest.TestCase):
         self.assertEqual(sent["2"]["inputs"]["image"], name)
         # the caller's graph is left as it was
         self.assertIsInstance(graph["1"]["inputs"]["image"], B.File)
+
+    def test_a_file_already_there_by_its_content_is_not_sent_again(self):
+        """On Windows ComfyUI can still hold the last copy of an input open (a
+        latent a job read), and overwriting an open file fails as a bare 500:
+        a file already at its content's name is that file, so it isn't sent."""
+        pic = temp_file(self, b"latent bytes", ".safetensors")
+        self.comfy.finish = lambda g: ok_entry({})
+        graph = {"1": {"class_type": "LoadImage", "inputs": {"image": B.File(pic)}}}
+        first = self.backend.submit(graph)
+        self.comfy.upload_fails = True               # the copy it holds can't be overwritten
+        again = self.backend.submit(graph)
+        self.assertEqual(self.comfy.prompts[again.id]["1"]["inputs"]["image"],
+                         self.comfy.prompts[first.id]["1"]["inputs"]["image"])
 
     def test_a_run_ends_and_its_outputs_come_back_typed(self):
         c = self.comfy

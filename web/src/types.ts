@@ -124,6 +124,14 @@ export interface CutInfo {
   audio_why?: string | null;
 }
 
+/** One script shot of a multishot group (ShotStatus.multishot). */
+export interface MultishotPart {
+  id: string;
+  start: number;
+  frames: number;
+  size: string;
+}
+
 export interface ShotStatus {
   shot: string;
   orphan: boolean;
@@ -155,6 +163,10 @@ export interface ShotStatus {
   /** Phase 8.5: the length is an estimate (`dur: model` before a take exists):
    * the model decides it at render time. The UI marks it "≈". */
   length_estimated?: boolean;
+  /** A `continuous: multishot` group (docs/MULTISHOT.md): the script shots this one
+   * generation renders, each with the frame it starts on in the take (as the script
+   * times it: the model lands its cuts near there), its frames and size. */
+  multishot?: MultishotPart[];
   /** Phase 9b: the shot's dialogue window on the episode's `track`, seconds
    * (a shot timed against recorded dialogue); absent otherwise. */
   audio_in?: number | null;

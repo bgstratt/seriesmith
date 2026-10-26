@@ -21,6 +21,11 @@
                "sampler": {"class_type": "SamplerCustomAdvanced", "input": "latent_image"}}
   },
 
+  "multishot": {
+    "_note": "H3's spec's timed sections: one prompt whose description has a [Shot N] section per shot of the group, every later one `At MM:SS.mmm, the shot cuts to ...` (docs/MULTISHOT.md; a three-shot proof cut within 3 frames of the asked times). One plate a generation: the group's first shot's.",
+    "form": "timed",
+    "plates": 1
+  },
   "recipe": {
     "_note": "Pictures 1-3 are the shot's subjects (characters first, then props and vehicles, in script order); Picture 4 is always the location plate. Each character is fed ONE panel of its 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise. Clone mode feeds one voice sample per speaker, at most 3.",
     "subject_slots": ["Picture 1", "Picture 2", "Picture 3"],

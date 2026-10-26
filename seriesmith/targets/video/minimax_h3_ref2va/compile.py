@@ -27,10 +27,10 @@ import re
 from seriesmith import targets as TG
 from seriesmith.core import framing, ir
 from seriesmith.core.ir import stable_seed
-from seriesmith.core.series_config import members
+from seriesmith.core.series_config import members, variant_of
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 
-from .prompt import build_prompt
+from .prompt import build_multishot_prompt, build_prompt
 
 ID = "minimax_h3_ref2va"
 TARGET = TG.load_target(ID, "video")
@@ -129,12 +129,17 @@ def legacy_shots(sq: ir.Sequence) -> list[dict]:
     """The sequence's shots, parser-shaped. A `continuous: latent` shot (its
     own line or its sequence's, docs/CONTINUOUS.md) carries `_latent`: the
     overlap the script gives it (its own, else its sequence's; None: the
-    series config's, else the target's default)."""
+    series config's, else the target's default). Every shot of a
+    `continuous: multishot` group (docs/MULTISHOT.md) carries `_group`, its
+    first shot's id."""
     out = []
+    group_of = {s.id: g[0].id for g in sq.multishot_groups() for s in g}
     for s in sq.shots:
         sh = legacy_shot(s)
         if s.continues(sq) == "latent":
             sh["_latent"] = s.overlap if s.overlap is not None else sq.overlap
+        if s.id in group_of:
+            sh["_group"] = group_of[s.id]
         out.append(sh)
     return out
 
@@ -568,6 +573,86 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
     return entry
 
 
+def _compile_group(ctx: Ctx, seq: dict, i: int, seq_loc: dict) -> dict:
+    """One shotlist entry for the `continuous: multishot` group that starts at
+    the sequence's shot `i` (docs/MULTISHOT.md): one generation of its shots
+    end to end. Each shot compiles as itself first (its length, pacing,
+    pictures and policy, and their checks), then they are joined: the group's
+    subjects (each person once, the first picture named of them), the first
+    shot's plate, its seed and render settings, one length on the grid, and
+    the timed `[Shot N]` prompt. `multishot` lists the shots and the frame
+    each starts on, for the cut and the take."""
+    gid = seq["shots"][i]["id"]
+    idx = [j for j, sh in enumerate(seq["shots"]) if sh.get("_group") == gid]
+    shots = [seq["shots"][j] for j in idx]
+    before_raw = ctx.total_raw
+    entries = [_compile_shot(ctx, seq, j, seq["shots"][j], seq_loc) for j in idx]
+    ids = f"{gid}-{shots[-1]['id']}"
+    for sh, e in zip(shots, entries):
+        if e["audio_policy"] != "generate":
+            raise ValueError(f"shots {ids}: a multishot group generates its sound, and {sh['id']} "
+                             f"is {e['audio_policy']}: dubbed and cloned voices are one shot "
+                             f"at a time for now. Give it `policy: generate`, or break the "
+                             f"group with `continuous: none`")
+    fps, book = ctx.fps, ctx.book
+    variants = variant_of(ctx.series_cfg)
+    sent, sent_of, by_person = [], {}, {}
+    for e in entries:
+        for sid in e["subjects"]:
+            who = variants.get(sid, sid)
+            if who not in by_person:
+                by_person[who] = sid
+                sent.append(sid)
+            sent_of[sid] = by_person[who]
+    for sh in shots:                     # speakers named by their variant too
+        for d in sh["dialogue"]:
+            who = variants.get(d["who"], d["who"])
+            if who in by_person:
+                sent_of.setdefault(d["who"], by_person[who])
+    if len(sent) > len(ctx.subject_slots):
+        raise ValueError(f"shots {ids}: {len(sent)} subjects in one generation "
+                         f"({', '.join(sent)}) and {ctx.target.short} takes "
+                         f"{len(ctx.subject_slots)}")
+    unref = list(dict.fromkeys(sent_of.get(u, u) for sh in shots
+                               for u in (sh.get("_unreferenced") or [])))
+    frames = [max(1, round((e["duration"] if "duration" in e else e["audio_out"] - e["audio_in"])
+                           * fps)) for e in entries]
+    hold = entries[0].get("hold", 0)
+    want = sum(frames)
+    raw = ctx.target.template.snap(want + hold) - hold
+    frames[-1] += raw - want             # the grid's padding goes to the last shot
+    starts, at = [], 0
+    for f in frames:
+        starts.append(at)
+        at += f
+    ctx.total_raw = before_raw + raw     # the group renders once, not shot by shot
+    head = shots[0]
+    group = {"_subjects": sent, "_unreferenced": unref, "_sent_of": sent_of,
+             "_no_plate": bool(head.get("_no_plate")), "plate": head.get("plate")}
+    entry = dict(entries[0])
+    for k in ("audio_in", "audio_out", "voice_refs"):
+        entry.pop(k, None)
+    voices = list(dict.fromkeys(sent_of.get(v, v) for e in entries for v in e["voices"]))
+    entry.update({
+        "subjects": sent,
+        "panel_view": "body",
+        "length": raw,
+        "voices": voices,
+        "voice_subject": voices[0] if voices else "",
+        "voice_refs": [],
+        "duration": round(raw / fps, 3),
+        "multishot": [{"id": sh["id"], "start": st, "frames": f, "size": sh["size"]}
+                      for sh, st, f in zip(shots, starts, frames)],
+        "prompt": build_multishot_prompt(group, shots, seq, ctx.series_cfg,
+                                         int(ctx.target.recipe["panels"]),
+                                         [(st + hold) / fps for st in starts],
+                                         plate_slot=ctx.plate_slot),
+    })
+    if any(e.get("length_estimated") for e in entries):
+        entry["length_estimated"] = True
+    return entry
+
+
 def _lora_list(loras: list[dict]) -> str:
     return ", ".join(f"{lo['name']}@{lo.get('strength', 1.0):g}" for lo in loras) or "none"
 
@@ -593,6 +678,11 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
             seq_loc = ctx.register_sequence(seq)
         for i, shot in enumerate(seq["shots"]):
             if only is not None and shot["id"] not in only:
+                continue
+            if shot.get("_group"):
+                # a multishot group compiles once, at its first shot
+                if shot["_group"] == shot["id"]:
+                    shots_out.append(_compile_group(ctx, seq, i, seq_loc))
                 continue
             shots_out.append(_compile_shot(ctx, seq, i, shot, seq_loc))
 

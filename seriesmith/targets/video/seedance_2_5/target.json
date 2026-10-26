@@ -27,6 +27,11 @@
       "long_side": 1920
     }
   },
+  "multishot": {
+    "_note": "A continuous: multishot group in prose (docs/MULTISHOT.md): the look once, then a paragraph a shot, each a hard cut from the one before; the model times the cuts (Seedance's own scenes cut where it chose, Higgsfield 2026-10-25). Up to 30 pictures, so every shot's plate.",
+    "form": "prose",
+    "plates": "all"
+  },
   "recipe": {
     "policies": [
       "generate"
@@ -77,6 +82,7 @@
   },
   "router": {
     "model": "byteplus/dreamina-seedance-2-5-260628",
+    "picture_ratio": [0.4, 2.5],
     "_note": "How a shot becomes Seedance 2.5's own request (targets/generic/router_video.py): BytePlus's content list (the prose, then the pictures with their roles), each picture through the Seedance virtual library (BytePlus refuses a photoreal person, an AI-made one too, as a plain URL: content_policy_violation, 2026-10-11).",
     "arguments": {
       "watermark": false,

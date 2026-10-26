@@ -1005,6 +1005,14 @@ collide with the package.
   are fine (the docs don't say); the icon's size (400x400 in the spec, 800x400 in
   `comfy node init`'s template).
 
+## Multi-shot generations: `continuous: multishot` (designing; 2026-10-26)
+
+A run of shots rendered as one generation on the models that take more than one shot (H3
+by timed `[Shot N]` sections, Kling v3 Omni and Seedance in prose, Kling O1 by storyboard fields), the episode
+keeping its shots. The design, what each model did on the same three-shot beat, the open
+questions and the checklist are docs/MULTISHOT.md. On the `multishot` branch; LTX stays off
+the list (with references it didn't cut at all).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

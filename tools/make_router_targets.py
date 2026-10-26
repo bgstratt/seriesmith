@@ -56,12 +56,63 @@ WAN_2_7_I2V = {"length": {"seconds": {"min": 2, "max": 15}}, "size": {"resolutio
                "pictures": {"references": 0, "needs_first": True}}
 
 
+# Kling v3 Omni: "up to 7 images or elements", 4 image elements when a reference
+# video is included (seriesmith sends no reference video): 7 pictures, the plate
+# among them (Kling's docs, 2026-10-26)
+KLING_V3_OMNI = {"pictures": {"references": 7}}
+
+
 def seedance_ratio(p: dict) -> None:
     """Seedance 2.0 takes a ratio alongside its frames (2.5 refuses one), and,
     as 2.5 does, its prompt opens by defining each picture (BytePlus's prompt
-    guide: "Define ... in @Image N as ...": router_video.definitions)."""
+    guide: "Define ... in @Image N as ...": router_video.definitions), and
+    takes a `continuous: multishot` group in prose, a paragraph a shot
+    (docs/MULTISHOT.md), every shot's plate among its pictures."""
     p["router"]["inputs"]["ratio"]["with_frames"] = "keep"
     p["router"]["inputs"]["references"]["define"] = True
+    p["multishot"] = MULTISHOT_PROSE
+    p["router"]["picture_ratio"] = PICTURE_RATIO
+
+
+# the shapes a picture may have, width over height: BytePlus's Seedance library
+# refused a 3.7:1 plate, "Aspect ratio must be between 0.4 and 2.5" (2026-10-26);
+# Kling's reference images are documented the same (1:2.5 to 2.5:1)
+PICTURE_RATIO = [0.4, 2.5]
+
+# docs/MULTISHOT.md: a model that cuts between shots in one call, told in prose
+MULTISHOT_PROSE = {"_note": "A continuous: multishot group in prose: the look once, then a paragraph "
+                            "a shot, each a hard cut from the one before; the model times the cuts. "
+                            "Every shot's plate among the pictures.",
+                   "form": "prose", "plates": "all"}
+
+
+def kling_storyboard(p: dict) -> None:
+    """Kling takes a `continuous: multishot` group as a storyboard
+    (docs/MULTISHOT.md): `multi_shot: true`, `shot_type: customize` and
+    `multi_prompt`, each shot's prose (at most 512 characters) and whole
+    seconds (at least 1, adding up to the call's), at most 6 shots; its
+    prompt is then unused. One plate: the pictures are the cast's first."""
+    p["multishot"] = {"_note": "Kling's own storyboard fields (its schema's multi_shot, shot_type, "
+                               "multi_prompt): each shot's prose and whole seconds; at most 6 shots.",
+                      "form": "storyboard", "max_shots": 6, "plates": 1}
+    p["router"]["picture_ratio"] = PICTURE_RATIO
+    p["router"]["inputs"]["storyboard"] = {
+        "switch": "multi_shot", "type": {"name": "shot_type", "value": "customize"},
+        "list": "multi_prompt", "max_chars": 512, "seconds_as": "str",
+        "item": {"index": "$index", "prompt": "$prompt", "duration": "$seconds"}}
+
+
+def kling_prose(p: dict) -> None:
+    """Kling v3 Omni takes a `continuous: multishot` group in one short prose
+    prompt (at most 2500 characters; video_prose.brief_prompt), each shot's
+    whole seconds in its heading (docs/MULTISHOT.md: its storyboard's 512-character parts held the
+    timing to the frame but lost the faces; one prose prompt held them and cut
+    within a second, 2026-10-26). One plate: the pictures are the cast's first."""
+    p["multishot"] = {"_note": "A continuous: multishot group in one short prompt: the look, the place "
+                               "and who's who once, then a paragraph a shot with its seconds, each a "
+                               "hard cut from the one before; at most 6 shots.",
+                      "form": "brief", "max_shots": 6, "plates": 1}
+    p["router"]["picture_ratio"] = PICTURE_RATIO
 
 
 def runway_note(p: dict) -> None:
@@ -77,8 +128,8 @@ MODELS = [
     ("byteplus/dreamina-seedance-2-0-260128", "seedance_2_0", "Seedance 2.0", "Seedance", SEEDANCE_2_0, False, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-fast-260128", "seedance_2_0_fast", "Seedance 2.0 Fast", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-mini", "seedance_2_0_mini", "Seedance 2.0 Mini", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
-    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", None, False, None),
-    ("kling/kling-video-o1", "kling_video_o1", "Kling Video O1", "Kling O1", None, False, None),
+    ("kling/kling-v3-omni", "kling_v3_omni", "Kling v3 Omni", "Kling", KLING_V3_OMNI, False, kling_prose),
+    ("kling/kling-video-o1", "kling_video_o1", "Kling Video O1", "Kling O1", None, False, kling_storyboard),
     ("wan/wan3.0-video", "wan_3_0", "Wan 3.0", "Wan", WAN_3_0, False, None),
     ("wan/wan3.0-video-prime", "wan_3_0_prime", "Wan 3.0 Prime", "Wan", WAN_3_0, True, None),
     ("wan/wan2.7-r2v", "wan_2_7_r2v", "Wan 2.7 (references)", "Wan", WAN_2_7_R2V, True, None),

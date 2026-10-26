@@ -41,7 +41,8 @@ OS_TOKENS = {"os", "offscreen"}
 # means for the first keyframe; written as `first: continuity` it is the old
 # form, read as `continuous: first` (docs/CONTINUOUS.md).
 KEYFRAME_METHODS = ("continuity", "generate", "import", "none")
-CONTINUOUS_VALUES = ("first", "latent", "none")
+# `multishot`: rendered in one generation with the shot before it (docs/MULTISHOT.md)
+CONTINUOUS_VALUES = ("first", "latent", "multishot", "none")
 LEGACY_TRUE = ("yes", "true", "1", "on")
 MAX_OVERLAP = 360
 KEYFRAME_EXTS = (".png", ".jpg", ".jpeg", ".webp")
@@ -228,7 +229,8 @@ def _parse(text: str, subject_ids: set[str], character_ids: set[str],
                     raise ScriptError(
                         n, line,
                         f"`continuous: {val.strip()}` must be first (open on the previous "
-                        f"shot's last frame), latent (hold the previous take's latent) or none")
+                        f"shot's last frame), latent (hold the previous take's latent), "
+                        f"multishot (one generation with the shot before) or none")
                 elif shot is not None:
                     shot["continuous"] = v      # a real line beats an old `first: continuity`
                 else:

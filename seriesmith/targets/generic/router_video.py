@@ -325,7 +325,14 @@ def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
         if what in plate:
             loc = places.get(what) or {}
             look = features(loc.get("description") or "") or str(what).replace("_", " ")
-            scenes.append(f"Define {look} in @Image {n} as the scene.")
+            # a multishot group with several plates: whose scene each is
+            # (docs/MULTISHOT.md), else the one scene
+            parts = shot.get("multishot") or []
+            shots = [f"Shot {i}" for i, p in enumerate(parts, 1) if p.get("plate") == what]
+            whose = (" of " + (" and ".join(shots) if len(shots) < 3 else
+                               ", ".join(shots[:-1]) + " and " + shots[-1])
+                     if len(plate) > 1 and shots else "")
+            scenes.append(f"Define {look} in @Image {n} as the scene{whose}.")
             continue
         sub = subjects.get(what) or {}
         base = subjects.get(sub.get("of")) or {} if sub.get("of") else {}
@@ -334,6 +341,62 @@ def definitions(pics: list, shot: dict, series_cfg: dict) -> str:
         defs.append(f"{look} in @Image {n} as {name}" if look else f"the subject in @Image {n} as {name}")
     line = ("Define " + ", and define ".join(defs) + ".") if defs else ""
     return " ".join([x for x in [line, *scenes] if x])
+
+
+def board_prompt(part: dict, pics: list, series_cfg: dict, mention: str | None, most: int) -> str:
+    """One storyboard part's prompt (video_prose.board_parts) in at most
+    `most` characters: its framing and lines always, then its action, camera
+    and sound while there is room, in the order a shot reads; then the
+    pictures of who is in it and the place, named by `mention`
+    ("<<<image_{n}>>>") as the request numbers them."""
+    subjects = series_cfg.get("subjects") or {}
+    names = []
+    for n, (_, _, what) in enumerate(pics, 1):
+        if what in part.get("subjects", []):
+            e = subjects.get(what) or {}
+            name = e.get("name") or (subjects.get(e.get("of")) or {}).get("name") or what
+            names.append(f"{mention.replace('{n}', str(n))} is {name}." if mention else "")
+        elif what not in subjects and mention:
+            names.append(f"{mention.replace('{n}', str(n))} is the place.")
+    tail = " ".join(x for x in names if x)
+    room = most - (len(tail) + 1 if tail else 0)
+    keep = {"frame", "lines"}
+    order = ["frame", "camera", "action", "lines", "sound"]
+
+    def text() -> str:
+        return " ".join(part[k] for k in order if k in keep and part.get(k))
+
+    for k in ("action", "camera", "sound"):
+        keep.add(k)
+        if len(text()) > room:
+            keep.discard(k)
+    out = fit(text(), room)
+    return f"{out} {tail}" if tail else out
+
+
+def check_ratios(target, pics: list) -> None:
+    """ValueError, before anything is sent, for a picture whose shape the model
+    refuses (its target's `router.picture_ratio`, [narrowest, widest] as width
+    over height: Seedance's library answers 400 AspectRatioTooLarge past 2.5).
+    It says which picture and leaves it as it is: a paid call never crops or
+    pads a picture by itself, so the cut (the sides, or another plate) is the
+    user's to choose."""
+    lo, hi = (target.spec.get("router") or {}).get("picture_ratio") or (None, None)
+    if lo is None:
+        return
+    from seriesmith.refs import image_size
+    for _, path, what in pics:
+        size = image_size(path)
+        if not size or not size[1]:
+            continue
+        r = size[0] / size[1]
+        if not lo <= r <= hi:
+            cut = (f"{round(size[1] * hi)}x{size[1]}, its sides trimmed" if r > hi else
+                   f"{size[0]}x{round(size[0] / lo)}, its top and bottom trimmed")
+            raise ValueError(
+                f"{os.path.basename(path)} ({what or 'a picture'}) is {size[0]}x{size[1]}, "
+                f"{r:.2f} wide to 1 high, and {target.short or target.id} takes pictures from "
+                f"{lo:g} to {hi:g}: crop it ({cut}) or use another picture. Nothing was sent")
 
 
 def router_call(target, job) -> tuple[str, dict]:
@@ -361,6 +424,7 @@ def router_call(target, job) -> tuple[str, dict]:
         raise ValueError(f"{target.short or target.id} starts every shot from its first keyframe, and "
                          f"{shot.get('id', 'this shot')} has none yet: make it first (the shot's "
                          f"menu, or first: generate in the script)")
+    check_ratios(target, pics)
     args = copy.deepcopy(spec.get("arguments") or {})
 
     # the pictures named at the end (Kling), the prose cut to the longest
@@ -379,8 +443,26 @@ def router_call(target, job) -> tuple[str, dict]:
     if tail:
         text = f"{text}\n\n{tail}"
 
-    # the prompt, then the pictures, in that order (a content list keeps it)
-    place(args, pspec, prompt=text)
+    # the prompt, then the pictures, in that order (a content list keeps it); a
+    # multishot group on a model that takes a storyboard sends each shot's own
+    # prose and seconds there instead (docs/MULTISHOT.md: Kling's multi_prompt)
+    board = inp.get("storyboard")
+    # an override's prompt is sent as written, as one prompt (as ltx2's is)
+    built = (getattr(job, "recompiled", None) or getattr(job, "shot", None) or {}).get("prompt")
+    overridden = getattr(job, "prompt", None) not in (None, built)
+    if board and shot.get("storyboard") and not overridden:
+        most = int(board.get("max_chars") or 512)
+        put(args, board["switch"], True)
+        if board.get("type"):
+            put(args, board["type"]["name"], board["type"]["value"])
+        cfg = J.series_config(job.root) or {}
+        for n, part in enumerate(shot["storyboard"], 1):
+            secs = str(part["seconds"]) if board.get("seconds_as") == "str" else part["seconds"]
+            append(args, board["list"], fill(board["item"], index=n,
+                                            prompt=board_prompt(part, pics, cfg, mention, most),
+                                            seconds=secs))
+    else:
+        place(args, pspec, prompt=text)
     for role, path, _ in pics:
         place(args, inp[role], url=File(path, via=via),
               mime="image/jpeg" if path.lower().endswith((".jpg", ".jpeg")) else "image/png")

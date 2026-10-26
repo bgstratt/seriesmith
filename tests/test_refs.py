@@ -662,5 +662,26 @@ class SaveNodeTest(unittest.TestCase):
             self.assertTrue(R.list_takes(ref)[0].usable)
 
 
+class ImageSizeTest(unittest.TestCase):
+    """A picture's size from its header, stdlib only: PNG, JPEG and the three
+    kinds of WebP (lossy, lossless, extended), as Pillow reads them."""
+
+    def test_each_format(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            cases = [("a.png", "PNG", {}, "RGB"), ("a.jpg", "JPEG", {}, "RGB"),
+                     ("lossy.webp", "WEBP", {}, "RGB"), ("lossless.webp", "WEBP", {"lossless": True}, "RGB"),
+                     ("alpha.webp", "WEBP", {}, "RGBA")]
+            for name, fmt, kw, mode in cases:
+                with self.subTest(name=name):
+                    p = os.path.join(d, name)
+                    Image.new(mode, (1280, 346)).save(p, fmt, **kw)
+                    self.assertEqual(R.image_size(p), (1280, 346))
+            p = os.path.join(d, "not.txt")
+            with open(p, "wb") as fh:
+                fh.write(b"just text")
+            self.assertIsNone(R.image_size(p))
+
+
 if __name__ == "__main__":
     unittest.main()

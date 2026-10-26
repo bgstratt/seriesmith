@@ -84,6 +84,7 @@ from dataclasses import dataclass, field
 
 from . import modelid
 from seriesmith.core import fileio as F
+from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
@@ -1472,10 +1473,13 @@ def layered_lora(layers: list[dict]) -> tuple[str, object] | None:
 
 def continuous_modes(t: "Target") -> set[str]:
     """The `continuous:` modes a target renders (docs/CONTINUOUS.md): `first`
-    when it reads a first keyframe, plus its target.json `continuous.modes`."""
+    when it reads a first keyframe, `multishot` when its target.json has a
+    `multishot` form (docs/MULTISHOT.md), plus its `continuous.modes`."""
     modes = set((t.spec.get("continuous") or {}).get("modes") or ())
     if "first" in (t.recipe.get("keyframes") or ()):
         modes.add("first")
+    if (t.spec.get("multishot") or {}).get("form"):
+        modes.add("multishot")
     return modes
 
 
@@ -1498,7 +1502,8 @@ def shot_targets(story, series_cfg: dict) -> dict[str, str]:
     out = {}
     for sq in story.sequences:
         seq = {"id": sq.id, "profile": sq.profile, "target": sq.target}
-        for s in sq.shots:
+        head = None                  # the first shot of the multishot group being read
+        for i, s in enumerate(sq.shots):
             shot = {"id": s.id, "profile": s.profile, "target": s.target}
             tid = layered(render_layers(series_cfg, seq, shot, profiles), "target",
                           default.id)
@@ -1506,10 +1511,119 @@ def shot_targets(story, series_cfg: dict) -> dict[str, str]:
                 raise ValueError(f"shot {s.id}: target '{tid}' is not a video target "
                                  f"(known: {', '.join(known)})")
             mode = s.continues(sq) if hasattr(s, "continues") else None
+            if mode == "multishot":
+                if i == 0:
+                    raise ValueError(
+                        f"shot {s.id}: `continuous: multishot` on the first shot of # {sq.id}: "
+                        f"a group is rendered with the shot before it in its sequence, and "
+                        f"there is none. Write it on the shots after this one, or under the "
+                        f"# header for every shot after the first")
+                head = head or sq.shots[i - 1]
+                out[s.id] = multishot_target(s, head, out[head.id], tid, known)
+                continue
+            head = None
             if mode:
                 tid = continuous_target(s.id, mode, load_target(tid, "video"), bool(s.target),
                                         known)
             out[s.id] = tid
+    return out
+
+
+def multishot_target(s, head, head_tid: str, tid: str, known: list[str]) -> str:
+    """The target a `continuous: multishot` shot renders on (shot_targets):
+    its group's, which is its first shot's (docs/MULTISHOT.md) -- a group is
+    one generation, so one target. A shot that names its own target or
+    profile must name the same one; the group's target must have a multishot
+    form."""
+    if (s.target or s.profile) and tid != head_tid:
+        raise ValueError(f"shot {s.id}: `continuous: multishot` renders in one generation with "
+                         f"{head.id} on {head_tid}, but {s.id} names {tid}: a group is one "
+                         f"target. Drop {s.id}'s own target, or break the group with "
+                         f"`continuous: none`")
+    if "multishot" not in continuous_modes(load_target(head_tid, "video")):
+        can = [x.id for x in list_targets("video")
+               if "multishot" in continuous_modes(x) and not x.draft]
+        raise ValueError(f"shot {s.id}: `continuous: multishot` needs a target that renders "
+                         f"more than one shot in a generation ({', '.join(can)}); {head_tid}, "
+                         f"{head.id}'s, doesn't. Name one of those on {head.id}, or render the "
+                         f"shots one by one with `continuous: none`")
+    return head_tid
+
+
+def subject_slots(t: "Target") -> int | None:
+    """How many subjects one generation of `t` takes as pictures: its
+    `capabilities.max_subjects`, else its slots; None when they are packed
+    into one picture with no fixed limit, 0 when it takes none (words only)."""
+    caps = t.spec.get("capabilities") or {}
+    if caps.get("max_subjects") is not None:
+        return int(caps["max_subjects"])
+    if t.recipe.get("subject_slots"):
+        return len(t.recipe["subject_slots"])
+    if t.recipe.get("reference_sheet") or t.recipe.get("reference_image"):
+        return None
+    return 0
+
+
+def multishot_check(story, series_cfg: dict) -> list[str]:
+    """The warnings about the episode's `continuous: multishot` groups
+    (docs/MULTISHOT.md); ValueError for a group its target can't render. A
+    group is one generation, so its pictures are its shots' together: every
+    subject once, the first picture named of each person (a wardrobe variant
+    named in a later shot isn't sent), and one plate, the first shot's (its
+    target's `multishot.plates`), the others' places in words."""
+    from seriesmith.core.series_config import variant_of
+    by_shot = shot_targets(story, series_cfg)
+    variants = variant_of(series_cfg)
+    book = series_cfg.get("subjects") or {}
+    name = lambda sid: (book.get(sid) or {}).get("name", sid)  # noqa: E731
+    out = []
+    for sq in story.sequences:
+        for group in sq.multishot_groups():
+            head = group[0]
+            ids = f"{head.id}-{group[-1].id}"
+            t = load_target(by_shot[head.id], "video")
+            sent, person_of, dropped = [], {}, []
+            for sh in group:
+                for sid in list(sh.cast) + [p for p in sh.props if p not in sh.cast]:
+                    who = variants.get(sid, sid)
+                    if who in person_of:
+                        if person_of[who] != sid and (sh.id, sid) not in dropped:
+                            dropped.append((sh.id, sid))
+                        continue
+                    person_of[who] = sid
+                    sent.append(sid)
+            slots = subject_slots(t)
+            if slots and len(sent) > slots:
+                raise ValueError(
+                    f"shots {ids}: a `continuous: multishot` group sends every shot's subjects "
+                    f"in one generation, {len(sent)} ({', '.join(name(x) for x in sent)}), and "
+                    f"{t.id} takes {slots}. Split the group; or, for people in the "
+                    f"background, make them one group subject (a character with `members`: one "
+                    f"picture of them all, one slot, docs/AUTHORING.md \"A group: the same "
+                    f"extras every shot\"); or describe some in the action instead of naming "
+                    f"them in `who:` / `with:`")
+            for sid_shot, sid in dropped:
+                out.append(f"shots {ids}: {sid_shot} names {sid}, but the group already sends "
+                           f"{person_of[variants.get(sid, sid)]} for {name(sid)}: one picture a "
+                           f"person in a generation, so {sid}'s isn't sent (its `design` is "
+                           f"still in {sid_shot}'s words)")
+            # how many plates a generation takes: "all" sends every shot's (Seedance)
+            plates = (t.spec.get("multishot") or {}).get("plates", 1)
+            plates = 0 if plates == "all" else int(plates)
+            first_plate = head.plate or sq.location
+            if plates:
+                for sh in group[1:]:
+                    if (sh.plate or sq.location) != first_plate:
+                        close = framing.canonical(sh.size) in ("ecu", "cu")
+                        out.append(f"shots {ids}: {sh.id}'s plate, {sh.plate or sq.location}, isn't "
+                                   f"sent as a picture: a {t.id} generation takes one plate, "
+                                   f"{head.id}'s ({first_plate}); "
+                                   + (f"{sh.id}, a close-up, is a blurred crop of it"
+                                      if close else f"{sh.id}'s place is in its words"))
+            if head.continues(sq) == "first":
+                out.append(f"shots {ids}: the group opens on {head.id}'s first keyframe "
+                           f"(`continuous: first`), so it renders on {t.id} from words and that "
+                           f"frame, without its subjects' pictures")
     return out
 
 

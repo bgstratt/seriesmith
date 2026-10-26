@@ -1759,7 +1759,8 @@ def cut_takes(root: str, only: set[str] | None = None, take_n: int | None = None
     (a take from the other pass) is left out. A shot left out of the cut isn't
     listed unless `only` names it or `include_out`."""
     from seriesmith.assemble import choose_take
-    entries = T.resolve_cut(T.load_cut(root), pass_, J.script_order(root))
+    # the built ids, as the editor's cut holds them: a multishot group is one
+    entries = T.resolve_cut(T.load_cut(root), pass_, J.built_order(root, pass_))
     out = []
     for e in entries:
         if only is not None and e.shot not in only:

@@ -77,9 +77,11 @@ def _put_choice(d: dict, node) -> None:
 
 # `continuous:` (docs/CONTINUOUS.md): how a shot follows the previous one in
 # the cut. `first`: the previous take's last frame is its first keyframe;
-# `latent`: the previous take's latent tail is held at its head. `none` on a
-# shot breaks a sequence's chain.
-CONTINUOUS = ("first", "latent")
+# `latent`: the previous take's latent tail is held at its head; `multishot`:
+# it is rendered in one generation with the shot before it (docs/MULTISHOT.md).
+# `none` on a shot breaks a sequence's chain.
+CONTINUOUS = ("first", "latent", "multishot")
+CHAINS = ("first", "latent")         # the modes that render onto the previous take
 
 
 @dataclass
@@ -210,6 +212,23 @@ class Sequence:
     lens: str | None = None          # its shots' default `lens:`
     overlap: int | None = None       # its shots' default `overlap:`
     legacy: list = field(default_factory=list)
+
+    def multishot_groups(self) -> list[list[Shot]]:
+        """The runs of shots rendered as one generation (docs/MULTISHOT.md): a
+        shot and the shots right after it that say `continuous: multishot`,
+        each group two shots or more, in script order. A group never crosses a
+        `#` header, so a sequence's first shot only ever starts one."""
+        groups, run = [], []
+        for s in self.shots:
+            if run and s.continues(self) == "multishot":
+                run.append(s)
+                continue
+            if len(run) > 1:
+                groups.append(run)
+            run = [s]
+        if len(run) > 1:
+            groups.append(run)
+        return groups
 
     def to_json(self) -> dict:
         # `false` when unset, as the old boolean was written
