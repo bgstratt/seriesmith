@@ -379,13 +379,25 @@ def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> i
             take = T.Take(j.id, j.take, pass_, T.take_paths(root, pass_, j.id, j.take))
             target = J.job_target(j)
             if hosted(target):
-                model, call = target.module.router_call(target, j)
+                try:
+                    model, call = target.module.router_call(target, j)
+                except ValueError as e:            # what the call would refuse: said, not sent
+                    print(f"\n  !! {j.id}: {e}")
+                    return 1
                 out = os.path.join(os.getcwd(), "render_call.json")
                 with open(out, "w", encoding="utf-8") as fh:
                     json.dump({"model": model, "arguments": as_json(call)}, fh, indent=2,
                               ensure_ascii=False)
-                n = sum(1 for c in call.get("content") or [] if isinstance(
-                    (c.get("image_url") or {}).get("url"), File))
+
+                def files(v) -> int:
+                    if isinstance(v, File):
+                        return 1
+                    if isinstance(v, dict):
+                        return sum(files(x) for x in v.values())
+                    if isinstance(v, (list, tuple)):
+                        return sum(files(x) for x in v)
+                    return 0
+                n = files(call)
                 print(f"\n  wrote {out} ({j.id}, {model}; {n} picture(s) to upload)")
                 return 0
             backend = (on or {}).get(id(j))

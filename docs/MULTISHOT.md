@@ -203,7 +203,28 @@ dur: 1.62
       lines and a long action don't fit 512 characters with the names, and a storyboard has
       no prompt for the look or the place (the schema: "when multi_shot is true, the prompt
       parameter is invalid").
-- [ ] (d') Each tried once, live (paid: asked first): Seedance 2.5 on the ep04 beat, and
+- [x] (d') Tried once each, live (2026-10-26, the ep04 group, 8 s at 720p, paid and asked
+      first). The first sends were refused before generating: the hall plate is 3.7:1, and
+      Seedance's library answered 400 AspectRatioTooLarge ("between 0.4 and 2.5"), Kling a
+      bare provider_error. A paid call never crops or pads a picture by itself: the targets
+      now carry `router.picture_ratio` [0.4, 2.5], and router_call refuses an out-of-shape
+      picture before sending, naming it and the crop that fits (refs.image_size reads WebP
+      now). With the plate cropped to 2.5:1 (the scratch copy; its middle kept):
+
+      | | asked | shot 1 → 2 | shot 2 → 3 |
+      |---|---|---|---|
+      | FastH3 Omni (timed) | 4.458 / 6.083 | 4.917 | 6.500 |
+      | Seedance 2.5 (prose) | 4.458 / 6.083 | 4.625 | 6.625 |
+      | Kling v3 Omni (storyboard 4/2/2 s) | 4 / 6 | 3.958 | 6.042 |
+
+      Kling keeps its storyboard's durations to the frame (whole seconds: the script's
+      4.46/1.62/1.62 sent as 4/2/2), and staged shot 1 over Charming's shoulder; its shot 2
+      came out a medium shot where a close-up was asked. Seedance timed its own cuts within
+      about half a second from prose alone (open question 5: no durations in the paragraphs
+      needed so far), framing tighter; its "Fine." in shot 2 is faint or missing (to listen
+      to). Omni holds the pictures closest and stages most plainly. All three bring the same
+      people back after the cut.
+- [ ] (d'') Seedance and Kling once more, for a second sample each (paid: asked first): Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
       question 5); Kling v3 Omni's storyboard and whether it holds the durations (6).
 - [x] (e) Upscale and master of a group take (2026-10-26, the ep04 group on local Omni).

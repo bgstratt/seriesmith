@@ -374,6 +374,31 @@ def board_prompt(part: dict, pics: list, series_cfg: dict, mention: str | None, 
     return f"{out} {tail}" if tail else out
 
 
+def check_ratios(target, pics: list) -> None:
+    """ValueError, before anything is sent, for a picture whose shape the model
+    refuses (its target's `router.picture_ratio`, [narrowest, widest] as width
+    over height: Seedance's library answers 400 AspectRatioTooLarge past 2.5).
+    It says which picture and leaves it as it is: a paid call never crops or
+    pads a picture by itself, so the cut (the sides, or another plate) is the
+    user's to choose."""
+    lo, hi = (target.spec.get("router") or {}).get("picture_ratio") or (None, None)
+    if lo is None:
+        return
+    from seriesmith.refs import image_size
+    for _, path, what in pics:
+        size = image_size(path)
+        if not size or not size[1]:
+            continue
+        r = size[0] / size[1]
+        if not lo <= r <= hi:
+            cut = (f"{round(size[1] * hi)}x{size[1]}, its sides trimmed" if r > hi else
+                   f"{size[0]}x{round(size[0] / lo)}, its top and bottom trimmed")
+            raise ValueError(
+                f"{os.path.basename(path)} ({what or 'a picture'}) is {size[0]}x{size[1]}, "
+                f"{r:.2f} wide to 1 high, and {target.short or target.id} takes pictures from "
+                f"{lo:g} to {hi:g}: crop it ({cut}) or use another picture. Nothing was sent")
+
+
 def router_call(target, job) -> tuple[str, dict]:
     """(model, arguments) for one take of `job` (a seriesmith.jobs.Job), its
     pictures as backends.File, which the Router backend uploads."""
@@ -399,6 +424,7 @@ def router_call(target, job) -> tuple[str, dict]:
         raise ValueError(f"{target.short or target.id} starts every shot from its first keyframe, and "
                          f"{shot.get('id', 'this shot')} has none yet: make it first (the shot's "
                          f"menu, or first: generate in the script)")
+    check_ratios(target, pics)
     args = copy.deepcopy(spec.get("arguments") or {})
 
     # the pictures named at the end (Kling), the prose cut to the longest

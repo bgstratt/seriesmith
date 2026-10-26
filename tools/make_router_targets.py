@@ -71,7 +71,13 @@ def seedance_ratio(p: dict) -> None:
     p["router"]["inputs"]["ratio"]["with_frames"] = "keep"
     p["router"]["inputs"]["references"]["define"] = True
     p["multishot"] = MULTISHOT_PROSE
+    p["router"]["picture_ratio"] = PICTURE_RATIO
 
+
+# the shapes a picture may have, width over height: BytePlus's Seedance library
+# refused a 3.7:1 plate, "Aspect ratio must be between 0.4 and 2.5" (2026-10-26);
+# Kling's reference images are documented the same (1:2.5 to 2.5:1)
+PICTURE_RATIO = [0.4, 2.5]
 
 # docs/MULTISHOT.md: a model that cuts between shots in one call, told in prose
 MULTISHOT_PROSE = {"_note": "A continuous: multishot group in prose: the look once, then a paragraph "
@@ -89,6 +95,7 @@ def kling_storyboard(p: dict) -> None:
     p["multishot"] = {"_note": "Kling's own storyboard fields (its schema's multi_shot, shot_type, "
                                "multi_prompt): each shot's prose and whole seconds; at most 6 shots.",
                       "form": "storyboard", "max_shots": 6, "plates": 1}
+    p["router"]["picture_ratio"] = PICTURE_RATIO
     p["router"]["inputs"]["storyboard"] = {
         "switch": "multi_shot", "type": {"name": "shot_type", "value": "customize"},
         "list": "multi_prompt", "max_chars": 512, "seconds_as": "str",

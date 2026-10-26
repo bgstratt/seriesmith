@@ -302,7 +302,7 @@ class RouterTest(unittest.TestCase):
     """What a hosted model is sent for a group, offline (router_call, as
     tests/test_router_golden.py pins single shots): nothing is sent anywhere."""
 
-    def call(self, target: str) -> tuple[dict, object]:
+    def call(self, target: str, plate=(1344, 768)) -> tuple[dict, object]:
         import json
         import tempfile
         from seriesmith import edit as E
@@ -316,7 +316,7 @@ class RouterTest(unittest.TestCase):
         for name, e in c["subjects"].items():
             if e.get("sheet"):
                 e["sheet_panels"] = 1                      # a whole picture: nothing to cut
-        for path, (w, h) in [(e["sheet"], (512, 768)) for e in c["subjects"].values() if e.get("sheet")] +                 [(e["plate"], (1344, 768)) for e in c["locations"].values()]:
+        for path, (w, h) in [(e["sheet"], (512, 768)) for e in c["subjects"].values() if e.get("sheet")] +                 [(e["plate"], plate) for e in c["locations"].values()]:
             full = os.path.join(ep, path)
             os.makedirs(os.path.dirname(full), exist_ok=True)
             with open(full, "wb") as fh:
@@ -369,6 +369,18 @@ class RouterTest(unittest.TestCase):
         self.assertNotIn("<<<image_1>>>", board[1]["prompt"])          # Ada isn't in sh020
         self.assertTrue(all("<<<image_3>>> is the place." in b["prompt"] for b in board))
         self.assertTrue(board[0]["prompt"].startswith("A medium shot of Ada and Bo."))
+
+    def test_a_picture_the_model_refuses_is_said_and_nothing_is_sent(self):
+        """Seedance's library refuses a picture past 2.5:1 (a 3.7:1 plate,
+        2026-10-26): the call says which and what crop fits, before sending,
+        and never crops or pads it itself."""
+        with self.assertRaises(ValueError) as cm:
+            self.call("seedance_2_5", plate=(1344, 360))
+        msg = str(cm.exception)
+        self.assertIn("1344x360", msg)
+        self.assertIn("0.4 to 2.5", msg)
+        self.assertIn("900x360, its sides trimmed", msg)
+        self.assertIn("Nothing was sent", msg)
 
     def test_a_model_without_a_form_refuses_the_group(self):
         import json

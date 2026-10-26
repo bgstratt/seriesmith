@@ -152,7 +152,11 @@
           "duration": "$seconds"
         }
       }
-    }
+    },
+    "picture_ratio": [
+      0.4,
+      2.5
+    ]
   },
   "presets": {
     "final": {

@@ -82,6 +82,7 @@
   },
   "router": {
     "model": "byteplus/dreamina-seedance-2-5-260628",
+    "picture_ratio": [0.4, 2.5],
     "_note": "How a shot becomes Seedance 2.5's own request (targets/generic/router_video.py): BytePlus's content list (the prose, then the pictures with their roles), each picture through the Seedance virtual library (BytePlus refuses a photoreal person, an AI-made one too, as a plain URL: content_policy_violation, 2026-10-11).",
     "arguments": {
       "watermark": false,

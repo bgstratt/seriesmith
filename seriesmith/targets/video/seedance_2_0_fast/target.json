@@ -149,7 +149,11 @@
         "max": 2147483647
       },
       "via": "seedance"
-    }
+    },
+    "picture_ratio": [
+      0.4,
+      2.5
+    ]
   },
   "presets": {
     "final": {
