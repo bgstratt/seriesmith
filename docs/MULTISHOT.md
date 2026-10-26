@@ -122,20 +122,26 @@ dur: 1.62
 
 ## Open questions
 
-1. **A subject's picture in a group.** One picture per subject per generation: a group that
-   wants Charming full-length in its wide and as `charming_face` in its close-up can't have
-   both. First version: the first one named, with a warning. Better may be choosing the
-   picture by the group's tightest framing of that subject.
-2. **H3's length for a group.** The proof was 8 s. H3 FL2VA's notes say it was trained on
-   5-15 s; Omni's grid goes far past that. Render one ~15 s group before setting
-   `max_seconds` for the H3 targets.
-3. **Plates.** H3 takes one plate a generation. A group that cuts between angles of a place
-   (the hall and its reverse) loses the second as a picture. Is the first member's plate the
-   right one, or the group's widest shot's?
-4. **A group continuing a single shot** (`continuous: first` or `latent` on its first member):
-   allowed, or not in the first version?
-5. **Seedance timing.** It cuts where it chooses. Write each member's duration into its
-   paragraph ("for about four seconds")? Test before deciding.
+1. **A subject's picture in a group: decided (2026-10-26), the first one named, with a
+   warning.** One picture per subject per generation: a group that names Charming
+   full-length in its wide and as `charming_face` in its close-up sends the first.
+2. **H3's length for a group: decided, no limit.** The proof was 8 s; how long a group runs
+   is the user's call. A target that has a hard maximum (Seedance's 30 s, Kling's) still
+   refuses past it.
+3. **Plates: the first member's, for now.** H3 takes one plate a generation (Kling four
+   pictures in all; Seedance up to 30, so every plate fits there). A member naming another
+   plate is described in words in its own section, and `check` says that plate isn't sent as
+   a picture. The widest shot's plate, or one named on the first shot, are the alternatives
+   if the first member's proves the wrong pick.
+4. **A group continuing a single shot: `latent` yes, `first` with a warning.** `latent` on
+   the group's first member holds the previous take's last frames at the head of the
+   group's generation, as a single latent shot does on Omni and Ref2VA; the `[Shot N]` cut
+   times shift by the held frames. `first` gives the group a first keyframe, which Omni and
+   Ref2VA don't read (a single shot switches to FL2VA, which takes no character pictures)
+   and which a hosted model is sent instead of the pictures: the group renders, but drawn
+   from words, and `check` says so.
+5. **Seedance timing: decided, test once the `prose` writer exists.** It cuts where it
+   chooses; whether writing each member's duration into its paragraph helps is tried then.
 6. **The Kling storyboard** is untested (one paid call): whether it holds the durations.
 
 ## Checklist
