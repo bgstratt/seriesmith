@@ -7,7 +7,7 @@
 // Gallery).
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { closeGallery, copyText, pickRef, pickTake, updateGallery } from "../actions";
+import { closeGallery, copyText, pickRef, pickTake, toggleUpscaled, updateGallery } from "../actions";
 import { errText } from "../api";
 import { isTyping } from "../cutActions";
 import { api } from "../host";
@@ -21,7 +21,7 @@ import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../
 import { stripStyle } from "../lib/strip";
 import { targetLabel } from "../lib/targets";
 import { useApp, type GalleryState } from "../store";
-import type { Pass, TakeInfo } from "../types";
+import type { Pass, TakeInfo, TakeSummary } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { aspectOf, useStatus } from "./hooks";
 import { EpisodeSelect } from "./ShotsTab";
@@ -111,8 +111,8 @@ interface GridItem {
   aspect: number;
   label: string;
   title: string;
-  /** "live", "cut", or nothing */
-  badge: string | null;
+  /** "live" or "cut" (green, top right), and "2x" for a take's fresh upscale */
+  badges: string[];
   /** a take's strip, scrubbed on hover */
   strip?: string | null;
 }
@@ -161,8 +161,9 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         narrow: () => updateGallery({ shot: s.shot.shot, open: null }),
         items: s.items.map((it) => ({
           key: it.key, thumb: it.take.thumb!, aspect: takeAspect(it.take, epAspect), label: tn(it.take.take),
-          title: `${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}${it.take.strip ? " · hover to scrub" : ""}`,
-          badge: it.cut ? "cut" : null, strip: it.take.strip,
+          // what happens in it, as the script says; the rest is in the panel when it's open
+          title: [`${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}`, it.shot.action ?? ""].filter(Boolean).join("\n"),
+          badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : [])], strip: it.take.strip,
         })),
       }))
     : refSecs.map((s) => ({
@@ -172,7 +173,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         items: s.items.map((it) => ({
           key: it.key, thumb: it.file, aspect: itemAspect(it), label: refLabel(it),
           title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
-          badge: it.live ? "live" : null,
+          badges: it.live ? ["live"] : [],
         })),
       })), [shots, shotSecs, refSecs, epAspect]);
   const keys = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.key)), [sections]);
@@ -362,7 +363,7 @@ function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boole
   const w = Math.round(it.aspect * row * (window.devicePixelRatio || 1));
   const scrubbing: CSSProperties | null = cell != null && it.strip ? stripStyle(api().fileUrl(ep, it.strip), cell) : null;
   return (
-    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badge ? " h3-live" : ""}`}
+    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some((b) => b !== "2x") ? " h3-live" : ""}`}
       style={{ flex: `${it.aspect} 1 ${Math.round(it.aspect * row)}px`, aspectRatio: String(it.aspect) }}
       title={it.title}
       onClick={() => updateGallery({ open: it.key, at: it.key })}
@@ -370,10 +371,19 @@ function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boole
       {near && <img src={api().thumbUrl(ep, it.thumb, w)} alt={it.label} draggable={false} />}
       {scrubbing && <span className="h3-gal-scrub" style={scrubbing} />}
       {name && <span className="h3-gal-name">{name}</span>}
-      {it.badge && <span className="h3-cand-live">{it.badge}</span>}
+      {it.badges.length > 0 && (
+        <span className="h3-gal-badges">
+          {it.badges.map((b) => <span key={b} className={b === "2x" ? "h3-gal-up" : "h3-gal-in"}>{b}</span>)}
+        </span>
+      )}
       <span className="h3-thumb-label">{it.label}</span>
     </button>
   );
+}
+
+/** A take's upscale made from it as it is now: what the 2x switch plays. */
+function freshUp(t: TakeSummary): string | null {
+  return t.upscale?.status === "ok" && t.upscale.fresh && t.upscale.mp4 ? t.upscale.mp4 : null;
 }
 
 function refLabel(it: GalleryItem): string {
@@ -555,18 +565,23 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
   const [audio, setAudio] = useState<"a" | "b" | "off">("a");
   const cutTake = !item.cut && s.cut.pass === pass ? s.takes.find((x) => x.take === s.cut.take && x.mp4) : undefined;
   const side = compare && !!cutTake;
+  // the take viewer's and Play all's switch: a take's fresh upscale instead of the take
+  const hi = useApp((x) => x.upscaled);
+  const play = (x: TakeSummary) => (hi && freshUp(x)) || x.mp4!;
+  const up = t.upscale?.status === "ok" && t.upscale.fresh ? t.upscale : null;
   useSync(aEl, side ? bEl : null);
   useEffect(() => {
     if (aEl) aEl.muted = audio !== "a";
     if (bEl) bEl.muted = audio !== "b";
   }, [aEl, bEl, audio, side]);
-  const url = api().fileUrl(ep, t.mp4!);
+  const file = play(t);
+  const url = api().fileUrl(ep, file);
   const sc = info?.sidecar;
   const fps = t.fps || 24;
   const prompt = info?.prompt;
   return (
     <div className="h3-gal-lightbox">
-      <ViewerBar name={s.shot} label={[tn(t.take), s.sequence ?? ""].filter(Boolean).join(" · ")} badge={item.cut ? "cut" : null} n={n} of={of} />
+      <ViewerBar name={s.shot} label={[tn(t.take), s.sequence ?? "", file !== t.mp4 ? "2x" : ""].filter(Boolean).join(" · ")} badge={item.cut ? "cut" : null} n={n} of={of} />
       <div className="h3-gal-view">
         <div className="h3-col h3-grow" style={{ minWidth: 0 }}>
           <div className={`h3-gal-stage${side ? " h3-gal-side" : ""}`}>
@@ -578,7 +593,7 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
             {side && (
               <div className="h3-gal-pane">
                 <span className="h3-pane-label">cut · {tn(cutTake!.take)}</span>
-                <video key={cutTake!.mp4} ref={setBEl} src={api().fileUrl(ep, cutTake!.mp4!)} loop playsInline preload="auto" muted />
+                <video key={play(cutTake!)} ref={setBEl} src={api().fileUrl(ep, play(cutTake!))} loop playsInline preload="auto" muted />
               </div>
             )}
             <NavButtons n={n} of={of} step={step} />
@@ -597,7 +612,13 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
                 <i className="pi pi-clone" /> Compare with cut
               </button>
             )}
-            <a className="h3-btn" href={url} download={t.mp4!.split(/[\\/]/).pop()} title={`Save ${t.mp4}`}>
+            {up && (
+              <button className={`h3-btn${hi ? " h3-on" : ""}`} title="Play the take's upscale (2x) instead of the take (remembered; the take viewer and Play all share it)"
+                onClick={() => toggleUpscaled()}>
+                2x
+              </button>
+            )}
+            <a className="h3-btn" href={url} download={file.split(/[\\/]/).pop()} title={`Save ${file}`}>
               <i className="pi pi-download" /> Download
             </a>
             {prompt && (
@@ -621,6 +642,7 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
                 t.frames ? `${t.frames} frames · ${(t.frames / fps).toFixed(1)} s @ ${fps}` : "",
               ].filter(Boolean).join(" · ") || "—"}
             </span>
+            {up && <><span>upscale</span><span>{[up.width && up.height ? `${up.width}x${up.height}` : "", up.method ?? up.route ?? ""].filter(Boolean).join(" · ")}</span></>}
             {t.overrides.length > 0 && <><span>override</span><span>{t.overrides.join(", ")}</span></>}
             {t.finished && <><span>made</span><span>{fmtWhen(t.finished)}</span></>}
             {t.note && <><span>note</span><span>{t.note}</span></>}
