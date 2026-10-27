@@ -1701,7 +1701,7 @@ What each model takes, local and hosted (generated from the targets by
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
-| `ltx2_msr` | LTX+MSR | your ComfyUI | none | — | — |
+| `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
 | `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
