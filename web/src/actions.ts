@@ -592,6 +592,8 @@ export function selectEpisode(ep: string | null) {
     build: { busy: false, result: null, error: null },
     // Phase 9c: the Recording and voice-clip windows belong to one episode
     trackPanel: null, voiceClip: null, alignRun: null,
+    // the gallery stays open, on the same scope, at the new episode's pictures
+    gallery: s.gallery && { ...s.gallery, ref: null, open: null, at: null },
   }));
   if (ep) {
     const shots = openOnTakes(ep);

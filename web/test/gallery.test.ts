@@ -1,6 +1,6 @@
 // The gallery's sections: which refs, which pictures, in what order.
 import { describe, expect, it } from "vitest";
-import { gallerySections, itemKey, liveKey, type GalleryScope } from "../src/lib/gallery";
+import { gallerySections, itemAspect, itemKey, liveKey, type GalleryScope } from "../src/lib/gallery";
 import type { Ref, RefTake } from "../src/types";
 
 function ref(id: string, kind: Ref["kind"], over: Partial<Ref> = {}): Ref {
@@ -65,5 +65,12 @@ describe("gallery sections", () => {
     const none = ref("subject:bo", "character", { views: [{ view: "04_face", picked: null, takes: [take(1), take(2)] }] });
     expect(liveKey(gallerySections([none], { ...ALL, ref: "subject:bo" }, "proxy"), "subject:bo"))
       .toBe(itemKey("subject:bo", "04_face", 2));
+  });
+
+  it("sizes a tile by the picture, else by what its kind usually is", () => {
+    expect(itemAspect({ ref: ada, view: "04_face", take: take(1, { width: 1024, height: 1024 }) })).toBe(1);
+    expect(itemAspect({ ref: ada, view: "sheet", take: take(1) })).toBe(4);
+    expect(itemAspect({ ref: street, view: null, take: take(1) })).toBeCloseTo(16 / 9);
+    expect(itemAspect({ ref: street, view: "pano", take: take(5) })).toBe(2);
   });
 });

@@ -1049,10 +1049,14 @@ one. Design: DESIGN.md §7, "The gallery".
       have no pictures). Double-click a ref (row or tile) opens it on that ref, its live
       picture open; a group's head, on that group; a Gallery button, on everything. A
       section per ref, every candidate of every view (a character's four, its sheets; a
-      location's plate, 360s and tour holds), newest first, live badged. The viewer: ←/→
-      through the grid in order across refs, Esc back to the grid where it was, F full
-      screen; beside the picture, its prompt with Copy, model, size, seed, steps, what it
-      was drawn from (each a link to that ref in the gallery), Pick, Compare with live,
+      location's plate, 360s and tour holds), newest first, live badged; or Flow, one run of
+      justified rows with each ref's pictures together (its name on the first). Tiles at the
+      picture's own shape (S/M/L), the view and take on hover; the episode picker in its
+      head. A picture opens over the grid (closing it comes back to the grid where it was):
+      ←/→ through the grid in order across refs, Esc back, F full screen; beside it, its
+      prompt with Copy, model, size, seed, steps, what it was drawn from (each a link to
+      that ref in the gallery), Pick, Compare with live (side by side in the gallery
+      itself, C; the docked viewer sits under a floating window on the standalone page),
       Download (the file route, saved by the browser). A ref's takes come with the refs
       listing already: nothing more is fetched.
 - [ ] **Shots.** A chip per sequence; double-click a sequence's head opens it there. Tiles

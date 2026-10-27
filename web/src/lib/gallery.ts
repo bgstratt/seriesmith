@@ -94,3 +94,13 @@ export function liveKey(sections: GallerySection[], ref: string): string | null 
   const items = sections.find((s) => s.ref.id === ref)?.items ?? [];
   return (items.find((i) => i.live) ?? items[0])?.key ?? null;
 }
+
+/** A picture's shape (width / height), for a tile that fits it with no bars:
+ * its own size where the record has it, else what its kind usually is. */
+export function itemAspect(it: Pick<GalleryItem, "ref" | "view" | "take">): number {
+  const { width: w, height: h } = it.take;
+  if (w && h) return w / h;
+  if (it.view === SHEET_VIEW) return 4;
+  if (it.view === PANO_VIEW) return 2;
+  return it.ref.kind === "location" || groupOf(it.ref) === "keyframes" ? 16 / 9 : 1;
+}
