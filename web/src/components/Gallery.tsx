@@ -261,13 +261,14 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           </button>
         ))}
         {/* an episode can have dozens of sequences: a list, not a chip each;
-            "in the cut" is every sequence's cut takes (Shots' "live only") */}
+            "In the cut" is every sequence with "cut only" on, and a sequence
+            picked keeps "cut only" as it is (one sequence's cut takes) */}
         {shots && (
           <select className="h3-in" style={{ minWidth: 0 }} aria-label="Sequence" title="Every take, the cut's, or one sequence's"
-            value={g.picksOnly ? IN_CUT : g.seq ?? ""}
+            value={g.seq ?? (g.picksOnly ? IN_CUT : "")}
             onChange={(e) => {
               const v = e.target.value;
-              updateGallery({ ...WIDE, seq: v && v !== IN_CUT ? v : null, picksOnly: v === IN_CUT });
+              updateGallery(v && v !== IN_CUT ? { ...WIDE, seq: v } : { ...WIDE, picksOnly: v === IN_CUT });
             }}>
             <option value="">Every sequence</option>
             <option value={IN_CUT}>In the cut</option>
@@ -297,11 +298,9 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
         ))}
       </span>
-      {!shots && (
-        <label className="h3-row h3-small" style={{ gap: 4 }} title="Only the picture each ref uses now">
-          <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> live only
-        </label>
-      )}
+      <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
+        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
+      </label>
       {!shots && !g.ref && (
         <label className="h3-row h3-small" style={{ gap: 4 }} title="Every ref in the series config, not just those this episode uses">
           <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> whole series
