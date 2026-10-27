@@ -4,7 +4,7 @@
 // the grid with the arrow keys and closes back to it. Opened from the Refs
 // tab: double-click a ref (on it), a group's head (on that group), or Gallery.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { closeGallery, copyText, pickRef, updateGallery } from "../actions";
 import { isTyping } from "../cutActions";
 import { api } from "../host";
@@ -25,6 +25,31 @@ type Layout = "sections" | "flow";
 /** a row's height, px: the tiles fill each row at their own shapes */
 const SIZES = { s: 140, m: 210, l: 320 } as const;
 type Size = keyof typeof SIZES;
+
+/**
+ * Pictures load as they come within a screen of the grid's view, watched
+ * against the grid's own scroll box: `loading="lazy"` measures against the
+ * page, and the gallery scrolls inside a window, so it loaded hundreds at once.
+ */
+const NearRoot = createContext<HTMLElement | null>(null);
+
+function useNear<T extends Element>(): [React.RefObject<T>, boolean] {
+  const root = useContext(NearRoot);
+  const ref = useRef<T>(null);
+  const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (near || !root || !ref.current) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) {
+        setNear(true);
+        io.disconnect();
+      }
+    }, { root, rootMargin: "100% 0px" });
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [near, root]);
+  return [ref, near];
+}
 
 function defaultGalleryRect(): Rect {
   const W = window.innerWidth || 1280;
@@ -176,7 +201,8 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         {/* the grid stays under an open picture, so closing it comes back to where it was */}
         {ep && refs && <GalleryGrid ep={ep} sections={sections} at={g.at} layout={layout} row={SIZES[size]} />}
         {ep && open && (
-          <GalleryViewer ep={ep} item={open} n={idx + 1} of={items.length} compare={compare} setCompare={setCompare} step={step} />
+          <GalleryViewer ep={ep} item={open} n={idx + 1} of={items.length} compare={compare} setCompare={setCompare} step={step}
+            around={[items[idx - 1], items[idx + 1]].filter(Boolean).map((i) => i.file)} />
         )}
       </div>
     </FloatingWindow>
@@ -186,36 +212,38 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
 function GalleryGrid({ ep, sections, at, layout, row }: {
   ep: string; sections: GallerySection[]; at: string | null; layout: Layout; row: number;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // the scroll box: what pictures are near, and where the cursor is kept in view
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   // the cursor stays in view: coming back from a picture, and as the arrows move it
   useEffect(() => {
     if (!at) return;
-    const el = scrollRef.current?.querySelector(`[data-key="${CSS.escape(at)}"]`);
-    el?.scrollIntoView({ block: "nearest" });
-  }, [at]);
+    root?.querySelector(`[data-key="${CSS.escape(at)}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [at, root]);
   if (!sections.length) return <div className="h3-empty-state">No pictures here yet.</div>;
   const tile = (it: GalleryItem, named: boolean) => <Tile key={it.key} ep={ep} it={it} sel={it.key === at} row={row} named={named} />;
   return (
-    <div className="h3-scroll h3-gal-grid" ref={scrollRef}>
-      {layout === "flow" ? (
-        <div className="h3-gal-tiles">{sections.flatMap((s) => s.items.map((it, i) => tile(it, i === 0)))}</div>
-      ) : sections.map((s) => (
-        <section key={s.ref.id}>
-          <div className="h3-row h3-gal-sec-head">
-            <button className="h3-link" title="Only this ref" onClick={() => updateGallery({ ref: s.ref.id, open: null })}>
-              <b>{s.ref.name}</b>
-            </button>
-            <span className="h3-muted h3-small">
-              {[
-                `${s.items.length} picture${s.items.length === 1 ? "" : "s"}`,
-                s.queued ? `${s.queued} on the way` : "",
-                s.failed ? `${s.failed} failed` : "",
-              ].filter(Boolean).join(" · ")}
-            </span>
-          </div>
-          <div className="h3-gal-tiles">{s.items.map((it) => tile(it, false))}</div>
-        </section>
-      ))}
+    <div className="h3-scroll h3-gal-grid" ref={setRoot}>
+      <NearRoot.Provider value={root}>
+        {layout === "flow" ? (
+          <div className="h3-gal-tiles">{sections.flatMap((s) => s.items.map((it, i) => tile(it, i === 0)))}</div>
+        ) : sections.map((s) => (
+          <section key={s.ref.id}>
+            <div className="h3-row h3-gal-sec-head">
+              <button className="h3-link" title="Only this ref" onClick={() => updateGallery({ ref: s.ref.id, open: null })}>
+                <b>{s.ref.name}</b>
+              </button>
+              <span className="h3-muted h3-small">
+                {[
+                  `${s.items.length} picture${s.items.length === 1 ? "" : "s"}`,
+                  s.queued ? `${s.queued} on the way` : "",
+                  s.failed ? `${s.failed} failed` : "",
+                ].filter(Boolean).join(" · ")}
+              </span>
+            </div>
+            <div className="h3-gal-tiles">{s.items.map((it) => tile(it, false))}</div>
+          </section>
+        ))}
+      </NearRoot.Provider>
     </div>
   );
 }
@@ -225,12 +253,16 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
 function Tile({ ep, it, sel, row, named }: { ep: string; it: GalleryItem; sel: boolean; row: number; named: boolean }) {
   const a = itemAspect(it);
   const label = tileLabel(it);
+  const [ref, near] = useNear<HTMLButtonElement>();
+  // the tile's own width on this screen: the server keeps a few widths made
+  // (the Refs tab's 256 among them), and rounds up to the next
+  const w = Math.round(a * row * (window.devicePixelRatio || 1));
   return (
-    <button data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.live ? " h3-live" : ""}`}
+    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.live ? " h3-live" : ""}`}
       style={{ flex: `${a} 1 ${Math.round(a * row)}px`, aspectRatio: String(a) }}
       title={`${it.ref.name} · ${label}${it.live ? " · live" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`}
       onClick={() => updateGallery({ open: it.key, at: it.key })}>
-      <img src={api().thumbUrl(ep, it.file, Math.round(a * row * 1.5))} alt={label} loading="lazy" draggable={false} />
+      {near && <img src={api().thumbUrl(ep, it.file, w)} alt={label} draggable={false} />}
       {named && <span className="h3-gal-name">{it.ref.name}</span>}
       {it.live && <span className="h3-cand-live">live</span>}
       <span className="h3-thumb-label">{label}</span>
@@ -244,10 +276,16 @@ function tileLabel(it: GalleryItem): string {
 
 /** A picture opened over the grid: large, what it was made with beside it,
  * the arrows to the next, and the live one beside it to compare (C). */
-function GalleryViewer({ ep, item, n, of, compare, setCompare, step }: {
+function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
   ep: string; item: GalleryItem; n: number; of: number; compare: boolean; setCompare: (c: boolean) => void; step: (d: number) => void;
+  /** the pictures either side, fetched ahead so an arrow shows the next at once */
+  around: string[];
 }) {
   const { ref: r, view, take: t } = item;
+  useEffect(() => {
+    for (const f of around) new Image().src = api().refFileUrl(ep, f);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ep, around.join("|")]);
   const busy = useApp((s) => !!s.busy[`refpick|${r.id}`]);
   const url = api().refFileUrl(ep, item.file);
   const pickable = view !== PANO_VIEW && view !== TOUR_VIEW;
