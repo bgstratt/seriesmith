@@ -1011,6 +1011,13 @@ collide with the package.
       stages; the Features window's "LTX-2.5 + MSR" with its two node packs; a LoRA of the
       user's on it. AUTHORING says what LTX references hold: one person on `ltx2`'s
       ingredients sheet, a group on MSR, speech by seed. Published by the merge's version bump.
+- [x] **0.1.6** (2026-10-27, `release-0.1.6`): the gallery (#55): every picture of an episode's
+      refs and every take of its shots, large, in one window; arrow through them; what each
+      was made with (a take's own prompt and the pictures it was sent); Regenerate; a selection
+      saved as one zip; a shared ref's pictures from the other episodes. New routes
+      `GET /seriesmith/take`, `GET /seriesmith/refs/shared-takes`, `POST` / `GET
+      /seriesmith/download`. A bonus tutorial (https://youtu.be/KnWEI-0d6PA). Published by
+      the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
