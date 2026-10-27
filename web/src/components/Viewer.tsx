@@ -118,14 +118,14 @@ function Transport({ a, fps, audio, setAudio, hasB }: {
 }
 
 /** The viewer's window full screen, or back (the browser's own: Esc leaves it too). */
-function toggleFullscreen(el: Element | null | undefined) {
+export function toggleFullscreen(el: Element | null | undefined) {
   if (!el) return;
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   else void el.requestFullscreen?.().catch(() => {});
 }
 
 /** A button for it, for a window's title bar. */
-function FullscreenButton() {
+export function FullscreenButton() {
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);

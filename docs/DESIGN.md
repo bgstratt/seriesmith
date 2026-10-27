@@ -255,6 +255,16 @@ The standalone layout:
   each backend's messages and errors. Thumbnails in Shots, Refs and the
   timeline keep showing a take's progress in place.
 
+**The gallery** (PLAN.md, "The gallery") is one window over every picture and take of
+the episode, where the sidebar shows one ref or one shot at a time. It is one window, not
+a view per tab, because refs and takes want the same grid, viewer and arrow keys, and a
+take's "refs used" leads straight to those refs' pictures in it. Where it opens is only
+its first scope: the Refs tab's groups and the sequences are its chips, so a ref, a
+group, a sequence or everything is the same screen with other chips on. It shows every
+version, picks badged. The grid is drawn from what the page already holds (the refs
+listing, the episode status); what a take was made with is read when that take is
+opened, one request, never for the whole grid.
+
 New beside h3pipe's editor: series and season import (a series config and a stack
 of scripts), and notes that stay on a shot (h3pipe's issues notepad, kept).
 

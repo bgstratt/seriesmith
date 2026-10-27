@@ -13,6 +13,7 @@ import { type RefTargetKind } from "./lib/imageTargets";
 import {
   clearKeyframeText, clearSeriesRefText, isKeyframeRef, keyframeOf, keyframeRefId, keyframeSource, type KeyframeEnd,
 } from "./lib/keyframes";
+import { gallerySections, liveKey, type GalleryScope } from "./lib/gallery";
 import { discardRefText, discardTakeText, fileKindProblem, missingResultText } from "./lib/lookback";
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
@@ -2982,6 +2983,29 @@ export function openRefFile(ref: string, file: string) {
               mode: "single", target: "a", ref, view: null, file },
     menu: null,
   });
+}
+
+/** The gallery, on a ref (its live picture open), a group, or everything.
+ * A scope left out keeps what the gallery had, when it's open already. */
+export function openGallery(scope: Partial<GalleryScope> = {}) {
+  const s = get();
+  const prev = s.gallery;
+  const next = {
+    group: null, ref: null, picksOnly: prev?.picksOnly ?? false, series: prev?.series ?? false,
+    ...scope,
+  };
+  const refs = (s.ep && s.refs[s.ep]) || [];
+  const open = next.ref ? liveKey(gallerySections(refs, next, s.pass), next.ref) : null;
+  set({ gallery: { ...next, open, at: open }, menu: null });
+}
+
+export function updateGallery(patch: Partial<NonNullable<AppState["gallery"]>>) {
+  const g = get().gallery;
+  if (g) set({ gallery: { ...g, ...patch } });
+}
+
+export function closeGallery() {
+  set({ gallery: null });
 }
 
 export function openImageCompare(ref: string, view: string | null, a: number | null, b: number | null = null) {

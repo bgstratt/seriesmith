@@ -34,6 +34,7 @@ import { SourceWindows } from "./components/SourceWindow";
 import { Timeline } from "./components/Timeline";
 import { TrackWindow } from "./components/Track";
 import { VoiceClipWindow } from "./components/VoiceRef";
+import { Gallery } from "./components/Gallery";
 import { PanoWindow } from "./components/PanoViewer";
 import { Viewer } from "./components/Viewer";
 import type { Surface } from "./host";
@@ -159,6 +160,7 @@ function Toasts() {
 export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Inspector", InspectorWindow],
   ["Viewer", Viewer],
+  ["Gallery", Gallery],
   ["What's missing", MissingWindow],
   ["Features", FeaturesWindow],
   ["Script / series config", SourceWindows],
