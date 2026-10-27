@@ -38,7 +38,8 @@
           "tutorials/continuity",
           "tutorials/voices",
           "tutorials/editing-an-episode",
-          "tutorials/finishing"
+          "tutorials/finishing",
+          "tutorials/gallery"
         ]
       },
       { "group": "Using seriesmith", "pages": ["editor", "commands"] },

@@ -1036,7 +1036,7 @@ sheet, renders the sheet itself (figures on white, panel for panel); a rewritten
 negative prompt didn't stop it. Left as is and written up in AUTHORING (one person on the
 sheet; a group on `ltx2_msr`). Untried: a weaker guide, a faces-only sheet for a group.
 
-## The gallery: every picture and take, large (2026-10-27)
+## The gallery: every picture and take, large ✅ (2026-10-27)
 
 The sidebar shows one ref's candidates or one shot's takes at a time, small. The gallery
 is one big window over all of them: a grid of every version (picks badged, not just the
@@ -1071,12 +1071,12 @@ one. Design: DESIGN.md §7, "The gallery".
       the grid: the shot's current prompt is not what an older take was rendered with. The
       pictures it was sent, each a link to that ref's pictures, "changed since" where the
       ref's sha1 isn't the one the take recorded.
-- [ ] **Regenerate.** A ref's candidate queued again with its own settings (prompt as drawn,
+- [x] **Regenerate.** A ref's candidate queued again with its own settings (prompt as drawn,
       target, model, LoRAs, steps, cfg, knobs, size) and a new seed; an edited one, the same
       edit of the same picture; nothing for what wasn't drawn. A take: the shot as it is now
       and a new seed, that take its parent (the Inspector's Generate (new seed)); a take's
       old prompt isn't remade, since the pictures it was sent may have changed since.
-- [ ] **Shared refs across the show.** A ref other episodes share (`shared_with`) shows their
+- [x] **Shared refs across the show.** A ref other episodes share (`shared_with`) shows their
       candidates after this episode's, badged with the episode, read-only (no Pick or
       Regenerate here; Download, Copy prompt, Compare with live), live where that episode's
       pick wrote the file this one reads. Asked for one ref at a time as its section comes
@@ -1084,7 +1084,7 @@ one. Design: DESIGN.md §7, "The gallery".
       40 episodes). "Unused too" (was "whole series": it adds the series config's refs this
       episode's shots don't use) brings another episode's cast in with their pictures. The
       count reads "289…" while some are still to ask for.
-- [ ] **Selecting and saving.** On hover each tile has a tick (top left) and Download
+- [x] **Selecting and saving.** On hover each tile has a tick (top left) and Download
       (bottom right). With some ticked, a click ticks, shift-click ticks a range, and the head
       has N selected · Download · Select all · Clear (Esc clears). Kept across scopes, cleared
       with the episode. Download saves one as itself (the picture whole, a take's video or,

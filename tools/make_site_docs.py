@@ -62,6 +62,8 @@ def _target(href: str, src: str) -> str:
         return href
     path, _, anchor = href.partition("#")
     full = os.path.normpath(os.path.join(os.path.dirname(src), path)).replace(os.sep, "/")
+    if full.startswith("docs/site/"):                   # the site's own files (images/)
+        return full[len("docs/site"):]
     if full in PAGE_OF:
         return "/" + PAGE_OF[full] + (f"#{anchor}" if anchor else "")
     return GITHUB + full + (f"#{anchor}" if anchor else "")

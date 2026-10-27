@@ -7,8 +7,8 @@ every button does, and what each click, double-click and right-click means in ea
 The page has the **Shots** and **Refs** tabs down the left, the **Viewer** docked in the
 middle, the **Timeline** along the bottom, and along the top **Render on**, the **Jobs**
 button (the queue), **Settings** and **Theme**. Everything else — the Script and Series
-config, Series settings, the Inspector, Recording, Models and the dialogs — opens as a
-floating window you can move, and dock beside the viewer.
+config, Series settings, the Inspector, Recording, Models, the **Gallery** and the dialogs —
+opens as a floating window you can move, and dock beside the viewer.
 
 **Inside ComfyUI** (seriesmith's node pack linked into its `custom_nodes`) the same editor
 is three panels of ComfyUI's own: **seriesmith Shots** and **seriesmith Refs** in the
@@ -146,6 +146,8 @@ through the pass it is (done of total, failed, how long a shot takes, how long i
 Beside the filter, **List / Board** (remembered in this browser): the list has a row per
 shot, its takes under it; the board shows each sequence as a grid of its shots'
 pictures (hover scrubs one, click selects, double-click plays, right-click as a row).
+**Gallery** opens every take of the episode, large ([The gallery](#the-gallery)); a
+sequence's header, double-clicked, opens it on that sequence.
 
 ### The episode's model
 
@@ -665,8 +667,10 @@ script call for is listed here.
 - A shared ref whose live file another episode picked (the series' `../refs/` layout) says
   so when it's open, and lists that episode's candidates, read-only (each episode keeps its
   own): **From ep01**, the live one first. Double-click one to see it whole.
-- **Click a ref** to expand it; **double-click the ref's row** to open its live file — a
-  character's stitched sheet, a prop, a plate — in the viewer.
+- **Click a ref** to expand it; **double-click the ref's row** (or its picture on the board)
+  to open every picture of it in the [gallery](#the-gallery), its live one large; a group's
+  header, double-clicked, opens the gallery on that group, and **Gallery** beside the
+  filters on every ref.
 - **Double-click a candidate** (one of the four view images) and it opens against the live
   one, for comparison.
 - **Click a candidate** to see what made it: its model, settings and prompt. **show all**
@@ -967,6 +971,65 @@ float it, or dock another window beside it.
 controls with it; `F` or `Esc` brings it back. The sidebar's right edge and the timeline's
 top edge drag to resize the panes (double-click one to put it back); the sizes are kept
 in this browser.
+
+## The gallery
+
+Every picture of the episode's refs, or every take of its shots, large, in one window: where
+the sidebar shows one ref or one shot at a time, small, the gallery shows them all, every
+version with the one in use badged, and steps through them with the arrow keys.
+
+![The gallery: the Dean episode's characters and places in Flow](site/images/gallery.jpg)
+
+**Opening it.** In Refs: double-click a ref (on its live picture), a group's header (on
+that group), or **Gallery** (every ref). In Shots: double-click a sequence's header (on that
+sequence), or **Gallery** (every take). Inside, **Refs / Shots** switches between them, and
+the episode list switches episode with it open.
+
+**The grid.** In Refs, chips for the groups (**Everything**, Characters, Props & vehicles,
+Locations, Shot keyframes) and **live only** (each ref's live picture); in Shots, a list
+(**Every sequence**, **In the cut**, then each sequence) and **cut only**. Each ref or shot
+is a section, its versions newest first, the one in use badged **live** or **cut**, a take
+with a fresh upscale **2x**; its name, clicked, narrows to it (the chip with **×** widens it
+again). **Sections** or **Flow** (one run of rows, each one's pictures together, its name on
+the first) and **S / M / L**, both remembered; every picture at its own shape. Hover a picture
+for its view and take, a take's for what happens in the shot, and a take scrubs its frames
+under the pointer. Pictures load as they come into view.
+
+**A picture or a take, open.** A click opens it over the grid; **← →** step through the
+whole grid in order, across refs and shots (**Home / End** to the ends), and **Esc** goes
+back to the grid where you were. A take plays: **space**, **,** and **.** a frame, the
+transport under it, **2x** for its upscale (the same switch as the viewer's and Play all's).
+Beside it, what it was made with:
+
+- a picture: its model, file, seed, settings, when it was made, the prompt it was drawn with
+  and what it was **drawn** from (each picture named a link to that ref's pictures);
+- a take: the prompt **it** rendered with (its own record, read when it opens, not the
+  shot's prompt now), its model, LoRAs, seed, steps, size and length, its upscale, and
+  **the pictures it was sent**, each a link to that ref's pictures, **changed since** where
+  that picture has been redrawn since the take.
+
+Its buttons: **Pick** / **Use** (make it the live picture, or the cut's take), **Regenerate**,
+**Compare with live** / **Compare with cut** (side by side in the gallery, in step; **C**;
+it stays on as you arrow through), **Download**, **Copy prompt**.
+
+**Regenerate** makes a new one like it with a new seed: a picture with its own prompt, model,
+LoRAs, steps, cfg, sampler settings and size (an edited one, the same edit of the same
+picture); a take, the shot as it is now, the take its parent (as the Inspector's **Generate
+(new seed)**). A picture nothing drew (imported, a frame, a 360, a tour's hold) has none.
+
+**Saving.** Each picture has a tick and a download on hover. Tick some (**shift**-click ticks
+a range; with some ticked a click ticks), and the header says how many, with **Download**,
+**Select all** and **Clear** (**Esc**). One saves as itself; more save as one zip,
+`<episode>-gallery-<n>.zip`, made by the server (pictures whole, a take's video, or its
+upscale under 2x). The selection is kept as you change what's shown, and cleared with the
+episode.
+
+**Other episodes' pictures.** A ref other episodes share (the series' `../refs/` layout)
+shows their pictures after this episode's, badged with the episode, read-only here (each
+episode keeps its own: no Pick or Regenerate, but Download, Copy prompt and Compare). They're
+read as each ref comes into view, so the count reads **"29…"** while some are still to come.
+**unused too** adds the refs no shot of this episode uses: another episode's cast and places,
+with their pictures.
 
 ## The timeline
 
