@@ -4274,6 +4274,22 @@ def post_source_check(ctx: Context, body):
 
 
 @handler
+def post_check(ctx: Context, body):
+    """A series config and a script that aren't on disk, checked together
+    (source.check_pair): `{series, script?, parent?}`. `parent`, a folder
+    inside a root, puts the show's own targets there in force."""
+    body = body_dict(body)
+    series, script = body.get("series"), body.get("script")
+    if not isinstance(series, str):
+        raise ApiError(400, "series must be the series config's text")
+    if script is not None and not isinstance(script, str):
+        raise ApiError(400, "script must be the script's text")
+    if body.get("parent"):
+        TG.add_thread_root(check_folder(ctx, body.get("parent"), "parent"))
+    return 200, P.H.check_pair(series, script)
+
+
+@handler
 def post_shot_preview(ctx: Context, body):
     """The shot form's preview: `{ep, pass, text, shot}` -- the script with the
     shot as edited -- compiled in memory (source.preview_shot)."""
@@ -4663,6 +4679,7 @@ ROUTES = [
     ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),
     ("GET", "/seriesmith/source", get_source, "query"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
+    ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),
     ("POST", "/seriesmith/shot/preview", post_shot_preview, "body"),
     ("GET", "/seriesmith/promote", get_promote, "query"),

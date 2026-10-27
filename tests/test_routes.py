@@ -187,6 +187,12 @@ class RoutesTest(unittest.TestCase):
                                                                              "size: huge")})
             chk = await r.json()
             self.assertEqual((chk["ok"], chk["errors"][0]["line"]), (False, 12))
+            s = await (await c.get("/seriesmith/source",
+                                   params={"ep": self.ep, "file": "series"})).json()
+            r = await c.post("/seriesmith/check", json={"series": s["text"],
+                                                        "script": src["text"]})
+            self.assertEqual(r.status, 200, await r.text())
+            self.assertEqual((await r.json())["shots"][0]["id"], "sh010")
             r = await c.put("/seriesmith/source", json={"ep": self.ep, "file": "script",
                                                     "text": "x", "base_hash": "stale",
                                                     "rebuild": False})

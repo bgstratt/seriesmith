@@ -6,6 +6,7 @@ series config (series.json), as the editor reads, checks and saves them
 
     read_source(ep, "script" | "series")      -> Source (text, hash, path, ...)
     check_text(ep, "script" | "series", text) -> {"ok", "errors", "warnings", "shots"}
+    check_pair(series_text, script_text)      -> the same, with neither file on disk
     save_source(ep, file, text, base_hash)    -> {"hash", "check"}  (Conflict on a stale hash)
 
 The check never writes: it parses the given text with the file on disk beside
@@ -281,34 +282,43 @@ def check_text(ep: str, file: str, text: str) -> dict:
     beside the other file on disk, writing nothing. A script is parsed against
     the series config and compiled; a series config must be JSON and load,
     then the script on disk is checked with it."""
-    from seriesmith.core.series_config import series_config_from
-    from seriesmith.core.story import ScriptError, parse_story
-    from seriesmith import build as B
-    from seriesmith import targets as TG
-
     if file not in FILES:
         raise SourceError(400, f"file must be 'script' or 'series', not {file!r}")
     text = normalize(text)
-    errors: list[dict] = []
-    warnings: list[dict] = []
     if file == "script":
-        script_text = text
         try:
             series_text = read_source(ep, "series").text
         except SourceError as e:
             return {"ok": False, "errors": [{"file": "series", "line": None,
                                              "message": str(e)}],
                     "warnings": [], "shots": []}
-    else:
-        series_text = text
-        try:
-            script_text = read_source(ep, "script").text
-        except SourceError:
-            script_text = None
+        return check_pair(series_text, text)
+    try:
+        script_text = read_source(ep, "script").text
+    except SourceError:
+        script_text = None
+    return dict(check_pair(text, script_text), shots=[])
+
+
+def check_pair(series_text: str, script_text: str | None = None) -> dict:
+    """POST /seriesmith/check: a series config's text and, optionally, a
+    script's, checked together with nothing on disk (a show that doesn't exist
+    yet). The same messages as check_text, each naming the file it is about;
+    `shots` are the script's (empty without one)."""
+    from seriesmith.core.series_config import series_config_from
+    from seriesmith.core.story import ScriptError, parse_story
+    from seriesmith import build as B
+    from seriesmith import targets as TG
+
+    series_text = normalize(series_text)
+    if script_text is not None:
+        script_text = normalize(script_text)
+    errors: list[dict] = []
+    warnings: list[dict] = []
 
     def result(shots=()):
         return {"ok": not errors, "errors": errors, "warnings": warnings,
-                "shots": list(shots) if file == "script" else []}
+                "shots": list(shots)}
 
     # 1. the series config: JSON, then the loader
     try:

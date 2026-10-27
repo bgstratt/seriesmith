@@ -1098,6 +1098,35 @@ one. Design: DESIGN.md §7, "The gallery".
       under 2x, its upscale) and more as one zip (`POST /seriesmith/download`: stored, not
       compressed, kept an hour; `<episode>-gallery-<n>.zip`).
 
+## An MCP server: the editor's API for an LLM (designing; 2026-10-27)
+
+Writing the story stays outside seriesmith: the user's own LLM (Claude Code or Cowork,
+Claude Desktop, Cursor, a local model in an MCP client) works out the story with them,
+and the script-writing skill turns it into `series.json` and `epNN.md`. What it can't do
+today is hand them over: the user imports them (Import series…) or pastes them into the
+wizard. An MCP server lets the LLM do that step, and then drive the rest as the editor
+does: refs made or imported and picked, shots rendered, takes picked, the episode
+assembled. No LLM and no key in seriesmith: the client brings the model.
+
+- [x] **`POST /seriesmith/check`** `{series, script?, parent?}` (2026-10-27): a pair that
+      isn't on disk, checked together (`source.check_pair`, which `check_text` now calls
+      with the other file read from disk). An LLM drafting a new show checks it before
+      anything is written, instead of creating an episode to read its `check`.
+- [ ] **`seriesmith mcp [--url …] [--read-only]`**: stdio, a thin client over HTTP to a
+      running `seriesmith serve` or ComfyUI-hosted seriesmith, so every write goes through
+      the routes (their checks, `seriesmith.episode` events for an open editor, one queue).
+      The `mcp` SDK in an optional extra (`seriesmith[mcp]`), seriesmith's `.venv` only,
+      never `requirements.txt`.
+- [ ] **Tools**, each a route: list episodes; read, check and save the two files
+      (`source`, `source/check`, `check`, `PUT source` with its `base_hash`); preview a shot;
+      new episode; import; build; the targets ready here; episode status (trimmed to shots,
+      takes and what's stale); issues as markdown; refs (list, generate missing, import,
+      pick); render, jobs (and waiting on one by polling); assemble. Tools that spend GPU
+      time or Cloud money say so in their descriptions; `--read-only` leaves them out.
+- [ ] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
+      client without the skill still writes scripts that check.
+- [ ] Docs: COMMANDS, a setup page (the client's config for Claude Code and Desktop).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

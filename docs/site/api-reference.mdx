@@ -58,7 +58,7 @@ section and search for the path for its later additions.
 | `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
 | `POST /seriesmith/discard`, `POST /seriesmith/refs/discard`, `POST /seriesmith/refs/generate-missing` | Phase 8.6 |
 | `POST /seriesmith/refs/match` | Supplying references you already have (P8) |
-| `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
+| `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
 | `GET /seriesmith/align/ready`, `POST /seriesmith/track`, `POST /seriesmith/align`, `GET /seriesmith/align/job`, `POST /seriesmith/refs/voice-from-take` | Phase 9c |
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
@@ -2338,6 +2338,14 @@ built" with [differs]/[added]/[settled].
   own (valid JSON, loads) and then with the script on disk. Returns `{"ok", "errors":   [{"file", "line", "col"?, "message"}], "warnings": [{...same}], "shots": [...]}` — the
   same messages `seriesmith check` prints, with 1-based line numbers into the given text. A JSON
   syntax error carries its line/col.
+- **`POST /seriesmith/check`** `{series, script?, parent?}` (2026-10-27): a series config
+  and a script that **aren't on disk**, checked together: a show an LLM is drafting, before
+  `POST /seriesmith/episode/new` or `POST /seriesmith/import` writes it. The same answer as
+  `source/check` gives for the same two texts, every message naming its `file`; `shots` are
+  the script's, empty without one (a series config alone is checked on its own). `parent`
+  (optional, a folder inside a root, else 403) puts the show's own targets there in force
+  (`<show>/targets/`), as an episode's do. 400 when `series` isn't text, or `script` is
+  given and isn't. Nothing is written.
 - **`POST /seriesmith/shot/preview`** `{ep, pass, text, shot}`: the shot form's preview.
   `text` (the script with one shot as edited) is parsed and compiled for `pass` in memory;
   **nothing is written**. Returns `{"ok": true, "shot", "target", "target_label", "prompt"`
