@@ -1289,6 +1289,11 @@ render command and the review cut treat the episode as one. What changes for an 
   that element off the sheet. To turn the sheet off for a shot, sequence or profile, write
   `lora: none` (`"loras": ["none"]` in a profile) — the opposite of `ltx2_ingredients`,
   where the IC-LoRA is put back because the target is pointless without it.
+- **One person on the sheet works; more is a gamble.** One character (with a prop and the
+  plate) holds well. With two or more people the panels get small, and LTX can render the
+  sheet itself — the figures standing on white, panel for panel, the whole clip — whatever
+  the prompt says (rewording it and a negative prompt were both tried). For a group shot,
+  use `target: ltx2_msr` (below), or `lora: none` to render it from words alone.
   A first- and/or last-frame keyframe (`refs/shots/<shot>/first.png`, `last.png`, imported
   in the editor's Refs tab) pins the picture when you have one; without keyframes and
   without a sheet the shot is text-to-video.
@@ -1379,6 +1384,11 @@ or things and the place as pictures. Everything above about LTX-2 holds (generat
   person in it `Image N`.
 - **Write the action plainly.** MSR follows the words closely: "the women behind him" in a
   close-up can put them in it. Say who is in frame, and keep anyone else out of the sentence.
+- **Better with groups than the sheet, not certain.** Three people in a 4–5 s shot held on
+  every seed tried; three in a 1–2 s shot usually lost one or two of them. A short group
+  shot wants more time, or a few rerolls. One person holds well at any length.
+- **Speech varies by seed**, as on every LTX target: a take can come out garbled or silent
+  where another seed says the line cleanly. Reroll it.
 - **One shot at a time.** A `continuous: multishot` group is refused on it: tried, LTX cut
   on its own but put people in shots they weren't in.
 - **Two stages, always**: the shot at half size, then doubled and refined, both under the
