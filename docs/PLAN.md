@@ -1140,6 +1140,11 @@ self-hosted endpoint. The same data-driven model, a different transport:
 
 ## Later
 
+- The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next
+  zip is made, so a big one can sit in `downloads/` until then. Fine on one machine; for a
+  hosted seriesmith (or a laptop on Tailscale over a slow link), sweep at start too and keep
+  each until it's been fetched rather than by the clock. A zip being streamed is never cut
+  short meanwhile (Windows refuses the delete; elsewhere the open file streams on).
 - Publishing: PyPI for the app (the Manager listing is its own step, above).
 - RTX Video Super Resolution (`rtx_vsr`, among the pixel models; 2026-10-14). Measured
   2026-10-15 on the RTX 5090, 2x of two 5 s takes (Porchlights ep02 sh2440, H3 1344x768;
