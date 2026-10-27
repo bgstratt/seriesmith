@@ -129,3 +129,33 @@ describe("gallery shot sections", () => {
     expect(takeAspect({}, 2.35)).toBe(2.35);
   });
 });
+
+describe("gallery: a shared ref's other episodes", () => {
+  const ada = ref("subject:ada", "character", {
+    shared_with: ["ep01", "ep03"], live_owner: "ep01",
+    views: [{ view: "04_face", picked: 1, takes: [take(1)] }],
+  });
+  const other = (episode: string, n: number, picked: boolean, over: Partial<RefTake> = {}) =>
+    ({ ...take(n, over), view: "04_face", episode, picked });
+
+  it("leaves the section to ask until they're read", () => {
+    const [s] = gallerySections([ada], ALL, "proxy");
+    expect([s.unread, s.items.length]).toEqual([true, 1]);
+  });
+
+  it("puts them after this episode's, by episode; live only where they wrote the file read here", () => {
+    const shared = new Map([["subject:ada", [other("ep03", 2, true), other("ep01", 1, true), other("ep01", 2, false)]]]);
+    const [s] = gallerySections([ada], ALL, "proxy", shared);
+    expect(s.unread).toBe(false);
+    expect(s.items.map((i) => [i.episode ?? "here", i.take.take, i.live])).toEqual([
+      ["here", 1, true], ["ep01", 2, false], ["ep01", 1, true], ["ep03", 2, false],
+    ]);
+    expect(new Set(s.items.map((i) => i.key)).size).toBe(4);
+  });
+
+  it("a shared ref nobody here uses still asks, then goes when there's nothing", () => {
+    const quiet = ref("subject:bo", "character", { used_by: { proxy: [] }, shared_with: ["ep01"], views: [] });
+    expect(gallerySections([quiet], { ...ALL, series: true }, "proxy").map((s) => s.unread)).toEqual([true]);
+    expect(gallerySections([quiet], { ...ALL, series: true }, "proxy", new Map([["subject:bo", []]]))).toEqual([]);
+  });
+});

@@ -1071,8 +1071,18 @@ one. Design: DESIGN.md §7, "The gallery".
       the grid: the shot's current prompt is not what an older take was rendered with. The
       pictures it was sent, each a link to that ref's pictures, "changed since" where the
       ref's sha1 isn't the one the take recorded.
-- [ ] **Recreate.** A ref's candidate queued again with its own settings and a new seed; a
-      take, the Redo dialog filled from its record.
+- [ ] **Regenerate.** A ref's candidate queued again with its own settings (prompt as drawn,
+      target, model, LoRAs, steps, cfg, knobs, size) and a new seed; an edited one, the same
+      edit of the same picture; nothing for what wasn't drawn. A take: the shot as it is now
+      and a new seed, that take its parent (the Inspector's Generate (new seed)); a take's
+      old prompt isn't remade, since the pictures it was sent may have changed since.
+- [ ] **Shared refs across the show.** A ref other episodes share (`shared_with`) shows their
+      candidates after this episode's, badged with the episode, read-only (no Pick or
+      Regenerate here; Download, Copy prompt, Compare with live), live where that episode's
+      pick wrote the file this one reads. Asked for one ref at a time as its section comes
+      near (`GET /seriesmith/refs/shared-takes`, two at once, ~50-200 ms each on Porchlights'
+      40 episodes). "Unused too" (was "whole series": it adds the series config's refs this
+      episode's shots don't use) brings another episode's cast in with their pictures.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

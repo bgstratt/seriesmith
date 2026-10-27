@@ -7,21 +7,24 @@
 // Gallery).
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { closeGallery, copyText, pickRef, pickTake, toggleUpscaled, updateGallery } from "../actions";
+import {
+  baseRender, closeGallery, copyText, generateRef, pickRef, pickTake, queueRender, toggleUpscaled, updateGallery,
+} from "../actions";
 import { errText } from "../api";
 import { isTyping } from "../cutActions";
 import { api } from "../host";
 import {
-  GALLERY_GROUPS, gallerySections, itemAspect, sequencesOf, shotSections, takeAspect,
-  type GalleryItem, type ShotItem,
+  GALLERY_GROUPS, gallerySections, isShared, itemAspect, sequencesOf, shotSections, takeAspect,
+  type GalleryItem, type SharedTakes, type ShotItem,
 } from "../lib/gallery";
 import { fmtWhen, shortName, tn } from "../lib/format";
-import { keyframeSource } from "../lib/keyframes";
+import { isKeyframeRef, keyframeSource } from "../lib/keyframes";
+import { regenerateRequest } from "../lib/refSettings";
 import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../lib/refs";
 import { stripStyle } from "../lib/strip";
 import { targetLabel } from "../lib/targets";
 import { useApp, type GalleryState } from "../store";
-import type { Pass, TakeInfo, TakeSummary } from "../types";
+import type { OwnerTake, Pass, Ref, TakeInfo, TakeSummary } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { aspectOf, useStatus } from "./hooks";
 import { EpisodeSelect } from "./ShotsTab";
@@ -69,6 +72,44 @@ function useNear<T extends Element>(): [React.RefObject<T>, boolean] {
   return [ref, near];
 }
 
+/**
+ * The other episodes' candidates of shared refs (GET /refs/shared-takes),
+ * read one ref at a time as its section comes near, two requests at once,
+ * each once while the gallery is open. A failed one reads as none.
+ */
+function useSharedTakes(ep: string | null): { got: SharedTakes; load: (r: Ref) => void } {
+  const [got, setGot] = useState<Map<string, OwnerTake[]>>(() => new Map());
+  const asked = useRef(new Set<string>());
+  const waiting = useRef<Ref[]>([]);
+  const running = useRef(0);
+  useEffect(() => {
+    setGot(new Map());
+    asked.current = new Set();
+    waiting.current = [];
+  }, [ep]);
+  const load = useMemo(() => {
+    const next = () => {
+      while (ep && running.current < 2 && waiting.current.length) {
+        const r = waiting.current.shift()!;
+        running.current++;
+        const done = (takes: OwnerTake[]) => {
+          running.current--;
+          setGot((m) => new Map(m).set(r.id, takes));
+          next();
+        };
+        api().refsSharedTakes(ep, r.id, r.shared_with ?? []).then((x) => done(x.takes), () => done([]));
+      }
+    };
+    return (r: Ref) => {
+      if (asked.current.has(r.id)) return;
+      asked.current.add(r.id);
+      waiting.current.push(r);
+      next();
+    };
+  }, [ep]);
+  return useMemo(() => ({ got, load }), [got, load]);
+}
+
 function defaultGalleryRect(): Rect {
   const W = window.innerWidth || 1280;
   const H = window.innerHeight || 800;
@@ -104,6 +145,8 @@ interface GridSection {
   group?: string;
   note: string;
   narrow: () => void;
+  /** more to ask for when it comes near (a shared ref's other episodes) */
+  load?: () => void;
   items: GridItem[];
 }
 
@@ -114,7 +157,8 @@ interface GridItem {
   aspect: number;
   label: string;
   title: string;
-  /** "live" or "cut" (green, top right), and "2x" for a take's fresh upscale */
+  /** "live" or "cut" (green, top right); "2x" for a take's fresh upscale, an
+   * episode's name for another episode's candidate (dark) */
   badges: string[];
   /** a take's strip, scrubbed on hover */
   strip?: string | null;
@@ -145,11 +189,12 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   const [compare, setCompare] = useState(false);
   const shots = g.kind === "shots";
 
+  const shared = useSharedTakes(ep);
   const refSecs = useMemo(
-    () => (shots ? [] : gallerySections(refs ?? [], g, pass)),
+    () => (shots ? [] : gallerySections(refs ?? [], g, pass, shared.got)),
     // the scope's fields, not `g`: moving through it changes `g` too
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shots, refs, g.group, g.ref, g.picksOnly, g.series, pass],
+    [shots, refs, g.group, g.ref, g.picksOnly, g.series, pass, shared.got],
   );
   const shotSecs = useMemo(
     () => (shots ? shotSections(st, g, pass) : []),
@@ -171,14 +216,19 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
       }))
     : refSecs.map((s) => ({
         id: s.ref.id, name: s.ref.name,
-        note: counts(s.items.length, s.queued, s.failed, "picture"),
+        note: [
+          counts(s.items.length, s.queued, s.failed, "picture"),
+          isShared(s.ref) ? `shared with ${s.ref.shared_with!.length} other episode${s.ref.shared_with!.length === 1 ? "" : "s"}` : "",
+        ].filter(Boolean).join(" · "),
         narrow: () => updateGallery({ ref: s.ref.id, open: null }),
+        // a shared ref's other episodes, asked for as it comes near
+        ...(s.unread ? { load: () => shared.load(s.ref) } : {}),
         items: s.items.map((it) => ({
           key: it.key, thumb: it.file, aspect: itemAspect(it), label: refLabel(it),
-          title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
-          badges: it.live ? ["live"] : [],
+          title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.episode ? ` · made in ${it.episode}` : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
+          badges: [...(it.live ? ["live"] : []), ...(it.episode ? [it.episode] : [])],
         })),
-      })), [shots, shotSecs, refSecs, epAspect]);
+      })), [shots, shotSecs, refSecs, epAspect, shared]);
   const keys = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.key)), [sections]);
   const idx = g.open ? keys.indexOf(g.open) : -1;
   // a picture discarded (or out of "live only") while open: back to the grid
@@ -302,8 +352,8 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
       </label>
       {!shots && !g.ref && (
-        <label className="h3-row h3-small" style={{ gap: 4 }} title="Every ref in the series config, not just those this episode uses">
-          <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> whole series
+        <label className="h3-row h3-small" style={{ gap: 4 }} title="Also the refs in the series config that no shot of this episode uses (another episode's cast and places)">
+          <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
         </label>
       )}
       <span className="h3-muted h3-small">{keys.length} {shots ? "take" : "picture"}{keys.length === 1 ? "" : "s"}</span>
@@ -348,7 +398,12 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
     <div className="h3-scroll h3-gal-grid" ref={setRoot}>
       <NearRoot.Provider value={root}>
         {layout === "flow" ? (
-          <div className="h3-gal-tiles">{sections.flatMap((s) => s.items.map((it, i) => tile(it, i === 0 ? s.name : null)))}</div>
+          <div className="h3-gal-tiles">
+            {sections.flatMap((s) => [
+              ...s.items.map((it, i) => tile(it, i === 0 ? s.name : null)),
+              ...(s.load ? [<Asking key={`${s.id}|asking`} row={row} load={s.load} name={s.items.length ? null : s.name} />] : []),
+            ])}
+          </div>
         ) : sections.map((s, i) => (
           <section key={s.id}>
             {s.group != null && s.group !== sections[i - 1]?.group && <h3 className="h3-gal-group">{s.group}</h3>}
@@ -358,10 +413,29 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
               </button>
               <span className="h3-muted h3-small h3-ell">{s.note}</span>
             </div>
-            <div className="h3-gal-tiles">{s.items.map((it) => tile(it, null))}</div>
+            <div className="h3-gal-tiles">
+              {s.items.map((it) => tile(it, null))}
+              {s.load && <Asking row={row} load={s.load} name={null} />}
+            </div>
           </section>
         ))}
       </NearRoot.Provider>
+    </div>
+  );
+}
+
+/** Where a shared ref's other episodes' pictures will go: asks for them once
+ * it comes within a screen of the view. */
+function Asking({ row, load, name }: { row: number; load: () => void; name: string | null }) {
+  const [ref, near] = useNear<HTMLDivElement>();
+  useEffect(() => {
+    if (near) load();
+  }, [near, load]);
+  return (
+    <div ref={ref} className="h3-gal-tile h3-gal-asking" style={{ flex: `1 1 ${row}px`, aspectRatio: "1", maxWidth: row }}
+      title="Its pictures in the other episodes that share it">
+      {name && <span className="h3-gal-name">{name}</span>}
+      <span className="h3-muted h3-small"><i className="pi pi-spin pi-spinner" /> other episodes…</span>
     </div>
   );
 }
@@ -377,7 +451,7 @@ function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boole
   const w = Math.round(it.aspect * row * (window.devicePixelRatio || 1));
   const scrubbing: CSSProperties | null = cell != null && it.strip ? stripStyle(api().fileUrl(ep, it.strip), cell) : null;
   return (
-    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some((b) => b !== "2x") ? " h3-live" : ""}`}
+    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some(isInUse) ? " h3-live" : ""}`}
       style={{ flex: `${it.aspect} 1 ${Math.round(it.aspect * row)}px`, aspectRatio: String(it.aspect) }}
       title={it.title}
       onClick={() => updateGallery({ open: it.key, at: it.key })}
@@ -387,13 +461,15 @@ function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boole
       {name && <span className="h3-gal-name">{name}</span>}
       {it.badges.length > 0 && (
         <span className="h3-gal-badges">
-          {it.badges.map((b) => <span key={b} className={b === "2x" ? "h3-gal-up" : "h3-gal-in"}>{b}</span>)}
+          {it.badges.map((b) => <span key={b} className={isInUse(b) ? "h3-gal-in" : "h3-gal-up"}>{b}</span>)}
         </span>
       )}
       <span className="h3-thumb-label">{it.label}</span>
     </button>
   );
 }
+
+const isInUse = (badge: string) => badge === "live" || badge === "cut";
 
 /** A take's upscale made from it as it is now: what the 2x switch plays. */
 function freshUp(t: TakeSummary): string | null {
@@ -442,15 +518,20 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ep, around.join("|")]);
   const busy = useApp((s) => !!s.busy[`refpick|${r.id}`]);
+  const genBusy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const url = api().refFileUrl(ep, item.file);
-  const pickable = view !== PANO_VIEW && view !== TOUR_VIEW;
+  // another episode's candidate is read-only here: each episode keeps its own
+  const mine = !item.episode;
+  const pickable = mine && view !== PANO_VIEW && view !== TOUR_VIEW;
+  const regen = mine ? regenerateRequest(t, r.id, view, isKeyframeRef(r)) : null;
   const picked = pickable ? pickedOf(r, view) : null;
   const liveTake = picked != null && !item.live ? takesOf(r, view).find((x) => x.take === picked && x.image) : undefined;
   const side = compare && !!liveTake;
   const refs = t.references ?? [];
   return (
     <div className="h3-gal-lightbox">
-      <ViewerBar name={r.name} label={refLabel(item)} badge={item.live ? "live" : null} n={n} of={of} />
+      <ViewerBar name={r.name} label={[refLabel(item), item.episode ? `made in ${item.episode}` : ""].filter(Boolean).join(" · ")}
+        badge={item.live ? "live" : null} n={n} of={of} />
       <div className="h3-gal-view">
         <div className={`h3-gal-stage${side ? " h3-gal-side" : ""}`}>
           <div className="h3-gal-pane">
@@ -472,6 +553,13 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
                 title={item.live ? "Already the live file" : `Make ${tn(t.take)} the picture renders use (${r.path})`}
                 onClick={() => void pickRef(r.id, view, t.take)}>
                 <i className="pi pi-check" /> {item.live ? "Live" : "Pick"}
+              </button>
+            )}
+            {regen && (
+              <button className="h3-btn" disabled={genBusy}
+                title={`A new candidate like ${tn(t.take)}: ${t.source === "edited" ? "the same edit of the same picture" : "its prompt, model and settings"}, a new seed`}
+                onClick={() => void generateRef(regen)}>
+                <i className={genBusy ? "pi pi-spin pi-spinner" : "pi pi-refresh"} /> Regenerate
               </button>
             )}
             {liveTake && (
@@ -535,6 +623,9 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
               </>
             )}
             {t.finished && <><span>made</span><span>{fmtWhen(t.finished)}</span></>}
+            {item.episode && (
+              <><span>episode</span><span>{item.episode}{(t as OwnerTake).picked ? ` (its pick${item.live ? ", the file this episode reads" : ""})` : ""}</span></>
+            )}
             {t.note && <><span>note</span><span>{t.note}</span></>}
           </div>
           {t.prompt && <div className="h3-gal-prompt h3-small">{t.prompt}</div>}
@@ -572,6 +663,7 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
 }) {
   const { shot: s, take: t } = item;
   const { info, err } = useTakeInfo(ep, pass, item);
+  const renderBusy = useApp((x) => !!x.busy[`render|${pass}|${s.shot}`]);
   const refs = useApp((x) => x.refs[ep]);
   const { list: targets } = useTargets();
   const [aEl, setAEl] = useState<HTMLVideoElement | null>(null);
@@ -619,6 +711,11 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
             <button className="h3-btn h3-primary" disabled={item.cut} title={item.cut ? "Already in the cut" : `Use ${tn(t.take)} in the cut`}
               onClick={() => void pickTake(s.shot, t.take)}>
               <i className="pi pi-check" /> {item.cut ? "In the cut" : "Use"}
+            </button>
+            <button className="h3-btn" disabled={renderBusy}
+              title={`A new take of ${s.shot}: the shot as it is now (its settings, refs and prompt), a new seed; ${tn(t.take)} its parent`}
+              onClick={() => void queueRender({ ...baseRender(ep, pass, [s.shot]), redo: true, seed_mode: "new", parent_take: t.take })}>
+              <i className={renderBusy ? "pi pi-spin pi-spinner" : "pi pi-refresh"} /> Regenerate
             </button>
             {cutTake && (
               <button className={`h3-btn${compare ? " h3-on" : ""}`} title={`${tn(t.take)} beside the cut's ${tn(cutTake.take)}, in step (C); it stays on as you arrow through`}

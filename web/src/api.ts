@@ -130,6 +130,8 @@ export interface Api {
   refsVideos(ep: string): Promise<{ videos: KeptVideo[] }>;
   /** A shared ref another episode picked: that episode's candidates for it, read-only. */
   refsOwnerTakes(ep: string, ref: string): Promise<{ owner: string | null; takes: OwnerTake[] }>;
+  /** A shared ref's candidates in the episodes named (its `shared_with`): the gallery. */
+  refsSharedTakes(ep: string, ref: string, from: string[]): Promise<{ takes: OwnerTake[] }>;
   /** The Seedance drafts the proxy cut uses: what finals can be made from. */
   drafts(ep: string): Promise<{ drafts: DraftItem[] }>;
   /** Simple mode: the Clips project (made the first time). */
@@ -525,6 +527,7 @@ export function createHttpApi(t: Transport): Api {
     },
     refsVideos: (ep) => get(`/seriesmith/refs/videos?${qs({ ep })}`),
     refsOwnerTakes: (ep, ref) => get(`/seriesmith/refs/owner-takes?${qs({ ep, ref })}`),
+    refsSharedTakes: (ep, ref, from) => get(`/seriesmith/refs/shared-takes?${qs({ ep, ref, from: from.join(",") })}`),
     drafts: (ep) => get(`/seriesmith/drafts?${qs({ ep })}`),
     clipsEnsure: (root) => call("POST", "/seriesmith/clips/ensure", root ? { root } : {}),
     clipsNew: (title, root) => call("POST", "/seriesmith/clips/new", root ? { title, root } : { title }),

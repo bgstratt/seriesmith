@@ -3481,6 +3481,20 @@ def get_refs_owner_takes(ctx: Context, query: dict):
 
 
 @handler
+def get_refs_shared_takes(ctx: Context, query: dict):
+    """A shared ref's candidates in the other episodes that share it (the
+    gallery): `from` names them, comma-separated, as the listing's
+    `shared_with` does. Asked for one ref at a time, as its pictures come into
+    view. {"takes": [...]}, each with its `episode` and `picked` (that
+    episode's pick), paths relative to this episode."""
+    ep = check_ep(ctx, query.get("ep"))
+    s = _series(ep)
+    ref = R.find_ref(s, query.get("ref"))
+    names = [n for n in (query.get("from") or "").split(",") if n]
+    return 200, seeds_out({"takes": R.shared_takes(ep, ref, names)})
+
+
+@handler
 def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
     episode.refs_target / episode.keyframe_target / episode.voice_target):
@@ -4544,6 +4558,7 @@ ROUTES = [
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),
     ("GET", "/seriesmith/refs", get_refs, "query"),
+    ("GET", "/seriesmith/refs/shared-takes", get_refs_shared_takes, "query"),
     ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),

@@ -43,7 +43,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -2232,6 +2232,12 @@ plus `episode` and `picked` (its pick), the image paths relative to this episode
 is what shows which candidate this episode is reading. The editor asks when the ref's row
 opens, so the listing never reads every sibling's candidates; `takes` is `[]` when this
 episode owns the file, or nothing does.
+
+**`GET /seriesmith/refs/shared-takes?ep=…&ref=…&from=ep01,ep03`** (the gallery, 2026-10-27) is
+the same for every episode named in `from` (comma-separated, as `shared_with` lists them):
+`{"takes"}`, each with its `episode` and `picked`. This episode, a name given twice and one that
+isn't a sibling add nothing. The gallery asks for one ref at a time as its pictures come into
+view (~50-200 ms on a show of 40 episodes), never for the whole listing.
 
 A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
 one whole picture of them), so a list shows the whole picture rather than a face cropped

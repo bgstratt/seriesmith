@@ -4117,8 +4117,11 @@ def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
     with a picture or a sample: what wrote the shared live file `ep` reads.
     Each says its `episode`, and `picked` whether it is that episode's pick."""
     sib = next((d for d in sibling_episodes(ep) if ep_name(d) == owner), None)
-    if sib is None:
-        return []
+    return _takes_in(ep, ref, sib, owner) if sib else []
+
+
+def _takes_in(ep: str, ref: Ref, sib: str, owner: str) -> list[dict]:
+    """owner_takes, the sibling's folder found already."""
     other = dataclasses.replace(ref, home=sib)
     picks = read_picks(sib)
     out = []
@@ -4128,6 +4131,19 @@ def owner_takes(ep: str, ref: Ref, owner: str) -> list[dict]:
             j = take_json(ep, other, t)
             if j["image"] or j["audio"]:
                 out.append(dict(j, episode=owner, picked=t.take == live))
+    return out
+
+
+def shared_takes(ep: str, ref: Ref, episodes: list[str]) -> list[dict]:
+    """Every candidate the episodes named (siblings of `ep` that share `ref`'s
+    live file, its listing's `shared_with`) have for it, as owner_takes gives
+    each: the gallery's view of a shared ref across the show. A name that
+    isn't a sibling gives nothing."""
+    sibs = {ep_name(d): d for d in sibling_episodes(ep)}     # once, not once a name
+    out = []
+    for name in dict.fromkeys(episodes):
+        if name != ep_name(ep) and name in sibs:
+            out.extend(_takes_in(ep, ref, sibs[name], name))
     return out
 
 

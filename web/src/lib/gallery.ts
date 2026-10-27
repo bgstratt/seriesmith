@@ -2,7 +2,7 @@
 // in one grid (a section per ref or shot), and the order its viewer steps
 // through with the arrow keys.
 
-import type { EpisodeStatus, Pass, Ref, RefTake, ShotStatus, TakeSummary } from "../types";
+import type { EpisodeStatus, OwnerTake, Pass, Ref, RefTake, ShotStatus, TakeSummary } from "../types";
 import { PANO_VIEW, REF_GROUPS, SHEET_VIEW, TOUR_VIEW, VIEWS, groupOf, hasViews, passesFilter, pickedOf, takesOf, type RefGroupId } from "./refs";
 
 /** The Refs tab's groups that have pictures (a voice has none). */
@@ -23,7 +23,7 @@ export interface GalleryScope {
   shot: string | null;
   /** only what's in use: a ref's live picture, a shot's cut take */
   picksOnly: boolean;
-  /** refs: every ref of the series, not just those this episode uses */
+  /** refs: the series config's refs this episode's shots don't use, too */
   series: boolean;
 }
 
@@ -34,7 +34,10 @@ export interface GalleryItem {
   view: string | null;
   take: RefTake;
   file: string;
+  /** the picture this episode's renders read */
   live: boolean;
+  /** another episode's candidate for a shared ref (read-only here); absent: this episode's */
+  episode?: string;
 }
 
 export interface GallerySection {
@@ -43,11 +46,16 @@ export interface GallerySection {
   /** candidates not shown: still on the way, or failed */
   queued: number;
   failed: number;
+  /** a shared ref whose other episodes' candidates haven't been asked for yet */
+  unread: boolean;
 }
 
-export function itemKey(ref: string, view: string | null, take: number): string {
-  return `${ref}|${view ?? ""}|${take}`;
+export function itemKey(ref: string, view: string | null, take: number, episode?: string): string {
+  return `${ref}|${view ?? ""}|${take}${episode ? `|${episode}` : ""}`;
 }
+
+/** The other episodes' candidates of the shared refs read so far, by ref id. */
+export type SharedTakes = ReadonlyMap<string, OwnerTake[]>;
 
 /** Where a ref keeps candidates: a character's four views and its sheets; a
  * location's plate, 360s and tour holds; anything else its own. */
@@ -65,7 +73,17 @@ function newestFirst(a: GalleryItem, b: GalleryItem): number {
   return tb.localeCompare(ta) || b.take.take - a.take.take;
 }
 
-export function gallerySections(refs: Ref[], scope: GalleryScope, pass: Pass): GallerySection[] {
+/** A ref other episodes share (`shared_with`): its candidates there are asked for as it comes into view. */
+export function isShared(r: Pick<Ref, "shared_with">): boolean {
+  return !!r.shared_with?.length;
+}
+
+/**
+ * A section per ref: this episode's candidates newest first, then (a shared
+ * ref, once `shared` has them) the other episodes', by episode, newest first.
+ * Another episode's pick is live only when it wrote the file this one reads.
+ */
+export function gallerySections(refs: Ref[], scope: GalleryScope, pass: Pass, shared: SharedTakes = new Map()): GallerySection[] {
   const shown = refs.filter((r) => {
     const g = groupOf(r);
     if (g === "voices") return false;
@@ -93,7 +111,21 @@ export function gallerySections(refs: Ref[], scope: GalleryScope, pass: Pass): G
       }
     }
     items.sort(newestFirst);
-    if (items.length || queued || failed || scope.ref) out.push({ ref: r, items, queued, failed });
+    const theirs = shared.get(r.id);
+    const unread = isShared(r) && !theirs;
+    if (theirs) {
+      const others: GalleryItem[] = [];
+      for (const t of theirs) {
+        if (t.status !== "ok" || !t.image) continue;
+        const live = t.picked && t.episode === r.live_owner;
+        if (scope.picksOnly && !live) continue;
+        const view = t.view ?? null;
+        others.push({ key: itemKey(r.id, view, t.take, t.episode), ref: r, view, take: t, file: t.image, live, episode: t.episode });
+      }
+      others.sort((a, b) => a.episode!.localeCompare(b.episode!, undefined, { numeric: true }) || newestFirst(a, b));
+      items.push(...others);
+    }
+    if (items.length || queued || failed || unread || scope.ref) out.push({ ref: r, items, queued, failed, unread });
   }
   return out;
 }

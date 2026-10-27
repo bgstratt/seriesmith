@@ -573,6 +573,18 @@ class SharedRefRoutesTest(ApiTest):
         self.assertEqual(self.ok(A.get_refs_owner_takes(self.ctx, {"ep": ep1, "ref": "subject:ada"}))["takes"], [])
         self.err(A.get_refs_owner_takes(self.ctx, {"ep": ep2, "ref": "subject:nobody"}), 404)
 
+    def test_shared_takes_are_every_sharing_episodes(self):
+        """The gallery: a shared ref's candidates across the episodes named."""
+        ep1, ep2 = self.show()
+        q = {"ep": ep2, "ref": "subject:ada"}
+        (t,) = self.ok(A.get_refs_shared_takes(self.ctx, {**q, "from": "ep01"}))["takes"]
+        self.assertEqual((t["episode"], t["view"], t["picked"]), ("ep01", R.SHEET_VIEW, True))
+        self.ok(A.get_file(self.ctx, {"ep": ep2, "path": t["image"]}))
+        # itself, a name twice, one that isn't a sibling, or none: nothing more
+        self.assertEqual(len(self.ok(A.get_refs_shared_takes(self.ctx, {**q, "from": "ep02,ep01,ep01,ep09"}))["takes"]), 1)
+        self.assertEqual(self.ok(A.get_refs_shared_takes(self.ctx, q))["takes"], [])
+        self.err(A.get_refs_shared_takes(self.ctx, {"ep": ep2, "ref": "subject:nobody"}), 404)
+
     def test_a_server_lists_refs_before_it_sweeps(self):
         import threading
         swept = threading.Event()

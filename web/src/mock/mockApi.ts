@@ -1902,6 +1902,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { videos: [] };
     },
+    async refsSharedTakes() {
+      await wait();
+      return { takes: [] };
+    },
     async refsOwnerTakes() {
       await wait(40);
       return { owner: null, takes: [] };

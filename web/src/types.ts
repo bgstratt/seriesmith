@@ -1483,6 +1483,9 @@ export interface RefGenerateRequest {
   pano?: { with?: string[]; engine?: "qwen" | "klein" } | null;
   /** P4: the picture's size, "WxH" (a 360's: 2:1) */
   size?: string | null;
+  /** P4: cfg and the target's sampler knobs for this call (the gallery's Regenerate) */
+  cfg?: number | null;
+  params?: RefParams | null;
   /** seriesmith: make it on this backend (absent: its target's own). Only sent when set. */
   backend?: string;
 }

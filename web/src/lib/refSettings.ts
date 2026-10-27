@@ -2,7 +2,7 @@
 // knobs (refs.TUNABLE_PARAMS) as form text, turned into override fields, and
 // a take's settings made the ref's ("Use these settings"). Pure functions.
 
-import { TUNABLE_PARAMS, type OverrideFields, type RefParams, type RefTake } from "../types";
+import { TUNABLE_PARAMS, type OverrideFields, type RefGenerateRequest, type RefParams, type RefTake } from "../types";
 
 export type Knobs = Record<"cfg" | (typeof TUNABLE_PARAMS)[number], string>;
 
@@ -47,3 +47,31 @@ export function takeSettings(t: RefTake, keyframe: boolean): OverrideFields {
   return f;
 }
 
+
+/**
+ * The gallery's Regenerate: this candidate again with a new seed -- its own
+ * prompt (as it was drawn, the look included), target, model, LoRAs, steps,
+ * cfg, knobs and size; an edited one, the same edit of the same picture. Null
+ * for a candidate nothing drew (imported, a frame, a 360, a tour's hold).
+ */
+export function regenerateRequest(t: RefTake, ref: string, view: string | null, keyframe: boolean): Omit<RefGenerateRequest, "ep"> | null {
+  if (t.status !== "ok") return null;
+  const base = { ref, view, count: 1, seed_mode: "new" as const, seed: null, note: "", ...(t.target ? { target: t.target } : {}) };
+  if (t.source === "edited" && t.edit) {
+    return {
+      ...base, prompt: t.edit.instruction, model: null, loras: null, steps: null,
+      edit: {
+        take: t.edit.take, ...(t.edit.with ? { with: t.edit.with } : {}), ...(t.edit.wrap != null ? { wrap: t.edit.wrap } : {}),
+        // the picture came from another of the character's views
+        ...(t.edit.view && t.edit.view !== view ? { from_view: t.edit.view } : {}),
+      },
+    };
+  }
+  if (t.source !== "generated") return null;
+  return {
+    ...base, prompt: t.prompt ?? null, model: t.model || null, loras: t.loras ?? null, steps: t.steps ?? null,
+    ...(t.cfg != null ? { cfg: t.cfg } : {}),
+    ...(t.params && Object.keys(t.params).length ? { params: t.params } : {}),
+    ...(!keyframe && t.width && t.height ? { size: `${t.width}x${t.height}` } : {}),
+  };
+}
