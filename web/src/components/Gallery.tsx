@@ -162,6 +162,8 @@ interface GridItem {
   badges: string[];
   /** a take's strip, scrubbed on hover */
   strip?: string | null;
+  /** what Download saves, relative to the episode: the picture whole, a take's video */
+  file: string;
 }
 
 function counts(n: number, queued: number, failed: number, what: string): string {
@@ -188,6 +190,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   const [size, setSize] = usePref<Size>(SIZE_KEY, ["s", "m", "l"], "m");
   const [compare, setCompare] = useState(false);
   const shots = g.kind === "shots";
+  const hi = useApp((s) => s.upscaled);
 
   const shared = useSharedTakes(ep);
   const refSecs = useMemo(
@@ -212,6 +215,8 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           // what happens in it, as the script says; the rest is in the panel when it's open
           title: [`${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}`, it.shot.action ?? ""].filter(Boolean).join("\n"),
           badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : [])], strip: it.take.strip,
+          // the video the viewer would play: the upscale under the 2x switch
+          file: (hi && freshUp(it.take)) || it.take.mp4!,
         })),
       }))
     : refSecs.map((s) => ({
@@ -227,9 +232,30 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           key: it.key, thumb: it.file, aspect: itemAspect(it), label: refLabel(it),
           title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.episode ? ` · made in ${it.episode}` : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
           badges: [...(it.live ? ["live"] : []), ...(it.episode ? [it.episode] : [])],
+          file: it.file,
         })),
-      })), [shots, shotSecs, refSecs, epAspect, shared]);
+      })), [shots, shotSecs, refSecs, epAspect, shared, hi]);
   const keys = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.key)), [sections]);
+  const items = useMemo(() => sections.flatMap((s) => s.items), [sections]);
+  const [chosen, setChosen] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const lastChosen = useRef<string | null>(null);
+  useEffect(() => setChosen(new Map()), [ep]);
+  // a click ticks one; shift-click ticks every picture from the last one ticked
+  const choose = (it: GridItem, range: boolean) => {
+    setChosen((m) => {
+      const next = new Map(m);
+      const from = range && lastChosen.current ? items.findIndex((x) => x.key === lastChosen.current) : -1;
+      const to = items.findIndex((x) => x.key === it.key);
+      if (from >= 0 && to >= 0) {
+        for (const x of items.slice(Math.min(from, to), Math.max(from, to) + 1)) next.set(x.key, x.file);
+      } else if (next.has(it.key)) next.delete(it.key);
+      else next.set(it.key, it.file);
+      return next;
+    });
+    lastChosen.current = it.key;
+  };
+  // other episodes' pictures still to ask for: the count is what's read so far
+  const more = !shots && refSecs.some((x) => x.unread);
   const idx = g.open ? keys.indexOf(g.open) : -1;
   // a picture discarded (or out of "live only") while open: back to the grid
   const openRef = !shots && idx >= 0 ? refSecs.flatMap((s) => s.items).find((i) => i.key === g.open) : undefined;
@@ -255,6 +281,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
     if (e.key === "Escape") {
       if (document.fullscreenElement) return; // the browser's: leaves full screen
       if (open) updateGallery({ open: null });
+      else if (chosen.size) setChosen(new Map());
       else closeGallery();
     } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       step(e.key === "ArrowLeft" ? -1 : 1);
@@ -356,7 +383,24 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
         </label>
       )}
-      <span className="h3-muted h3-small">{keys.length} {shots ? "take" : "picture"}{keys.length === 1 ? "" : "s"}</span>
+      {chosen.size > 0 ? (
+        <span className="h3-row h3-gal-chosen" style={{ gap: 6 }}>
+          <b className="h3-small">{chosen.size} selected</b>
+          <button className="h3-btn h3-primary" title="Save each one (the browser may ask once to allow several downloads)"
+            onClick={() => void downloadAll(ep, [...chosen.values()])}>
+            <i className="pi pi-download" /> Download
+          </button>
+          <button className="h3-btn" title="Select every one shown" onClick={() => setChosen((m) => new Map([...m, ...items.map((x) => [x.key, x.file] as const)]))}>
+            Select all
+          </button>
+          <button className="h3-btn" title="Clear the selection (Esc)" onClick={() => setChosen(new Map())}>Clear</button>
+        </span>
+      ) : (
+        <span className="h3-muted h3-small"
+          title={more ? "More come in as you scroll: shared refs' pictures in other episodes are read as they come into view" : undefined}>
+          {keys.length}{more ? "…" : ""} {shots ? "take" : "picture"}{keys.length === 1 && !more ? "" : "s"}
+        </span>
+      )}
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close the gallery (Esc)" onClick={closeGallery}><i className="pi pi-times" /></button>
     </>
@@ -369,7 +413,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         {!ep && <div className="h3-empty-state">Pick an episode.</div>}
         {ep && loading && <div className="h3-empty-state">Loading…</div>}
         {/* the grid stays under an open picture, so closing it comes back to where it was */}
-        {ep && !loading && <GalleryGrid ep={ep} sections={sections} at={g.at} layout={layout} row={SIZES[size]} />}
+        {ep && !loading && <GalleryGrid ep={ep} sections={sections} at={g.at} layout={layout} row={SIZES[size]} chosen={chosen} choose={choose} />}
         {ep && openRef && (
           <RefViewer ep={ep} item={openRef} n={idx + 1} of={keys.length} compare={compare} setCompare={setCompare} step={step}
             around={[keys[idx - 1], keys[idx + 1]].map((k) => refSecs.flatMap((s) => s.items).find((i) => i.key === k)?.file).filter((f): f is string => !!f)} />
@@ -382,8 +426,9 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   );
 }
 
-function GalleryGrid({ ep, sections, at, layout, row }: {
+function GalleryGrid({ ep, sections, at, layout, row, chosen, choose }: {
   ep: string; sections: GridSection[]; at: string | null; layout: Layout; row: number;
+  chosen: ReadonlyMap<string, string>; choose: (it: GridItem, range: boolean) => void;
 }) {
   // the scroll box: what pictures are near, and where the cursor is kept in view
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -393,7 +438,11 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
     root?.querySelector(`[data-key="${CSS.escape(at)}"]`)?.scrollIntoView({ block: "nearest" });
   }, [at, root]);
   if (!sections.length) return <div className="h3-empty-state">Nothing here yet.</div>;
-  const tile = (it: GridItem, name: string | null) => <Tile key={it.key} ep={ep} it={it} sel={it.key === at} row={row} name={name} />;
+  const picking = chosen.size > 0;
+  const tile = (it: GridItem, name: string | null) => (
+    <Tile key={it.key} ep={ep} it={it} sel={it.key === at} row={row} name={name}
+      ticked={chosen.has(it.key)} picking={picking} choose={choose} />
+  );
   return (
     <div className="h3-scroll h3-gal-grid" ref={setRoot}>
       <NearRoot.Provider value={root}>
@@ -443,18 +492,23 @@ function Asking({ row, load, name }: { row: number; load: () => void; name: stri
 /** A picture at its own shape, so a row of them fills with no bars; its
  * label on hover, a take's strip scrubbed under the pointer. In the flow, a
  * ref's or shot's first picture carries its name. */
-function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boolean; row: number; name: string | null }) {
-  const [ref, near] = useNear<HTMLButtonElement>();
+function Tile({ ep, it, sel, row, name, ticked, picking, choose }: {
+  ep: string; it: GridItem; sel: boolean; row: number; name: string | null;
+  ticked: boolean; picking: boolean; choose: (it: GridItem, range: boolean) => void;
+}) {
+  const [ref, near] = useNear<HTMLDivElement>();
   const [cell, scrub] = useScrub();
   // the tile's own width on this screen: the server keeps a few widths made
   // (the Refs tab's 256 among them), and rounds up to the next
   const w = Math.round(it.aspect * row * (window.devicePixelRatio || 1));
   const scrubbing: CSSProperties | null = cell != null && it.strip ? stripStyle(api().fileUrl(ep, it.strip), cell) : null;
   return (
-    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some(isInUse) ? " h3-live" : ""}`}
+    <div ref={ref} data-key={it.key} role="button"
+      className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some(isInUse) ? " h3-live" : ""}${ticked ? " h3-ticked" : ""}${picking ? " h3-picking" : ""}`}
       style={{ flex: `${it.aspect} 1 ${Math.round(it.aspect * row)}px`, aspectRatio: String(it.aspect) }}
       title={it.title}
-      onClick={() => updateGallery({ open: it.key, at: it.key })}
+      // while some are ticked, a click ticks (as the photo apps do); else it opens
+      onClick={(e) => (picking ? choose(it, e.shiftKey) : updateGallery({ open: it.key, at: it.key }))}
       {...(it.strip ? scrub : {})}>
       {near && <img src={api().thumbUrl(ep, it.thumb, w)} alt={it.label} draggable={false} />}
       {scrubbing && <span className="h3-gal-scrub" style={scrubbing} />}
@@ -465,8 +519,31 @@ function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boole
         </span>
       )}
       <span className="h3-thumb-label">{it.label}</span>
-    </button>
+      <input type="checkbox" className="h3-gal-tick" checked={ticked} aria-label={`Select ${it.label}`} title="Select (shift: every one from the last)"
+        onClick={(e) => { e.stopPropagation(); choose(it, e.shiftKey); }} onChange={() => {}} />
+      <a className="h3-gal-dl" href={api().fileUrl(ep, it.file)} download={baseName(it.file)} title={`Save ${baseName(it.file)}`}
+        onClick={(e) => e.stopPropagation()}>
+        <i className="pi pi-download" />
+      </a>
+    </div>
   );
+}
+
+const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+/** Save each file: one link clicked at a time, a moment apart (the browser
+ * asks once to allow several downloads from the page). */
+async function downloadAll(ep: string | null, files: string[]) {
+  if (!ep) return;
+  for (const f of files) {
+    const a = document.createElement("a");
+    a.href = api().fileUrl(ep, f);
+    a.download = baseName(f);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    await new Promise((r) => setTimeout(r, 300));
+  }
 }
 
 const isInUse = (badge: string) => badge === "live" || badge === "cut";

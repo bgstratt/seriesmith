@@ -1082,7 +1082,13 @@ one. Design: DESIGN.md §7, "The gallery".
       pick wrote the file this one reads. Asked for one ref at a time as its section comes
       near (`GET /seriesmith/refs/shared-takes`, two at once, ~50-200 ms each on Porchlights'
       40 episodes). "Unused too" (was "whole series": it adds the series config's refs this
-      episode's shots don't use) brings another episode's cast in with their pictures.
+      episode's shots don't use) brings another episode's cast in with their pictures. The
+      count reads "289…" while some are still to ask for.
+- [ ] **Selecting and saving.** On hover each tile has a tick (top left) and Download
+      (bottom right). With some ticked, a click ticks, shift-click ticks a range, and the head
+      has N selected · Download · Select all · Clear (Esc clears). Kept across scopes, cleared
+      with the episode. Download saves each in turn (the picture whole, a take's video or, under
+      2x, its upscale); a zip from the server is the next step if one at a time is too many.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
