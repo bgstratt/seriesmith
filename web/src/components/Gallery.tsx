@@ -246,9 +246,11 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE })}>Shots</button>
       </span>
       <span className="h3-row h3-wrap" style={{ gap: 4 }}>
-        <button className={`h3-chip${(shots ? !g.seq && !g.shot : !g.group && !g.ref) ? " h3-on" : ""}`} onClick={() => updateGallery(WIDE)}>
-          Everything
-        </button>
+        {!shots && (
+          <button className={`h3-chip${!g.group && !g.ref ? " h3-on" : ""}`} onClick={() => updateGallery(WIDE)}>
+            Everything
+          </button>
+        )}
         {!shots && GALLERY_GROUPS.map((x) => (
           <button key={x.id} className={`h3-chip${g.group === x.id && !g.ref ? " h3-on" : ""}`}
             onClick={() => updateGallery({ ...WIDE, group: x.id })}>

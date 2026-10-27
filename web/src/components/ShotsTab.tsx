@@ -473,8 +473,8 @@ function ShotBin() {
           <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
           <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
         </span>
-        <button className="h3-btn h3-icon" title="Every take of this episode, large: arrow through them" onClick={() => openGallery({ kind: "shots" })}>
-          <i className="pi pi-images" />
+        <button className="h3-btn" title="Every take of this episode, large: arrow through them" onClick={() => openGallery({ kind: "shots" })}>
+          <i className="pi pi-images" /> Gallery
         </button>
       </div>
       {err && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
