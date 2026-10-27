@@ -33,7 +33,7 @@ export const VIEWER_RECT_KEY = "seriesmith.viewer.rect.v2";
 const RECT_KEY = VIEWER_RECT_KEY;
 
 /** Keep B on A's clock: play/pause/seek/rate follow A. */
-function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
+export function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
   useEffect(() => {
     if (!a || !b) return;
     const sync = () => {
@@ -76,7 +76,7 @@ function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
   }, [a, b]);
 }
 
-function Transport({ a, fps, audio, setAudio, hasB }: {
+export function Transport({ a, fps, audio, setAudio, hasB }: {
   a: HTMLVideoElement | null; fps: number; audio: "a" | "b" | "off"; setAudio: (x: "a" | "b" | "off") => void; hasB: boolean;
 }) {
   const [, force] = useState(0);

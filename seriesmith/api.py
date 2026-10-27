@@ -456,6 +456,25 @@ def get_shot(ctx: Context, query: dict):
 
 
 @handler
+def get_take(ctx: Context, query: dict):
+    """What one take was made with (the gallery opens one at a time): its
+    sidecar, the prompt as it rendered, the pictures it was sent. 404 for a
+    take that isn't there."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    shot = check_shot(query.get("shot"))
+    try:
+        take = int(query.get("take") or "")
+    except ValueError:
+        raise ApiError(400, f"take must be a take number, not {query.get('take')!r}")
+    try:
+        detail = E.take_detail(ep, pass_, shot, take)
+    except KeyError as e:
+        raise ApiError(404, e.args[0])
+    return 200, seeds_out(detail)
+
+
+@handler
 def get_browse(ctx: Context, query: dict):
     """Folder picker. Not limited to the roots: it is how roots are chosen.
     Lists folder names only, never file contents."""
@@ -4466,6 +4485,7 @@ ROUTES = [
     ("GET", "/seriesmith/browse", get_browse, "query"),
     ("GET", "/seriesmith/episode", get_episode, "query"),
     ("GET", "/seriesmith/shot", get_shot, "query"),
+    ("GET", "/seriesmith/take", get_take, "query"),
     ("POST", "/seriesmith/build", post_build, "body"),
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),

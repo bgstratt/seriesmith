@@ -22,6 +22,7 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
+from seriesmith.core.fileio import write_json  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
 from test_render import stub_refs, ENV, FIXTURE, FakeComfy, WORKFLOW, play_runner, settle  # noqa: E402
 
@@ -592,6 +593,26 @@ class ReadTest(ApiTest):
         self.assertEqual(t["files"]["shotlist"], "renders_proxy/sh010/sh010_t01.shotlist.json")
         self.err(A.get_shot(self.ctx, {"ep": self.ep, "pass": "proxy", "shot": "sh999"}), 404)
         self.err(A.get_shot(self.ctx, {"ep": self.ep, "pass": "proxy"}), 400)
+
+    def test_take_detail(self):
+        """The gallery's one take: the prompt it rendered with, even after the shot's changed."""
+        self.render("sh010")
+        q = {"ep": self.ep, "pass": "proxy", "shot": "sh010", "take": "1"}
+        d = self.ok(A.get_take(self.ctx, q))
+        shot = self.ok(A.get_shot(self.ctx, {"ep": self.ep, "pass": "proxy", "shot": "sh010"}))
+        self.assertEqual(d["prompt"], shot["built_prompt"])
+        self.assertEqual(d["sidecar"]["seed"], shot["built"]["seed"])
+        self.assertEqual(d["files"]["mp4"], "renders_proxy/sh010/sh010_t01.mp4")
+        for r in d["refs"]:
+            self.assertEqual(set(r), {"id", "kind", "role", "slot", "path", "sha1", "exists"})
+        # the take's prompt is its frozen shotlist's, not the shot's now
+        frozen = os.path.join(self.ep, d["files"]["shotlist"])
+        doc = T.read_json(frozen)
+        doc["shots"][0]["prompt"] = ["what it was told then"]
+        write_json(frozen, doc)
+        self.assertEqual(self.ok(A.get_take(self.ctx, q))["prompt"], "what it was told then")
+        self.err(A.get_take(self.ctx, {**q, "take": "9"}), 404)
+        self.err(A.get_take(self.ctx, {**q, "take": "one"}), 400)
 
 
 class SweepTest(ApiTest):

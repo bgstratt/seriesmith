@@ -1,21 +1,33 @@
-// The gallery: every picture of the episode's refs, large. A grid (a section
-// per ref, or one flow of them, each ref's pictures together), every candidate
-// with the live one badged, and a picture opened over it that steps through
-// the grid with the arrow keys and closes back to it. Opened from the Refs
-// tab: double-click a ref (on it), a group's head (on that group), or Gallery.
+// The gallery: every picture of the episode's refs, or every take of its
+// shots, large. A grid (a section per ref or shot, or one flow of them, each
+// one's together), every version with the one in use badged, and a picture or
+// take opened over it that steps through the grid with the arrow keys and
+// closes back to it. Opened from the Refs tab (double-click a ref, a group's
+// head, or Gallery) and the Shots tab (double-click a sequence's head, or
+// Gallery).
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { closeGallery, copyText, pickRef, updateGallery } from "../actions";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { closeGallery, copyText, pickRef, pickTake, updateGallery } from "../actions";
+import { errText } from "../api";
 import { isTyping } from "../cutActions";
 import { api } from "../host";
-import { GALLERY_GROUPS, gallerySections, itemAspect, type GalleryItem, type GallerySection } from "../lib/gallery";
+import {
+  GALLERY_GROUPS, gallerySections, itemAspect, sequencesOf, shotSections, takeAspect,
+  type GalleryItem, type ShotItem,
+} from "../lib/gallery";
 import { fmtWhen, shortName, tn } from "../lib/format";
 import { keyframeSource } from "../lib/keyframes";
 import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../lib/refs";
+import { stripStyle } from "../lib/strip";
+import { targetLabel } from "../lib/targets";
 import { useApp, type GalleryState } from "../store";
+import type { Pass, TakeInfo } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { aspectOf, useStatus } from "./hooks";
 import { EpisodeSelect } from "./ShotsTab";
-import { FullscreenButton, toggleFullscreen } from "./Viewer";
+import { useTargets } from "./Targets";
+import { useScrub } from "./Thumb";
+import { FullscreenButton, Transport, toggleFullscreen, useSync } from "./Viewer";
 
 const RECT_KEY = "seriesmith.gallery.rect";
 const LAYOUT_KEY = "seriesmith.gallery.layout";
@@ -25,6 +37,9 @@ type Layout = "sections" | "flow";
 /** a row's height, px: the tiles fill each row at their own shapes */
 const SIZES = { s: 140, m: 210, l: 320 } as const;
 type Size = keyof typeof SIZES;
+
+/** Everything the gallery changes when its scope does: back to the grid, nothing narrowed. */
+const WIDE = { group: null, ref: null, seq: null, shot: null, open: null, at: null } as const;
 
 /**
  * Pictures load as they come within a screen of the grid's view, watched
@@ -78,6 +93,38 @@ function usePref<T extends string>(key: string, allowed: readonly T[], fallback:
   return [v, set];
 }
 
+/** A section of the grid, a ref's or a shot's, as the grid draws it. */
+interface GridSection {
+  id: string;
+  name: string;
+  /** a heading above it when it changes (a shot's sequence) */
+  group?: string;
+  note: string;
+  narrow: () => void;
+  items: GridItem[];
+}
+
+interface GridItem {
+  key: string;
+  /** the picture, relative to the episode */
+  thumb: string;
+  aspect: number;
+  label: string;
+  title: string;
+  /** "live", "cut", or nothing */
+  badge: string | null;
+  /** a take's strip, scrubbed on hover */
+  strip?: string | null;
+}
+
+function counts(n: number, queued: number, failed: number, what: string): string {
+  return [
+    `${n} ${what}${n === 1 ? "" : "s"}`,
+    queued ? `${queued} on the way` : "",
+    failed ? `${failed} failed` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 export function Gallery() {
   const g = useApp((s) => s.gallery);
   const ep = useApp((s) => s.ep);
@@ -88,25 +135,57 @@ export function Gallery() {
 function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   const refs = useApp((s) => (ep ? s.refs[ep] : undefined));
   const pass = useApp((s) => s.pass);
+  const st = useStatus();
   const winRef = useRef<HTMLDivElement>(null);
   const [layout, setLayout] = usePref<Layout>(LAYOUT_KEY, ["sections", "flow"], "sections");
   const [size, setSize] = usePref<Size>(SIZE_KEY, ["s", "m", "l"], "m");
   const [compare, setCompare] = useState(false);
-  const sections = useMemo(
-    () => gallerySections(refs ?? [], g, pass),
+  const shots = g.kind === "shots";
+
+  const refSecs = useMemo(
+    () => (shots ? [] : gallerySections(refs ?? [], g, pass)),
     // the scope's fields, not `g`: moving through it changes `g` too
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [refs, g.group, g.ref, g.picksOnly, g.series, pass],
+    [shots, refs, g.group, g.ref, g.picksOnly, g.series, pass],
   );
-  const items = useMemo(() => sections.flatMap((s) => s.items), [sections]);
-  const idx = g.open ? items.findIndex((i) => i.key === g.open) : -1;
-  // a picture discarded (or picked out of "live only") while open: back to the grid
-  const open = idx >= 0 ? items[idx] : null;
+  const shotSecs = useMemo(
+    () => (shots ? shotSections(st, g, pass) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shots, st, g.seq, g.shot, g.picksOnly, pass],
+  );
+  const epAspect = aspectOf(st);
+  const sections: GridSection[] = useMemo(() => shots
+    ? shotSecs.map((s) => ({
+        id: s.shot.shot, name: s.shot.shot, group: s.seq,
+        note: [counts(s.items.length, s.queued, s.failed, "take"), s.shot.action ?? ""].filter(Boolean).join(" · "),
+        narrow: () => updateGallery({ shot: s.shot.shot, open: null }),
+        items: s.items.map((it) => ({
+          key: it.key, thumb: it.take.thumb!, aspect: takeAspect(it.take, epAspect), label: tn(it.take.take),
+          title: `${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}${it.take.strip ? " · hover to scrub" : ""}`,
+          badge: it.cut ? "cut" : null, strip: it.take.strip,
+        })),
+      }))
+    : refSecs.map((s) => ({
+        id: s.ref.id, name: s.ref.name,
+        note: counts(s.items.length, s.queued, s.failed, "picture"),
+        narrow: () => updateGallery({ ref: s.ref.id, open: null }),
+        items: s.items.map((it) => ({
+          key: it.key, thumb: it.file, aspect: itemAspect(it), label: refLabel(it),
+          title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
+          badge: it.live ? "live" : null,
+        })),
+      })), [shots, shotSecs, refSecs, epAspect]);
+  const keys = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.key)), [sections]);
+  const idx = g.open ? keys.indexOf(g.open) : -1;
+  // a picture discarded (or out of "live only") while open: back to the grid
+  const openRef = !shots && idx >= 0 ? refSecs.flatMap((s) => s.items).find((i) => i.key === g.open) : undefined;
+  const openShot = shots && idx >= 0 ? shotSecs.flatMap((s) => s.items).find((i) => i.key === g.open) : undefined;
+  const open = openRef ?? openShot;
 
   const step = (d: number) => {
-    if (!items.length) return;
-    const cur = items.findIndex((i) => i.key === (g.open ?? g.at));
-    const k = items[cur < 0 ? 0 : Math.min(items.length - 1, Math.max(0, cur + d))].key;
+    if (!keys.length) return;
+    const cur = keys.indexOf(g.open ?? g.at ?? "");
+    const k = keys[cur < 0 ? 0 : Math.min(keys.length - 1, Math.max(0, cur + d))];
     updateGallery(open ? { open: k, at: k } : { at: k });
   };
 
@@ -115,9 +194,10 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
 
   // keys while focus is inside it (ComfyUI owns them otherwise), stopped here
   // so ComfyUI's window-level shortcuts don't see them
-  const keys = useRef<(e: KeyboardEvent) => void>(() => {});
-  keys.current = (e) => {
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e) => {
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    const video = openShot ? winRef.current?.querySelector<HTMLVideoElement>("video.h3-gal-a") : null;
     if (e.key === "Escape") {
       if (document.fullscreenElement) return; // the browser's: leaves full screen
       if (open) updateGallery({ open: null });
@@ -125,12 +205,18 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
     } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       step(e.key === "ArrowLeft" ? -1 : 1);
     } else if (e.key === "Home" || e.key === "End") {
-      if (items.length) {
-        const k = items[e.key === "Home" ? 0 : items.length - 1].key;
+      if (keys.length) {
+        const k = keys[e.key === "Home" ? 0 : keys.length - 1];
         updateGallery(open ? { open: k, at: k } : { at: k });
       }
     } else if (e.key === "Enter" && !open && g.at) {
       updateGallery({ open: g.at });
+    } else if (e.key === " " && video) {
+      if (video.paused) void video.play();
+      else video.pause();
+    } else if ((e.key === "," || e.key === ".") && video) {
+      video.pause();
+      video.currentTime = Math.max(0, video.currentTime + (e.key === "," ? -1 : 1) / (openShot?.take.fps || 24));
     } else if (e.key === "c" || e.key === "C") {
       if (open) setCompare((c) => !c);
     } else if (e.key === "f" || e.key === "F") {
@@ -142,35 +228,53 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   useEffect(() => {
     const el = winRef.current;
     if (!el) return;
-    const h = (e: KeyboardEvent) => keys.current(e);
+    const h = (e: KeyboardEvent) => keyRef.current(e);
     el.addEventListener("keydown", h);
     return () => el.removeEventListener("keydown", h);
   }, []);
 
   const scopeRef = g.ref ? refs?.find((r) => r.id === g.ref) : undefined;
+  const scopeShot = g.shot ? st?.shots.find((s) => s.shot === g.shot) : undefined;
+  const seqs = useMemo(() => (shots ? sequencesOf(st) : []), [shots, st]);
   const head = (
     <>
       <b>Gallery</b>
       <EpisodeSelect compact />
+      <span className="h3-seg" title="The refs' pictures, or the shots' takes">
+        <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE })}>Refs</button>
+        <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE })}>Shots</button>
+      </span>
       <span className="h3-row h3-wrap" style={{ gap: 4 }}>
-        <button className={`h3-chip${!g.group && !g.ref ? " h3-on" : ""}`} onClick={() => updateGallery({ group: null, ref: null, open: null })}>
+        <button className={`h3-chip${(shots ? !g.seq && !g.shot : !g.group && !g.ref) ? " h3-on" : ""}`} onClick={() => updateGallery(WIDE)}>
           Everything
         </button>
-        {GALLERY_GROUPS.map((x) => (
+        {!shots && GALLERY_GROUPS.map((x) => (
           <button key={x.id} className={`h3-chip${g.group === x.id && !g.ref ? " h3-on" : ""}`}
-            onClick={() => updateGallery({ group: x.id, ref: null, open: null })}>
+            onClick={() => updateGallery({ ...WIDE, group: x.id })}>
             {x.label}
           </button>
         ))}
-        {g.ref && (
+        {shots && seqs.map((q) => (
+          <button key={q} className={`h3-chip${g.seq === q && !g.shot ? " h3-on" : ""}`}
+            onClick={() => updateGallery({ ...WIDE, seq: q })}>
+            {q}
+          </button>
+        ))}
+        {!shots && g.ref && (
           <button className="h3-chip h3-on" title="Show its whole group"
-            onClick={() => updateGallery({ ref: null, group: scopeRef ? groupOf(scopeRef) as GalleryState["group"] : null })}>
+            onClick={() => updateGallery({ ...WIDE, group: scopeRef ? groupOf(scopeRef) as GalleryState["group"] : null })}>
             {scopeRef?.name ?? g.ref} <i className="pi pi-times" />
+          </button>
+        )}
+        {shots && g.shot && (
+          <button className="h3-chip h3-on" title="Show its whole sequence"
+            onClick={() => updateGallery({ ...WIDE, seq: scopeShot?.sequence ?? null })}>
+            {g.shot} <i className="pi pi-times" />
           </button>
         )}
       </span>
       <span className="h3-grow" />
-      <span className="h3-seg" title="A section per ref, or one flow that fills each row (each ref's pictures still together)">
+      <span className="h3-seg" title={`A section per ${shots ? "shot" : "ref"}, or one flow that fills each row (each one's together)`}>
         <button className={layout === "sections" ? "h3-on" : ""} onClick={() => setLayout("sections")}>Sections</button>
         <button className={layout === "flow" ? "h3-on" : ""} onClick={() => setLayout("flow")}>Flow</button>
       </span>
@@ -179,30 +283,34 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
         ))}
       </span>
-      <label className="h3-row h3-small" style={{ gap: 4 }} title="Only the picture each ref uses now">
-        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> live only
+      <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
+        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
       </label>
-      {!g.ref && (
+      {!shots && !g.ref && (
         <label className="h3-row h3-small" style={{ gap: 4 }} title="Every ref in the series config, not just those this episode uses">
           <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> whole series
         </label>
       )}
-      <span className="h3-muted h3-small">{items.length} picture{items.length === 1 ? "" : "s"}</span>
+      <span className="h3-muted h3-small">{keys.length} {shots ? "take" : "picture"}{keys.length === 1 ? "" : "s"}</span>
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close the gallery (Esc)" onClick={closeGallery}><i className="pi pi-times" /></button>
     </>
   );
 
+  const loading = shots ? !st : !refs;
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultGalleryRect} head={head} winRef={winRef} className="h3-gallery" minW={480} minH={360}>
       <div className="h3-gal-body">
         {!ep && <div className="h3-empty-state">Pick an episode.</div>}
-        {ep && !refs && <div className="h3-empty-state">Loading the refs…</div>}
+        {ep && loading && <div className="h3-empty-state">Loading…</div>}
         {/* the grid stays under an open picture, so closing it comes back to where it was */}
-        {ep && refs && <GalleryGrid ep={ep} sections={sections} at={g.at} layout={layout} row={SIZES[size]} />}
-        {ep && open && (
-          <GalleryViewer ep={ep} item={open} n={idx + 1} of={items.length} compare={compare} setCompare={setCompare} step={step}
-            around={[items[idx - 1], items[idx + 1]].filter(Boolean).map((i) => i.file)} />
+        {ep && !loading && <GalleryGrid ep={ep} sections={sections} at={g.at} layout={layout} row={SIZES[size]} />}
+        {ep && openRef && (
+          <RefViewer ep={ep} item={openRef} n={idx + 1} of={keys.length} compare={compare} setCompare={setCompare} step={step}
+            around={[keys[idx - 1], keys[idx + 1]].map((k) => refSecs.flatMap((s) => s.items).find((i) => i.key === k)?.file).filter((f): f is string => !!f)} />
+        )}
+        {ep && openShot && (
+          <ShotViewer ep={ep} pass={pass} item={openShot} n={idx + 1} of={keys.length} compare={compare} setCompare={setCompare} step={step} />
         )}
       </div>
     </FloatingWindow>
@@ -210,7 +318,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
 }
 
 function GalleryGrid({ ep, sections, at, layout, row }: {
-  ep: string; sections: GallerySection[]; at: string | null; layout: Layout; row: number;
+  ep: string; sections: GridSection[]; at: string | null; layout: Layout; row: number;
 }) {
   // the scroll box: what pictures are near, and where the cursor is kept in view
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
@@ -219,28 +327,23 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
     if (!at) return;
     root?.querySelector(`[data-key="${CSS.escape(at)}"]`)?.scrollIntoView({ block: "nearest" });
   }, [at, root]);
-  if (!sections.length) return <div className="h3-empty-state">No pictures here yet.</div>;
-  const tile = (it: GalleryItem, named: boolean) => <Tile key={it.key} ep={ep} it={it} sel={it.key === at} row={row} named={named} />;
+  if (!sections.length) return <div className="h3-empty-state">Nothing here yet.</div>;
+  const tile = (it: GridItem, name: string | null) => <Tile key={it.key} ep={ep} it={it} sel={it.key === at} row={row} name={name} />;
   return (
     <div className="h3-scroll h3-gal-grid" ref={setRoot}>
       <NearRoot.Provider value={root}>
         {layout === "flow" ? (
-          <div className="h3-gal-tiles">{sections.flatMap((s) => s.items.map((it, i) => tile(it, i === 0)))}</div>
-        ) : sections.map((s) => (
-          <section key={s.ref.id}>
+          <div className="h3-gal-tiles">{sections.flatMap((s) => s.items.map((it, i) => tile(it, i === 0 ? s.name : null)))}</div>
+        ) : sections.map((s, i) => (
+          <section key={s.id}>
+            {s.group != null && s.group !== sections[i - 1]?.group && <h3 className="h3-gal-group">{s.group}</h3>}
             <div className="h3-row h3-gal-sec-head">
-              <button className="h3-link" title="Only this ref" onClick={() => updateGallery({ ref: s.ref.id, open: null })}>
-                <b>{s.ref.name}</b>
+              <button className="h3-link" title="Only this one" onClick={s.narrow}>
+                <b>{s.name}</b>
               </button>
-              <span className="h3-muted h3-small">
-                {[
-                  `${s.items.length} picture${s.items.length === 1 ? "" : "s"}`,
-                  s.queued ? `${s.queued} on the way` : "",
-                  s.failed ? `${s.failed} failed` : "",
-                ].filter(Boolean).join(" · ")}
-              </span>
+              <span className="h3-muted h3-small h3-ell">{s.note}</span>
             </div>
-            <div className="h3-gal-tiles">{s.items.map((it) => tile(it, false))}</div>
+            <div className="h3-gal-tiles">{s.items.map((it) => tile(it, null))}</div>
           </section>
         ))}
       </NearRoot.Provider>
@@ -249,34 +352,62 @@ function GalleryGrid({ ep, sections, at, layout, row }: {
 }
 
 /** A picture at its own shape, so a row of them fills with no bars; its
- * view and take on hover. In the flow, a ref's first picture carries its name. */
-function Tile({ ep, it, sel, row, named }: { ep: string; it: GalleryItem; sel: boolean; row: number; named: boolean }) {
-  const a = itemAspect(it);
-  const label = tileLabel(it);
+ * label on hover, a take's strip scrubbed under the pointer. In the flow, a
+ * ref's or shot's first picture carries its name. */
+function Tile({ ep, it, sel, row, name }: { ep: string; it: GridItem; sel: boolean; row: number; name: string | null }) {
   const [ref, near] = useNear<HTMLButtonElement>();
+  const [cell, scrub] = useScrub();
   // the tile's own width on this screen: the server keeps a few widths made
   // (the Refs tab's 256 among them), and rounds up to the next
-  const w = Math.round(a * row * (window.devicePixelRatio || 1));
+  const w = Math.round(it.aspect * row * (window.devicePixelRatio || 1));
+  const scrubbing: CSSProperties | null = cell != null && it.strip ? stripStyle(api().fileUrl(ep, it.strip), cell) : null;
   return (
-    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.live ? " h3-live" : ""}`}
-      style={{ flex: `${a} 1 ${Math.round(a * row)}px`, aspectRatio: String(a) }}
-      title={`${it.ref.name} · ${label}${it.live ? " · live" : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`}
-      onClick={() => updateGallery({ open: it.key, at: it.key })}>
-      {near && <img src={api().thumbUrl(ep, it.file, w)} alt={label} draggable={false} />}
-      {named && <span className="h3-gal-name">{it.ref.name}</span>}
-      {it.live && <span className="h3-cand-live">live</span>}
-      <span className="h3-thumb-label">{label}</span>
+    <button ref={ref} data-key={it.key} className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badge ? " h3-live" : ""}`}
+      style={{ flex: `${it.aspect} 1 ${Math.round(it.aspect * row)}px`, aspectRatio: String(it.aspect) }}
+      title={it.title}
+      onClick={() => updateGallery({ open: it.key, at: it.key })}
+      {...(it.strip ? scrub : {})}>
+      {near && <img src={api().thumbUrl(ep, it.thumb, w)} alt={it.label} draggable={false} />}
+      {scrubbing && <span className="h3-gal-scrub" style={scrubbing} />}
+      {name && <span className="h3-gal-name">{name}</span>}
+      {it.badge && <span className="h3-cand-live">{it.badge}</span>}
+      <span className="h3-thumb-label">{it.label}</span>
     </button>
   );
 }
 
-function tileLabel(it: GalleryItem): string {
+function refLabel(it: GalleryItem): string {
   return [viewLabel(it.view), tn(it.take.take)].filter(Boolean).join(" · ");
 }
 
-/** A picture opened over the grid: large, what it was made with beside it,
- * the arrows to the next, and the live one beside it to compare (C). */
-function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
+/** The bar over an open picture or take: what it is, where, and back. */
+function ViewerBar({ name, label, badge, n, of }: { name: string; label: string; badge: string | null; n: number; of: number }) {
+  return (
+    <div className="h3-gal-bar">
+      <b>{name}</b>
+      <span className="h3-muted">{label}</span>
+      {badge && <span className="h3-badge h3-b-ok">{badge}</span>}
+      <span className="h3-grow" />
+      <span className="h3-muted h3-small">{n} / {of}</span>
+      <button className="h3-btn h3-icon" title="Back to the gallery (Esc)" onClick={() => updateGallery({ open: null })}>
+        <i className="pi pi-times" />
+      </button>
+    </div>
+  );
+}
+
+function NavButtons({ n, of, step }: { n: number; of: number; step: (d: number) => void }) {
+  return (
+    <>
+      {n > 1 && <button className="h3-gal-nav h3-gal-prev" title="Previous (←)" onClick={() => step(-1)}><i className="pi pi-chevron-left" /></button>}
+      {n < of && <button className="h3-gal-nav h3-gal-next" title="Next (→)" onClick={() => step(1)}><i className="pi pi-chevron-right" /></button>}
+    </>
+  );
+}
+
+/** A ref's picture opened over the grid: large, what it was made with beside
+ * it, and the live one beside it to compare (C). */
+function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
   ep: string; item: GalleryItem; n: number; of: number; compare: boolean; setCompare: (c: boolean) => void; step: (d: number) => void;
   /** the pictures either side, fetched ahead so an arrow shows the next at once */
   around: string[];
@@ -295,21 +426,12 @@ function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
   const refs = t.references ?? [];
   return (
     <div className="h3-gal-lightbox">
-      <div className="h3-gal-bar">
-        <b>{r.name}</b>
-        <span className="h3-muted">{tileLabel(item)}</span>
-        {item.live && <span className="h3-badge h3-b-ok">live</span>}
-        <span className="h3-grow" />
-        <span className="h3-muted h3-small">{n} / {of}</span>
-        <button className="h3-btn h3-icon" title="Back to the gallery (Esc)" onClick={() => updateGallery({ open: null })}>
-          <i className="pi pi-times" />
-        </button>
-      </div>
+      <ViewerBar name={r.name} label={refLabel(item)} badge={item.live ? "live" : null} n={n} of={of} />
       <div className="h3-gal-view">
         <div className={`h3-gal-stage${side ? " h3-gal-side" : ""}`}>
           <div className="h3-gal-pane">
             {side && <span className="h3-pane-label">{tn(t.take)}</span>}
-            <img src={url} alt={tileLabel(item)} draggable={false} />
+            <img src={url} alt={refLabel(item)} draggable={false} />
           </div>
           {side && (
             <div className="h3-gal-pane">
@@ -317,8 +439,7 @@ function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
               <img src={api().refFileUrl(ep, liveTake!.image!)} alt="the live picture" draggable={false} />
             </div>
           )}
-          {n > 1 && <button className="h3-gal-nav h3-gal-prev" title="Previous (←)" onClick={() => step(-1)}><i className="pi pi-chevron-left" /></button>}
-          {n < of && <button className="h3-gal-nav h3-gal-next" title="Next (→)" onClick={() => step(1)}><i className="pi pi-chevron-right" /></button>}
+          <NavButtons n={n} of={of} step={step} />
         </div>
         <aside className="h3-gal-info h3-col">
           <div className="h3-row h3-wrap" style={{ gap: 6 }}>
@@ -357,7 +478,7 @@ function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
                           {i > 0 && ", "}
                           {x.id ? (
                             <button className="h3-link" title="Its pictures"
-                              onClick={() => updateGallery({ ref: x.id!, open: null, at: null })}>
+                              onClick={() => updateGallery({ ...WIDE, ref: x.id! })}>
                               {x.name || x.id}{x.view ? ` (${viewLabel(x.view)})` : ""}
                             </button>
                           ) : (x.name || "a reference")}
@@ -393,6 +514,143 @@ function GalleryViewer({ ep, item, n, of, compare, setCompare, step, around }: {
             {t.note && <><span>note</span><span>{t.note}</span></>}
           </div>
           {t.prompt && <div className="h3-gal-prompt h3-small">{t.prompt}</div>}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+// a take's record, read once when it's opened (GET /seriesmith/take), never
+// for the grid; kept while the page is, by the take and when it finished
+const takeInfos = new Map<string, TakeInfo>();
+
+function useTakeInfo(ep: string, pass: Pass, it: ShotItem): { info?: TakeInfo; err?: string } {
+  const k = `${ep}|${pass}|${it.shot.shot}|${it.take.take}|${it.take.finished ?? ""}`;
+  const [, bump] = useState(0);
+  const [err, setErr] = useState<{ k: string; text: string } | null>(null);
+  useEffect(() => {
+    if (takeInfos.has(k)) return;
+    let live = true;
+    api().take(ep, pass, it.shot.shot, it.take.take).then(
+      (d) => { takeInfos.set(k, d); if (live) bump((n) => n + 1); },
+      (e) => { if (live) setErr({ k, text: errText(e) }); },
+    );
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [k]);
+  return { info: takeInfos.get(k), err: err?.k === k ? err.text : undefined };
+}
+
+/** A shot's take opened over the grid: it plays, what it was made with beside
+ * it (read now, for this take only), and the cut's take beside it to compare (C). */
+function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
+  ep: string; pass: Pass; item: ShotItem; n: number; of: number; compare: boolean; setCompare: (c: boolean) => void; step: (d: number) => void;
+}) {
+  const { shot: s, take: t } = item;
+  const { info, err } = useTakeInfo(ep, pass, item);
+  const refs = useApp((x) => x.refs[ep]);
+  const { list: targets } = useTargets();
+  const [aEl, setAEl] = useState<HTMLVideoElement | null>(null);
+  const [bEl, setBEl] = useState<HTMLVideoElement | null>(null);
+  const [audio, setAudio] = useState<"a" | "b" | "off">("a");
+  const cutTake = !item.cut && s.cut.pass === pass ? s.takes.find((x) => x.take === s.cut.take && x.mp4) : undefined;
+  const side = compare && !!cutTake;
+  useSync(aEl, side ? bEl : null);
+  useEffect(() => {
+    if (aEl) aEl.muted = audio !== "a";
+    if (bEl) bEl.muted = audio !== "b";
+  }, [aEl, bEl, audio, side]);
+  const url = api().fileUrl(ep, t.mp4!);
+  const sc = info?.sidecar;
+  const fps = t.fps || 24;
+  const prompt = info?.prompt;
+  return (
+    <div className="h3-gal-lightbox">
+      <ViewerBar name={s.shot} label={[tn(t.take), s.sequence ?? ""].filter(Boolean).join(" · ")} badge={item.cut ? "cut" : null} n={n} of={of} />
+      <div className="h3-gal-view">
+        <div className="h3-col h3-grow" style={{ minWidth: 0 }}>
+          <div className={`h3-gal-stage${side ? " h3-gal-side" : ""}`}>
+            <div className="h3-gal-pane">
+              {side && <span className="h3-pane-label">{tn(t.take)}</span>}
+              <video key={url} ref={setAEl} className="h3-gal-a" src={url} autoPlay loop playsInline preload="auto"
+                onClick={(e) => (e.currentTarget.paused ? void e.currentTarget.play() : e.currentTarget.pause())} />
+            </div>
+            {side && (
+              <div className="h3-gal-pane">
+                <span className="h3-pane-label">cut · {tn(cutTake!.take)}</span>
+                <video key={cutTake!.mp4} ref={setBEl} src={api().fileUrl(ep, cutTake!.mp4!)} loop playsInline preload="auto" muted />
+              </div>
+            )}
+            <NavButtons n={n} of={of} step={step} />
+          </div>
+          <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={side} />
+        </div>
+        <aside className="h3-gal-info h3-col">
+          <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+            <button className="h3-btn h3-primary" disabled={item.cut} title={item.cut ? "Already in the cut" : `Use ${tn(t.take)} in the cut`}
+              onClick={() => void pickTake(s.shot, t.take)}>
+              <i className="pi pi-check" /> {item.cut ? "In the cut" : "Use"}
+            </button>
+            {cutTake && (
+              <button className={`h3-btn${compare ? " h3-on" : ""}`} title={`${tn(t.take)} beside the cut's ${tn(cutTake.take)}, in step (C); it stays on as you arrow through`}
+                onClick={() => setCompare(!compare)}>
+                <i className="pi pi-clone" /> Compare with cut
+              </button>
+            )}
+            <a className="h3-btn" href={url} download={t.mp4!.split(/[\\/]/).pop()} title={`Save ${t.mp4}`}>
+              <i className="pi pi-download" /> Download
+            </a>
+            {prompt && (
+              <button className="h3-btn" onClick={() => void copyText(prompt, "Prompt")}>
+                <i className="pi pi-copy" /> Copy prompt
+              </button>
+            )}
+          </div>
+          <div className="h3-kv">
+            {t.target && <><span>model</span><span>{targetLabel(targets, t.target)}</span></>}
+            {sc?.model && <><span>file</span><span title={String(sc.model)}>{shortName(sc.model, 40)}</span></>}
+            {sc?.loras && sc.loras.length > 0 && (
+              <><span>LoRAs</span><span>{sc.loras.map((l) => `${shortName(l.name, 32)}${l.strength !== 1 ? ` ${l.strength}` : ""}`).join(", ")}</span></>
+            )}
+            {t.seed && <><span>seed</span><span className="h3-mono">{t.seed}{t.seed_source && t.seed_source !== "stable" ? ` (${t.seed_source})` : ""}</span></>}
+            <span>settings</span>
+            <span>
+              {[
+                sc?.steps != null ? `${sc.steps} steps` : "",
+                t.width && t.height ? `${t.width}x${t.height}` : "",
+                t.frames ? `${t.frames} frames · ${(t.frames / fps).toFixed(1)} s @ ${fps}` : "",
+              ].filter(Boolean).join(" · ") || "—"}
+            </span>
+            {t.overrides.length > 0 && <><span>override</span><span>{t.overrides.join(", ")}</span></>}
+            {t.finished && <><span>made</span><span>{fmtWhen(t.finished)}</span></>}
+            {t.note && <><span>note</span><span>{t.note}</span></>}
+          </div>
+          {err && <div className="h3-note h3-note-err h3-small">Couldn't read what it was made with: {err}</div>}
+          {!info && !err && <div className="h3-muted h3-small"><i className="pi pi-spin pi-spinner" /> Reading what it was made with…</div>}
+          {info && info.refs.some((r) => r.path) && (
+            <div className="h3-col" style={{ gap: 4 }}>
+              <span className="h3-muted h3-small">The pictures it was sent</span>
+              <div className="h3-gal-sent">
+                {info.refs.filter((r) => r.path).map((r, i) => {
+                  const ref = r.id ? refs?.find((x) => x.id === r.id) : undefined;
+                  const changed = !!(ref && r.sha1 && ref.sha1 && ref.sha1 !== r.sha1);
+                  const name = ref?.name ?? r.slot ?? r.role ?? "a picture";
+                  const pic = r.kind === "image" && r.exists;
+                  return (
+                    <button key={i} className="h3-gal-sent-one" disabled={!ref || r.kind !== "image"}
+                      title={`${r.slot ? `${r.slot}: ` : ""}${r.path}${changed ? "\nChanged since: the file there now isn't the one this take was sent" : ""}${ref && r.kind === "image" ? "\nClick for its pictures" : ""}`}
+                      onClick={() => ref && updateGallery({ kind: "refs", ...WIDE, ref: ref.id })}>
+                      {pic ? <img src={api().thumbUrl(ep, r.path!, 128)} alt={name} draggable={false} /> : <span className="h3-gal-sent-none"><i className={`pi ${r.kind === "audio" ? "pi-volume-up" : "pi-image"}`} /></span>}
+                      <span className="h3-small h3-ell">{name}</span>
+                      {changed && <span className="h3-badge h3-b-stale">changed since</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {info && !prompt && <div className="h3-muted h3-small">No prompt was kept with this take.</div>}
+          {prompt && <div className="h3-gal-prompt h3-small">{prompt}</div>}
         </aside>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
@@ -473,6 +473,9 @@ function ShotBin() {
           <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
           <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
         </span>
+        <button className="h3-btn h3-icon" title="Every take of this episode, large: arrow through them" onClick={() => openGallery({ kind: "shots" })}>
+          <i className="pi pi-images" />
+        </button>
       </div>
       {err && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
       <div className="h3-scroll h3-sep">
@@ -485,7 +488,10 @@ function ShotBin() {
           const isCollapsed = !!collapsed[key] && !f;
           return (
             <div key={key} className="h3-seq">
-              <div className="h3-seq-head" onClick={() => toggleSequence(key)}>
+              <div className="h3-seq-head" onClick={() => toggleSequence(key)}
+                // two clicks have folded it back; its takes, large
+                onDoubleClick={() => openGallery({ kind: "shots", seq: g.sequence })}
+                title="Click to fold, double-click to see every take of it in the gallery">
                 <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                 <b>{g.sequence}</b>
                 <span className="h3-muted h3-small">{g.shots.length} shot{g.shots.length > 1 ? "s" : ""} · {fmtSeconds(g.seconds)}</span>

@@ -1044,7 +1044,7 @@ picks), opened scoped from where you double-click and widened from inside, and a
 that steps through the grid with the arrow keys instead of going back to it for the next
 one. Design: DESIGN.md §7, "The gallery".
 
-- [ ] **Refs.** A window of its own (`gallery` in the store, `Gallery.tsx`), chips for the
+- [x] **Refs.** A window of its own (`gallery` in the store, `Gallery.tsx`), chips for the
       Refs tab's groups (Characters · Props & vehicles · Locations · Shot keyframes; voices
       have no pictures). Double-click a ref (row or tile) opens it on that ref, its live
       picture open; a group's head, on that group; a Gallery button, on everything. A
@@ -1059,11 +1059,16 @@ one. Design: DESIGN.md §7, "The gallery".
       itself, C; the docked viewer sits under a floating window on the standalone page),
       Download (the file route, saved by the browser). A ref's takes come with the refs
       listing already: nothing more is fetched.
-- [ ] **Shots.** A chip per sequence; double-click a sequence's head opens it there. Tiles
-      are each take's thumbnail (hover scrubs its strip); the viewer plays the take. What a
-      take was made with (its prompt as rendered, refs used, model, seed) is read from that
-      take's own record when it is opened, one request, never for the whole grid: the
-      shot's current prompt is not what an older take was rendered with.
+- [ ] **Shots.** Refs | Shots in its head; in Shots a chip per sequence, a section per shot
+      under its sequence, every finished take newest first, the cut's badged (cut only, as
+      live only). Double-click a sequence's head opens it there; the Shots tab's gallery
+      button, on every take. Tiles are each take's thumbnail (hover scrubs its strip); the
+      viewer plays the take (space, `,` `.` a frame, the transport), Use, Compare with cut
+      (in step, C), Download, Copy prompt. What a take was made with is read when it is
+      opened, `GET /seriesmith/take` (its sidecar and its frozen shotlist, ~3 ms), never for
+      the grid: the shot's current prompt is not what an older take was rendered with. The
+      pictures it was sent, each a link to that ref's pictures, "changed since" where the
+      ref's sha1 isn't the one the take recorded.
 - [ ] **Recreate.** A ref's candidate queued again with its own settings and a new seed; a
       take, the Redo dialog filled from its record.
 

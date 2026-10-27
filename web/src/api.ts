@@ -15,7 +15,7 @@ import type {
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
-  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeRef, TargetKind, TargetList, TrackResult,
+  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult,
   MasterJob, MasterResult, UpscaleOptions, UpscaleRequest, UpscaleResult,
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
@@ -113,6 +113,8 @@ export interface Api {
   /** P9: `target` answers for a one-off run on that video target -- the size and
    * length it would really produce. Nothing is saved. */
   shot(ep: string, pass: Pass, shot: string, target?: string | null): Promise<ShotDetail>;
+  /** What one take was made with (the gallery). */
+  take(ep: string, pass: Pass, shot: string, take: number): Promise<TakeInfo>;
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
@@ -509,6 +511,7 @@ export function createHttpApi(t: Transport): Api {
     episodes: () => get("/seriesmith/episodes"),
     episode: (ep, pass) => get(`/seriesmith/episode?${qs({ ep, pass })}`),
     shot: (ep, pass, shot, target) => get(`/seriesmith/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
+    take: (ep, pass, shot, take) => get(`/seriesmith/take?${qs({ ep, pass, shot, take: String(take) })}`),
     build: (ep) => call("POST", "/seriesmith/build", { ep }),
     newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
     refsFromFrame: (req) => call("POST", "/seriesmith/refs/from-frame", req),

@@ -35,7 +35,7 @@ section and search for the path for its later additions.
 |---|---|
 | `GET` / `PUT /seriesmith/config` | Config |
 | `POST /seriesmith/server/stop` | Config (standalone only) |
-| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `POST /seriesmith/build` | Episodes |
+| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
@@ -232,6 +232,16 @@ Two additions to the inspector's detail, both from the same planner as `effectiv
   described, since it would only repeat `effective`; that includes a one-off `target`, because
   an override belongs to a target and none of the shot's is in force on another one. The
   inspector reads it to say what a value is deviating from ("Built: steps 4").
+
+### `GET /seriesmith/take?ep=…&pass=…&shot=sh020&take=3` (the gallery, 2026-10-27)
+`edit.take_detail`, seeds as strings: what **one** take was made with, read from its own
+files when the gallery opens it (never for a whole grid). It has `status`, `has_video`,
+`sidecar` (whole), `prompt` (the take's frozen shotlist's prompt as the loader joined it,
+not the shot's now; null for a take with no frozen shotlist), `refs` (the pictures it was
+sent, from the sidecar: `{id, kind, role, slot, path, sha1, exists}`, `id` the ref they
+are, null where none matches; `sha1` the file's then, for the page to compare with the
+ref's now), `reference_image` and `files` (as `GET /seriesmith/shot`'s takes). 404 for a
+take that isn't there, 400 for a `take` that isn't a number.
 
 ### `POST /seriesmith/build`
 Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the

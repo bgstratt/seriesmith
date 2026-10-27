@@ -1,7 +1,9 @@
 // The gallery's sections: which refs, which pictures, in what order.
 import { describe, expect, it } from "vitest";
-import { gallerySections, itemAspect, itemKey, liveKey, type GalleryScope } from "../src/lib/gallery";
-import type { Ref, RefTake } from "../src/types";
+import {
+  cutKey, gallerySections, itemAspect, itemKey, liveKey, sequencesOf, shotKey, shotSections, takeAspect, type GalleryScope,
+} from "../src/lib/gallery";
+import type { EpisodeStatus, Ref, RefTake, ShotStatus, TakeSummary } from "../src/types";
 
 function ref(id: string, kind: Ref["kind"], over: Partial<Ref> = {}): Ref {
   return {
@@ -18,7 +20,7 @@ function take(n: number, over: Partial<RefTake> = {}): RefTake {
   };
 }
 
-const ALL: GalleryScope = { group: null, ref: null, picksOnly: false, series: false };
+const ALL: GalleryScope = { kind: "refs", group: null, ref: null, seq: null, shot: null, picksOnly: false, series: false };
 
 describe("gallery sections", () => {
   const ada = ref("subject:ada", "character", {
@@ -72,5 +74,58 @@ describe("gallery sections", () => {
     expect(itemAspect({ ref: ada, view: "sheet", take: take(1) })).toBe(4);
     expect(itemAspect({ ref: street, view: null, take: take(1) })).toBeCloseTo(16 / 9);
     expect(itemAspect({ ref: street, view: "pano", take: take(5) })).toBe(2);
+  });
+});
+
+function tk(n: number, over: Partial<TakeSummary> = {}): TakeSummary {
+  return {
+    take: n, status: "ok", has_video: true, seed: "1", seed_source: "stable", note: "", overrides: [], stale: [],
+    thumb: `renders/t${n}.jpg`, strip: null, mp4: `renders/t${n}.mp4`, queued: null, finished: null, save_notes: "", ...over,
+  };
+}
+
+function shot(id: string, sequence: string, takes: TakeSummary[], cut: number | null = null): ShotStatus {
+  return {
+    shot: id, orphan: false, sequence, length: 24, seconds: 1, size: null, subjects: [], audio_policy: null,
+    cut: { take: cut, picked: cut != null, pass: "final", placeholder: false, usable: true, trim_in: 0, trim_out: 0, locked: false, note: "", in_cut_file: false },
+    override: { fields: [], stale: false }, takes,
+  };
+}
+
+describe("gallery shot sections", () => {
+  const SHOTS: GalleryScope = { ...ALL, kind: "shots" };
+  const st = { shots: [
+    shot("sh010", "sq01", [tk(1), tk(2), tk(3, { status: "failed", mp4: null, thumb: null })], 1),
+    shot("sh020", "sq01", [tk(1, { status: "queued", mp4: null, thumb: null })]),
+    shot("sh030", "sq02", [tk(1), tk(2)], 2),
+  ] } as unknown as EpisodeStatus;
+
+  it("lists finished takes newest first in script order, the cut's badged", () => {
+    const secs = shotSections(st, SHOTS, "final");
+    expect(secs.map((s) => [s.shot.shot, s.seq, s.items.map((i) => [i.take.take, i.cut]), s.queued, s.failed])).toEqual([
+      ["sh010", "sq01", [[2, false], [1, true]], 0, 1],
+      ["sh020", "sq01", [], 1, 0],
+      ["sh030", "sq02", [[2, true], [1, false]], 0, 0],
+    ]);
+    expect(sequencesOf(st)).toEqual(["sq01", "sq02"]);
+  });
+
+  it("narrows to a sequence or a shot, and to the cut", () => {
+    expect(shotSections(st, { ...SHOTS, seq: "sq02" }, "final").map((s) => s.shot.shot)).toEqual(["sh030"]);
+    expect(shotSections(st, { ...SHOTS, seq: "sq02", shot: "sh010" }, "final").map((s) => s.shot.shot)).toEqual(["sh010"]);
+    expect(shotSections(st, { ...SHOTS, picksOnly: true }, "final").flatMap((s) => s.items.map((i) => i.key)))
+      .toEqual([shotKey("sh010", 1), shotKey("sh030", 2)]);
+  });
+
+  it("a cut of the other pass isn't this pass's", () => {
+    expect(shotSections(st, SHOTS, "proxy").flatMap((s) => s.items).some((i) => i.cut)).toBe(false);
+  });
+
+  it("opens a shot on its cut take, else its newest; a take at its own shape", () => {
+    const secs = shotSections(st, SHOTS, "final");
+    expect(cutKey(secs, "sh030")).toBe(shotKey("sh030", 2));
+    expect(cutKey(shotSections(st, { ...SHOTS, shot: "sh010" }, "proxy"), "sh010")).toBe(shotKey("sh010", 2));
+    expect(takeAspect({ width: 1280, height: 720 }, 1)).toBeCloseTo(16 / 9);
+    expect(takeAspect({}, 2.35)).toBe(2.35);
   });
 });

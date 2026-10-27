@@ -853,6 +853,23 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       }
       return d;
     },
+    // the gallery's one take: its sidecar, and the shot's prompt and refs as
+    // what it was made with (the mock keeps no frozen shotlists)
+    async take(ep, pass, shot, take) {
+      await wait();
+      need(ep);
+      const d = det(pass, shot);
+      const t = d.takes.find((x) => x.take === take);
+      if (!t) throw new MockError(`${shot} has no take ${take} in the ${pass} pass`, 404);
+      return clone({
+        shot, pass, take, status: t.status, has_video: t.has_video, sidecar: t.sidecar ?? {},
+        prompt: d.built_prompt,
+        refs: refsUsedOf(shot, shotTargetOf(shot, d.override).target).map((r) => ({
+          id: r.id, kind: r.kind, role: r.role, slot: r.slot ?? null, path: r.path, sha1: null, exists: r.exists,
+        })),
+        reference_image: t.reference_image ?? null, files: t.files,
+      });
+    },
     async build(ep) {
       await wait(900);
       need(ep);
