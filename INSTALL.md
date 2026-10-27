@@ -147,7 +147,8 @@ compute nodes. Everything seriesmith sends a backend runs on these; they never r
 write an episode folder (files go up with each job and come back as its outputs).
 
 **From ComfyUI-Manager** (the usual way): **Manager → Custom Nodes Manager**, search for
-**seriesmith**, install, restart ComfyUI (or `comfy node install seriesmith`). Manager
+**seriesmith**, install the latest **nightly** (the Comfy Registry hasn't approved a
+numbered release yet), restart ComfyUI (or, once one is, `comfy node install seriesmith`). Manager
 installs the whole of seriesmith into `custom_nodes\seriesmith`, with comfy-sdk and
 imageio-ffmpeg into ComfyUI's Python (`requirements.txt`). Nothing else is needed; the
 clone above is then only for the page of its own or the command line, and

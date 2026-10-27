@@ -136,7 +136,8 @@ same.
 [docs/QUICKSTART.md](docs/QUICKSTART.md) the short one.** Three ways, one app:
 
 - **Inside ComfyUI:** **Manager → Custom Nodes Manager**, search for **seriesmith**,
-  install, restart ComfyUI (or `comfy node install seriesmith`). The editor is in its
+  install the latest **nightly** (no numbered release is approved on the Comfy Registry
+  yet), restart ComfyUI (or, once one is, `comfy node install seriesmith`). The editor is in its
   sidebar and renders on it. No other node pack is needed.
 - **On a page of its own:** `git clone https://github.com/bgstratt/seriesmith.git`, then
   `run_seriesmith.bat` (this PC; `run_seriesmith_ext.bat`: your home network too;
