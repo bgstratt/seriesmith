@@ -740,35 +740,13 @@ def refs_used(root: str, job: J.Job) -> list[dict]:
         slots = J.ref_slots(job.doc, job.shot)
     except Exception:
         return []
-    cfg = J.series_config(root) or {}
-    # a variant (`of:`) shares the subject's voice, and so its voice ref: there
-    # is no voice:<variant> to point at (refs.series_refs)
-    from seriesmith.core.series_config import variant_of
-    variants = variant_of(cfg)
-    plates = {}
-    home = P.series_home(root) or root
-    for lid, loc in (cfg.get("locations") or {}).items():
-        if isinstance(loc, dict) and loc.get("plate"):
-            plates[os.path.normcase(os.path.normpath(os.path.join(home, loc["plate"])))] = lid
+    which = _ref_namer(root, job.id)
     out = []
     for r in slots:
         p = r.get("path") or ""
         rel_, full = _ep_path(root, p) if p else (None, "")
         exists = bool(p) and os.path.isfile(full)
-        role, rid = None, None
-        if r.get("role") in ("first", "last"):
-            role, rid = r["role"], f"shot:{job.id}:{r['role']}"
-        elif r.get("kind") == "audio":
-            role = "voice" if r.get("subject") else "recording"
-            rid = (f"voice:{variants.get(r['subject'], r['subject'])}"
-                   if r.get("subject") else None)
-        elif r.get("subject"):
-            role, rid = "subject", f"subject:{r['subject']}"
-        elif r.get("location"):
-            role, rid = "plate", f"location:{r['location']}"
-        else:
-            lid = plates.get(os.path.normcase(os.path.normpath(full))) if p else None
-            role, rid = "plate", (f"location:{lid}" if lid else None)
+        role, rid = which(r, full)
         need = "optional" if r.get("optional") else "required"
         out.append({"id": rid, "kind": r.get("kind", "image"), "role": role, "path": rel_,
                     "exists": exists, "need": need, "thumb": rel_ if exists else None,
@@ -789,6 +767,69 @@ def refs_used(root: str, job: J.Job) -> list[dict]:
                     "exists": bool(latest), "need": "required", "thumb": rel_,
                     "slot": "reference sheet" if rec.get("reference_sheet") else "reference image"})
     return out
+
+
+def _ref_namer(root: str, shot_id: str):
+    """A function naming the ref a shot's ref slot (or a take's sidecar `refs`
+    entry) is: (role, ref id or None), given the slot and its file on disk."""
+    cfg = J.series_config(root) or {}
+    # a variant (`of:`) shares the subject's voice, and so its voice ref: there
+    # is no voice:<variant> to point at (refs.series_refs)
+    from seriesmith.core.series_config import variant_of
+    variants = variant_of(cfg)
+    plates = {}
+    home = P.series_home(root) or root
+    for lid, loc in (cfg.get("locations") or {}).items():
+        if isinstance(loc, dict) and loc.get("plate"):
+            plates[os.path.normcase(os.path.normpath(os.path.join(home, loc["plate"])))] = lid
+
+    def which(r: dict, full: str) -> tuple[str | None, str | None]:
+        if r.get("role") in ("first", "last"):
+            return r["role"], f"shot:{shot_id}:{r['role']}"
+        if r.get("kind") == "audio":
+            return (("voice", f"voice:{variants.get(r['subject'], r['subject'])}")
+                    if r.get("subject") else ("recording", None))
+        if r.get("subject"):
+            return "subject", f"subject:{r['subject']}"
+        if r.get("location"):
+            return "plate", f"location:{r['location']}"
+        lid = plates.get(os.path.normcase(os.path.normpath(full))) if full else None
+        return "plate", (f"location:{lid}" if lid else None)
+    return which
+
+
+def take_detail(root: str, pass_: str, shot_id: str, take: int,
+                folder: str | None = None) -> dict:
+    """What one take was made with, for the gallery: its sidecar, the prompt its
+    loader read (the take's frozen shotlist, not the shot's prompt now), and the
+    pictures it was sent, each named by its ref, with the sha1 it had then (the
+    page compares it with the ref's now). Two of the take's own files are read
+    and nothing is planned, so opening one take costs one take."""
+    t = T.get_take(root, pass_, shot_id, take, folder)
+    if t is None:
+        raise KeyError(f"{shot_id} has no take {take} in the {pass_} pass")
+    sc = t.sidecar or {}
+    frozen = T.read_json(t.paths.shotlist) if os.path.isfile(t.paths.shotlist) else None
+    entry = next((x for x in (frozen or {}).get("shots") or [] if x.get("id") == shot_id), None)
+    which = _ref_namer(root, shot_id)
+    sent = []
+    for r in sc.get("refs") or []:
+        p = r.get("path") or ""
+        rel_, full = _ep_path(root, p) if p else (None, "")
+        role, rid = which(r, full)
+        sent.append({"id": rid, "kind": r.get("kind", "image"), "role": r.get("role") or role,
+                     "slot": r.get("slot"), "path": rel_, "sha1": r.get("sha1"),
+                     "exists": bool(p) and os.path.isfile(full)})
+    return {
+        "shot": shot_id, "pass": pass_, "take": take, "status": t.status, "has_video": t.has_video,
+        "sidecar": sc,
+        "prompt": prompt_text(entry.get("prompt")) if entry else None,
+        "refs": sent,
+        "reference_image": reference_image(root, sc),
+        "files": {k: rel(root, getattr(t.paths, k))
+                  for k in ("mp4", "thumb", "strip", "shotlist", "h3_wav")
+                  if os.path.isfile(getattr(t.paths, k))},
+    }
 
 
 def reference_image(root: str, sidecar: dict | None) -> str | None:

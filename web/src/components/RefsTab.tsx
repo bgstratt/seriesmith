@@ -5,7 +5,7 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
-  openFrameUse, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
+  openFrameUse, openGallery, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
   saveOwnPreset,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
@@ -32,6 +32,7 @@ import {
   SHEET_VIEW, VIEWS, blockedShots, canGenerate, groupRefs, hasViews, missingPlan, isAudioRef, pickedOf, pickedTake, refCounts, takeFile, takeUsable, takesOf,
   unpickedViews, usedBy, viewLabel, viewOf, type RefFilter,
 } from "../lib/refs";
+import type { GalleryGroup } from "../lib/gallery";
 import { findTarget, targetLabel, targetShort } from "../lib/targets";
 import { store, useApp } from "../store";
 import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
@@ -1147,12 +1148,10 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
         onClick={() => toggleRefOpen(r.id)}
         onDoubleClick={() => {
           // the two clicks of a double-click have already toggled it twice, so
-          // the row is where it started; open the live file on top of that
-          if (!isAudioRef(r) && r.exists && r.path) openRefFile(r.id, r.path);
+          // the row is where it started; open its pictures in the gallery on top
+          if (!isAudioRef(r)) openGallery({ ref: r.id });
         }}
-        title={r.exists && !isAudioRef(r)
-          ? `Click to expand, double-click to open ${r.path}`
-          : undefined}
+        title={isAudioRef(r) ? undefined : "Click to expand, double-click to see its pictures in the gallery"}
       >
         <span className="h3-chev">{open ? "▼" : "▶"}</span>
         <LiveThumb ep={ep} r={r} size={40} />
@@ -1239,8 +1238,8 @@ function RefTile({ ep, r, wide, onOpen }: { ep: string; r: Ref; wide: boolean; o
   const missing = !r.exists && !!r.path && r.method !== "none";
   return (
     <div className="h3-tile" data-ref={r.id} onClick={onOpen}
-      onDoubleClick={(e) => { e.stopPropagation(); if (!isAudioRef(r) && r.exists && r.path) openRefFile(r.id, r.path); }}
-      title={`${kf ? `${kf.shot} ${kf.which} frame` : r.name}: click to open it in the list${r.exists && !isAudioRef(r) ? ", double-click to open the picture" : ""}`}>
+      onDoubleClick={(e) => { e.stopPropagation(); if (!isAudioRef(r)) openGallery({ ref: r.id }); }}
+      title={`${kf ? `${kf.shot} ${kf.which} frame` : r.name}: click to open it in the list${isAudioRef(r) ? "" : ", double-click to see its pictures in the gallery"}`}>
       <LiveThumb ep={ep} r={r} size={0} fill={wide ? "16 / 9" : "1"} />
       <b className="h3-ell">{kf ? `${kf.which} frame` : r.name}</b>
       <span className="h3-small h3-muted h3-ell">
@@ -1381,6 +1380,9 @@ export function RefsTab() {
                 <button className={view === "list" ? "h3-on" : ""} onClick={() => setView("list")}>List</button>
                 <button className={view === "board" ? "h3-on" : ""} onClick={() => setView("board")}>Board</button>
               </span>
+              <button className="h3-btn" title="Every picture of this episode's refs, large: arrow through them" onClick={() => openGallery()}>
+                <i className="pi pi-images" /> Gallery
+              </button>
               <span className="h3-grow" />
               <SupplyPicker />
               {(planLabels.length > 0 || counts.missing > 0) && (
@@ -1442,7 +1444,10 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               const isCollapsed = !!collapsed[g.id];
               return (
                 <div key={g.id} className="h3-seq">
-                  <div className="h3-seq-head" onClick={() => setCollapsed((c) => ({ ...c, [g.id]: !c[g.id] }))}>
+                  <div className="h3-seq-head" onClick={() => setCollapsed((c) => ({ ...c, [g.id]: !c[g.id] }))}
+                    // two clicks have toggled it back; voices have no pictures
+                    onDoubleClick={() => g.id !== "voices" && openGallery({ group: g.id as GalleryGroup })}
+                    title={g.id !== "voices" ? `Click to fold, double-click to see every ${g.label.toLowerCase()} picture in the gallery` : undefined}>
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>

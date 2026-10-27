@@ -456,6 +456,25 @@ def get_shot(ctx: Context, query: dict):
 
 
 @handler
+def get_take(ctx: Context, query: dict):
+    """What one take was made with (the gallery opens one at a time): its
+    sidecar, the prompt as it rendered, the pictures it was sent. 404 for a
+    take that isn't there."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    shot = check_shot(query.get("shot"))
+    try:
+        take = int(query.get("take") or "")
+    except ValueError:
+        raise ApiError(400, f"take must be a take number, not {query.get('take')!r}")
+    try:
+        detail = E.take_detail(ep, pass_, shot, take)
+    except KeyError as e:
+        raise ApiError(404, e.args[0])
+    return 200, seeds_out(detail)
+
+
+@handler
 def get_browse(ctx: Context, query: dict):
     """Folder picker. Not limited to the roots: it is how roots are chosen.
     Lists folder names only, never file contents."""
@@ -957,6 +976,89 @@ def get_file(ctx: Context, query: dict):
     full, rel = ep_file(ctx, ep, query.get("path"))
     ext = os.path.splitext(full)[1].lower()
     return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
+
+
+# a selection's zip (the gallery's Download): kept this long, then swept
+ZIP_KEEP_S = 3600
+ZIP_MAX_FILES = 2000
+
+
+def _zips_dir(ctx: Context) -> str:
+    return os.path.join(ctx.user_dir, "default", "seriesmith", "downloads")
+
+
+def _sweep_zips(d: str, keep_s: float = ZIP_KEEP_S) -> None:
+    """Zips older than `keep_s` (and any half-written one left by a crash)."""
+    import time
+    now = time.time()
+    for n in os.listdir(d) if os.path.isdir(d) else []:
+        f = os.path.join(d, n)
+        try:
+            if now - os.path.getmtime(f) > keep_s:
+                os.remove(f)
+        except OSError:
+            pass
+
+
+def zip_names(rels: list[str]) -> list[str]:
+    """Each file's name in the zip: its own, numbered where two are alike
+    (two episodes' candidates can share a file name)."""
+    seen: dict[str, int] = {}
+    out = []
+    for r in rels:
+        base = r.replace("\\", "/").rsplit("/", 1)[-1]
+        stem, ext = os.path.splitext(base)
+        n = seen.get(base.lower(), 0)
+        seen[base.lower()] = n + 1
+        out.append(base if n == 0 else f"{stem}_{n + 1}{ext}")
+    return out
+
+
+@handler
+def post_download(ctx: Context, body):
+    """Several of the episode's files as one zip, for the gallery's Download of a
+    selection: `{ep, paths, name?}`, each path checked as GET /seriesmith/file
+    checks it. Made now and stored, not compressed (pictures and videos are
+    already), kept an hour: {"id", "name", "files", "bytes"}, the zip itself
+    from GET /seriesmith/download?id=."""
+    import uuid
+    import zipfile
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    paths = body.get("paths")
+    if not isinstance(paths, list) or not paths or not all(isinstance(x, str) for x in paths):
+        raise ApiError(400, "paths must be a list of the episode's files")
+    if len(paths) > ZIP_MAX_FILES:
+        raise ApiError(400, f"{len(paths)} files is more than one zip takes ({ZIP_MAX_FILES})")
+    files = [ep_file(ctx, ep, x) for x in dict.fromkeys(paths)]
+    name = re.sub(r'[\\/:*?"<>|]+', "_", str(body.get("name") or "")).strip(" .")
+    if not name:
+        name = f"{os.path.basename(os.path.normpath(ep))}-{len(files)}"
+    if not name.lower().endswith(".zip"):
+        name += ".zip"
+    d = _zips_dir(ctx)
+    os.makedirs(d, exist_ok=True)
+    _sweep_zips(d)
+    zid = uuid.uuid4().hex
+    out = os.path.join(d, zid + ".zip")
+    tmp = F.temp_beside(out, ".zip")
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED, allowZip64=True) as z:
+        for (full, _), arc in zip(files, zip_names([r for _, r in files])):
+            z.write(full, arc)
+    F.replace(tmp, out)
+    return 200, {"id": zid, "name": name, "files": len(files), "bytes": os.path.getsize(out)}
+
+
+@handler
+def get_download(ctx: Context, query: dict):
+    """A zip POST /seriesmith/download made, streamed. 404 once it's swept."""
+    zid = query.get("id") or ""
+    if not re.fullmatch(r"[0-9a-f]{32}", zid):
+        raise ApiError(400, "id must be what POST /seriesmith/download answered")
+    path = os.path.join(_zips_dir(ctx), zid + ".zip")
+    if not os.path.isfile(path):
+        raise ApiError(404, "that zip is gone (they're kept an hour): select and download again")
+    return 200, {"path": path, "content_type": "application/zip"}
 
 
 THUMB_WIDTHS = (128, 256, 512, 1024)
@@ -3462,6 +3564,20 @@ def get_refs_owner_takes(ctx: Context, query: dict):
 
 
 @handler
+def get_refs_shared_takes(ctx: Context, query: dict):
+    """A shared ref's candidates in the other episodes that share it (the
+    gallery): `from` names them, comma-separated, as the listing's
+    `shared_with` does. Asked for one ref at a time, as its pictures come into
+    view. {"takes": [...]}, each with its `episode` and `picked` (that
+    episode's pick), paths relative to this episode."""
+    ep = check_ep(ctx, query.get("ep"))
+    s = _series(ep)
+    ref = R.find_ref(s, query.get("ref"))
+    names = [n for n in (query.get("from") or "").split(",") if n]
+    return 200, seeds_out({"takes": R.shared_takes(ep, ref, names)})
+
+
+@handler
 def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
     episode.refs_target / episode.keyframe_target / episode.voice_target):
@@ -4452,10 +4568,10 @@ def get_issues_export(ctx: Context, query: dict):
 
 # (method, path, handler, what it takes: "query", "body" (JSON) or "form" (JSON, or
 # multipart/form-data whose file field arrives as an Upload))
-# how a route answers, read by server/views.make_view: these three stream a file
+# how a route answers, read by server/views.make_view: these four stream a file
 # (`reply`), and thumbnails (CPU: shrinking pictures) have threads of their own
 # (`pool`), so a Refs tab asking for hundreds never holds up the other requests
-for _fn in (get_file, get_thumb, get_preset_image):
+for _fn in (get_file, get_thumb, get_preset_image, get_download):
     _fn.reply = "file"
 get_thumb.pool = "thumb"
 
@@ -4466,6 +4582,9 @@ ROUTES = [
     ("GET", "/seriesmith/browse", get_browse, "query"),
     ("GET", "/seriesmith/episode", get_episode, "query"),
     ("GET", "/seriesmith/shot", get_shot, "query"),
+    ("GET", "/seriesmith/take", get_take, "query"),
+    ("POST", "/seriesmith/download", post_download, "body"),
+    ("GET", "/seriesmith/download", get_download, "query"),
     ("POST", "/seriesmith/build", post_build, "body"),
     ("POST", "/seriesmith/episode/new", post_episode_new, "body"),
     ("GET", "/seriesmith/episode/new", get_episode_template, "query"),
@@ -4524,6 +4643,7 @@ ROUTES = [
     ("POST", "/seriesmith/workflow/install", post_workflow_install, "body"),
     ("DELETE", "/seriesmith/workflow/install", delete_workflow_install, "query"),
     ("GET", "/seriesmith/refs", get_refs, "query"),
+    ("GET", "/seriesmith/refs/shared-takes", get_refs_shared_takes, "query"),
     ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),

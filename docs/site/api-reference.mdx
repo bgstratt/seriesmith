@@ -35,7 +35,7 @@ section and search for the path for its later additions.
 |---|---|
 | `GET` / `PUT /seriesmith/config` | Config |
 | `POST /seriesmith/server/stop` | Config (standalone only) |
-| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `POST /seriesmith/build` | Episodes |
+| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
@@ -48,7 +48,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -232,6 +232,26 @@ Two additions to the inspector's detail, both from the same planner as `effectiv
   described, since it would only repeat `effective`; that includes a one-off `target`, because
   an override belongs to a target and none of the shot's is in force on another one. The
   inspector reads it to say what a value is deviating from ("Built: steps 4").
+
+### `GET /seriesmith/take?ep=…&pass=…&shot=sh020&take=3` (the gallery, 2026-10-27)
+`edit.take_detail`, seeds as strings: what **one** take was made with, read from its own
+files when the gallery opens it (never for a whole grid). It has `status`, `has_video`,
+`sidecar` (whole), `prompt` (the take's frozen shotlist's prompt as the loader joined it,
+not the shot's now; null for a take with no frozen shotlist), `refs` (the pictures it was
+sent, from the sidecar: `{id, kind, role, slot, path, sha1, exists}`, `id` the ref they
+are, null where none matches; `sha1` the file's then, for the page to compare with the
+ref's now), `reference_image` and `files` (as `GET /seriesmith/shot`'s takes). 404 for a
+take that isn't there, 400 for a `take` that isn't a number.
+
+### `POST /seriesmith/download`, `GET /seriesmith/download?id=…` (the gallery, 2026-10-27)
+Several of an episode's files as one zip, the gallery's Download of a selection. The POST's
+body is `{ep, paths, name?}`: each path checked as `GET /seriesmith/file` checks it (a shared
+ref's other episodes' candidates included), up to 2000, a path given twice zipped once. The zip
+is made there and then, stored rather than compressed (pictures and videos are compressed
+already), names inside it the files' own (`x.png`, `x_2.png` where two are alike). It answers
+`{"id", "name", "files", "bytes"}`; `name` is the request's, made safe, with `.zip`, else
+`<episode>-<n>.zip`. The GET streams it (the page saves it under `name`). Zips are kept in the
+settings folder's `downloads/` for an hour, then swept; a GET after that is 404.
 
 ### `POST /seriesmith/build`
 Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the
@@ -2139,6 +2159,12 @@ plus `episode` and `picked` (its pick), the image paths relative to this episode
 is what shows which candidate this episode is reading. The editor asks when the ref's row
 opens, so the listing never reads every sibling's candidates; `takes` is `[]` when this
 episode owns the file, or nothing does.
+
+**`GET /seriesmith/refs/shared-takes?ep=…&ref=…&from=ep01,ep03`** (the gallery, 2026-10-27) is
+the same for every episode named in `from` (comma-separated, as `shared_with` lists them):
+`{"takes"}`, each with its `episode` and `picked`. This episode, a name given twice and one that
+isn't a sibling add nothing. The gallery asks for one ref at a time as its pictures come into
+view (~50-200 ms on a show of 40 episodes), never for the whole listing.
 
 A character also says **`panels`**: 4 (its sheet is the four views) or 1 (`sheet_panels: 1`,
 one whole picture of them), so a list shows the whole picture rather than a face cropped

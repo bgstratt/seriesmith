@@ -33,7 +33,7 @@ export const VIEWER_RECT_KEY = "seriesmith.viewer.rect.v2";
 const RECT_KEY = VIEWER_RECT_KEY;
 
 /** Keep B on A's clock: play/pause/seek/rate follow A. */
-function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
+export function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
   useEffect(() => {
     if (!a || !b) return;
     const sync = () => {
@@ -76,7 +76,7 @@ function useSync(a: HTMLVideoElement | null, b: HTMLVideoElement | null) {
   }, [a, b]);
 }
 
-function Transport({ a, fps, audio, setAudio, hasB }: {
+export function Transport({ a, fps, audio, setAudio, hasB }: {
   a: HTMLVideoElement | null; fps: number; audio: "a" | "b" | "off"; setAudio: (x: "a" | "b" | "off") => void; hasB: boolean;
 }) {
   const [, force] = useState(0);
@@ -118,14 +118,14 @@ function Transport({ a, fps, audio, setAudio, hasB }: {
 }
 
 /** The viewer's window full screen, or back (the browser's own: Esc leaves it too). */
-function toggleFullscreen(el: Element | null | undefined) {
+export function toggleFullscreen(el: Element | null | undefined) {
   if (!el) return;
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   else void el.requestFullscreen?.().catch(() => {});
 }
 
 /** A button for it, for a window's title bar. */
-function FullscreenButton() {
+export function FullscreenButton() {
   const [full, setFull] = useState(!!document.fullscreenElement);
   useEffect(() => {
     const on = () => setFull(!!document.fullscreenElement);

@@ -1,7 +1,7 @@
 // P4: a ref's cfg and sampler knobs as override fields, and a take's
 // settings made the ref's ("Use these settings").
 import { describe, expect, it } from "vitest";
-import { knobFields, knobsOf, takeSettings } from "../src/lib/refSettings";
+import { knobFields, knobsOf, regenerateRequest, takeSettings } from "../src/lib/refSettings";
 import type { RefTake } from "../src/types";
 
 describe("ref sampler settings", () => {
@@ -34,5 +34,34 @@ describe("ref sampler settings", () => {
       seed: "77", model: null, loras: null, steps: 25, cfg: 1, params: { sampler: "euler" }, size: "1344x768",
     });
     expect(takeSettings(t, true)).not.toHaveProperty("size");     // a keyframe's size is its shot's
+  });
+});
+
+describe("the gallery's Regenerate", () => {
+  const drawn = {
+    take: 3, status: "ok", source: "generated", seed: "77", image: "a.png", note: "", prompt: "the whole prompt",
+    model: "m.safetensors", loras: [{ name: "l", strength: 1 }], steps: 25, cfg: 3.5, params: { sampler: "euler" },
+    width: 1024, height: 1024, target: "krea2",
+  } as RefTake;
+
+  it("is the candidate's own settings with a new seed", () => {
+    expect(regenerateRequest(drawn, "subject:ada", "04_face", false)).toEqual({
+      ref: "subject:ada", view: "04_face", count: 1, seed_mode: "new", seed: null, note: "", target: "krea2",
+      prompt: "the whole prompt", model: "m.safetensors", loras: [{ name: "l", strength: 1 }], steps: 25,
+      cfg: 3.5, params: { sampler: "euler" }, size: "1024x1024",
+    });
+    expect(regenerateRequest(drawn, "shot:sh010:first", null, true)).not.toHaveProperty("size");
+  });
+
+  it("an edit is the same edit again", () => {
+    const edited = { ...drawn, source: "edited", edit: { take: 1, view: "01_threequarter", instruction: "a red coat", wrap: true } } as RefTake;
+    expect(regenerateRequest(edited, "subject:ada", "04_face", false)).toMatchObject({
+      prompt: "a red coat", model: null, edit: { take: 1, wrap: true, from_view: "01_threequarter" },
+    });
+  });
+
+  it("nothing for what wasn't drawn, or didn't finish", () => {
+    expect(regenerateRequest({ ...drawn, source: "imported" }, "subject:ada", null, false)).toBeNull();
+    expect(regenerateRequest({ ...drawn, status: "failed" }, "subject:ada", null, false)).toBeNull();
   });
 });

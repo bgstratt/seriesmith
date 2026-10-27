@@ -1036,6 +1036,61 @@ sheet, renders the sheet itself (figures on white, panel for panel); a rewritten
 negative prompt didn't stop it. Left as is and written up in AUTHORING (one person on the
 sheet; a group on `ltx2_msr`). Untried: a weaker guide, a faces-only sheet for a group.
 
+## The gallery: every picture and take, large ✅ (2026-10-27)
+
+The sidebar shows one ref's candidates or one shot's takes at a time, small. The gallery
+is one big window over all of them: a grid of every version (picks badged, not just the
+picks), opened scoped from where you double-click and widened from inside, and a viewer
+that steps through the grid with the arrow keys instead of going back to it for the next
+one. Design: DESIGN.md §7, "The gallery".
+
+- [x] **Refs.** A window of its own (`gallery` in the store, `Gallery.tsx`), chips for the
+      Refs tab's groups (Characters · Props & vehicles · Locations · Shot keyframes; voices
+      have no pictures). Double-click a ref (row or tile) opens it on that ref, its live
+      picture open; a group's head, on that group; a Gallery button, on everything. A
+      section per ref, every candidate of every view (a character's four, its sheets; a
+      location's plate, 360s and tour holds), newest first, live badged; or Flow, one run of
+      justified rows with each ref's pictures together (its name on the first). Tiles at the
+      picture's own shape (S/M/L), the view and take on hover; the episode picker in its
+      head. A picture opens over the grid (closing it comes back to the grid where it was):
+      ←/→ through the grid in order across refs, Esc back, F full screen; beside it, its
+      prompt with Copy, model, size, seed, steps, what it was drawn from (each a link to
+      that ref in the gallery), Pick, Compare with live (side by side in the gallery
+      itself, C; the docked viewer sits under a floating window on the standalone page),
+      Download (the file route, saved by the browser). A ref's takes come with the refs
+      listing already: nothing more is fetched.
+- [x] **Shots.** Refs | Shots in its head; in Shots a list (an episode has dozens of
+      sequences): every sequence, in the cut, or one; and "cut only", as Refs' "live only"
+      (In the cut is every sequence with it on; a sequence picked keeps it).
+      A section per shot under its sequence, every finished take newest first, the cut's
+      badged, a fresh upscale 2x (the 2x switch plays it); the action line on hover. Double-click a sequence's head opens it there; the Shots tab's gallery
+      button, on every take. Tiles are each take's thumbnail (hover scrubs its strip); the
+      viewer plays the take (space, `,` `.` a frame, the transport), Use, Compare with cut
+      (in step, C), Download, Copy prompt. What a take was made with is read when it is
+      opened, `GET /seriesmith/take` (its sidecar and its frozen shotlist, ~3 ms), never for
+      the grid: the shot's current prompt is not what an older take was rendered with. The
+      pictures it was sent, each a link to that ref's pictures, "changed since" where the
+      ref's sha1 isn't the one the take recorded.
+- [x] **Regenerate.** A ref's candidate queued again with its own settings (prompt as drawn,
+      target, model, LoRAs, steps, cfg, knobs, size) and a new seed; an edited one, the same
+      edit of the same picture; nothing for what wasn't drawn. A take: the shot as it is now
+      and a new seed, that take its parent (the Inspector's Generate (new seed)); a take's
+      old prompt isn't remade, since the pictures it was sent may have changed since.
+- [x] **Shared refs across the show.** A ref other episodes share (`shared_with`) shows their
+      candidates after this episode's, badged with the episode, read-only (no Pick or
+      Regenerate here; Download, Copy prompt, Compare with live), live where that episode's
+      pick wrote the file this one reads. Asked for one ref at a time as its section comes
+      near (`GET /seriesmith/refs/shared-takes`, two at once, ~50-200 ms each on Porchlights'
+      40 episodes). "Unused too" (was "whole series": it adds the series config's refs this
+      episode's shots don't use) brings another episode's cast in with their pictures. The
+      count reads "289…" while some are still to ask for.
+- [x] **Selecting and saving.** On hover each tile has a tick (top left) and Download
+      (bottom right). With some ticked, a click ticks, shift-click ticks a range, and the head
+      has N selected · Download · Select all · Clear (Esc clears). Kept across scopes, cleared
+      with the episode. Download saves one as itself (the picture whole, a take's video or,
+      under 2x, its upscale) and more as one zip (`POST /seriesmith/download`: stored, not
+      compressed, kept an hour; `<episode>-gallery-<n>.zip`).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
@@ -1085,6 +1140,11 @@ self-hosted endpoint. The same data-driven model, a different transport:
 
 ## Later
 
+- The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next
+  zip is made, so a big one can sit in `downloads/` until then. Fine on one machine; for a
+  hosted seriesmith (or a laptop on Tailscale over a slow link), sweep at start too and keep
+  each until it's been fetched rather than by the clock. A zip being streamed is never cut
+  short meanwhile (Windows refuses the delete; elsewhere the open file streams on).
 - Publishing: PyPI for the app (the Manager listing is its own step, above).
 - RTX Video Super Resolution (`rtx_vsr`, among the pixel models; 2026-10-14). Measured
   2026-10-15 on the RTX 5090, 2x of two 5 s takes (Porchlights ep02 sh2440, H3 1344x768;

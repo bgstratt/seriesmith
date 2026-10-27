@@ -447,6 +447,22 @@ export interface TakeDetail {
   reference_image?: string | null;
 }
 
+/** GET /seriesmith/take: what one take was made with (the gallery opens one at a time). */
+export interface TakeInfo {
+  shot: string;
+  pass: Pass;
+  take: number;
+  status: TakeStatus;
+  has_video: boolean;
+  sidecar: Sidecar;
+  /** the prompt as it rendered (the take's frozen shotlist); null with none kept */
+  prompt: string | null;
+  /** the pictures it was sent; `id` the ref each is (null: none matches), `sha1` the file's then */
+  refs: { id: string | null; kind: string; role: string | null; slot: string | null; path: string | null; sha1: string | null; exists: boolean }[];
+  reference_image: string | null;
+  files: Partial<Record<TakeFileKind, string>>;
+}
+
 /** A pass's effective override, as shot_detail returns it (no base_hash). */
 export interface Override {
   prompt?: string | string[] | null;
@@ -1467,6 +1483,9 @@ export interface RefGenerateRequest {
   pano?: { with?: string[]; engine?: "qwen" | "klein" } | null;
   /** P4: the picture's size, "WxH" (a 360's: 2:1) */
   size?: string | null;
+  /** P4: cfg and the target's sampler knobs for this call (the gallery's Regenerate) */
+  cfg?: number | null;
+  params?: RefParams | null;
   /** seriesmith: make it on this backend (absent: its target's own). Only sent when set. */
   backend?: string;
 }

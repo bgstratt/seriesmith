@@ -3,6 +3,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { ToastAction } from "./host";
+import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
@@ -85,6 +86,14 @@ export interface ViewerState {
    * of the four picked views -- so it has no take number to compare by.
    */
   file?: string | null;
+}
+
+/** The gallery: its scope, and where it is in it. */
+export interface GalleryState extends GalleryScope {
+  /** the picture open in its viewer (an item key); null: the grid */
+  open: string | null;
+  /** the grid's cursor: the picture last opened or moved to */
+  at: string | null;
 }
 
 export interface CutPlayState {
@@ -322,6 +331,7 @@ export interface AppState {
   pending: string[];
   progress: Record<string, { value: number; max: number }>;
   viewer: ViewerState | null;
+  gallery: GalleryState | null;
   /** the floating inspector is open (it follows `shot`) */
   inspector: boolean;
   cutPlay: CutPlayState;
@@ -499,6 +509,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     pending: [],
     progress: {},
     viewer: null,
+    gallery: null,
     inspector: false,
     cutPlay: { playing: false, pos: 0, seek: null },
     browse: null,

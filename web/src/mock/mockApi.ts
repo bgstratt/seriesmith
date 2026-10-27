@@ -853,6 +853,30 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       }
       return d;
     },
+    // the gallery's zip of a selection: the mock has no files to zip
+    async download(ep, paths, name) {
+      await wait();
+      need(ep);
+      return { id: "0".repeat(32), name: `${name || "mock"}.zip`, files: paths.length, bytes: 0 };
+    },
+    downloadUrl: (id: string) => `/mock/download/${id}.zip`,
+    // the gallery's one take: its sidecar, and the shot's prompt and refs as
+    // what it was made with (the mock keeps no frozen shotlists)
+    async take(ep, pass, shot, take) {
+      await wait();
+      need(ep);
+      const d = det(pass, shot);
+      const t = d.takes.find((x) => x.take === take);
+      if (!t) throw new MockError(`${shot} has no take ${take} in the ${pass} pass`, 404);
+      return clone({
+        shot, pass, take, status: t.status, has_video: t.has_video, sidecar: t.sidecar ?? {},
+        prompt: d.built_prompt,
+        refs: refsUsedOf(shot, shotTargetOf(shot, d.override).target).map((r) => ({
+          id: r.id, kind: r.kind, role: r.role, slot: r.slot ?? null, path: r.path, sha1: null, exists: r.exists,
+        })),
+        reference_image: t.reference_image ?? null, files: t.files,
+      });
+    },
     async build(ep) {
       await wait(900);
       need(ep);
@@ -1885,6 +1909,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { videos: [] };
     },
+    async refsSharedTakes() {
+      await wait();
+      return { takes: [] };
+    },
     async refsOwnerTakes() {
       await wait(40);
       return { owner: null, takes: [] };
@@ -2094,7 +2122,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   // Errors from the mock look like the real client's ApiError (status + message)
   const wrapped = {} as Api;
   for (const [k, fn] of Object.entries(api) as [keyof Api, (...a: unknown[]) => unknown][]) {
-    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" || k === "presetImageUrl" ? fn : async (...a: unknown[]) => {
+    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" || k === "presetImageUrl" || k === "downloadUrl" ? fn : async (...a: unknown[]) => {
       try {
         return await fn(...a);
       } catch (e) {

@@ -13,6 +13,7 @@ import { type RefTargetKind } from "./lib/imageTargets";
 import {
   clearKeyframeText, clearSeriesRefText, isKeyframeRef, keyframeOf, keyframeRefId, keyframeSource, type KeyframeEnd,
 } from "./lib/keyframes";
+import { cutKey, gallerySections, liveKey, shotSections, type GalleryScope } from "./lib/gallery";
 import { discardRefText, discardTakeText, fileKindProblem, missingResultText } from "./lib/lookback";
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
@@ -591,6 +592,8 @@ export function selectEpisode(ep: string | null) {
     build: { busy: false, result: null, error: null },
     // Phase 9c: the Recording and voice-clip windows belong to one episode
     trackPanel: null, voiceClip: null, alignRun: null,
+    // the gallery stays open, on the same scope, at the new episode's pictures
+    gallery: s.gallery && { ...s.gallery, ref: null, seq: null, shot: null, open: null, at: null },
   }));
   if (ep) {
     const shots = openOnTakes(ep);
@@ -2982,6 +2985,34 @@ export function openRefFile(ref: string, file: string) {
               mode: "single", target: "a", ref, view: null, file },
     menu: null,
   });
+}
+
+/** The gallery, on a ref (its live picture open) or a shot (its cut take
+ * open), a group, a sequence, or everything. Its switches (live only, whole
+ * series) stay as they were, when it's open already. */
+export function openGallery(scope: Partial<GalleryScope> = {}) {
+  const s = get();
+  const prev = s.gallery;
+  const next: GalleryScope = {
+    kind: "refs", group: null, ref: null, seq: null, shot: null,
+    picksOnly: prev?.picksOnly ?? false, series: prev?.series ?? false,
+    ...scope,
+  };
+  const refs = (s.ep && s.refs[s.ep]) || [];
+  const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+  const open = next.kind === "refs"
+    ? (next.ref ? liveKey(gallerySections(refs, next, s.pass), next.ref) : null)
+    : (next.shot ? cutKey(shotSections(st, next, s.pass), next.shot) : null);
+  set({ gallery: { ...next, open, at: open }, menu: null });
+}
+
+export function updateGallery(patch: Partial<NonNullable<AppState["gallery"]>>) {
+  const g = get().gallery;
+  if (g) set({ gallery: { ...g, ...patch } });
+}
+
+export function closeGallery() {
+  set({ gallery: null });
 }
 
 export function openImageCompare(ref: string, view: string | null, a: number | null, b: number | null = null) {

@@ -192,6 +192,12 @@ http://127.0.0.1:8190:
   lock, undo, **Play all** and **Export**.
 - **Viewer** (docked in the middle): a shot's takes with A/B compare (side by side or
   wipe), a ref's candidates, a tour to keep any frame from, a 360 in its viewer.
+- **Gallery**: every picture of the refs and every take of the shots, large, in one
+  window; arrow through them, see what each was made with (its prompt, model, seed and
+  the pictures it was sent), regenerate, pick, and save a selection as one zip. A ref
+  other episodes share brings their pictures too.
+
+![The gallery](docs/site/images/gallery.jpg)
 - **Jobs** (the queue button, top right): every render, ref, upscale, post and tour
   queued, running and done, per backend — with progress, the log, cancel, reorder,
   pause a backend, and run again as a new take.
