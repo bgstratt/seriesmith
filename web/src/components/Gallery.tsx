@@ -38,6 +38,9 @@ type Layout = "sections" | "flow";
 const SIZES = { s: 140, m: 210, l: 320 } as const;
 type Size = keyof typeof SIZES;
 
+/** the sequence list's "In the cut": not a sequence id (an id is a word) */
+const IN_CUT = "@cut";
+
 /** Everything the gallery changes when its scope does: back to the grid, nothing narrowed. */
 const WIDE = { group: null, ref: null, seq: null, shot: null, open: null, at: null } as const;
 
@@ -242,8 +245,8 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
       <b>Gallery</b>
       <EpisodeSelect compact />
       <span className="h3-seg" title="The refs' pictures, or the shots' takes">
-        <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE })}>Refs</button>
-        <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE })}>Shots</button>
+        <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE, picksOnly: false })}>Refs</button>
+        <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE, picksOnly: false })}>Shots</button>
       </span>
       <span className="h3-row h3-wrap" style={{ gap: 4 }}>
         {!shots && (
@@ -257,11 +260,17 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
             {x.label}
           </button>
         ))}
-        {/* an episode can have dozens of sequences: a list, not a chip each */}
+        {/* an episode can have dozens of sequences: a list, not a chip each;
+            "in the cut" is every sequence's cut takes (Shots' "live only") */}
         {shots && (
-          <select className="h3-in" style={{ minWidth: 0 }} aria-label="Sequence" title="Only one sequence's takes"
-            value={g.seq ?? ""} onChange={(e) => updateGallery({ ...WIDE, seq: e.target.value || null })}>
+          <select className="h3-in" style={{ minWidth: 0 }} aria-label="Sequence" title="Every take, the cut's, or one sequence's"
+            value={g.picksOnly ? IN_CUT : g.seq ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              updateGallery({ ...WIDE, seq: v && v !== IN_CUT ? v : null, picksOnly: v === IN_CUT });
+            }}>
             <option value="">Every sequence</option>
+            <option value={IN_CUT}>In the cut</option>
             {seqs.map((q) => <option key={q} value={q}>{q}</option>)}
           </select>
         )}
@@ -288,9 +297,11 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
         ))}
       </span>
-      <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
-        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
-      </label>
+      {!shots && (
+        <label className="h3-row h3-small" style={{ gap: 4 }} title="Only the picture each ref uses now">
+          <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> live only
+        </label>
+      )}
       {!shots && !g.ref && (
         <label className="h3-row h3-small" style={{ gap: 4 }} title="Every ref in the series config, not just those this episode uses">
           <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> whole series

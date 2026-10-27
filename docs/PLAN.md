@@ -1059,9 +1059,10 @@ one. Design: DESIGN.md §7, "The gallery".
       itself, C; the docked viewer sits under a floating window on the standalone page),
       Download (the file route, saved by the browser). A ref's takes come with the refs
       listing already: nothing more is fetched.
-- [ ] **Shots.** Refs | Shots in its head; in Shots a list of the sequences (an episode has dozens), a section per shot
-      under its sequence, every finished take newest first, the cut's badged (cut only, as
-      live only). Double-click a sequence's head opens it there; the Shots tab's gallery
+- [x] **Shots.** Refs | Shots in its head; in Shots a list (an episode has dozens of
+      sequences): every sequence, in the cut (the cut's takes, as Refs' live only), or one.
+      A section per shot under its sequence, every finished take newest first, the cut's
+      badged, a fresh upscale 2x (the 2x switch plays it); the action line on hover. Double-click a sequence's head opens it there; the Shots tab's gallery
       button, on every take. Tiles are each take's thumbnail (hover scrubs its strip); the
       viewer plays the take (space, `,` `.` a frame, the transport), Use, Compare with cut
       (in step, C), Download, Copy prompt. What a take was made with is read when it is
