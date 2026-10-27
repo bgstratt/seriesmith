@@ -22,8 +22,10 @@ Pick one way into a ComfyUI. The Manager install and a clone both take the folde
 
 You need a ComfyUI that runs (developed against 0.38 and later) with ComfyUI-Manager.
 
-1. Open **Manager → Custom Nodes Manager**, search for **seriesmith**, and install it.
-   Or, with comfy-cli: `comfy node install seriesmith`.
+1. Open **Manager → Custom Nodes Manager**, search for **seriesmith**, and install it,
+   choosing the latest **nightly** as the version: the Comfy Registry hasn't approved a
+   numbered release yet, and the nightly is the repo's `main`. Or, with comfy-cli once a
+   release is approved: `comfy node install seriesmith`.
 2. Restart ComfyUI.
 
 Manager puts in the two Python packages seriesmith needs that ComfyUI doesn't already
