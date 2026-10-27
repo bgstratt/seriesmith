@@ -1006,6 +1006,11 @@ collide with the package.
       (0.4 to 2.5) before sending, never cropping it; WebP sizes read; Kling v3 Omni takes 7
       pictures; an input ComfyUI holds isn't uploaded again. Kling 4 isn't on Router yet
       (its catalog, 2026-10-26). Published by the merge's version bump.
+- [x] **0.1.5** (2026-10-26, `release-0.1.5`): `target: ltx2_msr`, LTX-2.5 with Licon's MSR
+      LoRA: up to four people's pictures and the plate on one shot (a group refused), two
+      stages; the Features window's "LTX-2.5 + MSR" with its two node packs; a LoRA of the
+      user's on it. AUTHORING says what LTX references hold: one person on `ltx2`'s
+      ingredients sheet, a group on MSR, speech by seed. Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
@@ -1020,10 +1025,16 @@ by timed `[Shot N]` sections, Kling v3 Omni and Seedance in prose, Kling O1 by s
 keeping its shots. The design, what each model did on the same three-shot beat, the open
 questions and the checklist are docs/MULTISHOT.md. Merged in 0.1.4. LTX stays off the list:
 with MSR's references it cut on its own but drew people into shots they weren't in.
-`ltx2_msr` (the `ltx-msr` branch, 2026-10-26) is LTX-2.5 with Licon's MSR LoRA as a
+`ltx2_msr` (merged 2026-10-26, #52) is LTX-2.5 with Licon's MSR LoRA as a
 reference model for single shots: up to four people's 16:9 sheets made at queue time and the
-plate, one PromptRelay prompt, two stages, the refine from 0.6. Open: a short shot of three
-people (sh060, 41 frames) came out a wide of the hall; whether length or seed.
+plate, one PromptRelay prompt, two stages, the refine from 0.6. Measured on ms04 (2026-10-26,
+local, two to three seeds a shot): one person holds at any length; three people hold in a
+4.7 s shot and lose one or two in a 1.7 s one; speech is seed luck (Whisper-checked: one seed
+garbled at both sizes, the others clean); a 960×544 first stage was no better than 832×480.
+Against it, plain `ltx2` with the 2.5 ingredients sheet holds one person but, with three on the
+sheet, renders the sheet itself (figures on white, panel for panel); a rewritten prompt and a
+negative prompt didn't stop it. Left as is and written up in AUTHORING (one person on the
+sheet; a group on `ltx2_msr`). Untried: a weaker guide, a faces-only sheet for a group.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
