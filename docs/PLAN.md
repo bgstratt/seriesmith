@@ -1059,7 +1059,7 @@ one. Design: DESIGN.md §7, "The gallery".
       itself, C; the docked viewer sits under a floating window on the standalone page),
       Download (the file route, saved by the browser). A ref's takes come with the refs
       listing already: nothing more is fetched.
-- [ ] **Shots.** Refs | Shots in its head; in Shots a chip per sequence, a section per shot
+- [ ] **Shots.** Refs | Shots in its head; in Shots a list of the sequences (an episode has dozens), a section per shot
       under its sequence, every finished take newest first, the cut's badged (cut only, as
       live only). Double-click a sequence's head opens it there; the Shots tab's gallery
       button, on every take. Tiles are each take's thumbnail (hover scrubs its strip); the

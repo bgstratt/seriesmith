@@ -255,12 +255,14 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
             {x.label}
           </button>
         ))}
-        {shots && seqs.map((q) => (
-          <button key={q} className={`h3-chip${g.seq === q && !g.shot ? " h3-on" : ""}`}
-            onClick={() => updateGallery({ ...WIDE, seq: q })}>
-            {q}
-          </button>
-        ))}
+        {/* an episode can have dozens of sequences: a list, not a chip each */}
+        {shots && (
+          <select className="h3-in" style={{ minWidth: 0 }} aria-label="Sequence" title="Only one sequence's takes"
+            value={g.seq ?? ""} onChange={(e) => updateGallery({ ...WIDE, seq: e.target.value || null })}>
+            <option value="">Every sequence</option>
+            {seqs.map((q) => <option key={q} value={q}>{q}</option>)}
+          </select>
+        )}
         {!shots && g.ref && (
           <button className="h3-chip h3-on" title="Show its whole group"
             onClick={() => updateGallery({ ...WIDE, group: scopeRef ? groupOf(scopeRef) as GalleryState["group"] : null })}>
