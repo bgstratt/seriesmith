@@ -23,9 +23,14 @@ of the short side) and no border. The sheet has no empty bands: the IC-LoRA
 reads the reference at the output's size and position, and a sheet framed by
 black bars came back as a letterboxed shot.
 
-`background` is "black" (the ingredients sheet) or "white" (the wan22_vace
-target's reference image: VACE's references are subjects on white); the gap
-lines and a figure's empty sides are that colour.
+`background` is "black" (the ingredients sheet), "white" (the wan22_vace
+target's reference image: VACE's references are subjects on white) or "grey"
+(an MSR character sheet, ltx2_msr: Licon's own are figures on light grey);
+the gap lines and a figure's empty sides are that colour.
+
+A panel's `crop` is one panel of a strip ({"panels": 4, "index": 3}) or a box
+of the picture, as fractions ({"box": [left, top, right, bottom]}: a face cut
+from a full-length picture).
 
 Each image is fitted to its cell by its `fit`:
   cover   (the plate) cropped to the cell, centred: the whole cell is picture
@@ -53,7 +58,7 @@ import sys
 
 # black: the LTX ingredients sheet; white: the Wan VACE reference image
 # (VACE pads its references on white)
-BACKGROUNDS = {"black": (0, 0, 0), "white": (255, 255, 255)}
+BACKGROUNDS = {"black": (0, 0, 0), "white": (255, 255, 255), "grey": (214, 214, 214)}
 MIN_KEEP = 0.6            # a figure keeps at least this much of its width
 CROP_COST = 0.5           # a cropped pixel costs half a black one
 
@@ -174,7 +179,11 @@ def _load(panel: dict, bg):
     else:
         img = img.convert("RGB")
     crop = panel.get("crop")
-    if crop and int(crop.get("panels", 1)) > 1:
+    if crop and crop.get("box"):
+        l, t, r, b = (float(v) for v in crop["box"])
+        img = img.crop((int(round(l * img.width)), int(round(t * img.height)),
+                        int(round(min(r, 1.0) * img.width)), int(round(min(b, 1.0) * img.height))))
+    elif crop and int(crop.get("panels", 1)) > 1:
         n, i = int(crop["panels"]), int(crop.get("index", 0))
         pw = img.width // n                      # as the H3 loader's crop_panels
         img = img.crop((i * pw, 0, (i + 1) * pw, img.height))

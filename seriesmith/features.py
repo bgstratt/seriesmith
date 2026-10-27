@@ -60,6 +60,12 @@ PACKS: dict[str, dict] = {
     "ComfyUI-VideoHelperSuite": {
         "repo": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite",
         "classes": ["VHS_VideoCombine"]},
+    "ComfyUI-LTX2.5-MSR": {
+        "repo": "https://github.com/liconstudio/ComfyUI-LTX2.5-MSR",
+        "classes": ["ComfyUILTX25MSRICLoRALoader", "ComfyUILTX25MSRMultiReferenceGuide"]},
+    "ComfyUI-PromptRelay": {
+        "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
+        "classes": ["PromptRelayEncode"]},
 }
 
 # ---------------------------------------------------------------------------
@@ -218,6 +224,10 @@ def catalog() -> list[Feature]:
                        "Quick, and makes its own sound. Gated: accept the licence on Hugging Face."),
         target_feature("video.ltx2_ingredients", "video", "ltx2_ingredients", "LTX-2.3 ingredients",
                        "LTX working from your character sheets and plates."),
+        target_feature("video.ltx2_msr", "video", "ltx2_msr", "LTX-2.5 + MSR",
+                       "LTX working from pictures of up to four people and the place (Licon's MSR "
+                       "LoRA), two stages. Gated, as LTX-2.5.",
+                       [_pack("ComfyUI-LTX2.5-MSR"), _pack("ComfyUI-PromptRelay")]),
         target_feature("video.wan22_vace", "video", "wan22_vace", "Wan 2.2 VACE 14B",
                        "Wan with reference pictures and keyframes. No sound."),
         target_feature("video.wan22_i2v", "video", "wan22_i2v", "Wan 2.2 I2V 14B",

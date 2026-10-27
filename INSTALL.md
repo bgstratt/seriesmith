@@ -443,32 +443,32 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | required | `ltx2` (accelerator), `ltx2_msr`, `ltx2_voice` (accelerator) | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
 | `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
-| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
 
 **Gemma 4 12B with the LTX 2.5 projection** (`ltx2.5-text-encoder`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `models/text_encoders/` | required | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
+| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `models/text_encoders/` | required | `ltx2`, `ltx2_msr`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
 
 **LTX 2.5 video VAE** (`ltx2.5-video-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-video-vae-bf16.safetensors` | `models/vae/` | required | `ltx2` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) |
+| `ltx-2.5-video-vae-bf16.safetensors` | `models/vae/` | required | `ltx2`, `ltx2_msr` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) |
 
 **LTX 2.5 audio VAE** (`ltx2.5-audio-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-audio-vae-bf16.safetensors` | `models/vae/` | required | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
+| `ltx-2.5-audio-vae-bf16.safetensors` | `models/vae/` | required | `ltx2`, `ltx2_msr`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
 
 **LTX 2.5 latent upscaler** (`ltx2.5-latent-upscaler`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` | `models/latent_upscale_models/` | required | `ltx2` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors) |
+| `ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors` | `models/latent_upscale_models/` | required | `ltx2`, `ltx2_msr` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors) |
 
 **LTX 2.5 duration head** (`ltx2.5-duration-head`)
 
@@ -500,6 +500,12 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `gemma_3_12B_it_fp4_mixed.safetensors` | `models/text_encoders/` | required | `ltx2_ingredients` | [Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors) |
+
+**ltx2.5-msr** (`ltx2.5-msr`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `LTX-2.5-Licon-MSR-V2.safetensors` | `models/loras/` | required | `ltx2_msr` | [LiconStudio/LTX-2.5-Multiple-Subject-Reference](https://huggingface.co/LiconStudio/LTX-2.5-Multiple-Subject-Reference/resolve/main/LTX-2.5-Licon-MSR-V2.safetensors) |
 
 **MiniMax H3 FL2VA** (`minimax-h3-fl2va`)
 

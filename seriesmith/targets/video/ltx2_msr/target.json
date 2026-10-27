@@ -1,0 +1,139 @@
+{
+  "id": "ltx2_msr",
+  "kind": "video",
+  "label": "LTX-2.5 + MSR (up to four people and the place as pictures)",
+  "_note": "One shot a generation: no multishot form. A run of shots as one prompt cut on its own, but put people in shots they weren't in and doubled others on the script's own wording (docs/MULTISHOT.md, 'LTX MSR revisited'); as single shots it holds them.",
+  "default_rank": 25,
+  "short": "LTX+MSR",
+  "code": "compile.py",
+
+  "capabilities": {
+    "_note": "max_subjects: the MSR guide's four picture slots (pic1-pic4); the place is a fifth, its background slot.",
+    "max_subjects": 4
+  },
+
+  "template": {
+    "_note": "LTX-2 renders 8k+1 frames. Two stages, as Licon's sample: a base pass at half size, then the x2 latent upsampler and a refine, so the output is a multiple of 64. The final is 1664x960 (the base pass 832x480, the size MSR was measured at: smaller, a face in a three-shot is a few latent cells); sizes that aren't legal are snapped down, then shrunk under 1664 on the long side and 1.6 MP.",
+    "fps": "series",
+    "default_fps": 24,
+    "frames": {"step": 8, "base": 1, "max": 481},
+    "size_multiple": 64,
+    "size_fit": "snap",
+    "max_size": {"long_side": 1664, "pixels": 1600000}
+  },
+
+  "recipe": {
+    "_note": "Licon's MSR LoRA (LiconStudio/LTX-2.5-Multiple-Subject-Reference, V2) through ComfyUI-LTX2.5-MSR's loader and Multi-Reference Guide, prompted with kijai's ComfyUI-PromptRelay, two stages, as the pack's V2 sample workflow (no audio references). The pictures (`references`) are composed at queue time: each person or thing a 16:9 sheet on grey at the render size, as MSR's own validation pictures are (a tall full-length picture reached the guide with a face of a few latent cells: it fits a picture whole into the frame), and the place's plate as the background. All are required, like H3's pictures; rendering anyway leaves the missing ones out and renumbers the prompt's `Image N`. The prompt is two parts (prompt.py): the global one names each picture (`Image 1: the Stepmother, ...`) and the look, the local one is the scene with each pictured person called by their picture. LTX makes the soundtrack with the picture: clone / dub / dub_keep_foley render with generate and say so.",
+    "policies": ["generate"],
+    "policy_fallback": {"to": "generate", "why": "LTX-2 generates sound with the picture and takes no voice sample or recording"},
+    "prompt": "Image N labels + prose",
+    "references": {
+      "_note": "A character's sheet: a strip (wider than `strip_ratio`, the series' 4-panel sheet) gives its `views` side by side, the full body, the face and the back, as Licon's; one whole picture gives itself and a face: the picture of a variant of it named for its face (`<id>_face`, or the variant the shot names when its person's own picture is full length), else `face_box` of the picture (fractions: the head of a full-length portrait). A prop or vehicle is its picture alone.",
+      "take_suffix": "_msr{n}.png",
+      "background": "grey",
+      "gap": 0.02,
+      "strip_ratio": 2.0,
+      "sheet_panels": 4,
+      "views": {"body": 0, "face": 3, "back": 2},
+      "face_box": [0.34, 0.02, 0.66, 0.26],
+      "slots": ["pic1", "pic2", "pic3", "pic4"],
+      "background_slot": "background"
+    },
+    "refs": {
+      "character": {"kind": "character sheet", "shape": "sheet", "views": 4},
+      "object": {"kind": "{kind} reference", "shape": "object"},
+      "location": {"kind": "background plate", "shape": "plate"}
+    },
+    "size_hints": {
+      "character sheet": "a 4-panel strip, or one full-length picture (with a `<id>_face` variant for the face)",
+      "background plate": "16:9 (the guide crops it to the frame)"
+    }
+  },
+
+  "binding": {
+    "_note": "The workflow is an API graph (workflow.json): stage 1 of Licon's V2 sample (UNETLoader -> MSR loader -> PromptRelayEncode -> LTXVConditioning -> Multi-Reference Guide -> CFGGuider, 8 steps of euler_ancestral on the distilled schedule) and its stage 2 (LTXVLatentUpsampler x2, a second PromptRelay and Guide at the new size, LTXVDualCFGGuider, stage 1's audio held), the refine started at 0.6, not the sample's 0.85, which redrew faces stage 1 had right (two seeds, 2026-10-26). H3SaveShot takes the place of CreateVideo/SaveVideo. patch_graph puts the composed pictures into both guides' slots.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_ltx2_5_msr.json",
+    "env": "SERIESMITH_LTX2_MSR_WORKFLOW",
+    "saver": {"class_type": "H3SaveShot",
+              "inputs": {"root": "project_root", "subfolder": "subfolder", "take": "take",
+                         "sidecar": "sidecar"},
+              "replace": {"class_type": "CreateVideo", "inputs": {"images": "images", "audio": "audio"}},
+              "drop": ["SaveVideo"],
+              "set": {"save_frames": false}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "msr_lora": {"class_type": "ComfyUILTX25MSRICLoRALoader", "field": "lora_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                "strength": "strength_model", "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
+      "seed": [{"class_type": "RandomNoise", "field": "noise_seed", "all": true}],
+      "prompt": {"class_type": "PromptRelayEncode", "field": "local_prompts", "all": true},
+      "global_prompt": {"class_type": "PromptRelayEncode", "field": "global_prompt", "all": true},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text"},
+      "width": {"class_type": "EmptyLTXVLatentVideo", "field": "width", "scale": 0.5},
+      "height": {"class_type": "EmptyLTXVLatentVideo", "field": "height", "scale": 0.5},
+      "length": [{"class_type": "EmptyLTXVLatentVideo", "field": "length"},
+                 {"class_type": "LTXVEmptyLatentAudio", "field": "frames_number"}],
+      "fps": [{"class_type": "LTXVConditioning", "field": "frame_rate", "all": true},
+              {"class_type": "LTXVEmptyLatentAudio", "field": "frame_rate"},
+              {"class_type": "H3SaveShot", "field": "fps"}],
+      "shot_id": {"class_type": "H3SaveShot", "field": "shot_id"},
+      "audio_policy": {"class_type": "H3SaveShot", "field": "audio_policy"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "video_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["VAEDecodeTiled", "vae"]},
+      "audio_vae": {"class_type": "VAELoader", "field": "vae_name", "feeds": ["LTXVAudioVAEDecode", "audio_vae"]},
+      "upscaler": {"class_type": "LatentUpscaleModelLoader", "field": "model_name"}
+    },
+    "review_nodes": []
+  },
+
+  "models": {
+    "_note": "As ltx2's (LTX-2.5 split files), with the MSR LoRA, required: it is what reads the pictures. The distilled transformer only: the workflow's fixed 8-step schedule at cfg 1 is the distilled model's, as Licon's sample runs it.",
+    "model": {"family": "ltx2.5", "patterns": ["ltx-2.5*distilled*", "*ltx*2.5*distilled*", "*ltx*2_5*distilled*"], "tier": "required",
+              "exclude": ["*lora*"]},
+    "msr_lora": {"family": "ltx2.5-msr", "patterns": ["*ltx*2.5*msr*", "*ltx*2_5*msr*", "*licon*msr*"],
+                 "folder": "loras", "class_type": "ComfyUILTX25MSRICLoRALoader", "field": "lora_name",
+                 "tier": "required"},
+    "text_encoder": {"family": "ltx2.5-text-encoder", "patterns": ["*gemma*4*ltx*2.5*"], "tier": "required"},
+    "video_vae": {"family": "ltx2.5-video-vae", "patterns": ["*ltx*2.5*video*vae*"], "tier": "required"},
+    "audio_vae": {"family": "ltx2.5-audio-vae", "patterns": ["*ltx*2.5*audio*vae*"], "tier": "required"},
+    "upscaler": {"family": "ltx2.5-latent-upscaler", "patterns": ["*ltx*2.5*upscal*"], "tier": "required",
+                 "keep": ["(spatial|temporal)", "[_-](x\\d+(?:\\.\\d+)?)"]}
+  },
+
+  "presets": {
+    "_note": "LTX-2.5 22B distilled (int8) with the MSR LoRA at 1.0: stage 1 at half size, 8 steps at cfg 1; stage 2 at full size, 3 steps from 0.6. The final is 1664x960 (stage 1 at 832x480, the size MSR was tried at); the proxy 1152x640. The negative prompt is the sample's: MSR's card says it matters.",
+    "final": {
+      "model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "lora": null, "steps": 8, "width": 1664, "height": 960,
+      "msr_lora": "LTX-2.5-Licon-MSR-V2.safetensors",
+      "negative": "subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance",
+      "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "video_vae": "ltx-2.5-video-vae-bf16.safetensors",
+      "audio_vae": "ltx-2.5-audio-vae-bf16.safetensors",
+      "upscaler": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+    },
+    "proxy": {
+      "model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "lora": null, "steps": 8, "width": 1152, "height": 640,
+      "msr_lora": "LTX-2.5-Licon-MSR-V2.safetensors",
+      "negative": "subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance",
+      "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "video_vae": "ltx-2.5-video-vae-bf16.safetensors",
+      "audio_vae": "ltx-2.5-audio-vae-bf16.safetensors",
+      "upscaler": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+    }
+  },
+
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it; `source` says which. Never a guessed URL.",
+    "LTX-2.5-Licon-MSR-V2.safetensors": {"folder": "loras", "url": "https://huggingface.co/LiconStudio/LTX-2.5-Multiple-Subject-Reference/resolve/main/LTX-2.5-Licon-MSR-V2.safetensors", "source": "the Hugging Face repo LiconStudio/LTX-2.5-Multiple-Subject-Reference, whose file listing (Hub API, 2026-10-26) has this file (2,215,094,328 bytes)"},
+    "ltx-2.5-audio-vae-bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors": {"folder": "latent_upscale_models", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"},
+    "ltx-2.5-video-vae-bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors", "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"}
+  }
+}

@@ -71,6 +71,11 @@ def video_row(t) -> str:
             takes, who = "one picture made from the subjects' sheets", "by their order"
         elif r.get("ic_lora") and r.get("reference_sheet"):
             takes, who = "one sheet tiled from the subjects and the plate", "by their order"
+        elif (r.get("references") or {}).get("slots"):
+            # MSR's guide: a sheet a subject, then the place (`Image N`, numbered over those sent)
+            n = len(r["references"]["slots"])
+            takes = f"{n} subjects + the plate" if r["references"].get("background_slot") else f"{n} subjects"
+            who = "`Image N`, by their order"
         else:
             takes, who = "none", "—"
         where = "your ComfyUI"

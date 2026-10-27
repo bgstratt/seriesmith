@@ -1,0 +1,665 @@
+{
+  "unet": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "LTX-2.5 transformer"
+    }
+  },
+  "clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "type": "ltxv",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "LTX-2.5 text encoder"
+    }
+  },
+  "vae_video": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-video-vae-bf16.safetensors"
+    },
+    "_meta": {
+      "title": "LTX-2.5 video VAE"
+    }
+  },
+  "vae_audio": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ltx-2.5-audio-vae-bf16.safetensors"
+    },
+    "_meta": {
+      "title": "LTX-2.5 audio VAE"
+    }
+  },
+  "msr_lora": {
+    "class_type": "ComfyUILTX25MSRICLoRALoader",
+    "inputs": {
+      "model": [
+        "unet",
+        0
+      ],
+      "lora_name": "LTX-2.5-Licon-MSR-V2.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": {
+      "title": "MSR LoRA"
+    }
+  },
+  "load_pic1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    },
+    "_meta": {
+      "title": "MSR pic1"
+    }
+  },
+  "load_pic2": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    },
+    "_meta": {
+      "title": "MSR pic2"
+    }
+  },
+  "load_pic3": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    },
+    "_meta": {
+      "title": "MSR pic3"
+    }
+  },
+  "load_pic4": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    },
+    "_meta": {
+      "title": "MSR pic4"
+    }
+  },
+  "load_background": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "example.png"
+    },
+    "_meta": {
+      "title": "MSR background"
+    }
+  },
+  "negative": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "clip",
+        0
+      ],
+      "text": "subtitles, watermark, worst quality, blurry, jittery, distorted, inconsistent appearance"
+    },
+    "_meta": {
+      "title": "negative"
+    }
+  },
+  "latent": {
+    "class_type": "EmptyLTXVLatentVideo",
+    "inputs": {
+      "width": 832,
+      "height": 480,
+      "length": 193,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "stage 1 video latent"
+    }
+  },
+  "audio_latent": {
+    "class_type": "LTXVEmptyLatentAudio",
+    "inputs": {
+      "audio_vae": [
+        "vae_audio",
+        0
+      ],
+      "frames_number": 193,
+      "frame_rate": 24,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "audio latent"
+    }
+  },
+  "relay1": {
+    "class_type": "PromptRelayEncode",
+    "inputs": {
+      "model": [
+        "msr_lora",
+        0
+      ],
+      "clip": [
+        "clip",
+        0
+      ],
+      "latent": [
+        "latent",
+        0
+      ],
+      "global_prompt": "",
+      "local_prompts": "",
+      "segment_lengths": "",
+      "epsilon": 0.001
+    },
+    "_meta": {
+      "title": "stage 1 prompt"
+    }
+  },
+  "cond1": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "relay1",
+        1
+      ],
+      "negative": [
+        "negative",
+        0
+      ],
+      "frame_rate": 24
+    },
+    "_meta": {
+      "title": "stage 1 conditioning"
+    }
+  },
+  "guide1": {
+    "class_type": "ComfyUILTX25MSRMultiReferenceGuide",
+    "inputs": {
+      "positive": [
+        "cond1",
+        0
+      ],
+      "negative": [
+        "cond1",
+        1
+      ],
+      "vae": [
+        "vae_video",
+        0
+      ],
+      "latent": [
+        "latent",
+        0
+      ],
+      "pic1": [
+        "load_pic1",
+        0
+      ],
+      "pic2": [
+        "load_pic2",
+        0
+      ],
+      "pic3": [
+        "load_pic3",
+        0
+      ],
+      "pic4": [
+        "load_pic4",
+        0
+      ],
+      "background": [
+        "load_background",
+        0
+      ],
+      "msr_parameters": [
+        "msr_lora",
+        1
+      ],
+      "strength": 1.0,
+      "reference_frames": "33",
+      "use_tiled_encode": false,
+      "tile_size": 256,
+      "tile_overlap": 64
+    },
+    "_meta": {
+      "title": "stage 1 MSR references"
+    }
+  },
+  "guider1": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "model": [
+        "relay1",
+        0
+      ],
+      "positive": [
+        "guide1",
+        0
+      ],
+      "negative": [
+        "guide1",
+        1
+      ],
+      "cfg": 1
+    },
+    "_meta": {
+      "title": "stage 1 guider"
+    }
+  },
+  "concat1": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "guide1",
+        2
+      ],
+      "audio_latent": [
+        "audio_latent",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 1 latent"
+    }
+  },
+  "noise1": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 0
+    },
+    "_meta": {
+      "title": "stage 1 noise"
+    }
+  },
+  "sampler": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler_ancestral"
+    },
+    "_meta": {
+      "title": "sampler"
+    }
+  },
+  "sigmas1": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "_meta": {
+      "title": "stage 1 sigmas"
+    }
+  },
+  "sample1": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "noise1",
+        0
+      ],
+      "guider": [
+        "guider1",
+        0
+      ],
+      "sampler": [
+        "sampler",
+        0
+      ],
+      "sigmas": [
+        "sigmas1",
+        0
+      ],
+      "latent_image": [
+        "concat1",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 1"
+    }
+  },
+  "sep1": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "sample1",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 1 separate"
+    }
+  },
+  "crop1": {
+    "class_type": "LTXVCropGuides",
+    "inputs": {
+      "positive": [
+        "guide1",
+        0
+      ],
+      "negative": [
+        "guide1",
+        1
+      ],
+      "latent": [
+        "sep1",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 1 crop references"
+    }
+  },
+  "upscale_model": {
+    "class_type": "LatentUpscaleModelLoader",
+    "inputs": {
+      "model_name": "ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors"
+    },
+    "_meta": {
+      "title": "LTX-2.5 latent upscaler"
+    }
+  },
+  "upscale": {
+    "class_type": "LTXVLatentUpsampler",
+    "inputs": {
+      "samples": [
+        "crop1",
+        2
+      ],
+      "upscale_model": [
+        "upscale_model",
+        0
+      ],
+      "vae": [
+        "vae_video",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 1 latent x2"
+    }
+  },
+  "relay2": {
+    "class_type": "PromptRelayEncode",
+    "inputs": {
+      "model": [
+        "msr_lora",
+        0
+      ],
+      "clip": [
+        "clip",
+        0
+      ],
+      "latent": [
+        "upscale",
+        0
+      ],
+      "global_prompt": "",
+      "local_prompts": "",
+      "segment_lengths": "",
+      "epsilon": 0.001
+    },
+    "_meta": {
+      "title": "stage 2 prompt"
+    }
+  },
+  "guide2": {
+    "class_type": "ComfyUILTX25MSRMultiReferenceGuide",
+    "inputs": {
+      "positive": [
+        "relay2",
+        1
+      ],
+      "negative": [
+        "negative",
+        0
+      ],
+      "vae": [
+        "vae_video",
+        0
+      ],
+      "latent": [
+        "upscale",
+        0
+      ],
+      "pic1": [
+        "load_pic1",
+        0
+      ],
+      "pic2": [
+        "load_pic2",
+        0
+      ],
+      "pic3": [
+        "load_pic3",
+        0
+      ],
+      "pic4": [
+        "load_pic4",
+        0
+      ],
+      "background": [
+        "load_background",
+        0
+      ],
+      "msr_parameters": [
+        "msr_lora",
+        1
+      ],
+      "strength": 1.0,
+      "reference_frames": "33",
+      "use_tiled_encode": false,
+      "tile_size": 256,
+      "tile_overlap": 64
+    },
+    "_meta": {
+      "title": "stage 2 MSR references"
+    }
+  },
+  "cond2": {
+    "class_type": "LTXVConditioning",
+    "inputs": {
+      "positive": [
+        "guide2",
+        0
+      ],
+      "negative": [
+        "guide2",
+        1
+      ],
+      "frame_rate": 24
+    },
+    "_meta": {
+      "title": "stage 2 conditioning"
+    }
+  },
+  "concat2": {
+    "class_type": "LTXVConcatAVLatent",
+    "inputs": {
+      "video_latent": [
+        "guide2",
+        2
+      ],
+      "audio_latent": [
+        "sep1",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "stage 2 latent"
+    }
+  },
+  "guider2": {
+    "class_type": "LTXVDualCFGGuider",
+    "inputs": {
+      "model": [
+        "relay2",
+        0
+      ],
+      "positive": [
+        "cond2",
+        0
+      ],
+      "negative": [
+        "cond2",
+        1
+      ],
+      "video_cfg": 1,
+      "audio_cfg": 1
+    },
+    "_meta": {
+      "title": "stage 2 guider"
+    }
+  },
+  "noise2": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 0
+    },
+    "_meta": {
+      "title": "stage 2 noise"
+    }
+  },
+  "sigmas2": {
+    "class_type": "ManualSigmas",
+    "inputs": {
+      "sigmas": "0.6, 0.4219, 0.2, 0.0"
+    },
+    "_meta": {
+      "title": "stage 2 sigmas"
+    }
+  },
+  "sample2": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "noise2",
+        0
+      ],
+      "guider": [
+        "guider2",
+        0
+      ],
+      "sampler": [
+        "sampler",
+        0
+      ],
+      "sigmas": [
+        "sigmas2",
+        0
+      ],
+      "latent_image": [
+        "concat2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 2"
+    }
+  },
+  "sep2": {
+    "class_type": "LTXVSeparateAVLatent",
+    "inputs": {
+      "av_latent": [
+        "sample2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 2 separate"
+    }
+  },
+  "crop2": {
+    "class_type": "LTXVCropGuides",
+    "inputs": {
+      "positive": [
+        "cond2",
+        0
+      ],
+      "negative": [
+        "cond2",
+        1
+      ],
+      "latent": [
+        "sep2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "stage 2 crop references"
+    }
+  },
+  "decode_audio": {
+    "class_type": "LTXVAudioVAEDecode",
+    "inputs": {
+      "samples": [
+        "sep2",
+        1
+      ],
+      "audio_vae": [
+        "vae_audio",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "audio"
+    }
+  },
+  "decode_video": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": [
+        "crop2",
+        2
+      ],
+      "vae": [
+        "vae_video",
+        0
+      ],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 16
+    },
+    "_meta": {
+      "title": "video"
+    }
+  },
+  "video": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": [
+        "decode_video",
+        0
+      ],
+      "audio": [
+        "decode_audio",
+        0
+      ],
+      "fps": 24
+    },
+    "_meta": {
+      "title": "video and audio"
+    }
+  },
+  "save": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": [
+        "video",
+        0
+      ],
+      "filename_prefix": "seriesmith/ltx2_msr",
+      "format": "auto",
+      "codec": "auto"
+    },
+    "_meta": {
+      "title": "save"
+    }
+  }
+}

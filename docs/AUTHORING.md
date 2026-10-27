@@ -190,6 +190,7 @@ shot 93. So:
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | always generated | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | always generated | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
+| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | always generated | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
@@ -297,7 +298,8 @@ target-from-workflow`), named in `target:` like any other.
   want one in particular: the series then renders on this machine's default, the model
   its owner picked or the first one installed (MiniMax H3, else LTX-2, else Wan 2.2), and
   a new series is given it. The models: `minimax_h3_ref2va` (MiniMax H3), `ltx2` (LTX-2.5 distilled), `ltx2_ingredients`
-  (LTX-2.3 with your character sheets and plates), `minimax_h3_fl2va` (MiniMax H3 from
+  (LTX-2.3 with your character sheets and plates), `ltx2_msr` (LTX-2.5 with up to four
+  people's pictures and the plate), `minimax_h3_fl2va` (MiniMax H3 from
   first/last keyframes), one of the silent Wan 2.2 models: `wan22_i2v` (14B, from a
   first frame), `wan22_ti2v` (5B, text or a first frame) or `wan22_vace` (14B with your
   character sheets), or a hosted model (`seedance_2_5`, `kling_v3_omni`, ...). `series.backend`
@@ -1251,7 +1253,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
@@ -1356,6 +1358,34 @@ plate). Everything above about LTX-2 holds (generated sound, `camera:`, retarget
   sheet is only named.
 - A `lora:` line or profile written for another model doesn't remove the IC-LoRA: it is
   put back first in the list, and the take says so.
+
+### Rendering a shot on LTX-2.5 with several people's pictures: `target: ltx2_msr`
+
+`target: ltx2_msr` renders on LTX-2.5 with Licon's MSR LoRA, which takes up to four people
+or things and the place as pictures. Everything above about LTX-2 holds (generated sound,
+`camera:`, retargeting), except:
+
+- **Your refs are used, and required.** The first four people and things in `who:` /
+  `with:` are each given a picture, then the location's plate. Each person's picture is
+  made when the shot is queued, at the render size on grey, the way MSR's own are: from a
+  4-panel sheet, the full body, the face and the back side by side; from one full-length
+  picture, the picture and its face. Give a person a face picture as a variant named for it
+  (`charming_face`, `"of": "charming"`) and it is used for the face; without one, the top
+  of the picture is. A missing ref blocks the shot, as on H3; rendering anyway leaves it
+  out. A shot with no one pictured renders from words alone. The pictures are kept beside
+  the take (`<shot>_tNN_msr1.png`, ...).
+- **People are called by their picture.** The prompt opens with `Image 1: the Stepmother,
+  <design>.` for each picture and the place, then the look; the shot itself calls each
+  person in it `Image N`.
+- **Write the action plainly.** MSR follows the words closely: "the women behind him" in a
+  close-up can put them in it. Say who is in frame, and keep anyone else out of the sentence.
+- **One shot at a time.** A `continuous: multishot` group is refused on it: tried, LTX cut
+  on its own but put people in shots they weren't in.
+- **Two stages, always**: the shot at half size, then doubled and refined, both under the
+  pictures. The final is 1664×960 unless the series config sets a size; below about 832×480
+  for the first stage, faces in a group shot get too small to hold.
+- **Install**: the MSR LoRA and two node packs, ComfyUI-LTX2.5-MSR and ComfyUI-PromptRelay
+  (the Features window, **LTX-2.5 + MSR**), beside LTX-2.5's own files.
 
 ### Rendering a shot on H3 from keyframes: `target: minimax_h3_fl2va`
 
@@ -1599,7 +1629,7 @@ dur: 1.62
   512 characters) and whole seconds, which it keeps to the frame; at most 6 shots and 15 s,
   the cast's 4 pictures and one plate. (On v3 Omni the storyboard lost the people's faces:
   its short parts have no room for who's who.)
-- **Other models** (Veo, Runway, Wan, LTX) render one shot a call: `seriesmith check` refuses
+- **Other models** (Veo, Runway, Wan, LTX, LTX + MSR) render one shot a call: `seriesmith check` refuses
   a group on them and says which models can render it, and rendering a group's first shot
   on one from the editor says why it can't.
 - **One set of pictures for the whole generation**: every person in the group once (the
@@ -1671,6 +1701,7 @@ What each model takes, local and hosted (generated from the targets by
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
+| `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
 | `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
