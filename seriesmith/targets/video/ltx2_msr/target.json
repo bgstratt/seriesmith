@@ -65,6 +65,9 @@
     "params": {
       "model": {"class_type": "UNETLoader", "field": "unet_name"},
       "msr_lora": {"class_type": "ComfyUILTX25MSRICLoRALoader", "field": "lora_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name",
+                "strength": "strength_model", "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
       "seed": [{"class_type": "RandomNoise", "field": "noise_seed", "all": true}],
       "prompt": {"class_type": "PromptRelayEncode", "field": "local_prompts", "all": true},
       "global_prompt": {"class_type": "PromptRelayEncode", "field": "global_prompt", "all": true},
