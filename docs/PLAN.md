@@ -1018,8 +1018,10 @@ collide with the package.
       `GET /seriesmith/take`, `GET /seriesmith/refs/shared-takes`, `POST` / `GET
       /seriesmith/download`. A bonus tutorial (https://youtu.be/KnWEI-0d6PA). Published by
       the merge's version bump.
-- [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
-      editor in the sidebar, a local render, a Router render.
+- [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
+      editor in the sidebar, a local render, a Router render. Passed (2026-10-27, 0.1.6): a
+      laptop (mobile RTX 5070) and a new local portable on the dev PC, the Features window's
+      installs included.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
   clicking, Manager installing); whether routes on PromptServer and a served editor page
   are fine (the docs don't say); the icon's size (400x400 in the spec, 800x400 in
@@ -1098,7 +1100,7 @@ one. Design: DESIGN.md §7, "The gallery".
       under 2x, its upscale) and more as one zip (`POST /seriesmith/download`: stored, not
       compressed, kept an hour; `<episode>-gallery-<n>.zip`).
 
-## Step 15 — models behind other APIs (after the Manager listing)
+## Step 15 — models behind other APIs (after the contest)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
 sooner) behind their own API, a gateway (fal, Replicate, WaveSpeed, Runware), or a
@@ -1147,7 +1149,7 @@ self-hosted endpoint. The same data-driven model, a different transport:
 
 ## Later
 
-- The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next
+- The gallery's zips (2026-10-27; deferred until it's a problem): kept an hour from when they're made, swept only as the next
   zip is made, so a big one can sit in `downloads/` until then. Fine on one machine; for a
   hosted seriesmith (or a laptop on Tailscale over a slow link), sweep at start too and keep
   each until it's been fetched rather than by the clock. A zip being streamed is never cut
