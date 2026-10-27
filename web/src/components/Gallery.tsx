@@ -12,7 +12,7 @@ import {
 } from "../actions";
 import { errText } from "../api";
 import { isTyping } from "../cutActions";
-import { api } from "../host";
+import { api, host } from "../host";
 import {
   GALLERY_GROUPS, gallerySections, isShared, itemAspect, sequencesOf, shotSections, takeAspect,
   type GalleryItem, type SharedTakes, type ShotItem,
@@ -239,6 +239,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
   const items = useMemo(() => sections.flatMap((s) => s.items), [sections]);
   const [chosen, setChosen] = useState<ReadonlyMap<string, string>>(() => new Map());
   const lastChosen = useRef<string | null>(null);
+  const [zipping, setZipping] = useState(false);
   useEffect(() => setChosen(new Map()), [ep]);
   // a click ticks one; shift-click ticks every picture from the last one ticked
   const choose = (it: GridItem, range: boolean) => {
@@ -386,9 +387,13 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
       {chosen.size > 0 ? (
         <span className="h3-row h3-gal-chosen" style={{ gap: 6 }}>
           <b className="h3-small">{chosen.size} selected</b>
-          <button className="h3-btn h3-primary" title="Save each one (the browser may ask once to allow several downloads)"
-            onClick={() => void downloadAll(ep, [...chosen.values()])}>
-            <i className="pi pi-download" /> Download
+          <button className="h3-btn h3-primary" disabled={zipping}
+            title={chosen.size > 1 ? "Save them as one zip" : "Save it"}
+            onClick={() => {
+              setZipping(true);
+              void downloadAll(ep, [...chosen.values()]).finally(() => setZipping(false));
+            }}>
+            <i className={zipping ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {zipping ? "Zipping…" : "Download"}
           </button>
           <button className="h3-btn" title="Select every one shown" onClick={() => setChosen((m) => new Map([...m, ...items.map((x) => [x.key, x.file] as const)]))}>
             Select all
@@ -531,18 +536,27 @@ function Tile({ ep, it, sel, row, name, ticked, picking, choose }: {
 
 const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
 
-/** Save each file: one link clicked at a time, a moment apart (the browser
- * asks once to allow several downloads from the page). */
-async function downloadAll(ep: string | null, files: string[]) {
-  if (!ep) return;
-  for (const f of files) {
-    const a = document.createElement("a");
-    a.href = api().fileUrl(ep, f);
-    a.download = baseName(f);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    await new Promise((r) => setTimeout(r, 300));
+/** Have the browser save `url` as `name` (same origin, so `download` names it). */
+function save(url: string, name: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** The selection saved: one file as itself, more as one zip the server makes
+ * (POST /seriesmith/download), named after the episode. */
+async function downloadAll(ep: string | null, files: string[]): Promise<void> {
+  if (!ep || !files.length) return;
+  if (files.length === 1) return save(api().fileUrl(ep, files[0]), baseName(files[0]));
+  const name = `${baseName(ep)}-gallery-${files.length}`;
+  try {
+    const z = await api().download(ep, files, name);
+    save(api().downloadUrl(z.id), z.name);
+  } catch (e) {
+    host().toast("error", "Couldn't make the zip", errText(e));
   }
 }
 

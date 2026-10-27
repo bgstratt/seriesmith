@@ -30,7 +30,7 @@ section and search for the path for its later additions.
 |---|---|
 | `GET` / `PUT /seriesmith/config` | Config |
 | `POST /seriesmith/server/stop` | Config (standalone only) |
-| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST /seriesmith/build` | Episodes |
+| `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
@@ -239,6 +239,16 @@ sent, from the sidecar: `{id, kind, role, slot, path, sha1, exists}`, `id` the r
 are, null where none matches; `sha1` the file's then, for the page to compare with the
 ref's now), `reference_image` and `files` (as `GET /seriesmith/shot`'s takes). 404 for a
 take that isn't there, 400 for a `take` that isn't a number.
+
+### `POST /seriesmith/download`, `GET /seriesmith/download?id=…` (the gallery, 2026-10-27)
+Several of an episode's files as one zip, the gallery's Download of a selection. The POST's
+body is `{ep, paths, name?}`: each path checked as `GET /seriesmith/file` checks it (a shared
+ref's other episodes' candidates included), up to 2000, a path given twice zipped once. The zip
+is made there and then, stored rather than compressed (pictures and videos are compressed
+already), names inside it the files' own (`x.png`, `x_2.png` where two are alike). It answers
+`{"id", "name", "files", "bytes"}`; `name` is the request's, made safe, with `.zip`, else
+`<episode>-<n>.zip`. The GET streams it (the page saves it under `name`). Zips are kept in the
+settings folder's `downloads/` for an hour, then swept; a GET after that is 404.
 
 ### `POST /seriesmith/build`
 Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the

@@ -115,6 +115,9 @@ export interface Api {
   shot(ep: string, pass: Pass, shot: string, target?: string | null): Promise<ShotDetail>;
   /** What one take was made with (the gallery). */
   take(ep: string, pass: Pass, shot: string, take: number): Promise<TakeInfo>;
+  /** Several of the episode's files zipped (the gallery's Download of a selection), for `downloadUrl`. */
+  download(ep: string, paths: string[], name?: string): Promise<{ id: string; name: string; files: number; bytes: number }>;
+  downloadUrl(id: string): string;
   build(ep: string): Promise<BuildResult>;
   /** P5: POST /seriesmith/episode/new — a new episode from a template, in `parent`. */
   newEpisode(req: NewEpisodeRequest): Promise<NewEpisodeResult>;
@@ -514,6 +517,8 @@ export function createHttpApi(t: Transport): Api {
     episode: (ep, pass) => get(`/seriesmith/episode?${qs({ ep, pass })}`),
     shot: (ep, pass, shot, target) => get(`/seriesmith/shot?${qs({ ep, pass, shot, target: target || undefined })}`),
     take: (ep, pass, shot, take) => get(`/seriesmith/take?${qs({ ep, pass, shot, take: String(take) })}`),
+    download: (ep, paths, name) => call("POST", "/seriesmith/download", { ep, paths, ...(name ? { name } : {}) }),
+    downloadUrl: (id) => t.url(`/seriesmith/download?${qs({ id })}`),
     build: (ep) => call("POST", "/seriesmith/build", { ep }),
     newEpisode: (req) => call("POST", "/seriesmith/episode/new", req),
     refsFromFrame: (req) => call("POST", "/seriesmith/refs/from-frame", req),

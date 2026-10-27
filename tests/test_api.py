@@ -594,6 +594,25 @@ class ReadTest(ApiTest):
         self.err(A.get_shot(self.ctx, {"ep": self.ep, "pass": "proxy", "shot": "sh999"}), 404)
         self.err(A.get_shot(self.ctx, {"ep": self.ep, "pass": "proxy"}), 400)
 
+    def test_download_zip(self):
+        """The gallery's Download of a selection: one zip, each file checked as /file checks it."""
+        import zipfile
+        self.render("sh010")
+        files = ["renders_proxy/sh010/sh010_t01.mp4", "renders_proxy/sh010/sh010_t01.shotlist.json"]
+        d = self.ok(A.post_download(self.ctx, {"ep": self.ep, "paths": files + files[:1], "name": "pick"}))
+        self.assertEqual((d["name"], d["files"]), ("pick.zip", 2))
+        path = self.ok(A.get_download(self.ctx, {"id": d["id"]}))["path"]
+        with zipfile.ZipFile(path) as z:
+            self.assertEqual(z.namelist(), ["sh010_t01.mp4", "sh010_t01.shotlist.json"])
+        self.assertEqual(A.zip_names(["a/x.png", "b/x.png", "c/X.png"]), ["x.png", "x_2.png", "X_3.png"])
+        self.err(A.post_download(self.ctx, {"ep": self.ep, "paths": ["../../secret.txt"]}), 400)
+        self.err(A.post_download(self.ctx, {"ep": self.ep, "paths": []}), 400)
+        self.err(A.get_download(self.ctx, {"id": "0" * 32}), 404)
+        self.err(A.get_download(self.ctx, {"id": "../x"}), 400)
+        # an hour on, it's swept
+        A._sweep_zips(A._zips_dir(self.ctx), keep_s=-1)
+        self.err(A.get_download(self.ctx, {"id": d["id"]}), 404)
+
     def test_take_detail(self):
         """The gallery's one take: the prompt it rendered with, even after the shot's changed."""
         self.render("sh010")

@@ -853,6 +853,13 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       }
       return d;
     },
+    // the gallery's zip of a selection: the mock has no files to zip
+    async download(ep, paths, name) {
+      await wait();
+      need(ep);
+      return { id: "0".repeat(32), name: `${name || "mock"}.zip`, files: paths.length, bytes: 0 };
+    },
+    downloadUrl: (id: string) => `/mock/download/${id}.zip`,
     // the gallery's one take: its sidecar, and the shot's prompt and refs as
     // what it was made with (the mock keeps no frozen shotlists)
     async take(ep, pass, shot, take) {
@@ -2115,7 +2122,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   // Errors from the mock look like the real client's ApiError (status + message)
   const wrapped = {} as Api;
   for (const [k, fn] of Object.entries(api) as [keyof Api, (...a: unknown[]) => unknown][]) {
-    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" || k === "presetImageUrl" ? fn : async (...a: unknown[]) => {
+    (wrapped as unknown as Record<string, unknown>)[k] = k === "fileUrl" || k === "refFileUrl" || k === "thumbUrl" || k === "presetImageUrl" || k === "downloadUrl" ? fn : async (...a: unknown[]) => {
       try {
         return await fn(...a);
       } catch (e) {

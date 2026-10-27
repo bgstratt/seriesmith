@@ -1087,8 +1087,9 @@ one. Design: DESIGN.md §7, "The gallery".
 - [ ] **Selecting and saving.** On hover each tile has a tick (top left) and Download
       (bottom right). With some ticked, a click ticks, shift-click ticks a range, and the head
       has N selected · Download · Select all · Clear (Esc clears). Kept across scopes, cleared
-      with the episode. Download saves each in turn (the picture whole, a take's video or, under
-      2x, its upscale); a zip from the server is the next step if one at a time is too many.
+      with the episode. Download saves one as itself (the picture whole, a take's video or,
+      under 2x, its upscale) and more as one zip (`POST /seriesmith/download`: stored, not
+      compressed, kept an hour; `<episode>-gallery-<n>.zip`).
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
