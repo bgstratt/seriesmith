@@ -149,6 +149,26 @@ class SheetTest(unittest.TestCase):
         l, t, r, b = face["crop"]["box"]
         self.assertAlmostEqual(b - t, (r - l) * 1280 / 1712)     # a square of the picture
 
+    def test_a_wide_whole_picture_is_not_cut_as_a_strip(self):
+        """A group's picture (or any `sheet_panels: 1`) as wide as a strip is
+        still one picture: it gives itself and its head, not four panels."""
+        from test_render import png_bytes
+        book = {"ladies": {"kind": "character", "members": 4, "sheet": "p.png"},
+                "ada": {"kind": "character", "sheet_panels": 1, "sheet": "p.png"},
+                "ada_coat": {"of": "ada", "design": "Ada in a coat", "sheet": "p.png"}}
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "p.png"), "wb") as fh:
+                fh.write(png_bytes(3000, 1000))             # wider than strip_ratio
+            for sid in book:
+                with self.subTest(subject=sid):
+                    spec = M.sheet_spec(self.job(d), {"subject": sid, "path": "p.png"}, book)
+                    self.assertNotIn("crop", spec["panels"][0])
+                    self.assertNotIn("panels", spec["panels"][1].get("crop", {}))
+            # a 4-panel strip still gives its views
+            book["ada"].pop("sheet_panels")
+            spec = M.sheet_spec(self.job(d), {"subject": "ada", "path": "p.png"}, book)
+            self.assertEqual([p["crop"]["index"] for p in spec["panels"]], [0, 3, 2])
+
     def test_the_helper_cuts_a_box(self):
         from seriesmith.helpers import refsheet as RS
         from test_render import png_bytes
