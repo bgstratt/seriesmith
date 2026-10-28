@@ -35,7 +35,9 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
                    "mention": "@Audio {n}", "needs_picture": true},
                     # a clone shot's voice samples, a dub shot's window of the
                     # recording (sounds); the recipe's policies say which it renders
-        "via": "seedance"                         # how pictures go in (File.via)
+        "via": "seedance",                        # how pictures go in (File.via)
+        "mode": {"name": "mode", "frames": "i2v", "text": "t2v"}
+                    # a field that says which: frames sent, else words alone (FLUX 3)
       },
       "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"},
       "provider": "fal",                            # another provider of the model
@@ -596,6 +598,10 @@ def router_call(target, job) -> tuple[str, dict]:
         a = inp["audio"]
         on = shot.get("audio_policy") != "silent"
         put(args, _name(a), a.get("on", True) if on else a.get("off", False))
+    if inp.get("mode"):
+        m = inp["mode"]
+        put(args, _name(m), m["frames"] if mode == "frames" and pics else
+            m.get("references" if pics else "text", m.get("text")))
 
     # a proxy is a draft (Seedance 2.5): its final can be made from it
     if job.pass_ == "proxy" and draft.get("proxy"):

@@ -85,6 +85,16 @@ class ProposeTest(unittest.TestCase):
             with self.assertRaisesRegex(RI.RouterInspectError, "takes no pictures"):
                 proposal(m)
 
+    def test_flux3_keyframes_and_mode(self):
+        """FLUX 3 video's pictures are `keyframes` (they become frames: the
+        shot's first, then last), and its `mode` says whether any went."""
+        r = proposal("bfl/flux-3-video")
+        inp = r["proposal"]["router"]["inputs"]
+        self.assertEqual((inp["first"], inp["last"]), ({"list": "keyframes"}, {"list": "keyframes"}))
+        self.assertEqual(inp["mode"], {"name": "mode", "frames": "i2v", "text": "t2v"})
+        self.assertNotIn("references", inp)
+        self.assertEqual(r["unplaced"], [])
+
     def test_runway_needs_a_first_frame(self):
         r = proposal("runway/gen4_turbo")
         p = r["proposal"]

@@ -364,6 +364,15 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
         elif leaf in NAMES["last"] and "last" not in inputs and t in ("string", "object"):
             tpl = _picture_item(doc, v)
             inputs["last"] = {"field": path, **({"item": tpl} if tpl != "$url" else {})}
+        elif leaf == "keyframes" and "first" not in inputs and "last" not in inputs:
+            # pictures that become frames of the clip, in order (FLUX 3:
+            # one starts it, two start and end it): the shot's first, then last
+            inputs["first"] = {"list": path}
+            inputs["last"] = {"list": path}
+        elif (leaf == "mode" and "mode" not in inputs
+              and all(m in str(v.get("description", "")) for m in ("t2v", "i2v"))):
+            # a mode that says whether frames were sent (FLUX 3: t2v / i2v)
+            inputs["mode"] = {"name": path, "frames": "i2v", "text": "t2v"}
         elif leaf == "watermark" and t == "boolean":
             args[path] = False
         elif leaf in ("outputformat",) and enum and "mp4" in enum:

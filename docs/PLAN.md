@@ -1231,6 +1231,23 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
 - [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
       invented words (seen live 2026-10-28, with and without a held sample).
 
+## FLUX 3 video (2026-10-28)
+
+- [x] **`flux_3_video`** on Comfy Router (`bfl/flux-3-video`), generated from its schema
+      (`tools/make_router_targets.py`): `router_inspect.propose` now knows a `keyframes` field
+      (pictures that become frames: the shot's first, then last) and a `mode` naming t2v / i2v,
+      which `router_video` sets by whether frames went. The rest from its prose (`flux3_video`):
+      its seven ratios (omitted with frames: BFL's `auto`), hd / fhd / qhd / uhd by height,
+      5-20 s. Sound on; no seed, no negative. Not yet rendered live.
+- [ ] **Reference pictures.** BFL's FLUX 3 takes them (Runware's `referenceImages`; the
+      request shape `reference_images` named `<ref_image_N>` in the prompt), but Router
+      refuses the field for bfl/flux-3-video: "property reference_images is unsupported"
+      (HTTP 422, extra_forbidden; probed 2026-10-28, nothing billed). When Router's schema
+      lists it: the shot's panels as `reference_images`, named with `<ref_image_{n}>` from 0.
+- [ ] Timed keyframes (`[[seconds, image], ...]`): seriesmith has first and last only.
+- [ ] Its draft mode (a fast preview, then `draft_enhance` from the returned `draft_cache`)
+      as the proxy pass: not Seedance's draft (a task id), so not wired yet.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

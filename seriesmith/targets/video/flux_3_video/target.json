@@ -1,0 +1,122 @@
+{
+  "id": "flux_3_video",
+  "kind": "video",
+  "label": "FLUX 3 Video (hosted, Comfy Router)",
+  "short": "FLUX 3",
+  "code": "builtin:router_video",
+  "capabilities": {
+    "backends": [
+      "router"
+    ],
+    "seed": "provider",
+    "max_subjects": 4
+  },
+  "template": {
+    "fps": 24,
+    "frames": {
+      "step": 24,
+      "base": 120,
+      "max": 480
+    },
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+  "recipe": {
+    "policies": [
+      "generate"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "FLUX 3 makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "prompt": "prose",
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      }
+    },
+    "size_hints": {
+      "keyframe": "the render size, or any size of the same shape"
+    }
+  },
+  "router": {
+    "model": "bfl/flux-3-video",
+    "arguments": {},
+    "inputs": {
+      "ratio": {
+        "name": "aspect_ratio",
+        "values": [
+          "21:9",
+          "2:1",
+          "16:9",
+          "4:3",
+          "1:1",
+          "3:4",
+          "9:16"
+        ],
+        "with_frames": "omit"
+      },
+      "audio": {
+        "name": "generate_audio"
+      },
+      "first": {
+        "list": "keyframes"
+      },
+      "last": {
+        "list": "keyframes"
+      },
+      "mode": {
+        "name": "mode",
+        "frames": "i2v",
+        "text": "t2v"
+      },
+      "prompt": "prompt",
+      "resolution": {
+        "name": "resolution",
+        "values": {
+          "720": "hd",
+          "1080": "fhd",
+          "1440": "qhd",
+          "2160": "uhd"
+        }
+      },
+      "duration": {
+        "name": "duration",
+        "min": 5,
+        "max": 20
+      }
+    }
+  },
+  "presets": {
+    "final": {
+      "model": "bfl/flux-3-video",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    },
+    "proxy": {
+      "model": "bfl/flux-3-video",
+      "lora": null,
+      "steps": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "_note": "Black Forest Labs' FLUX 3 video. No reference pictures through Router: the shot's first (and last) keyframe become frames of the clip (mode i2v), and a shot with neither is text to video (t2v), its people and place in words alone, so make the first keyframe of a shot whose people must look like themselves. Prose prompt, as BFL's FLUX 3 Video Prompt Guide asks; no negative prompt, no seed. Not yet rendered live (docs/PLAN.md, 'FLUX 3 video')."
+}
