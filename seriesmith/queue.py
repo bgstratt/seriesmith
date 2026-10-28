@@ -115,10 +115,15 @@ class Lane:
 
 class Queue:
     def __init__(self, emit: Callable[[str, object], None] | None = None,
-                 serial: Callable[[str], bool] | None = None, journal: str | None = None):
+                 serial: Callable[[str], bool] | None = None, journal: str | None = None,
+                 name: str = "seriesmith"):
         """`emit(event, data)` sends to the page; `serial(lane)` says whether a
         lane runs one job at a time (default: the lanes in SERIAL);
-        `journal` is the file the live jobs are listed in (none: not kept)."""
+        `journal` is the file the live jobs are listed in (none: not kept).
+        `name` is what a take this queue runs records as its `queue`: the
+        server's "seriesmith", ComfyUI's host its own, the command line "cli",
+        so each sweeps only its own takes (takes.sweep_queued)."""
+        self.name = name
         self._emit = emit or (lambda e, d: None)
         self._serial = serial or (lambda lane: lane in SERIAL)
         self.journal = journal

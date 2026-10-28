@@ -407,7 +407,7 @@ def lost_job(path: str, data: dict) -> dict:
     failed, as sweep_queued fails such a take: otherwise it reads "on its way"
     forever, and a master waits for it. Left alone outside the server
     (MANAGED None)."""
-    if (data.get("status") != "queued" or data.get("queue") != "seriesmith" or MANAGED is None
+    if (data.get("status") != "queued" or data.get("queue") != QUEUE or MANAGED is None
             or not data.get("comfy_prompt_id") or data["comfy_prompt_id"] in MANAGED()):
         return data
     return update_sidecar(path, status="failed", finished=now(),
@@ -540,10 +540,12 @@ def _parse_time(s) -> _dt.datetime | None:
         return None
 
 
-# The ids of the jobs seriesmith's queue still has (runner.Runner sets it in the
-# server): a queued take with a `backend` is swept against these instead of
-# ComfyUI's queue. None (the command line): such takes are left alone.
+# The ids of the jobs this process's queue still has, and its name (runner.Runner
+# sets both): a queued take with a `backend` whose `queue` is this one is swept
+# against these instead of ComfyUI's queue; another queue's is left alone (the
+# server's, while the command line renders). None: no queue here.
 MANAGED = None
+QUEUE = None
 
 
 def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
@@ -573,7 +575,7 @@ def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
             # a backend runs it, not this ComfyUI's queue: seriesmith's queue
             # says for the takes it owns (`queue`); one rendered from the
             # command line is that process's to finish
-            if sc.get("queue") != "seriesmith" or MANAGED is None:
+            if sc.get("queue") != QUEUE or MANAGED is None:
                 continue
             if managed is None:
                 managed = MANAGED()

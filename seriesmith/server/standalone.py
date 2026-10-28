@@ -170,10 +170,12 @@ def recover(runner, ask=None, rebuild=None, local=None) -> list[str]:
 
 
 def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env=None,
-                backends: dict | None = None, journal: str = "queue.json"):
+                backends: dict | None = None, journal: str = "queue.json",
+                name: str = "seriesmith"):
     """seriesmith's queue for a host (this server, or ComfyUI's: server/
     comfyui.py): renders from the page go through the backends, the live jobs
-    journaled in <user_dir>/<journal>. Returns (runner, make_context, recover_all):
+    journaled in <user_dir>/<journal>, its takes recording `name` as their
+    queue (each host sweeps only its own). Returns (runner, make_context, recover_all):
     recover_all() picks up what the journal had when the host last stopped
     (recover), for the host to call once the backends can answer."""
     from seriesmith.backends import available
@@ -181,7 +183,7 @@ def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env
     backends = backends if backends is not None else available(settings)
     # a backend's lane runs one job at a time when the backend says so (your
     # own ComfyUI); the cpu lane (a master, align) always does
-    queue = queue_for(settings, emit, journal=os.path.join(user_dir, journal),
+    queue = queue_for(settings, emit, journal=os.path.join(user_dir, journal), name=name,
                       serial=lambda lane: lane == LOCAL_LANE
                       or (lane in backends and backends[lane].serial))
     runner = Runner(queue, backends, emit)

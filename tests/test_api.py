@@ -696,12 +696,28 @@ class SweepTest(ApiTest):
                        {"status": "queued", "comfy_prompt_id": "lost", "backend": "cloud",
                         "queue": "seriesmith", "queued": "2026-01-01T00:00:00+00:00"})
         self.addCleanup(setattr, T, "MANAGED", None)
-        T.MANAGED = lambda: set()
+        self.addCleanup(setattr, T, "QUEUE", None)
+        T.MANAGED, T.QUEUE = (lambda: set()), "seriesmith"
         ctx = A.Context(self.user, "http://127.0.0.1:0", env={})
         data = self.ok(A.get_episode(ctx, {"ep": self.ep, "pass": "proxy"}))
         sh = next(s for s in data["shots"] if s["shot"] == "sh010")
         self.assertEqual(sh["takes"][0]["status"], "failed")
         self.assertIn("restarted", sh["takes"][0]["save_notes"])
+
+    def test_another_queues_takes_are_left_alone(self):
+        """The command line renders on a queue of its own ("cli") while the server's
+        has takes queued: its sweep doesn't fail them (seen live 2026-10-28: two
+        of the server's takes marked failed as `seriesmith render` started)."""
+        T.reserve_take(self.ep, "proxy", "sh010",
+                       {"status": "queued", "comfy_prompt_id": "the-servers", "backend": "local",
+                        "queue": "seriesmith", "queued": "2026-01-01T00:00:00+00:00"})
+        self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "QUEUE", None)
+        T.MANAGED, T.QUEUE = (lambda: set()), "cli"
+        ctx = A.Context(self.user, "http://127.0.0.1:0", env={})
+        data = self.ok(A.get_episode(ctx, {"ep": self.ep, "pass": "proxy"}))
+        sh = next(s for s in data["shots"] if s["shot"] == "sh010")
+        self.assertEqual(sh["takes"][0]["status"], "queued")
 
 
 class RenderTest(ApiTest):

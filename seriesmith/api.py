@@ -1464,8 +1464,8 @@ def post_cancel(ctx: Context, body):
     take = check_take(body.get("take"))
     owned = T.get_take(ep, pass_, shot, take)
     sc = (owned.sidecar or {}) if owned else {}
-    if sc.get("queue") == "seriesmith" and sc.get("status") == "queued":
-        # seriesmith's queue has it: a waiting job leaves it, a running one stops
+    if sc.get("queue") and sc.get("queue") == ctx.runner.queue.name and sc.get("status") == "queued":
+        # this host's queue has it: a waiting job leaves it, a running one stops
         try:
             ctx.runner.queue.cancel(sc.get("comfy_prompt_id"))
             # a running one stops in a moment: answer with how it ended

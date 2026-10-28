@@ -101,7 +101,7 @@ def start(server, settings=None, wait: float = 120.0):
         # local renders go to this ComfyUI, on whatever port it was started
         settings.host_url = url
         runner, make_context, recover_all = start_queue(settings, user_dir(), emit, comfy_url=url,
-                                                        journal="queue-comfyui.json")
+                                                        journal="queue-comfyui.json", name="comfyui")
     except Exception as e:                                # noqa: BLE001  the editor still loads
         log.warning("seriesmith: the queue didn't start in this ComfyUI (%s): renders go "
                     "straight to ComfyUI", e)
