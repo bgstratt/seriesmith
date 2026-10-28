@@ -398,8 +398,16 @@ render it — the take's card has two buttons for that:
 | **Generate (new seed)** | queues another take immediately: the saved override and a new seed, no dialog (**Generate** when the shot has no take yet) |
 | **New take…** | opens the settings dialog first: what changes (from which take, the seed, a note, what to keep), the model, the output's size and pass, the prompt; its foot sums it up beside **Generate proxy take** (or final) |
 
-> **Don't edit while that shot is rendering.** A finishing render refreshes the panel and
-> your unsaved edit goes with it. Let the take finish (or cancel it) first.
+**Unsaved edits are kept.** Edit while the shot renders: a take landing refreshes the panel
+around your edit, not over it. What you haven't saved is also kept in this browser, for
+each shot and pass, so a reload, a closed tab or another shot opened in between puts it
+back where you left it, with when you made it. The same goes for a ref's settings, the
+shot form, Series settings and the Script and series config windows. Save or **Discard
+edits** (Revert, or closing a window without saving) clears it. When the file has changed
+since (a save elsewhere, an outside editor), the Script window shows it as a conflict
+(**Reload** / **Keep mine**), and the shot form and Series settings offer your edits back
+(**Put them back** / **Drop them**) rather than putting them over the newer version. The
+edits live in this browser only: another browser or PC doesn't see them.
 
 Story edits — action, camera, dialogue — belong in the **Script** window instead, not in an
 override. **Promote** moves overrides that the authored files can express back into them.
@@ -1049,7 +1057,12 @@ The cut as an editable track, along the bottom of the page.
 - **Ctrl + wheel** over the track zooms (or the slider).
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
-- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
+- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
+  Before anything runs it says what's wrong with the cut: shots with nothing to play (no
+  take, a failed one, trims that leave nothing; and whether one is rendering now), takes
+  shorter than their dialogue on the recording, and the other pass's takes standing in.
+  Click a shot to go to it, or **Export anyway**. Titles stops at a missing shot, since it
+  needs every one. A cut with nothing wrong exports at once.
   **2x** beside it assembles from the takes' upscales. A clip without a fresh one (none
   yet, a stale or failed one) is upscaled first, by the series config's `upscale.master`
   recipe as Master does (each take's defaults without one), after saying which; the

@@ -8,6 +8,7 @@ import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
 import { staleShots } from "./lib/progress";
 import { pairFiles } from "./lib/importSeries";
+import { exportCheck, type ExportRun } from "./lib/exportCheck";
 import { buildPlaylist, startOf, totalDuration, upscalesNeeded, type PlayItem } from "./lib/playlist";
 import { type RefTargetKind } from "./lib/imageTargets";
 import {
@@ -22,7 +23,7 @@ import { folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
-  detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
+  detailKey, keepDetails, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
   type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
@@ -147,7 +148,7 @@ export async function setEpisodeTarget(target: string | null): Promise<boolean> 
       await api().putEpisodeTarget(ep, target);
       // every shot that follows the episode target changed: refetch both passes
       // and drop the cached shot details (their `target` / `effective` moved)
-      set((s) => ({ details: Object.fromEntries(Object.entries(s.details).filter(([k]) => !k.startsWith(`${ep}|`))) }));
+      set((s) => ({ details: keepDetails(s.details, ep, new Set(s.shot ? [`${s.pass}|${s.shot}`] : [])) }));
       await Promise.all((["final", "proxy"] as Pass[]).map((p) => (get().status[statusKey(ep, p)] || p === get().pass ? refreshEpisode(ep, p) : Promise.resolve(undefined))));
       if (get().shot) void loadDetail(get().shot!, get().pass, true, ep);
       const st = get().status[statusKey(ep, get().pass)];
@@ -785,16 +786,14 @@ export function scheduleRefresh(delay = 200) {
       if (e === ep) void refreshEpisode(ep, p as Pass);
     }
     if (!s.status[statusKey(ep, s.pass)]) void refreshEpisode();
-    // drop cached details for this episode; refetch the ones on screen
-    set((st) => {
-      const details: typeof st.details = {};
-      for (const [k, v] of Object.entries(st.details)) if (!k.startsWith(ep + "|")) details[k] = v;
-      return { details };
-    });
     const onScreen = new Set<string>();
     if (s.shot) onScreen.add(`${s.pass}|${s.shot}`);
     if (s.viewer) onScreen.add(`${s.viewer.pass}|${s.viewer.shot}`);
     if (s.redo) onScreen.add(`${s.redo.pass}|${s.redo.shot}`);
+    // drop cached details for this episode; the ones on screen stay until their
+    // refetch replaces them (dropping them unmounted the inspector's form, and a
+    // take landing took the edit in it with it)
+    set((st) => ({ details: keepDetails(st.details, ep, onScreen) }));
     for (const k of onScreen) {
       const [p, shot] = k.split("|");
       void loadDetail(shot, p as Pass, true, ep);
@@ -1562,6 +1561,31 @@ export async function discardTake(ref: TakeRef, ask = true): Promise<boolean> {
       return false;
     }
   });
+}
+
+/**
+ * Export, Titles, or a 2x of either (the Timeline's buttons): what the cut is
+ * missing is said first (lib/exportCheck), and nothing runs until it's answered.
+ * A cut with nothing wrong goes straight on.
+ */
+export function checkThenExport(run: ExportRun) {
+  const s = get();
+  if (!s.ep) return;
+  const problems = exportCheck(s.status[statusKey(s.ep, s.pass)], s.ep, s.pass, Object.values(s.prompts));
+  if (!problems.length) return void runExport(run);
+  set({ exportCheck: { run, ep: s.ep, pass: s.pass, problems } });
+}
+
+/** The export held by checkThenExport, now (Export anyway). */
+export function runExport(run: ExportRun) {
+  set({ exportCheck: null });
+  const partial = run.kind === "export";
+  if (run.upscaled) return exportUpscaled(partial, !partial);
+  return assemble(partial, partial ? undefined : { publish: true });
+}
+
+export function closeExportCheck() {
+  set({ exportCheck: null });
 }
 
 export async function assemble(partial = true, opts?: AssembleOptions) {

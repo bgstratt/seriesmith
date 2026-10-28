@@ -12,6 +12,7 @@ import { ESTIMATE_TITLE, cutTake, fmtShotSeconds, lengthEstimated, shortName, sh
 import { KEYFRAME_ENDS, cutNeighbour, keyframeNote, keyframeRefId, shotKeyframes, usesKeyframes } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
 import { negativeNoEffect, negativeSourceLabel, takesNegative } from "../lib/negative";
+import { keptAt, readDraft, useDraft } from "../lib/drafts";
 import { builtDiff, formFromDetail, isDirty, overrideFields, type OverrideForm } from "../lib/overrideForm";
 import { shotRefTiles } from "../lib/refsUsed";
 import { findTarget, isRetargeted, retargetNote, shotTarget, targetBadges, targetLabel } from "../lib/targets";
@@ -292,9 +293,13 @@ function Built({ d }: { d: ShotDetail }) {
 
 function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
   const pass = useApp((s) => s.pass);
+  const ep = useApp((s) => s.ep);
   const busy = useApp((s) => !!s.busy[`override|${shot}`]);
   const initial = useMemo(() => formFromDetail(d), [d]);
-  const [form, setForm] = useState<OverrideForm>(initial);
+  // unsaved edits from before a reload (lib/drafts) open where they were left
+  const draftKey = `shot|${ep}|${pass}|${shot}`;
+  const [kept] = useState(() => readDraft<OverrideForm>(draftKey));
+  const [form, setForm] = useState<OverrideForm>(() => (kept ? { ...initial, ...kept.value } : initial));
   const [base, setBase] = useState<OverrideForm>(initial);
   const [showDiff, setShowDiff] = useState(false);
   const [both, setBoth] = useState(false);
@@ -302,6 +307,7 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
   const dirty = isDirty(form, base);
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+  useDraft(draftKey, form, dirty);
 
   // a refetch (after save, or a live event) resets the form unless you're mid-edit
   useEffect(() => {
@@ -458,7 +464,12 @@ function OverrideEditor({ d, shot }: { d: ShotDetail; shot: string }) {
           <i className="pi pi-file-edit" /> Show in script
         </button>
       </div>
-      {dirty && <div className="h3-small h3-muted">Unsaved edits. Queue uses the saved override; the New take dialog can save these for you.</div>}
+      {dirty && (
+        <div className="h3-small h3-muted">
+          Unsaved edits{kept ? ` (from ${keptAt(kept.at)}, kept in this browser)` : ", kept in this browser until you save or discard them"}.
+          Queue uses the saved override; the New take dialog can save these for you.
+        </div>
+      )}
     </div>
   );
 }

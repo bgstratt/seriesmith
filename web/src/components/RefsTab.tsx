@@ -25,6 +25,7 @@ import {
 import { audioTargets, voiceCapNotes, voiceModeText } from "../lib/voice";
 import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
+import { keptAt, readDraft, useDraft } from "../lib/drafts";
 import { formFromDetail, isDirty, overrideFields, type OverrideForm, type OverrideSource } from "../lib/overrideForm";
 import { pickWarning, readinessBadge, targetOptionText } from "../lib/readiness";
 import { ownsLive, sharedNote } from "../lib/shared";
@@ -776,14 +777,18 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
     return { ovInfo, eff, ovFields, src, inherited };
   }, [r, view]);
   const initial = useMemo(() => formFromDetail(src), [src]);
-  const [form, setForm] = useState<OverrideForm>(initial);
+  // unsaved edits from before a reload (lib/drafts) open where they were left
+  const ep = useApp((s) => s.ep);
+  const draftKey = `ref|${ep}|${r.id}|${view ?? ""}`;
+  const [kept] = useState(() => readDraft<{ form: OverrideForm; knobs: Knobs }>(draftKey));
+  const [form, setForm] = useState<OverrideForm>(() => (kept ? { ...initial, ...kept.value.form } : initial));
   const [base, setBase] = useState<OverrideForm>(initial);
   // P4: cfg and the sampler knobs, where the image target has them
   const { list: targetList } = useTargets();
   const refDefaultsNow = useRefDefaults();
   const tgt = findTarget(targetList, eff?.target ?? refTargetOf(r, refDefaultsNow).target);
   const initialKnobs = useMemo(() => knobsOf(src.override), [src]);
-  const [knobs, setKnobs] = useState<Knobs>(initialKnobs);
+  const [knobs, setKnobs] = useState<Knobs>(() => (kept ? { ...initialKnobs, ...kept.value.knobs } : initialKnobs));
   const [baseKnobs, setBaseKnobs] = useState<Knobs>(initialKnobs);
   const [showDiff, setShowDiff] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -791,6 +796,7 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
   const dirty = isDirty(form, base) || knobsDirty;
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+  useDraft(draftKey, useMemo(() => ({ form, knobs }), [form, knobs]), dirty);
   useEffect(() => {
     if (!dirtyRef.current) {
       setForm(initial);
@@ -866,6 +872,11 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
           Revert
         </button>
       </div>
+      {dirty && (
+        <div className="h3-muted h3-small">
+          Unsaved edits{kept ? ` (from ${keptAt(kept.at)})` : ""}, kept in this browser until you save or discard them.
+        </div>
+      )}
       <div className="h3-muted h3-small">Used by the next Generate. Candidates already made keep their settings.</div>
     </div>
   );

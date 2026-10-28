@@ -24,6 +24,7 @@ import { composeLook, togglePart, visibleRows, type LookParts } from "../lib/loo
 import { MasterRecipe } from "./MasterRecipe";
 import { ProfilesSection } from "./Profiles";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { keptAt } from "../lib/drafts";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
 
@@ -44,7 +45,7 @@ export function SeriesFormWindow() {
 }
 
 function SeriesForm({ ep }: { ep: string }) {
-  const sc = useSeriesConfig(ep);
+  const sc = useSeriesConfig(ep, true);
   const { base, draft, dirty, saving } = sc;
   const [more, setMore] = useState(false);
   const targets = useApp((s) => s.targets);
@@ -87,6 +88,7 @@ function SeriesForm({ ep }: { ep: string }) {
       <button className="h3-btn h3-icon" title="Edit series.json as text" onClick={() => openSource("series")}><i className="pi pi-code" /></button>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (dirty && !window.confirm("Close without saving your changes to the series settings?")) return;
+        sc.forget();
         openSeriesForm(false);
       }}><i className="pi pi-times" /></button>
     </>
@@ -96,6 +98,15 @@ function SeriesForm({ ep }: { ep: string }) {
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={360} minH={280}>
       <div id="sm-seriesform" className="h3-col" style={{ padding: 10, overflow: "auto", height: "100%", gap: 10 }}>
         <FileLine sc={sc} />
+        {sc.kept && (sc.kept.stale ? (
+          <div className="h3-note">
+            You left unsaved changes here at {keptAt(sc.kept.at)}, and series.json has changed since.
+            {" "}<button className="h3-btn" title="Your version of the settings in place of the file as it is now: the changes made since are lost when you save (Revert takes yours out again)" onClick={sc.putBack}>Put them back</button>
+            {" "}<button className="h3-btn" onClick={sc.dropKept}>Drop them</button>
+          </div>
+        ) : dirty && (
+          <div className="h3-note">Your unsaved changes from {keptAt(sc.kept.at)} are back (kept in this browser).</div>
+        ))}
         {draft && (
           <>
             {SECTIONS.map((sec) => {

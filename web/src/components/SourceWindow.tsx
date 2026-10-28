@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { afterAuthoredWrite, closeSource, openPromote, openSource, select, setSourceDirty, showInScript } from "../actions";
 import { api, host } from "../host";
 import { checkCounts, listedMessages, shotAtLine, spansFor, toDiagnostics } from "../lib/source";
+import { keptAt, readDraft, useDraft } from "../lib/drafts";
 import { SourceSession, type SessionState } from "../lib/sourceSession";
 import { store, useApp, useSelector } from "../store";
 import type { SourceFile, SourceSaveResult } from "../types";
@@ -64,6 +65,10 @@ function SourceWindowBody({ file, storeEp }: { file: SourceFile; storeEp: string
     const s = new SourceSession(api(), ep, file, {
       replace: (text, why) => editor.current?.replace(text, { history: why !== "load" }),
       saved: (r: SourceSaveResult) => onSaved(file, s, r),
+      kept: () => {
+        const d = readDraft<{ text: string; baseHash: string }>(draftKeyOf(ep, file));
+        return d ? { ...d.value, at: d.at } : null;
+      },
     });
     setSession(s);
     void s.load();
@@ -77,6 +82,11 @@ function SourceWindowBody({ file, storeEp }: { file: SourceFile; storeEp: string
 
   if (!session || session.ep !== ep) return null;
   return <SessionView key={`${ep}|${file}`} session={session} file={file} ep={ep} storeEp={storeEp} editor={editor} follow={() => setEp(storeEp)} />;
+}
+
+/** The key of the window's unsaved buffer, kept in this browser (lib/drafts). */
+function draftKeyOf(ep: string, file: SourceFile): string {
+  return `source|${ep}|${file}`;
 }
 
 function onSaved(file: SourceFile, s: SourceSession, r: SourceSaveResult) {
@@ -108,6 +118,8 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
   const saving = useSession(session, (s) => s.saving);
   const saved = useSession(session, (s) => s.saved);
   const saveError = useSession(session, (s) => s.saveError);
+  const restored = useSession(session, (s) => s.restored);
+  const forgetDraft = useDraft(draftKeyOf(ep, file), useMemo(() => ({ text, baseHash }), [text, baseHash]), dirty && baseHash != null);
   const shot = useApp((s) => s.shot);
   const focus = useApp((s) => s.scriptFocus);
   const sourceN = useApp((s) => s.sourceN);
@@ -197,6 +209,7 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
   };
   const close = () => {
     if (session.get().dirty && !confirm(`Discard your unsaved edits to ${name}?`)) return;
+    forgetDraft();
     closeSource(file);
   };
 
@@ -251,7 +264,7 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
             This is {epName(ep)}'s {isScript ? "script" : "series config"}, not the open episode's ({epName(storeEp)}).
             <span className="h3-row" style={{ marginTop: 4 }}>
               <button className="h3-btn" disabled={saving} onClick={save}>Save</button>
-              <button className="h3-btn" onClick={() => (!dirty || confirm(`Discard your unsaved edits to ${name}?`)) && follow()}>
+              <button className="h3-btn" onClick={() => { if (!dirty || confirm(`Discard your unsaved edits to ${name}?`)) { forgetDraft(); follow(); } }}>
                 {dirty ? "Discard and follow" : "Follow"}
               </button>
             </span>
@@ -262,7 +275,9 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
             <b>{conflict.reason === "save" ? `Not saved: ${name} changed on disk.` : `${name} changed on disk.`}</b>{" "}
             {conflict.reason === "save"
               ? "It was edited outside ComfyUI after you opened it."
-              : "It was edited outside ComfyUI, and you have unsaved edits here."}
+              : restored
+                ? `Your unsaved edits from ${keptAt(restored)} are back (kept in this browser), but the file has changed since.`
+                : "It was edited outside ComfyUI, and you have unsaved edits here."}
             <span className="h3-row" style={{ marginTop: 4 }}>
               <button className="h3-btn" title="Load the file as it is on disk; your edits here are dropped" onClick={() => session.reload()}>
                 Reload
@@ -275,6 +290,11 @@ function SessionView({ session, file, ep, storeEp, editor, follow }: {
                 Keep mine{conflict.reason === "save" ? " (overwrite)" : ""}
               </button>
             </span>
+          </div>
+        )}
+        {restored && dirty && !conflict && (
+          <div className="h3-note h3-banner">
+            Your unsaved edits from {keptAt(restored)} are back (kept in this browser): save them, or close the window to drop them.
           </div>
         )}
         {saved && <SavedNote s={saved} onClose={() => session.dismissSaved()} />}

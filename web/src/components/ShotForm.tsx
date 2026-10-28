@@ -14,6 +14,7 @@ import {
   CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, newShot,
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
+import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
 import { isHosted } from "../lib/targets";
 import { useApp } from "../store";
@@ -89,9 +90,14 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const [more, setMore] = useState(false);
   const [showPrompt, setShowPrompt] = useState(true);
   const isNew = shot === null;
+  // unsaved edits from before a reload (lib/drafts): put back when the form opens on
+  // the shot as they were made against; offered when the script has changed it since
+  const draftKey = `shotform|${ep}|${shot ?? ""}`;
+  const [kept, setKept] = useState<{ form: Form; at: number; stale: boolean } | null>(null);
 
-  // the script, and the shot's block in it (or a new shot's place)
-  async function load() {
+  // the script, and the shot's block in it (or a new shot's place); `restore`: a
+  // draft kept from before a reload goes back in (opening, not Revert or a reload)
+  async function load(restore = false) {
     setError(null);
     try {
       const d = await api().source(ep, "script");
@@ -104,8 +110,12 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
           return;
         }
         const f = parseShot(lines.slice(span.line - 1, span.end_line));
-        setForm(f);
-        setOrig(writeShot(f).join("\n"));
+        const text = writeShot(f).join("\n");
+        const dr = restore ? readDraft<{ form: Form; orig: string }>(draftKey) : null;
+        const k = dr ? { form: dr.value.form, at: dr.at, stale: dr.value.orig !== text } : null;
+        setKept(k);
+        setForm(k && !k.stale ? k.form : f);
+        setOrig(text);
       } else {
         const ids = d.shots.map((x) => x.id);
         const b = before ? ids.indexOf(before) : -1;
@@ -125,7 +135,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
     }
   }
   useEffect(() => {
-    void load();
+    void load(true);
   }, [ep, shot]);
 
   const seqs = useMemo(() => (doc ? sequencesOf(doc.text) : []), [doc]);
@@ -159,6 +169,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   }, [card]);
   const block = form ? writeShot(form) : [];
   const dirty = !!form && block.join("\n") !== orig;
+  const forgetDraft = useDraft(draftKey, useMemo(() => ({ form, orig }), [form, orig]), dirty && !isNew);
 
   /** "Save as profile…": this shot's own lens and render settings as a profile in the
    * series config (saved now), and the shot put on it (saved with the shot). */
@@ -262,6 +273,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       {!isNew && <button className="h3-btn" title="Show this shot in the Script window" onClick={() => showInScript(shot!)}><i className="pi pi-file-edit" /> Show in script</button>}
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (dirty && !window.confirm("Close without saving this shot?")) return;
+        forgetDraft();
         openShotForm(null);
       }}><i className="pi pi-times" /></button>
     </>
@@ -272,6 +284,13 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       <div className="sm-shotform">
         <div className="h3-col sm-shotform-main">
           {error && <div className="h3-note h3-note-err">{error} <button className="h3-btn" onClick={() => void load()}>Reload</button></div>}
+          {kept?.stale && form && (
+            <div className="h3-note">
+              You left unsaved edits to {shot} at {keptAt(kept.at)}, and the script has changed this shot since.
+              {" "}<button className="h3-btn" title="Your version of the shot in place of the script's: the changes made to it since are lost when you save (Revert takes yours out again)" onClick={() => { setForm(kept.form); setKept(null); }}>Put them back</button>
+              {" "}<button className="h3-btn" onClick={() => { clearDraft(draftKey); setKept(null); }}>Drop them</button>
+            </div>
+          )}
           {!form && !error && <div className="h3-muted">Loading…</div>}
           {form && (
             <>
@@ -457,7 +476,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       </div>
       <div className="h3-dialog-foot">
         <span className="h3-small h3-muted h3-grow">
-          {dirty || isNew ? "Not saved yet: Save writes only this shot's lines into the script and rebuilds." : "Saved"}
+          {dirty || isNew ? `Not saved yet${kept && !kept.stale && dirty ? ` (your edits from ${keptAt(kept.at)}, kept in this browser)` : ""}: Save writes only this shot's lines into the script and rebuilds.` : "Saved"}
         </span>
         <button className="h3-btn h3-big" disabled={!dirty || busy} onClick={() => void load()}>Revert</button>
         <button className="h3-btn h3-big" disabled={!form || busy || (!dirty && !isNew)} onClick={() => void save(false)}

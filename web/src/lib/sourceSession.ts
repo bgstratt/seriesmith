@@ -11,6 +11,10 @@
 //   reload()    take the disk's text (drops the buffer's edits)
 //   keepMine()  keep the buffer, now based on the disk's hash (after a failed
 //               save: resend with the new hash)
+//
+// A buffer kept from before a reload (hooks.kept, lib/drafts) goes back in on
+// load(): over the disk's text when that's what it was edited from, else as a
+// conflict (the disk moved on meanwhile), so Reload / Keep mine decides.
 
 import { ApiError, errText, type Api } from "../api";
 import { createStore, type Store } from "../store";
@@ -55,6 +59,15 @@ export interface SessionState {
   saving: boolean;
   saved: SavedInfo | null;
   saveError: string | null;
+  /** when the buffer put back on load was kept (ms), else null */
+  restored: number | null;
+}
+
+/** An unsaved buffer kept from before a reload, and the disk hash it was edited from. */
+export interface KeptBuffer {
+  text: string;
+  baseHash: string;
+  at: number;
 }
 
 export interface SessionHooks {
@@ -62,6 +75,8 @@ export interface SessionHooks {
   replace?: (text: string, why: "load" | "outside" | "reload") => void;
   /** after a successful save (refresh the episode, show the build) */
   saved?: (r: SourceSaveResult) => void;
+  /** the buffer kept from before a reload, read once on load */
+  kept?: () => KeptBuffer | null;
   /** setTimeout / clearTimeout (tests) */
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (t: unknown) => void;
@@ -70,7 +85,7 @@ export interface SessionHooks {
 function initial(): SessionState {
   return {
     loading: false, loadError: null, path: "", baseHash: null, baseText: "", text: "", dirty: false,
-    check: null, checking: false, checkError: null, conflict: null, saving: false, saved: null, saveError: null,
+    check: null, checking: false, checkError: null, conflict: null, saving: false, saved: null, saveError: null, restored: null,
   };
 }
 
@@ -132,9 +147,19 @@ export class SourceSession {
       this.set({ loading: false, path: doc.path });
       if (doc.shots?.length) this.set({ check: { text: doc.text, result: { ok: true, errors: [], warnings: [], shots: doc.shots } } });
       this.adopt(doc.text, doc.hash, "load");
+      const k = this.hooks.kept?.();
+      if (k && k.text !== doc.text) this.restore(k, doc.text, doc.hash);
     } catch (e) {
       this.set({ loading: false, loadError: errText(e) });
     }
+  }
+
+  /** Put a kept buffer back over the disk's text (`text`, `hash`). */
+  private restore(k: KeptBuffer, text: string, hash: string) {
+    this.set({ text: k.text, dirty: true, restored: k.at });
+    if (k.baseHash !== hash) this.set({ baseHash: k.baseHash, conflict: { hash, text, reason: "disk" } });
+    this.hooks.replace?.(k.text, "load");
+    this.scheduleCheck(0);
   }
 
   /** The editor's text changed. */

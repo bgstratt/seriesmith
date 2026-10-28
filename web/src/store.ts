@@ -3,6 +3,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { ToastAction } from "./host";
+import type { ExportProblem, ExportRun } from "./lib/exportCheck";
 import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
@@ -405,6 +406,8 @@ export interface AppState {
   build: { busy: boolean; result: BuildResult | null; error: string | null };
   /** `publish`: the running one is a Publish (assemble, then the titles) */
   assemble: { busy: boolean; output: string | null; report: string | null; error: string | null; publish?: boolean };
+  /** Export, Titles or a 2x of either, held while the cut's problems are shown (lib/exportCheck) */
+  exportCheck: { run: ExportRun; ep: string; pass: Pass; problems: ExportProblem[] } | null;
   /** in-flight actions, by a caller-chosen key, to disable buttons */
   busy: Record<string, boolean>;
   /** Phase 9a: the Script / Series config windows are open */
@@ -564,6 +567,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     zoom: clampZoom(prefs.zoom ?? ZOOM_DEFAULT),
     build: { busy: false, result: null, error: null },
     assemble: { busy: false, output: null, report: null, error: null },
+    exportCheck: null,
     busy: {},
     sourceOpen: { script: false, series: false },
     sourceDirty: { script: false, series: false },
@@ -615,6 +619,16 @@ export function statusKey(ep: string, pass: Pass): string {
  *  length), so it is part of the key -- the shot's own detail stays cached. */
 export function detailKey(ep: string, pass: Pass, shot: string, target?: string | null): string {
   return `${ep}|${pass}|${shot}${target ? `|${target}` : ""}`;
+}
+
+/** The cached details less `ep`'s, except those `onScreen` ("pass|shot"): those
+ *  stay until a refetch replaces them, so what shows them isn't unmounted. */
+export function keepDetails<T>(details: Record<string, T>, ep: string, onScreen: Set<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [k, v] of Object.entries(details)) {
+    if (!k.startsWith(ep + "|") || onScreen.has(k.slice(ep.length + 1))) out[k] = v;
+  }
+  return out;
 }
 
 export function clampZoom(z: number): number {
