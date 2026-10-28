@@ -16,7 +16,7 @@ export function parseSize(text: string): string {
   const m = /^\s*(\d+)\s*[xX×]\s*(\d+)\s*$/.exec(text);
   if (!m) throw new Error(`Size must look like 1344x768, not "${text}".`);
   const w = Number(m[1]), h = Number(m[2]);
-  if (w < 64 || h < 64 || w > 8192 || h > 8192) throw new Error(`Size ${w}x${h}: each side 64 to 8192.`);
+  if (w < 32 || h < 32 || w > 8192 || h > 8192) throw new Error(`Size ${w}x${h}: each side 32 to 8192.`);
   return `${w}x${h}`;
 }
 

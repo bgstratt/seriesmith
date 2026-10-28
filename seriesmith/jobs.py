@@ -1702,8 +1702,10 @@ def parse_size(v) -> tuple[int, int]:
             raise ValueError(f"{v!r} is not a size like 1344x768")
         w, h = m.groups()
     w, h = int(w), int(h)
-    if not (64 <= w <= 8192 and 64 <= h <= 8192):
-        raise ValueError(f"{w}x{h}: each side 64 to 8192")
+    # 32: H3's own floor (its nodes take 32 to 16384 in steps of 32); a
+    # target's template still decides what it renders (run_size)
+    if not (32 <= w <= 8192 and 32 <= h <= 8192):
+        raise ValueError(f"{w}x{h}: each side 32 to 8192")
     return w, h
 
 
