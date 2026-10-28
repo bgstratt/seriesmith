@@ -1,0 +1,179 @@
+---
+title: "Adding models"
+description: "Adding a video or image model: a Comfy Router model or a workflow of yours in the app, tried and switched on, or a model shipped in seriesmith's code."
+---
+
+{/* Generated from docs/ADDING_MODELS.md by tools/make_site_docs.py: edit that file, not this one. */}
+
+There are two ways to add a video or image model to seriesmith:
+
+- **In the app.** The Models window turns a Comfy Router model, or a workflow you've saved
+  in ComfyUI, into a model your shows can use. No code. It's kept on your machine, for
+  every show or for one show, and you try it before you switch it on.
+- **In seriesmith's code.** A model that ships with seriesmith, for everyone: a folder
+  under `seriesmith/targets/`, the files generated from it, and its tests. This is for
+  contributors.
+
+Either way a model is the same thing underneath: a `target.json` that says what the model
+takes (pictures, length, size, sound) and where each of a shot's values goes. The app
+writes that file for you; in the code you write it, or generate it.
+
+## In the app
+
+### The Models window
+
+Everything about the models a show can use is in one window. Open it from the Shots tab,
+**Model: → Add / validate models…**, or from the sliders button beside any model picker.
+It opens on **All targets**:
+
+- **Add a model**: a Comfy Router model from its catalog, or a workflow of yours.
+- **Hosted models to try**: the Router models seriesmith ships untested (drafts).
+- **Your own models**: the ones added here, for every show or this show only.
+- Each model's **details** say what files it needs, where its graph comes from, and carry
+  its **Limits**.
+
+### A Comfy Router model
+
+A hosted model needs your Comfy API key (Settings) and no GPU. Choose **Add a Comfy Router
+model…**:
+
+1. **Pick it** from Router's catalog. Type any part of its id, and narrow it to Video,
+   Image or All. A model you've already added says so. One whose name says text-to-video
+   is marked: seriesmith draws from pictures, so it will be refused.
+2. **Read it.** seriesmith reads the model's published schema and proposes where a shot's
+   (or a ref's) prompt, pictures, length, size, seed and sound go. A field written for
+   several models at once is flagged **Check this**, with its text beside it. That's
+   where a limit hides that the schema only states in prose: Seedance 2.0's 4–15 seconds,
+   Wan 2.7's 720P/1080P.
+3. **Correct its limits** in the form below it: what the prose said.
+4. **Dry run (free).** Pick a shot (or a ref) and see the exact request, with nothing sent.
+5. **Save** it for every show or for this show only. It's saved as a draft.
+
+### A model from your own workflow
+
+Build the graph in ComfyUI and save it, then choose **Add a model from a workflow…**:
+
+1. **Pick the workflow**, say what it makes or leave it on auto, and **Read it**. Auto
+   reads the graph: a video node, a frame count or a video save makes it a video model;
+   otherwise it's an image model. seriesmith works out which widget takes the prompt, the
+   negative, the size, the length, the seed, the steps, the sampler and each model file.
+2. **It can end in any save node**: SaveVideo, SaveWEBM, Video Combine (with its sound), a
+   frames saver, SaveImage, a node pack's own. The graph's best output is the take, and
+   seriesmith saves it in that node's place.
+3. **An image model's LoadImage nodes are its pictures.** Without any it's text to image;
+   with them it edits, and each take's pictures go into them in order (an edit's source,
+   or a keyframe's characters and then its plate).
+4. **Read the notes.** **Errors** stop it being saved: the graph itself is wrong.
+   **Warnings** are worth checking: a length that is a guess, where a keyframe goes in, a
+   model file seriesmith can't check. **Notes** say how the graph was read.
+5. **Answer what no graph can state** (for a video model: its frame grid, size multiple,
+   fps, whether it makes sound, whether dialogue is spoken) and **Save**, for every show
+   or this show only. It's a draft.
+
+The same without the app: `seriesmith target-from-workflow <workflow> [<episode>] --save`
+(add `--every-show` for every show).
+
+### Try it, then switch it on
+
+A model you add, and every untested model seriesmith ships, starts as a **draft**: it isn't
+in the pickers yet.
+
+1. **Probe** it from the Models window: one take, on a shot for a video model or a ref for
+   an image model (a character's first view, or a keyframe to see its pictures go in). A
+   Router probe is a paid call; a local one runs on your ComfyUI.
+2. **Look at the take.** Is it the right length and shape? Do the pictures you sent show in
+   it? Is the sound there, if it should be?
+3. **Enable** it. It joins the pickers in every show. **Back to draft** takes it out again.
+
+**Limits** are in each model's details: its lengths, sizes, the longest prompt, how many
+pictures and how they're sent, whether it makes sound. **Edit** changes them. On a model
+seriesmith ships, the change is kept on this machine (**Back to shipped** undoes it); on
+your own model it's written into its `target.json`.
+
+### Where they're kept
+
+| Added for | Its `target.json` |
+|---|---|
+| every show | `targets/<id>/` beside seriesmith's settings file (on Windows, `%APPDATA%\seriesmith\targets\`) |
+| this show only | `<show>/targets/<id>/` |
+
+Which drafts you've enabled is kept in seriesmith's settings (`enabled_drafts`).
+`seriesmith targets` lists every model and whether the ComfyUI it talks to can run it.
+
+## In seriesmith's code
+
+A model that ships with seriesmith is a folder, `seriesmith/targets/<kind>/<id>/`, where
+`<kind>` is `video`, `image` or `audio`, and `<id>` is the name scripts and the API use
+(`ltx2`, `seedance_2_5`). Its `target.json` has these parts:
+
+| Part | What it says |
+|---|---|
+| `id`, `kind`, `label`, `short` | its name, what it makes, and how the pickers show it |
+| `code` | what turns a shot into a render: `builtin:router_video` / `builtin:router_image` for a Router model, or the folder's own `compile.py` / `target.py` |
+| `capabilities` | where it runs (`backends`), whether a seed repeats a take, how many subjects it takes |
+| `template` | its length grid (frames, fps) and the sizes it can make |
+| `recipe` | the audio it renders (`policies`, and its `policy_fallback`), its keyframes, its prompt style, its reference pictures |
+| `router` | a Router model's request: the model id, and where each value goes (`inputs`) |
+| `binding` | a local model's workflow, and which node widget takes each value |
+| `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns), where to download each, and any node classes beyond its workflow's |
+| `presets` | the `final` and `proxy` passes' model, steps and size |
+
+The Features window and INSTALL.md's model list are built from `models` and `downloads`.
+A download link must be one recorded there: the tests fail on a link that isn't.
+
+### A Comfy Router model
+
+Generate it from its schema rather than writing it by hand, so that a change on Router's
+side shows up.
+
+1. **Save its schema**: `tests/fixtures/router_schemas/<provider>__<model>.json`, from
+   `GET /v2/models/<provider>/<model>/openapi.json` (`router_inspect.fetch_schema`).
+2. **Add a row** to `MODELS` in `tools/make_router_targets.py`: the Router id, the target
+   id, its label and short name, its limits, whether it's a draft, and a hook.
+   - **Limits** are what the schema says only in prose (`{"length": {"seconds": {"min": 5,      "max": 20}}}`).
+   - **The hook** fixes anything else the proposer can't read, such as aspect ratios listed
+     in a description, or resolutions named `hd` / `fhd`.
+3. **Generate**: `python tools/make_router_targets.py`. `--check` fails when a target no
+   longer matches its schema.
+4. **If the proposer refuses it** ("takes no pictures"), it didn't recognise the model's
+   picture field. Teach `router_inspect.propose` that field's name rather than writing the
+   target by hand (that's how FLUX 3 video's `keyframes` was added).
+5. **Pin its requests**: `python tests/test_router_golden.py --update` writes
+   `tests/golden/router_calls/<id>.json`, the exact request it sends for a set of shots.
+   Read it. Keep the new file and the changes you meant: the update rewrites the others'
+   line endings too.
+
+### A local ComfyUI model
+
+1. **Its workflow**: `workflow.json` in the folder (API or UI format), and a `binding`
+   naming the widget that takes each of a shot's values (prompt, negative, seed, steps,
+   size, length, model files) and the node that saves the take.
+2. **Its code**, only when it needs more than a value in a widget (reference pictures,
+   keyframes, a second sampling stage): a `compile.py` or `target.py` beside it.
+3. **Its files**, under `models`: each with a family and name patterns, so seriesmith
+   recognises an installed file and accepts a substitute of the same family. A new
+   architecture also needs a header signature in `seriesmith/targets/modelid.py`, or
+   seriesmith can't tell its files apart by what's in them. Each file needs a `downloads`
+   entry.
+4. **Its tests** check its graph against a trimmed copy of ComfyUI's `/object_info`
+   (`tests/fixtures/workflows/object_info_*.json`). Add any new node classes to it, copied
+   from a live ComfyUI, keeping the file's own formatting.
+
+### Every new model
+
+- **Regenerate** what's built from the targets, and commit the results:
+  - `python tools/make_models_md.py`: INSTALL.md's model list.
+  - `python tools/make_refs_md.py`: AUTHORING.md's table of what each model takes in
+    pictures.
+  - When you've also written about the model in AUTHORING.md: `python tools/make_prompts.py`
+    (the script prompts and skill) and `python tools/make_site_docs.py` (this site).
+- **The lists of every target in the tests**:
+  - `tests/test_targets.py` names the targets that aren't generated from Router.
+  - Some error messages in `tests/golden/errors/` list every known video target. Update
+    them with `python tests/test_golden.py --update`, run with the tests' own empty settings
+    (`SERIESMITH_SETTINGS=tests/_no_settings.json`). Otherwise the models on your machine end
+    up in the files.
+- **Say what it's for**: a row in AUTHORING.md's "Choosing a video target" table (or a line
+  in its hosted-model section), and a PLAN.md entry for what was tried live and what wasn't.
+- **Test it**: `.venv\Scripts\python -m pytest`, then render one take live: a local model on
+  your ComfyUI, a Router model once (paid).
