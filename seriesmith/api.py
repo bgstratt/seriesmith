@@ -2256,6 +2256,90 @@ def put_pick(ctx: Context, body):
     return 200, {"cut": cut}
 
 
+def _script_shot(ep: str, pass_: str, shot: str) -> str:
+    """A shot of the episode's script (404 otherwise): a take goes to one."""
+    if shot not in E.script_order(ep, pass_):
+        raise ApiError(404, f"{shot} isn't a shot of the script (build the episode "
+                            "after adding it)")
+    return shot
+
+
+def _pick_new(ctx: Context, ep: str, pass_: str, t) -> dict:
+    """Pick a take just made; a locked cut entry keeps its take (said, not an error)."""
+    try:
+        E.pick_take(ep, pass_, t.shot, t.take)
+    except E.Locked as e:
+        return {"picked": False, "why": f"{e}: unlock it to use the new take"}
+    take_event(ctx, ep, t, "picked")
+    return {"picked": True}
+
+
+def _take_answer(ep: str, t, extra: dict) -> dict:
+    return seeds_out(dict({"shot": t.shot, "take": t.take, "pass": t.pass_,
+                           "status": (t.sidecar or {}).get("status"),
+                           "sidecar": t.sidecar,
+                           "mp4": E.rel(ep, t.paths.mp4),
+                           "thumb": E.rel(ep, t.paths.thumb)}, **extra))
+
+
+@handler
+def post_take_import(ctx: Context, body):
+    """A video as a shot's new take (takeimport.import_take): `{ep, pass?,
+    shot, source_path, pick?, note?}` (JSON: a file on this machine) or the
+    same as multipart with `file`. An H.264 mp4 is copied, anything else
+    converted. `pick` picks it."""
+    from seriesmith import takeimport as TI
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = _script_shot(ep, pass_, check_shot(body.get("shot")))
+    pick = _pick_flag(body.get("pick"))
+    up = body.get("file")
+    if isinstance(up, Upload):
+        src, name = up.path, up.filename or ""
+        TI.check_import_type(name)
+    elif up is not None:
+        raise ApiError(400, "file must be sent as multipart/form-data")
+    else:
+        src, name = body.get("source_path"), None
+        if not isinstance(src, str) or not src.strip():
+            raise ApiError(400, "source_path is required: the video's absolute path on "
+                                "this machine (or send it as multipart `file`)")
+        src = src.strip()
+    t = TI.import_take(ep, pass_, shot, src, note=_opt_str(body, "note") or "",
+                       original_name=name)
+    take_event(ctx, ep, t)
+    extra = _pick_new(ctx, ep, pass_, t) if pick else {"picked": False}
+    episode_event(ctx, ep)
+    return 200, _take_answer(ep, t, extra)
+
+
+post_take_import.max_upload = 4 * 1024 * 1024 * 1024    # a video: 4 GB
+
+
+@handler
+def post_take_copy(ctx: Context, body):
+    """A take of one shot copied in as another's new take
+    (takeimport.copy_take): `{ep, pass?, shot, from_shot, take, from_pass?,
+    pick?}`. The gallery's drag onto the timeline."""
+    from seriesmith import takeimport as TI
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = _script_shot(ep, pass_, check_shot(body.get("shot")))
+    from_shot = check_shot(body.get("from_shot"))
+    take = check_take(body.get("take"))
+    from_pass = check_pass(body.get("from_pass"), pass_)
+    try:
+        t = TI.copy_take(ep, pass_, shot, from_shot, take, from_pass)
+    except LookupError as e:
+        raise ApiError(404, str(e))
+    take_event(ctx, ep, t)
+    extra = _pick_new(ctx, ep, pass_, t) if _pick_flag(body.get("pick")) else {"picked": False}
+    episode_event(ctx, ep)
+    return 200, _take_answer(ep, t, extra)
+
+
 def _cut_entry(raw) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("shot"), str) or not raw["shot"]:
         raise ApiError(400, "each cut entry needs a shot id")
@@ -4681,6 +4765,8 @@ ROUTES = [
     ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),
     ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),
     ("GET", "/seriesmith/source", get_source, "query"),
+    ("POST", "/seriesmith/take/import", post_take_import, "form"),
+    ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

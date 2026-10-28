@@ -432,6 +432,20 @@ TOOLS: list[Tool] = [
          "minutes). partial: true leaves shots without a usable take out instead of failing.",
          {"ep": EP, "pass": PASS, "partial": {"type": "boolean"}}, ("ep",),
          route("POST", "/seriesmith/assemble", "ep", "pass", "partial"), writes=True),
+    Tool("import_take", "A video on this machine as a shot's new take (an H.264 mp4 copied, "
+         "anything else converted to one), picked if pick is true. It keeps its own length; "
+         "it has no seed or prompt, so it is never stale and can't be re-rendered as such.",
+         {"ep": EP, "shot": SHOT, "pass": PASS, "source_path": _s("the video's absolute path"),
+          "pick": {"type": "boolean"}, "note": _s("optional")}, ("ep", "shot", "source_path"),
+         route("POST", "/seriesmith/take/import", "ep", "pass", "shot", "source_path", "pick",
+               "note"), writes=True),
+    Tool("copy_take", "Another shot's take (from_shot, take; from_pass for the other pass) "
+         "copied in as this shot's new take, picked if pick is true. To put a clip between "
+         "two shots, add a shot to the script there first (read_source, save_source).",
+         {"ep": EP, "shot": SHOT, "pass": PASS, "from_shot": SHOT, "take": TAKE,
+          "from_pass": PASS, "pick": {"type": "boolean"}}, ("ep", "shot", "from_shot", "take"),
+         route("POST", "/seriesmith/take/copy", "ep", "pass", "shot", "from_shot", "take",
+               "from_pass", "pick"), writes=True),
     Tool("discard_take", "Move a take into renders/_trash/ (out of the lists; the file is "
          "kept there).", {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS},
          ("ep", "shot", "take"),

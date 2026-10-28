@@ -1135,10 +1135,35 @@ assembled. No LLM and no key in seriesmith: the client brings the model.
 - [x] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
       client without the skill still writes scripts that check.
 - [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's and Desktop's config.
-- [ ] Next, new in the editor as much as here: a take imported from a video file or another
-      shot (with the gallery's drag onto the timeline, a design of its own), then its tool.
+- [x] `import_take` and `copy_take` tools (with the routes below).
 - [ ] Not yet: MCP prompts (a client's slash commands) if a flow proves worth one; refs'
       overrides and keyframes, align, publish, targets from workflows as tools.
+
+## Takes from outside: import and drag (2026-10-27)
+
+A shot's take that seriesmith didn't render, as refs already have: a video file, or another
+shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from outside".
+
+- [x] **Backend** (`seriesmith/takeimport.py`): `POST /seriesmith/take/import` (a path, or an
+      upload up to 4 GB: the route's own `max_upload`, read in `views.read_form`) and
+      `POST /seriesmith/take/copy`. `source: "imported"`, no seed / prompt / hashes, so never
+      stale; its own frames, fps, size and sound. An H.264 mp4 copied; anything else converted
+      to H.264 (decided 2026-10-27: every take plays in the editor; the original not kept).
+      `copied_from` on a copy. Tests: `tests/test_takeimport.py`.
+- [ ] **Import video…** on a shot (Shots tab row, inspector), and a video file dropped on a
+      shot's row or onto a timeline clip: that shot's take, picked. Progress as the refs'
+      uploads.
+- [ ] **The gallery's take tiles draggable**, and the timeline a drop target:
+      - onto a clip of the same shot: a pick; of another shot: copied in and picked;
+      - between two clips: a new shot in the script after the left one (decided
+        2026-10-27), numbered as "Add a shot after" (`shotIdBetween`), its lines copied from
+        the take's shot, `dur:` the take's length; saved through the source route (history,
+        rebuild); the take copied in, picked, the clip moved to the gap.
+- [ ] **A video file dropped between two clips**: the shot form opens there, prefilled
+      (sequence, position, `dur:` from the file), the file attached; Save makes the shot and
+      imports the file as its take (decided 2026-10-27: the action needs writing).
+- [ ] Where a take came from, shown: "imported (name)" / "from sh020 t03" in the take row,
+      the inspector and the gallery's viewer.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
