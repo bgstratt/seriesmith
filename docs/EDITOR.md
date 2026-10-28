@@ -282,6 +282,12 @@ under the shot.
 - **Click a sequence header** to expand or collapse it.
 - **Click a shot** to select it. The Script window follows the selection, and so does
   Inspect.
+- **Select several** with **Ctrl+click** (⌘ on a Mac: adds or takes out one) or **Shift+click**
+  (everything from the last one clicked, in the cut's order), here, on the board or on the
+  timeline. A bar says how many: **Generate N** queues a new take of each (a shot's first at
+  its built seed, a new seed otherwise, as Generate does), **Render…** opens the Render
+  dialog for them first, and × or Esc clears it. Right-click one of them for the same two.
+  Clicking a shot outside the selection ends it.
 - **Click a take** to select that candidate; **double-click** opens it in the Viewer.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
@@ -1051,7 +1057,10 @@ The cut as an editable track, along the bottom of the page.
 
 - **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
 - **Drop a take from the gallery, or a video file**, onto a clip (that shot's take) or between
-  two (a new shot there): [Takes from outside](#takes-from-outside).
+  two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
+  jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
+  as an upload in Refs is. A shot whose model reads no
+  keyframe keeps it unused, and says so.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).

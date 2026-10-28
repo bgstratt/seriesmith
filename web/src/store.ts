@@ -336,6 +336,10 @@ export interface AppState {
   detailError: Record<string, string>;
   shot: string | null;
   take: number | null;
+  /** several shots selected (Ctrl/Shift-click, lib/multiSelect), in the cut's order; empty: just `shot` */
+  multi: string[];
+  /** where a Shift-click's range starts */
+  anchor: string | null;
   expanded: Record<string, boolean>;
   collapsedSeq: Record<string, boolean>;
   /** ComfyUI prompt id -> the take it renders */
@@ -518,6 +522,8 @@ export function initialState(prefs: Prefs = {}): AppState {
     detailError: {},
     shot: null,
     take: null,
+    multi: [],
+    anchor: null,
     expanded: {},
     collapsedSeq: {},
     prompts: {},

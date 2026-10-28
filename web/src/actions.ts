@@ -9,6 +9,7 @@ import { normPath, splitByMissingRefs } from "./lib/missingRefs";
 import { staleShots } from "./lib/progress";
 import { pairFiles } from "./lib/importSeries";
 import { exportCheck, type ExportRun } from "./lib/exportCheck";
+import { clickSelection, selectedShots, type Mods } from "./lib/multiSelect";
 import { buildPlaylist, startOf, totalDuration, upscalesNeeded, type PlayItem } from "./lib/playlist";
 import { type RefTargetKind } from "./lib/imageTargets";
 import {
@@ -588,7 +589,7 @@ export async function loadEpisodes() {
 
 export function selectEpisode(ep: string | null) {
   set((s) => ({
-    ep, shot: null, take: null, viewer: null, menu: null, redo: null, renderAsk: null, upscaleAsk: null, postAsk: null, masterAsk: null, masterJob: null, refSel: null,
+    ep, shot: null, take: null, multi: [], anchor: null, viewer: null, menu: null, redo: null, renderAsk: null, upscaleAsk: null, postAsk: null, masterAsk: null, masterJob: null, refSel: null,
     cutPlay: { ...s.cutPlay, playing: false, pos: 0 },
     build: { busy: false, result: null, error: null },
     // Phase 9c: the Recording and voice-clip windows belong to one episode
@@ -806,8 +807,35 @@ export function scheduleRefresh(delay = 200) {
 // ---------------------------------------------------------------------------
 
 export function select(shot: string | null, take: number | null = null) {
-  set({ shot, take });
+  // a shot outside the selection (a key, a link) leaves it
+  set((s) => ({ shot, take, ...(shot && s.multi.includes(shot) ? {} : { multi: [], anchor: shot }) }));
   if (shot) void loadDetail(shot);
+}
+
+/** A click on a shot's row, tile or clip: alone, or with Ctrl/⌘ and Shift several (lib/multiSelect). */
+export function clickShot(shot: string, take: number | null, mods: Mods) {
+  const s = get();
+  const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+  const order = (st?.shots ?? []).filter((x) => !x.orphan).map((x) => x.shot);
+  const next = clickSelection({ shot: s.shot, multi: s.multi, anchor: s.anchor }, shot, order, mods);
+  const same = next.shot === s.shot;
+  set({ ...next, take: next.shot === shot ? take : same ? s.take : null });
+  if (next.shot) void loadDetail(next.shot);
+}
+
+export function clearMulti() {
+  set({ multi: [] });
+}
+
+/** Queue the selected shots: a new take of each (its first at the built seed, else a
+ * new seed, as Generate does), or the Render dialog first. */
+export function renderSelected(ask = false) {
+  const s = get();
+  const shots = selectedShots(s);
+  if (!shots.length) return;
+  const title = `Render ${shots.length === 1 ? shots[0] : `${shots.length} selected shots`}`;
+  if (ask) set({ renderAsk: { shots, pass: s.pass, redo: true, seedMode: "auto", title }, menu: null });
+  else requestRender(shots, true, title, "auto");
 }
 
 export function toggleExpanded(shot: string) {

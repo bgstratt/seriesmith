@@ -3,7 +3,7 @@ import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
-  upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts,
+  upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
 } from "../actions";
 import { pickTakeFile } from "../takeActions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
@@ -26,6 +26,7 @@ export function ContextMenu() {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const { list: targets, seriesDefault } = useTargets();
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
+  const multi = useApp((s) => s.multi);
 
   useLayoutEffect(() => {
     if (!menu || !ref.current) return setPos(null);
@@ -60,6 +61,8 @@ export function ContextMenu() {
   }, [menu, ep, refs]);
 
   if (!menu || !ep) return null;
+  // right-clicked one of several selected shots, on the pass they're selected on
+  const several = multi.length > 1 && multi.includes(menu.shot) && menu.pass === curPass;
   const shot = st?.shots.find((x) => x.shot === menu.shot);
   const take = menu.take != null ? shot?.takes.find((t) => t.take === menu.take) : undefined;
   const cutShot = cutSt?.shots.find((x) => x.shot === menu.shot);
@@ -251,6 +254,17 @@ export function ContextMenu() {
         {menu.shot} {take ? tn(take.take) : ""} {menu.pass !== curPass ? `(${menu.pass})` : ""}
         {take ? ` · ${take.status}` : ""}
       </div>
+      {several && (
+        <>
+          <button title="A new take of each: a shot's first at its built seed, a new seed otherwise (as Generate does)" onClick={run(() => renderSelected())}>
+            <i className="pi pi-play" /> Generate the {multi.length} selected
+          </button>
+          <button title="The Render dialog first: the video model for this run, where they render" onClick={run(() => renderSelected(true))}>
+            <i className="pi pi-sliders-h" /> Render the {multi.length} selected…
+          </button>
+          <div className="h3-menu-sep" />
+        </>
+      )}
       {take ? (
         <>
           <button disabled={!take.mp4} onClick={run(() => openViewer(menu.shot, take.take, null, "single", menu.pass))}>

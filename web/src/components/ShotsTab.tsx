@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
-  renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
+  clickShot, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
 import {
@@ -18,6 +18,7 @@ import { useView } from "../lib/viewPref";
 import { aspectOf, useStatus } from "./hooks";
 import { useIssueCount } from "./Issues";
 import { MissingRefsSummary } from "./MissingRefs";
+import { MultiBar } from "./MultiBar";
 import { EpisodeTarget } from "./Readiness";
 import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
@@ -25,7 +26,7 @@ import { TrackButton, TrackLine } from "./Track";
 import { QueueBar } from "./Jobs";
 import { dragHasFiles, uploadText } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake } from "../lib/takeDrop";
-import { dismissTakeUpload, dropTakeOnto, importTakeFile, pickTakeFile, takeUploadKey } from "../takeActions";
+import { dismissTakeUpload, dropFileOnto, dropTakeOnto, pickTakeFile, takeUploadKey } from "../takeActions";
 
 const BROWSE = "__browse__";
 
@@ -204,6 +205,7 @@ function BuildBar() {
       >
         Generate missing{missing.length ? ` (${missing.length})` : ""}
       </button>
+      <MultiBar />
       {st && prog.total > 0 && (
         <div className="h3-col" style={{ gap: 3 }} title={progressTitle(prog)}>
           <span className="h3-small h3-muted">{progressLine(prog)}</span>
@@ -304,7 +306,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
 function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
   ep: string; pass: Pass; s: ShotStatus; aspect: number; targets: TargetList | null; seriesDefault: string;
 }) {
-  const selected = useApp((st) => st.shot === s.shot);
+  const selected = useApp((st) => st.shot === s.shot || st.multi.includes(s.shot));
   const selTake = useApp((st) => (st.shot === s.shot ? st.take : null));
   const expanded = useApp((st) => !!st.expanded[s.shot]);
   const running = useApp((st) => st.running);
@@ -340,9 +342,10 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
           if (!take && !file) return;
           e.preventDefault();
           if (take) void dropTakeOnto(s.shot, take);
-          else if (file) void importTakeFile(s.shot, file);
+          else if (file) void dropFileOnto(s.shot, file);
         }}
-        onClick={() => select(s.shot, ct?.take ?? null)}
+        onMouseDown={(e) => e.shiftKey && e.preventDefault() /* no text selection on Shift-click */}
+        onClick={(e) => clickShot(s.shot, ct?.take ?? null, e)}
         onDoubleClick={() => (ct ? openViewer(s.shot, ct.take, null, "single", pass) : toggleExpanded(s.shot))}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -442,7 +445,7 @@ function TakeUploadLine({ shot }: { shot: string }) {
 function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
   ep: string; pass: Pass; s: ShotStatus; aspect: number; targets: TargetList | null; seriesDefault: string;
 }) {
-  const selected = useApp((st) => st.shot === s.shot);
+  const selected = useApp((st) => st.shot === s.shot || st.multi.includes(s.shot));
   const running = useApp((st) => st.running);
   const prompts = useApp((st) => st.prompts);
   const progress = useApp((st) => st.progress);
@@ -457,7 +460,8 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
   const newest = s.takes[s.takes.length - 1];
   const n = s.takes.length;
   return (
-    <div className={`h3-tile${selected ? " h3-sel" : ""}`} onClick={() => select(s.shot, ct?.take ?? null)}
+    <div className={`h3-tile${selected ? " h3-sel" : ""}`} onClick={(e) => clickShot(s.shot, ct?.take ?? null, e)}
+      onMouseDown={(e) => e.shiftKey && e.preventDefault()}
       onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY, s.shot, ct?.take ?? null, pass); }}>
       <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={0} aspect={aspect} fill
         onDoubleClick={(e) => { e.stopPropagation(); if (ct) openViewer(s.shot, ct.take, null, "single", pass); }}>
