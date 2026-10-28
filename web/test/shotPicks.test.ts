@@ -58,11 +58,15 @@ describe("several shots, and a picture as a keyframe", () => {
     expect(spy.mock.calls[0][0]).toMatchObject({ ref: keyframeRefId(shot, "first"), view: null, pick: true });
   });
 
-  it("knows a picture, and refuses one between clips", async () => {
+  it("a picture dropped between clips opens the shot form there, for a new shot with it as its first keyframe", async () => {
     expect(isPicture({ name: "a.PNG" })).toBe(true);
     expect(isPicture({ name: "a.webp" })).toBe(true);
     expect(isPicture({ name: "a.mp4" })).toBe(false);
-    await dropFileBetween(1, new File([], "frame.jpg"));
-    expect(toasts.at(-1)?.[1]).toBe("A picture goes onto a clip");
+    const [a] = shots();
+    const pic = new File([], "frame.jpg");
+    await dropFileBetween(1, pic);
+    expect(store.get().shotForm).toMatchObject({ shot: null, after: a, file: pic, dur: null, left: a });
+    await dropFileBetween(1, new File([], "notes.txt"));
+    expect(toasts.at(-1)?.[1]).toBe("Not a video or a picture");
   });
 });

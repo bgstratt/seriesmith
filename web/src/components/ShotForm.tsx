@@ -25,7 +25,7 @@ import { LengthPicker } from "./LengthPicker";
 import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
-import { finishDroppedFile } from "../takeActions";
+import { finishDroppedFile, isPicture } from "../takeActions";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
 
@@ -70,7 +70,8 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   ep: string; shot: string | null; after: string | null;
   /** a new shot ahead of this one (a file dropped before the first clip) */
   before?: string | null;
-  /** a video dropped between two clips: imported as the new shot's take on Save */
+  /** a video dropped between two clips: imported as the new shot's take on Save
+   * (a picture: its first keyframe) */
   file?: File | null; dur?: string | null; left?: string | null;
 }) {
   const pass = useApp((s) => s.pass);
@@ -233,7 +234,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       if (mine.length) host().toast("warn", `${form.id} saved, with problems`, mine[0].message);
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
-      // a video dropped between two clips: its take now, and the clip where it was dropped
+      // a file dropped between two clips: its take (a picture: its first keyframe) now, and the clip where it was dropped
       if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
       // the script as it is now: a new shot opens as itself; an edited one
@@ -264,7 +265,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const head = (
     <>
       <div className="h3-head-text">
-        <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its take` : ""}` : "Shot"}</span>
+        <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its ${isPicture(file) ? "first keyframe" : "take"}` : ""}` : "Shot"}</span>
         <div className="h3-row">
           <span className="h3-win-title">{form?.id ?? shot ?? ""}</span>
           {dirty && <span className="h3-small h3-muted">not saved</span>}

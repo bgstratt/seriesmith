@@ -183,18 +183,16 @@ async function keyframeFromFile(shot: string, file: File) {
 }
 
 export async function dropFileBetween(gap: number, file: File): Promise<void> {
-  if (isPicture(file)) {
-    host().toast("warn", "A picture goes onto a clip", `Drop ${file.name} on a shot to make it that shot's first keyframe; between two clips is for a video, as a new shot.`);
-    return;
-  }
-  const problem = videoFileProblem(file);
+  // a picture: the new shot's first keyframe, its length the form's
+  const picture = isPicture(file);
+  const problem = picture ? "" : videoFileProblem(file);
   if (problem) {
-    host().toast("warn", "Not a video", problem);
+    host().toast("warn", "Not a video or a picture", problem);
     return;
   }
   const cut = cutShots();
   const anchor = anchorAt(cut, gap);
-  const seconds = await videoSeconds(file);
+  const seconds = picture ? null : await videoSeconds(file);
   openShotForm({
     shot: null,
     after: anchor && "after" in anchor ? anchor.after : null,
@@ -207,8 +205,11 @@ export async function dropFileBetween(gap: number, file: File): Promise<void> {
 /** After the shot form saved a new shot that came with a file: the file as its
  * take, and the clip where it was dropped. */
 export async function finishDroppedFile(shot: string, file: File, left: string | null): Promise<void> {
-  const take = await importTakeFile(shot, file);
-  if (take == null) return;
+  if (isPicture(file)) {
+    await keyframeFromFile(shot, file);
+    const { ep, pass } = store.get();
+    if (ep) await refreshEpisode(ep, pass);         // the new shot in the status, to be moved
+  } else if ((await importTakeFile(shot, file)) == null) return;
   await moveClip(shot, gapAfter(cutShots(), left));
 }
 

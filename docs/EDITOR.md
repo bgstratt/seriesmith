@@ -1060,7 +1060,9 @@ The cut as an editable track, along the bottom of the page.
   two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
   jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
   as an upload in Refs is. A shot whose model reads no
-  keyframe keeps it unused, and says so.
+  keyframe keeps it unused, and says so. Dropped between two clips, a picture opens the shot
+  form there, as a video does: **Save** makes the shot with the picture as its first
+  keyframe, and **Save and generate** renders it from that keyframe.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
