@@ -3233,9 +3233,14 @@ def dub_by_file(job: Job, sound: str) -> None:
         else float(shot.get("duration") or job.frames / (job.fps or 24.0))
     sh.audio = "dub_keep_foley"
     sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
+    rel = os.path.relpath(level, job.root).replace(os.sep, "/")
+    # a window wants a recorded track to be in: the voice is this shot's, so it
+    # is the track for this compile (a series with no audio.track: Ballroom)
+    series_cfg = _copy.deepcopy(series_cfg)
+    series_cfg.setdefault("audio", {})["track"] = rel
     doc, _ = t.compile_episode(story, series_cfg, job.pass_, only={job.id})
     entry = dict(doc["shots"][0])
-    entry["audio_file"] = os.path.relpath(level, job.root).replace(os.sep, "/")
+    entry["audio_file"] = rel
     job.shot, job.recompiled = entry, None
     if "prompt" not in job.overridden:
         job.prompt = entry["prompt"]

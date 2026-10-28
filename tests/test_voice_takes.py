@@ -173,6 +173,12 @@ class VoiceTakeTest(unittest.TestCase):
     def test_ref2va_dubs_a_voice_take_through_its_shot_loader(self):
         """H3 Ref2VA / FastH3 Omni: the shot compiled again as a dub, its own
         recording the voice take's sound levelled; the Shot Loader reads it whole."""
+        # a series with no recorded track (Ballroom: "uses an audio window but
+        # series.json has no audio.track set")
+        p = os.path.join(self.root, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg.get("audio", {}).pop("track", None)
+        T.write_json(p, cfg)
         v = self.voice_take()
         job = self.plan("sh020", lines_from=v.take)           # sh020's own model: Ref2VA
         self.assertTrue(job.runs, job.error)
