@@ -186,6 +186,24 @@ class SeedanceAudioTest(unittest.TestCase):
         self.assertEqual(self.heard(args), ["audio/voices/ada_sample.wav",
                                             "audio/voices/bo_sample.wav"])
 
+    def test_audio_goes_with_references_not_keyframes(self):
+        """BytePlus refuses frames mixed with reference media: a clone shot with
+        its keyframes on disk sends its reference pictures and its voices."""
+        for end in ("first", "last"):
+            p = os.path.join(self.root, "refs", "shots", "sh020", f"{end}.png")
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "wb").close()
+        job, args = self.call("sh020")
+        roles = [x.get("role") for x in args["content"] if x.get("role")]
+        self.assertNotIn("first_frame", roles)
+        self.assertNotIn("last_frame", roles)
+        self.assertIn("reference_image", roles)
+        self.assertEqual(roles.count("reference_audio"), 2)
+        self.assertIn("can't take a first or last frame with audio", " ".join(job.notes))
+        # the audio goes inline: the Seedance library takes pictures only
+        self.assertEqual({x["audio_url"]["url"].via for x in args["content"]
+                          if x.get("type") == "audio_url"}, {"datauri"})
+
     def test_more_speakers_than_voices_is_a_build_error(self):
         t = TG.load_target("seedance_2_0", "video")
         voices = t.spec["router"]["inputs"]["voices"]

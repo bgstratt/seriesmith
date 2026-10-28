@@ -1210,9 +1210,15 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       two speakers in a shot.
 - [x] **Seedance audio references** (2.0, fast, mini, 2.5): clone sends each speaker's
       sample, dub the window (padded to 2 s), named in the prompt (`@Audio N`) after the
-      pictures. **Not tried against the live service**: the wording follows BytePlus's
-      `@Image N`; the paid check is two calls on Seedance 2.0 fast (a sample with another
-      line: does it clone? the window with its own words: does it dub?).
+      pictures. Tried live 2026-10-28 on Seedance 2.0 fast (two calls, a scratch episode):
+      the Seedance library refuses audio ("get image info ... not supported"), so audio goes
+      inline (`via: datauri`); frames can't be mixed with reference media (`invalid_input`;
+      BytePlus: "first/last frame content cannot be mixed with reference media content"),
+      so a shot sending audio goes by its references (`voices.with_frames: false`). Then:
+      **clone** spoke the new line word for word at 108 Hz against the sample's 101 Hz;
+      **dub** came back with the window's words in its voice (106 Hz, as the window) but
+      re-performed slower over the 4 s clip (envelope 0.50 against the window), so its lips
+      follow its own sound, not the recording: a voice-matched re-read, not a true dub.
 - [x] **LTX clone** (`ltx2`, `ltx2_msr`): each line made in the shot's own graph by the
       audio-only model (the shot's transformer), continuing its speaker's held sample, the
       lines joined with core.speech's beats (AudioConcat, EmptyAudio) and held as for a dub

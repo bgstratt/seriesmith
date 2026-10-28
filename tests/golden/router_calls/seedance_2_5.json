@@ -114,7 +114,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/ada_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -124,7 +124,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/bo_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -198,7 +198,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/ada_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -208,7 +208,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/bo_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -282,7 +282,7 @@
      "audio_url": {
       "url": {
        "file": "audio/_cuts/ks01_mix_cf56559aba88_1000-3500.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -326,7 +326,7 @@
      "audio_url": {
       "url": {
        "file": "audio/_cuts/ks01_mix_cf56559aba88_7200-9000_pad2000.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -476,7 +476,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/ada_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -486,7 +486,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/bo_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",
@@ -496,7 +496,7 @@
      "audio_url": {
       "url": {
        "file": "audio/voices/narrator_sample.wav",
-       "via": "seedance"
+       "via": "datauri"
       }
      },
      "role": "reference_audio",

@@ -185,7 +185,11 @@
         "max": 10,
         "min_seconds": 2,
         "max_seconds": 15,
-        "mention": "@Audio {n}"
+        "mention": "@Audio {n}",
+        "via": "datauri",
+        "with_frames": false,
+        "_with_frames_note": "BytePlus: first/last frame content cannot be mixed with reference media content (refused as invalid_input, 2026-10-28): a shot sending audio goes by its reference pictures, not its keyframes",
+        "_via_note": "inline as data:audio/wav;base64 (the schema's own form): the Seedance library registers pictures only and refused a wav as an image ('get image info ... This image format is not supported', 2026-10-28)"
       },
       "via": "seedance"
     },

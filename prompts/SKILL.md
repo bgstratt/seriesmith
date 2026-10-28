@@ -1737,7 +1737,13 @@ Comfy API key, and Settings' paid limit caps how many go out). What it is sent:
   dialogue and soundtrack of the shot: the lips are synced to it.*). Each clip is 2 to 15
   seconds: a longer sample is cut in a pause, a shorter window padded with silence, and a
   sample under 2 seconds is refused before anything is sent. Seedance 2.0 takes 3 clips and
-  never without a picture; 2.5 takes 10. The other hosted models make their own sound.
+  never without a picture; 2.5 takes 10. Seedance won't take a first or last frame together
+  with audio, so a shot that sends audio goes by its reference pictures and its keyframes
+  are left out (the take says so). What to expect: a `clone` speaks the new line in a voice
+  close to the sample. A `dub` comes back in the recording's voice with its words, but
+  re-performed at Seedance's own pace (stretched over the clip), so the lips follow the
+  take's own sound: keep it, rather than laying the recording over the cut. The other
+  hosted models make their own sound.
 
 What each model takes, local and hosted (generated from the targets by
 `python tools/make_refs_md.py`):

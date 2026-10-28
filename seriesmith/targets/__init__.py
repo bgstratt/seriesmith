@@ -774,7 +774,9 @@ class Target:
                 # "none": the model makes no sound (Wan 2.2): every take is silent
                 "audio": (self.spec.get("capabilities") or {}).get("audio") or "generate",
                 "policy_fallback": (r.get("policy_fallback") or {}).get("to"),
-                "voice_reference": bool(r.get("voice_slots")),
+                # it speaks in a character's voice sample (H3's voice slots; a
+                # clone made in the graph, or sent as an audio reference)
+                "voice_reference": bool(r.get("voice_slots")) or "clone" in self.policies,
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),

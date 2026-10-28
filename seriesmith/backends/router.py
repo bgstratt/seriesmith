@@ -213,8 +213,7 @@ class RouterBackend(Backend):
             if k not in urls and f.via in ("base64", "datauri"):
                 with open(f.path, "rb") as fh:
                     b64 = base64.b64encode(fh.read()).decode("ascii")
-                mime = "image/jpeg" if f.path.lower().endswith((".jpg", ".jpeg")) else "image/png"
-                urls[k] = b64 if f.via == "base64" else f"data:{mime};base64,{b64}"
+                urls[k] = b64 if f.via == "base64" else f"data:{mime_of(f.path)};base64,{b64}"
             elif k not in urls:
                 asset = self.client.assets.from_file(f.path)
                 asset.commit()
@@ -285,4 +284,12 @@ class RouterBackend(Backend):
         return RouterRun(self.client.models.handle(model, run_id), model)
 
 
-__all__ = ["RouterBackend", "RouterRun", "download", "output_type", "urls_in"]
+def mime_of(path: str) -> str:
+    """The media type a file goes inline as (a data: URI): a picture, or a
+    sound (Seedance's audio references)."""
+    ext = os.path.splitext(path)[1].lower()
+    return {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".wav": "audio/wav",
+            ".mp3": "audio/mpeg"}.get(ext, "image/png")
+
+
+__all__ = ["RouterBackend", "RouterRun", "download", "mime_of", "output_type", "urls_in"]

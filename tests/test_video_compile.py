@@ -56,8 +56,10 @@ class FallbackWarningTest(unittest.TestCase):
     SHOT = "## sh010\nwho: ada\nsize: ms\ndur: 3\nADA: Hello there.\n"   # clone: the series says so
 
     def test_a_sounding_router_model_says_what_falls_back(self):
-        out = build("seedance_2_5", self.SHOT).stdout
-        self.assertIn("ask for audio clone, which Seedance can't render", out)
+        # Seedance hears voice samples now (router_video.sounds): Kling doesn't
+        out = build("kling_v3_omni", self.SHOT).stdout
+        self.assertIn("ask for audio clone, which Kling can't render", out)
+        self.assertNotIn("can't render", build("seedance_2_5", self.SHOT).stdout)
 
     def test_a_silent_model_says_it_once(self):
         out = build("wan22_ti2v", self.SHOT).stdout
