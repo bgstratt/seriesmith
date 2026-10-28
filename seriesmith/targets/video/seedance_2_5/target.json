@@ -33,7 +33,7 @@
     "plates": "all"
   },
   "recipe": {
-    "_audio_note": "Seedance hears audio references (router.inputs.voices, role reference_audio): a clone shot sends each speaker's voice sample and names it in the prompt ('Use @Audio 1 as the voice of Ada.'); a dub shot sends its window of the recording ('Use @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.'). The wording follows BytePlus's @Image naming; not yet tried against the live service (docs/PLAN.md, 'Seedance audio references').",
+    "_audio_note": "Seedance hears audio references (router.inputs.voices, role reference_audio): a clone shot sends each speaker's voice sample and names it in the prompt ('Use @Audio 1 as the voice of Ada.'); a dub shot sends its window of the recording ('Use @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.'). Tried live 2026-10-28 (docs/PLAN.md, 'Voices across models'): a clone speaks the line in a voice close to the sample; a dub is a re-read in the recording's voice at Seedance's own pace, not the recording itself.",
     "policies": [
       "generate",
       "clone",
@@ -188,6 +188,8 @@
         "mention": "@Audio {n}",
         "via": "datauri",
         "with_frames": false,
+        "rereads": true,
+        "_rereads_note": "a dub comes back re-read, not copied: the window's words in its voice (106 Hz as the window) but at Seedance's own pace, stretched over the clip (envelope 0.50 against the window; Seedance 2.0 fast, 2026-10-28). The take says so.",
         "_with_frames_note": "BytePlus: first/last frame content cannot be mixed with reference media content (refused as invalid_input, 2026-10-28): a shot sending audio goes by its reference pictures, not its keyframes",
         "_via_note": "inline as data:audio/wav;base64 (the schema's own form): the Seedance library registers pictures only and refused a wav as an image ('get image info ... This image format is not supported', 2026-10-28)"
       },

@@ -452,6 +452,10 @@ def sounds(target, job, shot: dict, inp: dict, pics: list) -> tuple[list, str]:
             out.append((track, "recording"))
             said.append(f"Use {mention.replace('{n}', '1')} as the exact dialogue and soundtrack "
                         f"of the shot: the lips are synced to it.")
+            if spec.get("rereads"):
+                job.notes.append(f"{policy} on {name}: it re-reads the recording in its voice, at "
+                                 f"its own pace, so the lips follow the take's own sound: keep it "
+                                 f"rather than laying the recording over the cut")
     if out and spec.get("needs_picture") and not pics:
         raise ValueError(f"{name} can't be sent audio without a picture, and "
                          f"{shot.get('id', 'this shot')} has none on disk. Nothing was sent")

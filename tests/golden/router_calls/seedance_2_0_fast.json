@@ -279,7 +279,9 @@
   },
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-fast-260128",
-  "notes": [],
+  "notes": [
+   "dub on Seedance: it re-reads the recording in its voice, at its own pace, so the lips follow the take's own sound: keep it rather than laying the recording over the cut"
+  ],
   "size": [
    1280,
    720
@@ -323,7 +325,9 @@
   },
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-fast-260128",
-  "notes": [],
+  "notes": [
+   "dub on Seedance: it re-reads the recording in its voice, at its own pace, so the lips follow the take's own sound: keep it rather than laying the recording over the cut"
+  ],
   "size": [
    1280,
    720
