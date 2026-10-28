@@ -152,6 +152,31 @@ def kling_prose(p: dict) -> None:
     p["router"]["picture_ratio"] = PICTURE_RATIO
 
 
+# "Video duration in seconds (any whole second from 5 to 20), or auto"
+FLUX_3 = {"length": {"seconds": {"min": 5, "max": 20}}}
+
+
+def flux3_video(p: dict) -> None:
+    """FLUX 3 video: what its schema says only in prose. Its aspect ratios
+    are listed in the description ("auto, 21:9, 2:1, 16:9, 4:3, 1:1, 3:4, or
+    9:16"), with keyframes left to BFL (`auto`, the default: omitted); its
+    resolutions are classes (hd 720p, fhd 1080p, qhd 2K, uhd 4K). No
+    reference pictures: Router refuses `reference_images` for it ("property
+    reference_images is unsupported", 2026-10-28), so a shot without a first
+    keyframe is words alone."""
+    inp = p["router"]["inputs"]
+    inp["ratio"] = {"name": "aspect_ratio", "values": ["21:9", "2:1", "16:9", "4:3", "1:1", "3:4", "9:16"],
+                    "with_frames": "omit"}
+    inp["resolution"] = {"name": "resolution",
+                         "values": {"720": "hd", "1080": "fhd", "1440": "qhd", "2160": "uhd"}}
+    p["_note"] = ("Black Forest Labs' FLUX 3 video. No reference pictures through Router: the shot's "
+                  "first (and last) keyframe become frames of the clip (mode i2v), and a shot with "
+                  "neither is text to video (t2v), its people and place in words alone, so make the "
+                  "first keyframe of a shot whose people must look like themselves. Prose prompt, as "
+                  "BFL's FLUX 3 Video Prompt Guide asks; no negative prompt, no seed. Not yet rendered "
+                  "live (docs/PLAN.md, 'FLUX 3 video').")
+
+
 def runway_note(p: dict) -> None:
     p["_note"] = ("Image to video: every shot starts from its first keyframe (promptImage); no "
                   "reference pictures, no sound (the silent prose: Runway failed every prompt "
@@ -175,6 +200,7 @@ MODELS = [
     ("veo/veo-3.1-generate-001", "veo_3_1", "Veo 3.1", "Veo", VEO, True, None),
     ("veo/veo-3.1-lite-generate-001", "veo_3_1_lite", "Veo 3.1 Lite", "Veo", VEO, True, None),
     ("runway/gen4_turbo", "runway_gen4_turbo", "Runway Gen-4 Turbo", "Runway", None, False, runway_note),
+    ("bfl/flux-3-video", "flux_3_video", "FLUX 3 Video", "FLUX 3", FLUX_3, False, flux3_video),
 ]
 
 

@@ -1709,6 +1709,13 @@ Comfy API key, and Settings' paid limit caps how many go out). What it is sent:
   pick a model that takes more, or describe a subject in the action text instead.
 - **What can still be refused:** the provider looks at the pictures too. A revealing
   reference can be refused whatever the prompt says.
+- **FLUX 3 video** (`flux_3_video`) takes no reference pictures through Router: the shot's
+  first keyframe (and last, when there is one) become frames of the clip, and a shot with
+  neither is made from words alone. So make the first keyframe of a shot whose people have
+  to look like themselves. Write it as BFL's prompt guide asks, as the prose already is: what
+  happens, one framing and one camera move, the place and light, the lines, then the sound.
+  It takes no negative prompt and no seed (a take can't be made again the same), and 5 to
+  20 seconds a shot.
 - **Sound, on Seedance:** it hears audio as well as pictures. A `clone` shot sends each
   speaker's `voice_sample` and names it after the pictures (*Use @Audio 1 as the voice of
   Ada.*); a `dub` shot sends its `audio:` window of the recording (*Use @Audio 1 as the exact
@@ -1738,6 +1745,7 @@ What each model takes, local and hosted (generated from the targets by
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
 | `wan22_vace` | Wan+refs | your ComfyUI | one picture made from the subjects' sheets | first and last | by their order |
+| `flux_3_video` | FLUX 3 | Comfy Router | none | first and last | — |
 | `kling_v3_omni` | Kling | Comfy Router | up to 7: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `kling_video_o1` | Kling O1 | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `minimax_h3` | MiniMax | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | by their order |
