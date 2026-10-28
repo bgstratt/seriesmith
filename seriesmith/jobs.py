@@ -1773,10 +1773,16 @@ def lines_from(job: Job, take, folder: str | None = None) -> None:
         if not PK.has_audio(sound):
             why = f"{name} has no sound"
         else:
-            job.lines_from, job.lines_file = take, sound
-            job.notes.append(f"dubbed to t{take:02d}'s voice"
-                             + (" (a voice take)" if T.is_voice_take(src) else ""))
-            return
+            if t.supports("DUB_BY_FILE"):
+                try:
+                    dub_by_file(job, sound)
+                except Exception as e:
+                    why = f"{t.short} couldn't write {job.id} as a dub: {e}"
+            if not why:
+                job.lines_from, job.lines_file = take, sound
+                job.notes.append(f"dubbed to t{take:02d}'s voice"
+                                 + (" (a voice take)" if T.is_voice_take(src) else ""))
+                return
     job.action, job.error = "error", f"can't dub {job.id} to t{take:02d}: {why}"
 
 
@@ -3205,6 +3211,34 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
         out.update(t.stage_inputs(job, comfy) or {})
     job.inputs = out
     return out
+
+
+def dub_by_file(job: Job, sound: str) -> None:
+    """A target that dubs through its Shot Loader (H3 Ref2VA, FastH3 Omni): the
+    shot compiled again as `dub_keep_foley`, its window the shot's own length,
+    with `sound` levelled (audiocut.levelled, in the episode's _cuts) as its
+    own recording (`audio_file`, which the loader reads whole). Replaces
+    job.shot, and job.prompt unless the prompt is overridden."""
+    import copy as _copy
+    from seriesmith import audiocut as AC
+    t = job_target(job)
+    level = AC.levelled(sound)
+    story, series_cfg = episode_story(job.root)
+    story = _copy.deepcopy(story)
+    sh = next((s for s in story.shots() if s.id == job.id), None)
+    if sh is None:
+        raise ValueError(f"{job.id} is not in shots.json (rebuild the episode)")
+    shot = job.recompiled or job.shot
+    seconds = float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot \
+        else float(shot.get("duration") or job.frames / (job.fps or 24.0))
+    sh.audio = "dub_keep_foley"
+    sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
+    doc, _ = t.compile_episode(story, series_cfg, job.pass_, only={job.id})
+    entry = dict(doc["shots"][0])
+    entry["audio_file"] = os.path.relpath(level, job.root).replace(os.sep, "/")
+    job.shot, job.recompiled = entry, None
+    if "prompt" not in job.overridden:
+        job.prompt = entry["prompt"]
 
 
 def stage_lines(job: Job, comfy=None) -> str:

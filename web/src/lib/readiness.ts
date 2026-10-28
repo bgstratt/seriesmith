@@ -308,3 +308,10 @@ export function voiceTakeBlock(list: TargetList | null | undefined): string | nu
     + (files.length ? ` (missing: ${files.join(", ")})` : "")
     + ". Click to install it (the Features window).";
 }
+
+/** Why a shot on `target` can't be dubbed to a voice take, or null when it can. */
+export function voiceDubBlock(list: TargetList | null | undefined, target: string | null | undefined): string | null {
+  const t = list?.targets.find((x) => x.id === target);
+  if (!t || t.capabilities?.takes_voice) return null;
+  return `${t.label ?? t.id} can't be dubbed to a voice take yet: render the shot on H3 FL2VA or an LTX model for that (Render…, or its target).`;
+}

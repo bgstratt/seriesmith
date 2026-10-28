@@ -340,3 +340,17 @@ describe("a voice take needs H3 Ref2VA", () => {
     expect(voiceTakeBlock(null)).toBeNull();          // not known: the server says
   });
 });
+
+import { voiceDubBlock } from "../src/lib/readiness";
+
+describe("dubbing a shot to a voice take", () => {
+  const list = { targets: [
+    { id: "minimax_h3_fl2va", label: "MiniMax H3 FL2VA", capabilities: { takes_voice: true } },
+    { id: "fasth3_omni", label: "FastH3 Omni", capabilities: { takes_voice: false } },
+  ] } as unknown as TargetList;
+  it("a model that takes a voice is fine; one that doesn't says which do", () => {
+    expect(voiceDubBlock(list, "minimax_h3_fl2va")).toBeNull();
+    expect(voiceDubBlock(list, "fasth3_omni")).toMatch(/FastH3 Omni can't be dubbed to a voice take yet.*FL2VA or an LTX/);
+    expect(voiceDubBlock(list, "unknown_model")).toBeNull();          // not known: the server says
+  });
+});

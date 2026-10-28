@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
-  clickShot, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
+  clickShot, dubToVoice, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { host } from "../host";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
 import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
+import { voiceDubBlock } from "../lib/readiness";
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
 import type { EpisodeSummary, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -277,6 +278,16 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
             <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
           )}
           <span className="h3-grow" />
+          {usable && t.voice_only && (() => {
+            const why = voiceDubBlock(targets, shotCurrent);
+            return (
+              <button className="h3-btn h3-primary" disabled={!!why}
+                title={why ?? `Queue ${s.shot} now on its own model, dubbed to ${tn(t.take)}'s voice`}
+                onClick={(e) => { e.stopPropagation(); dubToVoice([s.shot], t.take); }}>
+                Dub to this voice
+              </button>
+            );
+          })()}
           {usable && !isCut && !t.voice_only && (
             <button className="h3-btn" disabled={pickBusy} title="Use this take in the cut" onClick={(e) => { e.stopPropagation(); void pickTake(s.shot, t.take); }}>
               Use

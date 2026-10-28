@@ -414,7 +414,9 @@ renders every shot of the request there.
     or `"voice"` (each shot's newest finished voice take). That take's sound (its
     `_h3.wav`, else its mp4's), levelled to one loudness (`audiocut.levelled`:
     `loudnorm` I -16, true peak -1.5), is the recording the target dubs: H3 FL2VA anchors
-    it, the LTX targets hold it; it is kept in the take as `_lines.wav` and its record
+    it, the LTX targets hold it, H3 Ref2VA and FastH3 Omni compile the shot again as
+    `dub_keep_foley` with it as the shot's own `audio_file` (the Shot Loader reads it
+    whole; `targets.describe` says which can: `capabilities.takes_voice`); it is kept in the take as `_lines.wav` and its record
     says `lines_from`. A clone shot's voice samples aren't needed then. Other targets, a
     take that isn't finished or has no sound: that shot's error. Not with `voice_only`.
   - `size` (`"1344x768"`, or `[1344, 768]`) renders this run at that size instead of the

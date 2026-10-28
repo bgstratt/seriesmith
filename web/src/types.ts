@@ -1823,6 +1823,8 @@ export interface Target {
     keyframes?: string[];
     policies?: string[];
     voice_reference?: boolean;
+    /** it can be dubbed to a take's voice (a voice take) */
+    takes_voice?: boolean;
     subject_refs?: boolean;
     prompt?: string;
     negative_prompt?: boolean;

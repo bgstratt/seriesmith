@@ -1244,8 +1244,8 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       word); the read differs with the size (the noise does), the level too (-13.5 to -20.3
       dBFS RMS, 448x256 and 256x160 peaking over full scale), so a dub levels it first;
       ~13-15 s a take once H3 is loaded; a size and seed give the same sound again.
-- [x] **Dub to a take's voice** (`lines_from`): FL2VA anchors it, LTX holds it, levelled.
-      Not yet live.
+- [x] **Dub to a take's voice** (`lines_from`): FL2VA anchors it, LTX holds it, H3 Ref2VA
+      and FastH3 Omni dub it as the shot's own `audio_file`; levelled. Not yet live.
 - [ ] Voice and dub as one request (the queue's `after`), for clone on FL2VA without
       listening first; a series setting choosing LTX or H3 for it.
 - [ ] `seriesmith render --voice` / `--lines-from` on the command line.

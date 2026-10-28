@@ -169,6 +169,33 @@ class VoiceTakeTest(unittest.TestCase):
         self.assertIn("video.h3", by)
         self.assertTrue(any(i.target == J.VOICE_TARGET for i in by["video.h3"].items))
 
+    @unittest.skipUnless(FF.have("ffmpeg"), "ffmpeg not on PATH")
+    def test_ref2va_dubs_a_voice_take_through_its_shot_loader(self):
+        """H3 Ref2VA / FastH3 Omni: the shot compiled again as a dub, its own
+        recording the voice take's sound levelled; the Shot Loader reads it whole."""
+        v = self.voice_take()
+        job = self.plan("sh020", lines_from=v.take)           # sh020's own model: Ref2VA
+        self.assertTrue(job.runs, job.error)
+        self.assertEqual(job.shot["audio_policy"], "dub_keep_foley")
+        self.assertTrue(job.shot["audio_file"].endswith("_level.wav"))
+        self.assertTrue(os.path.isfile(os.path.join(self.root, job.shot["audio_file"])))
+        self.assertEqual(job.frames, J.find_shot(self.root, "final", "sh020")[0]["shots"][
+            J.find_shot(self.root, "final", "sh020")[1]]["length"])
+        prompt = J._prompt_text(job.prompt)
+        self.assertIn("<Audio 1>", prompt)
+        slots = J.ref_slots(job.doc, job.shot)
+        self.assertEqual([(r["slot"], r["path"]) for r in slots if r["kind"] == "audio"],
+                         [("Audio 1", job.shot["audio_file"])])
+        self.assertEqual(J.sidecar_for(job)["lines_from"], v.take)
+
+    def test_which_models_take_a_voice(self):
+        from seriesmith import targets as TG
+        caps = {t: TG.load_target(t, "video").describe()["capabilities"]["takes_voice"]
+                for t in (FL, "ltx2", "ltx2_msr", "ltx2_ingredients", J.VOICE_TARGET,
+                          "fasth3_omni", "seedance_2_5")}
+        self.assertEqual({t for t, ok in caps.items() if ok},
+                         {FL, "ltx2", "ltx2_msr", "ltx2_ingredients", J.VOICE_TARGET, "fasth3_omni"})
+
     def test_what_cant_be_dubbed_is_said(self):
         # no voice take yet
         job = self.plan("sh020", target=FL, lines_from="voice")
@@ -176,7 +203,7 @@ class VoiceTakeTest(unittest.TestCase):
         self.assertIn("it has none yet", job.error)
         v = self.voice_take()
         # a model that takes no recording to dub
-        job = self.plan("sh020", target=J.VOICE_TARGET, lines_from=v.take)
+        job = self.plan("sh020", target="wan22_ti2v", lines_from=v.take)
         self.assertEqual(job.action, "error")
         self.assertIn("can't be given a voice to dub", job.error)
         # a take that isn't there

@@ -295,8 +295,9 @@ under the shot.
   **voice** badge, plays like one, and never goes into the cut. Listen; make another if it
   isn't right. Then **Generate a dub to this voice** (on the voice take), or **Generate dubs**
   with several selected (each one's newest), queues the shot on its own model with that
-  voice, evened out to one loudness, as the recording it dubs: H3 FL2VA (from its
-  keyframes) and the LTX models. The take says **voice of t03** and keeps the voice as
+  voice, evened out to one loudness, as the recording it dubs: H3 Ref2VA, FastH3 Omni,
+  H3 FL2VA (from its keyframes) and the LTX models. A voice take's row has **Dub to this
+  voice** for it (greyed, saying why, on a model that can't). The take says **voice of t03** and keeps the voice as
   `_lines.wav`. Without H3 Ref2VA on your ComfyUI the voice buttons carry a warning sign,
   and pressing one opens **Features** at MiniMax H3 Ref2VA, ticked to install.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can

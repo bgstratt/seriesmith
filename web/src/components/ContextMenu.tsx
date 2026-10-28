@@ -13,7 +13,7 @@ import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
 import { shotTarget } from "../lib/targets";
-import { voiceTakeBlock } from "../lib/readiness";
+import { voiceDubBlock, voiceTakeBlock } from "../lib/readiness";
 import { statusKey, useApp } from "../store";
 import { useTargets } from "./Targets";
 
@@ -64,6 +64,8 @@ export function ContextMenu() {
   }, [menu, ep, refs]);
 
   if (!menu || !ep) return null;
+  // a voice take: whether the shot's model can be dubbed to it
+  const noDub = voiceDubBlock(targets, shotTarget(st?.shots.find((x) => x.shot === menu.shot), seriesDefault));
   // right-clicked one of several selected shots, on the pass they're selected on
   const several = multi.length > 1 && multi.includes(menu.shot) && menu.pass === curPass;
   const shot = st?.shots.find((x) => x.shot === menu.shot);
@@ -373,7 +375,7 @@ export function ContextMenu() {
             <i className="pi pi-trash" /> Discard take…
           </button>
           {take.voice_only && take.status === "ok" && (
-            <button title={`Render ${menu.shot} on its own model, dubbed to ${tn(take.take)}'s voice (levelled first)`}
+            <button disabled={!!noDub} title={noDub ?? `Render ${menu.shot} on its own model, dubbed to ${tn(take.take)}'s voice (levelled first)`}
               onClick={run(() => dubToVoice([menu.shot], take.take))}>
               <i className="pi pi-play" /> Generate a dub to this voice
             </button>
