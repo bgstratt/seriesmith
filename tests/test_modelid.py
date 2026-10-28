@@ -241,11 +241,16 @@ class CheckModelTest(unittest.TestCase):
                                       "text_encoder": "qwen3vl-32b",
                                       "video_vae": "minimax-h3-video-vae",
                                       "audio_vae": "minimax-h3-audio-vae"},
+                # voice_*: LTX-2.5 audio-only's files, optional, for a clone
+                # shot's lines (made in the graph, then dubbed)
                 "minimax_h3_fl2va": {"model": "minimax-h3-fl2va",
                                      "loras": "minimax-h3-fl2v-turbo-lora",
                                      "text_encoder": "qwen3vl-32b",
                                      "video_vae": "minimax-h3-video-vae",
-                                     "audio_vae": "minimax-h3-audio-vae"},
+                                     "audio_vae": "minimax-h3-audio-vae",
+                                     "voice_model": "ltx2.5",
+                                     "voice_text_encoder": "ltx2.5-text-encoder",
+                                     "voice_audio_vae": "ltx2.5-audio-vae"},
                 # quality_model and reference_lora are the two optional extras:
                 # the dev transformer (the quality profile) and the 2.5
                 # ingredients IC-LoRA (reference sheets)
