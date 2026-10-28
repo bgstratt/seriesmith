@@ -670,7 +670,10 @@ class Target:
                           # with the wanted file (a step count, a noise stage,
                           # distilled vs dev), and globs it must not match
                           "keep": [str(k) for k in m.get("keep") or []],
-                          "exclude": [str(x) for x in m.get("exclude") or []]}
+                          "exclude": [str(x) for x in m.get("exclude") or []],
+                          # the audio policies it serves (none: every shot);
+                          # a shot rendering another doesn't load it
+                          "policies": [str(x) for x in m.get("policies") or []]}
         return out
 
     @property

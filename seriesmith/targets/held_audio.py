@@ -272,6 +272,19 @@ def patch_clone(target, g: dict, job, inputs: dict) -> None:
     entry = (job.recompiled or job.shot) if job is not None else {}
     if entry.get("audio_policy") != "clone" or not entry.get("lines"):
         return
+    stages = samplers(g)                       # the video's, before the lines add theirs
+    vae = audio_vae(g)
+    sound = make_lines(g, job, inputs, _one(g, "UNETLoader"),
+                       list(g[_of(g, "CLIPTextEncode")[0]]["inputs"]["clip"]), vae)
+    hold_link(g, sound, "the shot's lines", stages, vae)
+
+
+def make_lines(g: dict, job, inputs: dict, unet: str, clip: list, vae) -> list:
+    """A clone shot's lines, made in `g` and joined (patch_clone's), as the
+    link of the joined sound. `unet` is the LTX transformer's loader (used as
+    the audio-only model), `clip` the LTX text encoder's link, `vae` the LTX
+    audio VAE's: the shot's own in an LTX graph; loaders of their own in
+    another model's graph (H3 FL2VA dubs the lines it is given)."""
     import math
 
     from seriesmith import jobs as J
@@ -279,15 +292,12 @@ def patch_clone(target, g: dict, job, inputs: dict) -> None:
     from seriesmith.core import speech as SP
     from seriesmith.targets.audio import common as AC
 
-    stages = samplers(g)                       # the video's, before the lines add theirs
+    entry = job.recompiled or job.shot
     voices = (inputs or {}).get("voices") or {}
     cfg = J.series_config(job.root) or {}
     book = cfg.get("subjects") or {}
     pace = (cfg.get("speech") or {}).get("pace", "normal")
     fps = float(job.fps or 24.0)
-    vae = audio_vae(g)
-    unet = _one(g, "UNETLoader")
-    clip = list(g[_of(g, "CLIPTextEncode")[0]]["inputs"]["clip"])
     voice = TG.load_target("ltx2_voice", "audio")
     base = J.load_graph(voice.binding.workflow)
     sch_in = dict(base[_one(base, "LTXVScheduler")]["inputs"])
@@ -360,4 +370,4 @@ def patch_clone(target, g: dict, job, inputs: dict) -> None:
         sound = node(f"h3_clone_join{i}_b", "AudioConcat", f"lines up to {i}",
                      audio1=[sound, 0], audio2=[said, 0], direction="after")
         prev = who
-    hold_link(g, [sound, 0], "the shot's lines", stages, vae)
+    return [sound, 0]

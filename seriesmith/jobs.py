@@ -2885,14 +2885,19 @@ def model_values(job: Job) -> dict[str, str]:
     """{param: file} for every model param the job's target declares a family
     for: the job's model, the shotlist's (else the preset's) text encoder,
     VAEs, upscaler, ..., and the duration head when the shot predicts its
-    length. A param with no file set is left out."""
+    length. A param with no file set is left out, and so is one whose spec
+    names the audio `policies` it serves when the shot renders another (H3
+    FL2VA's LTX voice files: a clone shot's only)."""
     t = job_target(job)
     vals = job_values(job)
     preset = t.presets.get(job.pass_) or t.presets.get("final")
     final = t.presets.get("final")
+    policy = (job.recompiled or job.shot or {}).get("audio_policy")
     out = {}
     for param, m in t.models.items():
         if param == "loras":                            # a list: resolve_models reads job.loras
+            continue
+        if m.get("policies") and policy not in m["policies"]:
             continue
         if param == "model":
             v = job.model

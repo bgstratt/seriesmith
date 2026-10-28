@@ -1,4 +1,69 @@
 {
+ "AudioConcat": {
+  "api_node": false,
+  "category": "audio",
+  "deprecated": false,
+  "description": "Concatenates the audio1 to audio2 in the specified direction.",
+  "dev_only": false,
+  "display_name": "Concatenate Audio",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio1": [
+     "AUDIO",
+     {}
+    ],
+    "audio2": [
+     "AUDIO",
+     {}
+    ],
+    "direction": [
+     "COMBO",
+     {
+      "default": "after",
+      "multiselect": false,
+      "options": [
+       "after",
+       "before"
+      ],
+      "tooltip": "Whether to append audio2 after or before audio1."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio1",
+    "audio2",
+    "direction"
+   ]
+  },
+  "is_input_list": false,
+  "name": "AudioConcat",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_audio",
+  "search_aliases": [
+   "join audio",
+   "combine audio",
+   "append audio"
+  ]
+ },
  "BasicGuider": {
   "input": {
    "required": {
@@ -64,6 +129,25 @@
    "CLIP"
   ]
  },
+ "CLIPTextEncode": {
+  "input": {
+   "optional": {},
+   "required": {
+    "clip": [
+     "CLIP"
+    ],
+    "text": [
+     "STRING"
+    ]
+   }
+  },
+  "output": [
+   "CONDITIONING"
+  ],
+  "output_name": [
+   "CONDITIONING"
+  ]
+ },
  "ComfyMathExpression": {
   "input": {
    "required": {
@@ -118,6 +202,79 @@
    "VIDEO"
   ]
  },
+ "EmptyAudio": {
+  "api_node": false,
+  "category": "audio",
+  "deprecated": false,
+  "description": "",
+  "dev_only": false,
+  "display_name": "Empty Audio",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "channels": [
+     "INT",
+     {
+      "advanced": true,
+      "default": 2,
+      "max": 2,
+      "min": 1,
+      "tooltip": "Number of audio channels (1 for mono, 2 for stereo)."
+     }
+    ],
+    "duration": [
+     "FLOAT",
+     {
+      "default": 60.0,
+      "max": 18446744073709551615,
+      "min": 0.0,
+      "step": 0.01,
+      "tooltip": "Duration of the empty audio clip in seconds"
+     }
+    ],
+    "sample_rate": [
+     "INT",
+     {
+      "advanced": true,
+      "default": 44100,
+      "max": 192000,
+      "min": 1,
+      "tooltip": "Sample rate of the empty audio clip."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "duration",
+    "sample_rate",
+    "channels"
+   ]
+  },
+  "is_input_list": false,
+  "name": "EmptyAudio",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_audio",
+  "search_aliases": [
+   "blank audio"
+  ]
+ },
  "GetImageSize": {
   "input": {
    "required": {
@@ -141,6 +298,9 @@
   "input": {
    "optional": {
     "audio": [
+     "AUDIO"
+    ],
+    "lines": [
      "AUDIO"
     ],
     "sidecar": [
@@ -220,6 +380,285 @@
   ],
   "output_name": [
    "SAMPLER"
+  ]
+ },
+ "LTXVAudioOnlyEmptyVideoLatent": {
+  "category": "Lightricks/audio",
+  "description": "Fixed minimal placeholder video latent for audio-only (text-to-audio) generation - a single 64x64 frame. LTX-2 needs a video latent at input index 0, but with LTXV Audio Only Model it is never attended to, so the dimensions are fixed (and hidden) to avoid confusion. Join it with the audio latent via LTXVConcatAVLatent.",
+  "display_name": "🅛🅣🅧 LTXV Audio Only Empty Video Latent",
+  "has_intermediate_output": false,
+  "input": {
+   "required": {}
+  },
+  "input_order": {
+   "required": []
+  },
+  "is_input_list": false,
+  "name": "LTXVAudioOnlyEmptyVideoLatent",
+  "output": [
+   "LATENT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "latent"
+  ],
+  "output_node": false,
+  "python_module": "custom_nodes.ComfyUI-LTXVideo",
+  "search_aliases": []
+ },
+ "LTXVAudioOnlyModel": {
+  "category": "Lightricks/audio",
+  "description": "Run the LTX-2 audio/video model in audio-only mode for text-to-audio. Skips the video stream and disables the audio<->video cross-attention, so the generated audio does not depend on the video latent. The sampler still needs a minimal dummy video latent (EmptyLTXVLatentVideo at 64x64 length 1, joined with LTXVConcatAVLatent); it is never attended to. Remove or bypass this node to restore normal joint audio+video generation.",
+  "display_name": "🅛🅣🅧 LTXV Audio Only Model",
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "model": [
+     "MODEL",
+     {
+      "tooltip": "The LTX-2 audio/video model to run in audio-only mode."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "model"
+   ]
+  },
+  "is_input_list": false,
+  "name": "LTXVAudioOnlyModel",
+  "output": [
+   "MODEL"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "model"
+  ],
+  "output_node": false,
+  "python_module": "custom_nodes.ComfyUI-LTXVideo",
+  "search_aliases": []
+ },
+ "LTXVAudioVAEDecode": {
+  "input": {
+   "optional": {},
+   "required": {
+    "audio_vae": [
+     "VAE"
+    ],
+    "samples": [
+     "LATENT"
+    ]
+   }
+  },
+  "output": [
+   "AUDIO"
+  ],
+  "output_name": [
+   "Audio"
+  ]
+ },
+ "LTXVAudioVAEEncode": {
+  "api_node": false,
+  "category": "model/latent/ltxv",
+  "deprecated": false,
+  "description": "",
+  "dev_only": false,
+  "display_name": "LTXV Audio VAE Encode",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {
+      "tooltip": "The audio to be encoded."
+     }
+    ],
+    "audio_vae": [
+     "VAE",
+     {
+      "display_name": "Audio VAE",
+      "tooltip": "The Audio VAE model to use for encoding."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio",
+    "audio_vae"
+   ]
+  },
+  "is_input_list": false,
+  "name": "LTXVAudioVAEEncode",
+  "output": [
+   "LATENT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "Audio Latent"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_lt_audio",
+  "search_aliases": null
+ },
+ "LTXVConcatAVLatent": {
+  "input": {
+   "optional": {},
+   "required": {
+    "audio_latent": [
+     "LATENT"
+    ],
+    "video_latent": [
+     "LATENT"
+    ]
+   }
+  },
+  "output": [
+   "LATENT"
+  ],
+  "output_name": [
+   "latent"
+  ]
+ },
+ "LTXVConditioning": {
+  "input": {
+   "optional": {},
+   "required": {
+    "frame_rate": [
+     "FLOAT"
+    ],
+    "negative": [
+     "CONDITIONING"
+    ],
+    "positive": [
+     "CONDITIONING"
+    ]
+   }
+  },
+  "output": [
+   "CONDITIONING",
+   "CONDITIONING"
+  ],
+  "output_name": [
+   "positive",
+   "negative"
+  ]
+ },
+ "LTXVDualCFGGuider": {
+  "input": {
+   "optional": {},
+   "required": {
+    "audio_cfg": [
+     "FLOAT"
+    ],
+    "model": [
+     "MODEL"
+    ],
+    "negative": [
+     "CONDITIONING"
+    ],
+    "positive": [
+     "CONDITIONING"
+    ],
+    "video_cfg": [
+     "FLOAT"
+    ]
+   }
+  },
+  "output": [
+   "GUIDER"
+  ],
+  "output_name": [
+   "GUIDER"
+  ]
+ },
+ "LTXVEmptyLatentAudio": {
+  "input": {
+   "optional": {},
+   "required": {
+    "audio_vae": [
+     "VAE"
+    ],
+    "batch_size": [
+     "INT"
+    ],
+    "frame_rate": [
+     "FLOAT,INT"
+    ],
+    "frames_number": [
+     "INT"
+    ]
+   }
+  },
+  "output": [
+   "LATENT"
+  ],
+  "output_name": [
+   "Latent"
+  ]
+ },
+ "LTXVScheduler": {
+  "input": {
+   "optional": {
+    "latent": [
+     "LATENT"
+    ]
+   },
+   "required": {
+    "base_shift": [
+     "FLOAT"
+    ],
+    "max_shift": [
+     "FLOAT"
+    ],
+    "steps": [
+     "INT"
+    ],
+    "stretch": [
+     "BOOLEAN"
+    ],
+    "terminal": [
+     "FLOAT"
+    ]
+   }
+  },
+  "output": [
+   "SIGMAS"
+  ],
+  "output_name": [
+   "SIGMAS"
+  ]
+ },
+ "LTXVSeparateAVLatent": {
+  "input": {
+   "optional": {},
+   "required": {
+    "av_latent": [
+     "LATENT"
+    ]
+   }
+  },
+  "output": [
+   "LATENT",
+   "LATENT"
+  ],
+  "output_name": [
+   "video_latent",
+   "audio_latent"
   ]
  },
  "LoadAudio": {
@@ -461,6 +900,178 @@
   ],
   "output_name": [
    "video"
+  ]
+ },
+ "SetLatentNoiseMask": {
+  "category": "model/latent",
+  "description": "",
+  "display_name": "Set Latent Noise Mask",
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "mask": [
+     "MASK"
+    ],
+    "samples": [
+     "LATENT"
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "samples",
+    "mask"
+   ]
+  },
+  "is_input_list": false,
+  "name": "SetLatentNoiseMask",
+  "output": [
+   "LATENT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "LATENT"
+  ],
+  "output_node": false,
+  "python_module": "nodes",
+  "search_aliases": []
+ },
+ "SolidMask": {
+  "api_node": false,
+  "category": "image/mask",
+  "deprecated": false,
+  "description": "",
+  "dev_only": false,
+  "display_name": "Create Solid Mask",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "height": [
+     "INT",
+     {
+      "default": 512,
+      "max": 16384,
+      "min": 1,
+      "step": 1
+     }
+    ],
+    "value": [
+     "FLOAT",
+     {
+      "default": 1.0,
+      "max": 1.0,
+      "min": 0.0,
+      "step": 0.01
+     }
+    ],
+    "width": [
+     "INT",
+     {
+      "default": 512,
+      "max": 16384,
+      "min": 1,
+      "step": 1
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "value",
+    "width",
+    "height"
+   ]
+  },
+  "is_input_list": false,
+  "name": "SolidMask",
+  "output": [
+   "MASK"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "MASK"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_mask",
+  "search_aliases": null
+ },
+ "TrimAudioDuration": {
+  "api_node": false,
+  "category": "audio",
+  "deprecated": false,
+  "description": "Trim audio tensor into chosen time range.",
+  "dev_only": false,
+  "display_name": "Trim Audio Duration",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {}
+    ],
+    "duration": [
+     "FLOAT",
+     {
+      "default": 60.0,
+      "min": 0.0,
+      "step": 0.01,
+      "tooltip": "Duration in seconds"
+     }
+    ],
+    "start_index": [
+     "FLOAT",
+     {
+      "default": 0.0,
+      "max": 18446744073709551615,
+      "min": -18446744073709551615,
+      "step": 0.01,
+      "tooltip": "Start time in seconds, can be negative to count from the end (supports sub-seconds)."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio",
+    "start_index",
+    "duration"
+   ]
+  },
+  "is_input_list": false,
+  "name": "TrimAudioDuration",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_audio",
+  "search_aliases": [
+   "cut audio",
+   "audio clip",
+   "shorten audio"
   ]
  },
  "UNETLoader": {

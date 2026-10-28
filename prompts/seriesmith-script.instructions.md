@@ -203,7 +203,7 @@ shot 93. So:
 |---|---|---|---|---|---|
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
-| `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
+| `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
 | `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | generated, dubbed, or cloned | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
@@ -1450,9 +1450,13 @@ pictures**: what pins the look is the shot's keyframes. What changes for such a 
 - **Sound:** `generate` as usual. `dub` and `dub_keep_foley` work: the shot's `audio:` window
   of the recording (`audio.track`) is cut and anchored at the start of the shot, so the
   mouths follow your recording; `dub` makes it the whole soundtrack, `dub_keep_foley` lays
-  `sound:` under it. `retention:` has no effect here. `clone` has no voice-sample slot on
-  this model: those shots render with `generate` (each speaker's `voice` line shapes the
-  voice), and the build and the take say so.
+  `sound:` under it. `retention:` has no effect here. `clone`: this model has no
+  voice-sample slot, so the lines are made first, in the same render, by LTX-2.5's
+  audio-only model, each continuing its speaker's `voice_sample` as `ltx2`'s clone does,
+  and then anchored as a recording is (with `sound:` laid under them). The take keeps the
+  made lines beside it (`_lines.wav`) to listen to. It needs LTX-2.5's transformer, text
+  encoder and audio VAE on the ComfyUI (INSTALL.md): without them a clone shot is refused
+  and says what to download. It loads both models, so it's slower than a dub.
 - **Length:** H3's `17k + 5` grid. The model is trained on about 5 to 15 seconds (124 to
   362 frames); longer shots render with a warning. A shot continues the one before by its
   first keyframe: `continuous: first`.
