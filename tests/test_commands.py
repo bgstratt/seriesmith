@@ -98,3 +98,14 @@ class TableTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class VersionTest(unittest.TestCase):
+    def test_the_package_says_the_release(self):
+        """seriesmith.__version__ (`seriesmith --version`, /seriesmith/info, the MCP
+        server's serverInfo) is pyproject.toml's: a release bumps both. A literal,
+        not read from pyproject.toml, because the skill's bundle carries
+        seriesmith/__init__.py without it."""
+        import seriesmith
+        text = open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8").read()
+        self.assertEqual(seriesmith.__version__, re.search(r'^version\s*=\s*"([^"]+)"', text, re.M).group(1))
