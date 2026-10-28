@@ -469,6 +469,24 @@ class MixedEpisodeTest(unittest.TestCase):
         job = self.plan("sh050")
         self.assertNotIn("audio", J.stage_inputs(job))
 
+    def test_dub_with_a_first_keyframe(self):
+        """A dub shot with a first keyframe: the picture starts from the keyframe
+        and the recording is still held, each in its own half of the latent."""
+        job = self.plan("sh040", loras=[])
+        g = self.graph(job, {"audio": "seriesmith/w.wav", "first": "h3pipe/a.png"})
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        from seriesmith.targets.video.ltx2 import compile as LC
+        st = LC._stages(g)
+        held = J.node_of(g, "SetLatentNoiseMask")
+        inplace = set(of(g, "LTXVImgToVideoInplace"))
+        self.assertEqual(len(inplace), 2)
+        for n in (1, 2):
+            swap = g[st[n]["sampler"]]["inputs"]["latent_image"][0]
+            self.assertEqual(g[swap]["inputs"]["audio_latent"], [held, 0])
+            # the video half comes from the keyframe's in-place conditioning
+            inner = g[swap]["inputs"]["video_latent"][0]
+            self.assertIn(g[inner]["inputs"]["video_latent"][0], inplace)
+
     def test_clone_makes_the_lines_in_the_shots_graph(self):
         """sh020's final clones (the series' audio mode): each line is made in the
         shot's own graph by the audio-only model, continuing its speaker's held
