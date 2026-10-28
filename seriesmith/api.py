@@ -3532,12 +3532,15 @@ def image_ready(ctx: Context):
 def get_refs(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     s = _series(ep)
-    if not ctx.sweep_later:
+    # `fresh=1`: swept (and auto-picked) before the listing, on a server too,
+    # for a caller with no events to reload on (seriesmith mcp)
+    later = ctx.sweep_later and not _flag(query.get("fresh"))
+    if not later:
         sweep_refs(ctx, s)
     # one listing per folder, one resolution of each cut, one look at each file
     with T.one_look(), E.cut_memo():
         out = seeds_out(R.refs_listing(ep, ready=image_ready(ctx)))
-    if ctx.sweep_later:
+    if later:
         # a server closes the takes whose job is gone (every take's record
         # read, ComfyUI asked) after the listing has gone, not before it: what
         # it changes reaches the page as ref events, which reload it

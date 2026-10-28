@@ -161,6 +161,8 @@ SHOT = _s("a shot id, e.g. sh020")
 REF = _s("a ref id as list_refs gives it, e.g. subject:dean")
 VIEW = _s("a character's view, e.g. 01_threequarter (characters only)")
 TAKE = {"type": "integer", "description": "a take number"}
+BACKEND = _s("optional: where the jobs run (local, cloud, router, deployment:<id>); "
+             "else each model's own, as the series config says")
 
 
 def _body(*names):
@@ -218,6 +220,20 @@ def jobs_brief(res: dict, ep: str | None = None) -> dict:
             "paid": res.get("paid")}
 
 
+def settle_refs(c: Client, brief: dict, ep: str | None) -> None:
+    """Once ref jobs have finished, have their episodes' refs swept and
+    auto-picked (GET /seriesmith/refs?fresh=1), as the editor's reload on
+    their events does, so a render that follows finds them."""
+    eps = {ep} if ep else set()
+    eps |= {(j.get("info") or {}).get("ep") for j in brief["finished_recently"]
+            if j.get("kind") == "ref"}
+    for e in sorted(x for x in eps if x):
+        try:
+            c.get("/seriesmith/refs", ep=e, fresh="1")
+        except ToolError:
+            pass
+
+
 def wait_for_jobs(c: Client, a: dict) -> dict:
     """Poll GET /seriesmith/jobs until nothing (of `ep`'s) is queued or
     running, or `timeout` seconds pass."""
@@ -226,6 +242,7 @@ def wait_for_jobs(c: Client, a: dict) -> dict:
     while True:
         brief = jobs_brief(c.get("/seriesmith/jobs"), a.get("ep"))
         if not brief["running_or_queued"]:
+            settle_refs(c, brief, a.get("ep"))
             return dict(brief, done=True)
         if time.monotonic() >= end:
             return dict(brief, done=False,
@@ -337,7 +354,8 @@ TOOLS: list[Tool] = [
     Tool("list_refs", "The episode's reference pictures (characters and their views, props, "
          "locations, keyframes, voices): which shots use each, whether it exists, its "
          "candidates (takes, with image paths for view_picture) and which is picked.",
-         {"ep": EP}, ("ep",), route("GET", "/seriesmith/refs", "ep", query=True)),
+         {"ep": EP}, ("ep",),
+         lambda c, a: c.get("/seriesmith/refs", ep=a["ep"], fresh="1")),
     Tool("view_picture", "Look at a picture of the episode: a ref candidate's image, a "
          "take's thumb or strip (paths as list_refs and episode_status give them).",
          {"ep": EP, "path": _s("relative to the episode"),
@@ -511,23 +529,27 @@ TOOLS: list[Tool] = [
          "picture the episode lacks, and its needed keyframes. dry_run: true lists what "
          "would run, queuing nothing: do that first and say what it will make.",
          {"ep": EP, "pass": PASS, "dry_run": {"type": "boolean"},
-          "target": _s("optional: the image model, as list_targets gives it")}, ("ep",),
+          "target": _s("optional: the image model, as list_targets gives it"),
+          "backend": BACKEND}, ("ep",),
          route("POST", "/seriesmith/refs/generate-missing", "ep", "pass", "dry_run",
-               "target"), writes=True, queues=True),
+               "target", "backend"), writes=True, queues=True),
     Tool("generate_ref", "QUEUES A JOB (GPU or credits): new candidates for one ref (or one "
          "view of a character), optionally with another prompt.",
          {"ep": EP, "ref": REF, "view": VIEW,
           "count": {"type": "integer", "description": "1 when left out"},
-          "prompt": _s("optional: instead of the built prompt"), "note": _s("optional")},
+          "prompt": _s("optional: instead of the built prompt"), "note": _s("optional"),
+          "backend": BACKEND},
          ("ep", "ref"), route("POST", "/seriesmith/refs/generate", "ep", "ref", "view",
-                              "count", "prompt", "note"), writes=True, queues=True),
+                              "count", "prompt", "note", "backend"), writes=True, queues=True),
     Tool("render", "QUEUES JOBS (GPU or credits): a take of each shot (every shot when shots "
          "is left out). Shots that have a usable take are skipped unless redo is true. "
          "Answers queued, skipped and errors per shot; wait_for_jobs, then episode_status.",
          {"ep": EP, "pass": PASS, "shots": {"type": "array", "items": SHOT},
           "redo": {"type": "boolean"}, "note": _s("optional: kept with the take"),
-          "target": _s("optional: a one-off video model for this run")}, ("ep",),
-         route("POST", "/seriesmith/render", "ep", "pass", "shots", "redo", "note", "target"),
+          "target": _s("optional: a one-off video model for this run"),
+          "backend": BACKEND}, ("ep",),
+         route("POST", "/seriesmith/render", "ep", "pass", "shots", "redo", "note", "target",
+               "backend"),
          writes=True, queues=True),
     Tool("upscale", "QUEUES JOBS (GPU or credits): the final cut's takes upscaled (the "
          "whole cut when shots and takes are left out; fresh ones skipped unless redo). "

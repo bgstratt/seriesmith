@@ -173,6 +173,23 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(got["finished_recently"][0]["error"], "boom")
         self.assertNotIn("log", got["running_or_queued"][0])
 
+    def test_waiting_on_ref_jobs_settles_the_refs(self):
+        class Done(Recorder):
+            def call(self, method, path, query=None, body=None, raw=False):
+                if path == "/seriesmith/jobs":
+                    self.calls.append((method, path, query, body))
+                    return {"jobs": [{"id": "r", "kind": "ref", "status": "succeeded",
+                                      "info": {"ep": "C:/S/ep01"}},
+                                     {"id": "v", "kind": "render", "status": "succeeded",
+                                      "info": {"ep": "C:/S/ep02"}}]}
+                return super().call(method, path, query, body, raw)
+        c = Done()
+        M.Server(c).call_tool("wait_for_jobs", {})
+        self.assertEqual([q for m, p, q, b in c.calls if p == "/seriesmith/refs"],
+                         [{"ep": "C:/S/ep01", "fresh": "1"}])
+        M.Server(c).call_tool("list_refs", {"ep": "C:/S/ep02"})
+        self.assertEqual(c.calls[-1][2], {"ep": "C:/S/ep02", "fresh": "1"})
+
     def test_a_picture_is_an_image(self):
         res = M.Server(Recorder()).call_tool("view_picture", {"ep": "e", "path": "a.png"})
         self.assertEqual(res["content"][0]["type"], "image")

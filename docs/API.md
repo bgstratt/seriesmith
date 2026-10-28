@@ -1098,6 +1098,10 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
    "takes": [], "picked": null
  }]}
 ```
+- Before listing, finished candidates' takes are closed and a ref with no live file takes its
+  first finished one (the sweep, `refs.auto_pick`). A server lists first and sweeps after, on
+  a thread, sending ref events the page reloads on; `fresh=1` (2026-10-27) sweeps first there
+  too, for a caller with no events (`seriesmith mcp`).
 - Characters have `views`; every other ref has `takes` and `picked` at top level.
 - `exists` means the file renders read is on disk.
 - A `voice` ref lists `takes` for imported audio only; nothing generates voices yet.
