@@ -40,6 +40,7 @@ from seriesmith import targets as TG
 from seriesmith.core import ir
 from seriesmith.targets import video_compile as VC
 from seriesmith.targets import held_audio as HA
+from seriesmith.core.series_config import members
 from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers, of as _of
 from seriesmith.targets.video.ltx2_ingredients.compile import plate_request, subject_request
 from seriesmith.targets.video_compile import shot_duration as _duration, shotlist_extra
@@ -210,13 +211,19 @@ def sheet_spec(job, ref: dict, book: dict) -> dict:
     from seriesmith import refs as R
     body = os.path.abspath(_abs(job.root, ref["path"]))
     face = os.path.abspath(_abs(job.root, ref["face"])) if ref.get("face") else None
-    kind = (book.get(ref["subject"]) or {}).get("kind", "character")
+    e = book.get(ref["subject"]) or {}
+    kind = e.get("kind", "character")
+    # a whole picture is never a strip, however wide (a group's, `sheet_panels:
+    # 1`; a variant's follows its base): the raw series config, so said here
+    base = (book.get(e.get("of")) or {}) if e.get("of") else {}
+    whole = bool(members(e) or members(base)) or int(
+        e.get("sheet_panels") or base.get("sheet_panels") or 0) == 1
     size = R.image_size(body) or (1, 1)
     views = REF.get("views") or {}
     panels = []
     if kind != "character":
         panels.append({"path": body, "fit": "figure"})
-    elif size[0] / max(size[1], 1) > float(REF.get("strip_ratio", 2.0)):
+    elif not whole and size[0] / max(size[1], 1) > float(REF.get("strip_ratio", 2.0)):
         n = int(REF.get("sheet_panels", 4))
         panels.append({"path": body, "fit": "figure", "crop": {"panels": n, "index": int(views["body"])}})
         panels.append({"path": face, "fit": "figure"} if face and os.path.isfile(face) else
