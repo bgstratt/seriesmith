@@ -27,6 +27,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 from seriesmith import edit as E  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
@@ -227,9 +228,12 @@ class LtxTargetTest(unittest.TestCase):
 
     def test_audio_is_a_declared_capability(self):
         self.assertEqual(self.t.audio_policy("generate"), ("generate", ""))
-        pol, note = self.t.audio_policy("dub_keep_foley")
+        # a recording is held as the soundtrack (held_audio); a voice sample isn't taken
+        self.assertEqual(self.t.audio_policy("dub_keep_foley"), ("dub_keep_foley", ""))
+        self.assertEqual(self.t.audio_policy("dub"), ("dub", ""))
+        pol, note = self.t.audio_policy("clone")
         self.assertEqual(pol, "generate")
-        self.assertIn("no voice sample or recording", note)
+        self.assertIn("not yet a voice sample", note)
         h3 = TG.load_target(H3, "video")
         self.assertEqual(h3.audio_policy("clone"), ("clone", ""))
         spec = dict(h3.recipe)
@@ -329,7 +333,10 @@ class MixedEpisodeTest(unittest.TestCase):
         for k in ("length", "subjects", "audio_policy", "background", "seed", "steps", "prompt"):
             self.assertIn(k, s)
         self.assertEqual((s["length"] - 1) % 8, 0)
-        self.assertEqual((s["audio_policy"], s["audio_intent"]), ("generate", "dub_keep_foley"))
+        # a dub is rendered as one on LTX: its window of the recording is held
+        self.assertEqual(s["audio_policy"], "dub_keep_foley")
+        self.assertNotIn("audio_intent", s)
+        self.assertEqual((s["audio_in"], s["audio_out"]), (1.0, 3.5))
         self.assertIsInstance(s["prompt"], str)
         self.assertEqual(s["keyframes"], {"first": "refs/shots/sh040/first.png",
                                           "last": "refs/shots/sh040/last.png"})
@@ -354,9 +361,10 @@ class MixedEpisodeTest(unittest.TestCase):
         self.assertEqual(texts, {job.prompt, job.shot["negative"]})
         sv = g[J.node_of(g, "H3SaveShot")]["inputs"]
         self.assertEqual((sv["shot_id"], sv["audio_policy"], sv["fps"], sv["save_frames"]),
-                         ("sh040", "generate", 24.0, False))
+                         ("sh040", "dub_keep_foley", 24.0, False))
         self.assertEqual(sv["images"][0], J.node_of(g, "VAEDecodeTiled"))
         self.assertEqual(sv["audio"][0], J.node_of(g, "LTXVAudioVAEDecode"))
+        self.assertFalse(of(g, "LoadAudio"))                  # nothing staged, nothing held
 
     def test_keyframes(self):
         job = self.plan("sh050")
@@ -410,9 +418,51 @@ class MixedEpisodeTest(unittest.TestCase):
         job = self.plan("sh050", "final")
         self.assertIn("audio clone renders as generate on LTX-2", " ".join(job.notes))
         job = self.plan("sh040")                        # dub_keep_foley, even on the proxy
-        self.assertIn("audio dub_keep_foley renders as generate", " ".join(job.notes))
-        self.assertIn("audio dub_keep_foley renders as generate",
-                      " ".join(T.read_sidecar(J.start_job(job).paths.sidecar)["notes"]))
+        self.assertNotIn("renders as generate", " ".join(job.notes))
+        self.assertEqual(J.stage_inputs(job)["audio"],      # a dry run: named, not cut
+                         J.input_name(os.path.join(self.root, "audio", "ks01_mix.wav")))
+        notes = " ".join(T.read_sidecar(J.start_job(job).paths.sidecar)["notes"])
+        self.assertIn("ks01_mix.wav held as the soundtrack", notes)
+        self.assertIn("foley bed is near silent", notes)
+
+    @unittest.skipUnless(FF.have("ffmpeg"), "ffmpeg not on PATH")
+    def test_dub_holds_the_window_through_both_stages(self):
+        """sh040's window of the recording (1.00-3.50 s) is cut, uploaded, and
+        held as the soundtrack of both sampling stages; the picture is made to
+        it (targets/held_audio.py)."""
+        from test_render import wav_bytes
+        with open(os.path.join(self.root, "audio", "ks01_mix.wav"), "wb") as fh:
+            fh.write(wav_bytes(5.0))                     # the fixture's is a stand-in
+        job = self.plan("sh040", loras=[])
+        comfy = FakeComfy()
+        try:
+            got = J.stage_inputs(job, J.Comfy(comfy.url))
+        finally:
+            comfy.close()
+        self.assertEqual(list(comfy.uploads), [got["audio"]])
+        cut = os.path.join(self.root, "audio", "_cuts")
+        (made,) = os.listdir(cut)
+        self.assertTrue(made.endswith("_1000-3500.wav"), made)
+        self.assertEqual(comfy.uploads[got["audio"]], open(os.path.join(cut, made), "rb").read())
+        g = self.graph(job, got)
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        self.assertEqual(g[J.node_of(g, "LoadAudio")]["inputs"]["audio"], got["audio"])
+        held = J.node_of(g, "SetLatentNoiseMask")
+        self.assertEqual(g[g[held]["inputs"]["mask"][0]]["inputs"]["value"], 0.0)
+        enc = g[g[held]["inputs"]["samples"][0]]["inputs"]
+        self.assertEqual(enc["audio_vae"], g[J.node_of(g, "LTXVAudioVAEDecode")]["inputs"]["audio_vae"])
+        from seriesmith.targets.video.ltx2 import compile as LC
+        st = LC._stages(g)
+        for n in (1, 2):
+            swap = g[st[n]["sampler"]]["inputs"]["latent_image"][0]
+            self.assertEqual(g[swap]["class_type"], "LTXVConcatAVLatent")
+            self.assertEqual(g[swap]["inputs"]["audio_latent"], [held, 0])
+            # around the stage's own concat, whose picture is untouched
+            self.assertEqual(g[g[swap]["inputs"]["video_latent"][0]]["class_type"],
+                             "LTXVConcatAVLatent")
+        # a shot that isn't a dub stages and holds nothing
+        job = self.plan("sh050")
+        self.assertNotIn("audio", J.stage_inputs(job))
 
     def test_retarget_by_override_and_request(self):
         ov = T.load_overrides(self.root)

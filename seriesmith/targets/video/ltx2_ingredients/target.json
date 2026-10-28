@@ -16,7 +16,7 @@
   },
 
   "recipe": {
-    "_note": "One reference sheet per shot, composed at queue time from the picked (live) ref files: one panel per element, in order, characters (ONE panel of each 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise, as the H3 loader picks), then props and vehicles, then the location plate, at the render size, no text: the panels tile the whole sheet in rows or columns with thin black lines between them and no black bands around it (a sheet framed by black bars rendered a letterboxed shot); the plate is cropped to fill its cell, a figure only at the sides (to 60% of its width at most), the rest of its cell black. The sheet loops to a static video (RepeatImageBatch) that conditions the whole clip through LTXVAddGuide + the ingredients IC-LoRA. Every ref is required, like H3's pictures; rendering anyway drops the missing elements from the sheet and from the prompt's `Reference sheet:` half (they stay described in words), and a shot with no refs at all renders text-only (no sheet, no IC-LoRA). LTX makes the soundtrack with the picture: clone / dub / dub_keep_foley render with generate and say so.",
+    "_note": "One reference sheet per shot, composed at queue time from the picked (live) ref files: one panel per element, in order, characters (ONE panel of each 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise, as the H3 loader picks), then props and vehicles, then the location plate, at the render size, no text: the panels tile the whole sheet in rows or columns with thin black lines between them and no black bands around it (a sheet framed by black bars rendered a letterboxed shot); the plate is cropped to fill its cell, a figure only at the sides (to 60% of its width at most), the rest of its cell black. The sheet loops to a static video (RepeatImageBatch) that conditions the whole clip through LTXVAddGuide + the ingredients IC-LoRA. Every ref is required, like H3's pictures; rendering anyway drops the missing elements from the sheet and from the prompt's `Reference sheet:` half (they stay described in words), and a shot with no refs at all renders text-only (no sheet, no IC-LoRA). LTX makes the soundtrack with the picture, unless the shot is a dub: then the shot's window of the recorded track is held as the whole soundtrack through every stage and the picture is made to it (targets/held_audio.py; measured live 2026-10-28, docs/PLAN.md 'LTX dub'). dub_keep_foley holds the same window, so its foley bed is near silent. clone renders with generate and says so.",
     "reference_sheet": {
       "take_suffix": "_refsheet.png",
       "background": "black",
@@ -27,8 +27,8 @@
     },
     "ic_lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
     "trained_frames": 121,
-    "policies": ["generate"],
-    "policy_fallback": {"to": "generate", "why": "LTX-2 generates sound with the picture and takes no voice sample or recording"},
+    "policies": ["generate", "dub", "dub_keep_foley"],
+    "policy_fallback": {"to": "generate", "why": "LTX-2 takes a recording to dub to, but not yet a voice sample to clone"},
     "prompt": "reference sheet + prose",
     "refs": {
       "character": {"kind": "character sheet", "shape": "sheet", "views": 4},

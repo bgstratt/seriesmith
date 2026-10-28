@@ -1268,5 +1268,330 @@
   "output_name": [
    "VAE"
   ]
+ },
+ "LoadAudio": {
+  "input": {
+   "required": {
+    "audio": [
+     "COMBO",
+     {
+      "multiselect": false,
+      "options": [
+       "09 Papa Was a Rollin' Stone.wma",
+       "final_cut.mp4",
+       "reshoot_a_sh080_t03.mp4",
+       "reshoot_b_sh090_t02.mp4",
+       "reshoot_c_sh090_t02.mp4",
+       "reshoot_d_sh090_t02.mp4",
+       "reshoot_e_sh090_t02.mp4",
+       "sh010_t01.mp4",
+       "sh010_t01.up (1).mp4",
+       "sh010_t01.up.mp4",
+       "sh010_t03.mp4",
+       "sh010_t04.mp4",
+       "sh010_t12.mp4",
+       "sh020_t02 (1).mp4",
+       "sh020_t02.mp4",
+       "sh030_t03.mp4",
+       "sh040_t02.mp4",
+       "sh050_t02.mp4",
+       "sh060_t01.mp4",
+       "sh070_t01.mp4",
+       "sh080_t02.mp4",
+       "sh090_t01.mp4",
+       "sh100_t01.mp4",
+       "sh110_t01.mp4",
+       "sh120_t02.mp4",
+       "sh130_t01.mp4",
+       "sh140_t01 (1).mp4",
+       "sh140_t01.mp4",
+       "sh150_t01.mp4",
+       "sh160_t01.mp4",
+       "sh170_t01.mp4",
+       "sh180_t01 (1).mp4",
+       "sh180_t01.mp4",
+       "sh180_t01.up.mp4",
+       "sh180_t08.mp4",
+       "sh180_t08.up.mp4",
+       "sh190_t01.mp4",
+       "sh190_t06.mp4",
+       "sh200_t01.mp4",
+       "sh210_t01.mp4",
+       "sh220_t01.mp4",
+       "sh230_t01.mp4",
+       "sh240_t01.mp4",
+       "sh250_t01.mp4",
+       "sh260_t01.mp4",
+       "sh270_t01.mp4",
+       "sh760_t02_h3.wav",
+       "uncle-ruckus-stfu.mp3"
+      ],
+      "audio_upload": true
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "LoadAudio",
+  "display_name": "Load Audio",
+  "description": "",
+  "python_module": "comfy_extras.nodes_audio",
+  "category": "audio",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": [
+   "import audio",
+   "open audio",
+   "audio file"
+  ],
+  "essentials_category": "Audio",
+  "has_intermediate_output": false
+ },
+ "LTXVAudioVAEEncode": {
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {
+      "tooltip": "The audio to be encoded."
+     }
+    ],
+    "audio_vae": [
+     "VAE",
+     {
+      "display_name": "Audio VAE",
+      "tooltip": "The Audio VAE model to use for encoding."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio",
+    "audio_vae"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "LATENT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "Audio Latent"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "LTXVAudioVAEEncode",
+  "display_name": "LTXV Audio VAE Encode",
+  "description": "",
+  "python_module": "comfy_extras.nodes_lt_audio",
+  "category": "model/latent/ltxv",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": null,
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "SetLatentNoiseMask": {
+  "input": {
+   "required": {
+    "samples": [
+     "LATENT"
+    ],
+    "mask": [
+     "MASK"
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "samples",
+    "mask"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "LATENT"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "LATENT"
+  ],
+  "name": "SetLatentNoiseMask",
+  "display_name": "Set Latent Noise Mask",
+  "description": "",
+  "python_module": "nodes",
+  "category": "model/latent",
+  "output_node": false,
+  "has_intermediate_output": false,
+  "search_aliases": []
+ },
+ "SolidMask": {
+  "input": {
+   "required": {
+    "value": [
+     "FLOAT",
+     {
+      "default": 1.0,
+      "min": 0.0,
+      "max": 1.0,
+      "step": 0.01
+     }
+    ],
+    "width": [
+     "INT",
+     {
+      "default": 512,
+      "min": 1,
+      "max": 16384,
+      "step": 1
+     }
+    ],
+    "height": [
+     "INT",
+     {
+      "default": 512,
+      "min": 1,
+      "max": 16384,
+      "step": 1
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "value",
+    "width",
+    "height"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "MASK"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "MASK"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "SolidMask",
+  "display_name": "Create Solid Mask",
+  "description": "",
+  "python_module": "comfy_extras.nodes_mask",
+  "category": "image/mask",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": null,
+  "essentials_category": null,
+  "has_intermediate_output": false
+ },
+ "TrimAudioDuration": {
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {}
+    ],
+    "start_index": [
+     "FLOAT",
+     {
+      "tooltip": "Start time in seconds, can be negative to count from the end (supports sub-seconds).",
+      "default": 0.0,
+      "min": -18446744073709551615,
+      "max": 18446744073709551615,
+      "step": 0.01
+     }
+    ],
+    "duration": [
+     "FLOAT",
+     {
+      "tooltip": "Duration in seconds",
+      "default": 60.0,
+      "min": 0.0,
+      "step": 0.01
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio",
+    "start_index",
+    "duration"
+   ]
+  },
+  "is_input_list": false,
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_tooltips": [
+   null
+  ],
+  "output_matchtypes": null,
+  "name": "TrimAudioDuration",
+  "display_name": "Trim Audio Duration",
+  "description": "Trim audio tensor into chosen time range.",
+  "python_module": "comfy_extras.nodes_audio",
+  "category": "audio",
+  "output_node": false,
+  "deprecated": false,
+  "experimental": false,
+  "dev_only": false,
+  "api_node": false,
+  "price_badge": null,
+  "search_aliases": [
+   "cut audio",
+   "audio clip",
+   "shorten audio"
+  ],
+  "essentials_category": null,
+  "has_intermediate_output": false
  }
 }

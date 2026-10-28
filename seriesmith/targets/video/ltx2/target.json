@@ -22,9 +22,9 @@
   },
 
   "recipe": {
-    "_note": "Subjects are written in words from the series config's `design`, the location from its `description`; when the shot's refs are on disk AND the ingredients IC-LoRA is installed they are ALSO shown on a reference sheet (reference_sheet below), which is decided at queue time, never at build time, so a shotlist is what it always was. Optional shot keyframes: shot:<id>:first conditions frame 0 (LTXVImgToVideoInplace), shot:<id>:last the final frame (LTXVAddGuide). A shot with neither renders text-to-video. LTX-2 makes the soundtrack with the picture and takes no voice sample or recording, so clone / dub / dub_keep_foley shots render with generate and say so.",
-    "policies": ["generate"],
-    "policy_fallback": {"to": "generate", "why": "LTX-2 generates sound with the picture and takes no voice sample or recording"},
+    "_note": "Subjects are written in words from the series config's `design`, the location from its `description`; when the shot's refs are on disk AND the ingredients IC-LoRA is installed they are ALSO shown on a reference sheet (reference_sheet below), which is decided at queue time, never at build time, so a shotlist is what it always was. Optional shot keyframes: shot:<id>:first conditions frame 0 (LTXVImgToVideoInplace), shot:<id>:last the final frame (LTXVAddGuide). A shot with neither renders text-to-video. LTX makes the soundtrack with the picture, unless the shot is a dub: then the shot's window of the recorded track is held as the whole soundtrack through every stage and the picture is made to it (targets/held_audio.py; measured live 2026-10-28, docs/PLAN.md 'LTX dub'). dub_keep_foley holds the same window, so its foley bed is near silent. clone renders with generate and says so.",
+    "policies": ["generate", "dub", "dub_keep_foley"],
+    "policy_fallback": {"to": "generate", "why": "LTX-2 takes a recording to dub to, but not yet a voice sample to clone"},
     "keyframes": ["first", "last"],
     "keyframe_path": "refs/shots/{shot}/{end}.png",
     "keyframe_strength": {"first": 0.7, "first_refine": 1.0, "last": 1.0},

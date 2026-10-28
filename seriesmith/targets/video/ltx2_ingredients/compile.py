@@ -56,6 +56,7 @@ from seriesmith.core import framing, ir
 from seriesmith.targets.video.ltx2.compile import _consumers, _duration, _of, shotlist_extra
 
 from seriesmith.targets import video_compile as VC
+from seriesmith.targets import held_audio as HA
 from . import sheet as S
 from .prompt import build_prompt
 from seriesmith.targets.graph import abs_path as _abs  # noqa: F401
@@ -176,6 +177,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
         ctx.off_bucket.append(f"{shot.id} {raw}")
     VC.count_frames(ctx, req, raw)
     intent, policy, note = VC.shot_audio(ctx, shot)
+    VC.check_dub_window(ctx, shot, policy)
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     panels = _panels(ctx, shot, loc_key)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
@@ -274,7 +276,7 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     return out
 
 
-def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+def _ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """One slot per sheet panel: {slot, kind "image", path, subject | location}.
     Required: a missing file blocks the shot unless rendering anyway."""
     out = []
@@ -325,7 +327,7 @@ def _label(p: dict) -> str:
     return p.get("subject") or f"the plate ({p.get('location')})"
 
 
-def stage_inputs(target, job, comfy=None) -> dict:
+def _stage_inputs(target, job, comfy=None) -> dict:
     """Compose the job's reference sheet and upload it to ComfyUI's input
     folder: {"sheet": "seriesmith/<sha1>.png"}. It waits in the shot's folder
     until jobs.start_job moves it into the take (job.staged). Without
@@ -385,7 +387,7 @@ def _splice(g: dict, nid: str, through: dict[int, str]) -> None:
     del g[nid]
 
 
-def patch_graph(target, g: dict, job, inputs: dict) -> None:
+def _patch_graph(target, g: dict, job, inputs: dict) -> None:
     """`inputs["sheet"]` (the name LoadImage reads) is the reference sheet;
     RepeatImageBatch and ResizeAndPadImage (patched with the length and size)
     make it the static reference video LTXVAddGuide feeds the IC-LoRA. With
@@ -412,3 +414,24 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
         name = g[k]["inputs"].get("lora_name")
         if name == IC_LORA or (isinstance(name, str) and TG.modelid.name_matches(name, ic_pats)):
             _splice(g, k, {0: "model"})
+
+
+# -- a dub shot's recording (targets/held_audio.py) ----------------------------------
+
+def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+    """_ref_slots, then a dub shot's recorded track."""
+    return _ref_slots(target, doc, shot) + HA.recording_slot(doc, shot)
+
+
+def stage_inputs(target, job, comfy=None) -> dict:
+    """_stage_inputs, then a dub shot's window of the recording."""
+    out = dict(_stage_inputs(target, job, comfy) or {})
+    out.update(HA.stage_dub(target, job, comfy))
+    return out
+
+
+def patch_graph(target, g: dict, job, inputs: dict) -> None:
+    """_patch_graph, then a dub shot's window held as the soundtrack through
+    every stage."""
+    _patch_graph(target, g, job, inputs)
+    HA.patch_dub(g, inputs)

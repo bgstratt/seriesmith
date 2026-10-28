@@ -76,7 +76,7 @@
         "last": "refs/shots/sh020/last.png"
       },
       "audio_intent": "clone",
-      "audio_note": "audio clone renders as generate on LTX-2: LTX-2 generates sound with the picture and takes no voice sample or recording",
+      "audio_note": "audio clone renders as generate on LTX-2: LTX-2 takes a recording to dub to, but not yet a voice sample to clone",
       "duration": 3.977
     },
     {
@@ -91,15 +91,13 @@
       "length": 65,
       "seed": 5427364453333850997,
       "steps": 8,
-      "audio_policy": "generate",
+      "audio_policy": "dub_keep_foley",
       "prompt": "Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. The delivery van is a boxy white delivery van with a sky-blue stripe and a cracked left headlight. Bo waves the van back toward the kitchen door. Bo, in a voice that is slow and cracking, says: \"Left! Left!\" The sound is a reversing beeper, traffic in the distance. There is no music.",
       "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
       "keyframes": {
         "first": "refs/shots/sh040/first.png",
         "last": "refs/shots/sh040/last.png"
       },
-      "audio_intent": "dub_keep_foley",
-      "audio_note": "audio dub_keep_foley renders as generate on LTX-2: LTX-2 generates sound with the picture and takes no voice sample or recording",
       "audio_in": 1.0,
       "audio_out": 3.5
     },
@@ -122,7 +120,7 @@
         "last": "refs/shots/sh050/last.png"
       },
       "audio_intent": "clone",
-      "audio_note": "audio clone renders as generate on LTX-2: LTX-2 generates sound with the picture and takes no voice sample or recording",
+      "audio_note": "audio clone renders as generate on LTX-2: LTX-2 takes a recording to dub to, but not yet a voice sample to clone",
       "profile": "ltx_quick",
       "duration": 3.04
     }

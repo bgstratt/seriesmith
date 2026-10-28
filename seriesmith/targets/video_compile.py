@@ -156,6 +156,14 @@ def shot_audio(ctx, shot: ir.Shot) -> tuple[str, str, str]:
     return intent, policy, note
 
 
+def check_dub_window(ctx, shot: ir.Shot, policy: str) -> None:
+    """A dub is spoken to its window of the recorded track: ValueError for a
+    dub shot without one, as H3's compile says it."""
+    if policy in ("dub", "dub_keep_foley") and "audio_in" not in (shot.timing or {}):
+        raise ValueError(f"shot {shot.id}: policy {policy} needs an `audio: in-out` window "
+                         f"on the recorded track (`seriesmith align` writes these).")
+
+
 def shot_layers(series_cfg: dict, sq: ir.Sequence, shot: ir.Shot, profiles) -> list:
     """The settings that apply to the shot, sequence then shot (targets.render_layers)."""
     seq = {"id": sq.id, "profile": sq.profile, "target": sq.target,

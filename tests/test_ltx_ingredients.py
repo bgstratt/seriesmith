@@ -170,7 +170,8 @@ class TargetTest(unittest.TestCase):
                          ("LTX-2.3 ingredients (character/plate refs)", "LTX+refs"))
         self.assertTrue(d["capabilities"]["subject_refs"])
         self.assertTrue(d["capabilities"]["reference_sheet"])
-        self.assertEqual(d["capabilities"]["policies"], ["generate"])
+        # a dub holds its window of the recording (targets/held_audio.py)
+        self.assertEqual(d["capabilities"]["policies"], ["generate", "dub", "dub_keep_foley"])
         self.assertEqual(d["capabilities"]["policy_fallback"], "generate")
         # ltx2 draws a sheet too now (its own 2.5 IC-LoRA), but only when the
         # refs and the LoRA are there; here it is the target's whole point

@@ -52,6 +52,7 @@ from seriesmith.core import framing, ir
 
 from .prompt import build_prompt
 from seriesmith.targets import video_compile as VC
+from seriesmith.targets import held_audio as HA
 # the shared steps, under the names the other targets import them by from here
 from seriesmith.targets.video_compile import (shot_duration as _duration,  # noqa: F401
                                               shotlist_extra)
@@ -96,6 +97,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     VC.crammed(ctx, shot, pace, raw)
     VC.count_frames(ctx, req, raw)
     intent, policy, note = VC.shot_audio(ctx, shot)
+    VC.check_dub_window(ctx, shot, policy)
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
     entry["prompt"] = build_prompt(shot, sq, series_cfg)
@@ -188,7 +190,7 @@ def sheet_panels(doc: dict, shot: dict) -> list[dict]:
     return out
 
 
-def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+def _ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """The keyframes a render reads when they exist, then the panels of the
     reference sheet it would draw. All `optional`: a missing one never blocks
     a render (jobs.missing_refs skips them), it only leaves that element off
@@ -328,7 +330,7 @@ def _sheet_prompt(job, panels: list[dict]) -> str | None:
     return None
 
 
-def stage_inputs(target, job, comfy=None) -> dict:
+def _stage_inputs(target, job, comfy=None) -> dict:
     """Everything ltx2 settles before its take is reserved: the reference
     sheet (_stage_sheet) and then the sampling schedule (sampling_plan,
     which may raise the job's step count for the quality profile, and which
@@ -645,7 +647,7 @@ def _sampling(g: dict, st: dict, job, sheet: bool = False) -> None:
             g[_src(g, st[n]["sampler"], "sampler")]["inputs"]["sampler_name"] = layer["sampler"]
 
 
-def patch_graph(target, g: dict, job, inputs: dict) -> None:
+def _patch_graph(target, g: dict, job, inputs: dict) -> None:
     """The first frame (or its nodes spliced out), then the last frame, the
     reference sheet (`inputs["sheet"]`, staged by stage_inputs) and the
     sampling schedule the job's transformer wants. The two sampling stages
@@ -660,3 +662,24 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
     if sheet:
         _reference_sheet(g, st, job, inputs["sheet"])
     _sampling(g, st, job, sheet)
+
+
+# -- a dub shot's recording (targets/held_audio.py) ----------------------------------
+
+def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+    """_ref_slots, then a dub shot's recorded track."""
+    return _ref_slots(target, doc, shot) + HA.recording_slot(doc, shot)
+
+
+def stage_inputs(target, job, comfy=None) -> dict:
+    """_stage_inputs, then a dub shot's window of the recording."""
+    out = dict(_stage_inputs(target, job, comfy) or {})
+    out.update(HA.stage_dub(target, job, comfy))
+    return out
+
+
+def patch_graph(target, g: dict, job, inputs: dict) -> None:
+    """_patch_graph, then a dub shot's window held as the soundtrack through
+    every stage."""
+    _patch_graph(target, g, job, inputs)
+    HA.patch_dub(g, inputs)
