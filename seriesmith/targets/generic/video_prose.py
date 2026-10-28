@@ -670,11 +670,7 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
         out.append(r)
     # what a model that hears audio is sent: a clone shot's voice samples, a
     # dub shot's recording (router_video sends the shot's window of it)
-    if shot.get("audio_policy") == "clone":
-        out += [{"slot": f"voice {i}", "kind": "audio", "subject": r["subject"],
-                 "path": r.get("sample", "")}
-                for i, r in enumerate(shot.get("voice_refs") or [], 1)]
-    return out + HA.recording_slot(doc, shot)
+    return out + HA.audio_slots(doc, shot)
 
 
 # ---------------------------------------------------------------------------

@@ -1213,11 +1213,15 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       pictures. **Not tried against the live service**: the wording follows BytePlus's
       `@Image N`; the paid check is two calls on Seedance 2.0 fast (a sample with another
       line: does it clone? the window with its own words: does it dub?).
-- [ ] **LTX clone.** Two ways, not chosen: each line generated in the shot's own graph by
-      the audio-only model from the speaker's held sample (AudioConcat, then held as for a
-      dub: one job, nothing to hear first), or each line a voice take first (`ltx2_voice`,
-      one job a line, heard and redone before the shot) assembled into the shot's track and
-      dubbed, which also gives H3 a generated dialogue track to dub to.
+- [x] **LTX clone** (`ltx2`, `ltx2_msr`): each line made in the shot's own graph by the
+      audio-only model (the shot's transformer), continuing its speaker's held sample, the
+      lines joined with core.speech's beats (AudioConcat, EmptyAudio) and held as for a dub
+      (`held_audio.patch_clone`). Decided 2026-10-28: made with the picture, in one job, as
+      there's no time to review voice takes separately; a recording goes align -> dub
+      instead. Rendered live through `seriesmith render` (sh050, the narrator off screen):
+      Whisper heard the line on both, median pitch 110 Hz (ltx2) and 115 Hz (ltx2_msr)
+      against the sample's 101 Hz. Not yet live: two speakers in one shot (unit-tested).
+      `ltx2_ingredients` (LTX-2.3) still renders clone as generate: untried there.
 - [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
       invented words (seen live 2026-10-28, with and without a held sample).
 

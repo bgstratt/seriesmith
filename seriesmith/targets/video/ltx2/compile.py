@@ -104,6 +104,8 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["keyframes"] = {end: keyframe_path(shot.id, end)
                           for end in TG.keyframe_ends(RECIPE, shot, sq)}
+    if policy == "clone":
+        entry.update(HA.clone_entry(shot, series_cfg["subjects"]))
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
@@ -667,19 +669,22 @@ def _patch_graph(target, g: dict, job, inputs: dict) -> None:
 # -- a dub shot's recording (targets/held_audio.py) ----------------------------------
 
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
-    """_ref_slots, then a dub shot's recorded track."""
-    return _ref_slots(target, doc, shot) + HA.recording_slot(doc, shot)
+    """_ref_slots, then a clone shot's voice samples or a dub shot's recording."""
+    return _ref_slots(target, doc, shot) + HA.audio_slots(doc, shot)
 
 
 def stage_inputs(target, job, comfy=None) -> dict:
-    """_stage_inputs, then a dub shot's window of the recording."""
+    """_stage_inputs, then a dub shot's window of the recording, or a clone
+    shot's voice samples."""
     out = dict(_stage_inputs(target, job, comfy) or {})
     out.update(HA.stage_dub(target, job, comfy))
+    out.update(HA.stage_clone(target, job, comfy))
     return out
 
 
 def patch_graph(target, g: dict, job, inputs: dict) -> None:
     """_patch_graph, then a dub shot's window held as the soundtrack through
-    every stage."""
+    every stage, or a clone shot's lines made and held."""
     _patch_graph(target, g, job, inputs)
     HA.patch_dub(g, inputs)
+    HA.patch_clone(target, g, job, inputs)

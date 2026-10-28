@@ -228,10 +228,13 @@ class LtxTargetTest(unittest.TestCase):
 
     def test_audio_is_a_declared_capability(self):
         self.assertEqual(self.t.audio_policy("generate"), ("generate", ""))
-        # a recording is held as the soundtrack (held_audio); a voice sample isn't taken
+        # a recording is held as the soundtrack, a clone's lines are made in its
+        # graph (held_audio); ltx2_msr too, not the LTX-2.3 ingredients target
         self.assertEqual(self.t.audio_policy("dub_keep_foley"), ("dub_keep_foley", ""))
         self.assertEqual(self.t.audio_policy("dub"), ("dub", ""))
-        pol, note = self.t.audio_policy("clone")
+        self.assertEqual(self.t.audio_policy("clone"), ("clone", ""))
+        self.assertEqual(TG.load_target("ltx2_msr", "video").audio_policy("clone"), ("clone", ""))
+        pol, note = TG.load_target("ltx2_ingredients", "video").audio_policy("clone")
         self.assertEqual(pol, "generate")
         self.assertIn("not yet a voice sample", note)
         h3 = TG.load_target(H3, "video")
@@ -414,9 +417,11 @@ class MixedEpisodeTest(unittest.TestCase):
         # the shot renders from the prompt alone, as ltx2 always did
         self.assertNotIn("sheet", got)
         self.assertNotIn("notes", sc)                   # the proxy generates anyway
-        # the final clones (the series' audio mode): the sidecar says it can't
+        # the final clones (the series' audio mode): each speaker's sample is needed
         job = self.plan("sh050", "final")
-        self.assertIn("audio clone renders as generate on LTX-2", " ".join(job.notes))
+        self.assertNotIn("renders as generate", " ".join(job.notes))
+        self.assertEqual([(r["slot"], r["subject"]) for r in job.missing],
+                         [("voice 1", "narrator")])
         job = self.plan("sh040")                        # dub_keep_foley, even on the proxy
         self.assertNotIn("renders as generate", " ".join(job.notes))
         self.assertEqual(J.stage_inputs(job)["audio"],      # a dry run: named, not cut
@@ -463,6 +468,68 @@ class MixedEpisodeTest(unittest.TestCase):
         # a shot that isn't a dub stages and holds nothing
         job = self.plan("sh050")
         self.assertNotIn("audio", J.stage_inputs(job))
+
+    def test_clone_makes_the_lines_in_the_shots_graph(self):
+        """sh020's final clones (the series' audio mode): each line is made in the
+        shot's own graph by the audio-only model, continuing its speaker's held
+        sample; the lines are joined and held as the soundtrack of both video
+        stages (targets/held_audio.py patch_clone)."""
+        from test_render import wav_bytes
+        for who, tone in (("ada", 220.0), ("bo", 330.0)):    # short: used whole, no ffmpeg
+            with open(os.path.join(self.root, "audio", "voices", f"{who}_sample.wav"), "wb") as fh:
+                fh.write(wav_bytes(2.0, freq=tone))
+        job = self.plan("sh020", "final", loras=[])
+        self.assertEqual(job.missing, [])
+        self.assertEqual([r["subject"] for r in job.shot["voice_refs"]], ["ada", "bo"])
+        lines = job.shot["lines"]
+        self.assertEqual([x["who"] for x in lines], ["ada", "bo", "ada"])
+        comfy = FakeComfy()
+        try:
+            got = J.stage_inputs(job, J.Comfy(comfy.url))
+        finally:
+            comfy.close()
+        self.assertEqual(sorted(got["voices"]), ["ada", "bo"])
+        self.assertEqual({v["seconds"] for v in got["voices"].values()}, {2.0})
+        g = self.graph(job, got)
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        only = J.node_of(g, "LTXVAudioOnlyModel")
+        ours = [k for k in of(g, "SamplerCustomAdvanced")
+                if g[g[k]["inputs"]["guider"][0]]["inputs"]["model"] == [only, 0]]
+        video = [k for k in of(g, "SamplerCustomAdvanced") if k not in ours]
+        self.assertEqual((len(ours), len(video)), (3, 2))
+        # each line: its own words, continuing its speaker's held sample, then trimmed
+        loads = {g[k]["inputs"]["audio"]: k for k in of(g, "LoadAudio")}
+        self.assertEqual(set(loads), {v["audio"] for v in got["voices"].values()})
+        self.assertEqual(len(of(g, "SetLatentNoiseMask")), 3)   # Ada's, Bo's, the lines'
+        self.assertEqual(len(of(g, "LoadAudio")), 2)            # Ada speaks twice, loaded once
+        for k, ln in zip(ours, lines):
+            pos = g[g[g[k]["inputs"]["guider"][0]]["inputs"]["positive"][0]]["inputs"]["positive"][0]
+            self.assertIn(ln["line"], g[pos]["inputs"]["text"])
+            swap = g[k]["inputs"]["latent_image"][0]
+            held = g[swap]["inputs"]["audio_latent"][0]
+            enc = g[held]["inputs"]["samples"][0]
+            self.assertEqual(g[enc]["inputs"]["audio"],
+                             [loads[got["voices"][ln["who"]]["audio"]], 0])
+        trims = [k for k in of(g, "TrimAudioDuration")]
+        self.assertEqual(len(trims), 3)
+        self.assertEqual({g[k]["inputs"]["start_index"] for k in trims}, {2.0})
+        # joined: air before the first line, a beat at each change of speaker
+        gaps = sorted(g[k]["inputs"]["duration"] for k in of(g, "EmptyAudio"))
+        self.assertEqual(gaps, [0.3, 0.3, 0.35])
+        from seriesmith.targets.graph import consumers
+        last = next(k for k in of(g, "AudioConcat")
+                    if not any(g[c]["class_type"] == "AudioConcat" for c, _ in consumers(g, k)))
+        # ...and held as the soundtrack of both video stages
+        for k in video:
+            swap = g[k]["inputs"]["latent_image"][0]
+            held = g[swap]["inputs"]["audio_latent"][0]
+            self.assertEqual(g[g[g[held]["inputs"]["samples"][0]]["inputs"]["audio"][0]]["class_type"],
+                             "AudioConcat")
+            self.assertEqual(g[g[held]["inputs"]["samples"][0]]["inputs"]["audio"], [last, 0])
+        # the saver keeps the made sound (clone, as generate)
+        self.assertEqual(g[J.node_of(g, "H3SaveShot")]["inputs"]["audio_policy"], "clone")
+        notes = " ".join(job.notes)
+        self.assertIn("3 line(s) made in the shot's own graph, in 2 held voice(s)", notes)
 
     def test_retarget_by_override_and_request(self):
         ov = T.load_overrides(self.root)

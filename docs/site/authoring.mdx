@@ -192,9 +192,9 @@ shot 93. So:
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
-| `ltx2` | words, plus keyframes when there are any | generated, or dubbed to a recording (no clone) | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
+| `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
-| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
+| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | generated, dubbed, or cloned | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
@@ -1307,8 +1307,12 @@ render command and the review cut treat the episode as one. What changes for an 
   `audio:` window of the recording (`audio.track`) is held as the shot's whole soundtrack and
   the picture is made to it, so the mouths follow your recording (`ltx2_ingredients` and
   `ltx2_msr` too). LTX adds nothing under it, so `dub_keep_foley`'s foley bed is near silent.
-  LTX takes no voice sample: a `clone` shot renders with `generate`, and the build and the
-  take say so; each speaker's `voice` line is what shapes the voice.
+  A `clone` shot's lines are made in the same render: each line is spoken by LTX's
+  audio-only model carrying on from its speaker's `voice_sample` (its first seconds), the
+  lines are put together with natural pauses, and the picture is made to them. One job,
+  nothing to review first; the voices come out close to the samples, not identical
+  (`ltx2_msr` too; on `ltx2_ingredients`, an LTX-2.3 model, `clone` renders with `generate`
+  and says so).
 - **One paragraph of prose**, written for you: the look, then the framing and the camera,
   then who is in frame and what they do, the lines with who says them and how, then the
   sound and music. Write `camera:` for a move you want; without it the camera stays still.

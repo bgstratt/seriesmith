@@ -419,8 +419,8 @@ def _patch_graph(target, g: dict, job, inputs: dict) -> None:
 # -- a dub shot's recording (targets/held_audio.py) ----------------------------------
 
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
-    """_ref_slots, then a dub shot's recorded track."""
-    return _ref_slots(target, doc, shot) + HA.recording_slot(doc, shot)
+    """_ref_slots, then a clone shot's voice samples or a dub shot's recording."""
+    return _ref_slots(target, doc, shot) + HA.audio_slots(doc, shot)
 
 
 def stage_inputs(target, job, comfy=None) -> dict:
