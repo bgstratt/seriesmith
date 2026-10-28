@@ -230,14 +230,14 @@ describe("the span of a line from a take", () => {
 describe("voice targets and candidates", () => {
   const voice = MOCK_TARGETS.targets.find((t) => t.id === "ltx2_voice")!;
 
-  it("says what the target does — and that it can't copy a voice", () => {
+  it("says what the target does — and that it copies a voice from the ref's sample", () => {
     expect(audioTargets(MOCK_TARGETS).map((t) => t.id)).toEqual(["ltx2_voice"]);
     expect(voiceModeText(voice)).toBe("text to speech, up to 20 s");
     expect(voiceModeText({ capabilities: { mode: "voice_clone", max_seconds: 10 } })).toBe("voice cloning, up to 10 s");
     const notes = voiceCapNotes(voice);
-    expect(notes[0]).toContain("can't copy an existing voice");
+    expect(notes[0]).toContain("copies the voice from this ref's current sample");
     expect(notes.join(" ")).toContain("20 seconds");
-    expect(voiceCapNotes({ capabilities: { mode: "voice_clone", reference_audio: true } })[0]).toContain("can copy a voice");
+    expect(voiceCapNotes({ capabilities: { mode: "t2a", reference_audio: false } })[0]).toContain("can't copy an existing voice");
     expect(voiceCapNotes(undefined)).toEqual([]);
   });
 
@@ -610,7 +610,7 @@ describe("the Phase 9c surfaces render", () => {
     // the models, folded to one line (Change opens their pickers)
     expect(html).toContain("Made with");
     expect(html).toContain("LTX-2.5 audio-only");
-    expect(html).toContain("can&#x27;t copy an existing voice");
+    expect(html).toContain("copies the voice from this ref&#x27;s current sample");
     expect(html).toContain("Use a line from a take");
     expect(html).toContain("<audio");
     // a character with no sample yet

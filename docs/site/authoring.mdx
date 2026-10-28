@@ -192,13 +192,13 @@ shot 93. So:
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated or dubbed (no clone) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
-| `ltx2` | words, plus keyframes when there are any | always generated | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
-| `ltx2_ingredients` | a reference sheet made from your refs (required) | always generated | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
-| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | always generated | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
+| `ltx2` | words, plus keyframes when there are any | generated, or dubbed to a recording (no clone) | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
+| `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
+| `ltx2_msr` | your sheets and plate as up to five pictures: four people or things and the place (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, up to ~20 s | identity on LTX-2.5, several people in a shot |
 | `wan22_i2v` | a first frame (required) | none | first required, last optional | `4k+1` at 24 fps, best ≤ 3 s | animating a still |
 | `wan22_ti2v` | words, or a first frame | none | first optional | `4k+1` at 24 fps | cheap proxies; where an I2V shot without a first frame can go |
 | `wan22_vace` | a reference picture made from your sheets | none | optional | `4k+1` at 24 fps, best ≤ 3 s | identity without sound |
-| hosted models on Comfy Router (`seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, `minimax_h3`, …) | your refs as pictures (one panel of a sheet, then the plate; Seedance 2.5 up to 30 pictures, 2.0 up to 9, the rest in the table under **Rendering a shot on a hosted model**) or the keyframes, plus words | generated (Runway: none) | first, and last on most | whole seconds, each model's range | trying a shot on another model with no install; a Comfy API key, paid per take |
+| hosted models on Comfy Router (`seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, `minimax_h3`, …) | your refs as pictures (one panel of a sheet, then the plate; Seedance 2.5 up to 30 pictures, 2.0 up to 9, the rest in the table under **Rendering a shot on a hosted model**) or the keyframes, plus words | generated (Runway: none); Seedance also dubbed or cloned | first, and last on most | whole seconds, each model's range | trying a shot on another model with no install; a Comfy API key, paid per take |
 
 - **Leave the target out** unless the choice is a decision about the film. Shots with no
   `target:` render on the episode's target (set in the editor) or the series config's
@@ -875,7 +875,7 @@ config can say which:
 
 | audio target | what it is |
 |---|---|
-| `ltx2_voice` | LTX-2.5 audio-only: one speaking voice from the character's `voice` line and a line from the script (the default for voices) |
+| `ltx2_voice` | LTX-2.5 audio-only: one speaking voice saying a line from the script, from the character's `voice` line, or continuing the voice ref's own sample when it has one (the default for voices) |
 
 A **variant**'s view (a subject with `of:`) is generated as an edit of the same view of the
 character it is a variant of, on any target that reads reference images — so its back panel
@@ -895,6 +895,12 @@ writes `refs/voices/<id>.wav` **and** adds the `voice_sample` line to `series.js
 you (the only thing the editor writes there). `seriesmith refs <ep> --voices` does the
 same from the command line, and `--from-take sh020:3:1.2-6.4` makes a sample out of a
 line the model already spoke in a take, with no model at all.
+
+Generating a voice that **already has a sample** copies it: the first 1.5–2.5 seconds of the
+sample (cut in a pause between words) are played to `ltx2_voice`, which carries on in that
+voice with the character's line, and that head is cut off again. So a short or rough
+recording, or a few seconds cut from a take, becomes a clean sample of the character saying
+their own words. The voice comes out close, not identical: listen before you pick.
 
 ### Negative prompts
 
@@ -1297,9 +1303,12 @@ render command and the review cut treat the episode as one. What changes for an 
   without a sheet the shot is text-to-video.
 - **Its own grid:** `8k + 1` frames (9, 17, 25, … 73 = 3.04s, 97 = 4.04s at 24fps), up to
   about 20 seconds. The same `dur:` snaps to a slightly different length than on H3.
-- **Sound is always generated with the picture.** LTX takes no voice sample and no recording:
-  a shot the series would `clone` or `dub` renders with `generate` instead, and the build
-  and the take say so. Each speaker's `voice` line is what shapes the voice.
+- **Sound is generated with the picture, or dubbed.** A `dub` or `dub_keep_foley` shot's
+  `audio:` window of the recording (`audio.track`) is held as the shot's whole soundtrack and
+  the picture is made to it, so the mouths follow your recording (`ltx2_ingredients` and
+  `ltx2_msr` too). LTX adds nothing under it, so `dub_keep_foley`'s foley bed is near silent.
+  LTX takes no voice sample: a `clone` shot renders with `generate`, and the build and the
+  take say so; each speaker's `voice` line is what shapes the voice.
 - **One paragraph of prose**, written for you: the look, then the framing and the camera,
   then who is in frame and what they do, the lines with who says them and how, then the
   sound and music. Write `camera:` for a move you want; without it the camera stays still.
@@ -1696,6 +1705,13 @@ Comfy API key, and Settings' paid limit caps how many go out). What it is sent:
   pick a model that takes more, or describe a subject in the action text instead.
 - **What can still be refused:** the provider looks at the pictures too. A revealing
   reference can be refused whatever the prompt says.
+- **Sound, on Seedance:** it hears audio as well as pictures. A `clone` shot sends each
+  speaker's `voice_sample` and names it after the pictures (*Use @Audio 1 as the voice of
+  Ada.*); a `dub` shot sends its `audio:` window of the recording (*Use @Audio 1 as the exact
+  dialogue and soundtrack of the shot: the lips are synced to it.*). Each clip is 2 to 15
+  seconds: a longer sample is cut in a pause, a shorter window padded with silence, and a
+  sample under 2 seconds is refused before anything is sent. Seedance 2.0 takes 3 clips and
+  never without a picture; 2.5 takes 10. The other hosted models make their own sound.
 
 What each model takes, local and hosted (generated from the targets by
 `python tools/make_refs_md.py`):

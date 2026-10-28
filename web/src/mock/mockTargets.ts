@@ -177,9 +177,8 @@ export const MOCK_TARGETS: TargetList = {
     // ---- audio targets (Phase 9c-B) ----
     {
       id: LTX_VOICE, kind: "audio", label: "LTX-2.5 audio-only (voice sample)", short: "LTX-2 voice", default: true,
-      // as built: reference_audio is FALSE on purpose (the ID-LoRA weights
-      // aren't installed, so it can't copy a voice; the wording makes it)
-      capabilities: { mode: "t2a", reference_audio: false, max_seconds: 20, negative_prompt: true },
+      // a voice ref with a sample is continued from it (docs/PLAN.md, "Voices across models")
+      capabilities: { mode: "t2a", reference_audio: true, max_seconds: 20, negative_prompt: true },
       presets: {
         final: { model: "ltx-2.5-22b-distilled-fp8.safetensors", steps: 8, cfg: 1 },
         proxy: { model: "ltx-2.5-22b-distilled-fp8.safetensors", steps: 8, cfg: 1 },
@@ -341,13 +340,6 @@ const MOCK_MISSING: Record<string, MissingFile[]> = {
     param: "loras", tier: "accelerator", want: "dmd2_sdxl_4step_lora.safetensors",
     family: "sdxl-dmd2", folder: "loras", url: null, source: "DMD2 SDXL 4-step LoRA",
   }],
-  // the audio target: voice cloning is off (the ID-LoRA weights aren't installed)
-  [LTX_VOICE]: [{
-    param: "id_lora", tier: "optional", want: "ltx-2.5-audio-id-lora.safetensors",
-    family: "ltx2.5-audio-id-lora", folder: "loras", url: null,
-    feature: "voice cloning (LTXVReferenceAudio)",
-    source: "no such file is recorded in ComfyUI-Manager's model list on this machine",
-  }],
 };
 
 const MOCK_RESOLVED: Record<string, Record<string, Resolution>> = {
@@ -366,7 +358,6 @@ const MOCK_RESOLVED: Record<string, Record<string, Resolution>> = {
 
 const FEATURES: Record<string, string> = {
   duration_head: "dur: model (duration head)",
-  id_lora: "voice cloning (LTXVReferenceAudio)",
 };
 const NODES: Record<string, string[]> = { duration_head: ["LTXVDurationPredictor"] };
 

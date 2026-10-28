@@ -1189,6 +1189,38 @@ shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from
       between two clips: the form wants the action written, and **Save and generate** also
       queues a render beside the imported take (documented in EDITOR.md, left as it is).
 
+## Voices across models: a held sound, and audio references (2026-10-28)
+
+From Frameforge (Chain Motion AI Video Editor)'s Speech Studio: a sound can be **held** in an
+LTX graph (encoded, a noise mask of 0, swapped into the AV latent the sampler samples), and
+LTX makes only what's around it. `targets/held_audio.py` does it for every LTX sampler;
+`audiocut.py` cuts what is held (a sample's head between words, a shot's window).
+
+- [x] **Voice clone by continuation** (`ltx2_voice`): a voice ref with a sample is continued
+      from its head (1.5-2.5 s) and the head trimmed off. Measured live 2026-10-28 on a real
+      1.4 s / 2.45 s recording (scratch graphs, then seriesmith's own): Whisper heard the line
+      word for word every time; median pitch 110-129 Hz against the speaker's 101-107 Hz,
+      153 Hz described only. Close, not exact. LTXVReferenceAudio (ID-LoRA) dropped.
+- [x] **LTX dub** (`ltx2`, `ltx2_ingredients`, `ltx2_msr`): a dub shot's window held as its
+      whole soundtrack through every stage. Measured live 2026-10-28: the held sound came back
+      at envelope correlation 0.97-0.99 (Whisper the same words), mouth motion +0.31/+0.36
+      against its own sound and 0.00-0.17 against another take's (LTX's own sound: +0.41).
+      Rendered through `seriesmith render` (the mixed fixture's sh040 on ltx2): 0.97, the
+      window's words. Not yet checked: a shot with a first keyframe, the two variants live,
+      two speakers in a shot.
+- [x] **Seedance audio references** (2.0, fast, mini, 2.5): clone sends each speaker's
+      sample, dub the window (padded to 2 s), named in the prompt (`@Audio N`) after the
+      pictures. **Not tried against the live service**: the wording follows BytePlus's
+      `@Image N`; the paid check is two calls on Seedance 2.0 fast (a sample with another
+      line: does it clone? the window with its own words: does it dub?).
+- [ ] **LTX clone.** Two ways, not chosen: each line generated in the shot's own graph by
+      the audio-only model from the speaker's held sample (AudioConcat, then held as for a
+      dub: one job, nothing to hear first), or each line a voice take first (`ltx2_voice`,
+      one job a line, heard and redone before the shot) assembled into the shot's track and
+      dubbed, which also gives H3 a generated dialogue track to dub to.
+- [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
+      invented words (seen live 2026-10-28, with and without a held sample).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

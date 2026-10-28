@@ -179,9 +179,9 @@ describe.skipIf(!dumps.length)("Phase 9c on real episode dumps (test/local/p9c_*
       }
       const v = list.targets.find((t) => t.id === "ltx2_voice");
       if (v) {
-        // as built: voice cloning is off (no audio ID-LoRA weights installed)
-        expect(v.capabilities?.reference_audio).toBe(false);
-        expect(voiceCapNotes(v)[0]).toContain("can't copy an existing voice");
+        // off in dumps from before 2026-10-28 (no ID-LoRA); on since (a held sample)
+        expect(voiceCapNotes(v)[0]).toContain(v.capabilities?.reference_audio
+          ? "copies the voice from this ref's current sample" : "can't copy an existing voice");
         expect(v.capabilities?.max_seconds).toBeGreaterThan(0);
       }
     });

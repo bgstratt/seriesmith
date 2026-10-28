@@ -33,16 +33,16 @@ export function voiceModeText(t: Pick<Target, "capabilities"> | undefined): stri
 
 /**
  * What the target can and can't do, for the picker's note. `ltx2_voice`
- * reports `reference_audio: false` — the node is there but the installed
- * LTX-2.5 transformers carry no audio ID-LoRA weights, so it can't copy an
- * existing voice; the wording alone makes it (API.md "Phase 9c-B as built").
+ * reports `reference_audio: true` since 2026-10-28: a voice ref that has a
+ * sample is continued from its first seconds (docs/PLAN.md, "Voices across
+ * models"); one without is made from the wording alone.
  */
 export function voiceCapNotes(t: Pick<Target, "capabilities"> | undefined): string[] {
   const c = t?.capabilities;
   if (!c) return [];
   const out: string[] = [];
   out.push(c.reference_audio
-    ? "It can copy a voice from the sample the series config names."
+    ? "It copies the voice from this ref's current sample when it has one: Generate carries on in that voice with the character's line (close, not exact; listen before you pick). Without a sample the wording makes the voice."
     : "It can't copy an existing voice: the sample is made from the wording only (the character's `voice` line and design), so it won't sound like a recording you already have. Use “a line from a take…” for that.");
   if (c.max_seconds) out.push(`Samples are at most ${Math.round(c.max_seconds)} seconds.`);
   if (c.negative_prompt === false) out.push("It takes no negative prompt.");
