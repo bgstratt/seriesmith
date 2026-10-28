@@ -3123,6 +3123,12 @@ its own section.
   the feature `"voice cloning (LTXVReferenceAudio)"` (a ComfyUI without them is
   `degraded`, not blocked), and turning it on is one `capabilities` flag plus a `models`
   entry for the weights.
+  **Since 2026-10-28 `reference_audio` is `true`, by another path:** the sample's head is
+  *held* at the start of the clip (a noise mask of 0, `targets/held_audio.py`) and LTX
+  continues it; no ID-LoRA, and `LTXVReferenceAudio` is no longer used. The staged input is
+  `{"reference_audio": name, "reference_seconds": s}`, the head cut between words
+  (`audiocut.voice_clip`); the optional nodes are now the five core ones that hold it,
+  feature `"voice cloning (a held voice sample)"`. docs/PLAN.md, "Voices across models".
 - **[added] Live validation.** The repo's workflow was queued on the running ComfyUI
   0.36.0 (`POST /prompt`, polled on `/history`) with `SaveAudio` in the saver's place,
   because the live ComfyUI runs main's node pack. An 8.0 s request produced

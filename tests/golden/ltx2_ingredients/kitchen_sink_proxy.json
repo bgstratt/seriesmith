@@ -284,7 +284,7 @@
         "length": 65,
         "seed": 3054841815674432230,
         "steps": 12,
-        "audio_policy": "generate",
+        "audio_policy": "dub",
         "prompt": "Reference sheet: Ada, a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses, shown full-body in a three-quarter view. Bo, a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops, shown full-body in a three-quarter view. Cy, a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots, shown full-body in a three-quarter view. The location, a wet night street outside the diner, neon sign reflected in the puddles, light from the left.\n\nGenerated video: Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada, Bo, and Cy are in frame. Ada, Bo and Cy spill out of the diner door into the rain. Ada, in a voice that is dry, quick and precise, says: \"Van.\" Bo, in a voice that is slow and cracking, says: \"Where?\" Cy says: \"There!\" The sound is traffic hiss on wet asphalt. There is no music.",
         "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
         "panels": [
@@ -312,8 +312,6 @@
             "path": "refs/_bg/street.png"
           }
         ],
-        "audio_intent": "dub",
-        "audio_note": "audio dub renders as generate on LTX+refs: LTX-2 generates sound with the picture and takes no voice sample or recording",
         "model": "seq_model.safetensors",
         "audio_in": 1.0,
         "audio_out": 3.5
@@ -329,7 +327,7 @@
         "length": 49,
         "seed": 985161046565145751,
         "steps": 12,
-        "audio_policy": "generate",
+        "audio_policy": "dub_keep_foley",
         "prompt": "Reference sheet: Ada, a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses, shown full-body in a three-quarter view. The location, a wet night street outside the diner, neon sign reflected in the puddles, light from the left.\n\nGenerated video: Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is in frame. Ada sprints along the kerb after the van. Ada, in a voice that is dry, quick and precise, says: \"Stop!\" The sound is running footsteps splashing through puddles. There is no music.",
         "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
         "panels": [
@@ -345,8 +343,6 @@
             "path": "refs/_bg/street.png"
           }
         ],
-        "audio_intent": "dub_keep_foley",
-        "audio_note": "audio dub_keep_foley renders as generate on LTX+refs: LTX-2 generates sound with the picture and takes no voice sample or recording",
         "model": "seq_model.safetensors",
         "audio_in": 3.5,
         "audio_out": 5.0
@@ -362,7 +358,7 @@
         "length": 57,
         "seed": 1964752148325355590,
         "steps": 12,
-        "audio_policy": "generate",
+        "audio_policy": "dub_keep_foley",
         "prompt": "Reference sheet: Bo, a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops, shown full-body in a three-quarter view. The location, the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room.\n\nGenerated video: Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, the camera remains static. Bo is in frame. Bo ducks back inside and leans through the pass-through window. Bo, in a voice that is slow and cracking, says from off-screen, outside the frame: \"She's never catching that.\" The sound is rain drumming on the awning. There is no music.",
         "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
         "panels": [
@@ -378,8 +374,6 @@
             "path": "refs/_bg/kitchen_window.png"
           }
         ],
-        "audio_intent": "dub_keep_foley",
-        "audio_note": "audio dub_keep_foley renders as generate on LTX+refs: LTX-2 generates sound with the picture and takes no voice sample or recording",
         "model": "seq_model.safetensors",
         "audio_in": 5.0,
         "audio_out": 7.2
@@ -393,7 +387,7 @@
         "length": 49,
         "seed": 5738520875936942780,
         "steps": 12,
-        "audio_policy": "generate",
+        "audio_policy": "dub",
         "prompt": "Reference sheet: The location, a wet night street outside the diner, neon sign reflected in the puddles, light from the left.\n\nGenerated video: Style: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. The street empties; the neon sign flickers once and goes dark. The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"And that was the last anyone saw of the kettle.\" The ambient sound of the place follows the action. There is no music.",
         "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
         "panels": [
@@ -403,8 +397,6 @@
             "path": "refs/_bg/street.png"
           }
         ],
-        "audio_intent": "dub",
-        "audio_note": "audio dub renders as generate on LTX+refs: LTX-2 generates sound with the picture and takes no voice sample or recording",
         "model": "seq_model.safetensors",
         "audio_in": 7.2,
         "audio_out": 9.0
@@ -626,7 +618,9 @@
     "delivered_s": 40.333333333333336,
     "pad_frames": 125,
     "policies": {
-      "generate": 16
+      "dub": 2,
+      "dub_keep_foley": 2,
+      "generate": 12
     },
     "needed": {
       "refs/ada/ada_sheet_4panel.png": {
@@ -734,8 +728,6 @@
     "warnings": [
       "sh050: CRAMMED — 26 syllables in 2.04s forces 23.8 syl/s (ceiling 5.8). Split the shot.",
       "sh140: CRAMMED — 12 syllables in 2.04s forces 8.6 syl/s (ceiling 5.8). Split the shot.",
-      "2 shot(s) ask for audio dub, which LTX+refs can't render (LTX-2 generates sound with the picture and takes no voice sample or recording): they render with generate: sh110, sh140",
-      "2 shot(s) ask for audio dub_keep_foley, which LTX+refs can't render (LTX-2 generates sound with the picture and takes no voice sample or recording): they render with generate: sh120, sh130",
       "sh040 overrides model: shot_model.safetensors",
       "sh040 overrides lora: none",
       "sh110 overrides model: seq_model.safetensors",

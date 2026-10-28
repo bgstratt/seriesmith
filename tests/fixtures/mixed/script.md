@@ -44,7 +44,7 @@ ADA (V.O.): Not today.
 target: ltx2
 
 // a sequence-level target: line; no camera line (the camera remains
-// static); a recording window with dub_keep_foley (falls back to generate)
+// static); a recording window with dub_keep_foley (held as the soundtrack on LTX)
 ## sh040
 who: bo
 with: van

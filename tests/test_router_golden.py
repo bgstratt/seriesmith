@@ -28,10 +28,11 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
+from seriesmith import ff as FF  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.backends import File  # noqa: E402
-from test_render import FIXTURE, build_episode  # noqa: E402
+from test_render import FIXTURE, build_episode, wav_bytes  # noqa: E402
 
 GOLDEN = os.path.join(HERE, "golden", "router_calls")
 # one subject, generated sound / three, cloned voices / three, dubbed / none
@@ -107,6 +108,9 @@ def capture_all() -> dict[str, str]:
             p = os.path.join(root, "refs", "shots", KEYFRAMED, f"{end}.png")
             os.makedirs(os.path.dirname(p), exist_ok=True)
             open(p, "wb").close()
+        # the recording a dub shot's window is cut from (the fixture's is a stand-in)
+        with open(os.path.join(root, "audio", "ks01_mix.wav"), "wb") as fh:
+            fh.write(wav_bytes(12.0))
         return {tid: json.dumps(capture(root, tid), indent=1, sort_keys=True,
                                 ensure_ascii=False) + "\n"
                 for tid in router_targets()}
@@ -128,6 +132,91 @@ class RouterGoldenTest(unittest.TestCase):
             with self.subTest(target=tid):
                 with open(os.path.join(GOLDEN, tid + ".json"), encoding="utf-8") as fh:
                     self.assertEqual(text, fh.read().replace("\r\n", "\n"))
+
+
+class SeedanceAudioTest(unittest.TestCase):
+    """What the goldens don't pin: Seedance's audio references at their
+    limits (router_video.sounds, video_prose.voice_refs)."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.root = self._t.name
+        build_episode(self.root)
+        shutil.copy(os.path.join(FIXTURE, "series.json"), self.root)
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def call(self, sid: str, tid: str = "seedance_2_0"):
+        doc, i = J.find_shot(self.root, "final", sid)
+        job = J.plan_job(self.root, "final", doc, i, J.RenderRequest(sid, target=tid), {})
+        t = J.job_target(job)
+        return job, t.module.router_call(t, job)[1]
+
+    def sample(self, who: str, seconds: float) -> str:
+        p = os.path.join(self.root, "audio", "voices", f"{who}_sample.wav")
+        with open(p, "wb") as fh:
+            fh.write(wav_bytes(seconds))
+        return p
+
+    def heard(self, args) -> list[str]:
+        return [os.path.relpath(x["audio_url"]["url"].path, self.root).replace(os.sep, "/")
+                for x in args["content"] if x.get("type") == "audio_url"]
+
+    def test_a_voice_sample_too_short_is_refused(self):
+        self.sample("ada", 1.0)
+        with self.assertRaisesRegex(ValueError, r"Ada's voice sample is 1\.0s and Seedance hears "
+                                                r"2s at the least"):
+            self.call("sh020")
+
+    @unittest.skipUnless(FF.have("ffmpeg"), "ffmpeg not on PATH")
+    def test_a_long_voice_sample_is_cut(self):
+        from seriesmith import audiocut as AC
+        self.sample("ada", 20.0)
+        _, args = self.call("sh020")
+        ada = self.heard(args)[0]
+        self.assertTrue(ada.startswith("audio/voices/_cuts/ada_sample_"), ada)
+        self.assertLessEqual(AC.duration(os.path.join(self.root, ada)), 15.0)
+
+    def test_audio_needs_a_picture_on_2_0_not_on_2_5(self):
+        shutil.rmtree(os.path.join(self.root, "refs"))
+        with self.assertRaisesRegex(ValueError, "can't be sent audio without a picture"):
+            self.call("sh020")
+        _, args = self.call("sh020", "seedance_2_5")
+        self.assertEqual(self.heard(args), ["audio/voices/ada_sample.wav",
+                                            "audio/voices/bo_sample.wav"])
+
+    def test_audio_goes_with_references_not_keyframes(self):
+        """BytePlus refuses frames mixed with reference media: a clone shot with
+        its keyframes on disk sends its reference pictures and its voices."""
+        for end in ("first", "last"):
+            p = os.path.join(self.root, "refs", "shots", "sh020", f"{end}.png")
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "wb").close()
+        job, args = self.call("sh020")
+        roles = [x.get("role") for x in args["content"] if x.get("role")]
+        self.assertNotIn("first_frame", roles)
+        self.assertNotIn("last_frame", roles)
+        self.assertIn("reference_image", roles)
+        self.assertEqual(roles.count("reference_audio"), 2)
+        self.assertIn("can't take a first or last frame with audio", " ".join(job.notes))
+        # the audio goes inline: the Seedance library takes pictures only
+        self.assertEqual({x["audio_url"]["url"].via for x in args["content"]
+                          if x.get("type") == "audio_url"}, {"datauri"})
+
+    def test_more_speakers_than_voices_is_a_build_error(self):
+        t = TG.load_target("seedance_2_0", "video")
+        voices = t.spec["router"]["inputs"]["voices"]
+        voices["max"] = 2
+        try:
+            doc, i = J.find_shot(self.root, "final", "sh210")
+            job = J.plan_job(self.root, "final", doc, i,
+                             J.RenderRequest("sh210", target="seedance_2_0"), {})
+        finally:
+            voices["max"] = 3
+        self.assertEqual(job.action, "error")
+        self.assertIn("3 speakers", job.error)
+        self.assertIn("takes at most 2", job.error)
 
 
 if __name__ == "__main__":

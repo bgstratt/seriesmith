@@ -21,8 +21,6 @@
   ------------------------------------------------------------
   2 sequences, 3 shots
   runtime      0:09.79  (scripted 0:09.50, +7f grid pad)
-  audio        3x generate
+  audio        2x clone, 1x dub_keep_foley
   references   0/0 on disk
-    ! 2 shot(s) ask for audio clone, which LTX-2 can't render (LTX-2 generates sound with the picture and takes no voice sample or recording): they render with generate: sh020, sh050
-    ! 1 shot(s) ask for audio dub_keep_foley, which LTX-2 can't render (LTX-2 generates sound with the picture and takes no voice sample or recording): they render with generate: sh040
 

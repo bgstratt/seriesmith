@@ -455,9 +455,10 @@ class TargetsRouteTest(ApiTest):
         # what a target picker needs
         lt = by["ltx2"]
         self.assertFalse(lt["default"])
-        self.assertEqual(lt["capabilities"]["policies"], ["generate"])
+        self.assertEqual(lt["capabilities"]["policies"], ["generate", "dub", "dub_keep_foley", "clone"])
         self.assertEqual(lt["capabilities"]["keyframes"], ["first", "last"])
-        self.assertFalse(lt["capabilities"]["voice_reference"])
+        self.assertTrue(lt["capabilities"]["voice_reference"])       # a clone made in its graph
+        self.assertFalse(by["ltx2_ingredients"]["capabilities"]["voice_reference"])
         self.assertTrue(by[H3]["capabilities"]["voice_reference"])
         self.assertEqual(lt["widgets"]["model"], {"class_type": "UNETLoader", "field": "unet_name"})
         self.assertEqual(lt["widgets"]["seed"]["class_type"], "RandomNoise")

@@ -47,7 +47,7 @@
   "arguments": {
    "content": [
     {
-     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a dented chrome kettle with a black bakelite handle and a whistle cap on a chain in @Image 3 as the diner kettle. Define a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead in @Image 4 as the scene.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. The diner kettle is a dented chrome kettle with a black bakelite handle and a whistle cap on a chain. Also in frame are two customers at the counter seen through the window, backs to camera, unnamed background figures who look nothing like Ada and Bo. Bo sets the kettle down on the burner and flicks the gas on. Ada, in a voice that is dry, quick and precise, says, warmly: \"You know that one whistles.\" Bo, in a voice that is slow and cracking, says: \"I know.\" Bo says, whispering: \"That's the point.\" The ambient sound of the place follows the action. There is no music.",
+     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a dented chrome kettle with a black bakelite handle and a whistle cap on a chain in @Image 3 as the diner kettle. Define a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead in @Image 4 as the scene.\n\nUse @Audio 1 as the voice of Ada. Use @Audio 2 as the voice of Bo.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. The diner kettle is a dented chrome kettle with a black bakelite handle and a whistle cap on a chain. Also in frame are two customers at the counter seen through the window, backs to camera, unnamed background figures who look nothing like Ada and Bo. Bo sets the kettle down on the burner and flicks the gas on. Ada, in a voice that is dry, quick and precise, says, warmly: \"You know that one whistles.\" Bo, in a voice that is slow and cracking, says: \"I know.\" Bo says, whispering: \"That's the point.\" The ambient sound of the place follows the action. There is no music.",
      "type": "text"
     },
     {
@@ -89,6 +89,26 @@
      },
      "role": "reference_image",
      "type": "image_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/ada_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/bo_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
     }
    ],
    "duration": 4,
@@ -101,9 +121,7 @@
   },
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-260128",
-  "notes": [
-   "audio clone renders as generate on Seedance: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
-  ],
+  "notes": [],
   "size": [
    1280,
    720
@@ -113,7 +131,7 @@
   "arguments": {
    "content": [
     {
-     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a dented chrome kettle with a black bakelite handle and a whistle cap on a chain in @Image 3 as the diner kettle. Define a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead in @Image 4 as the scene.\n\nStyle: live-action, warm tungsten light, 35mm film grain. The kitchen's detail 0: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 1: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 2: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 3: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 4: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 5: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 6: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 7: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 8: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 9: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 10: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 11: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 12: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 13: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 14: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 15: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 16: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 17: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 18: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 19: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 20: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 21: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
+     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a dented chrome kettle with a black bakelite handle and a whistle cap on a chain in @Image 3 as the diner kettle. Define a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead in @Image 4 as the scene.\n\nUse @Audio 1 as the voice of Ada. Use @Audio 2 as the voice of Bo.\n\nStyle: live-action, warm tungsten light, 35mm film grain. The kitchen's detail 0: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 1: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 2: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 3: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 4: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 5: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 6: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 7: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 8: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 9: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 10: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 11: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 12: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 13: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 14: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 15: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 16: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 17: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 18: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 19: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 20: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 21: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 22: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 23: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 24: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 25: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 26: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. The kitchen's detail 27: a dented copper pot, a chipped blue tile, a calendar from a year nobody remembers on the wall. Ada sets the kettle down hard and turns to Bo. ADA says: \"You know that one whistles.\" The kettle starts to whistle. Sound: the kettle's rising whistle, rain on the window, no music.",
      "type": "text"
     },
     {
@@ -155,6 +173,26 @@
      },
      "role": "reference_image",
      "type": "image_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/ada_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/bo_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
     }
    ],
    "duration": 4,
@@ -167,9 +205,7 @@
   },
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-260128",
-  "notes": [
-   "audio clone renders as generate on Seedance: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
-  ],
+  "notes": [],
   "size": [
    1280,
    720
@@ -179,7 +215,7 @@
   "arguments": {
    "content": [
     {
-     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots in @Image 3 as Cy. Define a wet night street outside the diner, neon sign reflected in the puddles, light from the left in @Image 4 as the scene.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Cy is a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots. Ada, Bo and Cy spill out of the diner door into the rain. Ada, in a voice that is dry, quick and precise, says: \"Van.\" Bo, in a voice that is slow and cracking, says: \"Where?\" Cy says: \"There!\" The sound is traffic hiss on wet asphalt. There is no music.",
+     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo, and define a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots in @Image 3 as Cy. Define a wet night street outside the diner, neon sign reflected in the puddles, light from the left in @Image 4 as the scene.\n\nUse @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A wide shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Cy is a small girl with two puffball pigtails, a purple raincoat and yellow rubber boots. Ada, Bo and Cy spill out of the diner door into the rain. Ada, in a voice that is dry, quick and precise, says: \"Van.\" Bo, in a voice that is slow and cracking, says: \"Where?\" Cy says: \"There!\" The sound is traffic hiss on wet asphalt. There is no music.",
      "type": "text"
     },
     {
@@ -221,6 +257,16 @@
      },
      "role": "reference_image",
      "type": "image_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/_cuts/ks01_mix_cf56559aba88_1000-3500.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
     }
    ],
    "duration": 4,
@@ -234,7 +280,7 @@
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-260128",
   "notes": [
-   "audio dub renders as generate on Seedance: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "dub on Seedance: it re-reads the recording in its voice, at its own pace, so the lips follow the take's own sound: keep it rather than laying the recording over the cut"
   ],
   "size": [
    1280,
@@ -245,7 +291,7 @@
   "arguments": {
    "content": [
     {
-     "text": "Define a wet night street outside the diner, neon sign reflected in the puddles, light from the left in @Image 1 as the scene.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. The street empties; the neon sign flickers once and goes dark. The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"And that was the last anyone saw of the kettle.\" The ambient sound of the place follows the action. There is no music.",
+     "text": "Define a wet night street outside the diner, neon sign reflected in the puddles, light from the left in @Image 1 as the scene.\n\nUse @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of a wet night street outside the diner, neon sign reflected in the puddles, light from the left, the camera remains static. The street empties; the neon sign flickers once and goes dark. The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"And that was the last anyone saw of the kettle.\" The ambient sound of the place follows the action. There is no music.",
      "type": "text"
     },
     {
@@ -257,6 +303,16 @@
      },
      "role": "reference_image",
      "type": "image_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/_cuts/ks01_mix_cf56559aba88_7200-9000_pad2000.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
     }
    ],
    "duration": 4,
@@ -270,7 +326,7 @@
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-260128",
   "notes": [
-   "audio dub renders as generate on Seedance: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+   "dub on Seedance: it re-reads the recording in its voice, at its own pace, so the lips follow the take's own sound: keep it rather than laying the recording over the cut"
   ],
   "size": [
    1280,
@@ -369,7 +425,7 @@
   "arguments": {
    "content": [
     {
-     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo. Define the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room in @Image 3 as the scene.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. Ada, in a voice that is dry, quick and precise, says: \"Well.\" Bo, in a voice that is slow and cracking, says: \"Well what?\" Ada says: \"Put the tea on.\" The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"They did.\" The ambient sound of the place follows the action. There is no music.",
+     "text": "Define a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt in @Image 1 as Ada, and define a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops in @Image 2 as Bo. Define the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room in @Image 3 as the scene.\n\nUse @Audio 1 as the voice of Ada. Use @Audio 2 as the voice of Bo. Use @Audio 3 as the voice of the narrator.\n\nStyle: a flat vector cartoon with thick even outlines and a limited pastel palette. A medium shot of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, the camera remains static. Ada is a tall woman in her thirties with a short grey bob, a mustard apron over a striped shirt, and round red glasses. Bo is a stocky teenage boy with a shaved head, an oversized green bomber jacket and orange high-tops. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. Ada, in a voice that is dry, quick and precise, says: \"Well.\" Bo, in a voice that is slow and cracking, says: \"Well what?\" Ada says: \"Put the tea on.\" The narrator, in a voice that is warm, older, unhurried, says in an off-screen voiceover: \"They did.\" The ambient sound of the place follows the action. There is no music.",
      "type": "text"
     },
     {
@@ -401,6 +457,36 @@
      },
      "role": "reference_image",
      "type": "image_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/ada_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/bo_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
+    },
+    {
+     "audio_url": {
+      "url": {
+       "file": "audio/voices/narrator_sample.wav",
+       "via": "datauri"
+      }
+     },
+     "role": "reference_audio",
+     "type": "audio_url"
     }
    ],
    "duration": 4,
@@ -413,9 +499,7 @@
   },
   "frames": 96,
   "model": "byteplus/dreamina-seedance-2-0-260128",
-  "notes": [
-   "audio clone renders as generate on Seedance: Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
-  ],
+  "notes": [],
   "size": [
    1280,
    720

@@ -39,6 +39,7 @@ import uuid
 from seriesmith import targets as TG
 from seriesmith.core import ir
 from seriesmith.targets import video_compile as VC
+from seriesmith.targets import held_audio as HA
 from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers, of as _of
 from seriesmith.targets.video.ltx2_ingredients.compile import plate_request, subject_request
 from seriesmith.targets.video_compile import shot_duration as _duration, shotlist_extra
@@ -87,6 +88,7 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     VC.crammed(ctx, shot, pace, raw)
     VC.count_frames(ctx, req, raw)
     intent, policy, note = VC.shot_audio(ctx, shot)
+    VC.check_dub_window(ctx, shot, policy)
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
     refs = _references(ctx, [shot], sq)
@@ -94,6 +96,8 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     entry["global_prompt"] = P.global_prompt(refs, series_cfg)
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["references"] = refs
+    if policy == "clone":
+        entry.update(HA.clone_entry(shot, series_cfg["subjects"]))
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
@@ -174,7 +178,7 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     return out
 
 
-def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+def _ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """One slot per picture, required; a person's face picture (a `_face`
     variant) is an optional slot beside it, so re-picking it makes the take
     stale."""
@@ -232,7 +236,7 @@ def sheet_spec(job, ref: dict, book: dict) -> dict:
             "panels": panels}
 
 
-def stage_inputs(target, job, comfy=None) -> dict:
+def _stage_inputs(target, job, comfy=None) -> dict:
     """Compose each person's and thing's sheet and upload it, with the plate
     as it is: {"pic1": name, ..., "background": name}, the guide's slots.
     The sheets wait in the shot's folder until jobs.start_job moves them into
@@ -281,7 +285,7 @@ def stage_inputs(target, job, comfy=None) -> dict:
     return out
 
 
-def patch_graph(target, g: dict, job, inputs: dict) -> None:
+def _patch_graph(target, g: dict, job, inputs: dict) -> None:
     """The staged pictures into both guides' slots (LoadImage per slot; a
     slot with no picture is left empty, and the guide numbers what it has
     consecutively, as the prompt does). With no picture at all both guides
@@ -305,3 +309,27 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
         for k in guides:
             g[k]["inputs"].pop(slot, None)
         g.pop(load, None)
+
+
+# -- a dub shot's recording (targets/held_audio.py) ----------------------------------
+
+def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
+    """_ref_slots, then a clone shot's voice samples or a dub shot's recording."""
+    return _ref_slots(target, doc, shot) + HA.audio_slots(doc, shot)
+
+
+def stage_inputs(target, job, comfy=None) -> dict:
+    """_stage_inputs, then a dub shot's window of the recording, or a clone
+    shot's voice samples."""
+    out = dict(_stage_inputs(target, job, comfy) or {})
+    out.update(HA.stage_dub(target, job, comfy))
+    out.update(HA.stage_clone(target, job, comfy))
+    return out
+
+
+def patch_graph(target, g: dict, job, inputs: dict) -> None:
+    """_patch_graph, then a dub shot's window held as the soundtrack through
+    every stage, or a clone shot's lines made and held."""
+    _patch_graph(target, g, job, inputs)
+    HA.patch_dub(g, inputs)
+    HA.patch_clone(target, g, job, inputs)

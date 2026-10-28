@@ -23,11 +23,14 @@
   },
   "recipe": {
     "policies": [
-      "generate"
+      "generate",
+      "clone",
+      "dub",
+      "dub_keep_foley"
     ],
     "policy_fallback": {
       "to": "generate",
-      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+      "why": "Seedance makes its own sound"
     },
     "keyframes": [
       "first",
@@ -63,11 +66,16 @@
       "location": {
         "kind": "background plate",
         "shape": "plate"
+      },
+      "voice": {
+        "kind": "voice sample",
+        "shape": "voice"
       }
     },
     "size_hints": {
       "keyframe": "the render size, or any size of the same shape"
-    }
+    },
+    "_audio_note": "Seedance hears audio references (router.inputs.voices, role reference_audio): a clone shot sends each speaker's voice sample and names it in the prompt ('Use @Audio 1 as the voice of Ada.'); a dub shot sends its window of the recording ('Use @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.'). Tried live 2026-10-28 (docs/PLAN.md, 'Voices across models'): a clone speaks the line in a voice close to the sample; a dub is a re-read in the recording's voice at Seedance's own pace, not the recording itself."
   },
   "router": {
     "model": "byteplus/dreamina-seedance-2-0-mini",
@@ -148,7 +156,29 @@
         "name": "seed",
         "max": 2147483647
       },
-      "via": "seedance"
+      "via": "seedance",
+      "voices": {
+        "_note": "audio wav/mp3 2-15 s; up to 3 clips a request, and only with a picture",
+        "list": "content",
+        "item": {
+          "type": "audio_url",
+          "audio_url": {
+            "url": "$url"
+          },
+          "role": "reference_audio"
+        },
+        "max": 3,
+        "min_seconds": 2,
+        "max_seconds": 15,
+        "mention": "@Audio {n}",
+        "via": "datauri",
+        "with_frames": false,
+        "rereads": true,
+        "_rereads_note": "a dub comes back re-read, not copied: the window's words in its voice (106 Hz as the window) but at Seedance's own pace, stretched over the clip (envelope 0.50 against the window; Seedance 2.0 fast, 2026-10-28). The take says so.",
+        "_with_frames_note": "BytePlus: first/last frame content cannot be mixed with reference media content (refused as invalid_input, 2026-10-28): a shot sending audio goes by its reference pictures, not its keyframes",
+        "_via_note": "inline as data:audio/wav;base64 (the schema's own form): the Seedance library registers pictures only and refused a wav as an image ('get image info ... This image format is not supported', 2026-10-28)",
+        "needs_picture": true
+      }
     },
     "picture_ratio": [
       0.4,

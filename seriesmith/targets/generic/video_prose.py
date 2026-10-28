@@ -52,6 +52,7 @@ from seriesmith.core import framing, ir
 from seriesmith.targets.video.ltx2.compile import _duration, shotlist_extra
 from seriesmith.core import paths as P
 from seriesmith.targets import video_compile as VC
+from seriesmith.targets import held_audio as HA
 from seriesmith.targets.graph import of, consumers, new_id  # noqa: F401
 
 SILENT = "silent"
@@ -145,8 +146,10 @@ class Ctx:
 
     def need(self, req: TG.RefRequest, shot_id: str) -> None:
         if req.path:
-            self.needed.setdefault(req.path, {"kind": req.kind,
-                                              "prompt": self.image.ref_prompt(req, self.series_cfg)})
+            words = (TG.voice_prompt(req.entry.get("name", req.subject),
+                                     req.entry.get("voice", "as written in series.json"))
+                     if req.shape == "voice" else self.image.ref_prompt(req, self.series_cfg))
+            self.needed.setdefault(req.path, {"kind": req.kind, "prompt": words})
             if shot_id not in self.blocked.setdefault(req.path, []):
                 self.blocked[req.path].append(shot_id)
 
@@ -174,6 +177,35 @@ def plate_request(recipe: dict, key: str, entry: dict, slot: str | None = None) 
     r = recipe["refs"]["location"]
     return TG.RefRequest(entry.get("plate") or "", r["kind"], r["shape"], location=key,
                          slot=slot, entry=entry, size_hint=_hint(recipe, r["kind"]))
+
+
+VOICE_REF = {"kind": "voice sample", "shape": "voice"}
+
+
+def voice_request(recipe: dict, sid: str, entry: dict, slot: str | None = None) -> TG.RefRequest:
+    r = (recipe.get("refs") or {}).get("voice") or VOICE_REF
+    return TG.RefRequest(entry.get("voice_sample") or "", r["kind"], r["shape"], subject=sid,
+                         slot=slot, entry=entry)
+
+
+def voice_refs(ctx: "Ctx", shot: ir.Shot) -> list[dict]:
+    """A clone shot's speakers, in the order they first speak (off screen and
+    voiceover too: they are heard), each with the voice sample the model
+    copies; each sample is needed (refs_todo). ValueError past the number of
+    voices the model takes (router.inputs.voices.max)."""
+    book = ctx.series_cfg["subjects"]
+    who = list(dict.fromkeys(d.speaker for d in shot.dialogue if d.speaker in book))
+    most = int((((ctx.target.spec.get("router") or {}).get("inputs") or {}).get("voices") or {})
+               .get("max") or 0)
+    if most and len(who) > most:
+        raise ValueError(f"shot {shot.id}: {len(who)} speakers, and clone mode sends one voice "
+                         f"sample each where {ctx.target.short} takes at most {most}. Split the "
+                         f"shot, or move a line to a neighbouring shot.")
+    out = []
+    for i, v in enumerate(who, 1):
+        ctx.need(voice_request(ctx.recipe, v, book[v], f"voice {i}"), shot.id)
+        out.append({"subject": v, "sample": book[v].get("voice_sample", "")})
+    return out
 
 
 def ordered(shot: ir.Shot, book: dict) -> list[str]:
@@ -280,6 +312,9 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
         note_ = unsent_warning(ctx, shot, entry["panels"])
         if note_:
             ctx.warnings.append(note_)
+    VC.check_dub_window(ctx, shot, policy)
+    if policy == "clone":
+        entry["voice_refs"] = voice_refs(ctx, shot)
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
@@ -414,6 +449,14 @@ def compile_group(ctx: Ctx, sq: ir.Sequence, group: list[ir.Shot], ep_id: str) -
     entry = dict(entries[0])
     for k in ("audio_in", "audio_out"):
         entry.pop(k, None)
+    voices = {r["subject"]: r for e in entries for r in e.get("voice_refs") or []}
+    if voices:
+        entry["voice_refs"] = list(voices.values())
+    if entry.get("audio_policy") in HA.DUB:
+        # its shots' windows aren't one stretch of the recording
+        entry.update(audio_intent=entry["audio_policy"], audio_policy="generate",
+                     audio_note=f"a multishot group renders {entry['audio_policy']} as generate: "
+                                f"its shots' windows of the recording aren't one call's sound")
     keys = dict(entries[0].get("keyframes") or {})
     keys.pop("last", None)
     if "last" in (entries[-1].get("keyframes") or {}):
@@ -625,7 +668,9 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
         else:
             r["optional"] = True
         out.append(r)
-    return out
+    # what a model that hears audio is sent: a clone shot's voice samples, a
+    # dub shot's recording (router_video sends the shot's window of it)
+    return out + HA.audio_slots(doc, shot)
 
 
 # ---------------------------------------------------------------------------

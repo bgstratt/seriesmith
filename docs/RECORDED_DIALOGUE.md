@@ -45,6 +45,8 @@ To override, set it per shot (`retention: fully_copy`), for the episode (`"audio
 
 Frame lip-sync shots as close or medium shots. The reference image's framing matters more than the prompt.
 
+On other models a dub shot works too, without retention: on LTX (`ltx2`, `ltx2_ingredients`, `ltx2_msr`) the shot's window is held as its whole soundtrack and the picture is made to it, as `fully_copy` does on H3, so `dub_keep_foley` gets a near-silent foley bed; Seedance is sent the window as an audio reference and told to sync the lips to it.
+
 ## align options
 
 `python -m seriesmith.align --help` lists them all. The ones you reach for:

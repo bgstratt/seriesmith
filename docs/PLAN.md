@@ -1189,6 +1189,48 @@ shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from
       between two clips: the form wants the action written, and **Save and generate** also
       queues a render beside the imported take (documented in EDITOR.md, left as it is).
 
+## Voices across models: a held sound, and audio references (2026-10-28)
+
+From Frameforge (Chain Motion AI Video Editor)'s Speech Studio: a sound can be **held** in an
+LTX graph (encoded, a noise mask of 0, swapped into the AV latent the sampler samples), and
+LTX makes only what's around it. `targets/held_audio.py` does it for every LTX sampler;
+`audiocut.py` cuts what is held (a sample's head between words, a shot's window).
+
+- [x] **Voice clone by continuation** (`ltx2_voice`): a voice ref with a sample is continued
+      from its head (1.5-2.5 s) and the head trimmed off. Measured live 2026-10-28 on a real
+      1.4 s / 2.45 s recording (scratch graphs, then seriesmith's own): Whisper heard the line
+      word for word every time; median pitch 110-129 Hz against the speaker's 101-107 Hz,
+      153 Hz described only. Close, not exact. LTXVReferenceAudio (ID-LoRA) dropped.
+- [x] **LTX dub** (`ltx2`, `ltx2_ingredients`, `ltx2_msr`): a dub shot's window held as its
+      whole soundtrack through every stage. Measured live 2026-10-28: the held sound came back
+      at envelope correlation 0.97-0.99 (Whisper the same words), mouth motion +0.31/+0.36
+      against its own sound and 0.00-0.17 against another take's (LTX's own sound: +0.41).
+      Rendered through `seriesmith render` (the mixed fixture's sh040 on ltx2): 0.97, the
+      window's words. Not yet checked: a shot with a first keyframe, the two variants live,
+      two speakers in a shot.
+- [x] **Seedance audio references** (2.0, fast, mini, 2.5): clone sends each speaker's
+      sample, dub the window (padded to 2 s), named in the prompt (`@Audio N`) after the
+      pictures. Tried live 2026-10-28 on Seedance 2.0 fast (two calls, a scratch episode):
+      the Seedance library refuses audio ("get image info ... not supported"), so audio goes
+      inline (`via: datauri`); frames can't be mixed with reference media (`invalid_input`;
+      BytePlus: "first/last frame content cannot be mixed with reference media content"),
+      so a shot sending audio goes by its references (`voices.with_frames: false`). Then:
+      **clone** spoke the new line word for word at 108 Hz against the sample's 101 Hz;
+      **dub** came back with the window's words in its voice (106 Hz, as the window) but
+      re-performed slower over the 4 s clip (envelope 0.50 against the window), so its lips
+      follow its own sound, not the recording: a voice-matched re-read, not a true dub.
+- [x] **LTX clone** (`ltx2`, `ltx2_msr`): each line made in the shot's own graph by the
+      audio-only model (the shot's transformer), continuing its speaker's held sample, the
+      lines joined with core.speech's beats (AudioConcat, EmptyAudio) and held as for a dub
+      (`held_audio.patch_clone`). Decided 2026-10-28: made with the picture, in one job, as
+      there's no time to review voice takes separately; a recording goes align -> dub
+      instead. Rendered live through `seriesmith render` (sh050, the narrator off screen):
+      Whisper heard the line on both, median pitch 110 Hz (ltx2) and 115 Hz (ltx2_msr)
+      against the sample's 101 Hz. Not yet live: two speakers in one shot (unit-tested).
+      `ltx2_ingredients` (LTX-2.3) still renders clone as generate: untried there.
+- [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
+      invented words (seen live 2026-10-28, with and without a held sample).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

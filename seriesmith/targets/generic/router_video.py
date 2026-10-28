@@ -29,6 +29,12 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
                   # {"list": "content", "item": {"type": "image_url",
                   #   "image_url": {"url": "$url"}, "role": "first_frame"}}
         "last": {"field": "last_frame_url"},
+        "voices": {"list": "content", "item": {"type": "audio_url",
+                   "audio_url": {"url": "$url"}, "role": "reference_audio"},
+                   "max": 3, "min_seconds": 2, "max_seconds": 15,
+                   "mention": "@Audio {n}", "needs_picture": true},
+                    # a clone shot's voice samples, a dub shot's window of the
+                    # recording (sounds); the recipe's policies say which it renders
         "via": "seedance"                         # how pictures go in (File.via)
       },
       "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"},
@@ -221,11 +227,12 @@ def place(args: dict, spec, **values) -> None:
 
 # -- the shot's pictures -----------------------------------------------------------
 
-def pictures(target, job, shot: dict, inp: dict):
+def pictures(target, job, shot: dict, inp: dict, frames_ok: bool = True):
     """("frames" | "references", [(role, path, what)]): the frames when the
-    model has an input for a first frame and the shot has one on disk, else the
-    shot's references (subjects, up to max_subjects, then the rest), a sheet as
-    the panel its `view` asks for; `what` is the subject or the location."""
+    model has an input for a first frame and the shot has one on disk (and
+    `frames_ok`), else the shot's references (subjects, up to max_subjects,
+    then the rest), a sheet as the panel its `view` asks for; `what` is the
+    subject or the location."""
     from seriesmith import jobs as J
 
     def on_disk(rel: str) -> str | None:
@@ -233,7 +240,7 @@ def pictures(target, job, shot: dict, inp: dict):
         return p if p and os.path.isfile(p) else None
 
     frames = {end: on_disk(p) for end, p in (shot.get("keyframes") or {}).items()}
-    if inp.get("first") and frames.get("first"):
+    if frames_ok and inp.get("first") and frames.get("first"):
         return "frames", [(end, frames[end], end) for end in ("first", "last")
                           if frames.get(end) and inp.get(end)]
     if not inp.get("references"):
@@ -374,6 +381,87 @@ def board_prompt(part: dict, pics: list, series_cfg: dict, mention: str | None, 
     return f"{out} {tail}" if tail else out
 
 
+def sounds_wanted(inp: dict, shot: dict) -> bool:
+    """Whether this shot sends audio references: a clone or a dub, on a model
+    with the input."""
+    return bool(inp.get("voices")) and shot.get("audio_policy") in (
+        "clone", "dub", "dub_keep_foley")
+
+
+def sounds(target, job, shot: dict, inp: dict, pics: list) -> tuple[list, str]:
+    """([(path, what)], the prompt's line naming them) a shot sends as audio
+    references (router.inputs.voices): a clone shot's voice samples, one per
+    speaker, or a dub shot's window of the recording; ([], "") for any other
+    shot, a model without the input, or a file not on disk (rendering anyway
+    without it). A sample past the model's longest is cut between words
+    (audiocut.voice_clip); one shorter than its shortest, or a window outside
+    the range, is a ValueError before anything is sent; a window shorter
+    than the shortest is padded with silence. `mention` names each
+    as the request numbers them, as the pictures are named ("@Audio {n}")."""
+    from seriesmith import audiocut as AC
+    from seriesmith import jobs as J
+    from seriesmith.targets import held_audio as HA
+    spec = inp.get("voices")
+    policy = shot.get("audio_policy")
+    if not spec or policy not in ("clone", *HA.DUB):
+        return [], ""
+    lo, hi = float(spec.get("min_seconds") or 0), float(spec.get("max_seconds") or 0)
+    name = target.short or target.id
+
+    def on_disk(rel: str) -> str | None:
+        p = os.path.normpath(J._abs(job.root, rel)) if rel else ""
+        return p if p and os.path.isfile(p) else None
+
+    def check(path: str, what: str, secs: float | None) -> None:
+        if secs is not None and lo and secs < lo:
+            raise ValueError(f"{what} is {secs:.1f}s and {name} hears {lo:g}s at the least: "
+                             f"use a longer one. Nothing was sent")
+        if secs is not None and hi and secs > hi:
+            raise ValueError(f"{what} is {secs:.1f}s and {name} hears {hi:g}s at the most. "
+                             f"Nothing was sent")
+
+    cfg = J.series_config(job.root) or {}
+    book = cfg.get("subjects") or {}
+    out, said = [], []
+    mention = spec.get("mention") or "@Audio {n}"
+    if policy == "clone":
+        for r in shot.get("voice_refs") or []:
+            path = on_disk(r.get("sample", ""))
+            if not path:
+                continue
+            e = book.get(r["subject"]) or {}
+            who = e.get("name") or (book.get(e.get("of")) or {}).get("name") or r["subject"]
+            secs = AC.duration(path)
+            if hi and secs and secs > hi:
+                path, secs = AC.voice_clip(path, max(lo, hi - 3.0), hi)
+            check(path, f"{who}'s voice sample", secs)
+            out.append((path, r["subject"]))
+            said.append(f"Use {mention.replace('{n}', str(len(out)))} as the voice of {who}.")
+    else:
+        (slot,) = HA.recording_slot(job.doc, shot)
+        track = on_disk(slot["path"])
+        if track:
+            if "audio_in" in shot and not shot.get("audio_file"):
+                a_in, a_out = float(shot["audio_in"]), float(shot["audio_out"])
+                # a line shorter than the model hears is padded with silence
+                check(track, f"{shot.get('id', 'the shot')}'s window of the recording "
+                             f"({a_in:.2f}-{a_out:.2f}s)", max(a_out - a_in, lo))
+                track = AC.window(track, a_in, a_out, at_least=lo)
+            else:
+                check(track, os.path.basename(track), AC.duration(track))
+            out.append((track, "recording"))
+            said.append(f"Use {mention.replace('{n}', '1')} as the exact dialogue and soundtrack "
+                        f"of the shot: the lips are synced to it.")
+            if spec.get("rereads"):
+                job.notes.append(f"{policy} on {name}: it re-reads the recording in its voice, at "
+                                 f"its own pace, so the lips follow the take's own sound: keep it "
+                                 f"rather than laying the recording over the cut")
+    if out and spec.get("needs_picture") and not pics:
+        raise ValueError(f"{name} can't be sent audio without a picture, and "
+                         f"{shot.get('id', 'this shot')} has none on disk. Nothing was sent")
+    return out, " ".join(said)
+
+
 def check_ratios(target, pics: list) -> None:
     """ValueError, before anything is sent, for a picture whose shape the model
     refuses (its target's `router.picture_ratio`, [narrowest, widest] as width
@@ -418,13 +506,23 @@ def router_call(target, job) -> tuple[str, dict]:
     shot = J.frozen_shotlist(job)["shots"][0]
     text = J._prompt_text(shot.get("prompt") or job.prompt)
     via = inp.get("via", "")
-    mode, pics = pictures(target, job, shot, inp)
+    # audio and frames don't mix on Seedance ("first/last frame content cannot
+    # be mixed with reference media content"): a shot it hears goes by its
+    # references, its keyframes left out
+    hears = (inp.get("voices") or {}).get("with_frames") is False and bool(
+        sounds_wanted(inp, shot))
+    mode, pics = pictures(target, job, shot, inp, frames_ok=not hears)
+    if hears and any(p for p in (shot.get("keyframes") or {}).values()
+                     if os.path.isfile(J._abs(job.root, p))):
+        job.notes.append(f"{target.short or target.id} can't take a first or last frame "
+                         f"with audio: the shot's keyframes weren't sent, its references were")
     if target.capabilities().get("requires_first") and mode != "frames":
         # an image-to-video model (Runway): nothing to start from, nothing to send
         raise ValueError(f"{target.short or target.id} starts every shot from its first keyframe, and "
                          f"{shot.get('id', 'this shot')} has none yet: make it first (the shot's "
                          f"menu, or first: generate in the script)")
     check_ratios(target, pics)
+    heard, voice_line = sounds(target, job, shot, inp, pics)
     args = copy.deepcopy(spec.get("arguments") or {})
 
     # the pictures named at the end (Kling), the prose cut to the longest
@@ -435,6 +533,8 @@ def router_call(target, job) -> tuple[str, dict]:
     # the pictures defined first (Seedance: its prompt guide's "Define ... in @Image N as ...")
     head = (definitions(pics, shot, J.series_config(job.root) or {})
             if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
+    # the audio named after the pictures ("Use @Audio 1 as the voice of Ada.")
+    head = "\n\n".join(x for x in (head, voice_line) if x)
     limit = pspec.get("max_chars") if isinstance(pspec, dict) else None
     if limit:
         text = fit(text, limit - sum(len(x) + 2 for x in (head, tail) if x))
@@ -466,6 +566,11 @@ def router_call(target, job) -> tuple[str, dict]:
     for role, path, _ in pics:
         place(args, inp[role], url=File(path, via=via),
               mime="image/jpeg" if path.lower().endswith((".jpg", ".jpeg")) else "image/png")
+    for path, _ in heard:
+        # a sound's own way in (Seedance's library registers pictures only:
+        # "get image info ... not supported", 2026-10-28), else the pictures'
+        place(args, inp["voices"], url=File(path, via=inp["voices"].get("via", via)),
+              mime="audio/wav")
     neg = inp.get("negative")
     if neg and getattr(job, "negative", None):
         place(args, neg, negative=job.negative)
