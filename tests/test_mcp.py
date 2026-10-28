@@ -27,9 +27,10 @@ PNG = b"\x89PNG\r\n\x1a\nfake"
 class Recorder(M.Client):
     """Answers every call with something of the right shape, recording it."""
 
-    def __init__(self):
+    def __init__(self, cut=None):
         super().__init__("http://127.0.0.1:0")
         self.calls = []
+        self.cut = cut if cut is not None else {"proxy": [{"shot": "sh010"}], "final": []}
 
     def call(self, method, path, query=None, body=None, raw=False):
         self.calls.append((method, path, query, body))
@@ -37,7 +38,9 @@ class Recorder(M.Client):
             return PNG, "image/png"
         return {"/seriesmith/config": {"roots": ["C:/Shows"]},
                 "/seriesmith/jobs": {"jobs": [], "paid": {"count": 0}},
-                "/seriesmith/episode": {"episode": "ep01", "shots": []},
+                "/seriesmith/file": self.cut,
+                "/seriesmith/episode": {"episode": "ep01", "shots": [
+                    {"shot": "sh010"}, {"shot": "sh020"}, {"shot": "sh900", "orphan": True}]},
                 "/seriesmith/targets": {"targets": [], "default": {}},
                 "/seriesmith/issues/export": {"format": "md", "text": "# issues"},
                 }.get(path, {"ok": True})
@@ -46,7 +49,8 @@ class Recorder(M.Client):
 ARGS = {"ep": "C:/Shows/s/ep01", "file": "script", "text": "x", "series": "{}",
         "shot": "sh010", "path": "refs/a.png", "base_hash": "h", "parent": "C:/Shows",
         "name": "ep01", "scripts": [{"name": "ep01.md", "text": "x"}], "ref": "subject:a",
-        "take": 1, "source_path": "C:/a.png", "id": "j1"}
+        "take": 1, "source_path": "C:/a.png", "id": "j1", "action": "queue", "keep": True,
+        "fields": {"note": "x"}, "items": "all", "hashes": {}, "what": "all"}
 
 
 def rpc(server, method, params=None, mid=1):
@@ -76,6 +80,54 @@ class ToolsTest(unittest.TestCase):
         M.Server(c).call_tool("episode_status", {"ep": ARGS["ep"], "pass": "final"})
         self.assertEqual(c.calls[-1][2], {"ep": ARGS["ep"], "pass": "final"})
 
+    def test_edit_cut_changes_only_what_it_names(self):
+        cut = {"proxy": [{"shot": "sh010", "take": 2, "trim_in": 4, "note": "keep"},
+                         {"shot": "sh020", "locked": True, "audio": {"source": "none"}},
+                         {"shot": "sh030"}], "final": []}
+        c = Recorder(cut)
+        res = M.Server(c).call_tool("edit_cut", {
+            "ep": "e", "changes": [{"shot": "sh020", "trim_out": 6}, {"shot": "sh030",
+                                                                     "out": True}],
+            "order": ["sh030", "sh010", "sh020"]})
+        self.assertFalse(res["isError"], res)
+        self.assertEqual(c.calls[0][:3], ("GET", "/seriesmith/file", {"ep": "e",
+                                                                    "path": "cut.json"}))
+        self.assertEqual(c.calls[-1][:2], ("PUT", "/seriesmith/cut"))
+        self.assertEqual(c.calls[-1][3], {"ep": "e", "pass": "proxy", "entries": [
+            {"shot": "sh030", "out": True},
+            {"shot": "sh010", "take": 2, "trim_in": 4, "note": "keep"},
+            {"shot": "sh020", "locked": True, "audio": {"source": "none"}, "trim_out": 6}]})
+        self.assertEqual(cut["proxy"][1], {"shot": "sh020", "locked": True,
+                                           "audio": {"source": "none"}})   # not changed in place
+
+    def test_edit_cut_refuses_what_would_lose_shots(self):
+        s = M.Server(Recorder({"proxy": [{"shot": "sh010"}, {"shot": "sh020"}]}))
+        for args, said in (({"order": ["sh020"]}, "missing sh010"),
+                           ({"order": ["sh010", "sh020", "sh099"]}, "not in it sh099"),
+                           ({"changes": [{"shot": "sh099"}]}, "isn't in the proxy cut"),
+                           ({"changes": [{"shot": "sh010", "trim": 3}]}, "has no trim")):
+            res = s.call_tool("edit_cut", dict(args, ep="e"))
+            self.assertTrue(res["isError"], args)
+            self.assertIn(said, res["content"][0]["text"])
+
+    def test_edit_cut_with_no_cut_yet_starts_from_the_script(self):
+        c = Recorder({"proxy": [], "final": []})
+        M.Server(c).call_tool("edit_cut", {"ep": "e", "changes": [{"shot": "sh020",
+                                                                   "flag": True}]})
+        self.assertEqual(c.calls[-1][3]["entries"], [{"shot": "sh010"},
+                                                     {"shot": "sh020", "flag": True}])
+
+    def test_master_plan_writes_nothing(self):
+        c = Recorder()
+        M.Server(c, read_only=True).call_tool("master_plan", {"ep": "e"})
+        self.assertEqual(c.calls[-1][3], {"ep": "e", "conform": None, "post": None,
+                                          "action": "plan"})
+
+    def test_upscale_passes_every_field_through(self):
+        c = Recorder()
+        M.Server(c).call_tool("upscale", {"ep": "e", "then_method": "seedvr2", "detail": 1})
+        self.assertEqual(c.calls[-1][3], {"ep": "e", "then_method": "seedvr2", "detail": 1})
+
     def test_a_missing_argument_is_the_models_error(self):
         res = M.Server(Recorder()).call_tool("render", {})
         self.assertTrue(res["isError"])
@@ -87,7 +139,8 @@ class ToolsTest(unittest.TestCase):
         self.assertIn("check_pair", names)
         self.assertIn("view_picture", names)
         for gone in ("save_source", "new_episode", "render", "generate_missing_refs",
-                     "cancel_job"):
+                     "cancel_job", "edit_cut", "set_override", "promote", "upscale", "post",
+                     "master", "delete_upscale"):
             self.assertNotIn(gone, names)
         every = {t.name for t in M.TOOLS}
         self.assertTrue(all(t.writes for t in M.TOOLS if t.queues))
@@ -240,6 +293,115 @@ class HttpTest(unittest.TestCase):
         res = M.Server(M.Client("http://127.0.0.1:0")).call_tool("list_episodes", {})
         self.assertTrue(res["isError"])
         self.assertIn("seriesmith serve", self.text(res))
+
+
+class LiveTest(unittest.TestCase):
+    """The tools against seriesmith serve's own app on the kitchen_sink
+    episode: what the routes accept from them, end to end (no ComfyUI, so
+    nothing renders; dry runs and plans only)."""
+
+    def setUp(self):
+        try:
+            from aiohttp.test_utils import TestServer  # noqa: F401
+        except ImportError as exc:                       # pragma: no cover
+            self.skipTest(f"the server needs aiohttp: {exc}")
+        import shutil
+        import tempfile
+        from test_render import FIXTURE, build_episode
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.shows = os.path.join(self._tmp.name, "Shows")
+        self.ep = os.path.join(self.shows, "ks01")
+        os.makedirs(self.ep)
+        shutil.copy(os.path.join(FIXTURE, "series.json"), self.ep)
+        shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(self.ep, "ks01.md"))
+        build_episode(self.ep)
+        os.environ["SERIESMITH_SETTINGS"] = os.path.join(self._tmp.name, "user", "settings.json")
+        self.addCleanup(os.environ.pop, "SERIESMITH_SETTINGS", None)
+
+    def run_tools(self, body):
+        import asyncio
+        from aiohttp.test_utils import TestServer
+        from seriesmith.server import standalone
+        from seriesmith.settings import Settings
+
+        async def go():
+            app = standalone.make_app([self.shows], Settings(comfyui_url="http://127.0.0.1:0"))
+            async with TestServer(app) as srv:
+                server = M.Server(M.Client(f"http://127.0.0.1:{srv.port}"))
+
+                def tool(tool_name, **args):
+                    res = server.call_tool(tool_name, args)
+                    text = res["content"][0].get("text", "")
+                    try:
+                        data = json.loads(text)
+                    except ValueError:
+                        data = text
+                    return res["isError"], data
+                # the tools block on urllib: off the loop the server answers on
+                return await asyncio.to_thread(body, tool)
+        return asyncio.run(go())
+
+    def test_end_to_end(self):
+        ep = self.ep
+
+        def body(tool):
+            err, got = tool("list_episodes")
+            self.assertFalse(err, got)
+            self.assertEqual([e["name"] for e in got["episodes"]], ["ks01"])
+            err, script = tool("read_source", ep=ep, file="script")
+            err, series = tool("read_source", ep=ep, file="series")
+            err, pair = tool("check_pair", series=series["text"], script=script["text"])
+            self.assertTrue(pair["ok"], pair)
+            self.assertEqual(pair["shots"][0]["id"], "sh010")
+            err, chk = tool("check_source", ep=ep, file="script", text=script["text"])
+            self.assertEqual(chk["shots"], pair["shots"])
+
+            # a new episode from the same pair, then built
+            err, made = tool("new_episode", parent=self.shows, name="ks02",
+                             series=series["text"], script=script["text"])
+            self.assertFalse(err, made)
+            self.assertTrue(made["check"]["ok"])
+            err, built = tool("build", ep=made["ep"])
+            self.assertTrue(built["ok"], built)
+
+            # the cut: a trim and a reorder, the rest kept
+            err, st = tool("episode_status", ep=ep)
+            shots = [s["shot"] for s in st["shots"]]
+            err, cut = tool("edit_cut", ep=ep, changes=[{"shot": shots[0], "trim_in": 3,
+                                                         "note": "tighter"}],
+                            order=shots[1:2] + shots[:1] + shots[2:])
+            self.assertFalse(err, cut)
+            err, again = tool("edit_cut", ep=ep, changes=[{"shot": shots[1], "flag": True}])
+            entries = again["cut"]["proxy"]
+            self.assertEqual([e["shot"] for e in entries][:2], [shots[1], shots[0]])
+            self.assertEqual(entries[1], {"shot": shots[0], "trim_in": 3, "note": "tighter"})
+            self.assertTrue(entries[0]["flag"])
+            err, _ = tool("reset_cut", ep=ep, what="trims")
+            self.assertFalse(err)
+
+            # an override, seen by get_shot, then cleared
+            err, ov = tool("set_override", ep=ep, shot=shots[0], fields={"note": "calmer"})
+            self.assertFalse(err, ov)
+            err, plan = tool("promote_plan", ep=ep)
+            self.assertFalse(err, plan)
+            err, _ = tool("clear_override", ep=ep, shot=shots[0])
+            self.assertFalse(err)
+
+            # plans and dry runs: nothing queued
+            err, refs = tool("generate_missing_refs", ep=ep, dry_run=True)
+            self.assertFalse(err, refs)
+            self.assertTrue(all(q["take"] is None for q in refs["queued"]))
+            err, plan = tool("master_plan", ep=ep)
+            self.assertTrue(err or "plan" in plan, plan)   # 409 without a recipe is fine
+            for name in ("list_targets", "list_jobs", "upscale_options", "post_options"):
+                err, got = tool(name)
+                self.assertFalse(err, (name, got))
+            err, got = tool("list_refs", ep=ep)
+            self.assertFalse(err, got)
+            err, got = tool("get_issues", ep=ep)
+            self.assertFalse(err, got)
+        self.run_tools(body)
 
 
 if __name__ == "__main__":

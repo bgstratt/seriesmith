@@ -453,7 +453,9 @@ seriesmith mcp --read-only             # nothing that writes a file or queues a 
 
 Your LLM client starts it; you don't run it yourself. With the editor's server running, the
 model can check a series config and script it wrote, make the episode, build it, generate
-or import and pick the pictures, render, look at the takes, pick them and assemble, through
+or import and pick the pictures, render, look at the takes, pick them, trim and reorder the
+cut, override a shot's settings (and promote them into the script), assemble, and finish
+the final pass (upscale, post, master), through
 the same routes the editor uses (so an open editor shows each step as it happens). The
 model is the client's; seriesmith needs no key for it. Tools that queue jobs on the GPU or
 spend Comfy credits say so, and the server asks the model to confirm with you before it

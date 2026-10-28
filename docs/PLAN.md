@@ -1124,16 +1124,21 @@ assembled. No LLM and no key in seriesmith: the client brings the model.
       targets ready here; episode status (trimmed to shots, takes and what's stale); one
       shot; issues as markdown; refs (list, generate missing, generate one, import, pick);
       a picture as an image the model sees (`/thumb`); render; jobs (list, wait by polling,
-      cancel); pick a take; assemble. The tools that queue say QUEUES in their descriptions
-      and the server's instructions ask the model to confirm with the user first;
-      `--read-only` leaves out everything that writes or queues. Checked live, read-only,
-      against `seriesmith serve`.
+      cancel); pick and discard a take; assemble. The cut (`edit_cut`: reads cut.json, changes
+      only the shots named, reorders when given every shot, writes the whole list back, since
+      `PUT /seriesmith/cut` replaces it; `reset_cut`); overrides (set, clear) and promote (plan,
+      apply); finishing (upscale and post with their options, Keep, delete; master: plan,
+      queue / assemble / prores, its job). The tools that queue say QUEUES in their
+      descriptions and the server's instructions ask the model to confirm with the user first;
+      `--read-only` leaves out everything that writes or queues. Tested end to end against
+      seriesmith serve's app (`tests/test_mcp.py`, LiveTest), and live, read-only.
 - [x] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
       client without the skill still writes scripts that check.
 - [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's and Desktop's config.
-- [ ] Not yet: the upscale / post / master tools, the cut (order, trims), overrides; a take
-      imported from a video file or another shot (with the gallery's drag onto the timeline,
-      a design of its own); MCP prompts (a client's slash commands) if a flow proves worth one.
+- [ ] Next, new in the editor as much as here: a take imported from a video file or another
+      shot (with the gallery's drag onto the timeline, a design of its own), then its tool.
+- [ ] Not yet: MCP prompts (a client's slash commands) if a flow proves worth one; refs'
+      overrides and keyframes, align, publish, targets from workflows as tools.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

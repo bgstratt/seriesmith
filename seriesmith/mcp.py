@@ -57,13 +57,22 @@ scripts) in a folder list_episodes' roots allow, then build.
 An existing episode: read_source, edit, check_source, save_source (with the hash
 read_source gave; it rebuilds).
 Then: generate_missing_refs (the pictures), wait_for_jobs, list_refs / view_picture /
-pick_ref; render, wait_for_jobs, episode_status / view_picture / pick_take; assemble.
-generate_* and render queue jobs that use the GPU or cost Comfy credits: say what will
-run and ask before calling them."""
+pick_ref; render, wait_for_jobs, episode_status / view_picture / pick_take; edit_cut
+(trims, order, out); assemble. A shot rendered differently without touching the script:
+set_override, then promote_plan / promote to write it into the script.
+Finishing the final pass: upscale_options, upscale, post; master_plan, master (queue,
+then assemble), master_job.
+Tools whose description starts QUEUES (generate_*, render, upscale, post, master) use
+the GPU or cost Comfy credits: say what will run and ask before calling them."""
 
 
 class ToolError(Exception):
-    """A tool's failure, said to the model (the call's isError)."""
+    """A tool's failure, said to the model (the call's isError); `status` is
+    the server's HTTP status when it answered."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 @dataclass
@@ -117,11 +126,11 @@ class Client:
             if isinstance(err, dict) and err.get("error"):
                 detail = {k: v for k, v in err.items() if k not in ("error", "text")}
                 raise ToolError(f"HTTP {e.code}: {err['error']}"
-                                + (f" {json.dumps(detail)}" if detail else "")) from None
+                                + (f" {json.dumps(detail)}" if detail else ""), e.code) from None
             if e.code == 404:
                 raise ToolError(f"{path} isn't there (HTTP 404): is the server older than "
-                                "this seriesmith? Restart it.") from None
-            raise ToolError(f"HTTP {e.code} from {path}: {text[:500]}") from None
+                                "this seriesmith? Restart it.", e.code) from None
+            raise ToolError(f"HTTP {e.code} from {path}: {text[:500]}", e.code) from None
         except (urllib.error.URLError, OSError) as e:
             raise ToolError(f"nothing answers at {self.url} ({e}): start the editor's server "
                             "(seriesmith serve, or ComfyUI with seriesmith) or pass --url") from None
@@ -232,6 +241,54 @@ def view_picture(c: Client, a: dict) -> dict:
                                 "w": int(a.get("width") or 768)})
     return {"_image": base64.b64encode(data).decode("ascii"),
             "_mime": ctype.split(";")[0] or "image/jpeg"}
+
+
+def passthrough(method: str, path: str) -> Callable:
+    """A route whose body is every argument given: one with many optional
+    fields (docs/API.md), of which the schema spells out the common ones."""
+    return lambda c, a: c.call(method, path, body=dict(a))
+
+
+CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio")
+
+
+def edit_cut(c: Client, a: dict) -> dict:
+    """PUT /seriesmith/cut replaces the pass's whole list: read it
+    (cut.json, as the editor does), change only the shots named, reorder if
+    asked, and write it all back, so nothing else in the cut is lost."""
+    ep, pass_ = a["ep"], a.get("pass") or "proxy"
+    try:
+        cut = c.call("GET", "/seriesmith/file", query={"ep": ep, "path": "cut.json"})
+    except ToolError as e:
+        if e.status != 404:                         # 404: no cut.json yet
+            raise
+        cut = None
+    entries = (cut or {}).get(pass_) or []
+    if not entries:                                 # no cut yet: the script's order
+        status = c.get("/seriesmith/episode", ep=ep, **{"pass": pass_})
+        entries = [{"shot": s["shot"]} for s in status.get("shots", [])
+                   if not s.get("orphan")]
+    by_shot = {e["shot"]: dict(e) for e in entries}
+    for ch in a.get("changes") or []:
+        shot = ch.get("shot")
+        if shot not in by_shot:
+            raise ToolError(f"{shot!r} isn't in the {pass_} cut")
+        unknown = set(ch) - {"shot", *CUT_CHANGES}
+        if unknown:
+            raise ToolError(f"a cut change has no {', '.join(sorted(unknown))}: "
+                            f"one of {', '.join(CUT_CHANGES)}")
+        by_shot[shot].update({k: v for k, v in ch.items() if k != "shot"})
+    order = a.get("order")
+    if order is not None:
+        if sorted(order) != sorted(by_shot):
+            missing, extra = set(by_shot) - set(order), set(order) - set(by_shot)
+            raise ToolError("order must name every shot of the cut once"
+                            + (f"; missing {', '.join(sorted(missing))}" if missing else "")
+                            + (f"; not in it {', '.join(sorted(extra))}" if extra else ""))
+    else:
+        order = [e["shot"] for e in entries]
+    return c.put("/seriesmith/cut", {"ep": ep, "pass": pass_,
+                                     "entries": [by_shot[s] for s in order]})
 
 
 def issues_md(res: dict) -> str:
@@ -357,6 +414,97 @@ TOOLS: list[Tool] = [
          "minutes). partial: true leaves shots without a usable take out instead of failing.",
          {"ep": EP, "pass": PASS, "partial": {"type": "boolean"}}, ("ep",),
          route("POST", "/seriesmith/assemble", "ep", "pass", "partial"), writes=True),
+    Tool("discard_take", "Move a take into renders/_trash/ (out of the lists; the file is "
+         "kept there).", {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS},
+         ("ep", "shot", "take"),
+         route("POST", "/seriesmith/discard", "ep", "shot", "take", "pass"), writes=True),
+
+    # the cut
+    Tool("edit_cut", "Change the cut: per shot its take, trims (trim_in / trim_out, frames "
+         "at the episode's fps), locked, note, out (left out of the cut, kept in the script), "
+         "flag (a bookmark), audio (sound from another take or a file: docs/API.md); and/or "
+         "its order (every shot of the cut, once). Only what is named changes.",
+         {"ep": EP, "pass": PASS,
+          "changes": {"type": "array", "items": {
+              "type": "object", "required": ["shot"],
+              "properties": {"shot": SHOT, "take": TAKE,
+                             "trim_in": {"type": "integer"}, "trim_out": {"type": "integer"},
+                             "locked": {"type": "boolean"}, "note": _s("a note"),
+                             "out": {"type": "boolean"}, "flag": {"type": "boolean"},
+                             "audio": {"type": ["object", "null"]}}}},
+          "order": {"type": "array", "items": SHOT,
+                    "description": "every shot of the cut in its new order"}},
+         ("ep",), edit_cut, writes=True),
+    Tool("reset_cut", "Put the cut back: what order (script order; picks, locks and notes "
+         "kept), trims (none), audio (each shot's own) or all.",
+         {"ep": EP, "pass": PASS, "what": _s("order, trims, audio or all",
+                                             enum=["order", "trims", "audio", "all"])},
+         ("ep", "what"), route("POST", "/seriesmith/cut/reset", "ep", "pass", "what"),
+         writes=True),
+
+    # overrides: a shot's settings for its next render, outside the script
+    Tool("set_override", "Change a shot's next render without editing the script "
+         "(overrides.json): fields prompt, seed (digits, as a string), model, loras, steps, "
+         "size (WxH), note; null clears one. prompt, model, loras, steps and size are per "
+         "pass (both: true sets both). get_shot shows what a render would use now.",
+         {"ep": EP, "shot": SHOT, "pass": PASS, "both": {"type": "boolean"},
+          "fields": {"type": "object", "properties": {
+              "prompt": {"type": ["string", "null"]}, "seed": {"type": ["string", "null"]},
+              "model": {"type": ["string", "null"]}, "loras": {"type": ["array", "null"]},
+              "steps": {"type": ["integer", "null"]}, "size": {"type": ["string", "null"]},
+              "note": {"type": ["string", "null"]}}}},
+         ("ep", "shot", "fields"),
+         route("PUT", "/seriesmith/override", "ep", "shot", "pass", "both", "fields"),
+         writes=True),
+    Tool("clear_override", "Remove a shot's override: one pass's fields, or all of it "
+         "without pass.", {"ep": EP, "shot": SHOT, "pass": PASS}, ("ep", "shot"),
+         route("DELETE", "/seriesmith/override", "ep", "shot", "pass", query=True),
+         writes=True),
+    Tool("promote_plan", "Which overrides the script or series config can express: the "
+         "items, the diffs they would make, what has to stay an override and why, and the "
+         "hashes promote needs.", {"ep": EP, "shot": _s("optional: one shot's only")},
+         ("ep",), route("GET", "/seriesmith/promote", "ep", "shot", query=True)),
+    Tool("promote", "Move overrides into the script / series config (old files kept in "
+         "_history/), drop them from overrides.json and rebuild. items: ids from "
+         "promote_plan, or \"all\"; hashes: promote_plan's (a 409 means a file changed: plan "
+         "again).",
+         {"ep": EP, "items": {"type": ["array", "string"], "items": {"type": "string"}},
+          "hashes": {"type": "object"}, "shot": _s("optional")}, ("ep", "items", "hashes"),
+         route("POST", "/seriesmith/promote", "ep", "items", "hashes", "shot"), writes=True),
+
+    # finishing: upscale, post, master
+    Tool("upscale_options", "What upscaling can run on this machine: pixel models, which "
+         "video models can re-sample (latent), SeedVR2, delivery sizes; with ep, the "
+         "series' master recipe.", {"ep": _s("optional: an episode, for its recipe")}, (),
+         route("GET", "/seriesmith/upscale/options", "ep", query=True)),
+    Tool("post_options", "What post-processing can run here (enhance tiers and methods, "
+         "motion blur), with ep the series' post recipe.",
+         {"ep": _s("optional: an episode, for its recipe")}, (),
+         route("GET", "/seriesmith/post/options", "ep", query=True)),
+    Tool("master_plan", "What making the master would do now: per shot of the final cut, "
+         "whether its upscale is fresh (ok, kept), still to make (upscale), queued or a gap, "
+         "and whether the master can be assembled (ready). Writes nothing.",
+         {"ep": EP, "conform": {"type": "boolean"}, "post": _s("off, present or recipe")},
+         ("ep",), lambda c, a: c.post("/seriesmith/master", dict(_body("ep", "conform",
+                                                                       "post")(a),
+                                                                 action="plan"))),
+    Tool("master_job", "The master being assembled for an episode, or the last one: state "
+         "(running, done with output, failed with error) and progress.", {"ep": EP},
+         ("ep",), route("GET", "/seriesmith/master/job", "ep", query=True)),
+    Tool("upscale_keep", "Mark a take's finished upscale Keep (a whole-cut upscale and the "
+         "master leave it as it is), or not.",
+         {"ep": EP, "shot": SHOT, "take": TAKE, "keep": {"type": "boolean"}, "pass": PASS},
+         ("ep", "shot", "take", "keep"),
+         route("PUT", "/seriesmith/upscale/keep", "ep", "shot", "take", "keep", "pass"),
+         writes=True),
+    Tool("delete_upscale", "Remove a take's upscale.",
+         {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS}, ("ep", "shot", "take"),
+         route("DELETE", "/seriesmith/upscale", "ep", "shot", "take", "pass", query=True),
+         writes=True),
+    Tool("delete_post", "Remove a take's post-process.",
+         {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS}, ("ep", "shot", "take"),
+         route("DELETE", "/seriesmith/post", "ep", "shot", "take", "pass", query=True),
+         writes=True),
 
     # queueing: the GPU or Comfy credits
     Tool("generate_missing_refs", "QUEUES JOBS (GPU or credits): one candidate for every ref "
@@ -381,6 +529,44 @@ TOOLS: list[Tool] = [
           "target": _s("optional: a one-off video model for this run")}, ("ep",),
          route("POST", "/seriesmith/render", "ep", "pass", "shots", "redo", "note", "target"),
          writes=True, queues=True),
+    Tool("upscale", "QUEUES JOBS (GPU or credits): the final cut's takes upscaled (the "
+         "whole cut when shots and takes are left out; fresh ones skipped unless redo). "
+         "Common fields below; every other field of POST /seriesmith/upscale passes "
+         "through (then_pixel_model, then_method, seedvr2_model, detail, encoder, ...). "
+         "upscale_options says what can run.",
+         {"ep": EP, "pass": _s("final when left out", enum=["proxy", "final"]),
+          "shots": {"type": "array", "items": SHOT},
+          "takes": {"type": "array", "items": {"type": "object", "properties": {
+              "shot": SHOT, "take": TAKE}}},
+          "redo": {"type": "boolean"}, "scale": {"type": "number"},
+          "method": _s("latent (re-sample), pixel or seedvr2"),
+          "pixel_model": _s("a file in models/upscale_models, or rtx_vsr"),
+          "deliver": _s("1080p, 1440p, 4k or WxH"), "fit": _s("crop or pad"),
+          "quality": _s("review or master")}, ("ep",),
+         passthrough("POST", "/seriesmith/upscale"), writes=True, queues=True),
+    Tool("post", "QUEUES JOBS (GPU or credits): post-process takes' fresh upscales "
+         "(enhance, then motion blur): by the series' recipe (recipe: true, or neither "
+         "enhance nor blur) or as given. Fresh ones with the same settings skipped unless "
+         "redo.",
+         {"ep": EP, "pass": PASS, "shots": {"type": "array", "items": SHOT},
+          "takes": {"type": "array", "items": {"type": "object"}},
+          "redo": {"type": "boolean"}, "recipe": {"type": "boolean"},
+          "enhance": {"description": "a tier (draft, production, cinematic), a method "
+                      "(pixel, seedvr2, supir), an object or none"},
+          "blur": {"type": "number", "description": "motion blur, 0-1 of the frame interval"},
+          "quality": _s("review or master")}, ("ep",),
+         passthrough("POST", "/seriesmith/post"), writes=True, queues=True),
+    Tool("master", "Make the master by the series' recipe. action queue QUEUES JOBS (GPU "
+         "or credits: the upscales master_plan lists); assemble writes master/ (a job: "
+         "follow it with master_job); prores makes the .mov of the master made. Run "
+         "master_plan first and say what it will do.",
+         {"ep": EP, "action": _s("queue, assemble or prores",
+                                 enum=["queue", "assemble", "prores"]),
+          "conform": {"type": "boolean"}, "allow_gaps": {"type": "boolean"},
+          "prores": {"type": "boolean"}, "order": _s("cut or target"),
+          "post": _s("off, present or recipe")}, ("ep", "action"),
+         route("POST", "/seriesmith/master", "ep", "action", "conform", "allow_gaps",
+               "prores", "order", "post"), writes=True, queues=True),
     Tool("cancel_job", "Cancel a queued or running job (its id from list_jobs).",
          {"id": _s("the job's id")}, ("id",),
          route("POST", "/seriesmith/jobs/cancel", "id"), writes=True),
