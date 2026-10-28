@@ -1269,6 +1269,12 @@ def set_ref_override(data: dict, ref: Ref, view: str | None, fields: dict,
             raise RefError(str(e)) from None
     refs = data.setdefault("refs", {})
     block = refs.setdefault(ref.id, {})
+    if "target" in fields and fields["target"] != block.get("target"):
+        # the model files saved for one target are another target's family:
+        # a new target starts from its own (unless this change names them)
+        for k in ("model", "loras"):
+            if k not in fields:
+                block.pop(k, None)
     dst = block.setdefault("views", {}).setdefault(view, {}) if view else block
     for k, v in fields.items():
         if v is None:
@@ -3289,10 +3295,29 @@ def resolve_job_models(job: GenJob, listing, resolve=None, cache=None,
     family takes a missing file's place (job.model / job.values), a missing
     accelerator switches to the preset's `base` (its model, steps and cfg),
     and a missing required file is returned (the job can't run). Records
-    job.resolved and notes. `listing` None: nothing resolved."""
+    job.resolved and notes. `listing` None: nothing resolved.
+
+    A model of another family than the target's (targets.check_model: its
+    name, else its header) is never loaded: one saved in the ref's override
+    for another target is left out, with a note, and the target's own used
+    (Ballroom ep03: an H3 file saved while trying FastH3 crashed Qwen and
+    Klein, "mat1 and mat2 shapes cannot be multiplied"); one the request
+    names is a RefError."""
     t = job.target
     if listing is None or t is None:
         return []
+    if job.model:
+        from seriesmith import jobs as J
+        c = TG.check_model(t, "model", job.model, resolve or J.model_resolver(), extra,
+                           cache if cache is not None else TG.modelid.temp_cache())
+        if c is not None and c.get("block"):
+            if "model" not in job.overridden:
+                raise RefError(f"{c['message']}: pick a {t.short} model")
+            job.notes.append(f"the model saved for this ref, {TG.model_stem(job.model)}, is left "
+                             f"out: {c['message']}. {t.short}'s own is used (clear it in the "
+                             f"ref's settings to stop this note)")
+            job.model = ""
+            job.overridden = [k for k in job.overridden if k != "model"]
     wanted = TG.wanted_files(t, "final")
     if job.model:
         wanted["model"] = job.model

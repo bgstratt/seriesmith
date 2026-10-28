@@ -224,6 +224,52 @@ class ImageTargetsTest(Episode):
         missing = R.resolve_job_models(job, lambda spec: installed.get(spec["folder"]))
         self.assertEqual([m["param"] for m in missing], ["model"])
 
+    def test_a_saved_model_of_another_family_is_left_out(self):
+        """An H3 file saved in a ref's override (tried on FastH3) is never
+        loaded by Klein: dropped with a note, Klein's own used (Ballroom ep03
+        sh130 crashed Qwen and Klein: "mat1 and mat2 shapes cannot be
+        multiplied"). Named in the request, it is refused. Changing the ref's
+        target clears the model saved for the old one."""
+        from test_modelid import h3_tensors, write_st
+        h3 = write_st(os.path.join(self._t.name, "models", "h3ErosMax_beta5_fp8.safetensors"),
+                      h3_tensors())
+        resolve = lambda folder, name: h3 if name == os.path.basename(h3) else None  # noqa: E731
+        installed = {"diffusion_models": ["flux-2-klein-9b-kv-fp8.safetensors", os.path.basename(h3)],
+                     "text_encoders": ["qwen_3_8b_fp8mixed.safetensors"],
+                     "vae": ["flux2-vae.safetensors"]}
+        listing = lambda spec: installed.get(spec["folder"])      # noqa: E731
+        ref = R.find_ref(self.s, "location:kitchen")
+        ov = R.set_ref_override(R.load_overrides(self.s.home), ref, None,
+                                {"target": "fasth3_omni_still", "model": os.path.basename(h3)},
+                                None)
+        (job,) = R.plan_generate(self.s, R.GenRequest(ref.id, target="flux2_klein_edit"), ov,
+                                 rng=random.Random(1))
+        self.assertEqual(job.model, os.path.basename(h3))           # as saved...
+        self.assertEqual(R.resolve_job_models(job, listing, resolve), [])
+        self.assertEqual(job.model, "flux-2-klein-9b-kv-fp8.safetensors")   # ...left out
+        self.assertNotIn("model", job.overridden)
+        self.assertIn("h3ErosMax_beta5_fp8, is left out", " ".join(job.notes))
+        # the same file named in the request: refused, saying why
+        (job,) = R.plan_generate(self.s, R.GenRequest(ref.id, target="flux2_klein_edit",
+                                                      model=os.path.basename(h3)),
+                                 rng=random.Random(1))
+        with self.assertRaisesRegex(R.RefError, "is MiniMax H3"):
+            R.resolve_job_models(job, listing, resolve)
+        # on an H3 target it is that family: kept
+        (job,) = R.plan_generate(self.s, R.GenRequest(ref.id, target="fasth3_omni_still"), ov,
+                                 rng=random.Random(1))
+        R.resolve_job_models(job, lambda spec: [os.path.basename(h3)]
+                             if spec["folder"] == "diffusion_models" else installed.get(spec["folder"])
+                             or ["qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+                                 "minimax_h3_video_vae_fp16.safetensors"], resolve)
+        self.assertEqual(job.model, os.path.basename(h3))
+        # a new target clears the model and LoRAs saved for the old one
+        R.set_ref_override(ov, ref, None, {"target": "flux2_klein_edit"}, None)
+        self.assertNotIn("model", ov["refs"][ref.id])
+        R.set_ref_override(ov, ref, None, {"model": "flux-2-klein-9b-kv-fp8.safetensors"}, None)
+        R.set_ref_override(ov, ref, None, {"target": "flux2_klein_edit"}, None)   # the same
+        self.assertEqual(ov["refs"][ref.id]["model"], "flux-2-klein-9b-kv-fp8.safetensors")
+
     def test_resolution_by_family(self):
         t = TG.load_target("flux2_klein_edit", "image")
         installed = {"diffusion_models": ["flux-2-klein-9b-kv-fp8.safetensors"],
