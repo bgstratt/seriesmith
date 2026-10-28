@@ -383,6 +383,30 @@ class FramingTest(Episode):
                          "of the head, cut off at the shoulders")
 
 
+class WholePictureTest(Episode):
+    """A character whose sheet is one whole picture (`sheet_panels: 1`) gives a
+    keyframe that picture as it is; cut as a 4-panel sheet, its last quarter
+    was a near-blank strip, and every model drew someone else (Ballroom ep03
+    sh130, 2026-10-28). A 4-panel sheet still gives the view's panel."""
+
+    def test_a_whole_picture_is_never_cut(self):
+        cfg = self.s.series_cfg["subjects"]
+        for sid in ("ada", "bo"):
+            self.live(cfg[sid]["sheet"])
+        cfg["ada"]["sheet_panels"] = 1
+        sh, sq = R.shot_ir(self.ep, "sh020")
+        refs = {r["subject"]: r for r in R.reference_images(
+            self.s, sh, sq, TG.load_target("flux2_klein_edit", "image")) if r.get("subject")}
+        self.assertNotIn("crop", refs["ada"])
+        self.assertEqual(refs["ada"]["path"], R.ref_file(self.s.home, cfg["ada"]["sheet"]))
+        self.assertEqual(refs["bo"]["crop"], {"panels": 4, "index": 0})
+        # a wardrobe variant follows the subject it is a variant of
+        cfg["ada_coat"] = {"of": "ada", "design": "Ada in a coat", "sheet": cfg["ada"]["sheet"]}
+        self.assertEqual(R.panels_of(self.s, cfg["ada_coat"]), 1)
+        cfg["ada"].pop("sheet_panels")
+        self.assertEqual(R.panels_of(self.s, cfg["ada_coat"]), 4)
+
+
 class CompositeTest(Episode):
     def setUp(self):
         super().setUp()

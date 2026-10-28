@@ -662,7 +662,8 @@ def variant_reference_images(s: Series, ref: Ref, view: str | None,
         d["path"] = picked
     elif base.get("sheet") and os.path.isfile(ref_file(s.home, base["sheet"])):
         d["path"] = ref_file(s.home, base["sheet"])
-        d["crop"] = {"panels": len(VIEW_TAGS), "index": VIEW_TAGS.index(view)}
+        if panels_of(s, base) == len(VIEW_TAGS):       # a whole picture is never cut
+            d["crop"] = {"panels": len(VIEW_TAGS), "index": VIEW_TAGS.index(view)}
     else:
         return []
     return [d]
@@ -756,8 +757,11 @@ def _reference_parts(s: Series, sh, sq) -> list[dict]:
             if p:
                 d.update(view=view, path=p)
             elif e.get("sheet") and os.path.isfile(ref_file(s.home, e["sheet"])):
-                d.update(view=view, path=ref_file(s.home, e["sheet"]),
-                         crop={"panels": len(VIEW_TAGS), "index": VIEW_TAGS.index(view)})
+                d.update(view=view, path=ref_file(s.home, e["sheet"]))
+                # a 4-panel sheet gives that view's panel; a whole picture
+                # (`sheet_panels: 1`) goes as it is: cut, it was a blank strip
+                if panels_of(s, e) == len(VIEW_TAGS):
+                    d["crop"] = {"panels": len(VIEW_TAGS), "index": VIEW_TAGS.index(view)}
             else:
                 continue
         else:
@@ -4101,7 +4105,11 @@ def edit_refs(s: Series, ref: Ref, target) -> list[dict]:
 def sheet_panels(s: Series, ref: Ref) -> int:
     """A character's sheet: 4 panels, or 1 (`sheet_panels: 1`, a picture of
     them whole); a wardrobe variant follows the subject it is a variant of."""
-    e = ref.entry
+    return panels_of(s, ref.entry)
+
+
+def panels_of(s: Series, e: dict) -> int:
+    """sheet_panels for a series config entry."""
     base = (s.series_cfg.get("subjects") or {}).get(e.get("of") or "", {}) if e.get("of") else {}
     try:
         return 1 if int(e.get("sheet_panels") or base.get("sheet_panels") or 4) == 1 else 4
