@@ -19,6 +19,13 @@ def sentence(text: str) -> str:
     return text if text[-1] in ".!?\"'" else text + "."
 
 
+def clause(text: str) -> str:
+    """A series config's description, design or look as it goes inside a
+    sentence: trimmed, without its own last full stop (a writer adds the
+    punctuation that follows: "...long soft shadows., the camera" before)."""
+    return (text or "").strip().rstrip(".").rstrip()
+
+
 def join_and(items: list[str]) -> str:
     """"a", "a and b", "a, b, and c"."""
     if len(items) <= 1:

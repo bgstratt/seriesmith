@@ -32,9 +32,11 @@ def build_prompt(shot, seq, series_cfg: dict) -> str:
     """The prose prompt for one shot (`shot` an core.ir.Shot, `seq` its
     ir.Sequence)."""
     book = series_cfg.get("subjects", {})
-    look = ((series_cfg.get("style") or {}).get("look") or "").strip()
+    # a description's own last full stop goes: the camera clause follows it
+    # ("...long soft shadows., the camera" before; the Wan writer's rule)
+    look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
     loc = series_cfg.get("locations", {}).get(shot.plate or seq.location, {})
-    env = (loc.get("description") or "").strip()
+    env = (loc.get("description") or "").strip().rstrip(".")
     parts = []
     if look:
         parts.append(f"Style: {look}.")
