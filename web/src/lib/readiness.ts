@@ -293,3 +293,18 @@ export function isMissingFileSkip(x: RenderSkip): boolean {
   return skipMissingFiles(x).length > 0;
 }
 
+
+/** The model a voice take renders on (jobs.VOICE_TARGET), and its Features entry. */
+export const VOICE_TARGET = "minimax_h3_ref2va";
+export const VOICE_FEATURE = "video.h3";
+
+/** Why a voice take can't be made on this ComfyUI (H3 Ref2VA not ready), or null
+ * (ready, degraded, or not known: the server says then). */
+export function voiceTakeBlock(list: TargetList | null | undefined): string | null {
+  const r = readinessOf(list, VOICE_TARGET);
+  if (r?.status !== "not_ready") return null;
+  const files = r.missing.filter((m) => m.tier === "required").map((m) => m.want).filter(Boolean);
+  return `A voice take renders on MiniMax H3 Ref2VA, which isn't installed on this ComfyUI`
+    + (files.length ? ` (missing: ${files.join(", ")})` : "")
+    + ". Click to install it (the Features window).";
+}

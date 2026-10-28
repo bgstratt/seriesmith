@@ -3,11 +3,13 @@
 
 import { useEffect } from "react";
 import { clearMulti, dubToVoice, makeVoiceTakes, renderSelected } from "../actions";
+import { voiceTakeBlock } from "../lib/readiness";
 import { useApp } from "../store";
 
 export function MultiBar() {
   const multi = useApp((s) => s.multi);
   const pass = useApp((s) => s.pass);
+  const noVoice = voiceTakeBlock(useApp((s) => s.targets));
   const n = multi.length;
   useEffect(() => {
     if (!n) return;
@@ -27,8 +29,10 @@ export function MultiBar() {
         onClick={() => renderSelected()}>
         <i className="pi pi-play" /> Generate {n}
       </button>
-      <button className="h3-btn h3-primary" title="Queue a voice take of each now: the shot rendered for its sound only (H3 Ref2VA, 64x64), to listen to before dubbing" onClick={() => makeVoiceTakes(multi)}>
-        <i className="pi pi-microphone" /> Generate voices
+      <button className="h3-btn h3-primary"
+        title={noVoice ?? "Queue a voice take of each now: the shot rendered for its sound only (H3 Ref2VA, 64x64), to listen to before dubbing"}
+        onClick={() => makeVoiceTakes(multi)}>
+        <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate voices
       </button>
       <button className="h3-btn h3-primary" title="Queue each now on its own model, dubbed to its newest voice take" onClick={() => dubToVoice(multi)}>
         <i className="pi pi-play" /> Generate dubs

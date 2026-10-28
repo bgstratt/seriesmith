@@ -20,7 +20,7 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
+import { VOICE_FEATURE, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles, voiceTakeBlock } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
@@ -832,6 +832,8 @@ export function clearMulti() {
 export function makeVoiceTakes(shots: string[]) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  // H3 Ref2VA not installed here: show it in Features, ticked to install
+  if (voiceTakeBlock(s.targets)) return openFeatures(true, VOICE_FEATURE);
   if (shots.length > 8 && !confirm(`Queue ${shots.length} voice takes?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true, voice_only: true,
                      note: "voice take" });
@@ -3593,8 +3595,9 @@ export function openSettings(open = true) {
 }
 
 /** The Features window: what can be added to this install, and its installer. */
-export function openFeatures(open = true) {
-  set({ featuresOpen: open, menu: null });
+/** `focus`: a Features entry to show (scrolled to, opened, ticked to install). */
+export function openFeatures(open = true, focus: string | null = null) {
+  set({ featuresOpen: open, featuresFocus: open ? focus : null, menu: null });
 }
 
 export function closeFeatures() {

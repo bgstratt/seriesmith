@@ -1,7 +1,9 @@
 // Through the mock API: several shots selected and queued together, a picture
 // dropped on a shot as its first keyframe, and an image refused between clips.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clickShot, loadRefs, refreshEpisode, renderSelected, select } from "../src/actions";
+import { clickShot, loadRefs, makeVoiceTakes, refreshEpisode, renderSelected, select } from "../src/actions";
+import { VOICE_FEATURE, VOICE_TARGET } from "../src/lib/readiness";
+import type { TargetList } from "../src/types";
 import { setApi, setHost, type Host } from "../src/host";
 import { keyframeRefId } from "../src/lib/keyframes";
 import { createMockApi } from "../src/mock/mockApi";
@@ -68,5 +70,13 @@ describe("several shots, and a picture as a keyframe", () => {
     expect(store.get().shotForm).toMatchObject({ shot: null, after: a, file: pic, dur: null, left: a });
     await dropFileBetween(1, new File([], "notes.txt"));
     expect(toasts.at(-1)?.[1]).toBe("Not a video or a picture");
+  });
+
+  it("a voice take without H3 Ref2VA opens Features on it, and queues nothing", () => {
+    const spy = vi.spyOn(api, "render");
+    store.set({ targets: { targets: [{ id: VOICE_TARGET, readiness: { status: "not_ready", missing: [] } }] } as unknown as TargetList });
+    makeVoiceTakes([shots()[0]]);
+    expect(store.get()).toMatchObject({ featuresOpen: true, featuresFocus: VOICE_FEATURE });
+    expect(spy).not.toHaveBeenCalled();
   });
 });

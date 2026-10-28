@@ -473,6 +473,8 @@ export interface AppState {
   settingsOpen: boolean;
   /** the Features window: what can be added, and the installer (components/FeaturesWindow.tsx) */
   featuresOpen: boolean;
+  /** a Features entry to show when the window opens (scrolled to, opened, ticked) */
+  featuresFocus: string | null;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -588,6 +590,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     draftsOpen: false,
     settingsOpen: false,
     featuresOpen: false,
+    featuresFocus: null,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},

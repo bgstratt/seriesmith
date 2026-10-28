@@ -319,3 +319,24 @@ describe("targetCounts with the server's default/series sources", () => {
     expect(_tc(shots)).toEqual({ episode: 3, own: 2, unknown: 0 });
   });
 });
+
+import { VOICE_TARGET, voiceTakeBlock } from "../src/lib/readiness";
+import type { TargetList } from "../src/types";
+
+describe("a voice take needs H3 Ref2VA", () => {
+  const list = (readiness: unknown) => ({ targets: [{ id: VOICE_TARGET, readiness }] } as unknown as TargetList);
+  it("says what to install when it isn't ready, and nothing otherwise", () => {
+    const why = voiceTakeBlock(list({
+      status: "not_ready",
+      missing: [{ param: "model", tier: "required", want: "minimax_h3_ref2va_pruned_int8_convrot.safetensors" },
+                { param: "loras", tier: "accelerator", want: "turbo.safetensors" }],
+    }));
+    expect(why).toContain("isn't installed on this ComfyUI");
+    expect(why).toContain("minimax_h3_ref2va_pruned_int8_convrot.safetensors");
+    expect(why).not.toContain("turbo");
+    expect(why).toContain("Features");
+    expect(voiceTakeBlock(list({ status: "ready" }))).toBeNull();
+    expect(voiceTakeBlock(list({ status: "degraded", missing: [] }))).toBeNull();
+    expect(voiceTakeBlock(null)).toBeNull();          // not known: the server says
+  });
+});

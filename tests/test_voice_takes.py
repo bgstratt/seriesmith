@@ -145,6 +145,14 @@ class VoiceTakeTest(unittest.TestCase):
         self.assertFalse(of(g, "LTXVAudioOnlyModel"))
         self.assertEqual([g[k]["inputs"]["audio"] for k in of(g, "LoadAudio")], [got["audio"]])
 
+    def test_the_editor_installs_the_voice_model_from_its_features_entry(self):
+        # web/src/lib/readiness.ts VOICE_FEATURE: the Features entry a voice take
+        # opens when its model isn't installed
+        from seriesmith import features as FE
+        by = {f.id: f for f in FE.catalog()}
+        self.assertIn("video.h3", by)
+        self.assertTrue(any(i.target == J.VOICE_TARGET for i in by["video.h3"].items))
+
     def test_what_cant_be_dubbed_is_said(self):
         # no voice take yet
         job = self.plan("sh020", target=FL, lines_from="voice")

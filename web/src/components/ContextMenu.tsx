@@ -13,6 +13,7 @@ import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
 import { shotTarget } from "../lib/targets";
+import { voiceTakeBlock } from "../lib/readiness";
 import { statusKey, useApp } from "../store";
 import { useTargets } from "./Targets";
 
@@ -28,6 +29,7 @@ export function ContextMenu() {
   const { list: targets, seriesDefault } = useTargets();
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const multi = useApp((s) => s.multi);
+  const noVoice = voiceTakeBlock(targets);
 
   useLayoutEffect(() => {
     if (!menu || !ref.current) return setPos(null);
@@ -162,8 +164,10 @@ export function ContextMenu() {
     <>
       {keyframes}
       <div className="h3-menu-sep" />
-      <button disabled={!!shot?.orphan} title="The shot rendered for its sound only (H3 Ref2VA, 64x64, the voices cloned from their samples), to listen to before dubbing" onClick={run(() => makeVoiceTakes([menu.shot]))}>
-        <i className="pi pi-microphone" /> Generate a voice take
+      <button disabled={!!shot?.orphan}
+        title={noVoice ?? "The shot rendered for its sound only (H3 Ref2VA, 64x64, the voices cloned from their samples), to listen to before dubbing"}
+        onClick={run(() => makeVoiceTakes([menu.shot]))}>
+        <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a voice take{noVoice ? " (install H3 Ref2VA…)" : ""}
       </button>
       <div className="h3-menu-sep" />
       <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>

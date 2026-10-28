@@ -297,7 +297,8 @@ under the shot.
   with several selected (each one's newest), queues the shot on its own model with that
   voice, evened out to one loudness, as the recording it dubs: H3 FL2VA (from its
   keyframes) and the LTX models. The take says **voice of t03** and keeps the voice as
-  `_lines.wav`.
+  `_lines.wav`. Without H3 Ref2VA on your ComfyUI the voice buttons carry a warning sign,
+  and pressing one opens **Features** at MiniMax H3 Ref2VA, ticked to install.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
