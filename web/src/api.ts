@@ -21,7 +21,8 @@ import type {
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
-  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest
+  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
+  DubSources, ShotSound,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -299,6 +300,10 @@ export interface Api {
   /** PUT /seriesmith/episode-target: the episode's default target; null clears it
    * (back to series.json's). */
   putEpisodeTarget(ep: string, target: string | null): Promise<EpisodeTargetResult>;
+  /** What a shot can be dubbed to: its track's window, its dub tracks, its takes with sound. */
+  dubs(ep: string, shot: string): Promise<DubSources>;
+  /** Set shots' sound (null: back to the script's). */
+  putSound(ep: string, shots: string[], sound: ShotSound | null): Promise<{ shots: string[]; sound: ShotSound | null }>;
   /** Phase 11: copy a target's repo workflow into ComfyUI's saved workflows, to
    * edit it on the canvas. Its renders use that copy from then on. 409
    * (ApiError) when one of that name is already saved and `overwrite` is off. */
@@ -781,6 +786,8 @@ export function createHttpApi(t: Transport): Api {
     routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),
+    dubs: (ep, shot) => get<DubSources>(`/seriesmith/dubs?ep=${encodeURIComponent(ep)}&shot=${encodeURIComponent(shot)}`),
+    putSound: (ep, shots, sound) => call("PUT", "/seriesmith/sound", { ep, shots, sound }),
     putEpisodeTarget: async (ep, target) => {
       if (target !== null && (typeof target !== "string" || !target)) {
         return Promise.reject(new Error(`An episode target is a target id or null, got ${String(target)}`));

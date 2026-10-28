@@ -320,37 +320,34 @@ describe("targetCounts with the server's default/series sources", () => {
   });
 });
 
-import { VOICE_TARGET, voiceTakeBlock } from "../src/lib/readiness";
+import { VOICE_TARGET, dubBlock, dubTrackBlock } from "../src/lib/readiness";
 import type { TargetList } from "../src/types";
 
-describe("a voice take needs H3 Ref2VA", () => {
+describe("a dub track needs its voice model installed", () => {
   const list = (readiness: unknown) => ({ targets: [{ id: VOICE_TARGET, readiness }] } as unknown as TargetList);
   it("says what to install when it isn't ready, and nothing otherwise", () => {
-    const why = voiceTakeBlock(list({
+    const why = dubTrackBlock(list({
       status: "not_ready",
       missing: [{ param: "model", tier: "required", want: "minimax_h3_ref2va_pruned_int8_convrot.safetensors" },
                 { param: "loras", tier: "accelerator", want: "turbo.safetensors" }],
     }));
-    expect(why).toContain("isn't installed on this ComfyUI");
+    expect(why).toContain("H3 Ref2VA needs it installed");
     expect(why).toContain("minimax_h3_ref2va_pruned_int8_convrot.safetensors");
     expect(why).not.toContain("turbo");
-    expect(why).toContain("Features");
-    expect(voiceTakeBlock(list({ status: "ready" }))).toBeNull();
-    expect(voiceTakeBlock(list({ status: "degraded", missing: [] }))).toBeNull();
-    expect(voiceTakeBlock(null)).toBeNull();          // not known: the server says
+    expect(dubTrackBlock(list({ status: "ready" }))).toBeNull();
+    expect(dubTrackBlock(list({ status: "degraded", missing: [] }))).toBeNull();
+    expect(dubTrackBlock(null)).toBeNull();          // not known: the server says
   });
 });
 
-import { voiceDubBlock } from "../src/lib/readiness";
-
-describe("dubbing a shot to a voice take", () => {
+describe("dubbing a shot to a track of its own", () => {
   const list = { targets: [
-    { id: "minimax_h3_fl2va", label: "MiniMax H3 FL2VA", capabilities: { takes_voice: true } },
-    { id: "fasth3_omni", label: "FastH3 Omni", capabilities: { takes_voice: false } },
+    { id: "minimax_h3_fl2va", label: "MiniMax H3 FL2VA", capabilities: { dubs_tracks: true } },
+    { id: "wan22_ti2v", label: "Wan 2.2 5B", capabilities: { dubs_tracks: false } },
   ] } as unknown as TargetList;
-  it("a model that takes a voice is fine; one that doesn't says which do", () => {
-    expect(voiceDubBlock(list, "minimax_h3_fl2va")).toBeNull();
-    expect(voiceDubBlock(list, "fasth3_omni")).toMatch(/FastH3 Omni can't be dubbed to a voice take yet.*FL2VA or an LTX/);
-    expect(voiceDubBlock(list, "unknown_model")).toBeNull();          // not known: the server says
+  it("a model that dubs one is fine; one that doesn't says so", () => {
+    expect(dubBlock(list, "minimax_h3_fl2va")).toBeNull();
+    expect(dubBlock(list, "wan22_ti2v")).toMatch(/Wan 2.2 5B can't dub a track of its own/);
+    expect(dubBlock(list, "unknown_model")).toBeNull();          // not known: the server says
   });
 });

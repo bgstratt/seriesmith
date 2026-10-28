@@ -1,8 +1,8 @@
 // Through the mock API: several shots selected and queued together, a picture
 // dropped on a shot as its first keyframe, and an image refused between clips.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clickShot, loadRefs, makeVoiceTakes, refreshEpisode, renderSelected, select } from "../src/actions";
-import { VOICE_FEATURE, VOICE_TARGET } from "../src/lib/readiness";
+import { clickShot, generateDubTracks, loadRefs, refreshEpisode, renderSelected, select, setSound } from "../src/actions";
+import { VOICE_TARGET, VOICE_TARGETS } from "../src/lib/readiness";
 import type { TargetList } from "../src/types";
 import { setApi, setHost, type Host } from "../src/host";
 import { keyframeRefId } from "../src/lib/keyframes";
@@ -72,11 +72,21 @@ describe("several shots, and a picture as a keyframe", () => {
     expect(toasts.at(-1)?.[1]).toBe("Not a video or a picture");
   });
 
-  it("a voice take without H3 Ref2VA opens Features on it, and queues nothing", () => {
+  it("a dub track without its voice model opens Features on it, and queues nothing", () => {
     const spy = vi.spyOn(api, "render");
     store.set({ targets: { targets: [{ id: VOICE_TARGET, readiness: { status: "not_ready", missing: [] } }] } as unknown as TargetList });
-    makeVoiceTakes([shots()[0]]);
-    expect(store.get()).toMatchObject({ featuresOpen: true, featuresFocus: VOICE_FEATURE });
+    generateDubTracks([shots()[0]]);
+    expect(store.get()).toMatchObject({ featuresOpen: true, featuresFocus: VOICE_TARGETS[0].feature });
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("a dub track renders on the voice model, kept apart; a sound is set for the shots", async () => {
+    const render = vi.spyOn(api, "render");
+    generateDubTracks([shots()[0]], "fasth3_omni");
+    await vi.waitFor(() => expect(render).toHaveBeenCalled());
+    expect(render.mock.calls[0][0]).toMatchObject({ shots: [shots()[0]], dub_track: true, target: "fasth3_omni", redo: true });
+    const put = vi.spyOn(api, "putSound");
+    expect(await setSound([shots()[0]], { mode: "dub", dub: { from: "dub", take: 1 } })).toBe(true);
+    expect(put).toHaveBeenCalledWith(EP, [shots()[0]], { mode: "dub", dub: { from: "dub", take: 1 } });
   });
 });

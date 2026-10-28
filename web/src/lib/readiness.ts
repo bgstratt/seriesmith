@@ -294,24 +294,30 @@ export function isMissingFileSkip(x: RenderSkip): boolean {
 }
 
 
-/** The model a voice take renders on (jobs.VOICE_TARGET), and its Features entry. */
-export const VOICE_TARGET = "minimax_h3_ref2va";
-export const VOICE_FEATURE = "video.h3";
+/** The models a dub track can be made on (the voice, cloned, at a tiny size), the
+ * default first (jobs.VOICE_TARGET), and each one's Features entry. */
+export const VOICE_TARGETS: { id: string; label: string; feature: string }[] = [
+  { id: "minimax_h3_ref2va", label: "H3 Ref2VA", feature: "video.h3" },
+  { id: "fasth3_omni", label: "FastH3 Omni", feature: "video.fasth3_omni" },
+  { id: "ltx2", label: "LTX-2.5", feature: "video.ltx2" },
+];
+export const VOICE_TARGET = VOICE_TARGETS[0].id;
 
-/** Why a voice take can't be made on this ComfyUI (H3 Ref2VA not ready), or null
+/** Why a dub track can't be made on `target` on this ComfyUI (not installed), or null
  * (ready, degraded, or not known: the server says then). */
-export function voiceTakeBlock(list: TargetList | null | undefined): string | null {
-  const r = readinessOf(list, VOICE_TARGET);
+export function dubTrackBlock(list: TargetList | null | undefined, target: string = VOICE_TARGET): string | null {
+  const r = readinessOf(list, target);
   if (r?.status !== "not_ready") return null;
+  const name = VOICE_TARGETS.find((v) => v.id === target)?.label ?? target;
   const files = r.missing.filter((m) => m.tier === "required").map((m) => m.want).filter(Boolean);
-  return `A voice take renders on MiniMax H3 Ref2VA, which isn't installed on this ComfyUI`
+  return `A dub track on ${name} needs it installed on this ComfyUI`
     + (files.length ? ` (missing: ${files.join(", ")})` : "")
     + ". Click to install it (the Features window).";
 }
 
-/** Why a shot on `target` can't be dubbed to a voice take, or null when it can. */
-export function voiceDubBlock(list: TargetList | null | undefined, target: string | null | undefined): string | null {
+/** Why a shot on `target` can't dub a track of its own, or null when it can. */
+export function dubBlock(list: TargetList | null | undefined, target: string | null | undefined): string | null {
   const t = list?.targets.find((x) => x.id === target);
-  if (!t || t.capabilities?.takes_voice) return null;
-  return `${t.label ?? t.id} can't be dubbed to a voice take yet: render the shot on H3 FL2VA or an LTX model for that (Render…, or its target).`;
+  if (!t || t.capabilities?.dubs_tracks) return null;
+  return `${t.label ?? t.id} can't dub a track of its own: render the shot on an H3 or LTX model for that.`;
 }

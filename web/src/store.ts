@@ -475,6 +475,8 @@ export interface AppState {
   featuresOpen: boolean;
   /** a Features entry to show when the window opens (scrolled to, opened, ticked) */
   featuresFocus: string | null;
+  /** the Sound dialog's shots (generate, clone, or dub a track) */
+  soundAsk: { shots: string[] } | null;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -591,6 +593,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     settingsOpen: false,
     featuresOpen: false,
     featuresFocus: null,
+    soundAsk: null,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},

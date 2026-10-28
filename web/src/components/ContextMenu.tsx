@@ -4,7 +4,7 @@ import {
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
-  makeVoiceTakes, dubToVoice,
+  generateDubTracks, openSound, setSound,
 } from "../actions";
 import { pickTakeFile } from "../takeActions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
@@ -13,7 +13,7 @@ import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
 import { shotTarget } from "../lib/targets";
-import { voiceDubBlock, voiceTakeBlock } from "../lib/readiness";
+import { dubBlock, dubTrackBlock } from "../lib/readiness";
 import { statusKey, useApp } from "../store";
 import { useTargets } from "./Targets";
 
@@ -29,7 +29,7 @@ export function ContextMenu() {
   const { list: targets, seriesDefault } = useTargets();
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const multi = useApp((s) => s.multi);
-  const noVoice = voiceTakeBlock(targets);
+  const noVoice = dubTrackBlock(targets);
 
   useLayoutEffect(() => {
     if (!menu || !ref.current) return setPos(null);
@@ -65,7 +65,8 @@ export function ContextMenu() {
 
   if (!menu || !ep) return null;
   // a voice take: whether the shot's model can be dubbed to it
-  const noDub = voiceDubBlock(targets, shotTarget(st?.shots.find((x) => x.shot === menu.shot), seriesDefault));
+  const noDub = dubBlock(targets, shotTarget(st?.shots.find((x) => x.shot === menu.shot), seriesDefault));
+  const sound = st?.shots.find((x) => x.shot === menu.shot)?.sound;
   // right-clicked one of several selected shots, on the pass they're selected on
   const several = multi.length > 1 && multi.includes(menu.shot) && menu.pass === curPass;
   const shot = st?.shots.find((x) => x.shot === menu.shot);
@@ -166,10 +167,13 @@ export function ContextMenu() {
     <>
       {keyframes}
       <div className="h3-menu-sep" />
+      <button disabled={!!shot?.orphan} title="How the shot's sound is made: generate, clone, or dub a track" onClick={run(() => openSound([menu.shot]))}>
+        <i className="pi pi-volume-up" /> Sound…{sound ? ` (${sound.mode === "dub" ? `dub · ${sound.label}` : sound.mode})` : ""}
+      </button>
       <button disabled={!!shot?.orphan}
-        title={noVoice ?? "The shot rendered for its sound only (H3 Ref2VA, 64x64, the voices cloned from their samples), to listen to before dubbing"}
-        onClick={run(() => makeVoiceTakes([menu.shot]))}>
-        <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a voice take{noVoice ? " (install H3 Ref2VA…)" : ""}
+        title={noVoice ?? "Queue a dub track now: the shot rendered for its sound only (H3 Ref2VA, 64x64), its voices cloned; pick it in Sound… to dub the shot with"}
+        onClick={run(() => generateDubTracks([menu.shot]))}>
+        <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a dub track{noVoice ? " (install H3 Ref2VA…)" : ""}
       </button>
       <div className="h3-menu-sep" />
       <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
@@ -374,10 +378,11 @@ export function ContextMenu() {
           >
             <i className="pi pi-trash" /> Discard take…
           </button>
-          {take.voice_only && take.status === "ok" && (
-            <button disabled={!!noDub} title={noDub ?? `Render ${menu.shot} on its own model, dubbed to ${tn(take.take)}'s voice (levelled first)`}
-              onClick={run(() => dubToVoice([menu.shot], take.take))}>
-              <i className="pi pi-play" /> Generate a dub to this voice
+          {take.status === "ok" && (
+            <button disabled={!!noDub}
+              title={noDub ?? `Dub ${menu.shot} to ${tn(take.take)}'s sound from now on (its next render; its takes go stale)`}
+              onClick={run(() => void setSound([menu.shot], { mode: "dub", dub: { from: "take", pass: menu.pass, take: take.take } }))}>
+              <i className="pi pi-volume-up" /> Dub the shot with this take's sound
             </button>
           )}
           {common}

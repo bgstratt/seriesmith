@@ -20,7 +20,7 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { VOICE_FEATURE, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles, voiceTakeBlock } from "./lib/readiness";
+import { VOICE_TARGET, VOICE_TARGETS, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
@@ -34,6 +34,7 @@ import type {
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
   OwnPresetRequest, PresetPictureSource,
+  ShotSound,
 } from "./types";
 
 const set = store.set;
@@ -827,26 +828,44 @@ export function clearMulti() {
   set({ multi: [] });
 }
 
-/** A voice take of each shot: the shot rendered for its sound only (H3 Ref2VA at
- * 64x64, its voices cloned from their samples), to listen to before dubbing. */
-export function makeVoiceTakes(shots: string[]) {
+/** A dub track of each shot: the shot rendered for its sound only on a voice model
+ * (H3 Ref2VA at 64x64 unless another is chosen), its voices cloned, kept apart from
+ * its takes to dub the shot with (the Sound dialog). */
+export function generateDubTracks(shots: string[], target: string = VOICE_TARGET) {
   const s = get();
   if (!s.ep || !shots.length) return;
-  // H3 Ref2VA not installed here: show it in Features, ticked to install
-  if (voiceTakeBlock(s.targets)) return openFeatures(true, VOICE_FEATURE);
-  if (shots.length > 8 && !confirm(`Queue ${shots.length} voice takes?`)) return;
-  void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true, voice_only: true,
-                     note: "voice take" });
+  // the voice model isn't installed here: show it in Features, ticked to install
+  if (dubTrackBlock(s.targets, target)) {
+    return openFeatures(true, VOICE_TARGETS.find((v) => v.id === target)?.feature ?? null);
+  }
+  if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks?`)) return;
+  void queueRender({ ...baseRender(s.ep, s.pass, shots, false, target), redo: true, dub_track: true,
+                     note: "dub track" });
 }
 
-/** Dub each shot to a voice take: `take` (one shot), else each one's newest. The
- * shot renders on its own model, the voice as the recording it dubs. */
-export function dubToVoice(shots: string[], take: number | null = null) {
-  const s = get();
-  if (!s.ep || !shots.length) return;
-  if (shots.length > 8 && !confirm(`Queue ${shots.length} ${s.pass} renders, each dubbed to its voice take?`)) return;
-  void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true,
-                     lines_from: take ?? "voice" });
+/** The Sound dialog, for these shots. */
+export function openSound(shots: string[]) {
+  set({ soundAsk: shots.length ? { shots } : null, menu: null });
+}
+
+export function closeSound() {
+  set({ soundAsk: null });
+}
+
+/** Set shots' sound (null: back to the script's); their takes made otherwise go stale. */
+export async function setSound(shots: string[], sound: ShotSound | null): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep || !shots.length) return false;
+  return withBusy(`sound|${shots.join(",")}`, async () => {
+    try {
+      await api().putSound(ep, shots, sound);
+      scheduleRefresh(0);
+      return true;
+    } catch (e) {
+      report("Couldn't set the sound", e);
+      return false;
+    }
+  });
 }
 
 /** Queue the selected shots: a new take of each (its first at the built seed, else a

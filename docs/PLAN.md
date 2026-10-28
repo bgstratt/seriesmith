@@ -1237,18 +1237,24 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       model (`held_audio.make_lines`, LTX's own loaders: FL2VA's optional `voice_*` models,
       resolved for clone shots only: a models spec's `policies`), anchored as a recording;
       the take keeps them as `_lines.wav` (`SeriesmithSaveTake`'s `lines`). Not yet live.
-- [x] **Voice takes** (`voice_only`): the shot on H3 Ref2VA at 64x64 for its sound. Measured
-      live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768, 448x256, 256x160, 64x64 and
-      32x32 all said the line word for word (Whisper), pitch 262-296 Hz against the sample's
-      267, a rough timbre match 0.93-0.94 (LTX's clone: 242 Hz, 0.905, and it dropped a
-      word); the read differs with the size (the noise does), the level too (-13.5 to -20.3
-      dBFS RMS, 448x256 and 256x160 peaking over full scale), so a dub levels it first;
-      ~13-15 s a take once H3 is loaded; a size and seed give the same sound again.
-- [x] **Dub to a take's voice** (`lines_from`): FL2VA anchors it, LTX holds it, H3 Ref2VA
-      and FastH3 Omni dub it as the shot's own `audio_file`; levelled. Not yet live.
-- [ ] Voice and dub as one request (the queue's `after`), for clone on FL2VA without
-      listening first; a series setting choosing LTX or H3 for it.
-- [ ] `seriesmith render --voice` / `--lines-from` on the command line.
+- [x] **Dub tracks** (render `dub_track`): the shot on H3 Ref2VA at 64x64 (or FastH3 Omni,
+      or LTX) for its sound, kept in `<episode>/dub/<shot>/`. Measured live 2026-10-28 (Dean
+      ep01 sh025, one seed, as "voice takes"): 1344x768, 448x256, 256x160, 64x64 and 32x32 all
+      said the line word for word (Whisper), pitch 262-296 Hz against the sample's 267, a
+      rough timbre match 0.93-0.94 (LTX's clone: 242 Hz, 0.905, and it dropped a word); the
+      read differs with the size (the noise does), the level too (-13.5 to -20.3 dBFS RMS,
+      448x256 and 256x160 peaking over full scale), so a dub levels it first; ~13-15 s a
+      take once H3 is loaded; a size and seed give the same sound again.
+- [x] **A shot's sound** (overrides.json `sound`): generate, clone, or dub a track (the
+      recorded track's window, any take's sound in either pass, a dub track); a dub of a
+      file is the shot's own recording, levelled, on every H3 and LTX model, the take's mp4
+      remuxed with the model's mix; takes made otherwise go stale `sound`. The editor's
+      Sound dialog, chip, menus and the shot form's Sound…. Replaced the day's voice takes
+      and lines_from. Not yet live.
+- [ ] A shot set to dub with no track picked: make one, then render, in one request (the
+      queue's `after`), for when there is no time to listen first.
+- [ ] `seriesmith render --dub-track` / a sound on the command line; ElevenLabs and the
+      like as voice models (an audio target writing a dub track).
 
 ## FLUX 3 video (2026-10-28)
 

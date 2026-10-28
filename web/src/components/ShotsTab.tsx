@@ -1,16 +1,16 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
-  clickShot, dubToVoice, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
+  clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
-import { host } from "../host";
+import { api, host } from "../host";
 import {
   ESTIMATE_TITLE, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
 import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
-import { voiceDubBlock } from "../lib/readiness";
+
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
 import type { EpisodeSummary, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -241,6 +241,31 @@ function BuildBar() {
   );
 }
 
+/** The shot's sound, set in the editor (Sound…) or the script's: click to change it;
+ * a dub plays its track. */
+function SoundChip({ s }: { s: ShotStatus }) {
+  const ep = useApp((st) => st.ep);
+  const set = s.sound;
+  const label = set ? (set.mode === "dub" ? `dub · ${set.label ?? "?"}` : set.mode) : s.audio_policy ?? "";
+  if (!label) return null;
+  const play = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (ep && set?.file) void new Audio(api().fileUrl(ep, set.file)).play();
+  };
+  return (
+    <span className="h3-row" style={{ gap: 2 }}>
+      {set?.mode === "dub" && set.file && (
+        <button className="h3-btn h3-icon" title={`Play ${set.label}`} onClick={play}><i className="pi pi-volume-up" /></button>
+      )}
+      <button className={`h3-badge h3-badge-btn${set ? " h3-b-voice" : ""}`}
+        title={set ? `Sound set here: ${label}. Click: change it` : `Sound as the script says (${label}). Click: generate, clone, or dub a track`}
+        onClick={(e) => { e.stopPropagation(); openSound([s.shot]); }}>
+        {label}
+      </button>
+    </span>
+  );
+}
+
 const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, rendering, progress, targets, shotCurrent }: {
   ep: string; pass: Pass; s: ShotStatus; t: TakeSummary; aspect: number; selected: boolean; rendering: boolean;
   progress?: { value: number; max: number };
@@ -272,23 +297,12 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           {isCut && <span className="h3-badge h3-b-cut" title={s.cut.picked ? "Picked in cut.json" : "The latest usable take"}>{s.cut.picked ? "cut (picked)" : "cut"}</span>}
           {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
           {ub && <span className={`h3-badge h3-b-${ub.kind}`} title={ub.title}>{ub.label}</span>}
-          {t.voice_only && <span className="h3-badge h3-b-voice" title="A voice take: the shot rendered for its sound only, to listen to. It never goes into the cut; right-click: dub the shot to it">voice</span>}
-          {t.lines_from != null && <span className="h3-badge h3-b-voice" title={`Dubbed to ${tn(t.lines_from)}'s voice`}>voice of {tn(t.lines_from)}</span>}
+          {t.sound?.mode === "dub" && <span className="h3-badge h3-b-voice" title="Rendered dubbed to a track (Sound…)">dubbed</span>}
           {t.source === "imported" && (
             <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
           )}
           <span className="h3-grow" />
-          {usable && t.voice_only && (() => {
-            const why = voiceDubBlock(targets, shotCurrent);
-            return (
-              <button className="h3-btn h3-primary" disabled={!!why}
-                title={why ?? `Queue ${s.shot} now on its own model, dubbed to ${tn(t.take)}'s voice`}
-                onClick={(e) => { e.stopPropagation(); dubToVoice([s.shot], t.take); }}>
-                Dub to this voice
-              </button>
-            );
-          })()}
-          {usable && !isCut && !t.voice_only && (
+          {usable && !isCut && (
             <button className="h3-btn" disabled={pickBusy} title="Use this take in the cut" onClick={(e) => { e.stopPropagation(); void pickTake(s.shot, t.take); }}>
               Use
             </button>
@@ -383,6 +397,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
               {lengthEstimated(s) ? <span className="h3-est">≈</span> : null}{fmtSeconds(s.seconds)}{s.size ? ` · ${s.size}` : ""}
             </span>
             <span className="h3-grow" />
+            <SoundChip s={s} />
             <span className="h3-muted h3-small" title={`${n} take(s)${ct ? `; the cut uses ${tn(ct.take)}` : ""}`}>
               {n ? `${n} take${n > 1 ? "s" : ""}` : ""}{ct ? ` · ${tn(ct.take)}` : ""}
             </span>

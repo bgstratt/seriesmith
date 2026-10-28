@@ -289,17 +289,26 @@ under the shot.
   dialog for them first, and × or Esc clears it. Right-click one of them for the same two.
   Clicking a shot outside the selection ends it.
 - **Click a take** to select that candidate; **double-click** opens it in the Viewer.
-- **Voice takes.** **Generate a voice take** (a shot's context menu), or **Generate voices**
-  with several selected, queues the shot at once, rendered for its sound only: on H3 Ref2VA at 64x64, each voice cloned
-  from its sample, about 15 seconds a take once H3 is loaded. It lists as a take with a
-  **voice** badge, plays like one, and never goes into the cut. Listen; make another if it
-  isn't right. Then **Generate a dub to this voice** (on the voice take), or **Generate dubs**
-  with several selected (each one's newest), queues the shot on its own model with that
-  voice, evened out to one loudness, as the recording it dubs: H3 Ref2VA, FastH3 Omni,
-  H3 FL2VA (from its keyframes) and the LTX models. A voice take's row has **Dub to this
-  voice** for it (greyed, saying why, on a model that can't). The take says **voice of t03** and keeps the voice as
-  `_lines.wav`. Without H3 Ref2VA on your ComfyUI the voice buttons carry a warning sign,
-  and pressing one opens **Features** at MiniMax H3 Ref2VA, ticked to install.
+- **Sound.** A shot's sound is **Generate** (the lines voiced from each character's `voice`
+  words), **Clone** (in each character's voice sample) or **Dub** (lip-synced to a track).
+  The chip on its row says which (the script's when nothing is set here); click it, or
+  **Sound…** in its context menu or the shot form, to change it. A dub's track can be:
+  - **the recorded track**: the shot's window of it;
+  - **any take's sound**, in either pass (a proxy's delivery for the final): also **Dub
+    the shot with this take's sound** in a take's context menu;
+  - **a dub track**: **Generate a dub track** (the Sound dialog, a shot's context menu,
+    or **Generate dub tracks** with several selected) renders the shot for its sound
+    only, on H3 Ref2VA at 64x64 (or FastH3 Omni, or LTX-2.5: the Sound dialog's
+    model), its voices cloned, in about 15 seconds once the model is loaded. Dub tracks
+    are kept apart from the takes (`<episode>/dub/<shot>/`); make several, play each in
+    the Sound dialog, **Use** the one you like.
+
+  The shot's next render does what is set: a dub of a file plays it, evened out to one
+  loudness, on any H3 or LTX model, and the take carries the dubbed voice. Changing a
+  shot's sound marks its takes **stale: sound**, so **Re-render stale** catches them;
+  **As the script says** goes back to the script's line. Without the voice model on your
+  ComfyUI, Generate a dub track carries a warning sign and opens **Features** at it,
+  ticked to install.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
