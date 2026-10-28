@@ -1168,14 +1168,10 @@ class RenderRequest:
     allow_model_mismatch: bool = False  # render even if a model file is another family
     negative: str | None = None        # the negative prompt, this run only (negative_for)
     save_latent: bool | None = None    # keep the take's latent; None: latent_default
-    # a voice take: the shot rendered for its sound only (VOICE_TARGET at
-    # VOICE_SIZE unless asked otherwise), its prompt asking for the dialogue
-    # alone; it never goes into the cut (takes.latest_usable)
-    voice_only: bool = False
-    # dub the shot to this take's sound (a voice take, usually): its sound,
-    # levelled (audiocut.levelled), is the recording the target dubs; "voice":
-    # each shot's newest finished voice take
-    lines_from: int | str | None = None
+    # a dub track: the shot rendered for its sound only (VOICE_TARGET at
+    # VOICE_SIZE unless asked otherwise; its voices cloned), its prompt asking
+    # for the dialogue alone, kept in <episode>/dub/<shot>/ (takes.DUB_FOLDER)
+    dub_track: bool = False
 
 
 @dataclass
@@ -1258,12 +1254,11 @@ class Job:
     # later: the request's choice, else latent_default; always False on a target
     # whose binding names no latent source (`saver.latent`)
     save_latent: bool = False
-    voice_only: bool = False           # a voice take (RenderRequest.voice_only)
-    # dubbed to that take's sound: its number, the file it comes from, and the
-    # levelled copy's name in ComfyUI's input folder once staged
-    lines_from: int | None = None
-    lines_file: str = ""
-    lines_name: str = ""
+    dub_track: bool = False            # a dub track (RenderRequest.dub_track)
+    # the shot's sound as overrides.json sets it (takes.shot_sound), rendered
+    # with; a dub's source as its label says it
+    sound: dict | None = None
+    dub_label: str = ""
 
     @property
     def id(self) -> str:
@@ -1554,10 +1549,12 @@ def built_values(shot: dict, dflt: dict) -> tuple[str, list[dict] | None, int]:
 def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
              overrides: dict | None = None, folder: str | None = None,
              rng: random.Random | None = None) -> Job:
-    if req.voice_only:
-        # a voice take: on the voice model at a size too small to matter, always a new one
-        req = _replace(req, target=req.target or VOICE_TARGET,
-                                  size=req.size or VOICE_SIZE, redo=True, lines_from=None)
+    if req.dub_track:
+        # a dub track: on the voice model at a size too small to matter, always
+        # a new one, in the shot's dub folder
+        req = _replace(req, target=req.target or VOICE_TARGET, size=req.size or VOICE_SIZE,
+                       redo=True)
+        folder = T.DUB_FOLDER
     built = doc["shots"][index]
     sid = built["id"]
     built_target = shotlist_target(doc)
@@ -1582,8 +1579,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # renders it anew (its number still follows the last take)
     here = [t for t in takes
             if ((t.sidecar or {}).get("target") or built_target.id) == target.id]
-    # a voice take is only the shot's sound: it never makes the shot done
-    usable = [t for t in here if t.usable and not T.is_voice_take(t)]
+    usable = [t for t in here if t.usable]
     queued = [t for t in takes if t.status == "queued"]
     last = takes[-1].take if takes else 0
     if req.take:
@@ -1623,8 +1619,10 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # render anyway, don't queue it at all; rendering anyway, let the target
     # write the shot without those refs when it can.
     missing = missing_refs(root, sdoc, shot)
-    if req.lines_from is not None:
-        # dubbed to a take's voice: the speakers' samples (a clone's) aren't heard
+    sound = None if req.dub_track else T.shot_sound(overrides or {}, sid)
+    if sound and sound["mode"] == "dub" and sound["dub"]["from"] != "track":
+        # dubbed to a take's or a dub track's sound: the speakers' samples
+        # (a clone's) and the recording aren't heard
         missing = [r for r in missing if r.get("kind") != "audio"]
     # a ref the target can't do without (`anyway: false`) blocks even then
     anyway = req.allow_missing_refs and not any(r.get("anyway") is False for r in missing)
@@ -1714,17 +1712,18 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
                steps_set="steps" in explicit, target_source=target_source,
                values=values, negative_source=negative_source, save_latent=save_latent,
                size=size, continuity=(req.continuity or {}).get(sid),
-               from_draft=(req.from_draft or {}).get(sid), voice_only=req.voice_only)
-    if req.voice_only:
+               from_draft=(req.from_draft or {}).get(sid), dub_track=req.dub_track)
+    if req.dub_track and job.runs:
+        apply_sound(job, {"mode": "clone"})
         job.prompt = voice_only_prompt(job.prompt)
-        job.notes.append("a voice take: the shot rendered for its sound only, at "
-                         f"{job.width}x{job.height}; it never goes into the cut")
-    if req.lines_from is not None and job.runs:
-        lines_from(job, req.lines_from, folder)
+        job.notes.append(f"a dub track: the shot rendered for its sound only, at "
+                         f"{job.width}x{job.height}, kept apart from its takes")
+    elif sound and job.runs:
+        apply_sound(job, sound)
     return job
 
 
-# A voice take: the shot rendered on H3 Ref2VA (its voices cloned from their
+# A dub track: the shot rendered on H3 Ref2VA (its voices cloned from their
 # samples, as Ref2VA does best) at a size too small to see, for its sound.
 # Measured live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768 down to 32x32
 # all said the line word for word (Whisper) in the speaker's voice; 64x64 the
@@ -1737,53 +1736,13 @@ VOICE_SOUND = ("Only the spoken dialogue, recorded close and dry: no room tone, 
 
 def voice_only_prompt(prompt):
     """An H3 prompt's sound fields (in one text, or a section each in a list)
-    made to ask for the dialogue alone (a voice take); any other prompt as it is."""
+    made to ask for the dialogue alone (a dub track); any other prompt as it is."""
     if isinstance(prompt, list):
         return [voice_only_prompt(x) for x in prompt]
     if not isinstance(prompt, str):
         return prompt
     out = re.sub(r"(?m)^(overall_soundscape:).*$", lambda m: f"{m.group(1)} {VOICE_SOUND}", prompt)
     return re.sub(r"(?m)^(non_diegetic_music:).*$", lambda m: f"{m.group(1)} N/A", out)
-
-
-def lines_from(job: Job, take, folder: str | None = None) -> None:
-    """A job dubbed to take `take`'s sound ("voice": the shot's newest finished
-    voice take): checked (the take is this shot's, finished, with sound; the
-    target dubs a recording) and recorded on the job (lines_from, lines_file).
-    Anything wrong makes the job an "error"."""
-    from seriesmith import peaks as PK
-    if take == "voice":
-        voiced = [x for x in T.list_takes(job.root, job.pass_, job.id, folder)
-                  if x.usable and T.is_voice_take(x)]
-        if not voiced:
-            job.action, job.error = "error", (f"can't dub {job.id} to its voice take: it has none "
-                                              f"yet (make one first)")
-            return
-        take = voiced[-1].take
-    t = job_target(job)
-    src = T.get_take(job.root, job.pass_, job.id, take, folder)
-    name = f"{job.id} t{take:02d}"
-    why = ""
-    if not t.supports("TAKES_LINES"):
-        why = f"{t.short} can't be given a voice to dub"
-    elif src is None or not src.usable:
-        why = f"{name} isn't a finished take"
-    else:
-        sound = src.paths.h3_wav if os.path.isfile(src.paths.h3_wav) else src.paths.mp4
-        if not PK.has_audio(sound):
-            why = f"{name} has no sound"
-        else:
-            if t.supports("DUB_BY_FILE"):
-                try:
-                    dub_by_file(job, sound)
-                except Exception as e:
-                    why = f"{t.short} couldn't write {job.id} as a dub: {e}"
-            if not why:
-                job.lines_from, job.lines_file = take, sound
-                job.notes.append(f"dubbed to t{take:02d}'s voice"
-                                 + (" (a voice take)" if T.is_voice_take(src) else ""))
-                return
-    job.action, job.error = "error", f"can't dub {job.id} to t{take:02d}: {why}"
 
 
 def parse_size(v) -> tuple[int, int]:
@@ -2080,9 +2039,10 @@ def sidecar_for(job: Job) -> dict:
         **({"base": True} if job.based else {}),
         # asked for; the saver records the file itself as `latent`
         **({"save_latent": True} if job.save_latent else {}),
-        # a voice take (never in the cut); a take dubbed to another take's voice
-        **({"voice_only": True} if job.voice_only else {}),
-        **({"lines_from": job.lines_from} if job.lines_from is not None else {}),
+        # a dub track; the sound overrides.json set (a dub's source), which the
+        # take is stale against when it changes
+        **({"dub_track": True} if job.dub_track else {}),
+        **({"sound": dict(job.sound)} if job.sound else {}),
     }
 
 
@@ -2198,6 +2158,12 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
     if fields.get("status") == "ok" and not os.path.isfile(take.paths.mp4):
         fields.update(status="failed",
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
+    sc = T.read_sidecar(take.paths.sidecar) or {}
+    if fields.get("status") == "ok" and ((sc.get("sound") or {}).get("dub") or {}).get("from") \
+            in ("take", "dub"):
+        note = remux_dub(take)
+        if note:
+            fields["save_notes"] = f"{fields.get('save_notes', '')}; {note}"
     take.sidecar = T.update_sidecar(take.paths.sidecar, **fields)
     return take.sidecar.get("status", "?")
 
@@ -3193,8 +3159,6 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     # anything, is asked about the duration head
     plan_duration(job, probe if isinstance(comfy, InputCollector) else (comfy or probe))
     out = {}
-    if job.lines_file:
-        out["audio"] = stage_lines(job, comfy)
     for r in ref_slots(job.doc, job.shot):
         role, p = r.get("role"), r.get("path")
         if not role or not p:
@@ -3213,61 +3177,101 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     return out
 
 
-def dub_by_file(job: Job, sound: str) -> None:
-    """A target that dubs through its Shot Loader (H3 Ref2VA, FastH3 Omni): the
-    shot compiled again as `dub_keep_foley`, its window the shot's own length,
-    with `sound` levelled (audiocut.levelled, in the episode's _cuts) as its
-    own recording (`audio_file`, which the loader reads whole). Replaces
-    job.shot, and job.prompt unless the prompt is overridden."""
-    import copy as _copy
-    from seriesmith import audiocut as AC
+POLICY_OF = {"generate": "generate", "clone": "clone"}
+
+
+def apply_sound(job: Job, sound: dict) -> None:
+    """The shot's sound as overrides.json (or a dub track) sets it: the shot
+    compiled again with that audio policy when its entry has another, and a
+    dub from a take's or a dub track's sound with that sound, levelled
+    (audiocut.levelled), as the shot's own recording (`audio_file`): H3 FL2VA
+    anchors it, LTX holds it, H3 Ref2VA / FastH3 Omni's Shot Loader reads it
+    whole (`DUB_BY_FILE`). Anything it can't do makes the job an "error"."""
     t = job_target(job)
-    level = AC.levelled(sound)
+    entry = job.recompiled or job.shot
+    job.sound = dict(sound)
+    try:
+        if sound["mode"] != "dub":
+            if entry.get("audio_policy") != POLICY_OF[sound["mode"]]:
+                recompile_sound(job, POLICY_OF[sound["mode"]])
+            return
+        src = sound["dub"]
+        if src["from"] == "track":
+            if entry.get("audio_policy") not in ("dub", "dub_keep_foley"):
+                if "audio_in" not in entry:
+                    raise ValueError(f"{job.id} has no window on the recorded track "
+                                     f"(`seriesmith align` writes these)")
+                recompile_sound(job, "dub_keep_foley")
+            job.dub_label = "the recorded track"
+            return
+        if not t.supports("DUB_BY_FILE"):
+            raise ValueError(f"{t.short} can't dub a track of its own")
+        sound_file, label = T.dub_source(job.root, job.id, src)
+        if not sound_file:
+            raise ValueError(f"its dub track, {label}, isn't a finished take with sound")
+        from seriesmith import audiocut as AC
+        level = AC.levelled(sound_file)
+        recompile_sound(job, "dub_keep_foley", os.path.relpath(level, job.root).replace(os.sep, "/"))
+        job.dub_label = label
+        job.notes.append(f"dubbed to {label}")
+    except Exception as e:                                # noqa: BLE001  said on the job
+        job.action, job.error = "error", f"can't render {job.id}'s sound as set: {e}"
+
+
+def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> None:
+    """job.shot compiled again from the build's script IR with `policy`; with
+    `audio_file` (relative to the episode) a dub of that file: its window the
+    shot's own length and the file the shot's recording (and, for the compile,
+    the track it is in). Replaces job.shot, and job.prompt unless overridden."""
+    import copy as _copy
+    t = job_target(job)
     story, series_cfg = episode_story(job.root)
     story = _copy.deepcopy(story)
     sh = next((s for s in story.shots() if s.id == job.id), None)
     if sh is None:
         raise ValueError(f"{job.id} is not in shots.json (rebuild the episode)")
-    shot = job.recompiled or job.shot
-    seconds = float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot \
-        else float(shot.get("duration") or job.frames / (job.fps or 24.0))
-    sh.audio = "dub_keep_foley"
-    sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
-    rel = os.path.relpath(level, job.root).replace(os.sep, "/")
-    # a window wants a recorded track to be in: the voice is this shot's, so it
-    # is the track for this compile (a series with no audio.track: Ballroom)
-    series_cfg = _copy.deepcopy(series_cfg)
-    series_cfg.setdefault("audio", {})["track"] = rel
+    sh.audio = policy
+    if audio_file:
+        shot = job.recompiled or job.shot
+        seconds = (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
+                   else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
+        sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
+        # a window wants a recorded track to be in: the file is this shot's,
+        # so it is the track for this compile (a series with none: Ballroom)
+        series_cfg = _copy.deepcopy(series_cfg)
+        series_cfg.setdefault("audio", {})["track"] = audio_file
     doc, _ = t.compile_episode(story, series_cfg, job.pass_, only={job.id})
     entry = dict(doc["shots"][0])
-    entry["audio_file"] = rel
+    if audio_file:
+        entry["audio_file"] = audio_file
     job.shot, job.recompiled = entry, None
     if "prompt" not in job.overridden:
         job.prompt = entry["prompt"]
 
 
-def stage_lines(job: Job, comfy=None) -> str:
-    """A job dubbed to another take's voice: that take's sound, levelled
-    (audiocut.levelled), uploaded as the recording the target dubs, and kept
-    in the take as <stem>_lines.wav (job.staged). Its name; the target's
-    stage_inputs sees it as job.lines_name. A dry run (`comfy` None) levels
-    nothing: the name stands in."""
-    import shutil
-    if comfy is None:
-        job.lines_name = f"{INPUT_SUBFOLDER}/dry_run_{T.safe_id(job.id)}_lines.wav"
-        return job.lines_name
-    from seriesmith import audiocut as AC
-    level = AC.levelled(job.lines_file)
-    d = T.shot_dir(job.root, job.pass_, job.id, job.folder)
-    os.makedirs(d, exist_ok=True)
-    tmp = os.path.join(d, f".tmp_lines_{uuid.uuid4().hex}.wav")
-    shutil.copyfile(level, tmp)
-    name = input_name(tmp)
-    comfy.upload_input(tmp, name)
-    job.staged.append({"tmp": tmp, "suffix": "_lines.wav", "slot": "lines", "kind": "audio",
-                       "role": "lines"})
-    job.lines_name = name
-    return name
+def remux_dub(take: T.Take) -> str:
+    """A take dubbed to a file: its mp4 made to carry the model's whole mix (its
+    _h3.wav, the dub spoken in it), as a generate or clone take's does, where
+    dub_keep_foley's saver left the foley alone for a recording laid in at the
+    cut. Returns a note ("" when nothing was done)."""
+    import subprocess
+    from seriesmith import ff as FF
+    if not (os.path.isfile(take.paths.mp4) and os.path.isfile(take.paths.h3_wav)):
+        return ""
+    tmp = F.temp_beside(take.paths.mp4, ".mp4")
+    try:
+        r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-y",
+                            "-i", take.paths.mp4, "-i", take.paths.h3_wav,
+                            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+                            "-c:a", "aac", "-b:a", "192k", "-shortest", tmp],
+                           capture_output=True, timeout=600)
+        if r.returncode != 0 or not os.path.isfile(tmp):
+            return f"the dub's mix wasn't put in the mp4: {r.stderr.decode('utf-8', 'replace')[-200:]}"
+        F.replace(tmp, take.paths.mp4)
+        return "the mp4 carries the dubbed mix"
+    finally:
+        if os.path.isfile(tmp):
+            os.remove(tmp)
 
 
 class InputCollector:

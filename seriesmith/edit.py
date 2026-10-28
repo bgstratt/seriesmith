@@ -239,11 +239,12 @@ def prompt_text(prompt) -> str:
 
 
 def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | None,
-               target: str, cache: dict) -> list[str]:
+               target: str, cache: dict, sound: dict | None = None) -> list[str]:
     """Why a take is stale (jobs.stale_reasons), judged against the entry its
     own target would render now: the built entry, or the shot retargeted to
     that target. `target` is what the shot's next render uses; a take made on
-    another target is also stale `target`."""
+    another target is also stale `target`; one made with another sound than
+    the shot's now (`sound`: takes.shot_sound) is stale `sound`."""
     if not sidecar:
         return ["unknown"]
     built_target = J.shotlist_target(doc).id
@@ -252,10 +253,70 @@ def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | Non
     out = J.stale_reasons(root, cur[0], cur[1], sidecar) if cur else []
     if tt != target:
         out.append("target")
+    if (sidecar.get("sound") or None) != (sound or None):
+        out.append("sound")
     if sidecar.get("continued_from") and chain_changed(root, pass_, shot["id"],
                                                        sidecar["continued_from"], cache):
         out.append("chain")
     return out
+
+
+def sound_view(root: str, shot_id: str, sound: dict) -> dict:
+    """A shot's sound for the editor: the setting, its dub source's label, and
+    the file that source plays (relative; null for the track, or a source
+    that isn't there)."""
+    out = dict(sound)
+    if sound.get("mode") == "dub":
+        f, label = T.dub_source(root, shot_id, sound["dub"])
+        out["label"] = label
+        out["file"] = rel(root, f) if f else None
+    return out
+
+
+def dub_sources(root: str, shot_id: str) -> dict:
+    """What a shot can be dubbed to (GET /seriesmith/dubs): the recorded
+    track (when the shot has a window on one), its generated dub tracks, and
+    every finished take with sound in either pass."""
+    track = None
+    for ps in T.PASSES:
+        try:
+            doc, i = J.find_shot(root, ps, shot_id)
+        except (KeyError, FileNotFoundError, ValueError):
+            continue
+        s = doc["shots"][i]
+        rec = s.get("audio_file") or doc.get("defaults", {}).get("master_track", "")
+        if "audio_in" in s and rec:
+            track = {"file": rec, "in": s["audio_in"], "out": s["audio_out"]}
+        break
+
+    def one(t: T.Take, **extra) -> dict:
+        f = T.take_sound(t) if t.usable else None
+        sc = t.sidecar or {}
+        return {"take": t.take, "status": t.status, "file": rel(root, f) if f else None,
+                "target": sc.get("target"), "seed": sc.get("seed"), "note": sc.get("note", ""),
+                "finished": sc.get("finished"), "save_notes": sc.get("save_notes", ""),
+                "seconds": (round(take_frames(t) / take_fps(t), 2)
+                            if take_frames(t) and take_fps(t) else None),
+                **extra}
+
+    dubs = [one(t) for t in T.dub_tracks(root, shot_id)]
+    takes = [one(t, **{"pass": ps}) for ps in T.PASSES for t in T.list_takes(root, ps, shot_id)
+             if t.usable and T.take_sound(t)]
+    return {"shot": shot_id, "sound": T.shot_sound(T.load_overrides(root), shot_id),
+            "track": track, "dubs": dubs, "takes": takes}
+
+
+def set_sound(root: str, shots: list[str], sound: dict | None) -> dict:
+    """Set the shots' sound in overrides.json (takes.check_sound's form; None:
+    back to the script's). A dub of a take or a dub track is one shot's."""
+    sound = T.check_sound(sound)
+    if sound and sound["mode"] == "dub" and sound["dub"]["from"] != "track" and len(shots) != 1:
+        raise ValueError("a dub of a take or a dub track is one shot's: ask for one shot")
+    ov = T.load_overrides(root)
+    for s in shots:
+        T.set_shot_sound(ov, s, sound)
+    T.save_overrides(root, ov)
+    return {"shots": shots, "sound": sound}
 
 
 def take_origin(sidecar: dict | None) -> dict:
@@ -497,6 +558,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             # the first sentence of what happens, as the script says it (the board)
             **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,
+            # the sound overrides.json sets (generate, clone, or a dub of a
+            # track: its label), else null: the script's (audio_policy)
+            **({"sound": sound_view(root, e.shot, T.shot_sound(ov, e.shot))}
+               if T.shot_sound(ov, e.shot) else {}),
             "missing_refs": [{k: r.get(k) for k in ("slot", "kind", "path", "subject",
                                                     "anyway", "why")
                               if r.get(k) is not None}
@@ -550,12 +615,12 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "from_draft": (t.sidecar or {}).get("from_draft"),
                 # a voice take (rendered for its sound; never in the cut), or a
                 # take dubbed to one: only when so
-                **({"voice_only": True} if T.is_voice_take(t) else {}),
-                **({"lines_from": (t.sidecar or {})["lines_from"]}
-                   if (t.sidecar or {}).get("lines_from") is not None else {}),
+                # rendered with a sound overrides.json set (a dub's source)
+                **({"sound": (t.sidecar or {})["sound"]} if (t.sidecar or {}).get("sound") else {}),
                 # where a take seriesmith didn't render came from (takeimport)
                 **take_origin(t.sidecar),
-                "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache)
+                "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache,
+                                    T.shot_sound(ov, e.shot))
                 if shot else [],
                 "thumb": take_rel(root, t, t.paths.thumb),
                 "strip": take_rel(root, t, t.paths.strip),
@@ -910,7 +975,8 @@ def shot_detail(root: str, pass_: str, shot_id: str, folder: str | None = None,
     takes = []
     for t in T.list_takes(root, pass_, shot_id, folder):
         takes.append({"take": t.take, "status": t.status, "has_video": t.has_video,
-                      "stale": take_stale(root, pass_, doc, shot, t.sidecar, job.target, cache),
+                      "stale": take_stale(root, pass_, doc, shot, t.sidecar, job.target, cache,
+                                          T.shot_sound(ov, shot_id)),
                       "sidecar": t.sidecar,
                       # the reference sheet / VACE reference it rendered with, if kept
                       "reference_image": reference_image(root, t.sidecar),

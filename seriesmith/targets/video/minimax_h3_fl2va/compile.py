@@ -314,9 +314,6 @@ def stage_inputs(target, job, comfy=None) -> dict:
     job.prompt = with_keyframes(J._prompt_text(job.prompt), roles, job.frames, job.fps)
     out = {}
     shot = job.recompiled or job.shot
-    if job.lines_name:
-        # dubbed to another take's voice (jobs.stage_lines): anchored as a recording
-        return out
     if shot.get("audio_policy") == "clone":
         _voice_files_installed(job)
         return HA.stage_clone(target, job, comfy)
@@ -354,8 +351,9 @@ def stage_inputs(target, job, comfy=None) -> dict:
 
 VOICE = ("voice_model", "voice_text_encoder", "voice_audio_vae")
 
-# a take's voice can be dubbed (jobs.lines_from): anchored as a recording is
-TAKES_LINES = True
+# a dub of a file (a take's sound, a dub track: jobs.apply_sound): the shot's own
+# recording (`audio_file`), anchored as a recording's slice is
+DUB_BY_FILE = True
 
 
 def _voice_files_installed(job) -> None:
@@ -406,7 +404,7 @@ def _clone_lines(g: dict, job, inputs: dict) -> list | None:
     to the saver too (`lines`: the take's _lines.wav). The link of the joined
     sound, or None for a shot that isn't a clone."""
     entry = (job.recompiled or job.shot) if job is not None else {}
-    if entry.get("audio_policy") != "clone" or not entry.get("lines") or inputs.get("audio"):
+    if entry.get("audio_policy") != "clone" or not entry.get("lines"):
         return None
 
     def loader(prefix: str, ctype: str, title: str, **ins) -> str:

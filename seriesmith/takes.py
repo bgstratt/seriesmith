@@ -453,16 +453,108 @@ def post_of(take: Take, up: dict | None = None) -> dict | None:
     return {**data, "fresh": fresh}
 
 
-def is_voice_take(t: Take) -> bool:
-    """A take rendered for its sound only (jobs.RenderRequest.voice_only)."""
-    return bool((t.sidecar or {}).get("voice_only"))
-
-
 def latest_usable(takes: list[Take]) -> Take | None:
-    """The newest finished take a cut may use: a voice take (its picture too
-    small to see) never is, unless picked."""
-    ok = [t for t in takes if t.usable and not is_voice_take(t)]
+    ok = [t for t in takes if t.usable]
     return ok[-1] if ok else None
+
+
+# ---------------------------------------------------------------------------
+# a shot's sound: generate, clone, or dub a track (overrides.json `sound`)
+# ---------------------------------------------------------------------------
+#
+# What a shot's next render does for its sound, set in the editor beside the
+# script's own (`policy:`, audio.mode): {"mode": "generate" | "clone" | "dub",
+# "dub": source} where a dub's source is
+#
+#   {"from": "track"}                      the shot's window of the recording
+#   {"from": "take", "pass": p, "take": n} a take of the shot's sound (either pass)
+#   {"from": "dub", "take": n}             a generated dub track
+#
+# Dub tracks are the shot rendered tiny on a voice model for its sound only
+# (jobs.RenderRequest.dub_track), kept as takes of their own in
+# <episode>/dub/<shot>/: never in the take list or the cut. It is a top-level
+# map ({"sound": {"sh040": {...}}}), not in a shot's block, whose dicts are
+# per-target overrides.
+
+DUB_FOLDER = "dub"
+SOUND_MODES = ("generate", "clone", "dub")
+DUB_FROM = ("track", "take", "dub")
+
+
+def shot_sound(data: dict, shot_id: str) -> dict | None:
+    """The shot's sound as overrides.json sets it, or None (the script's)."""
+    s = (data.get("sound") or {}).get(shot_id)
+    return dict(s) if isinstance(s, dict) and s.get("mode") in SOUND_MODES else None
+
+
+def check_sound(sound) -> dict | None:
+    """`sound` as set_shot_sound keeps it; ValueError for anything else."""
+    if sound is None:
+        return None
+    if not isinstance(sound, dict) or sound.get("mode") not in SOUND_MODES:
+        raise ValueError(f"sound.mode must be one of {', '.join(SOUND_MODES)}")
+    out = {"mode": sound["mode"]}
+    if sound["mode"] != "dub":
+        return out
+    src = sound.get("dub")
+    if not isinstance(src, dict) or src.get("from") not in DUB_FROM:
+        raise ValueError("a dub names its track: sound.dub.from is track, take or dub")
+    d = {"from": src["from"]}
+    if src["from"] in ("take", "dub"):
+        n = src.get("take")
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError("sound.dub.take must be a take number")
+        d["take"] = n
+    if src["from"] == "take":
+        if src.get("pass") not in PASSES:
+            raise ValueError(f"sound.dub.pass must be one of {', '.join(PASSES)}")
+        d["pass"] = src["pass"]
+    out["dub"] = d
+    return out
+
+
+def set_shot_sound(data: dict, shot_id: str, sound: dict | None) -> dict:
+    """Set a shot's sound (check_sound's form), or None: back to the script's."""
+    sound = check_sound(sound)
+    block = data.setdefault("sound", {})
+    if sound:
+        block[shot_id] = sound
+    else:
+        block.pop(shot_id, None)
+        if not block:
+            data.pop("sound", None)
+    return data
+
+
+def dub_tracks(root: str, shot_id: str) -> list[Take]:
+    """A shot's generated dub tracks, oldest first."""
+    return list_takes(root, PASSES[0], shot_id, DUB_FOLDER)
+
+
+def take_sound(t: Take) -> str | None:
+    """The file holding a take's sound: its _h3.wav, else its mp4 (when it
+    has an audio stream), else None."""
+    from seriesmith import peaks as PK           # imported on demand
+    if os.path.isfile(t.paths.h3_wav):
+        return t.paths.h3_wav
+    return t.paths.mp4 if PK.has_audio(t.paths.mp4) else None
+
+
+def dub_source(root: str, shot_id: str, src: dict) -> tuple[str | None, str]:
+    """(the file a dub source plays, its label) for a take or a dub track; the
+    file is None when the take isn't finished or has no sound. A `track`
+    source is the shot's window of the recording, not a file: (None, "track")."""
+    if src.get("from") == "track":
+        return None, "the recorded track"
+    if src.get("from") == "dub":
+        t = get_take(root, PASSES[0], shot_id, int(src["take"]), DUB_FOLDER)
+        label = f"dub track {int(src['take'])}"
+    else:
+        t = get_take(root, src["pass"], shot_id, int(src["take"]))
+        label = f"t{int(src['take']):02d}" + ("" if src["pass"] == PASSES[0] else f" ({src['pass']})")
+    if t is None or not t.usable:
+        return None, label
+    return take_sound(t), label
 
 
 def reserve_take(root: str, pass_: str, shot_id: str, sidecar: dict,

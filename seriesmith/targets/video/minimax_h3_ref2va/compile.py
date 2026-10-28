@@ -841,9 +841,8 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     return out
 
 
-# a take's voice can be dubbed (jobs.lines_from): the shot compiled as a dub with
-# that sound as its own recording (`audio_file`), which the Shot Loader reads whole
-TAKES_LINES = True
+# a dub of a file (a take's sound, a dub track: jobs.apply_sound): the shot's own
+# recording (`audio_file`), which the Shot Loader reads whole
 DUB_BY_FILE = True
 
 

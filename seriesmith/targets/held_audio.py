@@ -167,8 +167,7 @@ def stage_dub(target, job, comfy=None) -> dict:
     from seriesmith import jobs as J
     entry = job.recompiled or job.shot
     policy = entry.get("audio_policy")
-    if policy not in DUB or getattr(job, "lines_name", ""):
-        # dubbed to another take's voice instead (jobs.stage_lines staged it)
+    if policy not in DUB:
         return {}
     (slot,) = recording_slot(job.doc, entry)
     track = J._abs(job.root, slot["path"]) if slot["path"] else ""
@@ -226,7 +225,7 @@ def stage_clone(target, job, comfy=None) -> dict:
     from seriesmith import audiocut as AC
     from seriesmith import jobs as J
     entry = job.recompiled or job.shot
-    if entry.get("audio_policy") != "clone" or getattr(job, "lines_name", ""):
+    if entry.get("audio_policy") != "clone":
         return {}
     voices = {}
     for r in entry.get("voice_refs") or []:
@@ -271,8 +270,7 @@ def patch_clone(target, g: dict, job, inputs: dict) -> None:
     shot (air before the first, a pause at each change of speaker), and that
     is what the picture is made to. Nothing for a shot that isn't a clone."""
     entry = (job.recompiled or job.shot) if job is not None else {}
-    if entry.get("audio_policy") != "clone" or not entry.get("lines") or (inputs or {}).get("audio"):
-        # nothing to make: not a clone, or a voice given to dub (patch_dub holds it)
+    if entry.get("audio_policy") != "clone" or not entry.get("lines"):
         return
     stages = samplers(g)                       # the video's, before the lines add theirs
     vae = audio_vae(g)

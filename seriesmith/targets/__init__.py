@@ -780,8 +780,8 @@ class Target:
                 # it speaks in a character's voice sample (H3's voice slots; a
                 # clone made in the graph, or sent as an audio reference)
                 "voice_reference": bool(r.get("voice_slots")) or "clone" in self.policies,
-                # it can be dubbed to a take's voice (a voice take: jobs.lines_from)
-                "takes_voice": self.supports("TAKES_LINES"),
+                # it can dub a file: a take's sound, a dub track (jobs.apply_sound)
+                "dubs_tracks": self.supports("DUB_BY_FILE"),
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),
