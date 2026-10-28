@@ -1150,20 +1150,22 @@ shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from
       stale; its own frames, fps, size and sound. An H.264 mp4 copied; anything else converted
       to H.264 (decided 2026-10-27: every take plays in the editor; the original not kept).
       `copied_from` on a copy. Tests: `tests/test_takeimport.py`.
-- [ ] **Import video…** on a shot (Shots tab row, inspector), and a video file dropped on a
+- [x] **Import video…** on a shot (Shots tab, its context menu), and a video file dropped on a
       shot's row or onto a timeline clip: that shot's take, picked. Progress as the refs'
       uploads.
-- [ ] **The gallery's take tiles draggable**, and the timeline a drop target:
+- [x] **The gallery's take tiles draggable**, and the timeline a drop target (`lib/takeDrop.ts`,
+      `takeActions.ts`; `web/test/takeDrop.test.ts`):
       - onto a clip of the same shot: a pick; of another shot: copied in and picked;
       - between two clips: a new shot in the script after the left one (decided
         2026-10-27), numbered as "Add a shot after" (`shotIdBetween`), its lines copied from
         the take's shot, `dur:` the take's length; saved through the source route (history,
         rebuild); the take copied in, picked, the clip moved to the gap.
-- [ ] **A video file dropped between two clips**: the shot form opens there, prefilled
+- [x] **A video file dropped between two clips**: the shot form opens there, prefilled
       (sequence, position, `dur:` from the file), the file attached; Save makes the shot and
       imports the file as its take (decided 2026-10-27: the action needs writing).
-- [ ] Where a take came from, shown: "imported (name)" / "from sh020 t03" in the take row,
-      the inspector and the gallery's viewer.
+- [x] Where a take came from, shown: "imported (name)" / "from sh020 t03" in the take row
+      and the gallery's viewer (the episode status's `source`, `original_name`, `copied_from`).
+- [ ] Checked live: a file and a gallery take, onto a clip and between two, on both hosts.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

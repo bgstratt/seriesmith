@@ -21,7 +21,8 @@ import type {
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
-  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset } from "./types";
+  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest
+} from "./types";
 import { comboChoices } from "./lib/targets";
 
 /** A ref take as the import routes return it. */
@@ -236,6 +237,12 @@ export interface Api {
   /** POST /seriesmith/refs/import as multipart (drag and drop, a file picker), with
    * upload progress where the transport can report it. */
   refsUpload(req: RefUploadRequest, onProgress?: UploadProgress): Promise<ImportedTake>;
+  /** POST /seriesmith/take/import: a video on the server's machine as a shot's take. */
+  importTake(req: TakeImportRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/take/import as multipart (a dropped or picked file), with progress. */
+  uploadTake(req: TakeUploadRequest, onProgress?: UploadProgress): Promise<ImportedShotTake>;
+  /** POST /seriesmith/take/copy: another shot's take copied in (the gallery's drag). */
+  copyTake(req: TakeCopyRequest): Promise<ImportedShotTake>;
   // ---- P10: a pass's issues (the notepad) ----
   /** GET /seriesmith/issues: what was noted for a pass, each with `addressed`. */
   issues(ep: string, pass?: Pass | null): Promise<Issue[]>;
@@ -692,6 +699,18 @@ export function createHttpApi(t: Transport): Api {
       form.append("file", req.file, name);
       return postForm("/seriesmith/refs/import", form, onProgress);
     },
+    importTake: (req) => call("POST", "/seriesmith/take/import", req),
+    uploadTake: (req, onProgress) => {
+      const form = new FormData();
+      form.append("ep", req.ep);
+      form.append("pass", req.pass);
+      form.append("shot", req.shot);
+      if (req.pick) form.append("pick", "1");
+      const name = req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "video.mp4");
+      form.append("file", req.file, name);
+      return postForm("/seriesmith/take/import", form, onProgress);
+    },
+    copyTake: (req) => call("POST", "/seriesmith/take/copy", req),
     issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
     addIssue: (req) => call("POST", "/seriesmith/issues", req),

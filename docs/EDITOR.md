@@ -287,6 +287,9 @@ under the shot.
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
   the same menu in the bin, the timeline and the viewer strip.
+- **Import video…** (under a shot's takes, or in its context menu), or a video file dropped on
+  the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
+  in the cut. See [Takes from outside](#takes-from-outside).
 
 ### The context menu
 
@@ -1036,6 +1039,8 @@ with their pictures.
 The cut as an editable track, along the bottom of the page.
 
 - **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
+- **Drop a take from the gallery, or a video file**, onto a clip (that shot's take) or between
+  two (a new shot there): [Takes from outside](#takes-from-outside).
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
@@ -1054,6 +1059,34 @@ The cut as an editable track, along the bottom of the page.
   order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the
   cut…**, **Master…** and the waveforms. The header also counts the clips flagged (click:
   the next one), moved out of script order, and missing refs (click: the Refs tab).
+
+### Takes from outside
+
+A shot's take doesn't have to be one seriesmith rendered.
+
+- **A take from the gallery**, dragged onto the timeline. Drop it **onto a clip**: that shot's
+  own take is simply picked; another shot's is copied in as a new take of the clip's shot, and
+  picked (the clip stays where it is). Drop it **between two clips** (the wider marker): a new
+  shot goes into the script there, after the one on the left, numbered as **Add a shot after**
+  numbers it (`sh015` between `sh010` and `sh020`). Its lines are the dragged take's shot's
+  (who, with, size, action, dialogue; not its continuity), with a comment saying where it
+  came from, and its `dur:` is the take's length. The take is copied in as its first take and
+  the clip appears where you dropped it. The script is saved as any edit is (the old one kept
+  in `_history/`), and rebuilt.
+- **A video file**, dropped from your computer onto a clip, a shot's row, or with **Import
+  video…**: the shot's new take, in the cut. Dropped **between two clips**, the shot form opens
+  there with the clip's length filled in; write what happens in it, and **Save** makes the shot
+  with the file as its take.
+- An H.264 mp4 goes in as it is. Anything else (ProRes, HEVC, a .mov, .webm or .mkv) is
+  converted to H.264 at master quality first, so it plays in the editor; the original isn't
+  kept. Up to 4 GB.
+
+An imported take keeps its own length, frame rate, size and sound: the timeline, Play all and
+the assembled cut use them, and a clip of another size or rate is fitted to the episode. It
+has no seed or prompt, so it is never marked stale and **Generate (new seed)** on it renders
+the shot as the script says. Its badge says **imported** (the file's name on hover) or **from
+sh020 t03**; the gallery's viewer says the same. An upscale of it is the pixel method or
+SeedVR2 (a re-sample needs what a render keeps).
 
 Setting a shot's keyframe from its neighbour is how you make a cut continuous: use the
 menu's **Use this frame as the next shot's first frame** on the take you like, and the

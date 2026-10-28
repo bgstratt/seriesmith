@@ -225,6 +225,19 @@ export interface UploadState {
 }
 
 /** The key of a ref slot's upload: the ref, and a character's view. */
+/** The shot form's subject: a shot to edit, or a new one after `after` (null: at
+ * the end; `before`: ahead of that shot instead). A new one may come with a video
+ * dropped between two clips (takeDrop): its length as `dur`, the file imported as
+ * its take on Save, the clip then moved to `gap` (after `left` in the cut). */
+export interface ShotFormOpen {
+  shot: string | null;
+  after: string | null;
+  before?: string | null;
+  file?: File | null;
+  dur?: string | null;
+  left?: string | null;
+}
+
 export function uploadKey(ref: string, view?: string | null): string {
   return `${ref}|${view ?? ""}`;
 }
@@ -460,7 +473,7 @@ export interface AppState {
   /** the Series settings form (components/SeriesForm.tsx) */
   seriesFormOpen: boolean;
   /** the shot form (components/ShotForm.tsx): a shot to edit, or a new one after `after` */
-  shotForm: { shot: string | null; after: string | null } | null;
+  shotForm: ShotFormOpen | null;
   /** the cast card open (components/SubjectCard.tsx): an entry, or a new one (`id` null) */
   subjectCard: { kind: import("./lib/seriesForm").CardKind; id: string | null } | null;
   /** the entry a new cast card last added (Simple's + Create picks it) */

@@ -70,6 +70,10 @@ class TakeImportTest(ApiTest):
         shot = next(s for s in st["shots"] if s["shot"] == self.shots[1])
         tk = next(x for x in shot["takes"] if x["take"] == got["take"])
         self.assertEqual((tk["status"], tk["stale"], tk["frames"]), ("ok", [], 24))
+        self.assertEqual((tk["source"], tk["original_name"], tk["copied_from"]),
+                         ("imported", "clip.mp4", None))
+        rendered = [x for s in st["shots"] for x in s["takes"] if x["take"] != got["take"]]
+        self.assertTrue(all("source" not in x for x in rendered))
         self.assertEqual(self.events[-1], ("seriesmith.episode", {"ep": self.ep}))
 
     def test_anything_else_is_converted(self):

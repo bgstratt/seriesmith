@@ -482,7 +482,8 @@ sidecar has `source_path` (or `original_name` for an upload), `converted`, `fram
 `{ep, pass?, shot, from_shot, take, from_pass?, pick?}`: take `take` of `from_shot` (in
 `from_pass`, default `pass`) copied in as `shot`'s new take: its mp4 (and `_h3.wav`), not its
 upscale or post. The sidecar's `copied_from` is `{shot, take, pass, target, source}` and its
-`note` "from sh020 t03". 400 for the same shot in the same pass (that is a pick) or a take
+`note` "from sh020 t03". In `GET /seriesmith/episode`, an imported take also has `source: "imported"`, `original_name` (the file's name) and `copied_from` (null for a file); a rendered
+take has none of the three. 400 for the same shot in the same pass (that is a pick) or a take
 that isn't finished, 404 for one that isn't there. Same answer as import. The gallery's
 drag onto the timeline: onto a clip, it is copied into that shot and picked; between two
 clips, the editor first adds a shot to the script there (as "Add a shot after" does, its

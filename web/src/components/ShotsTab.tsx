@@ -23,6 +23,9 @@ import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
 import { TrackButton, TrackLine } from "./Track";
 import { QueueBar } from "./Jobs";
+import { dragHasFiles, uploadText } from "../lib/lookback";
+import { TAKE_MIME, decodeTakeDrag, dragHasTake } from "../lib/takeDrop";
+import { dismissTakeUpload, dropTakeOnto, importTakeFile, pickTakeFile, takeUploadKey } from "../takeActions";
 
 const BROWSE = "__browse__";
 
@@ -266,6 +269,9 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           {isCut && <span className="h3-badge h3-b-cut" title={s.cut.picked ? "Picked in cut.json" : "The latest usable take"}>{s.cut.picked ? "cut (picked)" : "cut"}</span>}
           {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
           {ub && <span className={`h3-badge h3-b-${ub.kind}`} title={ub.title}>{ub.label}</span>}
+          {t.source === "imported" && (
+            <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
+          )}
           <span className="h3-grow" />
           {usable && !isCut && (
             <button className="h3-btn" disabled={pickBusy} title="Use this take in the cut" onClick={(e) => { e.stopPropagation(); void pickTake(s.shot, t.take); }}>
@@ -276,7 +282,9 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
         </div>
         {rendering && progress && <Progress value={progress.value} max={progress.max} />}
         <div className="h3-row h3-small">
-          <span className="h3-mono h3-ell" title={t.seed ?? "no sidecar"}>{t.seed != null ? `seed ${t.seed}` : "no sidecar"}</span>
+          <span className="h3-mono h3-ell" title={t.seed ?? (t.source === "imported" ? originTitle(t) : "no sidecar")}>
+            {t.seed != null ? `seed ${t.seed}` : t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
+          </span>
           {t.seed_source && <span className="h3-muted">{t.seed_source}</span>}
         </div>
         {(stale.length > 0 || t.overrides.length > 0) && (
@@ -312,10 +320,28 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
   const runPid = running && prompts[running]?.shot === s.shot && prompts[running]?.pass === pass ? running : null;
   const prog = runPid ? progress[runPid] : undefined;
   const n = s.takes.length;
+  const [over, setOver] = useState(false);
   return (
     <div className={`h3-shot${selected ? " h3-sel" : ""}`}>
       <div
-        className="h3-shot-row"
+        className={`h3-shot-row${over ? " h3-drop-over" : ""}`}
+        // a video file, or a take from the gallery, dropped on the row: this shot's take, in the cut
+        onDragOver={(e) => {
+          if (s.orphan || (!dragHasFiles(e.dataTransfer) && !dragHasTake(e.dataTransfer))) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+          setOver(true);
+        }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
+        onDrop={(e) => {
+          setOver(false);
+          const take = dragHasTake(e.dataTransfer) ? decodeTakeDrag(e.dataTransfer.getData(TAKE_MIME)) : null;
+          const file = e.dataTransfer.files?.[0];
+          if (!take && !file) return;
+          e.preventDefault();
+          if (take) void dropTakeOnto(s.shot, take);
+          else if (file) void importTakeFile(s.shot, file);
+        }}
         onClick={() => select(s.shot, ct?.take ?? null)}
         onDoubleClick={() => (ct ? openViewer(s.shot, ct.take, null, "single", pass) : toggleExpanded(s.shot))}
         onContextMenu={(e) => {
@@ -347,6 +373,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
           </div>
           {badges.length > 0 && <Badges badges={badges} />}
           {prog && <Progress value={prog.value} max={prog.max} />}
+          <TakeUploadLine shot={s.shot} />
         </div>
       </div>
       {expanded && (
@@ -355,6 +382,13 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
             <div className="h3-row h3-small">
               <span className="h3-muted h3-grow">No takes in {pass}.</span>
               <button className="h3-btn" onClick={() => requestRender([s.shot], false)}>Render</button>
+              {!s.orphan && <button className="h3-btn" title="A video file as this shot's take (or drop one on the row)" onClick={() => pickTakeFile(s.shot)}>Import video…</button>}
+            </div>
+          )}
+          {s.takes.length > 0 && !s.orphan && (
+            <div className="h3-row h3-small">
+              <span className="h3-grow" />
+              <button className="h3-link" title="A video file as a new take of this shot, in the cut (or drop one on the row)" onClick={() => pickTakeFile(s.shot)}>Import video…</button>
             </div>
           )}
           {[...s.takes].reverse().map((t) => (
@@ -374,6 +408,31 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Where an imported take came from, for its badge's title. */
+function originTitle(t: TakeSummary): string {
+  if (t.copied_from) return `Copied from ${t.copied_from.shot} ${tn(t.copied_from.take)} (${t.copied_from.pass}): not rendered for this shot, so never stale`;
+  return `Imported${t.original_name ? ` from ${t.original_name}` : ""}: not rendered by seriesmith, so never stale`;
+}
+
+/** A shot's take upload: its progress, or why it failed (with Dismiss). */
+function TakeUploadLine({ shot }: { shot: string }) {
+  const u = useApp((st) => st.uploads[takeUploadKey(shot)]);
+  if (!u) return null;
+  if (u.error) {
+    return (
+      <div className="h3-note h3-note-err h3-small" onClick={(e) => e.stopPropagation()}>
+        {u.error} <button className="h3-link" onClick={() => dismissTakeUpload(shot)}>Dismiss</button>
+      </div>
+    );
+  }
+  return (
+    <div className="h3-col" style={{ gap: 1 }} title={`Importing ${u.name}`}>
+      <span className="h3-small h3-muted h3-ell">importing {u.name} · {uploadText(u)}</span>
+      <Progress value={u.sent} max={u.total || 1} />
     </div>
   );
 }
