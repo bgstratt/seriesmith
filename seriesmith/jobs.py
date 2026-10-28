@@ -3244,6 +3244,10 @@ def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> Non
     entry = dict(doc["shots"][0])
     if audio_file:
         entry["audio_file"] = audio_file
+        # prompted as dub_keep_foley (the voice given, the model's sound laid under
+        # it), saved as a dub: the saver strips no voice for a recording laid in
+        # at the cut (demucs, for nothing), and remux_dub puts the whole mix in
+        entry["audio_policy"] = "dub"
     job.shot, job.recompiled = entry, None
     if "prompt" not in job.overridden:
         job.prompt = entry["prompt"]
@@ -3251,9 +3255,9 @@ def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> Non
 
 def remux_dub(take: T.Take) -> str:
     """A take dubbed to a file: its mp4 made to carry the model's whole mix (its
-    _h3.wav, the dub spoken in it), as a generate or clone take's does, where
-    dub_keep_foley's saver left the foley alone for a recording laid in at the
-    cut. Returns a note ("" when nothing was done)."""
+    _h3.wav, the dub spoken in it, the model's sound under it), as a generate or
+    clone take's does, where a dub's saver leaves it mute for a recording laid
+    in at the cut. Returns a note ("" when nothing was done)."""
     import subprocess
     from seriesmith import ff as FF
     if not (os.path.isfile(take.paths.mp4) and os.path.isfile(take.paths.h3_wav)):

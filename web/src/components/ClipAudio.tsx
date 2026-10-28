@@ -25,7 +25,7 @@ import { MAX_BINS } from "../lib/peaks";
 import { clipTake } from "../lib/playlist";
 import { needsResync } from "../lib/recording";
 import { useApp } from "../store";
-import type { CutAudioKind, CutAudioSource, EpisodeStatus, Pass, ShotStatus } from "../types";
+import type { CutAudioKind, CutAudioSource, DubOption, EpisodeStatus, Pass, ShotStatus } from "../types";
 import { Dialog } from "./Dialogs";
 import { useStatus } from "./hooks";
 import { PeaksCanvas, usePeaks } from "./Waveform";
@@ -433,7 +433,7 @@ function ClipAudioBody({ ep }: { ep: string }) {
         )}
 
         {draft?.source === "file" && (
-          <FilePicker shot={c.shot} path={draft.path ?? ""} onPath={(p) => patch({ path: p })} />
+          <FilePicker ep={ep} shot={c.shot} path={draft.path ?? ""} onPath={(p) => patch({ path: p })} />
         )}
 
         {draft?.source !== "none" && (
@@ -556,11 +556,17 @@ function NumberRow({ draft, clipSeconds, duration, patch }: {
 /** The file source: browse the ComfyUI machine, upload from here, drop a file
  *  on it (P8: the recording has always taken a drop; this makes 9d match), or
  *  type a path. */
-function FilePicker({ shot, path, onPath }: { shot: string; path: string; onPath: (p: string) => void }) {
+function FilePicker({ ep, shot, path, onPath }: { ep: string; shot: string; path: string; onPath: (p: string) => void }) {
   const up = useApp((s) => s.clipAudio?.upload ?? null);
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const depth = useRef(0);
+  // the shot's dub tracks (the Sound dialog's), to lay over the take as they are:
+  // no lip sync, for a voice-over or a shot with no mouth to match
+  const [dubs, setDubs] = useState<DubOption[]>([]);
+  useEffect(() => {
+    api().dubs(ep, shot).then((d) => setDubs(d.dubs.filter((x) => x.status === "ok" && x.file))).catch(() => setDubs([]));
+  }, [ep, shot]);
   return (
     <div
       className={`h3-col h3-drop${over ? " h3-drop-over" : ""}`}
@@ -578,6 +584,17 @@ function FilePicker({ shot, path, onPath }: { shot: string; path: string; onPath
       }}
     >
       {over && <div className="h3-drop-hint">Drop a file: it goes into the episode and becomes this clip's audio</div>}
+      {dubs.length > 0 && (
+        <div className="h3-row h3-wrap h3-small" style={{ gap: 4 }}
+          title="Laid over the take as it is: the mouths aren't re-synced (for that, Sound… → Dub, and render the shot again)">
+          <span className="h3-muted">{shot}'s dub tracks:</span>
+          {dubs.map((d) => (
+            <button key={d.take} className={`h3-btn${path === d.file ? " h3-primary" : ""}`} onClick={() => onPath(d.file!)}>
+              dub track {d.take}{d.seconds ? ` · ${d.seconds.toFixed(1)} s` : ""}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="h3-row h3-wrap h3-small">
         <input
           className="h3-in h3-grow h3-mono"

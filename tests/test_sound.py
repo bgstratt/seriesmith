@@ -134,7 +134,10 @@ class SoundTest(unittest.TestCase):
         self.sound("sh020", {"mode": "dub", "dub": {"from": "dub", "take": d.take}})
         job = self.plan("sh020")
         self.assertTrue(job.runs, job.error)
-        self.assertEqual(job.shot["audio_policy"], "dub_keep_foley")
+        # prompted as dub_keep_foley (its sound laid under the voice), saved as a dub:
+        # no voice stripping (demucs) for a mix the take gets whole anyway
+        self.assertEqual(job.shot["audio_policy"], "dub")
+        self.assertEqual(job.shot["audio_retention"], "partially_copy")  # dub_keep_foley's
         self.assertTrue(job.shot["audio_file"].endswith("_level.wav"))
         self.assertTrue(os.path.isfile(os.path.join(self.root, job.shot["audio_file"])))
         doc, i = J.find_shot(self.root, "final", "sh020")
