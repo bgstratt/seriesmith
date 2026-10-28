@@ -1018,6 +1018,16 @@ collide with the package.
       `GET /seriesmith/take`, `GET /seriesmith/refs/shared-takes`, `POST` / `GET
       /seriesmith/download`. A bonus tutorial (https://youtu.be/KnWEI-0d6PA). Published by
       the merge's version bump.
+- [x] **0.1.7** (2026-10-27, `release-0.1.7`): an LLM drives seriesmith and takes come from
+      outside (#59). `seriesmith mcp`: the editor's API as an MCP server on stdio for an LLM
+      client to start (44 tools: write, check and build episodes, refs, render, the cut,
+      overrides and promote, upscale, post, master; `--read-only`), with Settings › This
+      computer › Use from an LLM showing this install's command to copy. A video file, or
+      another shot's take, as a shot's take: Import video…, a file or a gallery take dropped
+      onto a timeline clip, or between two (a new shot in the script there). New routes
+      `POST /seriesmith/check`, `GET /seriesmith/mcp`, `POST /seriesmith/take/import`,
+      `POST /seriesmith/take/copy`; `GET /seriesmith/refs?fresh=1`. Published by the merge's
+      version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
