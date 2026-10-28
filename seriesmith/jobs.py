@@ -73,7 +73,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _replace
 
 from seriesmith import takes as T
 from seriesmith import targets as TG
@@ -1168,6 +1168,14 @@ class RenderRequest:
     allow_model_mismatch: bool = False  # render even if a model file is another family
     negative: str | None = None        # the negative prompt, this run only (negative_for)
     save_latent: bool | None = None    # keep the take's latent; None: latent_default
+    # a voice take: the shot rendered for its sound only (VOICE_TARGET at
+    # VOICE_SIZE unless asked otherwise), its prompt asking for the dialogue
+    # alone; it never goes into the cut (takes.latest_usable)
+    voice_only: bool = False
+    # dub the shot to this take's sound (a voice take, usually): its sound,
+    # levelled (audiocut.levelled), is the recording the target dubs; "voice":
+    # each shot's newest finished voice take
+    lines_from: int | str | None = None
 
 
 @dataclass
@@ -1250,6 +1258,12 @@ class Job:
     # later: the request's choice, else latent_default; always False on a target
     # whose binding names no latent source (`saver.latent`)
     save_latent: bool = False
+    voice_only: bool = False           # a voice take (RenderRequest.voice_only)
+    # dubbed to that take's sound: its number, the file it comes from, and the
+    # levelled copy's name in ComfyUI's input folder once staged
+    lines_from: int | None = None
+    lines_file: str = ""
+    lines_name: str = ""
 
     @property
     def id(self) -> str:
@@ -1540,6 +1554,10 @@ def built_values(shot: dict, dflt: dict) -> tuple[str, list[dict] | None, int]:
 def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
              overrides: dict | None = None, folder: str | None = None,
              rng: random.Random | None = None) -> Job:
+    if req.voice_only:
+        # a voice take: on the voice model at a size too small to matter, always a new one
+        req = _replace(req, target=req.target or VOICE_TARGET,
+                                  size=req.size or VOICE_SIZE, redo=True, lines_from=None)
     built = doc["shots"][index]
     sid = built["id"]
     built_target = shotlist_target(doc)
@@ -1561,7 +1579,8 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # renders it anew (its number still follows the last take)
     here = [t for t in takes
             if ((t.sidecar or {}).get("target") or built_target.id) == target.id]
-    usable = [t for t in here if t.usable]
+    # a voice take is only the shot's sound: it never makes the shot done
+    usable = [t for t in here if t.usable and not T.is_voice_take(t)]
     queued = [t for t in takes if t.status == "queued"]
     last = takes[-1].take if takes else 0
     if req.take:
@@ -1601,6 +1620,9 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # render anyway, don't queue it at all; rendering anyway, let the target
     # write the shot without those refs when it can.
     missing = missing_refs(root, sdoc, shot)
+    if req.lines_from is not None:
+        # dubbed to a take's voice: the speakers' samples (a clone's) aren't heard
+        missing = [r for r in missing if r.get("kind") != "audio"]
     # a ref the target can't do without (`anyway: false`) blocks even then
     anyway = req.allow_missing_refs and not any(r.get("anyway") is False for r in missing)
     recompiled, missing_mode, missing_why = None, "", ""
@@ -1675,7 +1697,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
         action = "blocked"
     if error and action not in ("skip", "busy"):
         action = "error"
-    return Job(root=root, pass_=pass_, index=index, shot=shot, doc=sdoc, folder=folder,
+    job = Job(root=root, pass_=pass_, index=index, shot=shot, doc=sdoc, folder=folder,
                action=action, take=take, seed=seed, seed_source=source, model=model,
                loras=None if loras is None else [dict(l) for l in loras],
                steps=steps, prompt=prompt, forced=bool(req.take),
@@ -1689,7 +1711,70 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
                steps_set="steps" in explicit, target_source=target_source,
                values=values, negative_source=negative_source, save_latent=save_latent,
                size=size, continuity=(req.continuity or {}).get(sid),
-               from_draft=(req.from_draft or {}).get(sid))
+               from_draft=(req.from_draft or {}).get(sid), voice_only=req.voice_only)
+    if req.voice_only:
+        job.prompt = voice_only_prompt(job.prompt)
+        job.notes.append("a voice take: the shot rendered for its sound only, at "
+                         f"{job.width}x{job.height}; it never goes into the cut")
+    if req.lines_from is not None and job.runs:
+        lines_from(job, req.lines_from, folder)
+    return job
+
+
+# A voice take: the shot rendered on H3 Ref2VA (its voices cloned from their
+# samples, as Ref2VA does best) at a size too small to see, for its sound.
+# Measured live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768 down to 32x32
+# all said the line word for word (Whisper) in the speaker's voice; 64x64 the
+# loudest without clipping; about 15 s a take once H3 is loaded.
+VOICE_TARGET = "minimax_h3_ref2va"
+VOICE_SIZE = "64x64"
+VOICE_SOUND = ("Only the spoken dialogue, recorded close and dry: no room tone, ambience, "
+               "effects or music.")
+
+
+def voice_only_prompt(prompt):
+    """An H3 prompt's sound fields (in one text, or a section each in a list)
+    made to ask for the dialogue alone (a voice take); any other prompt as it is."""
+    if isinstance(prompt, list):
+        return [voice_only_prompt(x) for x in prompt]
+    if not isinstance(prompt, str):
+        return prompt
+    out = re.sub(r"(?m)^(overall_soundscape:).*$", lambda m: f"{m.group(1)} {VOICE_SOUND}", prompt)
+    return re.sub(r"(?m)^(non_diegetic_music:).*$", lambda m: f"{m.group(1)} N/A", out)
+
+
+def lines_from(job: Job, take, folder: str | None = None) -> None:
+    """A job dubbed to take `take`'s sound ("voice": the shot's newest finished
+    voice take): checked (the take is this shot's, finished, with sound; the
+    target dubs a recording) and recorded on the job (lines_from, lines_file).
+    Anything wrong makes the job an "error"."""
+    from seriesmith import peaks as PK
+    if take == "voice":
+        voiced = [x for x in T.list_takes(job.root, job.pass_, job.id, folder)
+                  if x.usable and T.is_voice_take(x)]
+        if not voiced:
+            job.action, job.error = "error", (f"can't dub {job.id} to its voice take: it has none "
+                                              f"yet (make one first)")
+            return
+        take = voiced[-1].take
+    t = job_target(job)
+    src = T.get_take(job.root, job.pass_, job.id, take, folder)
+    name = f"{job.id} t{take:02d}"
+    why = ""
+    if not t.supports("TAKES_LINES"):
+        why = f"{t.short} can't be given a voice to dub"
+    elif src is None or not src.usable:
+        why = f"{name} isn't a finished take"
+    else:
+        sound = src.paths.h3_wav if os.path.isfile(src.paths.h3_wav) else src.paths.mp4
+        if not PK.has_audio(sound):
+            why = f"{name} has no sound"
+        else:
+            job.lines_from, job.lines_file = take, sound
+            job.notes.append(f"dubbed to t{take:02d}'s voice"
+                             + (" (a voice take)" if T.is_voice_take(src) else ""))
+            return
+    job.action, job.error = "error", f"can't dub {job.id} to t{take:02d}: {why}"
 
 
 def parse_size(v) -> tuple[int, int]:
@@ -1976,6 +2061,9 @@ def sidecar_for(job: Job) -> dict:
         **({"base": True} if job.based else {}),
         # asked for; the saver records the file itself as `latent`
         **({"save_latent": True} if job.save_latent else {}),
+        # a voice take (never in the cut); a take dubbed to another take's voice
+        **({"voice_only": True} if job.voice_only else {}),
+        **({"lines_from": job.lines_from} if job.lines_from is not None else {}),
     }
 
 
@@ -3086,6 +3174,8 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
     # anything, is asked about the duration head
     plan_duration(job, probe if isinstance(comfy, InputCollector) else (comfy or probe))
     out = {}
+    if job.lines_file:
+        out["audio"] = stage_lines(job, comfy)
     for r in ref_slots(job.doc, job.shot):
         role, p = r.get("role"), r.get("path")
         if not role or not p:
@@ -3102,6 +3192,30 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
         out.update(t.stage_inputs(job, comfy) or {})
     job.inputs = out
     return out
+
+
+def stage_lines(job: Job, comfy=None) -> str:
+    """A job dubbed to another take's voice: that take's sound, levelled
+    (audiocut.levelled), uploaded as the recording the target dubs, and kept
+    in the take as <stem>_lines.wav (job.staged). Its name; the target's
+    stage_inputs sees it as job.lines_name. A dry run (`comfy` None) levels
+    nothing: the name stands in."""
+    import shutil
+    if comfy is None:
+        job.lines_name = f"{INPUT_SUBFOLDER}/dry_run_{T.safe_id(job.id)}_lines.wav"
+        return job.lines_name
+    from seriesmith import audiocut as AC
+    level = AC.levelled(job.lines_file)
+    d = T.shot_dir(job.root, job.pass_, job.id, job.folder)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, f".tmp_lines_{uuid.uuid4().hex}.wav")
+    shutil.copyfile(level, tmp)
+    name = input_name(tmp)
+    comfy.upload_input(tmp, name)
+    job.staged.append({"tmp": tmp, "suffix": "_lines.wav", "slot": "lines", "kind": "audio",
+                       "role": "lines"})
+    job.lines_name = name
+    return name
 
 
 class InputCollector:

@@ -405,6 +405,18 @@ renders every shot of the request there.
   - `redo: false` skips shots that already have a usable or queued take, as the CLI does.
   - `null` means "not set in this request", so the built value and `overrides.json`
     apply.
+  - `voice_only: true` makes a **voice take**: the shot rendered for its sound only, on
+    `minimax_h3_ref2va` at 64x64 unless `target` / `size` say otherwise, its prompt's sound
+    fields asking for the dialogue alone. Its record says `voice_only`; it is always a new
+    take, never makes the shot "done" (`redo: false` still renders it), and never goes into
+    the cut by itself (a pick can still choose it).
+  - `lines_from` dubs the shot to a take's voice: a take number of the one shot asked for,
+    or `"voice"` (each shot's newest finished voice take). That take's sound (its
+    `_h3.wav`, else its mp4's), levelled to one loudness (`audiocut.levelled`:
+    `loudnorm` I -16, true peak -1.5), is the recording the target dubs: H3 FL2VA anchors
+    it, the LTX targets hold it; it is kept in the take as `_lines.wav` and its record
+    says `lines_from`. A clone shot's voice samples aren't needed then. Other targets, a
+    take that isn't finished or has no sound: that shot's error. Not with `voice_only`.
   - `size` (`"1344x768"`, or `[1344, 768]`) renders this run at that size instead of the
     shotlist's; the take's sidecar records it, and a master re-samples it by its own size
     (`scale: "auto"`). A size off the target's grid is that shot's error (H3: multiples of
@@ -419,7 +431,7 @@ renders every shot of the request there.
   binding's `workflow_name`, else the repo's `seriesmith/targets/<kind>/<id>/workflow.json`
   (Phase 11). A target whose workflow can't be read fails every shot on it, per shot.
 - For each shot the route calls `plan_job` and `Runner.enqueue_render`, which reserves
-  the take (`start_job`, its record `queued`, `queue: "seriesmith"`, its `backend`) and
+  the take (`start_job`, its record `queued`, `queue`: the queue's name, its `backend`) and
   queues the job. When the job starts its inputs are staged (keyframes, a composed sheet),
   the portable graph is built (`graph_for(..., portable=True)`) and sent to the backend,
   and the files it reports are written into the take (`collect_take`).

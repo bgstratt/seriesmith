@@ -1359,6 +1359,18 @@ def post_render(ctx: Context, body):
     # where every shot of this request renders (seriesmith's queue only;
     # absent: each shot's own, jobs.backend_choice)
     backend = _opt_backend(ctx, body)
+    # a voice take (the shot for its sound only), or a take dubbed to one
+    voice_only = body.get("voice_only", False)
+    if not isinstance(voice_only, bool):
+        raise ApiError(400, "voice_only must be true or false")
+    lines = body.get("lines_from")
+    if lines is not None and lines != "voice":
+        lines = check_take(lines, "lines_from")
+        if not (isinstance(shots, list) and len(shots) == 1):
+            raise ApiError(400, "lines_from names one shot's take: ask for one shot, or use "
+                                "\"voice\" (each shot's newest voice take)")
+    if voice_only and lines is not None:
+        raise ApiError(400, "a voice take isn't dubbed: voice_only or lines_from, not both")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1367,7 +1379,7 @@ def post_render(ctx: Context, body):
         note=_opt_str(body, "note") or "", allow_missing_refs=allow_missing,
         target=_opt_target(body.get("target")), allow_model_mismatch=allow_mismatch,
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
-        size=_opt_size(body.get("size")))
+        size=_opt_size(body.get("size")), voice_only=voice_only, lines_from=lines)
     J.load_shotlist(ep, pass_)                           # 404 before anything else
     if body.get("from_draft") is not None:
         # finals made from Seedance drafts: {shot: its proxy draft take}

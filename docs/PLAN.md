@@ -1231,6 +1231,25 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
 - [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
       invented words (seen live 2026-10-28, with and without a held sample).
 
+## Voices before the picture (2026-10-28)
+
+- [x] **H3 FL2VA clones**: the lines made first in the same graph by LTX-2.5's audio-only
+      model (`held_audio.make_lines`, LTX's own loaders: FL2VA's optional `voice_*` models,
+      resolved for clone shots only: a models spec's `policies`), anchored as a recording;
+      the take keeps them as `_lines.wav` (`SeriesmithSaveTake`'s `lines`). Not yet live.
+- [x] **Voice takes** (`voice_only`): the shot on H3 Ref2VA at 64x64 for its sound. Measured
+      live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768, 448x256, 256x160, 64x64 and
+      32x32 all said the line word for word (Whisper), pitch 262-296 Hz against the sample's
+      267, a rough timbre match 0.93-0.94 (LTX's clone: 242 Hz, 0.905, and it dropped a
+      word); the read differs with the size (the noise does), the level too (-13.5 to -20.3
+      dBFS RMS, 448x256 and 256x160 peaking over full scale), so a dub levels it first;
+      ~13-15 s a take once H3 is loaded; a size and seed give the same sound again.
+- [x] **Dub to a take's voice** (`lines_from`): FL2VA anchors it, LTX holds it, levelled.
+      Not yet live.
+- [ ] Voice and dub as one request (the queue's `after`), for clone on FL2VA without
+      listening first; a series setting choosing LTX or H3 for it.
+- [ ] `seriesmith render --voice` / `--lines-from` on the command line.
+
 ## FLUX 3 video (2026-10-28)
 
 - [x] **`flux_3_video`** on Comfy Router (`bfl/flux-3-video`), generated from its schema

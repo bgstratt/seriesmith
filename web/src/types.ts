@@ -54,6 +54,10 @@ export interface TakeSummary {
   draft?: { task: string; made: string; expires: string; expired: boolean } | null;
   /** a final made from a draft (that proxy take) */
   from_draft?: { task: string; take: number; pass: string } | null;
+  /** a voice take: the shot rendered for its sound only (H3 Ref2VA, tiny); never in the cut */
+  voice_only?: boolean;
+  /** dubbed to that take's voice */
+  lines_from?: number;
   stale: StaleReason[];
   thumb: string | null;
   strip: string | null;
@@ -690,6 +694,11 @@ export interface RenderRequest {
   /** Phase 13: keep the take's latent beside it for an upscale later. Absent: the
    * server's default (the series config's upscale.save_latents; final pass only). */
   save_latent?: boolean;
+  /** a voice take: the shot for its sound only (H3 Ref2VA at 64x64 unless target / size
+   * say otherwise); never in the cut. Only sent when set. */
+  voice_only?: boolean;
+  /** dub the shot to this take's voice ("voice": each shot's newest voice take). Only sent when set. */
+  lines_from?: number | "voice";
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
 }

@@ -548,6 +548,11 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 # a Seedance draft (its final can be made from it), or a final made from one
                 "draft": J.draft_of(t.sidecar),
                 "from_draft": (t.sidecar or {}).get("from_draft"),
+                # a voice take (rendered for its sound; never in the cut), or a
+                # take dubbed to one: only when so
+                **({"voice_only": True} if T.is_voice_take(t) else {}),
+                **({"lines_from": (t.sidecar or {})["lines_from"]}
+                   if (t.sidecar or {}).get("lines_from") is not None else {}),
                 # where a take seriesmith didn't render came from (takeimport)
                 **take_origin(t.sidecar),
                 "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache)

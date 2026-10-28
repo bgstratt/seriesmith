@@ -4,6 +4,7 @@ import {
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
+  makeVoiceTakes, dubToVoice,
 } from "../actions";
 import { pickTakeFile } from "../takeActions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
@@ -160,6 +161,10 @@ export function ContextMenu() {
   const common = (
     <>
       {keyframes}
+      <div className="h3-menu-sep" />
+      <button disabled={!!shot?.orphan} title="The shot rendered for its sound only (H3 Ref2VA, 64x64, the voices cloned from their samples), to listen to before dubbing" onClick={run(() => makeVoiceTakes([menu.shot]))}>
+        <i className="pi pi-microphone" /> Make a voice take
+      </button>
       <div className="h3-menu-sep" />
       <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
         <i className="pi pi-forward" /> Play from here
@@ -363,6 +368,12 @@ export function ContextMenu() {
           >
             <i className="pi pi-trash" /> Discard take…
           </button>
+          {take.voice_only && take.status === "ok" && (
+            <button title={`Render ${menu.shot} on its own model, dubbed to ${tn(take.take)}'s voice (levelled first)`}
+              onClick={run(() => dubToVoice([menu.shot], take.take))}>
+              <i className="pi pi-microphone" /> Dub the shot to this voice
+            </button>
+          )}
           {common}
         </>
       ) : (

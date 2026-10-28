@@ -453,8 +453,15 @@ def post_of(take: Take, up: dict | None = None) -> dict | None:
     return {**data, "fresh": fresh}
 
 
+def is_voice_take(t: Take) -> bool:
+    """A take rendered for its sound only (jobs.RenderRequest.voice_only)."""
+    return bool((t.sidecar or {}).get("voice_only"))
+
+
 def latest_usable(takes: list[Take]) -> Take | None:
-    ok = [t for t in takes if t.usable]
+    """The newest finished take a cut may use: a voice take (its picture too
+    small to see) never is, unless picked."""
+    ok = [t for t in takes if t.usable and not is_voice_take(t)]
     return ok[-1] if ok else None
 
 

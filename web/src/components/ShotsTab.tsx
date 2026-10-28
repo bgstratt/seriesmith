@@ -271,11 +271,13 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           {isCut && <span className="h3-badge h3-b-cut" title={s.cut.picked ? "Picked in cut.json" : "The latest usable take"}>{s.cut.picked ? "cut (picked)" : "cut"}</span>}
           {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
           {ub && <span className={`h3-badge h3-b-${ub.kind}`} title={ub.title}>{ub.label}</span>}
+          {t.voice_only && <span className="h3-badge h3-b-voice" title="A voice take: the shot rendered for its sound only, to listen to. It never goes into the cut; right-click: dub the shot to it">voice</span>}
+          {t.lines_from != null && <span className="h3-badge h3-b-voice" title={`Dubbed to ${tn(t.lines_from)}'s voice`}>voice of {tn(t.lines_from)}</span>}
           {t.source === "imported" && (
             <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
           )}
           <span className="h3-grow" />
-          {usable && !isCut && (
+          {usable && !isCut && !t.voice_only && (
             <button className="h3-btn" disabled={pickBusy} title="Use this take in the cut" onClick={(e) => { e.stopPropagation(); void pickTake(s.shot, t.take); }}>
               Use
             </button>

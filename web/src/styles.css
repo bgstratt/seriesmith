@@ -144,6 +144,7 @@
 .h3-b-ok { color: var(--h3-ok); }
 .h3-b-target { color: var(--h3-target); font-weight: 600; letter-spacing: 0.02em; }
 .h3-b-imported { color: var(--h3-muted); border: 1px dashed currentColor; }
+.h3-b-voice { color: var(--h3-accent, #5fb8ae); border: 1px dotted currentColor; }
 .h3-pane-label .h3-b-target { color: #6fe0da; }
 .h3-target-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .h3-target-row select { flex: 1 1 160px; min-width: 0; }

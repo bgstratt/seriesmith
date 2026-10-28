@@ -423,6 +423,10 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     return _ref_slots(target, doc, shot) + HA.audio_slots(doc, shot)
 
 
+# a take's voice can be dubbed (jobs.lines_from): held as a recording is
+TAKES_LINES = True
+
+
 def stage_inputs(target, job, comfy=None) -> dict:
     """_stage_inputs, then a dub shot's window of the recording."""
     out = dict(_stage_inputs(target, job, comfy) or {})

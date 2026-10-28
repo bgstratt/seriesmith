@@ -827,6 +827,24 @@ export function clearMulti() {
   set({ multi: [] });
 }
 
+/** A voice take of each shot: the shot rendered for its sound only (H3 Ref2VA at
+ * 64x64, its voices cloned from their samples), to listen to before dubbing. */
+export function makeVoiceTakes(shots: string[]) {
+  const s = get();
+  if (!s.ep || !shots.length) return;
+  void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true, voice_only: true,
+                     note: "voice take" });
+}
+
+/** Dub each shot to a voice take: `take` (one shot), else each one's newest. The
+ * shot renders on its own model, the voice as the recording it dubs. */
+export function dubToVoice(shots: string[], take: number | null = null) {
+  const s = get();
+  if (!s.ep || !shots.length) return;
+  void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true,
+                     lines_from: take ?? "voice" });
+}
+
 /** Queue the selected shots: a new take of each (its first at the built seed, else a
  * new seed, as Generate does), or the Render dialog first. */
 export function renderSelected(ask = false) {

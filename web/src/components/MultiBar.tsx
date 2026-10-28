@@ -2,7 +2,7 @@
 // In the Shots tab and the Timeline's header; Esc clears it.
 
 import { useEffect } from "react";
-import { clearMulti, renderSelected } from "../actions";
+import { clearMulti, dubToVoice, makeVoiceTakes, renderSelected } from "../actions";
 import { useApp } from "../store";
 
 export function MultiBar() {
@@ -29,6 +29,12 @@ export function MultiBar() {
       </button>
       <button className="h3-btn" title="Choose first: the video model for this run, where they render" onClick={() => renderSelected(true)}>
         Render…
+      </button>
+      <button className="h3-btn" title="A voice take of each: the shot rendered for its sound only (H3 Ref2VA, 64x64), to listen to before dubbing" onClick={() => makeVoiceTakes(multi)}>
+        <i className="pi pi-microphone" /> Voices
+      </button>
+      <button className="h3-btn" title="Render each on its own model, dubbed to its newest voice take" onClick={() => dubToVoice(multi)}>
+        Dub to voices
       </button>
       <button className="h3-btn h3-icon" title="Clear the selection (Esc)" onClick={clearMulti}><i className="pi pi-times" /></button>
     </span>
