@@ -48,10 +48,11 @@ class TooLarge(Exception):
     pass
 
 
-async def read_form(request: web.Request) -> dict:
+async def read_form(request: web.Request, limit: int | None = None) -> dict:
     """A multipart/form-data body as {name: text}, a file field as an
     A.Upload saved to a temporary file (streamed, never held in memory).
-    TooLarge past A.MAX_UPLOAD; the temporary files are removed then."""
+    TooLarge past `limit` (A.MAX_UPLOAD); the temporary files are removed then."""
+    limit = limit or A.MAX_UPLOAD
     form: dict = {}
     reader = await request.multipart()
     loop = asyncio.get_running_loop()
@@ -74,7 +75,7 @@ async def read_form(request: web.Request) -> dict:
                     if not chunk:
                         break
                     form[part.name].size += len(chunk)
-                    if form[part.name].size > A.MAX_UPLOAD:
+                    if form[part.name].size > limit:
                         raise TooLarge()
                     await loop.run_in_executor(None, fh.write, chunk)
     except BaseException:
@@ -98,16 +99,17 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
     `reply` ("file": data is {path, content_type}) and `pool` ("thumb") say
     how it answers and where it runs (api.py sets them)."""
     is_file = getattr(fn, "reply", "json") == "file"
+    # a handler's own upload limit (`max_upload`: a take's video), else A.MAX_UPLOAD
+    limit = getattr(fn, "max_upload", A.MAX_UPLOAD)
+    too_large = {"error": f"the file is over {limit // (1024 * 1024)} MB"}
     async def view(request: web.Request) -> web.StreamResponse:
         if takes == "form" and request.content_type == "multipart/form-data":
-            if (request.content_length or 0) > A.MAX_UPLOAD + (1 << 20):
-                return _json(413, {"error": f"the file is over "
-                                            f"{A.MAX_UPLOAD // (1024 * 1024)} MB"})
+            if (request.content_length or 0) > limit + (1 << 20):
+                return _json(413, too_large)
             try:
-                arg = await read_form(request)
+                arg = await read_form(request, limit)
             except TooLarge:
-                return _json(413, {"error": f"the file is over "
-                                            f"{A.MAX_UPLOAD // (1024 * 1024)} MB"})
+                return _json(413, too_large)
             except (ValueError, AssertionError, UnicodeDecodeError) as e:
                 return _json(400, {"error": f"the multipart body can't be read: {e}"})
         elif takes in ("body", "form"):

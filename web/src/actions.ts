@@ -24,7 +24,7 @@ import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, 
 import {
   detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
-  type CompareMode, type RefTakeRef, type VoiceClipState, SIMPLE_KEY,
+  type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
   AlignEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
@@ -2735,7 +2735,7 @@ export function noteCardAdded(added: { kind: import("./lib/seriesForm").CardKind
 }
 
 /** The shot form: edit `shot`, or add one after `after` (null: at the end). */
-export function openShotForm(form: { shot: string | null; after: string | null } | null) {
+export function openShotForm(form: ShotFormOpen | null) {
   set({ shotForm: form, menu: null });
 }
 

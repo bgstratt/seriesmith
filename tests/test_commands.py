@@ -54,7 +54,7 @@ class TableTest(unittest.TestCase):
 
     def test_a_usage_mistake_exits_2_with_the_usage(self):
         for name, c in C.COMMANDS.items():
-            if name in ("serve", "stop", "targets", "backends", "new"):
+            if name in ("serve", "stop", "targets", "backends", "new", "mcp"):
                 continue                         # a bare call does something (or asks a question)
             code, out, err = run(name)
             self.assertEqual(code, 2, (name, out, err))

@@ -258,6 +258,18 @@ def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | Non
     return out
 
 
+def take_origin(sidecar: dict | None) -> dict:
+    """An imported take's `source`, `original_name` (or the file's name) and
+    `copied_from`; nothing for a rendered one."""
+    sc = sidecar or {}
+    if sc.get("source") != "imported":
+        return {}
+    name = sc.get("original_name") or (os.path.basename(sc["source_path"])
+                                       if sc.get("source_path") else None)
+    return {"source": "imported", "original_name": name,
+            "copied_from": sc.get("copied_from")}
+
+
 def chain_changed(root: str, pass_: str, shot_id: str, held: dict, cache: dict) -> bool:
     """Whether a `continuous: latent` take (its sidecar's `continued_from`)
     continued something other than what the cut puts before it now: another
@@ -536,6 +548,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 # a Seedance draft (its final can be made from it), or a final made from one
                 "draft": J.draft_of(t.sidecar),
                 "from_draft": (t.sidecar or {}).get("from_draft"),
+                # where a take seriesmith didn't render came from (takeimport)
+                **take_origin(t.sidecar),
                 "stale": take_stale(root, pass_, doc, shot, t.sidecar, target, cache)
                 if shot else [],
                 "thumb": take_rel(root, t, t.paths.thumb),

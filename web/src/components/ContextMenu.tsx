@@ -5,6 +5,7 @@ import {
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts,
 } from "../actions";
+import { pickTakeFile } from "../takeActions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -232,6 +233,9 @@ export function ContextMenu() {
       </button>
       <button title={`Add a shot after ${menu.shot}`} onClick={run(() => openShotForm({ shot: null, after: menu.shot }))}>
         <i className="pi pi-plus" /> Add a shot after
+      </button>
+      <button disabled={!!shot?.orphan} title={`A video file as a new take of ${menu.shot}, in the cut (or drop one on its row or clip)`} onClick={run(() => pickTakeFile(menu.shot))}>
+        <i className="pi pi-upload" /> Import video…
       </button>
     </>
   );

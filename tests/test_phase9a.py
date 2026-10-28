@@ -171,6 +171,36 @@ class SourceTest(ApiTest):
         self.assertEqual(after, before)
         self.assertFalse(os.path.exists(os.path.join(self.ep, H.HISTORY)))
 
+    def test_check_pair(self):
+        """POST /seriesmith/check: both texts given, no episode: the answers
+        source/check gives for the same texts."""
+        text, stext = self.get()["text"], self.get("series")["text"]
+        before = sorted(os.listdir(self.shows))
+        pair = lambda **b: self.ok(A.post_check(self.ctx, b))
+        self.assertEqual(pair(series=stext, script=text),
+                         self.ok(A.post_source_check(self.ctx, {"ep": self.ep, "file": "script",
+                                                                "text": text})))
+        bad = text.replace("size: ws", "size: huge")
+        r = pair(series=stext, script=bad)
+        self.assertEqual((r["ok"], r["errors"][0]["file"], r["errors"][0]["line"]),
+                         (False, "script", 12))
+        r = pair(series=stext.replace('"steps": 5', '"steps": 5,'), script=text)
+        self.assertEqual((r["errors"][0]["file"], r["shots"]), ("series", []))
+        r = pair(series=stext.replace('"kettle": {', '"kettle2": {'), script=text)
+        self.assertEqual(r["errors"][0]["line"], text.split("\n").index("props: kettle") + 1)
+        # the series config alone: it loads, there are no shots
+        r = pair(series=stext)
+        self.assertEqual((r["ok"], r["errors"], r["shots"]), (True, [], []))
+        # CRLF and a BOM, as a file pasted from Windows would be
+        self.assertTrue(pair(series="﻿" + stext.replace("\n", "\r\n"),
+                             script=text.replace("\n", "\r\n"))["ok"])
+        # `parent` is checked like any folder; nothing is written
+        self.assertTrue(pair(series=stext, script=text, parent=self.shows)["ok"])
+        self.err(A.post_check(self.ctx, {"series": stext, "parent": self.tmp}), 403)
+        self.err(A.post_check(self.ctx, {"script": text}), 400)
+        self.err(A.post_check(self.ctx, {"series": stext, "script": 3}), 400)
+        self.assertEqual(sorted(os.listdir(self.shows)), before)
+
     def test_save_conflict(self):
         got = self.get()
         with open(self.script, "a", encoding="utf-8") as fh:

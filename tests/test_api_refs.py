@@ -602,3 +602,7 @@ class SharedRefRoutesTest(ApiTest):
             self.ok(A.get_refs(self.ctx, {"ep": self.ep}))
             self.assertTrue(swept.wait(5))
             self.assertEqual(seen["thread"], "seriesmith-sweep-refs")              # a server: after, on a thread
+            swept.clear()
+            seen.clear()
+            self.ok(A.get_refs(self.ctx, {"ep": self.ep, "fresh": "1"}))
+            self.assertEqual(seen["thread"], threading.current_thread().name)   # fresh: first

@@ -1098,6 +1098,87 @@ one. Design: DESIGN.md §7, "The gallery".
       under 2x, its upscale) and more as one zip (`POST /seriesmith/download`: stored, not
       compressed, kept an hour; `<episode>-gallery-<n>.zip`).
 
+## An MCP server: the editor's API for an LLM (designing; 2026-10-27)
+
+Writing the story stays outside seriesmith: the user's own LLM (Claude Code or Cowork,
+Claude Desktop, Cursor, a local model in an MCP client) works out the story with them,
+and the script-writing skill turns it into `series.json` and `epNN.md`. What it can't do
+today is hand them over: the user imports them (Import series…) or pastes them into the
+wizard. An MCP server lets the LLM do that step, and then drive the rest as the editor
+does: refs made or imported and picked, shots rendered, takes picked, the episode
+assembled. No LLM and no key in seriesmith: the client brings the model.
+
+- [x] **`POST /seriesmith/check`** `{series, script?, parent?}` (2026-10-27): a pair that
+      isn't on disk, checked together (`source.check_pair`, which `check_text` now calls
+      with the other file read from disk). An LLM drafting a new show checks it before
+      anything is written, instead of creating an episode to read its `check`.
+- [x] **`seriesmith mcp [--url …] [--read-only]`** (`seriesmith/mcp.py`, 2026-10-27): stdio,
+      a thin client over HTTP to a running `seriesmith serve` or ComfyUI-hosted seriesmith,
+      so every write goes through the routes (their checks, `seriesmith.episode` events for
+      an open editor, one queue). **Stdlib only**, not the `mcp` SDK: MCP's stdio transport
+      is JSON-RPC a line at a time, and the SDK (2.x by then) would have brought pydantic,
+      httpx and more for it. Protocol versions 2024-11-05 to 2025-11-25.
+- [x] **Tools**, each a route (`TOOLS`; a test holds every one to a route the server has):
+      list episodes; read, check and save the two files (`source`, `source/check`, `check`,
+      `PUT source` with its `base_hash`); preview a shot; new episode; import; build; the
+      targets ready here; episode status (trimmed to shots, takes and what's stale); one
+      shot; issues as markdown; refs (list, generate missing, generate one, import, pick);
+      a picture as an image the model sees (`/thumb`); render; jobs (list, wait by polling,
+      cancel); pick and discard a take; assemble. The cut (`edit_cut`: reads cut.json, changes
+      only the shots named, reorders when given every shot, writes the whole list back, since
+      `PUT /seriesmith/cut` replaces it; `reset_cut`); overrides (set, clear) and promote (plan,
+      apply); finishing (upscale and post with their options, Keep, delete; master: plan,
+      queue / assemble / prores, its job). The tools that queue say QUEUES in their
+      descriptions and the server's instructions ask the model to confirm with the user first;
+      `--read-only` leaves out everything that writes or queues. Tested end to end against
+      seriesmith serve's app (`tests/test_mcp.py`, LiveTest), and live, read-only.
+- [x] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
+      client without the skill still writes scripts that check.
+- [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's, Desktop's and Cursor's
+      config for both kinds of install. `python <repo>/seriesmith/mcp.py` runs with any Python
+      3.10+ (a ComfyUI-Manager install has no .venv; the file puts the repo, not its own folder,
+      on the path: its queue.py would shadow the stdlib's).
+- [x] **Settings › This computer › Use from an LLM (MCP)** (2026-10-27): a dropdown like Folders,
+      asked of `GET /seriesmith/mcp` when it's opened (the server knows where seriesmith is and
+      which Python runs it; the page's port is the server it talks to): a client's command line
+      (`claude mcp add seriesmith -- …`; Codex and Copilot CLI alike), the `mcpServers` JSON,
+      the bare command, each to copy, a read-only switch. Not in Features: nothing to install,
+      and seriesmith never starts it (the client does).
+- [x] `import_take` and `copy_take` tools (with the routes below).
+- [ ] Not yet: MCP prompts (a client's slash commands) if a flow proves worth one; refs'
+      overrides and keyframes, align, publish, targets from workflows as tools.
+
+## Takes from outside: import and drag (2026-10-27)
+
+A shot's take that seriesmith didn't render, as refs already have: a video file, or another
+shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from outside".
+
+- [x] **Backend** (`seriesmith/takeimport.py`): `POST /seriesmith/take/import` (a path, or an
+      upload up to 4 GB: the route's own `max_upload`, read in `views.read_form`) and
+      `POST /seriesmith/take/copy`. `source: "imported"`, no seed / prompt / hashes, so never
+      stale; its own frames, fps, size and sound. An H.264 mp4 copied; anything else converted
+      to H.264 (decided 2026-10-27: every take plays in the editor; the original not kept).
+      `copied_from` on a copy. Tests: `tests/test_takeimport.py`.
+- [x] **Import video…** on a shot (Shots tab, its context menu), and a video file dropped on a
+      shot's row or onto a timeline clip: that shot's take, picked. Progress as the refs'
+      uploads.
+- [x] **The gallery's take tiles draggable**, and the timeline a drop target (`lib/takeDrop.ts`,
+      `takeActions.ts`; `web/test/takeDrop.test.ts`):
+      - onto a clip of the same shot: a pick; of another shot: copied in and picked;
+      - between two clips: a new shot in the script after the left one (decided
+        2026-10-27), numbered as "Add a shot after" (`shotIdBetween`), its lines copied from
+        the take's shot, `dur:` the take's length; saved through the source route (history,
+        rebuild); the take copied in, picked, the clip moved to the gap.
+- [x] **A video file dropped between two clips**: the shot form opens there, prefilled
+      (sequence, position, `dur:` from the file), the file attached; Save makes the shot and
+      imports the file as its take (decided 2026-10-27: the action needs writing).
+- [x] Where a take came from, shown: "imported (name)" / "from sh020 t03" in the take row
+      and the gallery's viewer (the episode status's `source`, `original_name`, `copied_from`).
+- [x] Checked live (2026-10-27, by hand): gallery takes and files dropped onto clips and between
+      them, in seriesmith serve and in ComfyUI (after a refresh); a .mov converted. The file
+      between two clips: the form wants the action written, and **Save and generate** also
+      queues a render beside the imported take (documented in EDITOR.md, left as it is).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

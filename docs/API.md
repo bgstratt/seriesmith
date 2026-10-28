@@ -36,6 +36,8 @@ section and search for the path for its later additions.
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
+| `POST /seriesmith/take/import`, `POST /seriesmith/take/copy` | Takes from outside |
+| `GET /seriesmith/mcp` | Using seriesmith from an LLM |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
 | `POST /seriesmith/assemble` | Assemble |
 | `POST` / `DELETE /seriesmith/upscale`, `GET /seriesmith/upscale/options`, `PUT /seriesmith/upscale/recipe`, `PUT /seriesmith/upscale/keep`, `POST /seriesmith/master`, `GET /seriesmith/master/job` | Upscale |
@@ -53,7 +55,7 @@ section and search for the path for its later additions.
 | `DELETE /seriesmith/refs/pick`, `PUT /seriesmith/refs/defaults` | Phase 8.5 |
 | `POST /seriesmith/discard`, `POST /seriesmith/refs/discard`, `POST /seriesmith/refs/generate-missing` | Phase 8.6 |
 | `POST /seriesmith/refs/match` | Supplying references you already have (P8) |
-| `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
+| `GET` / `PUT /seriesmith/source`, `POST /seriesmith/source/check`, `POST /seriesmith/check`, `POST /seriesmith/shot/preview`, `GET` / `POST /seriesmith/promote` | Phase 9a |
 | `GET /seriesmith/align/ready`, `POST /seriesmith/track`, `POST /seriesmith/align`, `GET /seriesmith/align/job`, `POST /seriesmith/refs/voice-from-take` | Phase 9c |
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
@@ -457,6 +459,53 @@ queue (`save_notes: "canceled before it ran"`); if it's running, the backend is 
 stop it and the route waits for it to end (`save_notes: "canceled"`). Either way the take
 is marked `failed`. Returns the take's new status. (A take queued on a ComfyUI directly,
 by h3pipe, is still cancelled there.)
+
+## Takes from outside (2026-10-27)
+
+A shot's take that seriesmith didn't render: a video file, or another shot's take
+(`seriesmith/takeimport.py`). It is a take like any other on disk (`renders[_proxy]/<shot>/`,
+its sidecar, thumbnail and strip), with `source: "imported"` and nothing that made it: no
+seed, prompt, model, target or hashes. So it is never stale, a redo renders a new take as
+usual, and an upscale is the pixel method or SeedVR2 (a re-sample needs a latent and a
+frozen shotlist). Its frames, frame rate, size and sound are the file's: the timeline, Play
+all and assemble already time a take by its own `frames` / `fps`, and assemble conforms the
+rate and size. The shot's `dur:` in the script is left alone.
+
+### `POST /seriesmith/take/import`
+`{ep, pass?, shot, source_path, pick?, note?}` (JSON: a video on this machine), or the same
+as `multipart/form-data` with `file` (up to 4 GB; the route's own limit, past the 64 MB of
+the others). The shot must be in the script (404). `.mp4 .m4v .mov .webm .mkv .avi` (400
+otherwise, or for a file ffprobe finds no video in). An H.264 4:2:0 mp4 with AAC (or no)
+sound is copied as it is; anything else is converted to H.264 (x264 CRF 12 slow, AAC 192k,
+even sides, constant frame rate) so the editor plays it; the original isn't kept. The
+sidecar has `source_path` (or `original_name` for an upload), `converted`, `frames`, `fps`,
+`width`, `height`, `save_notes`. `pick` picks it; a locked cut entry keeps its take
+(`picked: false`, `why`). Answers `{shot, take, pass, status, sidecar, mp4, thumb, picked,
+why?}`; emits `seriesmith.take` and `seriesmith.episode`.
+
+### `POST /seriesmith/take/copy`
+`{ep, pass?, shot, from_shot, take, from_pass?, pick?}`: take `take` of `from_shot` (in
+`from_pass`, default `pass`) copied in as `shot`'s new take: its mp4 (and `_h3.wav`), not its
+upscale or post. The sidecar's `copied_from` is `{shot, take, pass, target, source}` and its
+`note` "from sh020 t03". In `GET /seriesmith/episode`, an imported take also has `source:
+"imported"`, `original_name` (the file's name) and `copied_from` (null for a file); a rendered
+take has none of the three. 400 for the same shot in the same pass (that is a pick) or a take
+that isn't finished, 404 for one that isn't there. Same answer as import. The gallery's
+drag onto the timeline: onto a clip, it is copied into that shot and picked; between two
+clips, the editor first adds a shot to the script there (as "Add a shot after" does, its
+lines copied from the take's shot and its `dur:` the take's length), then copies into it.
+
+## Using seriesmith from an LLM (2026-10-27)
+
+### `GET /seriesmith/mcp[?port=8188]`
+How an LLM client starts this install's MCP server (`seriesmith/mcp.py`, `launch`), for
+Settings › This computer › Use from an LLM: `{"command", "args", "url", "how", "read_only"}`.
+`how` is `"seriesmith"` when a `.venv`'s `seriesmith` launcher sits beside the server's Python
+(`command` that, `args` `["mcp"]`), else `"python"` (`command` the server's Python, `args` the
+path of `mcp.py`: a ComfyUI-Manager install). `port` is the one the page reached the server
+on; `args` add `--url http://127.0.0.1:<port>` unless that is the default (8190). `read_only`
+is the option that leaves out every tool that writes or queues (`--read-only`). 400 for a
+`port` that isn't one. Nothing is started or written.
 
 ## Cut and overrides
 
@@ -1098,6 +1147,10 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
    "takes": [], "picked": null
  }]}
 ```
+- Before listing, finished candidates' takes are closed and a ref with no live file takes its
+  first finished one (the sweep, `refs.auto_pick`). A server lists first and sweeps after, on
+  a thread, sending ref events the page reloads on; `fresh=1` (2026-10-27) sweeps first there
+  too, for a caller with no events (`seriesmith mcp`).
 - Characters have `views`; every other ref has `takes` and `picked` at top level.
 - `exists` means the file renders read is on disk.
 - A `voice` ref lists `takes` for imported audio only; nothing generates voices yet.
@@ -2425,6 +2478,14 @@ built" with [differs]/[added]/[settled].
   [{"file", "line", "col"?, "message"}], "warnings": [{...same}], "shots": [...]}` — the
   same messages `seriesmith check` prints, with 1-based line numbers into the given text. A JSON
   syntax error carries its line/col.
+- **`POST /seriesmith/check`** `{series, script?, parent?}` (2026-10-27): a series config
+  and a script that **aren't on disk**, checked together: a show an LLM is drafting, before
+  `POST /seriesmith/episode/new` or `POST /seriesmith/import` writes it. The same answer as
+  `source/check` gives for the same two texts, every message naming its `file`; `shots` are
+  the script's, empty without one (a series config alone is checked on its own). `parent`
+  (optional, a folder inside a root, else 403) puts the show's own targets there in force
+  (`<show>/targets/`), as an episode's do. 400 when `series` isn't text, or `script` is
+  given and isn't. Nothing is written.
 - **`POST /seriesmith/shot/preview`** `{ep, pass, text, shot}`: the shot form's preview.
   `text` (the script with one shot as edited) is parsed and compiled for `pass` in memory;
   **nothing is written**. Returns `{"ok": true, "shot", "target", "target_label", "prompt"`

@@ -24,6 +24,7 @@ import { LengthPicker } from "./LengthPicker";
 import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { finishDroppedFile } from "../takeActions";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
 
@@ -41,7 +42,8 @@ export function ShotFormWindow() {
   const f = useApp((s) => s.shotForm);
   const ep = useApp((s) => s.ep);
   if (!f || !ep) return null;
-  return <ShotFormBody key={`${ep}|${f.shot ?? `+${f.after ?? ""}`}`} ep={ep} shot={f.shot} after={f.after} />;
+  return <ShotFormBody key={`${ep}|${f.shot ?? `+${f.after ?? ""}|${f.before ?? ""}|${f.file?.name ?? ""}`}`} ep={ep} shot={f.shot} after={f.after}
+    before={f.before ?? null} file={f.file ?? null} dur={f.dur ?? null} left={f.left ?? null} />;
 }
 
 export interface Cast extends Named { kind: string; onScreen: boolean }
@@ -63,7 +65,13 @@ function castOf(raw: Raw | null, refs: Ref[] | undefined): { chars: Cast[]; thin
   };
 }
 
-function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; after: string | null }) {
+function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null, left = null }: {
+  ep: string; shot: string | null; after: string | null;
+  /** a new shot ahead of this one (a file dropped before the first clip) */
+  before?: string | null;
+  /** a video dropped between two clips: imported as the new shot's take on Save */
+  file?: File | null; dur?: string | null; left?: string | null;
+}) {
   const pass = useApp((s) => s.pass);
   const targets = useApp((s) => s.targets);
   const sc = useSeriesConfig(ep);
@@ -100,12 +108,16 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
         setOrig(writeShot(f).join("\n"));
       } else {
         const ids = d.shots.map((x) => x.id);
-        const i = after ? ids.indexOf(after) : ids.length - 1;
-        const id = shotIdBetween(i >= 0 ? ids[i] : null, i >= 0 && i + 1 < ids.length ? ids[i + 1] : null, new Set(ids));
+        const b = before ? ids.indexOf(before) : -1;
+        const i = b >= 0 ? b - 1 : after ? ids.indexOf(after) : ids.length - 1;
+        const id = shotIdBetween(i >= 0 ? ids[i] : null, (b >= 0 || i >= 0) && i + 1 < ids.length ? ids[i + 1] : null, new Set(ids));
         const seqs = sequencesOf(d.text);
-        const at = i >= 0 ? sequenceAt(seqs, d.shots[i].line)?.id : seqs[seqs.length - 1]?.id;
+        const at = b >= 0 ? sequenceAt(seqs, d.shots[b].line)?.id
+          : i >= 0 ? sequenceAt(seqs, d.shots[i].line)?.id : seqs[seqs.length - 1]?.id;
         setSeq(at ?? "+");
-        setForm(newShot(id));
+        const f = newShot(id);
+        if (dur) f.keys.dur = dur;
+        setForm(f);
         setOrig("");
       }
     } catch (e) {
@@ -180,6 +192,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
     const s = seqs.find((x) => x.id === seq);
     const nextSeq = seqs.find((x) => s && x.line > s.line);
     const inSeq = doc.shots.filter((x) => s && x.line > s.line && (!nextSeq || x.line < nextSeq.line));
+    const ahead = before ? inSeq.find((x) => x.id === before) : undefined;
+    if (ahead) return insertAfter(doc.text, ahead.line - 1, block);
     const anchor = (after && inSeq.find((x) => x.id === after)) || inSeq[inSeq.length - 1];
     return insertAfter(doc.text, anchor ? anchor.end_line : (s ? s.line : lines.length), block);
   }
@@ -208,6 +222,8 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
       if (mine.length) host().toast("warn", `${form.id} saved, with problems`, mine[0].message);
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
+      // a video dropped between two clips: its take now, and the clip where it was dropped
+      if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
       // the script as it is now: a new shot opens as itself; an edited one
       // reads the script again (its new hash, the shot as saved), or the form
@@ -237,7 +253,7 @@ function ShotFormBody({ ep, shot, after }: { ep: string; shot: string | null; af
   const head = (
     <>
       <div className="h3-head-text">
-        <span className="h3-kicker">{isNew ? `New shot${after0 ? ` · after ${after0}` : ""}` : "Shot"}</span>
+        <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its take` : ""}` : "Shot"}</span>
         <div className="h3-row">
           <span className="h3-win-title">{form?.id ?? shot ?? ""}</span>
           {dirty && <span className="h3-small h3-muted">not saved</span>}

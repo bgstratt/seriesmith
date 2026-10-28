@@ -22,6 +22,7 @@ import { isKeyframeRef, keyframeSource } from "../lib/keyframes";
 import { regenerateRequest } from "../lib/refSettings";
 import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../lib/refs";
 import { stripStyle } from "../lib/strip";
+import { TAKE_MIME, encodeTakeDrag, type TakeDrag } from "../lib/takeDrop";
 import { targetLabel } from "../lib/targets";
 import { useApp, type GalleryState } from "../store";
 import type { OwnerTake, Pass, Ref, TakeInfo, TakeSummary } from "../types";
@@ -164,6 +165,8 @@ interface GridItem {
   strip?: string | null;
   /** what Download saves, relative to the episode: the picture whole, a take's video */
   file: string;
+  /** a shot's take: dragged onto the timeline (takeDrop) */
+  drag?: TakeDrag;
 }
 
 function counts(n: number, queued: number, failed: number, what: string): string {
@@ -217,6 +220,12 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : [])], strip: it.take.strip,
           // the video the viewer would play: the upscale under the 2x switch
           file: (hi && freshUp(it.take)) || it.take.mp4!,
+          ...(ep ? {
+            drag: {
+              ep, pass, shot: it.shot.shot, take: it.take.take,
+              seconds: it.take.frames && it.take.fps ? it.take.frames / it.take.fps : it.shot.seconds,
+            },
+          } : {}),
         })),
       }))
     : refSecs.map((s) => ({
@@ -234,7 +243,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           badges: [...(it.live ? ["live"] : []), ...(it.episode ? [it.episode] : [])],
           file: it.file,
         })),
-      })), [shots, shotSecs, refSecs, epAspect, shared, hi]);
+      })), [shots, shotSecs, refSecs, epAspect, shared, hi, ep, pass]);
   const keys = useMemo(() => sections.flatMap((s) => s.items.map((i) => i.key)), [sections]);
   const items = useMemo(() => sections.flatMap((s) => s.items), [sections]);
   const [chosen, setChosen] = useState<ReadonlyMap<string, string>>(() => new Map());
@@ -511,7 +520,14 @@ function Tile({ ep, it, sel, row, name, ticked, picking, choose }: {
     <div ref={ref} data-key={it.key} role="button"
       className={`h3-gal-tile${sel ? " h3-sel" : ""}${it.badges.some(isInUse) ? " h3-live" : ""}${ticked ? " h3-ticked" : ""}${picking ? " h3-picking" : ""}`}
       style={{ flex: `${it.aspect} 1 ${Math.round(it.aspect * row)}px`, aspectRatio: String(it.aspect) }}
-      title={it.title}
+      title={it.drag ? `${it.title}
+Drag it onto the timeline: onto a clip, it becomes that shot's take; between two, a new shot` : it.title}
+      draggable={!!it.drag}
+      onDragStart={it.drag ? (e) => {
+        e.dataTransfer.setData(TAKE_MIME, encodeTakeDrag(it.drag!));
+        e.dataTransfer.setData("text/plain", `${it.drag!.shot} ${tn(it.drag!.take)}`);
+        e.dataTransfer.effectAllowed = "copy";
+      } : undefined}
       // while some are ticked, a click ticks (as the photo apps do); else it opens
       onClick={(e) => (picking ? choose(it, e.shiftKey) : updateGallery({ open: it.key, at: it.key }))}
       {...(it.strip ? scrub : {})}>
@@ -830,6 +846,9 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
             )}
           </div>
           <div className="h3-kv">
+            {t.source === "imported" && (
+              <><span>from</span><span>{t.copied_from ? `${t.copied_from.shot} ${tn(t.copied_from.take)} (${t.copied_from.pass}), copied in` : `${t.original_name ?? "a file"}, imported`}</span></>
+            )}
             {t.target && <><span>model</span><span>{targetLabel(targets, t.target)}</span></>}
             {sc?.model && <><span>file</span><span title={String(sc.model)}>{shortName(sc.model, 40)}</span></>}
             {sc?.loras && sc.loras.length > 0 && (

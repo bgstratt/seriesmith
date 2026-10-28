@@ -1,6 +1,6 @@
 import {
   memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
-  type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
+  type DragEvent, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import {
   assemble, currentPlaylist, exportUpscaled, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
@@ -25,6 +25,9 @@ import { Badges, Progress, mediaStyle, useScrub } from "./Thumb";
 import { AudioBadge } from "./ClipAudio";
 import { audioBadgeOf } from "../lib/audioSource";
 import { WaveLane } from "./Waveform";
+import { dragHasFiles } from "../lib/lookback";
+import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
+import { dropFileBetween, dropTakeBetween, dropTakeOnto, importTakeFile } from "../takeActions";
 
 const MIN_CLIP = 26;
 /** a shot left out of the cut: a stub, there to be put back */
@@ -35,6 +38,9 @@ const RULER_H = 12;
 export const WAVE_H = 28;
 
 /** A clip being dragged to a new place: the insertion point and where its marker goes. */
+/** Something from outside held over the track: onto a clip, or between two. */
+type ExtDrop = { kind: "onto"; shot: string } | { kind: "between"; gap: number; x: number };
+
 interface DragState {
   shot: string;
   gap: number | null;
@@ -299,6 +305,8 @@ export function Timeline() {
   const innerRef = useRef<HTMLDivElement>(null);
   const suppress = useRef(false);
   const [drag, setDrag] = useState<DragState | null>(null);
+  // a take from the gallery, or a video file, held over the track (takeDrop)
+  const [ext, setExt] = useState<ExtDrop | null>(null);
   const [trim, setTrim] = useState<TrimPreview | null>(null);
   const groups = useMemo(() => groupBySequence(st?.shots ?? [], st?.fps), [st]);
   const itemBy = useMemo(() => new Map(items.map((i) => [i.shot, i])), [items]);
@@ -431,6 +439,42 @@ export function Timeline() {
       if (!cancelled && gap != null && !s.cut.locked) void moveClip(s.shot, gap);
     });
   }, []);
+
+  // ---- drops from outside: a gallery take or a video file ----
+  /** onto the clip under the pointer (its middle), else between two clips */
+  const extAt = (clientX: number): ExtDrop | null => {
+    const inner = innerRef.current;
+    if (!inner) return null;
+    const els = [...inner.querySelectorAll<HTMLElement>("[data-shot]")];
+    const d = dropAt(els.map((el) => el.getBoundingClientRect()), clientX);
+    if (d.kind === "onto") return { kind: "onto", shot: els[d.index].dataset.shot ?? "" };
+    return { kind: "between", gap: d.gap, x: d.x - inner.getBoundingClientRect().left };
+  };
+  const onExtOver = (e: DragEvent<HTMLDivElement>) => {
+    if (!ep || !st || (!dragHasTake(e.dataTransfer) && !dragHasFiles(e.dataTransfer))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    const at = extAt(e.clientX);
+    setExt((prev) => (JSON.stringify(prev) === JSON.stringify(at) ? prev : at));
+  };
+  const onExtLeave = (e: DragEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setExt(null);
+  };
+  const onExtDrop = (e: DragEvent<HTMLDivElement>) => {
+    const at = extAt(e.clientX);
+    setExt(null);
+    if (!at || !ep) return;
+    const take = dragHasTake(e.dataTransfer) ? decodeTakeDrag(e.dataTransfer.getData(TAKE_MIME)) : null;
+    const files = [...(e.dataTransfer.files ?? [])];
+    if (!take && !files.length) return;
+    e.preventDefault();
+    if (files.length > 1) host().toast("warn", "One video at a time", `${files[0].name} is used; drop the others one by one.`);
+    if (at.kind === "onto") {
+      if (take) void dropTakeOnto(at.shot, take);
+      else void importTakeFile(at.shot, files[0]);
+    } else if (take) void dropTakeBetween(at.gap, take);
+    else void dropFileBetween(at.gap, files[0]);
+  };
 
   // ---- trims: drag a clip's edge ----
   const onEdgeDown = useCallback((e: RPointerEvent<HTMLDivElement>, s: ShotStatus, side: "in" | "out") => {
@@ -574,7 +618,7 @@ export function Timeline() {
           <button className="h3-btn h3-icon" aria-label="Refresh" title="Refresh" disabled={!ep} onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
         </span>
       </div>
-      <div className="h3-track-wrap" ref={wrapRef}>
+      <div className="h3-track-wrap" ref={wrapRef} onDragOver={onExtOver} onDragLeave={onExtLeave} onDrop={onExtDrop}>
         <div ref={trackRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
         {!ep && <div className="h3-empty-state">Pick an episode in the Shots tab.</div>}
         {ep && err && !st && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
@@ -590,7 +634,8 @@ export function Timeline() {
                     const width = widthOf(s);
                     const take = clipTake(s, s.cut.placeholder ? other : undefined);
                     return (
-                      <div key={s.shot} data-shot={s.shot} className="h3-tl-col" style={{ width }}>
+                      <div key={s.shot} data-shot={s.shot} className={`h3-tl-col${ext?.kind === "onto" && ext.shot === s.shot ? " h3-drop-onto" : ""}`} style={{ width }}
+                        title={ext?.kind === "onto" && ext.shot === s.shot ? `Drop: a take of ${s.shot}, in the cut` : undefined}>
                         <Ruler item={it} width={width} zoom={zoom} onDown={onRulerDown} />
                         <div style={{ height: clipH, position: "relative" }}>
                           <Clip
@@ -628,6 +673,7 @@ export function Timeline() {
             ))}
             {!st.shots.length && <div className="h3-empty-state">No shots.</div>}
             {drag && drag.gap != null && <div className="h3-drop-marker" style={{ left: drag.x }} />}
+            {ext?.kind === "between" && <div className="h3-drop-marker h3-drop-new" style={{ left: ext.x }} title="Drop: a new shot here" />}
             <Playhead trackRef={innerRef} wrapRef={wrapRef} zoom={zoom} />
           </div>
         )}

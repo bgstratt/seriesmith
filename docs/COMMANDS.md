@@ -28,6 +28,7 @@ failed exits 1.
 | `seriesmith target-from-workflow <workflow> [<episode>]` | A ComfyUI workflow proposed as a model (`--save` writes it into the show; `--save --every-show` for every show) |
 | `seriesmith backends` | Where jobs can run on this machine, and whether each answers (`--try local`) |
 | `seriesmith serve` / `stop` | The editor's server (below) |
+| `seriesmith mcp` | That server's API as an MCP server, for an LLM client (Claude Code or Desktop, Cursor, …) to make and drive episodes with (below) |
 
 `build`, `check`, `refs`, `assemble` and `all` take several episode folders at once, or a
 parent with `--each`; `render` and `master` take several folders.
@@ -437,6 +438,79 @@ seriesmith stop                        # stop that server cleanly (--restart: st
 - `stop` asks the server on this machine to stop (`--port`); `--restart` restarts it when
   it runs under `run_seriesmith.bat` / `run_seriesmith_ext.bat` (a bare `seriesmith serve`
   just stops). Jobs still running on a backend are picked up on the next start.
+
+### An LLM driving seriesmith: `seriesmith mcp`
+
+```
+seriesmith mcp                         # MCP on stdio, to the server on http://127.0.0.1:8190
+seriesmith mcp --url http://127.0.0.1:8188    # to ComfyUI's, when the editor runs inside it
+seriesmith mcp --read-only             # nothing that writes a file or queues a job
+python <seriesmith>\seriesmith\mcp.py ...   # the same, with any Python 3.10+ (nothing installed)
+```
+
+With it, an LLM you already use (Claude Code or Desktop, Cursor, any client that speaks MCP)
+can work on your episodes: check a series config and script it wrote, make the episode,
+build it, generate or import and pick the pictures, render, look at the takes, pick them,
+trim and reorder the cut, import a video or copy a take in, override a shot's settings (and
+promote them into the script), assemble, and finish the final pass (upscale, post, master).
+Every step goes through the same routes the editor uses, so an open editor shows it as it
+happens. The model is the client's; seriesmith needs no key for it. Tools that queue jobs on
+the GPU or spend Comfy credits say so, and the server asks the model to confirm with you
+first. The script format is a resource (`seriesmith://script-format`), for a client without
+the script-writing skill.
+
+**Nothing to switch on, nothing left running.** seriesmith never starts it. Your LLM client
+starts `seriesmith mcp` when it needs it and stops it when it closes; it listens on no port
+(it talks to the client over stdin and stdout, and to the editor's server like the page
+does). The editor's server has to be running: `seriesmith serve`, or ComfyUI with
+seriesmith. Until it is, every tool answers that nothing answers there.
+
+**Adding it to your client.** The editor writes it out for your install: **Settings › This
+computer › Use from an LLM (MCP)** has the command line, the JSON block and the bare command,
+each with Copy, and a read-only switch. By hand: each client needs the command that starts
+it, written with full paths (a client doesn't start it in the seriesmith folder):
+
+- **Installed with the launchers or `pip install -e .`** (a `.venv` in the seriesmith folder):
+  `C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp` (Linux, macOS:
+  `/path/to/seriesmith/.venv/bin/seriesmith mcp`).
+- **Installed by ComfyUI-Manager** (no `.venv`): ComfyUI's own Python, or any Python 3.10+,
+  running the file, pointed at ComfyUI: `C:\ComfyUI\python_embeded\python.exe
+  C:\ComfyUI\ComfyUI\custom_nodes\seriesmith\seriesmith\mcp.py --url http://127.0.0.1:8188`.
+
+A client's command line takes its name, then `--`, then that command (Claude Code, Codex and
+GitHub Copilot CLI alike; Claude Code's `--scope user` adds it for every project):
+
+```
+claude mcp add --scope user seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
+codex mcp add seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
+copilot mcp add seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
+```
+
+`claude mcp list` shows it, and `/mcp` in a session shows its tools.
+
+Claude Desktop: **Settings → Developer → Edit Config** opens `claude_desktop_config.json`
+(`%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS). Add the
+server, save, and restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "seriesmith": {
+      "command": "C:\\path\\to\\seriesmith\\.venv\\Scripts\\seriesmith.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+For a ComfyUI-Manager install, `command` is the Python and `args` are the file and its
+options: `"args": ["C:\\ComfyUI\\ComfyUI\\custom_nodes\\seriesmith\\seriesmith\\mcp.py",
+"--url", "http://127.0.0.1:8188"]`.
+
+Cursor, Gemini CLI, Windsurf and most other clients take the same `mcpServers` block (Cursor:
+`~/.cursor/mcp.json`; Gemini CLI: `~/.gemini/settings.json`). VS Code (Copilot) keeps its own
+in `.vscode/mcp.json` under `servers`, each with `"type": "stdio"`. Add `"--read-only"` to the args for a model that should
+only look. `--url` can also come from `SERIESMITH_URL`.
 
 ## Recorded dialogue (lip sync)
 

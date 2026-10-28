@@ -416,6 +416,9 @@ _TABLE = [
             _serve, own_help=True),
     Command("stop", "[--restart]", "stop (or restart) that editor's server cleanly",
             _stop, own_help=True),
+    Command("mcp", "[--url URL] [--read-only]",
+            "that server's API as an MCP server on stdio, for an LLM client to start",
+            _module_main("seriesmith.mcp"), own_help=True),
 ]
 COMMANDS: dict[str, Command] = {c.name: c for c in _TABLE}
 

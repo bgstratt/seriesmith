@@ -82,6 +82,11 @@ export interface TakeSummary {
   /** Phase 13: the take's size, from its sidecar (the Upscale dialog's arithmetic) */
   width?: number | null;
   height?: number | null;
+  /** a take seriesmith didn't render (takeimport): "imported", with the file's name or
+   * the take it was copied from; absent on a rendered take */
+  source?: "imported";
+  original_name?: string | null;
+  copied_from?: { shot: string; take: number; pass: Pass; target?: string | null } | null;
 }
 
 export interface CutInfo {
@@ -1605,6 +1610,51 @@ export interface RefImportRequest {
 }
 
 /** POST /seriesmith/refs/import as multipart/form-data (Phase 8.6, drag and drop). */
+/** POST /seriesmith/take/import (JSON: a video on the server's machine). */
+export interface TakeImportRequest {
+  ep: string;
+  pass: Pass;
+  shot: string;
+  source_path: string;
+  pick?: boolean;
+  note?: string;
+}
+
+/** POST /seriesmith/take/import as multipart. */
+export interface TakeUploadRequest {
+  ep: string;
+  pass: Pass;
+  shot: string;
+  file: Blob;
+  name?: string;
+  pick?: boolean;
+}
+
+/** POST /seriesmith/take/copy: another shot's take as this shot's new one. */
+export interface TakeCopyRequest {
+  ep: string;
+  pass: Pass;
+  shot: string;
+  from_shot: string;
+  take: number;
+  from_pass?: Pass;
+  pick?: boolean;
+}
+
+/** What take/import and take/copy answer. */
+export interface ImportedShotTake {
+  shot: string;
+  take: number;
+  pass: Pass;
+  status: TakeStatus;
+  sidecar: Sidecar;
+  mp4: string | null;
+  thumb: string | null;
+  picked: boolean;
+  /** why it wasn't picked (a locked cut entry) */
+  why?: string;
+}
+
 export interface RefUploadRequest {
   ep: string;
   ref: string;
