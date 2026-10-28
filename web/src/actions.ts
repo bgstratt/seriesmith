@@ -832,6 +832,7 @@ export function clearMulti() {
 export function makeVoiceTakes(shots: string[]) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  if (shots.length > 8 && !confirm(`Queue ${shots.length} voice takes?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true, voice_only: true,
                      note: "voice take" });
 }
@@ -841,6 +842,7 @@ export function makeVoiceTakes(shots: string[]) {
 export function dubToVoice(shots: string[], take: number | null = null) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  if (shots.length > 8 && !confirm(`Queue ${shots.length} ${s.pass} renders, each dubbed to its voice take?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots), redo: true,
                      lines_from: take ?? "voice" });
 }

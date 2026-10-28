@@ -163,7 +163,7 @@ export function ContextMenu() {
       {keyframes}
       <div className="h3-menu-sep" />
       <button disabled={!!shot?.orphan} title="The shot rendered for its sound only (H3 Ref2VA, 64x64, the voices cloned from their samples), to listen to before dubbing" onClick={run(() => makeVoiceTakes([menu.shot]))}>
-        <i className="pi pi-microphone" /> Make a voice take
+        <i className="pi pi-microphone" /> Generate a voice take
       </button>
       <div className="h3-menu-sep" />
       <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
@@ -371,7 +371,7 @@ export function ContextMenu() {
           {take.voice_only && take.status === "ok" && (
             <button title={`Render ${menu.shot} on its own model, dubbed to ${tn(take.take)}'s voice (levelled first)`}
               onClick={run(() => dubToVoice([menu.shot], take.take))}>
-              <i className="pi pi-microphone" /> Dub the shot to this voice
+              <i className="pi pi-play" /> Generate a dub to this voice
             </button>
           )}
           {common}

@@ -289,12 +289,12 @@ under the shot.
   dialog for them first, and × or Esc clears it. Right-click one of them for the same two.
   Clicking a shot outside the selection ends it.
 - **Click a take** to select that candidate; **double-click** opens it in the Viewer.
-- **Voice takes.** **Make a voice take** (a shot's context menu, or **Voices** with several
-  selected) renders the shot for its sound only: on H3 Ref2VA at 64x64, each voice cloned
+- **Voice takes.** **Generate a voice take** (a shot's context menu), or **Generate voices**
+  with several selected, queues the shot at once, rendered for its sound only: on H3 Ref2VA at 64x64, each voice cloned
   from its sample, about 15 seconds a take once H3 is loaded. It lists as a take with a
   **voice** badge, plays like one, and never goes into the cut. Listen; make another if it
-  isn't right. Then **Dub the shot to this voice** (on the voice take), or **Dub to voices**
-  with several selected (each one's newest), renders the shot on its own model with that
+  isn't right. Then **Generate a dub to this voice** (on the voice take), or **Generate dubs**
+  with several selected (each one's newest), queues the shot on its own model with that
   voice, evened out to one loudness, as the recording it dubs: H3 FL2VA (from its
   keyframes) and the LTX models. The take says **voice of t03** and keeps the voice as
   `_lines.wav`.
