@@ -48,7 +48,7 @@
         "group": "Guides",
         "pages": ["continuous", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]
       },
-      { "group": "Reference", "pages": ["api-reference"] }
+      { "group": "Reference", "pages": ["adding-models", "api-reference"] }
     ]
   },
   "navbar": {

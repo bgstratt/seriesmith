@@ -39,6 +39,7 @@ PAGES = [
     ("docs/RECORDED_DIALOGUE.md", "recorded-dialogue", "Lip-synced episodes from real recorded lines instead of generated voices."),
     ("docs/KREAGEN.md", "reference-images", "How the reference pictures are made: sheets, plates, props and keyframes on an image model."),
     ("docs/H3_TARGET.md", "h3-target", "The default video model, MiniMax H3 Ref2VA, in detail: its picture slots, sheets, voices and pacing."),
+    ("docs/ADDING_MODELS.md", "adding-models", "Adding a video or image model: a Comfy Router model or a workflow of yours in the app, tried and switched on, or a model shipped in seriesmith's code."),
     ("docs/API.md", "api-reference", "The editor's HTTP API and the files behind it, for driving seriesmith from your own code."),
 ]
 PAGE_OF = {src: page for src, page, _ in PAGES}
