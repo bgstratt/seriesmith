@@ -2690,6 +2690,13 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
                 used.append("negative")
                 vneg, vneg_source = ov["negative"], "override"
             vals = _preset_values(target)
+            if ref.kind == "keyframe":
+                # a keyframe is the shot's frame, not an edit of its first
+                # reference: a target that would start from the references'
+                # latent (qwen_image_21) starts from an empty one at the
+                # job's size, the references still conditioning it (Ballroom
+                # ep03 sh130 came out 1280x1696, Cindy's portrait, not 1344x768)
+                vals["latent"] = "empty"
             vnotes = list(notes)
             for k, x in (pick("params", None, req.params) or {}).items():
                 if target.binding.specs(k):
