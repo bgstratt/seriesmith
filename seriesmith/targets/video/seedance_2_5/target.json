@@ -4,7 +4,7 @@
   "label": "Seedance 2.5 (hosted, Comfy Router)",
   "short": "Seedance",
   "code": "builtin:router_video",
-  "_note": "ByteDance's Seedance 2.5 as a hosted model through Comfy Router (byteplus/dreamina-seedance-2-5-260628, docs.comfy.org/development/comfy-router/models/byteplus/dreamina-seedance-2-5-260628). No workflow: a render is one Router call (router_call in compile.py). Its prompt is prose with the spoken lines (the ltx2 writer, builtin video_prose); its references go in as separate reference images (each subject's sheet, then the plate), and a shot's first/last keyframes as first_frame/last_frame. It makes its own sound and can't be handed a recording, so every audio policy renders as generate. Not yet tried against the live service (docs/PLAN.md, step 4).",
+  "_note": "ByteDance's Seedance 2.5 as a hosted model through Comfy Router (byteplus/dreamina-seedance-2-5-260628, docs.comfy.org/development/comfy-router/models/byteplus/dreamina-seedance-2-5-260628). No workflow: a render is one Router call (router_call in compile.py). Its prompt is prose with the spoken lines (the ltx2 writer, builtin video_prose); its references go in as separate reference images (each subject's sheet, then the plate), and a shot's first/last keyframes as first_frame/last_frame. It makes its own sound, or hears a clone shot's voice samples or a dub shot's window of the recording as audio references (recipe._audio_note). Not yet tried against the live service (docs/PLAN.md, step 4).",
   "capabilities": {
     "_note": "Hosted: Router only, and the provider decides what a seed means (a take can't be promised to come out the same again). Reference images: up to 30 a request (BytePlus ModelArk and ByteDance's Seedance 2.5 announcement: 30 images, 10 videos and 10 audio clips, 50 in all; more is refused whole): subjects first, then the plate when there is room.",
     "backends": [
@@ -33,12 +33,16 @@
     "plates": "all"
   },
   "recipe": {
+    "_audio_note": "Seedance hears audio references (router.inputs.voices, role reference_audio): a clone shot sends each speaker's voice sample and names it in the prompt ('Use @Audio 1 as the voice of Ada.'); a dub shot sends its window of the recording ('Use @Audio 1 as the exact dialogue and soundtrack of the shot: the lips are synced to it.'). The wording follows BytePlus's @Image naming; not yet tried against the live service (docs/PLAN.md, 'Seedance audio references').",
     "policies": [
-      "generate"
+      "generate",
+      "clone",
+      "dub",
+      "dub_keep_foley"
     ],
     "policy_fallback": {
       "to": "generate",
-      "why": "Seedance makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+      "why": "Seedance makes its own sound"
     },
     "keyframes": [
       "first",
@@ -70,6 +74,10 @@
       "object": {
         "kind": "{kind} reference",
         "shape": "object"
+      },
+      "voice": {
+        "kind": "voice sample",
+        "shape": "voice"
       },
       "location": {
         "kind": "background plate",
@@ -163,6 +171,21 @@
           },
           "role": "last_frame"
         }
+      },
+      "voices": {
+        "_note": "audio wav/mp3 2-15 s (BytePlus ModelArk, Atlas's asset rules); up to 10 clips a request on 2.5, which can take audio without a picture",
+        "list": "content",
+        "item": {
+          "type": "audio_url",
+          "audio_url": {
+            "url": "$url"
+          },
+          "role": "reference_audio"
+        },
+        "max": 10,
+        "min_seconds": 2,
+        "max_seconds": 15,
+        "mention": "@Audio {n}"
       },
       "via": "seedance"
     },

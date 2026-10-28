@@ -70,12 +70,16 @@ def quiet_point(path: str, lo: float, hi: float) -> float:
     return hi if at is None else lo + (at + n / 2) / RATE
 
 
-def cut(src: str, start: float, end: float) -> str:
-    """`start..end` seconds of `src` as a wav in `_cuts/` beside it, made once."""
+def cut(src: str, start: float, end: float, at_least: float = 0.0) -> str:
+    """`start..end` seconds of `src` as a wav in `_cuts/` beside it, made once;
+    padded with silence to `at_least` seconds when it's shorter (a model with
+    a shortest clip it hears)."""
     sha = (F.file_digest(src) or "")[:12]
     stem = os.path.splitext(os.path.basename(src))[0]
+    pad = at_least if at_least > end - start else 0.0
     out = os.path.join(os.path.dirname(os.path.abspath(src)), CUTS,
-                       f"{stem}_{sha}_{round(start * 1000)}-{round(end * 1000)}.wav")
+                       f"{stem}_{sha}_{round(start * 1000)}-{round(end * 1000)}"
+                       + (f"_pad{round(pad * 1000)}" if pad else "") + ".wav")
     if os.path.isfile(out):
         return out
     exe = FF.find("ffmpeg")
@@ -84,7 +88,9 @@ def cut(src: str, start: float, end: float) -> str:
     tmp = F.temp_beside(out, ".wav")
     try:
         r = subprocess.run([*exe, "-v", "error", "-nostdin", "-y", "-ss", f"{start:.3f}",
-                            "-to", f"{end:.3f}", "-i", src, "-vn", "-c:a", "pcm_s16le", tmp],
+                            "-to", f"{end:.3f}", "-i", src, "-vn",
+                            *(["-af", f"apad=whole_dur={pad:.3f}"] if pad else []),
+                            "-c:a", "pcm_s16le", tmp],
                            capture_output=True, timeout=300)
         if r.returncode != 0 or not os.path.isfile(tmp):
             raise CutError(f"ffmpeg could not cut {start:.2f}-{end:.2f}s out of "
@@ -108,6 +114,7 @@ def voice_clip(sample: str, lo: float = CLIP_MIN, hi: float = CLIP_MAX) -> tuple
     return cut(sample, 0.0, end), end
 
 
-def window(track: str, start: float, end: float) -> str:
-    """The `start..end` window of a recorded track, for a shot spoken to it."""
-    return cut(track, max(0.0, float(start)), float(end))
+def window(track: str, start: float, end: float, at_least: float = 0.0) -> str:
+    """The `start..end` window of a recorded track, for a shot spoken to it
+    (padded with silence to `at_least` seconds)."""
+    return cut(track, max(0.0, float(start)), float(end), at_least)

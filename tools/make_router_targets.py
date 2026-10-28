@@ -65,13 +65,50 @@ KLING_V3_OMNI = {"pictures": {"references": 7}}
 def seedance_ratio(p: dict) -> None:
     """Seedance 2.0 takes a ratio alongside its frames (2.5 refuses one), and,
     as 2.5 does, its prompt opens by defining each picture (BytePlus's prompt
-    guide: "Define ... in @Image N as ...": router_video.definitions), and
-    takes a `continuous: multishot` group in prose, a paragraph a shot
-    (docs/MULTISHOT.md), every shot's plate among its pictures."""
+    guide: "Define ... in @Image N as ...": router_video.definitions), takes
+    a `continuous: multishot` group in prose, a paragraph a shot
+    (docs/MULTISHOT.md), every shot's plate among its pictures, and hears
+    audio references as 2.5 does (seedance_audio)."""
     p["router"]["inputs"]["ratio"]["with_frames"] = "keep"
     p["router"]["inputs"]["references"]["define"] = True
     p["multishot"] = MULTISHOT_PROSE
     p["router"]["picture_ratio"] = PICTURE_RATIO
+    seedance_audio(p)
+
+
+# A model that makes its own sound and hears no audio: what the recipe it was
+# proposed from (Seedance 2.5's) says of every other policy
+GENERATE_ONLY_WHY = "makes its own sound and can't be given a recording to dub; lay the recording in at the edit"
+
+
+def generate_only(p: dict, short: str) -> None:
+    """The recipe of a model that renders every policy as generate: the base
+    recipe (Seedance 2.5's) hears audio references, the models proposed from
+    it don't until a hook says they do."""
+    rec = p.get("recipe") or {}
+    rec.pop("_audio_note", None)
+    (rec.get("refs") or {}).pop("voice", None)
+    if rec.get("policies") != ["silent"]:          # a silent model's are its own
+        rec["policies"] = ["generate"]
+        rec["policy_fallback"] = {"to": "generate", "why": f"{short} {GENERATE_ONLY_WHY}"}
+
+
+def seedance_audio(p: dict) -> None:
+    """Seedance 2.0's audio references, as 2.5's (its target.json): a clone
+    shot's voice samples, a dub shot's window of the recording, as content
+    items of role reference_audio; up to 3 a request ("3 audio clips":
+    Runware's, fal's and Together's Seedance 2.0 docs), 2-15 s each, and
+    never without a picture (its schema: "Seedance 2.0, 2.0 fast & 2.0 mini
+    cannot use audio alone")."""
+    base = TG.load_target("seedance_2_5", "video").spec
+    rec = p["recipe"]
+    for k in ("_audio_note", "policies", "policy_fallback"):
+        rec[k] = json.loads(json.dumps(base["recipe"][k]))
+    rec["refs"]["voice"] = dict(base["recipe"]["refs"]["voice"])
+    voices = json.loads(json.dumps(base["router"]["inputs"]["voices"]))
+    voices.update(_note="audio wav/mp3 2-15 s; up to 3 clips a request, and only with a picture",
+                  max=3, needs_picture=True)
+    p["router"]["inputs"]["voices"] = voices
 
 
 # the shapes a picture may have, width over height: BytePlus's Seedance library
@@ -269,10 +306,8 @@ def build() -> dict[str, dict]:
             p = RI.propose(model, json.load(fh), base=base)["proposal"]
         p.update(id=tid, label=f"{label} (hosted, Comfy Router)", short=short)
         p.pop("draft", None)
-        # the recipe came from Seedance's: its audio fallback says the model's own name
-        fb = (p.get("recipe") or {}).get("policy_fallback") or {}
-        if fb.get("why", "").startswith(base["short"] + " makes its own sound"):
-            fb["why"] = short + fb["why"][len(base["short"]):]
+        # the recipe came from Seedance's: every policy is generate, said in the model's name
+        generate_only(p, short)
         if limits:
             p = L.apply(p, limits)
         if extra:

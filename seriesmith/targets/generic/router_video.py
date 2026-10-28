@@ -29,6 +29,12 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
                   # {"list": "content", "item": {"type": "image_url",
                   #   "image_url": {"url": "$url"}, "role": "first_frame"}}
         "last": {"field": "last_frame_url"},
+        "voices": {"list": "content", "item": {"type": "audio_url",
+                   "audio_url": {"url": "$url"}, "role": "reference_audio"},
+                   "max": 3, "min_seconds": 2, "max_seconds": 15,
+                   "mention": "@Audio {n}", "needs_picture": true},
+                    # a clone shot's voice samples, a dub shot's window of the
+                    # recording (sounds); the recipe's policies say which it renders
         "via": "seedance"                         # how pictures go in (File.via)
       },
       "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"},
@@ -374,6 +380,76 @@ def board_prompt(part: dict, pics: list, series_cfg: dict, mention: str | None, 
     return f"{out} {tail}" if tail else out
 
 
+def sounds(target, job, shot: dict, inp: dict, pics: list) -> tuple[list, str]:
+    """([(path, what)], the prompt's line naming them) a shot sends as audio
+    references (router.inputs.voices): a clone shot's voice samples, one per
+    speaker, or a dub shot's window of the recording; ([], "") for any other
+    shot, a model without the input, or a file not on disk (rendering anyway
+    without it). A sample past the model's longest is cut between words
+    (audiocut.voice_clip); one shorter than its shortest, or a window outside
+    the range, is a ValueError before anything is sent; a window shorter
+    than the shortest is padded with silence. `mention` names each
+    as the request numbers them, as the pictures are named ("@Audio {n}")."""
+    from seriesmith import audiocut as AC
+    from seriesmith import jobs as J
+    from seriesmith.targets import held_audio as HA
+    spec = inp.get("voices")
+    policy = shot.get("audio_policy")
+    if not spec or policy not in ("clone", *HA.DUB):
+        return [], ""
+    lo, hi = float(spec.get("min_seconds") or 0), float(spec.get("max_seconds") or 0)
+    name = target.short or target.id
+
+    def on_disk(rel: str) -> str | None:
+        p = os.path.normpath(J._abs(job.root, rel)) if rel else ""
+        return p if p and os.path.isfile(p) else None
+
+    def check(path: str, what: str, secs: float | None) -> None:
+        if secs is not None and lo and secs < lo:
+            raise ValueError(f"{what} is {secs:.1f}s and {name} hears {lo:g}s at the least: "
+                             f"use a longer one. Nothing was sent")
+        if secs is not None and hi and secs > hi:
+            raise ValueError(f"{what} is {secs:.1f}s and {name} hears {hi:g}s at the most. "
+                             f"Nothing was sent")
+
+    cfg = J.series_config(job.root) or {}
+    book = cfg.get("subjects") or {}
+    out, said = [], []
+    mention = spec.get("mention") or "@Audio {n}"
+    if policy == "clone":
+        for r in shot.get("voice_refs") or []:
+            path = on_disk(r.get("sample", ""))
+            if not path:
+                continue
+            e = book.get(r["subject"]) or {}
+            who = e.get("name") or (book.get(e.get("of")) or {}).get("name") or r["subject"]
+            secs = AC.duration(path)
+            if hi and secs and secs > hi:
+                path, secs = AC.voice_clip(path, max(lo, hi - 3.0), hi)
+            check(path, f"{who}'s voice sample", secs)
+            out.append((path, r["subject"]))
+            said.append(f"Use {mention.replace('{n}', str(len(out)))} as the voice of {who}.")
+    else:
+        (slot,) = HA.recording_slot(job.doc, shot)
+        track = on_disk(slot["path"])
+        if track:
+            if "audio_in" in shot and not shot.get("audio_file"):
+                a_in, a_out = float(shot["audio_in"]), float(shot["audio_out"])
+                # a line shorter than the model hears is padded with silence
+                check(track, f"{shot.get('id', 'the shot')}'s window of the recording "
+                             f"({a_in:.2f}-{a_out:.2f}s)", max(a_out - a_in, lo))
+                track = AC.window(track, a_in, a_out, at_least=lo)
+            else:
+                check(track, os.path.basename(track), AC.duration(track))
+            out.append((track, "recording"))
+            said.append(f"Use {mention.replace('{n}', '1')} as the exact dialogue and soundtrack "
+                        f"of the shot: the lips are synced to it.")
+    if out and spec.get("needs_picture") and not pics:
+        raise ValueError(f"{name} can't be sent audio without a picture, and "
+                         f"{shot.get('id', 'this shot')} has none on disk. Nothing was sent")
+    return out, " ".join(said)
+
+
 def check_ratios(target, pics: list) -> None:
     """ValueError, before anything is sent, for a picture whose shape the model
     refuses (its target's `router.picture_ratio`, [narrowest, widest] as width
@@ -425,6 +501,7 @@ def router_call(target, job) -> tuple[str, dict]:
                          f"{shot.get('id', 'this shot')} has none yet: make it first (the shot's "
                          f"menu, or first: generate in the script)")
     check_ratios(target, pics)
+    heard, voice_line = sounds(target, job, shot, inp, pics)
     args = copy.deepcopy(spec.get("arguments") or {})
 
     # the pictures named at the end (Kling), the prose cut to the longest
@@ -435,6 +512,8 @@ def router_call(target, job) -> tuple[str, dict]:
     # the pictures defined first (Seedance: its prompt guide's "Define ... in @Image N as ...")
     head = (definitions(pics, shot, J.series_config(job.root) or {})
             if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
+    # the audio named after the pictures ("Use @Audio 1 as the voice of Ada.")
+    head = "\n\n".join(x for x in (head, voice_line) if x)
     limit = pspec.get("max_chars") if isinstance(pspec, dict) else None
     if limit:
         text = fit(text, limit - sum(len(x) + 2 for x in (head, tail) if x))
@@ -466,6 +545,8 @@ def router_call(target, job) -> tuple[str, dict]:
     for role, path, _ in pics:
         place(args, inp[role], url=File(path, via=via),
               mime="image/jpeg" if path.lower().endswith((".jpg", ".jpeg")) else "image/png")
+    for path, _ in heard:
+        place(args, inp["voices"], url=File(path, via=via), mime="audio/wav")
     neg = inp.get("negative")
     if neg and getattr(job, "negative", None):
         place(args, neg, negative=job.negative)
