@@ -1567,6 +1567,9 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
         # retarget: this shot's IR compiled for the other target, now
         try:
             sdoc, shot = retarget(root, pass_, doc, built, target_id)
+            if BEHIND in sdoc:
+                notes.append(sdoc[BEHIND])
+                sdoc = {k: v for k, v in sdoc.items() if k != BEHIND}
         except Exception as e:
             error = f"can't render {sid} on {target_id}: {e}"
     dflt = sdoc.get("defaults", {})
@@ -1878,14 +1881,19 @@ def episode_story(root: str):
     raise FileNotFoundError(f"no series.json in {root} or its parent folder")
 
 
+BEHIND = "_build_behind"                # retarget's note, taken off the doc by plan_job
+
+
 def retarget(root: str, pass_: str, doc: dict, shot: dict, target_id: str,
              cache: dict | None = None) -> tuple[dict, dict]:
     """(shotlist doc, entry) of `shot` compiled for `target_id` from
     shotlist/shots.json and the series config, as a build that put the shot on
-    that target would write it. The build must be current: the shot's own
-    target, compiling the same IR, has to give exactly the built entry, else
-    ValueError (rebuild the episode). `cache` (a dict) keeps the result per
-    (pass, shot, target) for callers that ask about many shots."""
+    that target would write it. When the shot's own target, compiling the same
+    IR, no longer gives exactly the built entry (the series config or
+    seriesmith changed since the build; the script's IR is the build's own),
+    it still compiles, and the doc says so (`BEHIND`: a note for the take).
+    `cache` (a dict) keeps the result per (pass, shot, target) for callers
+    that ask about many shots."""
     key = (pass_, shot["id"], target_id)
     if cache is not None and key in cache:
         hit = cache[key]
@@ -1899,9 +1907,14 @@ def retarget(root: str, pass_: str, doc: dict, shot: dict, target_id: str,
             raise ValueError(f"{shot['id']} is not in shots.json (rebuild the episode)")
         now, _ = shotlist_target(doc).compile_episode(story, series_cfg, pass_,
                                                       only={shot["id"]})
-        if [shot] != now["shots"]:
-            raise ValueError(f"the build of {shot['id']} is out of date (rebuild the episode)")
         rdoc, _ = new.compile_episode(story, series_cfg, pass_, only={shot["id"]})
+        if [shot] != now["shots"]:
+            # it used to refuse ("rebuild the episode"): an update to a target's
+            # compile made every shot built before it refuse to retarget,
+            # though its script hadn't changed (a voice take, 2026-10-28)
+            rdoc[BEHIND] = (f"{shot['id']}'s build is older than the series config or "
+                            f"seriesmith: compiled for {target_id} as they are now "
+                            f"(rebuild to make them agree)")
         out = (rdoc, rdoc["shots"][0])
     except Exception as e:
         if cache is not None:

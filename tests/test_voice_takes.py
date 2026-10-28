@@ -84,6 +84,22 @@ class VoiceTakeTest(unittest.TestCase):
         self.assertTrue(again.runs)
         self.assertEqual(again.take, t.take + 1)
 
+    def test_a_build_behind_seriesmith_still_retargets(self):
+        """A target's compile changed since the build (an update): the built entry
+        no longer matches a fresh compile, but the script is the build's own, so
+        a render on another model (a voice take on an FL2VA shot) still plans,
+        and says so. It used to refuse: "rebuild the episode"."""
+        doc, i = J.find_shot(self.root, "final", "sh020")
+        path = os.path.join(self.root, J.shotlist_rel("final"))
+        sl = json.load(open(path, encoding="utf-8"))
+        sl["shots"][i]["prompt"] = ["written by an older seriesmith"]
+        T.write_json(path, sl)
+        # (the kitchen sink builds on Ref2VA, the voice model: another model retargets)
+        job = self.plan("sh020", target="ltx2")
+        self.assertTrue(job.runs, job.error)
+        self.assertTrue(any("build is older than the series config or seriesmith" in n
+                            for n in job.notes), job.notes)
+
     def test_a_voice_take_never_makes_the_shot_done_nor_goes_into_the_cut(self):
         t = self.voice_take()
         # the shot still renders (Generate missing), on its own model too

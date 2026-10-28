@@ -611,15 +611,18 @@ class MixedEpisodeTest(unittest.TestCase):
         self.assertIsInstance(job.prompt, list)
         self.assertEqual((job.frames - 5) % 17, 0)
 
-    def test_retarget_needs_a_current_build(self):
+    def test_retarget_from_a_build_behind_the_series_config(self):
+        """The series config changed since the build: a render on another model
+        compiles with it as it is now and says so (it used to refuse, "rebuild
+        the episode", as it did after any update to a target's compile)."""
         p = os.path.join(self.root, "series.json")
         cfg = json.load(open(p, encoding="utf-8"))
         cfg["subjects"]["ada"]["design"] = "someone else entirely"
         json.dump(cfg, open(p, "w", encoding="utf-8"))
         job = self.plan("sh010", ov={}, target=LTX)
-        self.assertEqual(job.action, "error")
-        self.assertIn("out of date", job.error)
-        self.assertFalse(job.runs)
+        self.assertTrue(job.runs, job.error)
+        self.assertIn("someone else entirely", J._prompt_text(job.prompt))
+        self.assertTrue(any("build is older than the series config" in n for n in job.notes))
 
     def test_status_merges_targets_and_reports_them(self):
         ov = T.load_overrides(self.root)

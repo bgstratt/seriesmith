@@ -1566,7 +1566,10 @@ open, and what was added:
     whose workflow can't be read no longer fails the whole request with 500: each of its
     shots is reported in `errors`, and shots on other targets still queue.
   - A shot that can't be retargeted (shots.json / the series config no longer build it:
-    rebuild) is reported in `errors` with the reason.
+    rebuild) is reported in `errors` with the reason. A build that is only behind (the
+    series config or seriesmith changed since; the shot's script IR is the build's own) is
+    retargeted as they are now, and the take's notes say so (2026-10-28: it used to refuse,
+    and an update to a target's compile made every shot built before it refuse).
   - `queued` entries carry `"target"`.
   - An LTX shot's keyframes (`refs/shots/<shot>/first.png`, `last.png`, when they exist)
     are uploaded to ComfyUI's input folder as `seriesmith/<sha1>.png` (through ComfyUI's own
