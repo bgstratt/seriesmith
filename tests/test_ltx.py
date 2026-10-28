@@ -549,6 +549,37 @@ class MixedEpisodeTest(unittest.TestCase):
         notes = " ".join(job.notes)
         self.assertIn("3 line(s) made in the shot's own graph, in 2 held voice(s)", notes)
 
+    def test_clone_with_a_first_keyframe(self):
+        """Unlike H3 FL2VA (no voice slot: clone renders as generate), ltx2 clones
+        from a first keyframe: the lines are made and held as without one, and
+        the picture starts from the keyframe."""
+        from test_render import wav_bytes
+        for who, tone in (("ada", 220.0), ("bo", 330.0)):
+            with open(os.path.join(self.root, "audio", "voices", f"{who}_sample.wav"), "wb") as fh:
+                fh.write(wav_bytes(2.0, freq=tone))
+        job = self.plan("sh020", "final", loras=[])
+        self.assertNotIn("renders as generate", " ".join(job.notes))
+        comfy = FakeComfy()
+        try:
+            got = J.stage_inputs(job, J.Comfy(comfy.url))
+        finally:
+            comfy.close()
+        g = self.graph(job, {**got, "first": "h3pipe/a.png"})
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        self.assertEqual(len(of(g, "LTXVImgToVideoInplace")), 2)
+        only = J.node_of(g, "LTXVAudioOnlyModel")
+        video = [k for k in of(g, "SamplerCustomAdvanced")
+                 if g[g[k]["inputs"]["guider"][0]]["inputs"]["model"] != [only, 0]]
+        self.assertEqual(len(video), 2)
+        for k in video:
+            swap = g[k]["inputs"]["latent_image"][0]
+            held = g[swap]["inputs"]["audio_latent"][0]
+            self.assertEqual(g[g[g[held]["inputs"]["samples"][0]]["inputs"]["audio"][0]]["class_type"],
+                             "AudioConcat")
+            inner = g[swap]["inputs"]["video_latent"][0]
+            self.assertEqual(g[g[inner]["inputs"]["video_latent"][0]]["class_type"], "LTXVImgToVideoInplace")
+        self.assertEqual(g[J.node_of(g, "H3SaveShot")]["inputs"]["audio_policy"], "clone")
+
     def test_retarget_by_override_and_request(self):
         ov = T.load_overrides(self.root)
         T.set_shot_target(ov, "sh010", LTX)
