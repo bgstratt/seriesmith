@@ -1112,20 +1112,28 @@ assembled. No LLM and no key in seriesmith: the client brings the model.
       isn't on disk, checked together (`source.check_pair`, which `check_text` now calls
       with the other file read from disk). An LLM drafting a new show checks it before
       anything is written, instead of creating an episode to read its `check`.
-- [ ] **`seriesmith mcp [--url …] [--read-only]`**: stdio, a thin client over HTTP to a
-      running `seriesmith serve` or ComfyUI-hosted seriesmith, so every write goes through
-      the routes (their checks, `seriesmith.episode` events for an open editor, one queue).
-      The `mcp` SDK in an optional extra (`seriesmith[mcp]`), seriesmith's `.venv` only,
-      never `requirements.txt`.
-- [ ] **Tools**, each a route: list episodes; read, check and save the two files
-      (`source`, `source/check`, `check`, `PUT source` with its `base_hash`); preview a shot;
-      new episode; import; build; the targets ready here; episode status (trimmed to shots,
-      takes and what's stale); issues as markdown; refs (list, generate missing, import,
-      pick); render, jobs (and waiting on one by polling); assemble. Tools that spend GPU
-      time or Cloud money say so in their descriptions; `--read-only` leaves them out.
-- [ ] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
+- [x] **`seriesmith mcp [--url …] [--read-only]`** (`seriesmith/mcp.py`, 2026-10-27): stdio,
+      a thin client over HTTP to a running `seriesmith serve` or ComfyUI-hosted seriesmith,
+      so every write goes through the routes (their checks, `seriesmith.episode` events for
+      an open editor, one queue). **Stdlib only**, not the `mcp` SDK: MCP's stdio transport
+      is JSON-RPC a line at a time, and the SDK (2.x by then) would have brought pydantic,
+      httpx and more for it. Protocol versions 2024-11-05 to 2025-11-25.
+- [x] **Tools**, each a route (`TOOLS`; a test holds every one to a route the server has):
+      list episodes; read, check and save the two files (`source`, `source/check`, `check`,
+      `PUT source` with its `base_hash`); preview a shot; new episode; import; build; the
+      targets ready here; episode status (trimmed to shots, takes and what's stale); one
+      shot; issues as markdown; refs (list, generate missing, generate one, import, pick);
+      a picture as an image the model sees (`/thumb`); render; jobs (list, wait by polling,
+      cancel); pick a take; assemble. The tools that queue say QUEUES in their descriptions
+      and the server's instructions ask the model to confirm with the user first;
+      `--read-only` leaves out everything that writes or queues. Checked live, read-only,
+      against `seriesmith serve`.
+- [x] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
       client without the skill still writes scripts that check.
-- [ ] Docs: COMMANDS, a setup page (the client's config for Claude Code and Desktop).
+- [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's and Desktop's config.
+- [ ] Not yet: the upscale / post / master tools, the cut (order, trims), overrides; a take
+      imported from a video file or another shot (with the gallery's drag onto the timeline,
+      a design of its own); MCP prompts (a client's slash commands) if a flow proves worth one.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

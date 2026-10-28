@@ -28,6 +28,7 @@ failed exits 1.
 | `seriesmith target-from-workflow <workflow> [<episode>]` | A ComfyUI workflow proposed as a model (`--save` writes it into the show; `--save --every-show` for every show) |
 | `seriesmith backends` | Where jobs can run on this machine, and whether each answers (`--try local`) |
 | `seriesmith serve` / `stop` | The editor's server (below) |
+| `seriesmith mcp` | That server's API as an MCP server, for an LLM client (Claude Code or Desktop, Cursor, …) to make and drive episodes with (below) |
 
 `build`, `check`, `refs`, `assemble` and `all` take several episode folders at once, or a
 parent with `--each`; `render` and `master` take several folders.
@@ -437,6 +438,40 @@ seriesmith stop                        # stop that server cleanly (--restart: st
 - `stop` asks the server on this machine to stop (`--port`); `--restart` restarts it when
   it runs under `run_seriesmith.bat` / `run_seriesmith_ext.bat` (a bare `seriesmith serve`
   just stops). Jobs still running on a backend are picked up on the next start.
+
+### An LLM driving seriesmith: `seriesmith mcp`
+
+```
+seriesmith mcp                         # MCP on stdio, to the server on http://127.0.0.1:8190
+seriesmith mcp --url http://127.0.0.1:8188    # to ComfyUI's, when the editor runs inside it
+seriesmith mcp --read-only             # nothing that writes a file or queues a job
+```
+
+Your LLM client starts it; you don't run it yourself. With the editor's server running, the
+model can check a series config and script it wrote, make the episode, build it, generate
+or import and pick the pictures, render, look at the takes, pick them and assemble, through
+the same routes the editor uses (so an open editor shows each step as it happens). The
+model is the client's; seriesmith needs no key for it. Tools that queue jobs on the GPU or
+spend Comfy credits say so, and the server asks the model to confirm with you before it
+calls them. The script format is a resource (`seriesmith://script-format`), for a client
+without the script-writing skill.
+
+Claude Code (from the seriesmith folder, so `.venv` is this checkout's):
+
+```
+claude mcp add seriesmith -- .venv\Scripts\seriesmith.exe mcp
+```
+
+Claude Desktop, Cursor and other clients: the same command in their MCP settings, for
+example in Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{"mcpServers": {"seriesmith": {"command": "C:\\path\\to\\seriesmith\\.venv\\Scripts\\seriesmith.exe",
+                               "args": ["mcp"]}}}
+```
+
+`--url` (or `SERIESMITH_URL`) is the server's address. Every tool answers that nothing
+answers there until `seriesmith serve` (or ComfyUI with seriesmith) is running.
 
 ## Recorded dialogue (lip sync)
 
