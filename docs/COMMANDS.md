@@ -465,8 +465,10 @@ starts `seriesmith mcp` when it needs it and stops it when it closes; it listens
 does). The editor's server has to be running: `seriesmith serve`, or ComfyUI with
 seriesmith. Until it is, every tool answers that nothing answers there.
 
-**Adding it to your client.** Each client needs the command that starts it, written with
-full paths (a client doesn't start it in the seriesmith folder):
+**Adding it to your client.** The editor writes it out for your install: **Settings › This
+computer › Use from an LLM (MCP)** has the command line, the JSON block and the bare command,
+each with Copy, and a read-only switch. By hand: each client needs the command that starts
+it, written with full paths (a client doesn't start it in the seriesmith folder):
 
 - **Installed with the launchers or `pip install -e .`** (a `.venv` in the seriesmith folder):
   `C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp` (Linux, macOS:
@@ -475,10 +477,13 @@ full paths (a client doesn't start it in the seriesmith folder):
   running the file, pointed at ComfyUI: `C:\ComfyUI\python_embeded\python.exe
   C:\ComfyUI\ComfyUI\custom_nodes\seriesmith\seriesmith\mcp.py --url http://127.0.0.1:8188`.
 
-Claude Code, for every project (`--scope user`; leave it out for this folder only):
+A client's command line takes its name, then `--`, then that command (Claude Code, Codex and
+GitHub Copilot CLI alike; Claude Code's `--scope user` adds it for every project):
 
 ```
 claude mcp add --scope user seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
+codex mcp add seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
+copilot mcp add seriesmith -- C:\path\to\seriesmith\.venv\Scripts\seriesmith.exe mcp
 ```
 
 `claude mcp list` shows it, and `/mcp` in a session shows its tools.
@@ -502,8 +507,9 @@ For a ComfyUI-Manager install, `command` is the Python and `args` are the file a
 options: `"args": ["C:\\ComfyUI\\ComfyUI\\custom_nodes\\seriesmith\\seriesmith\\mcp.py",
 "--url", "http://127.0.0.1:8188"]`.
 
-Cursor and most other clients take the same `mcpServers` block (Cursor: `~/.cursor/mcp.json`,
-or `.cursor/mcp.json` in a project). Add `"--read-only"` to the args for a model that should
+Cursor, Gemini CLI, Windsurf and most other clients take the same `mcpServers` block (Cursor:
+`~/.cursor/mcp.json`; Gemini CLI: `~/.gemini/settings.json`). VS Code (Copilot) keeps its own
+in `.vscode/mcp.json` under `servers`, each with `"type": "stdio"`. Add `"--read-only"` to the args for a model that should
 only look. `--url` can also come from `SERIESMITH_URL`.
 
 ## Recorded dialogue (lip sync)

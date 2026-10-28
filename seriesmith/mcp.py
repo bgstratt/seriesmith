@@ -28,8 +28,12 @@ import sys
 if not __package__:
     # run as a file (`python <repo>/seriesmith/mcp.py`: any Python 3.10+, nothing
     # installed, as a ComfyUI-Manager install has no .venv): the repo, not this
-    # folder, on the path -- this folder's queue.py would shadow the stdlib's
-    sys.path[0] = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # folder, on the path -- this folder's queue.py would shadow the stdlib's. An
+    # embedded Python (ComfyUI portable's ._pth) may not have put this folder first,
+    # so it is taken out wherever it is rather than entry 0 replaced.
+    _here = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+    sys.path[:] = [p for p in sys.path if os.path.normcase(os.path.abspath(p or os.curdir)) != _here]
+    sys.path.insert(0, os.path.dirname(_here))
 
 import argparse
 import base64
@@ -615,6 +619,23 @@ TOOLS: list[Tool] = [
          {"id": _s("the job's id")}, ("id",),
          route("POST", "/seriesmith/jobs/cancel", "id"), writes=True),
 ]
+
+
+def launch(port: int | None = None) -> dict:
+    """How an LLM client starts this install's MCP server (GET /seriesmith/mcp,
+    the Features window): {"command", "args", "url", "how"}. With a .venv's
+    `seriesmith` launcher beside this Python, that; else this Python running
+    this file (a ComfyUI-Manager install). `--url` when the server isn't the
+    default one (ComfyUI's port, another `--port`)."""
+    exe = os.path.join(os.path.dirname(sys.executable), "seriesmith.exe" if os.name == "nt" else "seriesmith")
+    if os.path.isfile(exe):
+        command, args, how = exe, ["mcp"], "seriesmith"
+    else:
+        command, args, how = sys.executable, [os.path.abspath(__file__)], "python"
+    url = f"http://127.0.0.1:{port}" if port else DEFAULT_URL
+    if url != DEFAULT_URL:
+        args += ["--url", url]
+    return {"command": command, "args": args, "url": url, "how": how}
 
 
 def tools(read_only: bool) -> list[Tool]:

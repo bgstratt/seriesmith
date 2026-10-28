@@ -1138,9 +1138,12 @@ assembled. No LLM and no key in seriesmith: the client brings the model.
       config for both kinds of install. `python <repo>/seriesmith/mcp.py` runs with any Python
       3.10+ (a ComfyUI-Manager install has no .venv; the file puts the repo, not its own folder,
       on the path: its queue.py would shadow the stdlib's).
-- Not a Feature (decided 2026-10-27): nothing to install, and seriesmith never starts it; the
-  LLM client starts and stops it. At most, later, Settings could show this install's exact
-  command to copy.
+- [x] **Settings › This computer › Use from an LLM (MCP)** (2026-10-27): a dropdown like Folders,
+      asked of `GET /seriesmith/mcp` when it's opened (the server knows where seriesmith is and
+      which Python runs it; the page's port is the server it talks to): a client's command line
+      (`claude mcp add seriesmith -- …`; Codex and Copilot CLI alike), the `mcpServers` JSON,
+      the bare command, each to copy, a read-only switch. Not in Features: nothing to install,
+      and seriesmith never starts it (the client does).
 - [x] `import_take` and `copy_take` tools (with the routes below).
 - [ ] Not yet: MCP prompts (a client's slash commands) if a flow proves worth one; refs'
       overrides and keyframes, align, publish, targets from workflows as tools.

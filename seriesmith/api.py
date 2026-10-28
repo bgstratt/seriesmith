@@ -2256,6 +2256,22 @@ def put_pick(ctx: Context, body):
     return 200, {"cut": cut}
 
 
+@handler
+def get_mcp(ctx: Context, query: dict):
+    """How an LLM client starts this install's MCP server (mcp.launch), for
+    the Features window: `?port=` is the port the page reached this server on
+    (ComfyUI's, or seriesmith serve's), which the MCP server then talks to."""
+    from seriesmith import mcp as M
+    port = query.get("port")
+    if port not in (None, ""):
+        if not str(port).isdigit() or not 0 < int(port) < 65536:
+            raise ApiError(400, f"port must be a port number, not {port!r}")
+        port = int(port)
+    else:
+        port = None
+    return 200, dict(M.launch(port), read_only="--read-only")
+
+
 def _script_shot(ep: str, pass_: str, shot: str) -> str:
     """A shot of the episode's script (404 otherwise): a take goes to one."""
     if shot not in E.script_order(ep, pass_):
@@ -4765,6 +4781,7 @@ ROUTES = [
     ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),
     ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),
     ("GET", "/seriesmith/source", get_source, "query"),
+    ("GET", "/seriesmith/mcp", get_mcp, "query"),
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),

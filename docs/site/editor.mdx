@@ -958,7 +958,10 @@ model** and **Picture model** a series naming none renders on (what seriesmith f
 installed in ComfyUI, unless you pick one), whether local renders go **through
 comfy-api-proxy** (advanced; off: straight to ComfyUI), **Features…** (below), the
 **Hugging Face token** for gated downloads, **Folders** (your own ffmpeg; ComfyUI's
-folder, when it can't be asked), and **deployments** (a model built into a Comfy deployment of its own, which then
+folder, when it can't be asked), **Use from an LLM (MCP)** (how to add this install to an LLM
+client you use: its command line, the JSON block, the command itself, each to copy, with a
+read-only switch; nothing is installed and nothing runs until the client starts it:
+[COMMANDS.md](/commands#an-llm-driving-seriesmith-seriesmith-mcp)), and **deployments** (a model built into a Comfy deployment of its own, which then
 shows in **Render on** as `deployment:<model>`). Saving applies at once. They live in
 `%APPDATA%\seriesmith\settings.json`; a value the environment sets (`COMFY_API_KEY`, ...)
 wins and shows as such. On the standalone page opened on the PC that runs the server,

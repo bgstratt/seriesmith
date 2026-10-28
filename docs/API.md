@@ -37,6 +37,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
 | `POST /seriesmith/take/import`, `POST /seriesmith/take/copy` | Takes from outside |
+| `GET /seriesmith/mcp` | Using seriesmith from an LLM |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
 | `POST /seriesmith/assemble` | Assemble |
 | `POST` / `DELETE /seriesmith/upscale`, `GET /seriesmith/upscale/options`, `PUT /seriesmith/upscale/recipe`, `PUT /seriesmith/upscale/keep`, `POST /seriesmith/master`, `GET /seriesmith/master/job` | Upscale |
@@ -493,6 +494,18 @@ that isn't finished, 404 for one that isn't there. Same answer as import. The ga
 drag onto the timeline: onto a clip, it is copied into that shot and picked; between two
 clips, the editor first adds a shot to the script there (as "Add a shot after" does, its
 lines copied from the take's shot and its `dur:` the take's length), then copies into it.
+
+## Using seriesmith from an LLM (2026-10-27)
+
+### `GET /seriesmith/mcp[?port=8188]`
+How an LLM client starts this install's MCP server (`seriesmith/mcp.py`, `launch`), for
+Settings › This computer › Use from an LLM: `{"command", "args", "url", "how", "read_only"}`.
+`how` is `"seriesmith"` when a `.venv`'s `seriesmith` launcher sits beside the server's Python
+(`command` that, `args` `["mcp"]`), else `"python"` (`command` the server's Python, `args` the
+path of `mcp.py`: a ComfyUI-Manager install). `port` is the one the page reached the server
+on; `args` add `--url http://127.0.0.1:<port>` unless that is the default (8190). `read_only`
+is the option that leaves out every tool that writes or queues (`--read-only`). 400 for a
+`port` that isn't one. Nothing is started or written.
 
 ## Cut and overrides
 

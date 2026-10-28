@@ -438,3 +438,32 @@ class AsAFileTest(unittest.TestCase):
                                  capture_output=True, cwd=cwd, timeout=60)
         self.assertEqual(out.returncode, 0, out.stderr.decode())
         self.assertEqual(json.loads(out.stdout.splitlines()[0])["result"]["serverInfo"]["name"], "seriesmith")
+
+
+class LaunchTest(unittest.TestCase):
+    """GET /seriesmith/mcp (mcp.launch): how a client starts this install's server."""
+
+    def test_the_venv_launcher_else_this_python(self):
+        from unittest import mock
+        with tempfile_dir() as d:
+            py = os.path.join(d, "python.exe")
+            exe = os.path.join(d, "seriesmith.exe" if os.name == "nt" else "seriesmith")
+            with mock.patch.object(sys, "executable", py):
+                got = M.launch()
+                self.assertEqual((got["command"], got["args"], got["how"]), (py, [M.__file__ if os.path.isabs(M.__file__) else os.path.abspath(M.__file__)], "python"))
+                open(exe, "w").close()
+                got = M.launch(8188)
+                self.assertEqual((got["command"], got["args"], got["how"]),
+                                 (exe, ["mcp", "--url", "http://127.0.0.1:8188"], "seriesmith"))
+                self.assertEqual(M.launch(8190)["args"], ["mcp"])           # the default: no --url
+
+    def test_the_route(self):
+        self.assertEqual(A.get_mcp(None, {"port": "8188"})[1]["url"], "http://127.0.0.1:8188")
+        self.assertEqual(A.get_mcp(None, {})[1]["read_only"], "--read-only")
+        self.assertEqual(A.get_mcp(None, {"port": "x"})[0], 400)
+        self.assertIn(("GET", "/seriesmith/mcp"), {(m, p) for m, p, _f, _t in A.ROUTES})
+
+
+def tempfile_dir():
+    import tempfile
+    return tempfile.TemporaryDirectory()

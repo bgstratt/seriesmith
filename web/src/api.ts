@@ -24,6 +24,7 @@ import type {
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest
 } from "./types";
 import { comboChoices } from "./lib/targets";
+import type { McpLaunch } from "./lib/mcpSetup";
 
 /** A ref take as the import routes return it. */
 export type ImportedTake = RefTake & { view?: string | null };
@@ -237,6 +238,9 @@ export interface Api {
   /** POST /seriesmith/refs/import as multipart (drag and drop, a file picker), with
    * upload progress where the transport can report it. */
   refsUpload(req: RefUploadRequest, onProgress?: UploadProgress): Promise<ImportedTake>;
+  /** GET /seriesmith/mcp: how an LLM client starts this install's MCP server, talking
+   * to the server on `port` (the one this page reached). */
+  mcpLaunch(port: string | null): Promise<McpLaunch>;
   /** POST /seriesmith/take/import: a video on the server's machine as a shot's take. */
   importTake(req: TakeImportRequest): Promise<ImportedShotTake>;
   /** POST /seriesmith/take/import as multipart (a dropped or picked file), with progress. */
@@ -699,6 +703,7 @@ export function createHttpApi(t: Transport): Api {
       form.append("file", req.file, name);
       return postForm("/seriesmith/refs/import", form, onProgress);
     },
+    mcpLaunch: (port) => get(`/seriesmith/mcp?${qs({ port })}`),
     importTake: (req) => call("POST", "/seriesmith/take/import", req),
     uploadTake: (req, onProgress) => {
       const form = new FormData();

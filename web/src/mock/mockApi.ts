@@ -1553,6 +1553,13 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       emit("seriesmith.episode", { ep: EP });
       return t;
     },
+    async mcpLaunch(port) {
+      const url = `http://127.0.0.1:${port || 8190}`;
+      return {
+        command: "C:\seriesmith\.venv\Scripts\seriesmith.exe", how: "seriesmith" as const, url, read_only: "--read-only",
+        args: url === "http://127.0.0.1:8190" ? ["mcp"] : ["mcp", "--url", url],
+      };
+    },
     // ---- takes from outside (takeimport) ----
     async importTake(req) {
       return mockImportTake(req.pass, req.shot, req.source_path.split(/[\/]/).pop() || "video.mp4", !!req.pick, null);

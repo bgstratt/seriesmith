@@ -15,6 +15,7 @@ import type { BackendInfo } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 import { CopyButton } from "./Readiness";
 import { ModelOptions } from "./Targets";
+import { addCommand, argsOf, commandLine, jsonBlock, type McpLaunch } from "../lib/mcpSetup";
 
 interface SettingsView {
   settings: {
@@ -289,6 +290,7 @@ function SettingsBody({ server }: { server: boolean }) {
             </label>
             {viaProxy && <div className="h3-form" style={{ marginTop: 6 }}>{url("local_url", "comfy-api-proxy", "Where the proxy answers.")}</div>}
           </details>
+          <McpSetup />
         </section>
 
         <section className="h3-card">
@@ -396,5 +398,68 @@ function SettingsBody({ server }: { server: boolean }) {
         </button>
       </div>
     </FloatingWindow>
+  );
+}
+
+/** The port this page reached the server on (ComfyUI's page is ComfyUI's, the
+ * standalone page seriesmith serve's): the one the MCP server talks to. */
+function pagePort(): string | null {
+  const l = window.location;
+  return l.port || (l.protocol === "https:" ? "443" : l.protocol === "http:" ? "80" : null);
+}
+
+/** "Use from an LLM (MCP)": how to add this install's MCP server to a client,
+ * asked of the server when it's opened (it knows where seriesmith is and which
+ * Python runs it). */
+function McpSetup() {
+  const [launch, setLaunch] = useState<McpLaunch | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
+  const load = () => {
+    if (launch) return;
+    api().mcpLaunch(pagePort()).then((l) => { setLaunch(l); setError(null); }).catch((e) => setError((e as Error).message));
+  };
+  const args = launch ? argsOf(launch, readOnly) : [];
+  const block = (label: string, help: string, text: string) => (
+    <div className="h3-col" style={{ gap: 2 }}>
+      <div className="h3-row" style={{ gap: 6 }}>
+        <b className="h3-small">{label}</b>
+        <span className="h3-small h3-muted h3-grow">{help}</span>
+        <CopyButton text={text} what={label} />
+      </div>
+      <pre className="h3-pre h3-mono h3-small" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0 }}>{text}</pre>
+    </div>
+  );
+  return (
+    <details onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) load(); }}>
+      <summary className="h3-small">Use from an LLM (MCP)</summary>
+      <div className="h3-col" style={{ gap: 8, marginTop: 6 }}>
+        <span className="h3-small h3-muted">
+          An LLM client you already use (Claude Code or Desktop, Codex, Copilot, Cursor, Gemini…) can check scripts, make
+          episodes, render, cut and finish them through this server. Nothing is installed and nothing runs until the client
+          starts it; this server has to be running. Add it to your client once:
+        </span>
+        {error && <div className="h3-note h3-note-err h3-small">{error}</div>}
+        {!launch && !error && <span className="h3-small h3-muted">Asking the server…</span>}
+        {launch && (
+          <>
+            <label className="h3-row h3-small" style={{ gap: 6 }}>
+              <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} />
+              Read-only: the model can look, check and plan, but not write files or queue renders
+            </label>
+            {block("Command line", "Claude Code. Codex and Copilot CLI take the same after their own name (codex mcp add …).",
+              addCommand(launch.command, args))}
+            {block("JSON", "The mcpServers block of Claude Desktop, Cursor, Gemini CLI and most others (VS Code's is servers, with \"type\": \"stdio\").",
+              jsonBlock(launch.command, args))}
+            {block("The command", "What the client runs, for any other client.", commandLine(launch.command, args))}
+            <span className="h3-small h3-muted">
+              It talks to <span className="h3-mono">{launch.url}</span>
+              {launch.how === "python" ? ", run by this Python (no .venv here)" : ""}. More in{" "}
+              <a href="https://docs.seriesmith.com/commands" target="_blank" rel="noopener noreferrer">the docs</a>.
+            </span>
+          </>
+        )}
+      </div>
+    </details>
   );
 }
