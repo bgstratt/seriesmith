@@ -142,6 +142,7 @@ class StatusTest(unittest.TestCase):
         self.assertTrue(items[1]["manual"])
         self.assertIn("ComfyUI-Manager", items[1]["how"])
         self.assertIn("https://github.com/x/y", items[1]["how"])
+        self.assertIn("isn't listed there, clone", items[1]["how"])   # not every pack is
         self.assertIn("/comfy/python -m pip install demucs", items[2]["how"])
 
     def test_a_pack_cloned_but_not_loaded_wants_a_restart(self):

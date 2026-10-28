@@ -270,7 +270,8 @@ def catalog() -> list[Feature]:
                 "demucs in ComfyUI's Python, for the dub_keep_foley audio policy.",
                 [Item("pip", "demucs", where="comfyui", module="demucs")]),
         Feature("upscale.h3_latent", "upscale", "H3 latent re-sample (2x)",
-                "The best upscale for H3 takes: the LBH-123-AI pack (not its Plus fork) and its model.",
+                "The best upscale for H3 takes: the LBH-123-AI pack and its model. Clone the pack: "
+                "ComfyUI-Manager lists only its Plus fork, which invents detail.",
                 [_pack("Comfyui_Minimax_h3_latent_Upscaler"),
                  Item("model", "minimax_h3_latent_upscaler_3d_fp16.safetensors",
                       folder=h3_up.get("folder") or "latent_upscale_models", url=h3_up.get("url") or "")],
@@ -357,8 +358,11 @@ def pip_command(item: Item, python: str | None) -> str:
 def how(item: Item, env: Env) -> str:
     """How you put in a pack or a pip package seriesmith doesn't install."""
     if item.kind == "pack":
+        # some packs aren't in Manager's list (2026-10-28: the LBH latent upscaler), so
+        # the clone is always offered too
         return (f"Install {item.name} with ComfyUI-Manager (Custom Nodes Manager, search "
-                f"\"{item.name}\") or clone {item.url} into custom_nodes, then restart ComfyUI.")
+                f"\"{item.name}\"), or if it isn't listed there, clone {item.url} into "
+                f"custom_nodes (git clone, or Manager's Install via Git URL); then restart ComfyUI.")
     if item.kind == "pip":
         return f"Run: {pip_command(item, env.python_for(item.where))}"
     return ""
