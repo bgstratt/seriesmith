@@ -1,71 +1,58 @@
 """
 ltx2_voice: LTX-2.5 audio-only, one speaking voice (target.json beside this
 file). The brief is every audio target's (targets/audio/common.py); the graph
-needs one piece of surgery the binding's widgets can't express, the
-reference-audio (voice clone) chain.
+needs one piece of surgery the binding's widgets can't express, the voice
+clone: the sample is held at the head of the clip and LTX continues it
+(targets/held_audio.py).
 
 Stdlib only.
 """
 from __future__ import annotations
 
+import math
+
+from seriesmith.targets import held_audio as HA
 from seriesmith.targets.audio.common import NEGATIVE, NEUTRAL_LINE, voice_line, voice_prompt  # noqa: F401,E402
 
-REF_LOAD = "LTXVReferenceAudio input"       # the LoadAudio node patch_graph adds
-REF_PATCH = "Reference audio (ID-LoRA)"     # the LTXVReferenceAudio node it adds
+WHAT = "voice sample"
 
 
 def patch_graph(target, graph: dict, job, inputs: dict) -> None:
-    """Splice LTXVReferenceAudio in when this job copies a voice sample:
-    `inputs["reference_audio"]` is the name ComfyUI's LoadAudio reads (the
-    sample, uploaded to its input folder by refs.stage_voice_reference).
+    """Hold the voice sample at the head of the clip when this job copies
+    one: `inputs["reference_audio"]` is the name ComfyUI's LoadAudio reads (the
+    sample's head, cut between words and uploaded by
+    refs.stage_voice_reference), `inputs["reference_seconds"]` its length.
 
-    The node reads the model and the two conditionings that feed the guider
-    named by `binding.reference_audio.guider`, and the guider then reads its
-    three outputs. With no sample (or with `capabilities.reference_audio`
-    false, which is how ltx2_voice ships: see target.json) nothing changes.
-    """
+    The sample is held (held_audio.hold: the sampler leaves it as it is, and
+    the zero padding after it is what LTX makes), so LTX generates the line
+    as a continuation of the voice it has just heard. The clip is lengthened
+    by the sample, on the target's frame grid and up to its longest, and the
+    sample is trimmed off the decoded sound, so the take is the line alone, as
+    long as was asked. Measured live 2026-10-28 (docs/PLAN.md, "Voice clone
+    by continuation"). With no sample (or with `capabilities.reference_audio`
+    false) nothing changes."""
     name = (inputs or {}).get("reference_audio")
     if not name:
         return
-    spec = (target.spec.get("binding") or {}).get("reference_audio") or {}
-    gspec = dict(spec.get("guider") or {})
-    if not gspec.get("class_type"):
-        raise ValueError(f"{target.id}: binding.reference_audio.guider must name the "
-                         f"guider node the reference audio patches")
+    head = float(inputs.get("reference_seconds") or 0.0)
+    if head <= 0:
+        raise ValueError(f"{target.id}: a held voice sample needs its length "
+                         f"(inputs['reference_seconds'])")
+    sel = ((target.spec.get("binding") or {}).get("reference_audio") or {}).get("empty") or {}
+    if not sel.get("class_type"):
+        raise ValueError(f"{target.id}: binding.reference_audio.empty must name the empty "
+                         f"audio latent the sample lengthens")
     from seriesmith import jobs as J
 
-    gid = J.select_nodes(graph, gspec)[0]
-    links = gspec.get("inputs") or {"model": "model", "positive": "positive",
-                                    "negative": "negative"}
-    g_in = graph[gid]["inputs"]
-    preset = target.presets.get("final")
-    scale = float((preset.extra if preset is not None else {}).get(
-        "identity_guidance_scale", 3.0))
-    graph["h3_ref_audio"] = {
-        "class_type": "LoadAudio", "inputs": {"audio": name},
-        "_meta": {"title": REF_LOAD}}
-    graph["h3_ref_patch"] = {
-        "class_type": "LTXVReferenceAudio",
-        "inputs": {"model": g_in[links["model"]],
-                   "positive": g_in[links["positive"]],
-                   "negative": g_in[links["negative"]],
-                   "reference_audio": ["h3_ref_audio", 0],
-                   "audio_vae": _audio_vae(target, graph),
-                   "identity_guidance_scale": scale,
-                   "start_percent": 0.0, "end_percent": 1.0},
-        "_meta": {"title": REF_PATCH}}
-    g_in[links["model"]] = ["h3_ref_patch", 0]
-    g_in[links["positive"]] = ["h3_ref_patch", 1]
-    g_in[links["negative"]] = ["h3_ref_patch", 2]
-
-
-def _audio_vae(target, graph: dict):
-    """The link to the audio VAE the graph loads (the binding's `audio_vae`
-    widget names its loader)."""
-    from seriesmith import jobs as J
-
-    specs = target.binding.specs("audio_vae")
-    if not specs:
-        raise ValueError(f"{target.id}: binding.params needs `audio_vae` to wire the "
-                         f"reference audio")
-    return [J.select_nodes(graph, specs[0])[0], 0]
+    empty = J.select_nodes(graph, sel)[0]
+    fps = float(job.fps or graph[empty]["inputs"].get("frame_rate") or 24.0)
+    grid = (target.spec.get("template") or {}).get("frames") or {}
+    step, base = int(grid.get("step") or 8), int(grid.get("base") or 1)
+    most = int(grid.get("max") or 0)
+    want = int(job.frames or graph[empty]["inputs"]["frames_number"])
+    frames = base + step * math.ceil(max(want + head * fps - base, 0) / step)
+    if most and frames > most:
+        frames = most
+    graph[empty]["inputs"]["frames_number"] = frames
+    HA.hold(graph, name, WHAT)
+    HA.trim_head(graph, head, max((frames - base) / fps - head, 0.5), WHAT)

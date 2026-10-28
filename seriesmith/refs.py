@@ -3441,22 +3441,30 @@ def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
 def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload the voice sample an audio target copies (its speaker identity)
     to ComfyUI's input folder and record its name in job.inputs
-    ({"reference_audio": "seriesmith/<sha1>.wav"}). Only for a target whose
-    `capabilities.reference_audio` is true and a ref whose live file is on
-    disk; otherwise nothing is staged and the target generates the voice
-    from the wording alone. Without `comfy` (a dry run) only the name is
+    ({"reference_audio": "seriesmith/<sha1>.wav", "reference_seconds": 2.1}).
+    What goes up is the sample's head, cut between words (audiocut.voice_clip):
+    the target continues it, so only the voice has to be in it. Only for a
+    target whose `capabilities.reference_audio` is true and a ref whose live
+    file is on disk; otherwise nothing is staged and the target generates the
+    voice from the wording alone. Without `comfy` (a dry run) only the name is
     worked out."""
+    from seriesmith import audiocut as AC
     if not job.is_audio or not job.target.capabilities().get("reference_audio"):
         return job.inputs
     path = job.ref.file
     if not path or not os.path.isfile(path):
         return job.inputs
-    name = J.input_name(path)
+    try:
+        clip, seconds = AC.voice_clip(path)
+    except AC.CutError as e:
+        raise NotUsable(f"{job.ref.id}: {e}") from e
+    name = J.input_name(clip)
     if comfy is not None:
-        comfy.upload_input(path, name)
-    job.inputs = dict(job.inputs, reference_audio=name)
+        comfy.upload_input(clip, name)
+    job.inputs = dict(job.inputs, reference_audio=name, reference_seconds=seconds)
     job.references = [{"role": "voice", "subject": job.ref.subject,
-                       "name": job.ref.name, "kind": "voice", "path": path}]
+                       "name": job.ref.name, "kind": "voice", "path": path,
+                       "seconds": seconds}]
     return job.inputs
 
 

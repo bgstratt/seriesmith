@@ -6,9 +6,9 @@
   "code": "target.py",
 
   "capabilities": {
-    "_note": "mode t2a: the wording alone makes the voice. reference_audio is FALSE on purpose. LTXVReferenceAudio (\"LTXV Reference Audio (ID-LoRA)\") is installed and the graph code can wire it in (targets/audio/ltx2_voice/target.py patch_graph), but with the installed LTX-2.5 transformers it produces silence: three live runs on 2026-09-19 (stereo and mono 5 s references, identity_guidance_scale 3.0 and 0.0, everything else identical to a run that produced 6.0 s of speech at peak 211/255) came back at peak 4/255 and 0/255 with no energy above the noise floor. The node only sets `ref_audio` on the conditioning; the model has to carry the audio ID-LoRA weights to use it, and no such file is installed or recorded in ComfyUI-Manager's model list on this machine. Turn it on (and name the weights under `models`) when they are.",
+    "_note": "mode t2a: the wording makes the voice. reference_audio: a voice ref with a sample on disk is CONTINUED, not described: the sample's head (1.5-2.5 s, cut between words: audiocut.voice_clip) is held at the start of the clip with a noise mask of 0 and LTX generates the rest, then the head is trimmed off (target.py patch_graph). No ID-LoRA: LTXVReferenceAudio needs its weights and produced silence without them (three live runs, 2026-09-19). The continuation was measured live 2026-10-28 on a real 1.4 s and 2.45 s recording: Whisper heard the asked-for line word for word in every take, and the median pitch moved from 153 Hz (described only) to 110-129 Hz against the speaker's 107 Hz (docs/PLAN.md, 'Voice clone by continuation'). Close, not exact: listen before picking.",
     "mode": "t2a",
-    "reference_audio": false,
+    "reference_audio": true,
     "max_seconds": 20
   },
 
@@ -51,9 +51,8 @@
               {"class_type": "LTXVEmptyLatentAudio", "field": "frame_rate"}]
     },
     "reference_audio": {
-      "_note": "Where patch_graph splices LTXVReferenceAudio in when a voice ref has a sample to copy (capabilities.reference_audio). The LoadAudio node reads the uploaded sample by name; the guider then reads the patched model and conditioning.",
-      "guider": {"class_type": "LTXVDualCFGGuider",
-                 "inputs": {"model": "model", "positive": "positive", "negative": "negative"}}
+      "_note": "The voice sample is held through the sampler by targets/held_audio.py (found by structure: the sampler sampling an LTXVConcatAVLatent, the audio VAE the decode uses); `empty` is the audio latent it lengthens by the sample's length.",
+      "empty": {"class_type": "LTXVEmptyLatentAudio"}
     }
   },
 
@@ -69,13 +68,16 @@
   },
 
   "nodes": {
-    "_note": "Beyond the workflow's own classes: the two nodes the reference-audio path would add. Optional, so a ComfyUI without them is `degraded`, not blocked (the path is off anyway: capabilities.reference_audio).",
-    "LoadAudio": {"tier": "optional", "feature": "voice cloning (LTXVReferenceAudio)"},
-    "LTXVReferenceAudio": {"tier": "optional", "feature": "voice cloning (LTXVReferenceAudio)"}
+    "_note": "Beyond the workflow's own classes: the nodes the held voice sample adds (patch_graph), all ComfyUI core. Optional, so a ComfyUI without them is `degraded`, not blocked: voices are then described, not cloned.",
+    "LoadAudio": {"tier": "optional", "feature": "voice cloning (a held voice sample)"},
+    "LTXVAudioVAEEncode": {"tier": "optional", "feature": "voice cloning (a held voice sample)"},
+    "SetLatentNoiseMask": {"tier": "optional", "feature": "voice cloning (a held voice sample)"},
+    "SolidMask": {"tier": "optional", "feature": "voice cloning (a held voice sample)"},
+    "TrimAudioDuration": {"tier": "optional", "feature": "voice cloning (a held voice sample)"}
   },
 
   "presets": {
-    "_note": "The installed LTX-2.5 22B distilled transformer (int8) through LTXVScheduler at 8 steps, audio cfg 1, euler_ancestral: about 25 s for an 8 s sample on this machine. `base` is the dev transformer at 30 steps and audio cfg 6, for a ComfyUI that has the dev model and not the distilled one. `identity_guidance_scale` is the reference-audio path's, kept here so it is one edit away when the ID-LoRA weights exist.",
+    "_note": "The installed LTX-2.5 22B distilled transformer (int8) through LTXVScheduler at 8 steps, audio cfg 1, euler_ancestral: about 25 s for an 8 s sample on this machine. `base` is the dev transformer at 30 steps and audio cfg 6, for a ComfyUI that has the dev model and not the distilled one.",
     "final": {
       "model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
       "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
@@ -84,7 +86,6 @@
       "steps": 8, "cfg": 1.0, "sampler": "euler_ancestral", "fps": 24,
       "negative": "music, song, singing, instrumental, score, crowd, applause, second voice, noise, static, hum, distortion, clipping, heavy reverb, echo, silence",
       "default_seconds": 8.0, "min_seconds": 2.0, "max_seconds": 20.0,
-      "identity_guidance_scale": 3.0,
       "base": {"model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
                "steps": 30, "cfg": 6.0, "loras": []}
     }

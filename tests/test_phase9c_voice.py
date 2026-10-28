@@ -83,8 +83,8 @@ class AudioTargetTest(unittest.TestCase):
         self.assertEqual((caps["default_seconds"], caps["max_seconds"], caps["min_seconds"]),
                          rng)
         self.assertTrue(d["capabilities"]["negative_prompt"])
-        # reference_audio is off: the ID-LoRA weights aren't installed (target.json)
-        self.assertFalse(d["capabilities"]["reference_audio"])
+        # a voice with a sample is continued from it (target.json, patch_graph)
+        self.assertTrue(d["capabilities"]["reference_audio"])
         self.assertEqual(d["saver"], "H3SaveRefAudio")
         self.assertTrue(d["workflow"].startswith("seriesmith_"))
         self.assertEqual(set(d["models"]), {"model", "text_encoder", "audio_vae"})
@@ -129,13 +129,13 @@ class AudioTargetTest(unittest.TestCase):
         rd = E.readiness([self.t], info)[VOICE]
         self.assertEqual(rd["status"], "not_ready")         # no 2.5 dev installed either
         self.assertEqual([m["param"] for m in rd["missing"]], ["model", "model"])
-        # a ComfyUI without the reference-audio nodes is only degraded
+        # a ComfyUI without the nodes that hold a voice sample is only degraded
         info = json.loads(json.dumps(OBJECT_INFO))
-        info.pop("LTXVReferenceAudio")
+        info.pop("TrimAudioDuration")
         rd = E.readiness([self.t], info)[VOICE]
         self.assertEqual((rd["status"], rd["nodes_missing"]),
-                         ("degraded", ["LTXVReferenceAudio"]))
-        self.assertEqual(rd["features_off"], ["voice cloning (LTXVReferenceAudio)"])
+                         ("degraded", ["TrimAudioDuration"]))
+        self.assertEqual(rd["features_off"], ["voice cloning (a held voice sample)"])
 
 
 class BriefTest(unittest.TestCase):
@@ -234,8 +234,8 @@ class VoiceGenerateTest(Episode):
         neg = next(v["inputs"]["text"] for k, v in g.items()
                    if (v.get("_meta") or {}).get("title") == "Negative prompt")
         self.assertIn("music", neg)
-        # no reference-audio chain: the target's capabilities say so
-        self.assertFalse([v for v in g.values() if v["class_type"] == "LTXVReferenceAudio"])
+        # no held sample: nothing was staged (stage_voice_reference wasn't run)
+        self.assertFalse([v for v in g.values() if v["class_type"] == "LoadAudio"])
         # the sidecar records the length and the line
         sc = T.read_sidecar(take.paths.sidecar)
         self.assertEqual((sc["frames"], sc["fps"], sc["line_source"], sc["target"]),
@@ -243,33 +243,71 @@ class VoiceGenerateTest(Episode):
         self.assertIsNone(sc["width"])
 
     def test_reference_audio_chain(self):
-        """The voice-clone path, which ltx2_voice ships with off."""
-        (job,) = R.plan_generate(self.s, R.GenRequest("voice:ada"), rng=random.Random(1))
+        """The voice clone: the sample held at the head of the clip, LTX
+        generating the rest, the sample trimmed back off."""
+        (job,) = R.plan_generate(self.s, R.GenRequest("voice:ada", seconds=6.0),
+                                 rng=random.Random(1))
+        self.assertEqual(R.stage_voice_reference(self.s, job, None), {})   # no sample yet
         wav(os.path.join(self.s.home, "audio", "voices", "ada_sample.wav"))
-        self.assertEqual(R.stage_voice_reference(self.s, job, None), {})   # off
         caps = job.target.spec["capabilities"]
-        caps["reference_audio"] = True
+        caps["reference_audio"] = False
         try:
-            inputs = R.stage_voice_reference(self.s, job, None)
-            self.assertTrue(inputs["reference_audio"].startswith(J.INPUT_SUBFOLDER + "/"))
-            self.assertTrue(inputs["reference_audio"].endswith(".wav"))
-            take = R.start_gen(self.s, job)
-            g = R.graph_for(J.load_graph(job.target.binding.workflow), job, take)
+            self.assertEqual(R.stage_voice_reference(self.s, job, None), {})   # switched off
         finally:
-            caps["reference_audio"] = False
+            caps["reference_audio"] = True
+        inputs = R.stage_voice_reference(self.s, job, None)
+        self.assertTrue(inputs["reference_audio"].startswith(J.INPUT_SUBFOLDER + "/"))
+        self.assertTrue(inputs["reference_audio"].endswith(".wav"))
+        self.assertAlmostEqual(inputs["reference_seconds"], 1.0, places=2)  # short: used whole
+        take = R.start_gen(self.s, job)
+        g = R.graph_for(J.load_graph(job.target.binding.workflow), job, take)
         self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
-        load = next(v for v in g.values() if v["class_type"] == "LoadAudio")
+        by = {v["class_type"]: (k, v) for k, v in g.items()}
+        load = by["LoadAudio"][1]
         self.assertEqual(load["inputs"]["audio"], inputs["reference_audio"])
-        patch = next(v for v in g.values() if v["class_type"] == "LTXVReferenceAudio")
-        self.assertEqual(patch["inputs"]["identity_guidance_scale"], 3.0)
-        guider = next(v for v in g.values() if v["class_type"] == "LTXVDualCFGGuider")
-        self.assertEqual(guider["inputs"]["model"][1], 0)
-        self.assertEqual(guider["inputs"]["positive"][1], 1)
-        self.assertEqual(guider["inputs"]["negative"][1], 2)
-        self.assertEqual({guider["inputs"][k][0] for k in ("model", "positive", "negative")},
-                         {next(k for k, v in g.items()
-                               if v["class_type"] == "LTXVReferenceAudio")})
-        self.assertEqual(T.read_sidecar(take.paths.sidecar)["references"][0]["role"], "voice")
+        # encoded by the decode's VAE, held with a mask of 0
+        enc = by["LTXVAudioVAEEncode"][1]["inputs"]
+        self.assertEqual(enc["audio"], [by["LoadAudio"][0], 0])
+        self.assertEqual(enc["audio_vae"], by["LTXVAudioVAEDecode"][1]["inputs"]["audio_vae"])
+        self.assertEqual(by["SolidMask"][1]["inputs"]["value"], 0.0)
+        held = by["SetLatentNoiseMask"][0]
+        # swapped into the clip's audio, and that is what is sampled
+        concats = [k for k, v in g.items() if v["class_type"] == "LTXVConcatAVLatent"]
+        swap = next(k for k in concats if g[k]["inputs"]["audio_latent"] == [held, 0])
+        self.assertIn(g[swap]["inputs"]["video_latent"][0], concats)
+        self.assertEqual(by["SamplerCustomAdvanced"][1]["inputs"]["latent_image"], [swap, 0])
+        # the clip is longer by the sample (8k+1 at 24 fps), and the sample comes off
+        self.assertEqual(job.frames, 145)
+        self.assertEqual(by["LTXVEmptyLatentAudio"][1]["inputs"]["frames_number"], 169)
+        trim = by["TrimAudioDuration"]
+        self.assertEqual(trim[1]["inputs"]["audio"], [by["LTXVAudioVAEDecode"][0], 0])
+        self.assertAlmostEqual(trim[1]["inputs"]["start_index"], 1.0, places=2)
+        self.assertAlmostEqual(trim[1]["inputs"]["duration"], 6.0, places=2)
+        self.assertEqual(by["H3SaveRefAudio"][1]["inputs"]["audio"], [trim[0], 0])
+        side = T.read_sidecar(take.paths.sidecar)["references"][0]
+        self.assertEqual((side["role"], side["seconds"]), ("voice", inputs["reference_seconds"]))
+
+    @needs_ffmpeg
+    def test_reference_audio_cut_between_words(self):
+        """A long sample: only its head goes up, cut at its quietest point
+        between 1.5 and 2.5 s, kept in _cuts/ beside the sample."""
+        from seriesmith import audiocut as CUT
+        sample = os.path.join(self.s.home, "audio", "voices", "ada_sample.wav")
+        os.makedirs(os.path.dirname(sample), exist_ok=True)
+        # a tone with a gap of silence at 1.8-2.0 s
+        subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "sine=frequency=220:duration=5", "-af",
+                        "volume=enable='between(t,1.8,2.0)':volume=0", sample], check=True)
+        (job,) = R.plan_generate(self.s, R.GenRequest("voice:ada"), rng=random.Random(1))
+        inputs = R.stage_voice_reference(self.s, job, None)
+        self.assertTrue(1.8 <= inputs["reference_seconds"] <= 2.0, inputs)
+        clip = os.path.join(os.path.dirname(sample), CUT.CUTS)
+        (made,) = os.listdir(clip)
+        self.assertAlmostEqual(CUT.duration(os.path.join(clip, made)), inputs["reference_seconds"],
+                               delta=0.02)
+        # the same cut is made once
+        self.assertEqual(R.stage_voice_reference(self.s, job, None), inputs)
+        self.assertEqual(os.listdir(clip), [made])
 
     def test_queue_and_close(self):
         comfy = J.Comfy(self.fake().url)
