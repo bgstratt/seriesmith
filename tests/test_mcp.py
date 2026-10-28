@@ -423,3 +423,18 @@ class LiveTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AsAFileTest(unittest.TestCase):
+    def test_any_python_runs_it_as_a_file(self):
+        """`python <repo>/seriesmith/mcp.py` from anywhere (a ComfyUI-Manager
+        install has no .venv): the repo on the path, not its own folder."""
+        import subprocess
+        import tempfile
+        path = os.path.join(os.path.dirname(HERE), "seriesmith", "mcp.py")
+        msg = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}) + "\n"
+        with tempfile.TemporaryDirectory() as cwd:
+            out = subprocess.run([sys.executable, path, "--url", "http://127.0.0.1:0"], input=msg.encode(),
+                                 capture_output=True, cwd=cwd, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr.decode())
+        self.assertEqual(json.loads(out.stdout.splitlines()[0])["result"]["serverInfo"]["name"], "seriesmith")

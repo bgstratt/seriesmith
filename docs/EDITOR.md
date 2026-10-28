@@ -1075,8 +1075,11 @@ A shot's take doesn't have to be one seriesmith rendered.
   in `_history/`), and rebuilt.
 - **A video file**, dropped from your computer onto a clip, a shot's row, or with **Import
   video…**: the shot's new take, in the cut. Dropped **between two clips**, the shot form opens
-  there with the clip's length filled in; write what happens in it, and **Save** makes the shot
-  with the file as its take.
+  there with the clip's length filled in. The form wants the action written (what happens in
+  the shot: what a render of it would be told) before it saves. **Save** makes the shot with
+  the file as its take. **Save and generate** does that and also queues a render of the new
+  shot from what you wrote, a second take beside the imported one (the imported one stays in
+  the cut); use **Save** to keep just the file.
 - An H.264 mp4 goes in as it is. Anything else (ProRes, HEVC, a .mov, .webm or .mkv) is
   converted to H.264 at master quality first, so it plays in the editor; the original isn't
   kept. Up to 4 GB.

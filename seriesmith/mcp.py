@@ -5,6 +5,7 @@ client (Claude Code or Desktop, Cursor, a local model in an MCP client) to
 make and drive episodes with (docs/PLAN.md, "An MCP server").
 
     seriesmith mcp [--url http://127.0.0.1:8190] [--read-only]
+    python <repo>/seriesmith/mcp.py [...]      (the same, with any Python 3.10+)
 
 The client starts it and talks over stdio: JSON-RPC 2.0, one message per
 line (MCP's stdio transport), stdout for the protocol only, stderr for
@@ -21,11 +22,18 @@ Stdlib only (urllib, json): nothing to install beside seriesmith.
 """
 from __future__ import annotations
 
+import os
+import sys
+
+if not __package__:
+    # run as a file (`python <repo>/seriesmith/mcp.py`: any Python 3.10+, nothing
+    # installed, as a ComfyUI-Manager install has no .venv): the repo, not this
+    # folder, on the path -- this folder's queue.py would shadow the stdlib's
+    sys.path[0] = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 import argparse
 import base64
 import json
-import os
-import sys
 import time
 import urllib.error
 import urllib.parse

@@ -1134,7 +1134,13 @@ assembled. No LLM and no key in seriesmith: the client brings the model.
       seriesmith serve's app (`tests/test_mcp.py`, LiveTest), and live, read-only.
 - [x] **Resources:** the script format (`prompts/SKILL.md`, read from the repo), so a
       client without the skill still writes scripts that check.
-- [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's and Desktop's config.
+- [x] Docs: COMMANDS ("An LLM driving seriesmith"), with Claude Code's, Desktop's and Cursor's
+      config for both kinds of install. `python <repo>/seriesmith/mcp.py` runs with any Python
+      3.10+ (a ComfyUI-Manager install has no .venv; the file puts the repo, not its own folder,
+      on the path: its queue.py would shadow the stdlib's).
+- Not a Feature (decided 2026-10-27): nothing to install, and seriesmith never starts it; the
+  LLM client starts and stops it. At most, later, Settings could show this install's exact
+  command to copy.
 - [x] `import_take` and `copy_take` tools (with the routes below).
 - [ ] Not yet: MCP prompts (a client's slash commands) if a flow proves worth one; refs'
       overrides and keyframes, align, publish, targets from workflows as tools.
@@ -1165,7 +1171,10 @@ shot's take dragged from the gallery onto the timeline. docs/API.md, "Takes from
       imports the file as its take (decided 2026-10-27: the action needs writing).
 - [x] Where a take came from, shown: "imported (name)" / "from sh020 t03" in the take row
       and the gallery's viewer (the episode status's `source`, `original_name`, `copied_from`).
-- [ ] Checked live: a file and a gallery take, onto a clip and between two, on both hosts.
+- [x] Checked live (2026-10-27, by hand): gallery takes and files dropped onto clips and between
+      them, in seriesmith serve and in ComfyUI (after a refresh); a .mov converted. The file
+      between two clips: the form wants the action written, and **Save and generate** also
+      queues a render beside the imported take (documented in EDITOR.md, left as it is).
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
