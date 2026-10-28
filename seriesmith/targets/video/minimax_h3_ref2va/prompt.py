@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from seriesmith.core import framing
 from seriesmith.core.series_config import members
-from seriesmith.targets.prose import join_and as _and  # noqa: F401
+from seriesmith.targets.prose import clause, join_and as _and  # noqa: F401
 
 
 COUNT_WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
@@ -131,21 +131,21 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
                 f"a GROUP of {n} different people, the whole picture of them. Exactly {n} "
                 f"people appear in that image, each a distinct individual, and none of them "
                 f"is ever drawn twice. Preserve the exact reference styling: "
-                f"{e['design']}.")
+                f"{clause(e['design'])}.")
         elif e.get("kind", "character") == "character":
-            clause = whole if int(e.get("sheet_panels") or 0) == 1 else ref_clause
+            picture = whole if int(e.get("sheet_panels") or 0) == 1 else ref_clause
             defs.append(
-                f"{subj[s]} is {e['name']}, defined by {pic[s]} — {clause} "
-                f"Preserve the exact reference styling: {e['design']}.")
+                f"{subj[s]} is {e['name']}, defined by {pic[s]} — {picture} "
+                f"Preserve the exact reference styling: {clause(e['design'])}.")
         else:
             defs.append(
                 f"{subj[s]} is {e['name']}, defined by {pic[s]} — a single reference image "
                 f"of the object on a plain background. Preserve its exact design, colors "
-                f"and proportions: {e['design']}.")
+                f"and proportions: {clause(e['design'])}.")
     for s in unref:
         e = book[s]
         defs.append(f"{e['name']} has no reference image and is drawn from this "
-                    f"description: {e['design']}.")
+                    f"description: {clause(e['design'])}.")
     # Who is in frame, counted once and by name. "Character", not "person":
     # this pipeline's casts include a talking terrier and a raccoon, and the
     # reference clause above already calls a subject ONE character. A reference image containing
@@ -274,9 +274,9 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     location plate is for.
     """
     book = series_cfg["subjects"]
-    look = series_cfg["style"]["look"]
+    look = clause(series_cfg["style"]["look"])
     loc = series_cfg["locations"][shot.get("plate") or seq["location_key"]]
-    env = loc["description"]
+    env = clause(loc["description"])
 
     subjects = shot["_subjects"]                      # ordered, <= the subject slots
     subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
@@ -500,9 +500,9 @@ def build_multishot_prompt(group: dict, shots: list[dict], seq: dict, series_cfg
     wardrobe variant named in a later shot is drawn from the picture sent).
     The shots are the parser-shaped dicts of the group's shots, in order."""
     book = series_cfg["subjects"]
-    look = series_cfg["style"]["look"]
+    look = clause(series_cfg["style"]["look"])
     head_key = group.get("plate") or seq["location_key"]
-    env = series_cfg["locations"][head_key]["description"]
+    env = clause(series_cfg["locations"][head_key]["description"])
     subjects = group["_subjects"]
     sent_of = group.get("_sent_of") or {}
     subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
@@ -565,7 +565,7 @@ def build_multishot_prompt(group: dict, shots: list[dict], seq: dict, series_cfg
             _, where = framing_sentence(sh, own, subj, [], book, bg_subj, env, no_plate)
         else:
             # a wider shot of another place than the plate sent: in words
-            other = series_cfg["locations"][key]["description"]
+            other = clause(series_cfg["locations"][key]["description"])
             _, where = framing_sentence(sh, own, subj, [], book, bg_subj, other, True)
         lead = "[Shot 1]" if i == 0 else f"[Shot {i + 1}] At {timecode(starts[i])}, the shot cuts."
         body = f"{lead} {where} {sh['action']}"

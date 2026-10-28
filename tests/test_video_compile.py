@@ -80,3 +80,44 @@ class FallbackWarningTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class FullStopTest(unittest.TestCase):
+    """A style, a place's description or a design that ends in a full stop is
+    written into a sentence without it: "...long soft shadows., the camera"
+    and "styling: ...glasses.." before (Ballroom ep03 sh130). Every writer
+    the mixed episode compiles for (H3, ltx2), and the refs' image prompts."""
+
+    def test_no_doubled_stops(self):
+        import json
+        import re
+        with tempfile.TemporaryDirectory() as d:
+            with open(MIXED, encoding="utf-8") as fh:
+                cfg = json.load(fh)
+            cfg["style"]["look"] = cfg["style"]["look"].rstrip(".") + "."
+            for e in list(cfg["locations"].values()) + list(cfg["subjects"].values()):
+                if isinstance(e, dict):
+                    for k in ("description", "design"):
+                        if e.get(k):
+                            e[k] = e[k].rstrip(".") + "."
+            with open(os.path.join(d, "series.json"), "w", encoding="utf-8") as fh:
+                json.dump(cfg, fh)
+            script = os.path.join(os.path.dirname(MIXED), "script.md")
+            r = subprocess.run([sys.executable, "-m", "seriesmith.build",
+                                os.path.join(d, "series.json"), script, "-o", d],
+                               capture_output=True, text=True, encoding="utf-8", env=ENV)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            texts = []
+            for name in ("shotlist.json", "shotlist.ltx2.json"):
+                with open(os.path.join(d, "shotlist", name), encoding="utf-8") as fh:
+                    for sh in json.load(fh)["shots"]:
+                        p = sh["prompt"]
+                        texts.append((name, sh["id"], "\n".join(p) if isinstance(p, list) else p))
+            with open(os.path.join(d, "refs_todo.json"), encoding="utf-8") as fh:
+                todo = json.load(fh)
+            texts += [("refs_todo", k, json.dumps(v)) for k, v in
+                      (todo.items() if isinstance(todo, dict) else enumerate(todo))]
+        self.assertGreater(len(texts), 6)
+        for where, sid, text in texts:
+            with self.subTest(where=where, shot=sid):
+                self.assertIsNone(re.search(r"(?<!\.)\.\.(?!\.)|\.,", text), text[:400])

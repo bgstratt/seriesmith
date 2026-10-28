@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from seriesmith.core.series_config import members
+from seriesmith.targets.prose import clause
 
 # A character sheet is generated as four square views and stitched (a 4096x1024
 # canvas is far outside any image model's training distribution). The views,
@@ -124,6 +125,7 @@ def view_prompt(view: str, design: str, look: str, w: int, h: int) -> str:
     the description true. The framing is the view's too (VIEW_FRAME): the
     close-up is the one view that must NOT hold the whole figure, and it is
     told the design without footwear (view_design)."""
+    design, look = clause(design), clause(look)
     return VIEW_TMPL.format(view=VIEW_DESC[view], design=view_design(view, design), look=look,
                             w=w, h=h, caveat=VIEW_KEEP[view][1], frame=VIEW_FRAME[view])
 
@@ -142,6 +144,7 @@ def view_edit_prompt(view: str, design: str, look: str, w: int, h: int,
 
     What is named as fixed is per view (VIEW_KEEP): see the note there for why
     the back view must not be told to preserve a face."""
+    design, look = clause(design), clause(look)
     keep, caveat = VIEW_KEEP[view]
     return (f"The {word} is {base_name}: {VIEW_DESC[view]}. Redraw that same character in "
             f"that same view and at the same scale, keeping {keep} exactly as they are in "
@@ -162,6 +165,7 @@ def sheet_prompt(design: str, look: str, base: dict | None = None) -> str:
     where to start, never part of what the picture shows, so it goes last and
     only here: view_prompt feeds a text-to-image model, where naming a file on
     disk is noise (the real edit path is refs')."""
+    design, look = clause(design), clause(look)
     out = (f"A character model sheet on a plain flat background: FOUR panels side "
            f"by side in a single horizontal strip, left to right — three-quarter "
            f"body, side profile full body, back view full body, and a "
@@ -178,6 +182,7 @@ def sheet_prompt(design: str, look: str, base: dict | None = None) -> str:
 
 def object_prompt(design: str, look: str) -> str:
     """A prop or vehicle reference."""
+    design, look = clause(design), clause(look)
     return (f"A single clean three-quarter view of one object on a plain flat "
             f"background, no scene around it. {design}. Drawn as "
             f"{look}. Output 1024x1024 or larger.")
@@ -189,6 +194,7 @@ def group_prompt(design: str, look: str, n: int, w: int = 1344, h: int = 768) ->
     and a video model can tell the people apart. A group picture is what keeps
     the same extras from scene to scene; one figure hidden behind another is
     one the model will invent fresh."""
+    design, look = clause(design), clause(look)
     return (f"A reference picture of a group of {n} different people standing side by "
             f"side in one row on a plain flat neutral background, no scene and no props, "
             f"every whole figure from head to feet inside the frame, a little space between "
@@ -203,8 +209,9 @@ def angle_prompt(look: str, description: str, master: str, master_description: s
     from where the angle's description puts the camera. The brief is what
     stays (the place) and what moves (the camera), so the model redraws the
     view rather than the room."""
-    return (f"The {word} is {master}: {master_description.rstrip('.')}. Draw that same place "
-            f"from another camera position: {description.rstrip('.')}. Keep the place exactly "
+    look = clause(look)
+    return (f"The {word} is {master}: {clause(master_description)}. Draw that same place "
+            f"from another camera position: {clause(description)}. Keep the place exactly "
             f"as it is in the {word} -- the same building, walls, doors, windows, furniture and "
             f"materials, the same colours, light and weather -- and move only the camera. A "
             f"background plate drawn as {look}: no characters, no figures, the environment "
@@ -213,8 +220,8 @@ def angle_prompt(look: str, description: str, master: str, master_description: s
 
 def plate_prompt(look: str, description: str) -> str:
     """A location's background plate."""
-    return (f"A background plate drawn as {look}. An empty establishing "
-            f"view of {description.rstrip('.')}. No characters, no props, no figures in frame — "
+    return (f"A background plate drawn as {clause(look)}. An empty establishing "
+            f"view of {clause(description)}. No characters, no props, no figures in frame — "
             f"the environment only. Wide framing that shows the layout of the space.")
 
 
