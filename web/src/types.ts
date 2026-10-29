@@ -89,15 +89,6 @@ export interface TakeSummary {
   source?: "imported";
   original_name?: string | null;
   copied_from?: { shot: string; take: number; pass: Pass; target?: string | null } | null;
-  /** a held picture (take/hold): its seconds, and the picture's name or the frame it is */
-  held?: TakeHeld | null;
-}
-
-/** A held take's picture: a file (`name`) or a take's frame (`from`). */
-export interface TakeHeld {
-  seconds: number;
-  name?: string;
-  from?: { shot: string; take: number; pass: Pass; frame: number };
 }
 
 export interface CutInfo {
@@ -477,8 +468,6 @@ export interface Lora {
 }
 
 export interface Sidecar {
-  /** a held picture (take/hold) */
-  held?: TakeHeld | null;
   shot?: string;
   take?: number;
   pass?: Pass;
@@ -1710,35 +1699,7 @@ export interface TakeCopyRequest {
   pick?: boolean;
 }
 
-/** POST /seriesmith/take/hold: a picture held still as a shot's take: a file
- * (multipart `file`, or `source_path`), or a take's frame (from_shot, take, frame). */
-export interface TakeHoldRequest {
-  ep: string;
-  pass: Pass;
-  shot: string;
-  file?: Blob;
-  name?: string;
-  source_path?: string;
-  from_shot?: string;
-  take?: number;
-  from_pass?: Pass;
-  /** from 0 */
-  frame?: number;
-  /** the shot's duration when absent */
-  seconds?: number;
-  pick?: boolean;
-}
-
-/** POST /seriesmith/take/hold-length: a held take made again `frames` long, in place. */
-export interface TakeHoldLengthRequest {
-  ep: string;
-  pass: Pass;
-  shot: string;
-  take: number;
-  frames: number;
-}
-
-/** What take/import, take/copy and take/hold answer. */
+/** What take/import and take/copy answer. */
 export interface ImportedShotTake {
   shot: string;
   take: number;

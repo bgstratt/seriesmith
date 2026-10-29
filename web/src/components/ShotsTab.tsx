@@ -5,7 +5,7 @@ import {
 } from "../actions";
 import { api, host } from "../host";
 import {
-  ESTIMATE_TITLE, cutTake, fmtSeconds, fmtWhen, groupBySequence, heldText, lengthEstimated, realStale, shotBadges, staleTitle, tn,
+  ESTIMATE_TITLE, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
@@ -299,7 +299,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           {ub && <span className={`h3-badge h3-b-${ub.kind}`} title={ub.title}>{ub.label}</span>}
           {t.sound?.mode === "dub" && <span className="h3-badge h3-b-voice" title="Rendered dubbed to a track (Sound…)">dubbed</span>}
           {t.source === "imported" && (
-            <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.held ? "held" : t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
+            <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
           )}
           <span className="h3-grow" />
           {usable && !isCut && (
@@ -312,7 +312,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
         {rendering && progress && <Progress value={progress.value} max={progress.max} />}
         <div className="h3-row h3-small">
           <span className="h3-mono h3-ell" title={t.seed ?? (t.source === "imported" ? originTitle(t) : "no sidecar")}>
-            {t.seed != null ? `seed ${t.seed}` : t.source === "imported" ? (t.held ? heldText(t.held) : t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
+            {t.seed != null ? `seed ${t.seed}` : t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
           </span>
           {t.seed_source && <span className="h3-muted">{t.seed_source}</span>}
         </div>
@@ -445,7 +445,6 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
 
 /** Where an imported take came from, for its badge's title. */
 function originTitle(t: TakeSummary): string {
-  if (t.held) return `A picture held still: ${heldText(t.held)}. Not rendered, so never stale`;
   if (t.copied_from) return `Copied from ${t.copied_from.shot} ${tn(t.copied_from.take)} (${t.copied_from.pass}): not rendered for this shot, so never stale`;
   return `Imported${t.original_name ? ` from ${t.original_name}` : ""}: not rendered by seriesmith, so never stale`;
 }

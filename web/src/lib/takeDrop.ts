@@ -5,7 +5,7 @@
 // copied into it. The pure parts: what a drag carries, where a drop lands, and
 // the script with the new shot in it.
 
-import { insertAfter, parseShot, shotIdBetween, writeShot, type ShotForm } from "./shotForm";
+import { insertAfter, parseShot, replaceLines, shotIdBetween, writeShot, type ShotForm } from "./shotForm";
 
 /** The drag data type of a take (the gallery's tiles). */
 export const TAKE_MIME = "application/x-seriesmith-take";
@@ -100,8 +100,9 @@ const NOT_HELD = ["camera", "sound", "music", "pace", "audio"];
  * The script with a new shot inserted at `anchor`, its lines those of shot
  * `from` (less its continuity), its `dur:` `seconds`, and a comment saying where
  * it came from. Null when `from` or the anchor isn't in the script. `held` (a
- * freeze frame: the action it says instead) drops the dialogue and what moves
- * or sounds, so the script says no line twice.
+ * freeze frame: the action it says instead) makes it a shot on the `hold`
+ * model and drops the dialogue and what moves or sounds, so the script says no
+ * line twice.
  */
 export function insertedShot(text: string, spans: { id: string; line: number; end_line: number }[], from: string,
   anchor: { after: string } | { before: string }, seconds: number, note: string,
@@ -113,7 +114,8 @@ export function insertedShot(text: string, spans: { id: string; line: number; en
   const f = parseShot(lines.slice(src.line - 1, src.end_line));
   for (const k of NOT_COPIED) delete f.keys[k];
   if (held != null) {
-    for (const k of NOT_HELD) delete f.keys[k];
+    for (const k of [...NOT_HELD, "model", "lora", "steps", "profile"]) delete f.keys[k];
+    f.keys.target = HOLD_TARGET;
     f.dialogue = [];
     f.action = held;
   }
@@ -142,13 +144,28 @@ function placed(text: string, shots: { id: string; line: number; end_line: numbe
   return { text: insertAfter(text, at, writeShot(f)), id: f.id };
 }
 
-/** The script with a held picture's shot at `anchor`: no one in it, its `dur:`
- * `seconds`, its action naming the picture. Null when the anchor isn't there. */
+/** The script with shot `id`'s `dur:` set to `seconds` (a held clip's edge
+ * let go); null when it isn't there. */
+export function withDur(text: string, spans: { id: string; line: number; end_line: number }[], id: string,
+  seconds: number): string | null {
+  const s = spans.find((x) => x.id === id);
+  if (!s) return null;
+  const f = parseShot(text.split("\n").slice(s.line - 1, s.end_line));
+  f.keys.dur = durOf(seconds);
+  return replaceLines(text, s.line, s.end_line, writeShot(f));
+}
+
+/** The model a held picture's shot is on: its first keyframe held still. */
+export const HOLD_TARGET = "hold";
+
+/** The script with a held picture's shot at `anchor`: on the `hold` model, no
+ * one in it, its `dur:` `seconds`, its action naming the picture. Null when the
+ * anchor isn't there. */
 export function heldShot(text: string, spans: { id: string; line: number; end_line: number }[],
   anchor: { after: string } | { before: string }, seconds: number, name: string): { text: string; id: string } | null {
   const shots = [...spans].sort((a, b) => a.line - b.line);
   return placed(text, shots, anchor, {
-    id: "", keys: { dur: durOf(seconds) }, action: `A held picture: ${name}.`, dialogue: [],
+    id: "", keys: { dur: durOf(seconds), target: HOLD_TARGET }, action: `A held picture: ${name}.`, dialogue: [],
     comments: ["// a picture held still (dropped on the timeline)"], other: [],
   });
 }

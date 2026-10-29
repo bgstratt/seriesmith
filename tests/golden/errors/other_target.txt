@@ -1,4 +1,4 @@
 exit 1
 
-  error in other_target.md: shot sh010: target 'ltx_2_3' is not a video target (known: fasth3_omni, flux_3_video, kling_v3_omni, kling_video_o1, ltx2, ltx2_ingredients, ltx2_msr, minimax_h3, minimax_h3_fl2va, minimax_h3_ref2va, runway_gen4_turbo, seedance_2_0, seedance_2_0_fast, seedance_2_0_mini, seedance_2_5, veo_3_1, veo_3_1_fast, veo_3_1_lite, wan22_i2v, wan22_ti2v, wan22_vace, wan_2_7_i2v, wan_2_7_r2v, wan_3_0, wan_3_0_prime)
+  error in other_target.md: shot sh010: target 'ltx_2_3' is not a video target (known: fasth3_omni, flux_3_video, hold, kling_v3_omni, kling_video_o1, ltx2, ltx2_ingredients, ltx2_msr, minimax_h3, minimax_h3_fl2va, minimax_h3_ref2va, runway_gen4_turbo, seedance_2_0, seedance_2_0_fast, seedance_2_0_mini, seedance_2_5, veo_3_1, veo_3_1_fast, veo_3_1_lite, wan22_i2v, wan22_ti2v, wan22_vace, wan_2_7_i2v, wan_2_7_r2v, wan_3_0, wan_3_0_prime)
 

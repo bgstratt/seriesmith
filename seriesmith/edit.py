@@ -78,6 +78,7 @@ import re
 import subprocess
 import sys
 
+from seriesmith import hold as HO
 from seriesmith import jobs as J
 from seriesmith import peaks as PK
 from seriesmith import takefiles as TF
@@ -331,16 +332,15 @@ def set_sound(root: str, shots: list[str], sound: dict | None) -> dict:
 
 
 def take_origin(sidecar: dict | None) -> dict:
-    """An imported take's `source`, `original_name` (or the file's name),
-    `copied_from` and `held` (a held picture: {seconds, name | from});
-    nothing for a rendered one."""
+    """An imported take's `source`, `original_name` (or the file's name) and
+    `copied_from`; nothing for a rendered one."""
     sc = sidecar or {}
     if sc.get("source") != "imported":
         return {}
     name = sc.get("original_name") or (os.path.basename(sc["source_path"])
                                        if sc.get("source_path") else None)
     return {"source": "imported", "original_name": name,
-            "copied_from": sc.get("copied_from"), "held": sc.get("held")}
+            "copied_from": sc.get("copied_from")}
 
 
 def chain_changed(root: str, pass_: str, shot_id: str, held: dict, cache: dict) -> bool:
@@ -1764,6 +1764,20 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         if job.action == "error":
             out["errors"].append({"shot": sid, "error": job.error})
             continue
+        if HO.is_hold(J.job_target(job)):
+            # a held picture: no model, no backend; ffmpeg on the local lane
+            try:
+                take, qid = runner.enqueue_hold(job, continuity=job.continuity,
+                                                after=queued_ids.get((job.continuity or {})
+                                                                     .get("after")))
+            except Exception as e:
+                out["errors"].append({"shot": sid, "error": str(e)[:800]})
+                continue
+            queued_ids[sid] = qid
+            out["queued"].append({"shot": sid, "take": take.take, "prompt_id": qid,
+                                  "seed": job.seed, "seed_source": job.seed_source,
+                                  "target": job.target, "backend": "this machine"})
+            continue
         J.resolve_models(job, cloud_listing(job, ov) or listing, model_resolve, model_cache)
         if job.action == "missing_files":
             out["skipped"].append({"shot": sid, "target": job.target,
@@ -1981,6 +1995,12 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
     degraded: only accelerators or optional files (or optional nodes)."""
     out = {}
     for t in targets:
+        if HO.is_hold(t):
+            # held here by ffmpeg: nothing of ComfyUI's, nothing to install
+            out[t.id] = {"status": "ready", "missing": [], "resolved": {},
+                         "by_pass": {p: {} for p in J.TG.PASSES}, "features_off": [],
+                         "nodes_missing": []}
+            continue
         if object_info is None:
             out[t.id] = {"status": "unknown", "missing": [], "resolved": {}, "by_pass": {},
                          "features_off": [], "nodes_missing": [],

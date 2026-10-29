@@ -78,7 +78,8 @@ def video_row(t) -> str:
             who = "`Image N`, by their order"
         else:
             takes, who = "none", "—"
-        where = "your ComfyUI"
+        # seriesmith's own hold runs nothing of ComfyUI's: ffmpeg on this machine
+        where = "this machine" if t.spec.get("local_render") else "your ComfyUI"
     return f"| `{t.id}` | {t.short or t.label} | {where} | {takes} | {_frames(caps)} | {who} |"
 
 

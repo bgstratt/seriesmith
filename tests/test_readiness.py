@@ -676,7 +676,7 @@ class DownloadsDataTest(unittest.TestCase):
     def test_every_named_file_has_a_download_entry(self):
         for t in TG.list_targets():
             named = t.named_files()
-            if t.spec.get("router"):                  # a hosted model names no files
+            if t.spec.get("router") or t.spec.get("local_render"):   # hosted, or held here: no files
                 self.assertEqual((named, t.downloads), ({}, {}), t.id)
                 continue
             self.assertTrue(named, t.id)

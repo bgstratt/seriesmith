@@ -1315,19 +1315,25 @@ own way, in seriesmith's own code, nothing copied or depended on. Not a grading 
 real colour work and real editing go to Premiere / Resolve with the cut's clips. What's
 here is what a cut needs before that, and what a cut that never leaves seriesmith needs.
 
-- [x] **A held picture as a shot** (freeze frames, "Two hours later" cards):
-      `POST /seriesmith/take/hold` (`takeimport.hold_take` / `hold_frame`): a picture, or a
-      take's frame, looped into an H.264 clip at the pass's size and the cut's rate,
-      letterboxed, silent (assemble pads); an imported take with `held` in its record, never
-      stale, badge **held**. Decided 2026-10-29: a held picture is a core part of the
-      timeline, not a form. A picture dropped between two clips is held there at once (a
-      shot in the script, `takeDrop.heldShot`: no who, its action naming it; 3 s), and
-      either edge of a held clip sets its length (`POST /seriesmith/take/hold-length`: held
-      again in place from the picture kept beside the take, trims cleared; its upscale and
-      post go stale by their source hash). A take's **Hold this frame after it…** (a length
-      asked; a new shot after it, its who / with / size, no dialogue: `insertedShot`'s
-      `held`). The MCP's `hold_picture`, `hold_length`. Tests: `tests/test_takeimport.py`,
-      `web/test/takeDrop.test.ts`. Not yet live.
+- [x] **A held picture is a shot on a model of seriesmith's own** (decided 2026-10-29, after
+      two tries that bolted it on beside the shot: an imported take, then routes to make
+      and re-length one): `target: hold` (targets/video/hold/target.json, the generic
+      `video_prose` compile). Its first keyframe (required) held still for its `dur:`, at
+      the pass's size and the cut's rate, letterboxed (seriesmith/hold.py). Generate plans
+      it as any shot (`plan_job`: blocked without its picture; `sidecar_for`'s hashes, so
+      it goes stale when `dur:` or the picture changes) and then, instead of a backend, runs
+      it on the local lane (`runner.enqueue_hold`, from `edit.queue_shots` and
+      `seriesmith render`); always ready, never paid (`backends: ["local"]`). Sound: silent,
+      or a dub's track laid under it (`hold.dub_audio`). Upscale: pixel or SeedVR2 (no
+      latent). The editor: a picture dropped between two clips writes a hold shot
+      (`takeDrop.heldShot`), uploads the picture as its first keyframe and generates it; a
+      held clip's edge sets its `dur:` (`withDur`) and generates it again; a take's **Hold
+      this frame after it…** writes one after it (`insertedShot`'s `held`) with that frame
+      as its first keyframe. Tests: `tests/test_hold.py`, `web/test/takeDrop.test.ts`,
+      `web/test/shotPicks.test.ts`. Not yet live.
+      - [ ] Later, maybe: a held shot's upscale as the picture held again at the bigger size
+        (sharper than any upscale of the held frames), and `first:` paths imported when it's
+        generated rather than by Generate missing.
 - Not doing: an animatic (decided 2026-10-29). Holding pictures on the timeline was the
   point; a pass or an export of keyframes isn't wanted.
 - [ ] **A shot's colour** in the shot inspector: exposure (stops), black point, saturation,

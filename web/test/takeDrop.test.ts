@@ -4,7 +4,7 @@
 // import and copy, as the editor calls them.
 import { describe, expect, it } from "vitest";
 import {
-  anchorAt, decodeTakeDrag, dropAt, durOf, encodeTakeDrag, gapAfter, heldShot, insertedShot, videoFileProblem,
+  anchorAt, decodeTakeDrag, dropAt, durOf, encodeTakeDrag, gapAfter, heldShot, insertedShot, videoFileProblem, withDur,
 } from "../src/lib/takeDrop";
 import { createMockApi } from "../src/mock/mockApi";
 
@@ -121,6 +121,7 @@ describe("the script with a dropped take's shot", () => {
     const at = lines.indexOf(`## ${got.id}`);
     const block = lines.slice(at);
     expect(block).toContain("A still: frame 40 of sh020 t03, held.");
+    expect(block).toContain("target: hold");
     expect(block).toContain("dur: 2");
     expect(block.some((l) => l.startsWith("ADA:"))).toBe(false);
     expect(block.some((l) => l.startsWith("Ada lifts") || l.startsWith("sound:"))).toBe(false);
@@ -134,8 +135,14 @@ describe("the script with a dropped take's shot", () => {
     expect(block).toContain("dur: 3");
     expect(block).toContain("A held picture: two hours later.png.");
     expect(block.some((l) => l.startsWith("who:"))).toBe(false);
+    expect(block).toContain("target: hold");
     expect(heldShot(SCRIPT, spans(SCRIPT), { before: "sh030" }, 3, "x.png")!.id).toBe("sh025");
     expect(heldShot(SCRIPT, spans(SCRIPT), { after: "sh999" }, 3, "x.png")).toBeNull();
+  });
+  it("a held clip's edge sets its dur:, nothing else", () => {
+    const got = withDur(SCRIPT, spans(SCRIPT), "sh010", 4.26)!;
+    expect(got).toBe(SCRIPT.replace("dur: 3\n", "dur: 4.3\n"));
+    expect(withDur(SCRIPT, spans(SCRIPT), "sh999", 2)).toBeNull();
   });
   it("after the last shot", () => {
     expect(insertedShot(SCRIPT, spans(SCRIPT), "sh010", { after: "sh030" }, 2, "x")!.id).toBe("sh040");

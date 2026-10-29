@@ -1,0 +1,41 @@
+{
+  "id": "hold",
+  "kind": "video",
+  "label": "Hold (a picture held still)",
+  "short": "Hold",
+  "code": "builtin:video_prose",
+  "_note": "seriesmith's own model: no ComfyUI and no files. A shot on it is its first keyframe held still for its length: a card (\"Two hours later\"), a title, a still, or (with `continuous: first`, or a frame of a take as its first keyframe) a freeze frame. Generate runs it on this machine's local lane (ffmpeg, seriesmith/hold.py) in a moment, for nothing. It reads nothing else of the shot: who, the action and the dialogue are the script's, not the picture's.",
+  "local_render": "hold",
+
+  "capabilities": {
+    "_note": "backends: local, so it is never counted as a paid run; it never reaches a backend (runner.enqueue_hold). audio: none (silent, or a dub: the shot's track muxed in).",
+    "backends": ["local"],
+    "audio": "none"
+  },
+
+  "template": {
+    "_note": "Any length to the frame, at the series' frame rate; any even size.",
+    "fps": "series",
+    "frames": {"step": 1, "base": 1, "max": 14400},
+    "size_multiple": 2,
+    "size_fit": "snap"
+  },
+
+  "recipe": {
+    "_note": "The first keyframe is the picture held: required (a shot without one can't be held). Sound: silent, or dub (the shot's recording window, a file or a dub track, laid under the picture).",
+    "policies": ["silent", "dub"],
+    "policy_fallback": {"to": "silent", "why": "a held picture makes no sound: set the shot's sound to dub a track, or lay one under it in the cut"},
+    "keyframes": ["first"],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "keyframe_required": {
+      "first": "a held shot holds its first keyframe: drop a picture on it, import one, give it `continuous: first` (the previous shot's last frame), or use a frame of a take"
+    },
+    "prompt": "prose_silent"
+  },
+
+  "presets": {
+    "_note": "Only the size matters, and the series config's pass blocks give it: a held picture is made at the size its pass renders every shot at. No model, no steps.",
+    "final": {"width": 1344, "height": 768, "steps": 0},
+    "proxy": {"width": 448, "height": 256, "steps": 0}
+  }
+}

@@ -4,7 +4,7 @@
 // take: its shot's lines, its length; a file: the shot form, prefilled), the
 // take into it, and the clip moved to where it was dropped.
 
-import { afterAuthoredWrite, openShotForm, pickTake, refreshEpisode, select, uploadRef } from "./actions";
+import { afterAuthoredWrite, keyframeFromTake, openShotForm, pickTake, refreshEpisode, requestRender, select, uploadRef } from "./actions";
 import { errText } from "./api";
 import { moveClip, setTrims } from "./cutActions";
 import { api, host } from "./host";
@@ -12,7 +12,7 @@ import { tn } from "./lib/format";
 import { keyframeNote, keyframeRefId } from "./lib/keyframes";
 import { fileKindProblem } from "./lib/lookback";
 import { seriesDefaultTarget, shotTarget } from "./lib/targets";
-import { anchorAt, gapAfter, heldShot, insertedShot, videoFileProblem, type TakeDrag } from "./lib/takeDrop";
+import { anchorAt, gapAfter, heldShot, insertedShot, videoFileProblem, withDur, type TakeDrag } from "./lib/takeDrop";
 import { statusKey, store, uploadKey } from "./store";
 import type { ShotStatus } from "./types";
 
@@ -149,26 +149,20 @@ export async function dropTakeBetween(gap: number, from: TakeDrag): Promise<void
   }
 }
 
-/** A freeze frame: frame `frame` of `shot`'s take held still, as a new shot right
- * after it in the script (its who, with and size; no dialogue) and in the cut.
- * The length is asked. */
+/** A freeze frame: a new shot right after `shot` on the `hold` model (its who,
+ * with and size; no dialogue), frame `frame` of `shot`'s take as its first
+ * keyframe, generated: that frame held still. The length is asked. */
 export async function holdFrameAfter(shot: string, take: number, frame: number | "last", fromPass: "final" | "proxy"): Promise<void> {
   const { ep, pass } = get();
   if (!ep) return;
-  const t = get().status[statusKey(ep, fromPass)]?.shots.find((s) => s.shot === shot)?.takes.find((x) => x.take === take);
-  const n = frame === "last" ? (t?.frames ? t.frames - 1 : null) : frame;
-  if (n == null) {
-    host().toast("warn", "Which frame?", `${shot} ${tn(take)} doesn't say how many frames it has: pick the frame in the viewer.`);
-    return;
-  }
-  const raw = window.prompt(`Hold frame ${n} of ${shot} ${tn(take)} for how many seconds?`, "2");
+  const raw = window.prompt(`Hold ${frame === "last" ? "the last frame" : `frame ${frame}`} of ${shot} ${tn(take)} for how many seconds?`, "2");
   if (raw == null) return;
   const seconds = Number(raw);
   if (!(seconds > 0)) {
     host().toast("warn", "Not a length", `${raw} isn't a number of seconds.`);
     return;
   }
-  const what = `frame ${n} of ${shot} ${tn(take)}${fromPass !== pass ? ` (${fromPass})` : ""}`;
+  const what = `${frame === "last" ? "the last frame" : `frame ${frame}`} of ${shot} ${tn(take)}${fromPass !== pass ? ` (${fromPass})` : ""}`;
   try {
     const doc = await api().source(ep, "script");
     const made = insertedShot(doc.text, doc.shots, shot, { after: shot }, seconds, `${what}, held`,
@@ -177,14 +171,10 @@ export async function holdFrameAfter(shot: string, take: number, frame: number |
       host().toast("error", "Nowhere to put it", `${shot} isn't in the script.`);
       return;
     }
-    const r = await api().putSource({ ep, file: "script", text: made.text, base_hash: doc.hash, rebuild: true });
-    afterAuthoredWrite(r.build);
-    if (r.build && !r.build.ok) return;                     // the build said why
-    const h = await api().holdTake({ ep, pass, shot: made.id, from_shot: shot, take, from_pass: fromPass, frame: n, seconds, pick: true });
+    if (!(await writeScript(ep, made.text, doc.hash))) return;
     await refreshEpisode(ep, pass);
-    await moveClip(made.id, gapAfter(cutShots(), shot));
-    select(made.id, h.take);
-    host().toast("success", `${made.id} added`, `${what}, held ${seconds} s.`);
+    if (!(await keyframeFromTake({ shot: made.id, which: "first", sourceShot: shot, sourceTake: take, frame, pass: fromPass }))) return;
+    await placeAndHold(made.id, shot, `${what}, held ${seconds} s`);
   } catch (e) {
     host().toast("error", "Couldn't hold the frame", errText(e));
   }
@@ -243,15 +233,33 @@ export async function dropFileBetween(gap: number, file: File): Promise<void> {
   });
 }
 
-/** The longest a picture is held (takeimport.HOLD_MAX_SECONDS). */
+/** The longest a held shot is (the hold model's 14400 frames at 24 fps). */
 export const HOLD_MAX_SECONDS = 600;
 /** How long a dropped picture is held at first; its edge makes it longer or shorter. */
 export const HOLD_SECONDS = 3;
 
-/** A picture dropped between two clips: held still right there, a clip of its own
- * (a card, a still). A new shot goes into the script (its action names the
- * picture), the picture becomes its take, and the clip lands where it was
- * dropped. Its length is the clip's edge. */
+/** The script saved and rebuilt; false when the build failed (it said why). */
+async function writeScript(ep: string, text: string, hash: string): Promise<boolean> {
+  const r = await api().putSource({ ep, file: "script", text, base_hash: hash, rebuild: true });
+  afterAuthoredWrite(r.build);
+  return !(r.build && !r.build.ok);
+}
+
+/** A new held shot's clip put after `left` in the cut, selected, and generated:
+ * its picture held still on this machine. */
+async function placeAndHold(id: string, left: string | null, what: string): Promise<void> {
+  const { ep, pass } = get();
+  if (!ep) return;
+  await refreshEpisode(ep, pass);
+  await moveClip(id, gapAfter(cutShots(), left));
+  select(id, null);
+  requestRender([id], true, `Hold ${id}`);
+  host().toast("success", `${id} added`, `${what}: drag its edge on the timeline to make it longer or shorter.`);
+}
+
+/** A picture dropped between two clips: a shot of its own there, on the `hold`
+ * model (no one in it, its action naming the picture, 3 s), the picture its
+ * first keyframe, generated: held still. Its edge is its length. */
 export async function dropPictureBetween(gap: number, file: File): Promise<void> {
   const { ep, pass } = get();
   if (!ep) return;
@@ -262,30 +270,38 @@ export async function dropPictureBetween(gap: number, file: File): Promise<void>
     const doc = await api().source(ep, "script");
     const made = anchor && heldShot(doc.text, doc.shots, anchor, HOLD_SECONDS, file.name);
     if (!made) {
-      host().toast("error", "Nowhere to put it", "There's no shot beside the drop to put it after.");
+      host().toast("error", "Nowhere to put it", "The episode has no shot to put it beside: add one first.");
       return;
     }
-    const r = await api().putSource({ ep, file: "script", text: made.text, base_hash: doc.hash, rebuild: true });
-    afterAuthoredWrite(r.build);
-    if (r.build && !r.build.ok) return;                     // the build said why
-    const h = await api().holdTake({ ep, pass, shot: made.id, file, name: file.name, seconds: HOLD_SECONDS, pick: true });
+    if (!(await writeScript(ep, made.text, doc.hash))) return;
     await refreshEpisode(ep, pass);
-    await moveClip(made.id, gapAfter(cutShots(), left));
-    select(made.id, h.take);
-    host().toast("success", `${file.name} held`, `${made.id}, ${HOLD_SECONDS} s: drag its edge to make it longer or shorter.`);
+    if (!(await uploadRef(keyframeRefId(made.id, "first"), null, file, true))) {
+      host().toast("error", `${made.id}: ${file.name} isn't its picture`, get().uploads[uploadKey(keyframeRefId(made.id, "first"), null)]?.error ?? "");
+      return;
+    }
+    await placeAndHold(made.id, left, `${file.name}, held ${HOLD_SECONDS} s`);
   } catch (e) {
     host().toast("error", `Couldn't hold ${file.name}`, errText(e));
   }
 }
 
-/** A held clip's edge let go: held again at `frames` (its trims cleared). */
-export async function holdLength(shot: string, take: number, takePass: "final" | "proxy", frames: number, trimmed: boolean): Promise<void> {
+/** A held clip's edge let go: its `dur:` set to `frames` (the cut's), its trims
+ * cleared, and generated again at that length. */
+export async function holdLength(shot: string, frames: number, fps: number, trimmed: boolean): Promise<void> {
   const { ep, pass } = get();
   if (!ep) return;
+  const seconds = Math.round((frames / (fps || 24)) * 10) / 10 || 0.1;
   try {
-    await api().holdTakeLength({ ep, pass: takePass, shot, take, frames });
+    const doc = await api().source(ep, "script");
+    const text = withDur(doc.text, doc.shots, shot, seconds);
+    if (!text) {
+      host().toast("error", "Not in the script", `${shot} isn't in the script.`);
+      return;
+    }
+    if (!(await writeScript(ep, text, doc.hash))) return;
     if (trimmed) await setTrims(shot, 0, 0, `Hold ${shot}`);
     await refreshEpisode(ep, pass);
+    requestRender([shot], true, `Hold ${shot} ${seconds} s`);
   } catch (e) {
     host().toast("error", `Couldn't change ${shot}'s length`, errText(e));
   }

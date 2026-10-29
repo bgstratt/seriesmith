@@ -254,6 +254,69 @@ class Runner:
         self._submit(qjob)
         return take, qjob.id
 
+    def enqueue_hold(self, job: J.Job, continuity: dict | None = None,
+                     after: str | None = None) -> tuple[T.Take, str]:
+        """A shot on the `hold` target (seriesmith.hold): its take reserved as
+        any render's is (so it goes stale as any does), then its first
+        keyframe held still on the local lane -- ffmpeg here, no backend, no
+        model, nothing paid. `continuity`: its first frame is cut from the
+        take before it when the job starts (`continuous: first`, a freeze
+        frame); `after`: the queue job it waits for."""
+        import os
+
+        from seriesmith import hold as H
+        room(job.root, "render")
+        job.continuity = None
+        take = J.start_job(job)
+        ep = job.root
+        title = f"{_ep_name(ep)} {job.id} t{take.take:02d}"
+
+        def work(qjob: QJob, report) -> str:
+            from seriesmith import refs as R
+            try:
+                if continuity is not None:
+                    rel = os.path.relpath(take.paths.sidecar, ep)
+                    res = R.continuity_at_start(ep, job.id, job.pass_, rel)
+                    if res.get("note"):
+                        report(line=res["note"])
+                status = H.render(job, take, report, H.dub_audio(job))
+                if job.notes:
+                    had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
+                    T.update_sidecar(take.paths.sidecar, notes=list(had) + list(job.notes))
+            except Exception as e:                       # noqa: BLE001  the take fails
+                J.mark_failed(take, str(e)[:800])
+                qjob.error = str(e)[:800]
+                status = "failed"
+            if qjob.cancel_asked and status != "ok":
+                J.mark_failed(take, stopped(qjob))
+            report(line=f"take {status}")
+            self._take_event(ep, take)
+            return ending(qjob, status == "ok")
+
+        def cancelled(qjob: QJob) -> None:
+            J.mark_failed(take, "canceled before it ran")
+            self._take_event(ep, take)
+
+        def again():
+            j2 = copy.copy(job)
+            j2.take, j2.forced = job.take + 1, False
+            self.enqueue_hold(j2, continuity)
+            return None
+
+        qjob = QJob(kind="render", lane=LOCAL_LANE, title=title, work=work,
+                    info={"ep": ep, "pass": job.pass_, "shot": job.id, "take": take.take,
+                          "target": job.target, "backend": "this machine",
+                          **({"continues": "first frame"} if continuity is not None else {})},
+                    on_cancel=cancelled, retry=again, after=after, limit=LIMITS["render"],
+                    record=take.paths.sidecar,
+                    resume={"kind": "render", "ep": ep, "pass": job.pass_, "shot": job.id,
+                            "take": take.take, "asked": asked()})
+        T.update_sidecar(take.paths.sidecar, backend="hold", comfy_prompt_id=qjob.id,
+                         queue=self.queue.name)
+        take.sidecar = T.read_sidecar(take.paths.sidecar)
+        self._submit(qjob)
+        return take, qjob.id
+
     def _remote(self, qjob: QJob, sidecar: str, report):
         """A run's status listener for a backend that runs requests in turn
         (Router): "waiting at Router (#2 in line)" or "running on Router", on

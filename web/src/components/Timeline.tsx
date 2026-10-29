@@ -15,7 +15,8 @@ import {
 import { missingRefsSummary } from "../lib/missingRefs";
 import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
-import { targetBadges } from "../lib/targets";
+import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
+import { HOLD_TARGET } from "../lib/takeDrop";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -498,11 +499,10 @@ export function Timeline() {
     const a0 = it.trimIn;
     const b0 = it.trimOut;
     const x0 = e.clientX;
-    // a held picture: either edge makes it longer or shorter, held again at that length
-    const held = it.take != null && store.get().status[statusKey(store.get().ep ?? "", it.pass)]?.shots
-      .find((x) => x.shot === s.shot)?.takes.find((t) => t.take === it.take)?.held;
-    if (held && it.take != null) {
-      const take = it.take;
+    // a shot on the hold model: either edge sets its length (its `dur:`), held again at that
+    const app = store.get();
+    const st = app.status[statusKey(app.ep ?? "", app.pass)];
+    if (shotTarget(s, seriesDefaultTarget(app.targets, st)) === HOLD_TARGET) {
       const l0 = Math.max(1, total - a0 - b0);
       let l = l0;
       const sizeTo = (ev: { clientX: number; clientY: number }) => {
@@ -514,7 +514,7 @@ export function Timeline() {
       track(sizeTo, (cancelled) => {
         setTrim(null);
         endDrag();
-        if (!cancelled && (l !== l0 || a0 || b0)) void holdLength(s.shot, take, it.pass, l, a0 > 0 || b0 > 0);
+        if (!cancelled && (l !== l0 || a0 || b0)) void holdLength(s.shot, l, f, a0 > 0 || b0 > 0);
       });
       return;
     }

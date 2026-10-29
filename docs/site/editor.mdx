@@ -1106,16 +1106,17 @@ The cut as an editable track, along the bottom of the page.
   as an upload in Refs is. A shot whose model reads no
   keyframe keeps it unused, and says so.
 - **Drop a picture between two clips** and it's held right there, a clip of its own: a card
-  ("Two hours later"), a title, a still. A shot goes into the script for it (no one in it,
-  its action naming the picture) and the picture is its take, 3 s long. **Drag either
-  edge** to make it as long as you want, frame by frame; it's held again at that length.
-  Its badge says **held**. It exports, upscales and masters as any clip does. (Drop a
-  picture onto it later and that's its first keyframe, should you want it rendered
-  instead.)
+  ("Two hours later"), a title, a still. A shot goes into the script for it on the **Hold**
+  model (`target: hold`: no one in it, its action naming the picture, 3 s), the picture is
+  its first keyframe, and it's generated: held still, on this machine, in a moment.
+  **Drag either edge** of a held clip to make it as long as you want, frame by frame: its
+  `dur:` changes and it's held again at that length. It's a shot like any other: edit it
+  in the shot form, pick another model to render it instead, export, upscale and master
+  it. (See AUTHORING.md, "A picture held still".)
 - **A freeze frame**: a take's menu (in the viewer, right-click the picture at the frame you
   want; elsewhere, its last frame) has **Hold this frame after it…**. It asks how long, adds a
-  shot right after it in the script (its who, with and size; no dialogue, so no line is said
-  twice) and holds that frame as its take, in the cut.
+  shot on the Hold model right after it (its who, with and size; no dialogue, so no line is
+  said twice), that frame its first keyframe, and generates it.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
