@@ -1,7 +1,8 @@
 // The gallery's sections: which refs, which pictures, in what order.
 import { describe, expect, it } from "vitest";
 import {
-  cutKey, gallerySections, itemAspect, itemKey, liveKey, sequencesOf, shotKey, shotSections, takeAspect, type GalleryScope,
+  cutKey, gallerySections, itemAspect, itemKey, liveKey, searchRefSections, searchShotSections, sequencesOf, shotKey, shotSections, takeAspect,
+  type GalleryScope,
 } from "../src/lib/gallery";
 import type { EpisodeStatus, Ref, RefTake, ShotStatus, TakeSummary } from "../src/types";
 
@@ -185,5 +186,42 @@ describe("gallery: a shared ref's other episodes", () => {
     const quiet = ref("subject:bo", "character", { used_by: { proxy: [] }, shared_with: ["ep01"], exists: false, views: [] });
     expect(gallerySections([quiet], { ...ALL, series: true }, "proxy").map((s) => s.unread)).toEqual([true]);
     expect(gallerySections([quiet], { ...ALL, series: true }, "proxy", new Map([["subject:bo", []]]))).toEqual([]);
+  });
+});
+
+describe("gallery: the search box", () => {
+  const ada = ref("subject:ada", "character", {
+    views: [
+      { view: "01_threequarter", picked: 1, takes: [take(1)] },
+      { view: "04_face", picked: null, takes: [take(2)] },
+    ],
+  });
+  const street = ref("location:street", "location", { takes: [take(1)], picked: 1, panos: [take(5)] });
+  const refs = [street, ada];
+
+  it("keeps the refs and pictures with every word, nothing for no words", () => {
+    const all = gallerySections(refs, ALL, "proxy");
+    expect(searchRefSections(all, "  ")).toBe(all);
+    expect(searchRefSections(all, "ADA").map((s) => s.ref.id)).toEqual(["subject:ada"]);
+    // a view narrows to its pictures; words together must all be there
+    expect(searchRefSections(all, "ada face").flatMap((s) => s.items.map((i) => i.view))).toEqual(["04_face"]);
+    expect(searchRefSections(all, "location 360").flatMap((s) => s.items.map((i) => i.view))).toEqual(["pano"]);
+    expect(searchRefSections(all, "live").flatMap((s) => s.items.map((i) => i.key)))
+      .toEqual([itemKey("subject:ada", "01_threequarter", 1), itemKey("location:street", null, 1)]);
+    expect(searchRefSections(all, "ada street")).toEqual([]);
+  });
+
+  it("finds shots by id, size, who's in it, the take and its model", () => {
+    const st = { shots: [
+      { ...shot("sh010", "sq01", [tk(1, { target: "ltx2_msr" }), tk(2, { target: "seedance_2_5" })], 2), size: "ecu", subjects: ["cindy"] },
+      { ...shot("sh020", "sq02", [tk(1)]), size: "ws", subjects: ["mia", "ava"] },
+    ] } as unknown as EpisodeStatus;
+    const all = shotSections(st, { ...ALL, kind: "shots" }, "final");
+    const keys = (q: string) => searchShotSections(all, q).flatMap((s) => s.items.map((i) => i.key));
+    expect(keys("cindy")).toEqual([shotKey("sh010", 2), shotKey("sh010", 1)]);
+    expect(keys("ecu seedance")).toEqual([shotKey("sh010", 2)]);
+    expect(keys("sh010 t01")).toEqual([shotKey("sh010", 1)]);
+    expect(keys("cut")).toEqual([shotKey("sh010", 2)]);
+    expect(keys("ava sq02")).toEqual([shotKey("sh020", 1)]);
   });
 });

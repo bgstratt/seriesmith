@@ -3100,7 +3100,7 @@ export function openGallery(scope: Partial<GalleryScope> = {}) {
   const prev = s.gallery;
   const next: GalleryScope = {
     kind: "refs", group: null, ref: null, seq: null, shot: null,
-    picksOnly: prev?.picksOnly ?? false, series: prev?.series ?? false,
+    picksOnly: prev?.picksOnly ?? false, series: prev?.series ?? false, query: "",
     ...scope,
   };
   const refs = (s.ep && s.refs[s.ep]) || [];

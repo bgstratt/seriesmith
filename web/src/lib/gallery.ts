@@ -3,6 +3,7 @@
 // through with the arrow keys.
 
 import type { EpisodeStatus, OwnerTake, Pass, Ref, RefTake, ShotStatus, TakeSummary } from "../types";
+import { tn } from "./format";
 import { PANO_VIEW, REF_GROUPS, SHEET_VIEW, TOUR_VIEW, VIEWS, groupOf, hasViews, passesFilter, pickedOf, takesOf, type RefGroupId } from "./refs";
 
 /** The Refs tab's groups that have pictures (a voice has none). */
@@ -25,6 +26,8 @@ export interface GalleryScope {
   picksOnly: boolean;
   /** refs: the series config's refs this episode's shots don't use, too */
   series: boolean;
+  /** the search box: words each picture shown has (searchRefSections, searchShotSections) */
+  query?: string;
 }
 
 export interface GalleryItem {
@@ -227,4 +230,57 @@ export function cutKey(sections: ShotSection[], shot: string): string | null {
 /** A take's shape: its own size, else the episode's. */
 export function takeAspect(t: Pick<TakeSummary, "width" | "height">, fallback: number): number {
   return t.width && t.height ? t.width / t.height : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// the search box: narrowing what's shown by what's said of it
+// ---------------------------------------------------------------------------
+
+/** The search box's words, lower case (none: everything). */
+export function queryWords(q: string | undefined): string[] {
+  return (q ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** Every word somewhere in what's said of it. */
+function matches(said: (string | null | undefined)[], words: string[]): boolean {
+  const text = said.filter(Boolean).join(" ").toLowerCase();
+  return words.every((w) => text.includes(w));
+}
+
+function viewLabel(view: string | null): string {
+  return view === SHEET_VIEW ? "sheet" : view === PANO_VIEW ? "360 pano" : view === TOUR_VIEW ? "tour"
+    : VIEWS.find((v) => v.view === view)?.label ?? "";
+}
+
+/** The refs' pictures whose ref (id, name, kind, group, whose it is) and picture (its
+ * view, the episode it's from, live) have every word of `q`; a ref without one
+ * matching is left out. */
+export function searchRefSections(sections: GallerySection[], q: string | undefined): GallerySection[] {
+  const words = queryWords(q);
+  if (!words.length) return sections;
+  const out: GallerySection[] = [];
+  for (const s of sections) {
+    const r = s.ref;
+    const group = REF_GROUPS.find((g) => g.id === groupOf(r))?.label;
+    const own = [r.id, r.name, r.kind, group, r.of];
+    const items = s.items.filter((i) => matches([...own, viewLabel(i.view), i.episode, i.live ? "live" : ""], words));
+    if (items.length || (!s.items.length && matches(own, words))) out.push({ ...s, items });
+  }
+  return out;
+}
+
+/** The shots' takes whose shot (id, size, who's in it, sequence, what happens) and
+ * take (t03, its model, in the cut) have every word of `q`, as the Shots tab's
+ * filter does; a shot without one matching is left out. */
+export function searchShotSections(sections: ShotSection[], q: string | undefined): ShotSection[] {
+  const words = queryWords(q);
+  if (!words.length) return sections;
+  const out: ShotSection[] = [];
+  for (const s of sections) {
+    const sh = s.shot;
+    const own = [sh.shot, sh.size, ...sh.subjects, s.seq, sh.action];
+    const items = s.items.filter((i) => matches([...own, tn(i.take.take), i.take.target, i.cut ? "cut" : ""], words));
+    if (items.length || (!s.items.length && matches(own, words))) out.push({ ...s, items });
+  }
+  return out;
 }

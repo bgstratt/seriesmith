@@ -14,7 +14,7 @@ import { errText } from "../api";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
-  GALLERY_GROUPS, gallerySections, isShared, itemAspect, sequencesOf, shotSections, takeAspect,
+  GALLERY_GROUPS, gallerySections, isShared, itemAspect, searchRefSections, searchShotSections, sequencesOf, shotSections, takeAspect,
   type GalleryItem, type SharedTakes, type ShotItem,
 } from "../lib/gallery";
 import { fmtWhen, shortName, tn } from "../lib/format";
@@ -197,15 +197,15 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
 
   const shared = useSharedTakes(ep);
   const refSecs = useMemo(
-    () => (shots ? [] : gallerySections(refs ?? [], g, pass, shared.got)),
+    () => (shots ? [] : searchRefSections(gallerySections(refs ?? [], g, pass, shared.got), g.query)),
     // the scope's fields, not `g`: moving through it changes `g` too
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shots, refs, g.group, g.ref, g.picksOnly, g.series, pass, shared.got],
+    [shots, refs, g.group, g.ref, g.picksOnly, g.series, g.query, pass, shared.got],
   );
   const shotSecs = useMemo(
-    () => (shots ? shotSections(st, g, pass) : []),
+    () => (shots ? searchShotSections(shotSections(st, g, pass), g.query) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shots, st, g.seq, g.shot, g.picksOnly, pass],
+    [shots, st, g.seq, g.shot, g.picksOnly, g.query, pass],
   );
   const epAspect = aspectOf(st);
   const sections: GridSection[] = useMemo(() => shots
@@ -385,6 +385,21 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
         ))}
       </span>
+      <input className="h3-in h3-gal-search" type="search" value={g.query ?? ""}
+        placeholder={shots ? "Search shots (id, size, who, model)" : "Search (name, kind, view, episode)"}
+        title={shots
+          ? "Only the takes whose shot or take has every word: its id, size, who's in it, sequence, what happens, the take (t03), its model, cut. Enter: back to the arrows; Esc clears it"
+          : "Only the pictures whose ref or picture has every word: its name or id, kind (character, prop, location), group, whose it is, the view (face, side, sheet, 360), the episode, live. Enter: back to the arrows; Esc clears it"}
+        onChange={(e) => updateGallery({ query: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            // the gallery's own Esc would close it: here it clears the box, then leaves it
+            e.stopPropagation();
+            if (g.query) updateGallery({ query: "" });
+            else e.currentTarget.blur();
+          }
+        }} />
       <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
         <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
       </label>
