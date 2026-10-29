@@ -7,7 +7,7 @@ import {
   generateDubTracks, openSound, setSound,
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
-import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { clearClipAudio, matchColors, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
@@ -216,6 +216,13 @@ export function ContextMenu() {
         onClick={run(() => void toggleOut(menu.shot))}
       >
         <i className={cutShot?.cut.out ? "pi pi-plus-circle" : "pi pi-minus-circle"} /> {cutShot?.cut.out ? "Put back in the cut" : "Leave out of the cut"}
+      </button>
+      <button
+        disabled={!cutShot || !!cutShot.orphan}
+        title={`Set the colour of the rest of ${menu.shot}'s sequence so it looks like ${menu.shot}: worked out from the pictures, a starting point for each clip's sliders (the inspector). Locked clips are left alone; Ctrl+Z undoes it`}
+        onClick={run(() => void matchColors(menu.shot))}
+      >
+        <i className="pi pi-clone" /> Match the sequence's colour to this
       </button>
       {trimmed && (
         <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>

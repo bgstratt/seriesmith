@@ -9,6 +9,8 @@ it with the same numbers (web/src/lib/color.ts, an SVG feColorMatrix).
     check(raw) -> {name: value}         the non-zero ones, each in range (ValueError)
     matrix(color) -> (m, offset)        out = m . rgb + offset, rgb in 0..1
     filters(color) -> [ffmpeg filter]   the same, on a clip's frames
+    match(base, clips) -> [color]       what brings each clip in line with the base
+                                        (helpers/colorstats.py, numpy)
 
 Not a grade: one linear map of the picture's (gamma-encoded) RGB, so the
 preview and the export agree, and a match to another shot can solve for it.
@@ -27,9 +29,14 @@ preview and the export agree, and a match to another shot can solve for it.
 In that order: saturation, the channel gains (exposure, warmth, tint), the
 contrast, the black point.
 
-Stdlib only.
+Stdlib only; measuring runs helpers/colorstats.py (numpy) as a subprocess.
 """
 from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
 
 RANGES = {"exposure": (-2.0, 2.0), "contrast": (-1.0, 1.0), "black": (-0.25, 0.25),
           "saturation": (-1.0, 1.0), "warmth": (-1.0, 1.0), "tint": (-1.0, 1.0)}
@@ -93,3 +100,35 @@ def filters(color: dict) -> list[str]:
     return ["scale=in_color_matrix=bt709:in_range=tv:out_range=pc", "format=gbrp",
             f"colorchannelmixer={mix}", f"lutrgb={lut}",
             "scale=out_color_matrix=bt709:out_range=tv", "format=yuv420p"]
+
+
+# ---------------------------------------------------------------------------
+# matching one clip to another
+# ---------------------------------------------------------------------------
+
+HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "colorstats.py")
+SAMPLES = 5                                      # frames looked at, spread over what the cut uses
+
+
+def sample_frames(first: int, last: int, n: int = SAMPLES) -> list[int]:
+    """`n` frames spread evenly over first..last (inclusive), ends kept off."""
+    if last < first:
+        return [max(0, first)]
+    span = last - first + 1
+    return sorted({first + int((i + 0.5) * span / n) for i in range(min(n, span))})
+
+
+def match(base: dict, clips: list[dict], python: str | None = None,
+          timeout: int = 900) -> list[dict]:
+    """The colour that brings each of `clips` in line with `base` (each
+    {"path", "frames", "color"?}: a video, the frames of it to look at, and its
+    colour in the cut; the base's is applied before it's compared, a clip's own
+    replaced): helpers/colorstats.py, on this Python (it has numpy). A colour
+    (check()'s shape) or {"error"} each. ValueError when the helper fails."""
+    from seriesmith import ff as FF
+    job = {"base": base, "clips": clips}
+    r = subprocess.run([python or sys.executable, HELPER, json.dumps(FF.tool("ffmpeg"))],
+                       input=json.dumps(job), capture_output=True, text=True, timeout=timeout)
+    if r.returncode != 0:
+        raise ValueError((r.stderr or r.stdout or "matching the clips failed").strip()[-600:])
+    return json.loads(r.stdout.strip().splitlines()[-1])

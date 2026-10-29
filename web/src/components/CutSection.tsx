@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { currentPlaylist, openSound } from "../actions";
-import { clearClipAudio, setColor, setTrims, toggleLock } from "../cutActions";
+import { clearClipAudio, matchColors, setColor, setTrims, toggleLock } from "../cutActions";
 import { api } from "../host";
 import { GAIN_DEFAULT, RECORDING_IGNORES_AUDIO, audioOf, gainOf, offsetOf, startOf } from "../lib/audioSource";
 import { COLOR_FIELDS, COLOR_RANGES, cleanColor, hasColor, type ColorField, type ShotColor } from "../lib/color";
@@ -149,6 +149,7 @@ function ClipColorLines({ shot, cut, locked }: { shot: string; cut: ShotStatus["
     void setColor(shot, draft).finally(() => store.set({ colorPreview: null }));
   };
   const any = hasColor(saved);
+  const matching = useApp((s) => !!s.busy[`colormatch|${shot}`]);
   return (
     <div className="h3-col h3-small" style={{ gap: 2 }}>
       <div className="h3-row">
@@ -157,6 +158,11 @@ function ClipColorLines({ shot, cut, locked }: { shot: string; cut: ShotStatus["
           {any ? "applied when the cut is exported (assemble); the viewer shows it" : "as shot"}
           {locked ? " · locked" : ""}
         </span>
+        <button className="h3-btn" disabled={matching}
+          title={`Set the colour of the rest of this clip's sequence so it looks like ${shot} (as it is now, its sliders included): worked out from the pictures, each a starting point to adjust. Locked clips are left alone; Ctrl+Z undoes it`}
+          onClick={() => void matchColors(shot)}>
+          {matching ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-clone" />} Match the sequence to this
+        </button>
         {any && <button className="h3-btn" disabled={locked} onClick={() => void setColor(shot, {}, `Reset ${shot}'s colour`)}>Reset</button>}
       </div>
       {COLOR_FIELDS.map((k) => {

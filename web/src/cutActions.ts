@@ -3,7 +3,7 @@
 // Each edit is one PUT /seriesmith/cut of the whole pass's list, shown at once
 // (optimistic) and rolled back if the server refuses it.
 
-import { ApiError } from "./api";
+import { ApiError, errText } from "./api";
 import {
   currentPlaylist, openIssue, playAll, refreshEpisode, report, seekCut, select, setCutPlaying, setStatusHook,
 } from "./actions";
@@ -199,6 +199,38 @@ export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}
     return Promise.resolve(false);
   }
   return editCut(label, (list) => withFields(list, shot, { color: cleanColor(color) }));
+}
+
+/** Match the colour of the rest of `base`'s sequence (or `shots`) to `base`: worked out
+ * by the server from their pictures, then set as one cut edit (one undo). */
+export async function matchColors(base: string, shots?: string[]): Promise<boolean> {
+  const c = ctx();
+  if (!c) return false;
+  const key = `colormatch|${base}`;
+  if (store.get().busy[key]) return false;
+  store.set((s) => ({ busy: { ...s.busy, [key]: true } }));
+  try {
+    const r = await api().colorMatch(c.ep, c.pass, base, shots);
+    const ids = Object.keys(r.colors);
+    const skipped = r.skipped.length ? ` Skipped: ${r.skipped.map((x) => `${x.shot} (${x.why})`).join(", ")}.` : "";
+    if (!ids.length) {
+      host().toast("warn", `Nothing to match to ${base}`, `No clip could be matched.${skipped}`);
+      return false;
+    }
+    const ok = await editCut(`Match ${ids.length} clip(s) to ${base}`,
+      (list) => ids.reduce((l, id) => withFields(l, id, { color: cleanColor(r.colors[id]) }), list));
+    if (ok) host().toast("success", `${ids.length} clip(s) matched to ${base}`, `${ids.join(", ")}: their sliders are set; Ctrl+Z undoes it.${skipped}`);
+    return ok;
+  } catch (e) {
+    host().toast("error", `Couldn't match to ${base}`, errText(e));
+    return false;
+  } finally {
+    store.set((s) => {
+      const busy = { ...s.busy };
+      delete busy[key];
+      return { busy };
+    });
+  }
 }
 
 /** The clip's untrimmed length in the cut's frames (null: unknown), from Play all's list. */

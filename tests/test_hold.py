@@ -40,7 +40,8 @@ def picture(path: str, color: str = "red", size: str = "300x300") -> str:
     return path
 
 
-class HoldTest(ApiTest):
+class HoldEpisode(ApiTest):
+    """kitchen_sink with sh010 on the hold model."""
     def setUp(self):
         super().setUp()
         self.script = os.path.join(self.ep, "ks01.md")
@@ -62,6 +63,9 @@ class HoldTest(ApiTest):
     def entry(self, pass_="proxy") -> dict:
         doc, i = J.find_shot(self.ep, pass_, "sh010")
         return doc["shots"][i]
+
+
+class HoldTest(HoldEpisode):
 
     def test_the_target_loads_and_builds(self):
         t = TG.load_target("hold", "video")
@@ -127,3 +131,52 @@ class HoldTest(ApiTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ColorMatchTest(HoldEpisode):
+    """Matching clips' colour (POST /seriesmith/color/match), on held takes:
+    sh020 holds a darker, cooler copy of sh010's picture; matched to sh010 it
+    comes back brighter and warmer. The rest of sq01 has no takes (skipped,
+    said why); sq02's shots aren't asked."""
+
+    def setUp(self):
+        super().setUp()
+        with open(self.script, encoding="utf-8") as fh:
+            text = fh.read()
+        self.rebuild(text.replace("## sh020\n", "## sh020\ntarget: hold\n", 1))
+
+    def test_match_brings_a_clip_in_line(self):
+        from seriesmith import color as COL
+        src = os.path.join(self.tmp, "grad.png")
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
+                        "gradients=size=320x180:c0=0x704020:c1=0x3060a0:c2=0xd0c0a0:c3=0x202818:"
+                        "nb_colors=4", "-frames:v", "1", src], check=True, capture_output=True)
+        picture(self.first)
+        os.replace(src, self.first)
+        dark = os.path.join(self.ep, "refs", "shots", "sh020", "first.png")
+        os.makedirs(os.path.dirname(dark), exist_ok=True)
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", self.first, "-vf",
+                        ",".join(COL.filters({"exposure": -0.5, "warmth": -0.6})), dark],
+                       check=True, capture_output=True)
+        self.render("sh010", "sh020")
+        self.settle()
+        got = self.ok(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh010"}))
+        self.assertEqual(got["base"], "sh010")
+        c = got["colors"]["sh020"]
+        self.assertGreater(c.get("exposure", 0), 0.3)
+        self.assertGreater(c.get("warmth", 0), 0.3)
+        # the rest of sq01, without takes, skipped; nothing of sq02's asked
+        why = {s["shot"]: s["why"] for s in got["skipped"]}
+        self.assertEqual(why.get("sh030"), "it has no finished take in the cut")
+        self.assertNotIn("sh110", why)
+        self.assertEqual(list(got["colors"]), ["sh020"])
+        # named shots; a locked one and the base itself are skipped, said why
+        self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+            {"shot": "sh010"}, {"shot": "sh020", "locked": True}]}))
+        got = self.ok(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh010",
+                                                    "shots": ["sh020", "sh010"]}))
+        self.assertEqual(got["colors"], {})
+        self.assertEqual({s["shot"]: s["why"] for s in got["skipped"]},
+                         {"sh020": "it's locked", "sh010": "it's the base"})
+        # a base with no take
+        self.err(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh030"}), 400)

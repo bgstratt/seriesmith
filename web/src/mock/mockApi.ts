@@ -1588,6 +1588,21 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!(src.status === "ok" && src.has_video)) throw new MockError(`${req.from_shot} t${req.take} isn't a finished take`, 400);
       return mockImportTake(req.pass, req.shot, null, !!req.pick, { shot: req.from_shot, take: req.take, pass: from, src });
     },
+    async colorMatch(ep, pass, base, shots) {
+      await wait(300);
+      need(ep);
+      const st = status[pass];
+      const sq = st?.shots.find((s) => s.shot === base)?.sequence;
+      const ids = shots ?? (st?.shots ?? []).filter((s) => s.shot !== base && s.sequence === sq && !s.orphan && !s.cut?.out).map((s) => s.shot);
+      const colors: Record<string, { exposure: number; warmth: number }> = {};
+      const skipped: { shot: string; why: string }[] = [];
+      ids.forEach((id, i) => {
+        const s = st?.shots.find((x) => x.shot === id);
+        if (!s || s.cut?.locked) skipped.push({ shot: id, why: s ? "it's locked" : "it isn't in the cut" });
+        else colors[id] = { exposure: Math.round(((i % 3) - 1) * 150) / 1000, warmth: Math.round(((i % 2) - 0.5) * 200) / 1000 };
+      });
+      return { base, colors, skipped };
+    },
     // ---- P10: a pass's issues (the notepad) ----
     async issues(ep, pass) {
       await wait();

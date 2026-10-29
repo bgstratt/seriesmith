@@ -482,6 +482,12 @@ TOOLS: list[Tool] = [
           "order": {"type": "array", "items": SHOT,
                     "description": "every shot of the cut in its new order"}},
          ("ep",), edit_cut, writes=True),
+    Tool("match_color", "The colour (edit_cut's `color`) that brings clips in line with a "
+         "base clip: by default the rest of the base's sequence in the cut, or the shots "
+         "named. Worked out from their pictures, not written: set the ones you want with "
+         "edit_cut. Locked clips and clips without a take are skipped, said why.",
+         {"ep": EP, "pass": PASS, "base": SHOT, "shots": {"type": "array", "items": SHOT}},
+         ("ep", "base"), route("POST", "/seriesmith/color/match", "ep", "pass", "base", "shots")),
     Tool("reset_cut", "Put the cut back: what order (script order; picks, locks and notes "
          "kept), trims (none), audio (each shot's own) or all.",
          {"ep": EP, "pass": PASS, "what": _s("order, trims, audio or all",

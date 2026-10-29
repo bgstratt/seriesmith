@@ -529,6 +529,14 @@ Double-click a slider to put it back to 0; **Reset** clears them all. It's not a
 simple adjustment to bring a clip in line with its neighbours. Real colour work goes to
 Resolve or Premiere with the cut's clips.
 
+**Match the sequence to this** (beside the sliders, or **Match the sequence's colour to
+this** in a clip's menu) sets the sliders of every other clip in its sequence so they look
+like this one, as it is now (its own sliders included). seriesmith looks at a few frames of
+each clip and finds the settings that bring its brightness, contrast, colour cast and
+saturation closest to this clip's. It takes a few seconds. The result is a starting point:
+check each clip and adjust its sliders. Locked clips are left alone, and Ctrl+Z undoes the
+whole match.
+
 The take isn't changed: the colour is applied when the cut is exported (Export, Titles, 2x and
 Master all assemble it). A clip with a colour has a palette icon on the timeline. It's part of
 the pass's cut, so Ctrl+Z undoes it, a locked clip keeps it, and each pass has its own.

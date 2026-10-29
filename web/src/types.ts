@@ -832,6 +832,13 @@ export interface CutEntry {
   color?: ShotColor | null;
 }
 
+/** POST /seriesmith/color/match: the colour bringing clips in line with a base clip. */
+export interface ColorMatch {
+  base: string;
+  colors: Record<string, ShotColor>;
+  skipped: { shot: string; why: string }[];
+}
+
 export interface CutFile {
   episode?: string;
   final?: CutEntry[];

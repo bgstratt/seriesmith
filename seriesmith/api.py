@@ -2465,6 +2465,29 @@ def _cut_entry(raw) -> dict:
 
 
 @handler
+def post_color_match(ctx: Context, body):
+    """The colour that brings clips in line with a base clip (edit.match_colors):
+    `{ep, pass?, base, shots?}` (shots: default the rest of the base's
+    sequence). Worked out, not written: {"base", "colors": {shot: colour},
+    "skipped": [{"shot", "why"}]}; the editor sets them with PUT /seriesmith/cut."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    base = check_shot(body.get("base"))
+    shots = body.get("shots")
+    if shots is not None:
+        if not isinstance(shots, list):
+            raise ApiError(400, "shots must be a list of shot ids")
+        shots = [check_shot(s) for s in shots]
+    try:
+        return 200, E.match_colors(ep, pass_, base, shots)
+    except E.CutError as e:
+        raise ApiError(400, str(e))
+    except ValueError as e:
+        raise ApiError(500, f"matching failed: {e}")
+
+
+@handler
 def put_cut(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
@@ -4877,6 +4900,7 @@ ROUTES = [
     ("GET", "/seriesmith/mcp", get_mcp, "query"),
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
+    ("POST", "/seriesmith/color/match", post_color_match, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

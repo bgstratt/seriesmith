@@ -50,7 +50,7 @@ ARGS = {"ep": "C:/Shows/s/ep01", "file": "script", "text": "x", "series": "{}",
         "shot": "sh010", "path": "refs/a.png", "base_hash": "h", "parent": "C:/Shows",
         "name": "ep01", "scripts": [{"name": "ep01.md", "text": "x"}], "ref": "subject:a",
         "take": 1, "source_path": "C:/a.png", "id": "j1", "action": "queue", "keep": True,
-        "fields": {"note": "x"}, "items": "all", "hashes": {}, "what": "all", "from_shot": "sh020"}
+        "fields": {"note": "x"}, "items": "all", "hashes": {}, "what": "all", "from_shot": "sh020", "base": "sh010"}
 
 
 def rpc(server, method, params=None, mid=1):

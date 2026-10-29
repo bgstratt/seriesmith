@@ -551,6 +551,21 @@ re-encoded (Export, Titles, 2x; `--no-color` skips it); the take is untouched. T
 `cut.color` is it (null: as shot); the editor previews the same matrix. A locked entry
 refuses a change of it, as of its trims. Reset and copying leave it as it is.
 
+### `POST /seriesmith/color/match`
+`{ep, pass?, base, shots?}`: the colour that brings clips in line with clip `base`, worked
+out, not written: `{"base", "colors": {shot: colour}, "skipped": [{"shot", "why"}]}`.
+`shots` defaults to the rest of the base's sequence in the cut (not orphans, not left out).
+A clip is skipped when it's locked, left out, the base itself, or has no finished take. Each
+clip is looked at over what the cut uses of its take (its trims: five frames spread over
+it), at 160x90; the base as the cut colours it (its own `color` applied), a clip's own
+colour replaced. The six fields are searched (Nelder-Mead, helpers/colorstats.py, numpy, run
+as a subprocess) through the same matrix assemble applies, clipping included, for the look
+nearest the base's: each channel's 5th to 95th percentiles and the midtones' distance from
+grey. A starting point, not a grade: exposure, contrast and the black point can make nearly
+the same picture between them, and the search prefers the least change. The editor sets the
+colours with `PUT /seriesmith/cut` as one edit. 400 for a base not in the cut or without a
+take.
+
 ### `PUT /seriesmith/override`
 Body:
 ```json

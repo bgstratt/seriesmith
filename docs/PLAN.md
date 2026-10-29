@@ -1349,11 +1349,20 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       copied between passes (each pass's cut has its own, as flags). Tests:
       tests/test_color.py, test_assemble's colour case, test_api's `test_cut_colour`,
       web/test/color.test.ts. Not yet live.
-- [ ] **Match to this shot**: pick a base clip; each other clip in its sequence (or the
-      selection) gets the colour sliders filled to bring it in line. A helper subprocess
-      (numpy, PIL) samples a few frames of each, compares lightness percentiles (blacks,
-      mids, whites), mean saturation and mean a/b in a perceptual space (Oklab), and solves
-      the sliders. Only starting values: tweak or reset.
+- [x] **Match to this shot** (2026-10-29): `POST /seriesmith/color/match` (`edit.match_colors`,
+      `color.match`): the colour bringing the rest of a clip's sequence (or the shots named)
+      in line with it, worked out, not written; the editor sets them as one cut edit. A
+      closed-form fit of luma percentiles and midtone means was tried first and failed
+      wherever a correction clips (bright, saturated pictures: the percentiles bunch at 0
+      and 1); so helpers/colorstats.py (numpy, a subprocess) searches the six sliders
+      (Nelder-Mead) through color.matrix with the clipping, comparing each channel's
+      percentiles and the midtones' chroma, with a slight pull towards 0 (exposure,
+      contrast and blacks overlap). Measured on a gradient picture with a known colour
+      applied: warmth, tint, saturation and exposure come back within a few hundredths;
+      exposure / contrast / blacks may come back as another mix giving the same look. The
+      inspector's **Match the sequence to this**, the clip menu's item, the MCP's
+      `match_color`. Tests: tests/test_hold.py's ColorMatchTest (held takes), web/test/color.test.ts.
+      Not yet live.
 - [ ] **The continuity report**: the same readings, the last frames of each clip against the
       first of the next. A continuing cut (`continuous`, a keyframe from the previous take)
       must carry exposure (±0.35 stop), white balance, palette and the picture; any other

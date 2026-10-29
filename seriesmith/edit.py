@@ -1438,6 +1438,61 @@ def reorder_cut(root: str, pass_: str, shots: list[str]) -> dict:
     return write_cut(root, pass_, _entries_json(head + rest, pass_))
 
 
+def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = None) -> dict:
+    """The colour that brings each of `shots` in line with clip `base` in the
+    pass's cut (seriesmith.color.match: the base as the cut colours it, each
+    other clip's own colour replaced), worked out, not written: the editor
+    sets them as one cut edit, so one undo takes them back. `shots` None: the
+    rest of the base's sequence in the cut. Each clip is looked at over what
+    the cut uses of its take (its trims). {"base", "colors": {shot: colour},
+    "skipped": [{"shot", "why"}]}. CutError for a base that can't be matched to."""
+    entries = cut_entries(root, pass_)
+    by = {e.shot: e for e in entries}
+    seq = {d["shots"][i]["id"]: d["shots"][i].get("sequence")
+           for d, i in J.episode_shots(root, pass_)}
+    if base not in by:
+        raise CutError(f"{base} isn't in the {pass_} cut")
+
+    def clip(e: T.CutEntry) -> dict:
+        t, _, ok = cut_take(root, e)
+        if not ok or t is None or not os.path.isfile(t.paths.mp4):
+            raise CutError("it has no finished take in the cut")
+        n = take_frames(t) or 0
+        last = (n - 1 - e.trim_out) if n else e.trim_in
+        return {"path": t.paths.mp4, "frames": COL.sample_frames(e.trim_in, last),
+                **({"color": e.color} if e.color else {})}
+
+    b = by[base]
+    try:
+        base_clip = clip(b)
+    except CutError as ex:
+        raise CutError(f"{base}: {ex}") from None
+    if shots is None:
+        shots = [e.shot for e in entries
+                 if e.shot != base and not e.orphan and not e.out
+                 and seq.get(e.shot) == seq.get(base)]
+    skipped, todo = [], []
+    for sid in shots:
+        e = by.get(sid)
+        why = ("it's the base" if sid == base else "it isn't in the cut" if e is None
+               else "it's locked" if e.locked else "it's left out of the cut" if e.out else None)
+        if why is None:
+            try:
+                todo.append((sid, clip(e)))
+                continue
+            except CutError as ex:
+                why = str(ex)
+        skipped.append({"shot": sid, "why": why})
+    colors = {}
+    if todo:
+        for (sid, _), got in zip(todo, COL.match(base_clip, [c for _, c in todo])):
+            if "error" in got:
+                skipped.append({"shot": sid, "why": got["error"]})
+            else:
+                colors[sid] = got
+    return {"base": base, "colors": colors, "skipped": skipped}
+
+
 def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
                   **fields) -> dict:
     """Change one entry's trim_in / trim_out / locked / note / audio / out /

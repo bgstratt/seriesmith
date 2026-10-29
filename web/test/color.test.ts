@@ -40,3 +40,30 @@ describe("a clip's colour in the cut", () => {
     expect(entryOf(st as never, "proxy")).toEqual({ shot: "b", color: { saturation: -0.5 } });
   });
 });
+
+describe("matching a sequence's colour to a clip", () => {
+  it("sets every match as one cut edit, through the mock", async () => {
+    const { setApi, setHost } = await import("../src/host");
+    const { createMockApi } = await import("../src/mock/mockApi");
+    const { store, initialState, statusKey } = await import("../src/store");
+    const { refreshEpisode } = await import("../src/actions");
+    const { matchColors } = await import("../src/cutActions");
+    const toasts: string[] = [];
+    setHost({ on: () => () => {}, toast: (_k: string, t: string) => toasts.push(t), show: () => {} } as never);
+    const api = createMockApi(() => {}, { latency: 0 });
+    setApi(api);
+    const ep = (await api.episodes())[0].ep;
+    store.set(initialState());
+    store.set({ ep, pass: "proxy" });
+    await refreshEpisode(ep, "proxy");
+    const st = store.get().status[statusKey(ep, "proxy")]!;
+    const base = st.shots[0];
+    const put = (await import("vitest")).vi.spyOn(api, "putCut");
+    expect(await matchColors(base.shot)).toBe(true);
+    expect(put).toHaveBeenCalledTimes(1);
+    const coloured = put.mock.calls[0][2].filter((e) => e.color);
+    expect(coloured.length).toBeGreaterThan(0);
+    expect(coloured.every((e) => st.shots.find((s) => s.shot === e.shot)?.sequence === base.sequence)).toBe(true);
+    expect(toasts.at(-1)).toContain(`matched to ${base.shot}`);
+  });
+});
