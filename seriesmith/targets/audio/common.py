@@ -16,7 +16,14 @@ episode's script, longest first, as many as fill the sample's length
 nothing left over for the model to fill with invented ones (a short line in an
 8 s sample came back padded, seen live 2026-10-28); with less dialogue than
 that, the sample is made as long as what there is (`spoken_seconds`). A
-character with no dialogue yet gets NEUTRAL_LINE. The take's sidecar records the
+character with no dialogue yet gets NEUTRAL_LINE. Lines from the script are
+opened with OPENER ("Hello, this is Mia speaking."): a model continuing a held
+sample won't say again what the sample's head just said (Charming's sample
+opened with "Cindy... the selection is over." and a continuation asked for it
+skipped it, live 2026-10-28), so the head is a sentence no shot asks for. A
+generate continuing a held sample opens with OPENER_HELD instead: its head has
+just said OPENER, which the continuation skips, and the take (picked, the next
+sample) must still open with a sentence no shot asks for. The take's sidecar records the
 sentence (`line`), so a candidate can be judged against what it was asked to
 say.
 
@@ -28,6 +35,11 @@ from __future__ import annotations
 # one sentence, plain words, a wide spread of vowels and consonants.
 NEUTRAL_LINE = ("Hello — this is how I sound when I am just talking, calmly and "
                 "clearly, one sentence after another.")
+
+# What a sample from the script opens with: about 1.8 s, so the head a model
+# continues (audiocut.voice_clip, 1.5-2.5 s) ends in the pause after it.
+OPENER = "Hello, this is {name} speaking."
+OPENER_HELD = "And this is how I sound."
 
 # What a voice sample must not be. An audio target with a `negative` widget
 # takes it from its preset; this is the wording they share.
@@ -83,19 +95,23 @@ def spoken_seconds(text: str, pace: str = "normal") -> float:
 
 
 def voice_line(story, subject: str, seconds: float | None = None,
-               pace: str = "normal") -> tuple[str, str]:
-    """(the words to say, where they came from: "script" | "neutral"): the
-    longest line, then the next longest while they still fit `seconds`
-    (None: the longest alone), joined in script order."""
+               pace: str = "normal", name: str | None = None,
+               held: bool = False) -> tuple[str, str]:
+    """(the words to say, where they came from: "script" | "neutral"): an
+    opener first (OPENER_HELD continuing a `held` sample, else OPENER with
+    `name`); then the longest line, and the next longest while they all still
+    fit `seconds` (None: the longest alone), in script order."""
     lines = lines_of(story, subject)
     if not lines:
         return NEUTRAL_LINE, "neutral"
+    head = ([OPENER_HELD] if held else
+            [OPENER.format(name=_clean(name))] if _clean(name or "") else [])
     chosen = [max(lines, key=len)]
     if seconds:
         for ln in sorted(lines, key=len, reverse=True)[1:]:
-            if spoken_seconds(" ".join(chosen + [ln]), pace) <= float(seconds):
+            if spoken_seconds(" ".join(head + chosen + [ln]), pace) <= float(seconds):
                 chosen.append(ln)
-    return " ".join(ln for ln in lines if ln in chosen), "script"
+    return " ".join(head + [ln for ln in lines if ln in chosen]), "script"
 
 
 def voice_prompt(name: str, voice: str = "", design: str = "", line: str = "",

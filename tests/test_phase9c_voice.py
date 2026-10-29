@@ -189,7 +189,8 @@ class VoiceGenerateTest(Episode):
         self.assertEqual(job.seed, R.stable_seed(R.find_ref(self.s, "voice:ada")))
         # rex barks once: the longest line he has is still his own
         (rex,) = R.plan_generate(self.s, R.GenRequest("voice:rex"), rng=random.Random(1))
-        self.assertEqual((rex.line_source, rex.line), ("script", "Woof."))
+        # (opened with a sentence no shot asks for: the head a clone continues)
+        self.assertEqual((rex.line_source, rex.line), ("script", "Hello, this is Rex speaking. Woof."))
         # a character with nothing to say in this episode gets the neutral
         # sentence (everyone in the fixture speaks, so ask the writer directly)
         story = R.episode_story(self.ep)
@@ -210,11 +211,18 @@ class VoiceGenerateTest(Episode):
         # no length asked: as long as the words take, up to the default, never under the minimum
         (rex,) = R.plan_generate(self.s, R.GenRequest("voice:rex"), rng=random.Random(1))
         default, _, lo = rex.target.seconds_range()
-        self.assertAlmostEqual(rex.seconds, lo, delta=0.34)                   # "Woof." isn't 8 s
+        self.assertAlmostEqual(rex.seconds, AC.spoken_seconds(rex.line), delta=0.34)  # the opener and "Woof.", not 8 s
+        self.assertLess(rex.seconds, default)
         (ada8,) = R.plan_generate(self.s, R.GenRequest("voice:ada"), rng=random.Random(1))
         self.assertLessEqual(ada8.seconds, default + 0.34)
         self.assertLessEqual(AC.spoken_seconds(ada8.line), ada8.seconds + 0.5)
         self.assertIn(f"About {round(ada8.seconds):g} seconds of speech.", ada8.prompt)
+        # the opener names them and leads; the neutral sentence needs none
+        self.assertTrue(AC.voice_line(story, "ada", 60, name="Ada")[0].startswith("Hello, this is Ada speaking. "))
+        self.assertEqual(AC.voice_line(story, "nobody", 60, name="Nobody")[0], AC.NEUTRAL_LINE)
+        # continuing a held sample (whose head says the opener, which it then skips):
+        # another opener, so the take, picked, still opens with a sentence no shot says
+        self.assertTrue(AC.voice_line(story, "ada", 60, name="Ada", held=True)[0].startswith(AC.OPENER_HELD + " "))
         # a typed prompt is the caller's, and says so
         (own,) = R.plan_generate(self.s, R.GenRequest("voice:ada", prompt="say something"),
                                  rng=random.Random(1))
@@ -318,6 +326,7 @@ class VoiceGenerateTest(Episode):
                         "sine=frequency=220:duration=5", "-af",
                         "volume=enable='between(t,1.8,2.0)':volume=0", sample], check=True)
         (job,) = R.plan_generate(self.s, R.GenRequest("voice:ada"), rng=random.Random(1))
+        self.assertTrue(job.line.startswith(AC.OPENER_HELD), job.line)       # it continues the sample
         inputs = R.stage_voice_reference(self.s, job, None)
         self.assertTrue(1.8 <= inputs["reference_seconds"] <= 2.0, inputs)
         clip = os.path.join(os.path.dirname(sample), CUT.CUTS)
@@ -327,6 +336,26 @@ class VoiceGenerateTest(Episode):
         # the same cut is made once
         self.assertEqual(R.stage_voice_reference(self.s, job, None), inputs)
         self.assertEqual(os.listdir(clip), [made])
+
+    @needs_ffmpeg
+    def test_a_short_sample_loses_the_silence_after_its_last_word(self):
+        """A model continuing a head that ends in silence continues the silence:
+        a 2 s sample with 1.1 s of speech goes up as that 1.1 s (and a breath)."""
+        from seriesmith import audiocut as CUT
+        sample = os.path.join(self.s.home, "audio", "voices", "short.wav")
+        os.makedirs(os.path.dirname(sample), exist_ok=True)
+        subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "sine=frequency=220:duration=2", "-af",
+                        "volume=enable='gte(t,1.1)':volume=0", sample], check=True)
+        head, secs = CUT.voice_clip(sample)
+        self.assertNotEqual(head, sample)
+        self.assertAlmostEqual(secs, 1.1 + CUT.SPEECH_TAIL, delta=0.05)
+        self.assertAlmostEqual(CUT.duration(head), secs, delta=0.02)
+        # one that's sound to its end is sent whole
+        whole = os.path.join(os.path.dirname(sample), "whole.wav")
+        subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-y", "-f", "lavfi", "-i",
+                        "sine=frequency=220:duration=2", whole], check=True)
+        self.assertEqual(CUT.voice_clip(whole)[0], whole)
 
     def test_queue_and_close(self):
         comfy = J.Comfy(self.fake().url)

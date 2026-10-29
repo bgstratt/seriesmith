@@ -856,6 +856,13 @@ def voice_pace(s: Series) -> str:
     return ((s.series_cfg or {}).get("speech") or {}).get("pace", "normal")
 
 
+def voice_held(ref: Ref, target) -> bool:
+    """Whether a generate of voice `ref` on `target` continues its sample
+    (stage_voice_reference holds it): the target copies one and it's on disk."""
+    return bool(target.capabilities().get("reference_audio") and ref.file
+                and os.path.isfile(ref.file))
+
+
 def voice_seconds(s: Series, ref: Ref, target) -> float:
     """How long a voice sample is when the request names no length: the
     target's default, or as long as the character's lines take when they
@@ -864,7 +871,8 @@ def voice_seconds(s: Series, ref: Ref, target) -> float:
     from seriesmith.targets.audio import common as AC
     default, _, lo = target.seconds_range()
     line, source = target.voice_line(episode_story(s.ep), ref.subject or "", default,
-                                     voice_pace(s))
+                                     voice_pace(s), ref.entry.get("name", ref.subject),
+                                     voice_held(ref, target))
     return min(default, max(lo, AC.spoken_seconds(line, voice_pace(s))))
 
 
@@ -889,7 +897,7 @@ def voice_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
     # (snapped onto the frame grid, the length may be a little under what
     # voice_seconds fitted the words to: they still fit)
     line, source = target.voice_line(episode_story(s.ep), ref.subject or "", seconds + 0.5,
-                                     voice_pace(s))
+                                     voice_pace(s), name, voice_held(ref, target))
     return (target.voice_prompt(name, e.get("voice", ""), e.get("design", ""), line, seconds),
             line, source)
 
