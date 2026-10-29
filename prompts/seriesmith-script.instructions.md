@@ -139,7 +139,7 @@ recipe before it can run.
 | **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
 | **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
 | **Titles** | Is there a series intro and outro (clips made once for the whole show)? | `_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; `publish` only to name other files or style the episode title | Nothing to write: a master picks the clips up when they're there. See **Series intro and outro** |
-| **Model** | Does it have to render on one model (what's installed, a hosted one)? | `series.target`, `refs` | Leave both out: the series renders on the machine's default models |
+| **Model** | Does it have to render on one model (what's installed, a hosted one)? | `series.target`, `series.first_target`, `refs` | Leave both out: the series renders on the machine's default models |
 | **Pace** | How fast do people talk? | `speech.pace` | `normal` |
 
 Ask these in **one message**, only the ones the brief doesn't already answer ("for
@@ -1594,7 +1594,11 @@ continuous: first
   or H3 Singularity on **its own FL2VA** (`fasth3_fl2va`, `h3_singularity_fl2va`: FL2VA's
   graph with that model's weights, so the shot keeps its look), unless the shot names its own
   `target:` (then it's an error that says which targets can). The model can come from the
-  series config, the episode or a `#` header.
+  series config, the episode or a `#` header. A shot on a model that reads a first frame
+  (LTX-2, Wan, the hosted ones) stays on it.
+  The series config's `series.first_target` picks where they all go instead (Series
+  settings › Models › **First frames**), e.g. `"first_target": "h3_singularity_fl2va"` keeps
+  Singularity's look on every continuing H3 shot. It only moves the shots that have to move.
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
   Ref2VA, keeping its own reference sheets. The render holds the end of the previous take
   at its head and generates the rest from there, so motion, sound and the camera carry

@@ -158,3 +158,26 @@ class PartnerTest(unittest.TestCase):
             self.assertEqual((got["sh110"], got["sh120"]), ("fasth3_omni", "fasth3_fl2va"))
             for sid, want in (("sh020", "h3_singularity_fl2va"), ("sh120", "fasth3_fl2va")):
                 self.assertEqual(J.target_choice({}, sid, want, root=ep), (want, "script"))
+
+    def test_the_series_config_names_the_first_frame_model(self):
+        from seriesmith import targets as TG
+        from seriesmith.core.story import parse_story
+        text = ("= e01  Test\n# sq01  kitchen\n## sh010\nwho: ada\nAda waits.\n"
+                "## sh020\ncontinuous: first\nwho: ada\nAda waits more.\n"
+                "# sq02  street\ntarget: fasth3_omni\n## sh030\nwho: ada\nAda walks.\n"
+                "## sh040\ncontinuous: first\nwho: ada\nAda stops.\n")
+        st = parse_story(text, {"ada"}, {"ada"})
+        cfg = {"series": {"target": "minimax_h3_ref2va"}}
+        by = TG.shot_targets(st, cfg)
+        # each target's own partner
+        self.assertEqual((by["sh020"], by["sh040"]), ("minimax_h3_fl2va", "fasth3_fl2va"))
+        # the series config's, over every partner
+        cfg["series"]["first_target"] = "h3_singularity_fl2va"
+        by = TG.shot_targets(st, cfg)
+        self.assertEqual((by["sh020"], by["sh040"]), ("h3_singularity_fl2va", "h3_singularity_fl2va"))
+        self.assertEqual(by["sh030"], "fasth3_omni")
+        for bad in ("minimax_h3_ref2va", "nope", 3):
+            cfg["series"]["first_target"] = bad
+            with self.assertRaises(ValueError) as cm:
+                TG.shot_targets(st, cfg)
+            self.assertIn("first_target", str(cm.exception))

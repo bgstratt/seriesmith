@@ -111,7 +111,7 @@ export type FieldKind =
   | "long"            // a paragraph
   | "number"
   | "select"          // `choices`; "" leaves the key out (the default)
-  | "video_target" | "image_target" | "audio_target"
+  | "video_target" | "first_target" | "image_target" | "audio_target"
   | "backend"
   | "lora"            // one LoRA (name[:strength] | none), from what the video model loads
   | "model"           // a model file the video model can load
@@ -202,6 +202,8 @@ export const SECTIONS: Section[] = [
     fields: [
       { path: ["series", "target"], label: "Video model class", kind: "video_target",
         help: "What the shots render on. MiniMax H3 Ref2VA (the default) keeps characters and places from their reference pictures and lip-syncs; a shot or a sequence can name another." },
+      { path: ["series", "first_target"], label: "First frames", kind: "first_target",
+        help: "Only for the models that can't open on a picture (H3 Ref2VA, FastH3 Omni, H3 Singularity): what their continuous: first shots render on instead. A model that reads a first frame (LTX-2, Wan, Seedance, Kling, ...) keeps its own. Empty: each model's own partner (H3 Ref2VA's is H3 FL2VA, FastH3 Omni's and Singularity's their own FL2VA)." },
       { path: ["series", "backend"], label: "Render on", kind: "backend", more: true,
         help: "Where jobs run unless a request, shot or episode says otherwise: local (your ComfyUI), cloud, a deployment, router. Empty: each model's own." },
       { path: ["refs", "target"], label: "Reference pictures", kind: "image_target",

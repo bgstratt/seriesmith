@@ -1413,6 +1413,12 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       script's target (a `#` header's) and undid the build's move of a `continuous: first`
       shot to its partner; `jobs.script_targets` now reads the build's routing (this hit
       Ref2VA -> FL2VA too). Tests: tests/test_continuous.py's PartnerTest.
+- [x] **`series.first_target`** (decided 2026-10-29): the series config names the first-frame
+      model as it names the video, picture and keyframe ones (Series settings › Models ›
+      First frames). A `continuous: first` shot whose model reads no first frame (H3 Ref2VA,
+      FastH3 Omni, Singularity) goes there over its model's own partner; a model that reads
+      one (LTX-2, Wan, the hosted ones) keeps its shots either way. `targets.first_target`,
+      validated (a video target reading a first keyframe). Tests: PartnerTest's.
 - [ ] More seeds at final size before trusting the FL2VA partners' look; FastH3's shifts in
       its FL2VA graph if it drifts.
 
