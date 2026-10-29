@@ -64,9 +64,24 @@ describe("gallery sections", () => {
   it("opens a ref on its live picture, else its newest", () => {
     const secs = gallerySections(refs, ALL, "proxy");
     expect(liveKey(secs, "subject:ada")).toBe(itemKey("subject:ada", "01_threequarter", 1));
-    const none = ref("subject:bo", "character", { views: [{ view: "04_face", picked: null, takes: [take(1), take(2)] }] });
+    const none = ref("subject:bo", "character", { exists: false, views: [{ view: "04_face", picked: null, takes: [take(1), take(2)] }] });
     expect(liveKey(gallerySections([none], { ...ALL, ref: "subject:bo" }, "proxy"), "subject:bo"))
       .toBe(itemKey("subject:bo", "04_face", 2));
+  });
+
+  it("a live file with no candidate behind it shows first, live, and is what it opens on", () => {
+    const mia = ref("subject:mia", "character", { views: [{ view: "04_face", picked: null, takes: [take(1)] }] });
+    const [s] = gallerySections([mia], { ...ALL, ref: "subject:mia" }, "proxy");
+    expect(s.items.map((i) => [i.key, i.view, i.file, i.live, !!i.outside])).toEqual([
+      ["subject:mia|live", "sheet", "refs/mia.png", true, true], [itemKey("subject:mia", "04_face", 1), "04_face", "refs/_takes/t1.png", false, false],
+    ]);
+    expect(liveKey([s], "subject:mia")).toBe("subject:mia|live");
+    expect(gallerySections([mia], { ...ALL, picksOnly: true }, "proxy")[0].items.map((i) => i.key)).toEqual(["subject:mia|live"]);
+    // a plain ref with nothing but its file
+    const hall = ref("location:hall", "location");
+    expect(gallerySections([hall], ALL, "proxy")[0].items.map((i) => [i.view, i.file])).toEqual([[null, "refs/hall.png"]]);
+    // no file, nothing to show
+    expect(gallerySections([{ ...hall, exists: false }], ALL, "proxy")).toEqual([]);
   });
 
   it("sizes a tile by the picture, else by what its kind usually is", () => {
@@ -153,8 +168,17 @@ describe("gallery: a shared ref's other episodes", () => {
     expect(new Set(s.items.map((i) => i.key)).size).toBe(4);
   });
 
+  it("a shared file nobody's pick wrote shows as it is; a sibling's pick waits to be read", () => {
+    const ava = ref("subject:ava", "character", { shared_with: ["ep01"], live_owner: null, views: [] });
+    expect(gallerySections([ava], ALL, "proxy")[0].items.map((i) => i.key)).toEqual(["subject:ava|live"]);
+    const theirs = { ...ava, live_owner: "ep01" };
+    expect(gallerySections([theirs], ALL, "proxy")[0].items).toEqual([]);
+    const read = gallerySections([theirs], ALL, "proxy", new Map([["subject:ava", [other("ep01", 1, true)]]]))[0];
+    expect(read.items.map((i) => [i.episode, i.live])).toEqual([["ep01", true]]);
+  });
+
   it("a shared ref nobody here uses still asks, then goes when there's nothing", () => {
-    const quiet = ref("subject:bo", "character", { used_by: { proxy: [] }, shared_with: ["ep01"], views: [] });
+    const quiet = ref("subject:bo", "character", { used_by: { proxy: [] }, shared_with: ["ep01"], exists: false, views: [] });
     expect(gallerySections([quiet], { ...ALL, series: true }, "proxy").map((s) => s.unread)).toEqual([true]);
     expect(gallerySections([quiet], { ...ALL, series: true }, "proxy", new Map([["subject:bo", []]]))).toEqual([]);
   });
