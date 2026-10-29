@@ -29,6 +29,10 @@ class BackendsTest(unittest.TestCase):
             if t.spec.get("router"):
                 continue                        # a hosted model: RouterTargetTest
             with self.subTest(target=t.id):
+                if t.spec.get("local_render"):
+                    # hold: ffmpeg on this machine, no workflow to run anywhere else
+                    self.assertEqual(t.capabilities()["backends"], ["local"])
+                    continue
                 self.assertEqual(t.capabilities()["backends"], ["local", "cloud", "deployment"])
 
     def test_a_target_can_name_its_own(self):
