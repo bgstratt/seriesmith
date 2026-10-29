@@ -38,6 +38,9 @@ export interface GalleryItem {
   live: boolean;
   /** another episode's candidate for a shared ref (read-only here); absent: this episode's */
   episode?: string;
+  /** the live file itself, with no candidate behind it (put there outside the editor:
+   * by hand, or brought in with the series); nothing to pick, nothing it was made with */
+  outside?: boolean;
 }
 
 export interface GallerySection {
@@ -71,6 +74,15 @@ function newestFirst(a: GalleryItem, b: GalleryItem): number {
   const ta = a.take.finished ?? a.take.queued ?? "";
   const tb = b.take.finished ?? b.take.queued ?? "";
   return tb.localeCompare(ta) || b.take.take - a.take.take;
+}
+
+/** The ref's live file as an item: shown when no candidate is live, so a picture put
+ * there outside the editor can still be seen. */
+export function liveFileItem(r: Ref): GalleryItem {
+  const view = hasViews(r) ? SHEET_VIEW : null;
+  const [width, height] = r.size ?? [];
+  const take: RefTake = { take: 0, view, status: "ok", seed: null, image: r.path, source: "imported", note: "", width, height };
+  return { key: `${r.id}|live`, ref: r, view, take, file: r.path!, live: true, outside: true };
 }
 
 /** A ref other episodes share (`shared_with`): its candidates there are asked for as it comes into view. */
@@ -125,6 +137,9 @@ export function gallerySections(refs: Ref[], scope: GalleryScope, pass: Pass, sh
       others.sort((a, b) => a.episode!.localeCompare(b.episode!, undefined, { numeric: true }) || newestFirst(a, b));
       items.push(...others);
     }
+    // nothing here is the file renders read (it was put there outside the editor):
+    // show it first; a sibling's pick not read yet shows once it is
+    if (r.exists && r.path && !items.some((i) => i.live) && !(unread && r.live_owner)) items.unshift(liveFileItem(r));
     if (items.length || queued || failed || unread || scope.ref) out.push({ ref: r, items, queued, failed, unread });
   }
   return out;

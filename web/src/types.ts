@@ -1412,6 +1412,8 @@ export interface Ref {
   path: string | null;
   exists: boolean;
   sha1: string | null;
+  /** the live picture's [width, height]; null for a sample or no file (absent: an older server) */
+  size?: [number, number] | null;
   used_by: Partial<Record<Pass, string[]>>;
   /** the prompt a generate would use now; null when the series config lacks what it needs */
   prompt: string | null;

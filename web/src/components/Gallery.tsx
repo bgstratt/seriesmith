@@ -239,7 +239,7 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         ...(s.unread ? { load: () => shared.load(s.ref) } : {}),
         items: s.items.map((it) => ({
           key: it.key, thumb: it.file, aspect: itemAspect(it), label: refLabel(it),
-          title: `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.episode ? ` · made in ${it.episode}` : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
+          title: it.outside ? `${it.ref.name} · the live file (${it.file}): put there outside the editor, so there's no candidate or prompt behind it` : `${it.ref.name} · ${refLabel(it)}${it.live ? " · live" : ""}${it.episode ? ` · made in ${it.episode}` : ""}${it.take.seed ? ` · seed ${it.take.seed}` : ""}`,
           badges: [...(it.live ? ["live"] : []), ...(it.episode ? [it.episode] : [])],
           file: it.file,
         })),
@@ -584,6 +584,7 @@ function freshUp(t: TakeSummary): string | null {
 }
 
 function refLabel(it: GalleryItem): string {
+  if (it.outside) return "live file";
   return [viewLabel(it.view), tn(it.take.take)].filter(Boolean).join(" · ");
 }
 
@@ -628,7 +629,7 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
   const genBusy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const url = api().refFileUrl(ep, item.file);
   // another episode's candidate is read-only here: each episode keeps its own
-  const mine = !item.episode;
+  const mine = !item.episode && !item.outside;
   const pickable = mine && view !== PANO_VIEW && view !== TOUR_VIEW;
   const regen = mine ? regenerateRequest(t, r.id, view, isKeyframeRef(r)) : null;
   const picked = pickable ? pickedOf(r, view) : null;
@@ -711,7 +712,10 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
             {t.source === "edited" && t.edit && (
               <><span>edited</span><span>{t.edit.take != null ? `${tn(t.edit.take)}: ` : ""}“{t.edit.instruction}”</span></>
             )}
-            {t.source === "imported" && <><span>imported</span><span>{t.original_name ?? "a file"}</span></>}
+            {item.outside && (
+              <><span>live file</span><span>{item.file}: put there outside the editor, so there is no candidate behind it (no prompt, seed or model). Generate or import one to have one to pick.</span></>
+            )}
+            {t.source === "imported" && !item.outside && <><span>imported</span><span>{t.original_name ?? "a file"}</span></>}
             {keyframeSource(t) && <><span>from</span><span>{keyframeSource(t)}</span></>}
             {t.target && <><span>model</span><span>{t.target}</span></>}
             {t.model && <><span>file</span><span title={t.model}>{shortName(t.model, 40)}</span></>}

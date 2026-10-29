@@ -1101,7 +1101,7 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
 ```json
 {"refs": [{
    "id": "subject:dean", "scope": "series", "kind": "character", "name": "Dean",
-   "path": "refs/dean/dean_sheet_4panel.png", "exists": true, "sha1": "…",
+   "path": "refs/dean/dean_sheet_4panel.png", "exists": true, "sha1": "…", "size": [2048, 512],
    "used_by": {"final": ["sh010", "sh020"], "proxy": ["sh010", "sh020"]},
    "prompt": "…the prompt a generate would use now…",
    "override": {"fields": [], "stale": false},
@@ -1111,6 +1111,8 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
    "takes": [], "picked": null
  }]}
 ```
+- `size` (2026-10-28) is the live picture's `[width, height]`, read from its header; null
+  for a voice's sample or no file.
 - Before listing, finished candidates' takes are closed and a ref with no live file takes its
   first finished one (the sweep, `refs.auto_pick`). A server lists first and sweeps after, on
   a thread, sending ref events the page reloads on; `fresh=1` (2026-10-27) sweeps first there
