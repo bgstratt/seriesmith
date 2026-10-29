@@ -743,6 +743,9 @@ export interface RenderRequest {
   /** a dub track: the shot for its sound only (H3 Ref2VA at 64x64 unless target / size say
    * otherwise), kept apart from its takes. Only sent when set. */
   dub_track?: boolean;
+  /** with dub_track: once each track is made, the shot dubbed with it and rendered on its own
+   * model (a queue step per shot, in `steps`). Only sent when set. */
+  then_render?: boolean;
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
 }

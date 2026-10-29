@@ -257,6 +257,53 @@ class SoundTest(unittest.TestCase):
         code, out = A.put_sound(ctx, {"ep": self.root, "shots": ["sh020"], "sound": {"mode": "loud"}})
         self.assertEqual(code, 400)
 
+    # -- a dub track, then the render ----------------------------------------
+
+    def test_then_render_dubs_the_shot_with_its_new_track_and_renders_it(self):
+        from types import SimpleNamespace
+        steps, asked, alive = [], [], {"q1"}
+
+        def enqueue_step(title, work, after=None, info=None, wait=None, spec=None):
+            steps.append(SimpleNamespace(title=title, work=work, wait=wait, spec=spec))
+            return f"s{len(steps)}"
+        runner = SimpleNamespace(queue=SimpleNamespace(alive=lambda: alive), enqueue_step=enqueue_step,
+                                 ask=lambda path, body: (asked.append((path, body)) or (200, {"queued": [{"shot": "sh020"}], "errors": []})))
+        ctx = SimpleNamespace(runner=runner, emit=lambda *a: None)
+        self.sound("sh020", {"mode": "dub", "dub": {"from": "take", "pass": "final", "take": 1}, "keep_foley": False})
+        d = T.reserve_take(self.root, "proxy", "sh020", {"status": "queued", "comfy_prompt_id": "q1"}, None, T.DUB_FOLDER)
+        self.assertEqual(A._dub_step(ctx, {"ep": self.root, "pass": "final", "shot": "sh020", "take": d.take}), "s1")
+        step = steps[0]
+        self.assertEqual(step.spec, {"step": "dub", "params": {"ep": self.root, "pass": "final", "shot": "sh020", "take": d.take}})
+        self.assertTrue(step.wait())                       # its track is still rendering
+        alive.clear()
+        self.assertFalse(step.wait())                      # its job is gone: the step runs (and finds no track)
+        lines = []
+        with self.assertRaisesRegex(RuntimeError, "didn't come out"):
+            step.work(lambda **kw: lines.append(kw))
+        self.assertEqual(asked, [])
+        # it came out: the shot is dubbed with it (the voice alone, as it was) and rendered
+        T.update_sidecar(d.paths.sidecar, status="ok")
+        with open(d.paths.mp4, "wb") as fh:
+            fh.write(b"not really a video")
+        with open(d.paths.h3_wav, "wb") as fh:
+            fh.write(wav_bytes(2.0))
+        self.assertEqual(step.work(lambda **kw: lines.append(kw)), "succeeded")
+        self.assertEqual(T.shot_sound(T.load_overrides(self.root), "sh020"),
+                         {"mode": "dub", "dub": {"from": "dub", "take": d.take}, "keep_foley": False})
+        self.assertEqual(asked, [("/seriesmith/render", {"ep": self.root, "pass": "final", "shots": ["sh020"], "redo": True})])
+        self.assertIs(A.STEPS["dub"], A._dub_step)
+
+    def test_then_render_is_asked_with_a_dub_track(self):
+        ctx = A.Context(os.path.join(self._t.name, "user"), "http://127.0.0.1:0", env={})
+        self.assertEqual(A.put_config(ctx, {"roots": [self._t.name]})[0], 200)
+        code, out = A.post_render(ctx, {"ep": self.root, "pass": "final", "shots": ["sh020"], "then_render": True})
+        self.assertEqual(code, 400)
+        self.assertIn("dub_track", out["error"])
+        code, out = A.post_render(ctx, {"ep": self.root, "pass": "final", "shots": ["sh020"], "dub_track": True,
+                                        "then_render": "yes"})
+        self.assertEqual(code, 400)
+
+
 
 if __name__ == "__main__":
     unittest.main()

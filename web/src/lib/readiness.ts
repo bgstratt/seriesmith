@@ -315,6 +315,11 @@ export function dubTrackBlock(list: TargetList | null | undefined, target: strin
     + ". Click to install it (the Features window).";
 }
 
+/** The shots of `shots` whose own model can't dub a track (dubBlock), by how they render now. */
+export function cantDub(list: TargetList | null | undefined, shots: string[], targetOf: (shot: string) => string): string[] {
+  return shots.filter((s) => dubBlock(list, targetOf(s)) != null);
+}
+
 /** Why a shot on `target` can't dub a track of its own, or null when it can. */
 export function dubBlock(list: TargetList | null | undefined, target: string | null | undefined): string | null {
   const t = list?.targets.find((x) => x.id === target);

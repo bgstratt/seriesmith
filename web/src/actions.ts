@@ -20,7 +20,7 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { VOICE_TARGET, VOICE_TARGETS, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
+import { VOICE_TARGET, VOICE_TARGETS, cantDub, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
@@ -831,16 +831,28 @@ export function clearMulti() {
 /** A dub track of each shot: the shot rendered for its sound only on a voice model
  * (H3 Ref2VA at 64x64 unless another is chosen), its voices cloned, kept apart from
  * its takes to dub the shot with (the Sound dialog). */
-export function generateDubTracks(shots: string[], target: string = VOICE_TARGET) {
+export function generateDubTracks(shots: string[], target: string = VOICE_TARGET, thenRender = false) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  if (thenRender) {
+    // a shot whose own model can't dub a track would make one for nothing
+    const st = s.status[statusKey(s.ep, s.pass)];
+    const def = seriesDefaultTarget(s.targets, st);
+    const no = cantDub(s.targets, shots, (id) => shotTarget(st?.shots.find((x) => x.shot === id), def));
+    if (no.length) {
+      host().toast("warn", `${no.join(", ")} can't be dubbed on ${no.length === 1 ? "its" : "their"} model`,
+        "Render them on an H3 or LTX model for that. " + (no.length < shots.length ? "The rest are queued." : ""));
+      shots = shots.filter((x) => !no.includes(x));
+      if (!shots.length) return;
+    }
+  }
   // the voice model isn't installed here: show it in Features, ticked to install
   if (dubTrackBlock(s.targets, target)) {
     return openFeatures(true, VOICE_TARGETS.find((v) => v.id === target)?.feature ?? null);
   }
-  if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks?`)) return;
+  if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks${thenRender ? `, each then dubbed and rendered` : ""}?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots, false, target), redo: true, dub_track: true,
-                     note: "dub track" });
+                     note: "dub track", ...(thenRender ? { then_render: true } : {}) });
 }
 
 /** The Sound dialog, for these shots; `focus` "cut": at what the cut plays (Replace audio…). */

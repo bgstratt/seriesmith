@@ -1262,8 +1262,11 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       remuxed with the model's mix; takes made otherwise go stale `sound`. The editor's
       Sound dialog, chip, menus and the shot form's Sound…. Replaced the day's voice takes
       and lines_from. Not yet live.
-- [ ] A shot set to dub with no track picked: make one, then render, in one request (the
-      queue's `after`), for when there is no time to listen first.
+- [x] A dub track, then the render, in one request (2026-10-28): `POST /seriesmith/render`'s
+      `then_render` with `dub_track`. A journaled queue step per shot (`api._dub_step`, waiting
+      on the track's take, not a job id, so it survives a restart) sets the shot to dub with
+      it and asks for the render; the editor's **…then render**, **Dub track, then render**,
+      and the selection's **then render**.
 - [ ] `seriesmith render --dub-track` / a sound on the command line; ElevenLabs and the
       like as voice models (an audio target writing a dub track).
 

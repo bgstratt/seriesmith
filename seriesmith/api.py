@@ -789,7 +789,44 @@ def _views_step(ctx: Context, p: dict) -> str:
                                    spec={"step": "views", "params": p})
 
 
-STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step}
+def _dub_step(ctx: Context, p: dict) -> str:
+    """A dub track's step (POST /render's then_render): once the shot's dub
+    track `take` is made, the shot is dubbed with it (its sound set, keep_foley
+    as it was) and rendered on its own model. A track that didn't come out
+    stops there."""
+    ep, pass_, shot, n = p["ep"], p["pass"], p["shot"], int(p["take"])
+    queue = ctx.runner.queue
+
+    def wait() -> bool:
+        t = T.get_take(ep, T.PASSES[0], shot, n, T.DUB_FOLDER)
+        sc = (t.sidecar or {}) if t else {}
+        return sc.get("status") == "queued" and sc.get("comfy_prompt_id") in queue.alive()
+
+    def then(report) -> str:
+        t = T.get_take(ep, T.PASSES[0], shot, n, T.DUB_FOLDER)
+        if t is None or not t.usable:
+            raise RuntimeError(f"dub track {n} didn't come out: nothing rendered")
+        was = T.shot_sound(T.load_overrides(ep), shot) or {}
+        E.set_sound(ep, [shot], {"mode": "dub", "dub": {"from": "dub", "take": n},
+                                 **({"keep_foley": False} if was.get("mode") == "dub"
+                                    and was.get("keep_foley") is False else {})})
+        report(line=f"{shot} dubbed with dub track {n}")
+        episode_event(ctx, ep)
+        body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True,
+                **({"backend": p["backend"]} if p.get("backend") else {})}
+        status, data = post_render(ctx, body) if ctx.runner.ask is None             else ctx.runner.ask("/seriesmith/render", body)
+        if status >= 400 or data.get("errors"):
+            err = data.get("error") or (data.get("errors") or [{}])[0].get("error")
+            raise RuntimeError(str(err or "the render wasn't queued")[:400])
+        report(line=f"{shot}: its {pass_} render asked for")
+        return "succeeded"
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot}: render once its dub track is made",
+        then, info={"ep": ep, "shot": shot, "pass": pass_}, wait=wait,
+        spec={"step": "dub", "params": p})
+
+
+STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:
@@ -1363,6 +1400,15 @@ def post_render(ctx: Context, body):
     dub_track = body.get("dub_track", False)
     if not isinstance(dub_track, bool):
         raise ApiError(400, "dub_track must be true or false")
+    # ...and once each is made, the shot dubbed with it and rendered on its own
+    # model (a step per shot, _dub_step): for when there's no time to listen first
+    then_render = body.get("then_render", False)
+    if not isinstance(then_render, bool):
+        raise ApiError(400, "then_render must be true or false")
+    if then_render and not dub_track:
+        raise ApiError(400, "then_render follows a dub track: ask with dub_track true")
+    if then_render and ctx.runner is None:
+        raise ApiError(400, "then_render needs seriesmith's queue (this host has none)")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1423,6 +1469,10 @@ def post_render(ctx: Context, body):
                                model_list=ctx.model_choices, review_copy=review_copy(ctx),
                                save_frames=save_frames, runner=ctx.runner, backend=backend)
     result["errors"] += [{"shot": e["shot"], "error": e["error"]} for e in cont["errors"]]
+    if then_render:
+        result["steps"] = [_dub_step(ctx, {"ep": ep, "pass": pass_, "shot": q["shot"], "take": q["take"],
+                                           **({"backend": body["backend"]} if body.get("backend") else {})})
+                           for q in result["queued"]]
     result["continuity"] = cont["cut"]
     result["continuity_at_start"] = [{"shot": w["shot"], "after": wait_reason(w)}
                                      for w in cont["wait"]]
