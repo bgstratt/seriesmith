@@ -1308,6 +1308,53 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
 - [ ] Its draft mode (a fast preview, then `draft_enhance` from the returned `draft_cache`)
       as the proxy pass: not Seedance's draft (a task id), so not wired yet.
 
+## The cut, finished in place: holds, colour, continuity, two transitions (planned; 2026-10-29)
+
+Ideas from reading two other projects (gobo, OpenKatana; decided 2026-10-29): written our
+own way, in seriesmith's own code, nothing copied or depended on. Not a grading suite or an editor:
+real colour work and real editing go to Premiere / Resolve with the cut's clips. What's
+here is what a cut needs before that, and what a cut that never leaves seriesmith needs.
+
+- [ ] **A held picture as a shot** (freeze frames, "Two hours later" cards). A picture dropped
+      between two clips today opens the shot form with it as the first keyframe (to render
+      from); the form gets **Hold it** beside Save / Save and generate: ffmpeg loops the
+      picture into a `dur:`-long H.264 clip at the episode's size and rate (silent: assemble
+      pads), imported as the shot's take through `takeimport` (`source: "imported"`, so never
+      stale; its badge says **held**). Trimmed, moved, exported as any clip. A take's menu
+      gets **Hold this frame…** (the viewer's frame, a length asked) doing the same, a new
+      shot after it. The script line: a shot whose action says it's a card, no who/dialogue.
+- [ ] **An animatic**: each shot's first keyframe held for its `dur:` (the recording's window
+      under it where there is one, else silence), as a third pass beside proxy and final
+      (`renders_animatic/`, cut.json's `animatic` list), so it disturbs neither. A shot with
+      no keyframe is a card with its id and action. Export and Play all as for the other
+      passes. Costs nothing to make: the cheapest whole-episode review there is.
+- [ ] **A shot's colour** in the shot inspector: exposure (stops), black point, saturation,
+      warmth, each a slider at 0 by default. Kept on the cut entry (`"color": {...}`, as
+      `trim_in` / `trim_out` are), so nothing re-renders and the take is untouched; applied in
+      assemble (`eq` / `colorbalance` / `curves`, through `ff.py`) on every export, Titles and
+      2x. The viewer and timeline preview it with a CSS filter on the video (close, not exact:
+      the export is the truth). Reset clears it; copied with the cut from the other pass.
+- [ ] **Match to this shot**: pick a base clip; each other clip in its sequence (or the
+      selection) gets the colour sliders filled to bring it in line. A helper subprocess
+      (numpy, PIL) samples a few frames of each, compares lightness percentiles (blacks,
+      mids, whites), mean saturation and mean a/b in a perceptual space (Oklab), and solves
+      the sliders. Only starting values: tweak or reset.
+- [ ] **The continuity report**: the same readings, the last frames of each clip against the
+      first of the next. A continuing cut (`continuous`, a keyframe from the previous take)
+      must carry exposure (±0.35 stop), white balance, palette and the picture; any other
+      cut may change the light (±1.6 stops) but must keep the grade: black level, contrast,
+      saturation, grain, black and white or not, the frame's shape. Plus the odd one out in a
+      sequence (2.5x the typical distance). Said in plain words
+      ("sh040 is 0.8 stop darker and warmer than sh030") with **Match** as the fix; the
+      timeline header counts them as it counts flags. Reports only.
+- [ ] **Dissolve and fade to black**, per cut, optional: a cut entry's `"transition":
+      {"type": "dissolve" | "fade", "frames": N}` on the incoming clip; assemble joins those
+      two with `xfade` / `acrossfade` (a fade: out to black, then in) instead of the concat
+      demuxer. A dissolve overlaps the clips, so the cut is N frames shorter; it must fit
+      inside both clips after trims, and two may not overlap. Nothing else: no wipes.
+- [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
+      frozen runs, flashes), reported, never changing it.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
