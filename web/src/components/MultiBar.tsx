@@ -34,6 +34,11 @@ export function MultiBar() {
         onClick={() => generateDubTracks(multi)}>
         <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate dub tracks
       </button>
+      <button className="h3-btn"
+        title={noVoice ?? "Queue a dub track of each, and once each is made, dub the shot with it and render it on its own model"}
+        onClick={() => generateDubTracks(multi, undefined, true)}>
+        <i className="pi pi-forward" /> then render
+      </button>
       <button className="h3-btn" title="Their sound: generate, clone, or dub the recorded track" onClick={() => openSound(multi)}>
         Sound…
       </button>

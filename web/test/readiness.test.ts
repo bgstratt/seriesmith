@@ -320,7 +320,7 @@ describe("targetCounts with the server's default/series sources", () => {
   });
 });
 
-import { VOICE_TARGET, dubBlock, dubTrackBlock } from "../src/lib/readiness";
+import { VOICE_TARGET, cantDub, dubBlock, dubTrackBlock } from "../src/lib/readiness";
 import type { TargetList } from "../src/types";
 
 describe("a dub track needs its voice model installed", () => {
@@ -349,5 +349,9 @@ describe("dubbing a shot to a track of its own", () => {
     expect(dubBlock(list, "minimax_h3_fl2va")).toBeNull();
     expect(dubBlock(list, "wan22_ti2v")).toMatch(/Wan 2.2 5B can't dub a track of its own/);
     expect(dubBlock(list, "unknown_model")).toBeNull();          // not known: the server says
+  });
+  it("leaves out the shots whose own model can't dub, before a dub track is made for nothing", () => {
+    const on: Record<string, string> = { sh010: "minimax_h3_fl2va", sh020: "wan22_ti2v", sh030: "unknown_model" };
+    expect(cantDub(list, ["sh010", "sh020", "sh030"], (s) => on[s])).toEqual(["sh020"]);
   });
 });

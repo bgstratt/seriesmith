@@ -175,6 +175,11 @@ export function ContextMenu() {
         onClick={run(() => generateDubTracks([menu.shot]))}>
         <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a dub track{noVoice ? " (install H3 Ref2VA…)" : ""}
       </button>
+      <button disabled={!!shot?.orphan || !!noDub}
+        title={noDub ?? noVoice ?? `Queue a dub track, and once it's made, dub ${menu.shot} with it and render it on its own model: for when there's no time to listen first`}
+        onClick={run(() => generateDubTracks([menu.shot], undefined, true))}>
+        <i className="pi pi-forward" /> Dub track, then render
+      </button>
       <div className="h3-menu-sep" />
       <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
         <i className="pi pi-forward" /> Play from here

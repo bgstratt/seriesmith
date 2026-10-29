@@ -317,6 +317,13 @@ under the shot.
   ComfyUI, Generate a dub track carries a warning sign and opens **Features** at it. With
   several shots selected, **Sound…** sets their next take (a dub of the recording only), and
   **Generate dub tracks** makes one for each.
+
+  **…then render** (beside Generate a dub track; **Dub track, then render** in the context
+  menu; **then render** with several selected) is for when there's no time to listen first:
+  it queues a dub track, and once it's made, sets the shot to dub with it (keeping
+  the voice-alone setting) and renders the shot on its own model. If the track doesn't come
+  out, nothing renders (the step says so in Jobs). A shot whose model can't dub a track is
+  left out, with a warning.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is

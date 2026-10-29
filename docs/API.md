@@ -411,6 +411,11 @@ renders every shot of the request there.
     dialogue alone. It is kept as a take of its own in `<episode>/dub/<shot>/`
     (`takes.DUB_FOLDER`), never in the shot's takes or the cut; its record says
     `dub_track`.
+  - `then_render: true` (with `dub_track`; seriesmith's queue only; 2026-10-28) adds a queue
+    step per shot after its dub track (`steps`: their ids, journaled, so a restart keeps
+    them): once the track is made, the shot's sound is set to dub with it (`keep_foley` as it
+    was) and the shot is rendered on its own model (`redo`, this pass, the request's
+    `backend`). A track that didn't come out fails the step, and nothing renders.
   - Each shot renders with its **sound** as overrides.json sets it (`PUT
     /seriesmith/sound`), below.
   - `size` (`"1344x768"`, or `[1344, 768]`) renders this run at that size instead of the

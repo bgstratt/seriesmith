@@ -162,6 +162,11 @@ export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "
                   onClick={() => { generateDubTracks([shot], model); setTimeout(load, 800); }}>
                   <i className={noModel ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a dub track
                 </button>
+                <button className="h3-btn"
+                  title={noModel ?? `The same, and once it's made: ${shot} dubbed with it and rendered on its own model (no listening first)`}
+                  onClick={() => { generateDubTracks([shot], model, true); setTimeout(load, 800); }}>
+                  <i className="pi pi-forward" /> …then render
+                </button>
               </span>
             </Choice>
           )}
