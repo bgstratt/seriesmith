@@ -1362,7 +1362,19 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       exposure / contrast / blacks may come back as another mix giving the same look. The
       inspector's **Match the sequence to this**, the clip menu's item, the MCP's
       `match_color`. Tests: tests/test_hold.py's ColorMatchTest (held takes), web/test/color.test.ts.
-      Not yet live.
+      Tried live 2026-10-29 on Ballroom ms04 (base a Seedance clip, the rest LTX-2 and H3):
+      fine where the content was alike (sh070), wrong on a pale close-up before a bright
+      window (sh030: -1.2 stops, warmth 1, a magenta cast), because the whole frame's
+      percentiles and mean see the content (the base's green and blue dresses) as much as the
+      light. So three ways, a button each (`by`, color.MATCH_BY): **skin** (the pixels that
+      look like lit skin, found once on each picture: median brightness, cast, saturation;
+      exposure / warmth / tint / saturation, not contrast, whose spread is the shot's
+      lighting and moved the exposure a stop), **frame** (the old one), **luma** (brightness
+      alone; the clip's own warmth / tint / saturation kept). Tried first and dropped: the
+      whole frame less clipped pixels, the cast from the near-grey ones (sh030 worse: -1
+      stop, saturation +1). Skin on ms04: sh070 and sh110 close to the base, sh030 gentle but
+      a little green (that actress's skin is pinker than the base's cast's). Tests:
+      tests/test_color.py's MatchByTest.
 - [x] **A clip out of line: a badge, not a report** (decided 2026-10-29: a small mark on the
       clip, not another export). A take's look (color.look: 128 pixels from five frames, hex
       in its sidecar) is measured as it's made (runner, hold, takeimport; `color/measure` and

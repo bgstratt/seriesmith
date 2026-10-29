@@ -1471,19 +1471,21 @@ def measure_looks(root: str, pass_: str) -> dict:
     return {"measured": measured, "had": had}
 
 
-def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = None) -> dict:
+def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = None,
+                 by: str = "frame") -> dict:
     """The colour that brings each of `shots` in line with clip `base` in the
     pass's cut (seriesmith.color.match: the base as the cut colours it, each
     other clip's own colour replaced), worked out, not written: the editor
     sets them as one cut edit, so one undo takes them back. `shots` None: the
-    rest of the base's sequence in the cut. Each clip is looked at over what
-    the cut uses of its take (its trims). {"base", "colors": {shot: colour},
+    rest of the base's sequence in the cut. `by`: what's compared
+    (color.MATCH_BY: the whole frame, its skin, its brightness). Each clip is
+    looked at over what the cut uses of its take (its trims). {"base", "colors": {shot: colour},
     "skipped": [{"shot", "why"}]}. CutError for a base that can't be matched to."""
     entries = cut_entries(root, pass_)
-    by = {e.shot: e for e in entries}
+    entry = {e.shot: e for e in entries}
     seq = {d["shots"][i]["id"]: d["shots"][i].get("sequence")
            for d, i in J.episode_shots(root, pass_)}
-    if base not in by:
+    if base not in entry:
         raise CutError(f"{base} isn't in the {pass_} cut")
 
     def clip(e: T.CutEntry) -> dict:
@@ -1495,7 +1497,7 @@ def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = Non
         return {"path": t.paths.mp4, "frames": COL.sample_frames(e.trim_in, last),
                 **({"color": e.color} if e.color else {})}
 
-    b = by[base]
+    b = entry[base]
     try:
         base_clip = clip(b)
     except CutError as ex:
@@ -1506,7 +1508,7 @@ def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = Non
                  and seq.get(e.shot) == seq.get(base)]
     skipped, todo = [], []
     for sid in shots:
-        e = by.get(sid)
+        e = entry.get(sid)
         why = ("it's the base" if sid == base else "it isn't in the cut" if e is None
                else "it's locked" if e.locked else "it's left out of the cut" if e.out else None)
         if why is None:
@@ -1518,7 +1520,7 @@ def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = Non
         skipped.append({"shot": sid, "why": why})
     colors = {}
     if todo:
-        for (sid, _), got in zip(todo, COL.match(base_clip, [c for _, c in todo])):
+        for (sid, _), got in zip(todo, COL.match(base_clip, [c for _, c in todo], by)):
             if "error" in got:
                 skipped.append({"shot": sid, "why": got["error"]})
             else:

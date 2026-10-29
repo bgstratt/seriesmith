@@ -126,15 +126,24 @@ def sample_frames(first: int, last: int, n: int = SAMPLES) -> list[int]:
     return sorted({first + int((i + 0.5) * span / n) for i in range(min(n, span))})
 
 
-def match(base: dict, clips: list[dict], python: str | None = None,
+# what a match compares (helpers/colorstats.py): the whole frame (six sliders), the
+# skin in it (exposure, warmth, tint, saturation), or its brightness alone (exposure,
+# contrast, black point); the sliders it doesn't set are the clip's own
+MATCH_BY = ("frame", "skin", "luma")
+
+
+def match(base: dict, clips: list[dict], by: str = "frame", python: str | None = None,
           timeout: int = 900) -> list[dict]:
     """The colour that brings each of `clips` in line with `base` (each
     {"path", "frames", "color"?}: a video, the frames of it to look at, and its
     colour in the cut; the base's is applied before it's compared, a clip's own
-    replaced): helpers/colorstats.py, on this Python (it has numpy). A colour
-    (check()'s shape) or {"error"} each. ValueError when the helper fails."""
+    replaced but for the sliders `by` doesn't set): helpers/colorstats.py, on
+    this Python (it has numpy). A colour (check()'s shape) or {"error"} each.
+    ValueError when the helper fails or `by` isn't one of MATCH_BY."""
     from seriesmith import ff as FF
-    job = {"base": base, "clips": clips}
+    if by not in MATCH_BY:
+        raise ValueError(f"by must be one of {', '.join(MATCH_BY)}")
+    job = {"base": base, "clips": clips, "by": by}
     r = subprocess.run([python or sys.executable, HELPER, json.dumps(FF.tool("ffmpeg"))],
                        input=json.dumps(job), capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:

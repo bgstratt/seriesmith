@@ -170,6 +170,11 @@ class ColorMatchTest(HoldEpisode):
         self.assertEqual(why.get("sh030"), "it has no finished take in the cut")
         self.assertNotIn("sh110", why)
         self.assertEqual(list(got["colors"]), ["sh020"])
+        # by its brightness alone: only exposure, contrast and the black point
+        got = self.ok(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh010", "by": "luma"}))
+        self.assertGreater(got["colors"]["sh020"].get("exposure", 0), 0.3)
+        self.assertLessEqual(set(got["colors"]["sh020"]), {"exposure", "contrast", "black"})
+        self.err(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh010", "by": "hue"}), 400)
         # named shots; a locked one and the base itself are skipped, said why
         self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
             {"shot": "sh010"}, {"shot": "sh020", "locked": True}]}))

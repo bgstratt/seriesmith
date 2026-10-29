@@ -2488,8 +2488,8 @@ def post_color_measure(ctx: Context, body):
 @handler
 def post_color_match(ctx: Context, body):
     """The colour that brings clips in line with a base clip (edit.match_colors):
-    `{ep, pass?, base, shots?}` (shots: default the rest of the base's
-    sequence). Worked out, not written: {"base", "colors": {shot: colour},
+    `{ep, pass?, base, shots?, by?}` (shots: default the rest of the base's
+    sequence; by: frame, skin or luma, default frame). Worked out, not written: {"base", "colors": {shot: colour},
     "skipped": [{"shot", "why"}]}; the editor sets them with PUT /seriesmith/cut."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
@@ -2500,8 +2500,12 @@ def post_color_match(ctx: Context, body):
         if not isinstance(shots, list):
             raise ApiError(400, "shots must be a list of shot ids")
         shots = [check_shot(s) for s in shots]
+    from seriesmith import color as COL
+    by = body.get("by") or "frame"
+    if by not in COL.MATCH_BY:
+        raise ApiError(400, f"by must be one of {', '.join(COL.MATCH_BY)}")
     try:
-        return 200, E.match_colors(ep, pass_, base, shots)
+        return 200, E.match_colors(ep, pass_, base, shots, by)
     except E.CutError as e:
         raise ApiError(400, str(e))
     except ValueError as e:

@@ -11,6 +11,7 @@
 
 import type {
   ColorMatch,
+  MatchBy,
   AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
@@ -251,7 +252,7 @@ export interface Api {
   copyTake(req: TakeCopyRequest): Promise<ImportedShotTake>;
   /** POST /seriesmith/color/match: the colour bringing clips in line with `base`
    * (default: the rest of its sequence), worked out, not written. */
-  colorMatch(ep: string, pass: Pass, base: string, shots?: string[]): Promise<ColorMatch>;
+  colorMatch(ep: string, pass: Pass, base: string, shots?: string[], by?: MatchBy): Promise<ColorMatch>;
   /** POST /seriesmith/color/measure: the look of each of the cut's takes that has none yet. */
   colorMeasure(ep: string, pass: Pass): Promise<{ measured: string[]; had: number }>;
   // ---- P10: a pass's issues (the notepad) ----
@@ -728,7 +729,7 @@ export function createHttpApi(t: Transport): Api {
     },
     copyTake: (req) => call("POST", "/seriesmith/take/copy", req),
     colorMeasure: (ep, pass) => call("POST", "/seriesmith/color/measure", { ep, pass }),
-    colorMatch: (ep, pass, base, shots) => call("POST", "/seriesmith/color/match", { ep, pass, base, ...(shots ? { shots } : {}) }),
+    colorMatch: (ep, pass, base, shots, by) => call("POST", "/seriesmith/color/match", { ep, pass, base, ...(shots ? { shots } : {}), ...(by ? { by } : {}) }),
     issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
     addIssue: (req) => call("POST", "/seriesmith/issues", req),

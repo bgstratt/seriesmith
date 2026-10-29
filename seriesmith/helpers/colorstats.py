@@ -9,18 +9,31 @@ tour.py runs stills.py:
 
     python colorstats.py FFMPEG < JOB
 
-JOB (stdin, JSON) is {"base": CLIP, "clips": [CLIP, ...]}, each CLIP {"path",
-"frames": [n, ...], "color"?}: a video, the frames of it to look at (from 0),
-and the colour it has in the cut (the base's is applied before it's measured;
-a clip's own is replaced). Prints one JSON list, a colour (color.check's
-shape) or {"error": ...} for each clip.
+JOB (stdin, JSON) is {"base": CLIP, "clips": [CLIP, ...], "by"?}, each CLIP
+{"path", "frames": [n, ...], "color"?}: a video, the frames of it to look at
+(from 0), and the colour it has in the cut (the base's is applied before it's
+measured; a clip's own is replaced, but for what `by` leaves alone). Prints one
+JSON list, a colour (color.check's shape) or {"error": ...} for each clip.
 
 A clip's pixels (the frames scaled to WIDTH x HEIGHT, 0..1 BT.709 RGB, full
 range: what color.filters works on) are put through color.matrix and clipped,
-exactly as the export does, and the six sliders searched (Nelder-Mead) for the
-look nearest the base's: each channel's 5th..95th percentiles (where its
-blacks, mids and highlights sit, so exposure, contrast, the black point and
-any cast) and the midtones' mean distance from grey (saturation).
+exactly as the export does, and the sliders searched (Nelder-Mead) for the look
+nearest the base's. What's compared is `by` (color.MATCH_BY):
+
+    frame   the whole picture, six sliders: each channel's 5th..95th
+            percentiles (where its blacks, mids and highlights sit, so
+            exposure, contrast, the black point and any cast), its mean, and
+            the midtones' mean distance from grey (saturation). It matches
+            what's in the picture as well as its light: a frame of green
+            dresses pulls a pale close-up green.
+    skin    the skin in each (found once, on the pictures as they are: lit,
+            red over green over blue, neither grey nor hair), six sliders: its
+            brightness and spread, its cast, its saturation. The light on the
+            people, whatever else is in the frame; a clip (or a base) with too
+            little skin is said, not matched.
+    luma    the brightness alone (luma's 5th..95th percentiles): exposure,
+            contrast and the black point; the clip's warmth, tint and
+            saturation in the cut kept.
 """
 from __future__ import annotations
 
@@ -62,6 +75,23 @@ def frames(ffmpeg: str, path: str, picks: list[int]) -> np.ndarray:
     return data[: n * WIDTH * HEIGHT * 3].reshape(-1, 3).astype(np.float64) / 255.0
 
 
+def is_skin(rgb: np.ndarray) -> np.ndarray:
+    """The pixels that look like lit skin: YCbCr's skin box (narrowed), red over
+    green over blue, some colour but not much (not grey walls, not wood in
+    shadow, not blond hair), not clipped."""
+    r, g, b = (rgb * 255).T
+    y = 0.299 * r + 0.587 * g + 0.114 * b
+    cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
+    cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
+    hi, lo = rgb.max(axis=1), rgb.min(axis=1)
+    sat = (hi - lo) / np.maximum(hi, 1e-3)
+    return ((cb > 85) & (cb < 125) & (cr > 138) & (cr < 168) & (y > 70) & (y < 240)
+            & (r > g) & (g > b) & (r - g > 12) & (sat > 0.1) & (sat < 0.6) & (hi < 0.97))
+
+
+SKIN_LEAST = 0.02                             # of a clip's pixels: fewer, and it isn't matched by skin
+
+
 def apply(rgb: np.ndarray, color: dict) -> np.ndarray:
     m, off = C.matrix(color)
     return np.clip(rgb @ np.array(m).T + np.array(off), 0.0, 1.0)
@@ -80,13 +110,35 @@ def look(rgb: np.ndarray) -> np.ndarray:
     return np.concatenate([pct, MEAN_WEIGHT * rgb.mean(axis=0), [CHROMA_WEIGHT * chroma]])
 
 
+def look_skin(rgb: np.ndarray) -> np.ndarray:
+    """What's compared of the skin: its brightness (median luma), its cast (red /
+    blue, green / both), its saturation. Not its spread: how hard a face is lit
+    is the shot's, and matching it moved the exposure a stop."""
+    y = rgb @ LUMA
+    m = rgb.mean(axis=0) + 1e-4
+    chroma = np.sqrt(((rgb - y[:, None]) ** 2).sum(axis=1)).mean()
+    return np.array([3 * np.log2(np.median(y) + 1e-4),
+                     2 * np.log(m[0] / m[2]), 2 * np.log(m[1] / np.sqrt(m[0] * m[2])),
+                     np.log2(chroma + 1e-4)])
+
+
+def look_luma(rgb: np.ndarray) -> np.ndarray:
+    return np.percentile(rgb @ LUMA, PERCENTILES)
+
+
+LOOKS = {"frame": look, "skin": look_skin, "luma": look_luma}
 FIELDS = list(C.FIELDS)
-SPAN = np.array([C.RANGES[k][1] for k in FIELDS])        # a search unit: each field's range
+SEARCHED = {"frame": FIELDS, "skin": ["exposure", "saturation", "warmth", "tint"],
+            "luma": ["exposure", "contrast", "black"]}
+SPAN = {k: C.RANGES[k][1] for k in FIELDS}              # a search unit: each field's range
 
 
-def to_color(x: np.ndarray) -> dict:
-    return {k: float(np.clip(v * s, C.RANGES[k][0], C.RANGES[k][1]))
-            for k, v, s in zip(FIELDS, x, SPAN)}
+def to_color(x: np.ndarray, fields: list[str] | None = None, keep: dict | None = None) -> dict:
+    """The colour of search point `x` (one value per `fields`), the rest from `keep`."""
+    out = {k: float((keep or {}).get(k, 0.0)) for k in FIELDS}
+    out.update({k: float(np.clip(v * SPAN[k], C.RANGES[k][0], C.RANGES[k][1]))
+                for k, v in zip(fields or FIELDS, x)})
+    return out
 
 
 def nelder_mead(f, x0: np.ndarray, step: float = 0.15, iters: int = 400,
@@ -128,25 +180,45 @@ def guess(base_rgb: np.ndarray, clip_rgb: np.ndarray) -> np.ndarray:
     x["warmth"] = float((q - 1) / (C.SHIFT * (q + 1)))
     g = (b[1] / np.sqrt(b[0] * b[2])) / (c[1] / np.sqrt(c[0] * c[2]))
     x["tint"] = float((1 - g) / C.SHIFT)
-    return np.clip(np.array([x[k] for k in FIELDS]) / SPAN, -1, 1)
+    return {k: float(np.clip(x[k] / SPAN[k], -1, 1)) for k in FIELDS}
 
 
-def match(base_rgb: np.ndarray, clip_rgb: np.ndarray) -> dict:
-    want = look(base_rgb)
+def match(base_rgb: np.ndarray, clip_rgb: np.ndarray, by: str = "frame",
+          keep: dict | None = None) -> dict:
+    """The colour bringing `clip_rgb` in line with `base_rgb` (as the cut colours
+    it), compared `by` (frame, skin, luma); `keep`: the clip's colour in the cut,
+    its fields that `by` doesn't search kept. ValueError when skin is asked of a
+    picture with too little."""
+    fields, keep = SEARCHED[by], keep or {}
+    if by == "skin":
+        # found once, on the pictures as they are: a trial colour mustn't move it
+        bs, cs = is_skin(base_rgb), is_skin(clip_rgb)
+        if bs.mean() < SKIN_LEAST:
+            raise ValueError("too little skin in the base clip to match by (try Frame)")
+        if cs.mean() < SKIN_LEAST:
+            raise ValueError("too little skin in it to match by (try Frame)")
+        rng = np.random.default_rng(0)
+        base_rgb, clip_rgb = sample(base_rgb[bs], rng), sample(clip_rgb[cs], rng)
+        start = guess(base_rgb, clip_rgb)
+    else:
+        start = guess(base_rgb, clip_rgb)
+    see = LOOKS[by]
+    want = see(base_rgb)
 
     def cost(x: np.ndarray) -> float:
         over = np.abs(x) > 1                      # outside a slider's range
-        return float(((look(apply(clip_rgb, to_color(x))) - want) ** 2).sum()
+        return float(((see(apply(clip_rgb, to_color(x, fields, keep))) - want) ** 2).sum()
                      + 10 * (np.abs(x[over]) - 1).sum()
                      # the least change that does it: exposure, contrast and the black
                      # point can make nearly the same picture between them
                      + SIMPLER * (x ** 2).sum())
     # from no change, and from what the mean colours say (exposure, warmth, tint):
     # the better of the two, searched again from there (past a local stall)
-    tries = [nelder_mead(cost, np.zeros(len(FIELDS))), nelder_mead(cost, guess(base_rgb, clip_rgb))]
+    tries = [nelder_mead(cost, np.zeros(len(fields))),
+             nelder_mead(cost, np.array([start[k] for k in fields]))]
     x = min(tries, key=cost)
     x = nelder_mead(cost, x, step=0.05)
-    return C.check({k: round(v, 3) for k, v in to_color(x).items()})
+    return C.check({k: round(v, 3) for k, v in to_color(x, fields, keep).items()})
 
 
 def sample(rgb: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -159,14 +231,18 @@ def main() -> int:
     ffmpeg = sys.argv[1]
     job = json.load(sys.stdin)
     rng = np.random.default_rng(0)                # the same answer every time
+    by = job.get("by") or "frame"
+    # skin is a few percent of a picture: found among all its pixels, sampled after
+    pick = (lambda rgb: rgb) if by == "skin" else (lambda rgb: sample(rgb, rng))
     b = job["base"]
-    base = sample(frames(ffmpeg, b["path"], b["frames"]), rng)
+    base = pick(frames(ffmpeg, b["path"], b["frames"]))
     if b.get("color"):
         base = apply(base, b["color"])
     out = []
     for c in job["clips"]:
         try:
-            out.append(match(base, sample(frames(ffmpeg, c["path"], c["frames"]), rng)))
+            out.append(match(base, pick(frames(ffmpeg, c["path"], c["frames"])), by,
+                             c.get("color")))
         except (subprocess.CalledProcessError, ValueError) as e:
             err = getattr(e, "stderr", b"") or b""
             out.append({"error": (str(e) + " " + err.decode("utf-8", "replace"))[-300:]})

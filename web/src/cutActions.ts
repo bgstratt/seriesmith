@@ -18,7 +18,7 @@ import { PeaksCache } from "./lib/peaks";
 import { locate, totalDuration } from "./lib/playlist";
 import { UndoStack, applyEdit, diffEdit, type CutEdit } from "./lib/undo";
 import { statusKey, store, type CutAudio } from "./store";
-import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, Pass } from "./types";
+import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, MatchBy, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -237,25 +237,33 @@ export async function checkColour(): Promise<void> {
   }
 }
 
-/** Match the colour of the rest of `base`'s sequence (or `shots`) to `base`: worked out
- * by the server from their pictures, then set as one cut edit (one undo). */
-export async function matchColors(base: string, shots?: string[]): Promise<boolean> {
+/** What each way of matching compares, in the editor's words (types.MatchBy). */
+export const MATCH_WAYS: { by: MatchBy; label: string; title: string }[] = [
+  { by: "skin", label: "Skin", title: "the people's skin: exposure, warmth, tint and saturation, so faces sit in the same light whatever else is in the frame (best across different framings; a clip with little skin is skipped). Contrast and the black point stay as they are" },
+  { by: "frame", label: "Frame", title: "the whole picture: all six sliders. Good between shots of the same setup; across different framings it matches what's in them too (a frame of green dresses pulls a close-up green)" },
+  { by: "luma", label: "Luma", title: "the brightness alone: exposure, contrast and the black point. Warmth, tint and saturation stay as they are" },
+];
+
+/** Match the colour of the rest of `base`'s sequence (or `shots`) to `base`, compared
+ * `by` (skin, the whole frame, the brightness): worked out by the server from their
+ * pictures, then set as one cut edit (one undo). */
+export async function matchColors(base: string, shots?: string[], by: MatchBy = "frame"): Promise<boolean> {
   const c = ctx();
   if (!c) return false;
   const key = `colormatch|${base}`;
   if (store.get().busy[key]) return false;
-  store.set((s) => ({ busy: { ...s.busy, [key]: true } }));
+  store.set((s) => ({ busy: { ...s.busy, [key]: true, [`${key}|${by}`]: true } }));
   try {
-    const r = await api().colorMatch(c.ep, c.pass, base, shots);
+    const r = await api().colorMatch(c.ep, c.pass, base, shots, by);
     const ids = Object.keys(r.colors);
     const skipped = r.skipped.length ? ` Skipped: ${r.skipped.map((x) => `${x.shot} (${x.why})`).join(", ")}.` : "";
     if (!ids.length) {
       host().toast("warn", `Nothing to match to ${base}`, `No clip could be matched.${skipped}`);
       return false;
     }
-    const ok = await editCut(`Match ${ids.length} clip(s) to ${base}`,
+    const ok = await editCut(`Match ${ids.length} clip(s) to ${base} (${by})`,
       (list) => ids.reduce((l, id) => withFields(l, id, { color: cleanColor(r.colors[id]) }), list));
-    if (ok) host().toast("success", `${ids.length} clip(s) matched to ${base}`, `${ids.join(", ")}: their sliders are set; Ctrl+Z undoes it.${skipped}`);
+    if (ok) host().toast("success", `${ids.length} clip(s) matched to ${base} by ${by}`, `${ids.join(", ")}: their sliders are set; Ctrl+Z undoes it.${skipped}`);
     return ok;
   } catch (e) {
     host().toast("error", `Couldn't match to ${base}`, errText(e));
@@ -264,6 +272,7 @@ export async function matchColors(base: string, shots?: string[]): Promise<boole
     store.set((s) => {
       const busy = { ...s.busy };
       delete busy[key];
+      delete busy[`${key}|${by}`];
       return { busy };
     });
   }

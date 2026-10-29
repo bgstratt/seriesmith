@@ -7,7 +7,7 @@ import {
   generateDubTracks, openSound, setSound,
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
-import { JOIN_DEFAULT, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -218,13 +218,16 @@ export function ContextMenu() {
       >
         <i className={cutShot?.cut.out ? "pi pi-plus-circle" : "pi pi-minus-circle"} /> {cutShot?.cut.out ? "Put back in the cut" : "Leave out of the cut"}
       </button>
-      <button
-        disabled={!cutShot || !!cutShot.orphan}
-        title={`Set the colour of the rest of ${menu.shot}'s sequence so it looks like ${menu.shot}: worked out from the pictures, a starting point for each clip's sliders (the inspector). Locked clips are left alone; Ctrl+Z undoes it`}
-        onClick={run(() => void matchColors(menu.shot))}
-      >
-        <i className="pi pi-clone" /> Match the sequence's colour to this
-      </button>
+      {MATCH_WAYS.map((w) => (
+        <button
+          key={w.by}
+          disabled={!cutShot || !!cutShot.orphan}
+          title={`Set the colour of the rest of ${menu.shot}'s sequence so it looks like ${menu.shot}, by ${w.title}: a starting point for each clip's sliders (the inspector). Locked clips are left alone; Ctrl+Z undoes it`}
+          onClick={run(() => void matchColors(menu.shot, undefined, w.by))}
+        >
+          <i className="pi pi-clone" /> Match the sequence to this: {w.label.toLowerCase()}
+        </button>
+      ))}
       {JOIN_KEYS.map((k) => {
         const on = (cutShot?.cut[k] || 0) > 0;
         const words = { fade_in: "Fade in from black", fade_out: "Fade out to black", dissolve: "Dissolve from the clip before" }[k];

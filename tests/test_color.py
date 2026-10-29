@@ -72,5 +72,64 @@ class ColorTest(unittest.TestCase):
                     self.assertLess(abs(g - w), 8, (color, got, want))
 
 
+try:
+    import numpy as np
+except ImportError:                                      # pragma: no cover
+    np = None
+
+
+@unittest.skipUnless(np, "matching needs numpy")
+class MatchByTest(unittest.TestCase):
+    """What a match compares (color.MATCH_BY, helpers/colorstats.py), on made-up
+    pixels: a face (skin) before a background. The clip is the base's face a
+    little darker and cooler before a pale window instead of a green wall: by
+    skin, it comes back brighter and warmer, the window not counted; by luma,
+    only the brightness sliders move and the clip's own colour stays."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "seriesmith", "helpers"))
+        import colorstats
+        cls.S = colorstats
+        rng = np.random.default_rng(1)
+
+        def picture(skin, background, n=4000, share=0.3):
+            k = int(n * share)
+            face = np.clip(np.array(skin) + rng.normal(0, 0.03, (k, 3)), 0, 1)
+            rest = np.clip(np.array(background) + rng.normal(0, 0.03, (n - k, 3)), 0, 1)
+            return np.vstack([face, rest])
+        face = (0.78, 0.56, 0.44)
+        cls.base = picture(face, (0.2, 0.45, 0.25))               # a green wall
+        dim = cls.S.apply(np.array([face]), {"exposure": -0.4, "warmth": -0.5})[0]
+        cls.clip = picture(tuple(dim), (0.9, 0.92, 0.95))          # a pale window
+
+    def test_the_skin(self):
+        self.assertGreater(self.S.is_skin(self.base).mean(), 0.2)
+        got = self.S.match(self.base, self.clip, "skin")
+        self.assertGreater(got["exposure"], 0.2)
+        self.assertGreater(got["warmth"], 0.25)
+        self.assertNotIn("contrast", got)                         # skin leaves it be
+        self.assertNotIn("black", got)
+        # the whole frame sees the green wall and the window as well
+        frame = self.S.match(self.base, self.clip, "frame")
+        self.assertNotEqual(frame, got)
+
+    def test_too_little_skin_is_said(self):
+        wall = self.base[self.base[:, 1] > self.base[:, 0]]
+        with self.assertRaisesRegex(ValueError, "too little skin"):
+            self.S.match(wall, self.clip, "skin")
+
+    def test_luma_keeps_the_clips_colour(self):
+        own = {"warmth": 0.3, "saturation": -0.2, "exposure": 1.0}
+        got = self.S.match(self.base, self.clip, "luma", own)
+        self.assertEqual((got.get("warmth"), got.get("saturation")), (0.3, -0.2))
+        self.assertNotEqual(got.get("exposure"), 1.0)             # its own brightness replaced
+        self.assertNotIn("tint", got)
+
+    def test_by_is_checked(self):
+        with self.assertRaisesRegex(ValueError, "by must be"):
+            C.match({"path": "x", "frames": [0]}, [], by="hue")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -566,16 +566,24 @@ since (its size) isn't counted. `POST /seriesmith/color/measure` `{ep, pass?}` m
 cut's takes that have no look yet (made before looks were kept): `{"measured": [shots], "had": n}`; the Cut menu's **Check colour**.
 
 ### `POST /seriesmith/color/match`
-`{ep, pass?, base, shots?}`: the colour that brings clips in line with clip `base`, worked
+`{ep, pass?, base, shots?, by?}`: the colour that brings clips in line with clip `base`, worked
 out, not written: `{"base", "colors": {shot: colour}, "skipped": [{"shot", "why"}]}`.
 `shots` defaults to the rest of the base's sequence in the cut (not orphans, not left out).
 A clip is skipped when it's locked, left out, the base itself, or has no finished take. Each
 clip is looked at over what the cut uses of its take (its trims: five frames spread over
 it), at 160x90; the base as the cut colours it (its own `color` applied), a clip's own
-colour replaced. The six fields are searched (Nelder-Mead, helpers/colorstats.py, numpy, run
+colour replaced. The fields are searched (Nelder-Mead, helpers/colorstats.py, numpy, run
 as a subprocess) through the same matrix assemble applies, clipping included, for the look
-nearest the base's: each channel's 5th to 95th percentiles and the midtones' distance from
-grey. A starting point, not a grade: exposure, contrast and the black point can make nearly
+nearest the base's. `by` (default `frame`, `color.MATCH_BY`) is what's compared:
+- `frame`: the whole picture, all six fields: each channel's 5th to 95th percentiles, its
+  mean, and the midtones' distance from grey. Matches the content as well as the light.
+- `skin`: the pixels that look like lit skin (found once in each, on the picture as it came):
+  their median brightness, cast and saturation; sets exposure, warmth, tint and saturation.
+  A clip (or a base) with under 2% skin is skipped, "too little skin".
+- `luma`: luma's 5th to 95th percentiles; sets exposure, contrast and black.
+
+The fields `by` doesn't set are the clip's own colour in the cut. 400 for an unknown `by`.
+A starting point, not a grade: exposure, contrast and the black point can make nearly
 the same picture between them, and the search prefers the least change. The editor sets the
 colours with `PUT /seriesmith/cut` as one edit. 400 for a base not in the cut or without a
 take.

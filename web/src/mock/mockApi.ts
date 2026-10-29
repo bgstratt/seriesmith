@@ -1593,18 +1593,23 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       return { measured: [], had: status[pass]?.shots.length ?? 0 };
     },
-    async colorMatch(ep, pass, base, shots) {
+    async colorMatch(ep, pass, base, shots, by) {
       await wait(300);
       need(ep);
       const st = status[pass];
       const sq = st?.shots.find((s) => s.shot === base)?.sequence;
       const ids = shots ?? (st?.shots ?? []).filter((s) => s.shot !== base && s.sequence === sq && !s.orphan && !s.cut?.out).map((s) => s.shot);
-      const colors: Record<string, { exposure: number; warmth: number }> = {};
+      const colors: Record<string, Record<string, number>> = {};
       const skipped: { shot: string; why: string }[] = [];
       ids.forEach((id, i) => {
         const s = st?.shots.find((x) => x.shot === id);
         if (!s || s.cut?.locked) skipped.push({ shot: id, why: s ? "it's locked" : "it isn't in the cut" });
-        else colors[id] = { exposure: Math.round(((i % 3) - 1) * 150) / 1000, warmth: Math.round(((i % 2) - 0.5) * 200) / 1000 };
+        else {
+          const exposure = Math.round(((i % 3) - 1) * 150) / 1000;
+          // luma sets the brightness alone: the clip's own colour stays
+          colors[id] = by === "luma" ? { ...(s.cut?.color ?? {}), exposure }
+            : { exposure, warmth: Math.round(((i % 2) - 0.5) * 200) / 1000 };
+        }
       });
       return { base, colors, skipped };
     },

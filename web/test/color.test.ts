@@ -66,4 +66,25 @@ describe("matching a sequence's colour to a clip", () => {
     expect(coloured.every((e) => st.shots.find((s) => s.shot === e.shot)?.sequence === base.sequence)).toBe(true);
     expect(toasts.at(-1)).toContain(`matched to ${base.shot}`);
   });
+
+  it("asks the server to compare the way the button says", async () => {
+    const { setApi, setHost } = await import("../src/host");
+    const { createMockApi } = await import("../src/mock/mockApi");
+    const { store, initialState } = await import("../src/store");
+    const { refreshEpisode } = await import("../src/actions");
+    const { MATCH_WAYS, matchColors } = await import("../src/cutActions");
+    setHost({ on: () => () => {}, toast: () => {}, show: () => {} } as never);
+    const api = createMockApi(() => {}, { latency: 0 });
+    setApi(api);
+    const ep = (await api.episodes())[0].ep;
+    store.set(initialState());
+    store.set({ ep, pass: "proxy" });
+    await refreshEpisode(ep, "proxy");
+    const base = store.get().status[`${ep}|proxy`]?.shots[0] ?? Object.values(store.get().status)[0]!.shots[0];
+    const ask = (await import("vitest")).vi.spyOn(api, "colorMatch");
+    expect(MATCH_WAYS.map((w) => w.by)).toEqual(["skin", "frame", "luma"]);
+    for (const w of MATCH_WAYS) await matchColors(base.shot, undefined, w.by);
+    expect(ask.mock.calls.map((c) => c[4])).toEqual(["skin", "frame", "luma"]);
+    expect(store.get().busy[`colormatch|${base.shot}`]).toBeUndefined();
+  });
 });

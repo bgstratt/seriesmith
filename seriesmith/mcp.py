@@ -489,10 +489,14 @@ TOOLS: list[Tool] = [
          ("ep",), edit_cut, writes=True),
     Tool("match_color", "The colour (edit_cut's `color`) that brings clips in line with a "
          "base clip: by default the rest of the base's sequence in the cut, or the shots "
-         "named. Worked out from their pictures, not written: set the ones you want with "
+         "named. `by`: what's compared: frame (the whole picture, all six sliders; "
+         "the default), skin (the people's skin: exposure, warmth, tint, saturation; "
+         "best across different framings), luma (brightness alone: exposure, contrast, "
+         "black point). The sliders it doesn't set stay the clip's own. Worked out from their pictures, not written: set the ones you want with "
          "edit_cut. Locked clips and clips without a take are skipped, said why.",
-         {"ep": EP, "pass": PASS, "base": SHOT, "shots": {"type": "array", "items": SHOT}},
-         ("ep", "base"), route("POST", "/seriesmith/color/match", "ep", "pass", "base", "shots")),
+         {"ep": EP, "pass": PASS, "base": SHOT, "shots": {"type": "array", "items": SHOT},
+          "by": {"type": "string", "enum": ["frame", "skin", "luma"]}},
+         ("ep", "base"), route("POST", "/seriesmith/color/match", "ep", "pass", "base", "shots", "by")),
     Tool("check_color", "Measure the look of each take the cut uses that has none yet (a "
          "take made now has its own): then read_episode's cut.look_off says which clips are "
          "out of line with the rest of their sequence, and how.",

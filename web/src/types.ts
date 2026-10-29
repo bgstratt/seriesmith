@@ -844,6 +844,11 @@ export interface CutEntry {
   dissolve?: number;
 }
 
+/** What a colour match compares (color.MATCH_BY): the whole frame (six sliders), the
+ * skin in it (exposure, warmth, tint, saturation) or its brightness alone (exposure,
+ * contrast, black point); the sliders it doesn't set stay the clip's own. */
+export type MatchBy = "frame" | "skin" | "luma";
+
 /** POST /seriesmith/color/match: the colour bringing clips in line with a base clip. */
 export interface ColorMatch {
   base: string;
