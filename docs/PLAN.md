@@ -1039,6 +1039,18 @@ collide with the package.
       docs (#66), the gallery showing a ref's live file with no candidate behind it at its own
       shape (#68). New routes `GET /seriesmith/dubs`, `PUT /seriesmith/sound`. Published by the
       merge's version bump.
+- [x] **0.1.9** (2026-10-29, `release-0.1.9`): finishing in the cut (#72): a picture held as
+      a shot on seriesmith's own model (`target: hold`, ffmpeg, dub audio under it; dropped on
+      the timeline, its edges set its length; Hold this frame after it…); a clip's colour
+      (exposure, contrast, black point, saturation, warmth, tint, applied on export, previewed
+      live); Match the sequence to this by skin, frame or luma; a badge on a clip out of line
+      with its sequence; fades in and out and dissolves, drawn as curves. H3 Singularity as a
+      local model, FastH3's and Singularity's own FL2VA, and `series.first_target` naming the
+      first-frame model (Ref2VA can open on a frame itself). Fades and dissolves dragged on the
+      timeline, the clip menu in groups, the gallery's search box and layout (#73). A dub
+      track then the render in one request (#70); voice samples as long as the character's
+      lines (#71). New routes `POST /seriesmith/color/match`, `POST /seriesmith/color/measure`.
+      Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
