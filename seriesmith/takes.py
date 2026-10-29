@@ -65,6 +65,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from seriesmith import color as COL
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
 
@@ -922,6 +923,12 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # SH`; `--unflag SH`). A locked entry can be flagged. Each pass's cut has its
 # own; resetting or copying the cut keeps a pass's flags as they are.
 #
+# An entry may carry `color` (seriesmith/color.py): the clip's exposure, black
+# point, saturation and warmth, the ones that aren't 0. Assemble applies it;
+# the take is untouched. A value out of range (a hand-edited file) is ignored.
+#
+#   {"shot": "sh040", "color": {"exposure": 0.3, "warmth": -0.2}}
+#
 # `start` is seconds into the source, `offset` seconds the sound is shifted
 # against the picture (positive = later), `gain` a linear multiplier. The
 # audio is cut or padded with silence to the clip's length, so a clip's
@@ -930,7 +937,7 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 
 CUT_FILE = "cut.json"
 ENTRY_FIELDS = ("shot", "take", "pass", "trim_in", "trim_out", "locked", "note", "audio", "out",
-                "flag")
+                "flag", "color")
 
 AUDIO_SOURCES = ("take", "file", "none")
 AUDIO_FIELDS = ("source", "shot", "take", "pass", "path", "start", "offset", "gain")
@@ -1070,6 +1077,7 @@ class CutEntry:
     audio: dict | None = None       # where the clip's sound comes from (audio_spec)
     out: bool = False               # left out of the cut (still in the script)
     flag: bool = False              # bookmarked: come back to it (changes nothing played)
+    color: dict | None = None       # exposure / black / saturation / warmth (seriesmith.color)
     in_cut_file: bool = True        # False: not listed, placed by script order
     orphan: bool = False            # listed, but no longer in the script
     placeholder: bool = False       # take comes from the other pass
@@ -1097,11 +1105,15 @@ def resolve_cut(data: dict, pass_: str, script_order: list[str]) -> list[CutEntr
             audio = audio_spec(raw.get("audio"), pass_)
         except ValueError:
             audio = None                        # a hand-edited file: ignored, not kept
+        try:
+            color = COL.check(raw.get("color")) or None
+        except ValueError:
+            color = None                        # the same
         entries.append(CutEntry(
             shot=sid, pass_=src, take=raw.get("take"),
             trim_in=int(raw.get("trim_in") or 0), trim_out=int(raw.get("trim_out") or 0),
             locked=bool(raw.get("locked")), note=raw.get("note") or "", audio=audio,
-            out=bool(raw.get("out")), flag=bool(raw.get("flag")),
+            out=bool(raw.get("out")), flag=bool(raw.get("flag")), color=color,
             orphan=sid not in in_script, placeholder=src != pass_,
             extra={k: v for k, v in raw.items() if k not in ENTRY_FIELDS}))
     for i, sid in enumerate(script_order):
@@ -1138,6 +1150,8 @@ def cut_entry_to_json(e: CutEntry, list_pass: str) -> dict:
         out["out"] = True
     if e.flag:
         out["flag"] = True
+    if e.color:
+        out["color"] = dict(e.color)
     out.update(e.extra)
     return out
 

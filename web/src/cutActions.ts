@@ -9,6 +9,7 @@ import {
 } from "./actions";
 import { api, host } from "./host";
 import { audioOf, audioWhy, normalizeAudio, sameAudio } from "./lib/audioSource";
+import { cleanColor, type ShotColor } from "./lib/color";
 import {
   applyEntries, clampTrim, clearAudio, clearTrims, entriesOf, fieldsOf, moveTo, nudge, sameEntries, scriptOrder, withFields,
 } from "./lib/cutEdit";
@@ -187,6 +188,17 @@ export function nudgeClip(shot: string, delta: -1 | 1): Promise<boolean> {
     return Promise.resolve(false);
   }
   return editCut(`Move ${shot} ${delta < 0 ? "left" : "right"}`, (list) => nudge(list, shot, delta));
+}
+
+/** Set a clip's colour (exposure, black, saturation, warmth; {} as shot), applied by assemble. */
+export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}`): Promise<boolean> {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  if (isLocked(c.st, shot)) {
+    refuseLocked(shot, "recoloured");
+    return Promise.resolve(false);
+  }
+  return editCut(label, (list) => withFields(list, shot, { color: cleanColor(color) }));
 }
 
 /** The clip's untrimmed length in the cut's frames (null: unknown), from Play all's list. */

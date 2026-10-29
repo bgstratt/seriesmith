@@ -325,6 +325,8 @@ seriesmith assemble Shows\ep05 --partial         # join what exists so far
   override those; the others leave them alone.
 - Shots with an `audio:` window are trimmed to it (re-encoded, x264 CRF 16) so the cut lines up
   with the recording. `--no-trim` keeps the padding.
+- A clip's colour in `cut.json` (`color`: exposure, black point, saturation, warmth; the
+  editor's sliders) is applied as it's re-encoded. `--no-color` leaves every clip as shot.
 - `epNN_shots.txt` lists every shot's start time in the cut.
 - `--upscaled` (either pass) plays each clip's fresh upscale (`seriesmith upscale`) and writes
   `epNN_up.mp4` at the upscales' size beside the plain cut; a clip without one is scaled up

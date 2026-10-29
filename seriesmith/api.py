@@ -2446,6 +2446,14 @@ def _cut_entry(raw) -> dict:
             raise ApiError(400, f"{raw['shot']}: flag must be true or false")
         if raw["flag"]:
             e["flag"] = True
+    if raw.get("color") is not None:
+        from seriesmith import color as COL
+        try:
+            color = COL.check(raw["color"])
+        except ValueError as ex:
+            raise ApiError(400, f"{raw['shot']}: {ex}")
+        if color:
+            e["color"] = color
     if raw.get("audio") is not None:
         # the shape and what it points at are checked together, in
         # edit.check_audio (E.replace_cut), so the CLI checks them too

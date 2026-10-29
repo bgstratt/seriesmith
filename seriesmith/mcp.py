@@ -278,7 +278,7 @@ def passthrough(method: str, path: str) -> Callable:
     return lambda c, a: c.call(method, path, body=dict(a))
 
 
-CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio")
+CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio", "color")
 
 
 def edit_cut(c: Client, a: dict) -> dict:
@@ -466,8 +466,10 @@ TOOLS: list[Tool] = [
     # the cut
     Tool("edit_cut", "Change the cut: per shot its take, trims (trim_in / trim_out, frames "
          "at the episode's fps), locked, note, out (left out of the cut, kept in the script), "
-         "flag (a bookmark), audio (sound from another take or a file: docs/API.md); and/or "
-         "its order (every shot of the cut, once). Only what is named changes.",
+         "flag (a bookmark), audio (sound from another take or a file: docs/API.md), color "
+         "({exposure -2..2 stops, black -0.25..0.25, saturation -1..1, warmth -1..1}; null "
+         "clears it); and/or its order (every shot of the cut, once). Only what is named "
+         "changes.",
          {"ep": EP, "pass": PASS,
           "changes": {"type": "array", "items": {
               "type": "object", "required": ["shot"],
@@ -475,7 +477,8 @@ TOOLS: list[Tool] = [
                              "trim_in": {"type": "integer"}, "trim_out": {"type": "integer"},
                              "locked": {"type": "boolean"}, "note": _s("a note"),
                              "out": {"type": "boolean"}, "flag": {"type": "boolean"},
-                             "audio": {"type": ["object", "null"]}}}},
+                             "audio": {"type": ["object", "null"]},
+                             "color": {"type": ["object", "null"]}}}},
           "order": {"type": "array", "items": SHOT,
                     "description": "every shot of the cut in its new order"}},
          ("ep",), edit_cut, writes=True),

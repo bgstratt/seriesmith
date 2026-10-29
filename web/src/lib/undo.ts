@@ -5,6 +5,7 @@
 
 import type { CutEntry } from "../types";
 import { sameAudio } from "./audioSource";
+import { sameColor } from "./color";
 import { applyOrder, fieldsOf, withFields, type CutFields } from "./cutEdit";
 
 export interface CutEdit {
@@ -17,7 +18,7 @@ export interface CutEdit {
 
 const sameFields = (a: CutFields, b: CutFields) =>
   a.trim_in === b.trim_in && a.trim_out === b.trim_out && a.locked === b.locked && sameAudio(a.audio, b.audio) &&
-  a.out === b.out && a.flag === b.flag;
+  a.out === b.out && a.flag === b.flag && sameColor(a.color, b.color);
 
 /** What turned `before` into `after`, or null when nothing changed. */
 export function diffEdit(label: string, before: CutEntry[], after: CutEntry[]): CutEdit | null {

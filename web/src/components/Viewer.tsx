@@ -26,6 +26,7 @@ import type { RefTake, TakeSummary } from "../types";
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { aspectOf, useShotStatus, useStatus } from "./hooks";
 import { useTargets } from "./Targets";
+import { ColorDefs, useClipFilter } from "./ColorDefs";
 import { Thumb } from "./Thumb";
 
 // v2: round 2 moved the default place so the viewer and the inspector sit side by side
@@ -228,9 +229,13 @@ export function Viewer() {
   const v = useApp((s) => s.viewer);
   const ep = useApp((s) => s.ep);
   if (!v || !ep) return null;
-  if (v.kind === "cut") return <CutPlayer ep={ep} v={v} />;
   if (v.kind === "image") return <StillsView ep={ep} v={v} />;
-  return <TakesView ep={ep} v={v} />;
+  return (
+    <>
+      <ColorDefs prefix="v" />
+      {v.kind === "cut" ? <CutPlayer ep={ep} v={v} /> : <TakesView ep={ep} v={v} />}
+    </>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +295,8 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
   const takes = shot?.takes ?? [];
   // Phase 9b: a locked clip keeps its take
   const locked = useApp(() => lockedPickRefusal(v.shot));
+  // its colour in the cut, previewed on every take of it (assemble applies it to the one cut)
+  const colorFilter = useClipFilter(v.shot, "v");
 
   const pane = (which: "a" | "b", t: TakeSummary | undefined, style?: CSSProperties) => (
     <div className="h3-pane" style={style}>
@@ -312,6 +319,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           playsInline
           autoPlay={which === "a"}
           loop
+          style={colorFilter ? { filter: colorFilter } : undefined}
           onContextMenu={(e) => {
             // the take's menu, knowing the frame on screen ("use this frame as the next shot's first frame")
             e.preventDefault();
@@ -728,6 +736,8 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   }, []));
 
   const cur = items[shown.idx];
+  // the clip's colour in the cut, previewed (a placeholder's too: assemble colours it)
+  const cutFilter = useClipFilter(cur?.shot, "v");
   const jump = (d: number) => {
     const i = Math.min(items.length - 1, Math.max(0, (eng.current.idx < 0 ? 0 : eng.current.idx) + d));
     if (items[i]) seekCut(items[i].start);
@@ -777,6 +787,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
             playsInline
             preload="auto"
             className={cur?.mp4 && shown.active === i ? "h3-on" : ""}
+            style={cutFilter && shown.active === i ? { filter: cutFilter } : undefined}
             onError={(e) => console.warn("seriesmith play all: video error", (e.currentTarget as HTMLVideoElement).error)}
           />
         ))}

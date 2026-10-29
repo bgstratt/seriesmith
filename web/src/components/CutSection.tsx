@@ -4,13 +4,14 @@
 
 import { useEffect, useState } from "react";
 import { currentPlaylist, openSound } from "../actions";
-import { clearClipAudio, setTrims, toggleLock } from "../cutActions";
+import { clearClipAudio, setColor, setTrims, toggleLock } from "../cutActions";
 import { api } from "../host";
 import { GAIN_DEFAULT, RECORDING_IGNORES_AUDIO, audioOf, gainOf, offsetOf, startOf } from "../lib/audioSource";
+import { COLOR_FIELDS, COLOR_RANGES, cleanColor, hasColor, type ColorField, type ShotColor } from "../lib/color";
 import { framesLabel, isOutOfOrder, trimLimits } from "../lib/cutEdit";
 import { fmtSeconds, tn } from "../lib/format";
 import { clipTake } from "../lib/playlist";
-import { useApp } from "../store";
+import { store, useApp } from "../store";
 import type { ShotStatus } from "../types";
 import { AudioBadge } from "./ClipAudio";
 import { useStatus } from "./hooks";
@@ -110,10 +111,70 @@ export function CutSection({ shot }: { shot: string }) {
         )}
       </div>
       <ClipAudioLine shot={shot} cut={s.cut} locked={locked} />
+      <ClipColorLines shot={shot} cut={s.cut} locked={locked} />
       <span className="h3-small h3-muted">
         {it ? `plays ${fmtSeconds(it.dur)}${total != null ? ` of ${fmtSeconds(total / fps)}` : ""}${it.audioIn != null ? ` · dialogue window ${it.audioIn.toFixed(2)}–${(it.audioOut ?? 0).toFixed(2)} s` : ""}` : "not in Play all"}
         {locked ? " · locked: unlock to trim, move or re-pick" : ""}
       </span>
+    </div>
+  );
+}
+
+const COLOR_LABELS: Record<ColorField, { label: string; step: number; help: string; unit?: string }> = {
+  exposure: { label: "exposure", step: 0.05, unit: " st", help: "Brighter or darker, in stops" },
+  black: { label: "blacks", step: 0.005, help: "Lift the blacks (milky) or crush them (deeper)" },
+  saturation: { label: "saturation", step: 0.05, help: "Less colour (-1: grey) or more" },
+  warmth: { label: "warmth", step: 0.05, help: "Warmer (more red, less blue) or cooler" },
+};
+
+/**
+ * The clip's colour in the cut (src/lib/color.ts): four sliders at 0, previewed
+ * in the viewer while dragged, saved when let go, applied by assemble on export.
+ */
+function ClipColorLines({ shot, cut, locked }: { shot: string; cut: ShotStatus["cut"]; locked: boolean }) {
+  const saved = cleanColor(cut.color);
+  const [draft, setDraft] = useState<ShotColor>(saved);
+  const savedKey = JSON.stringify(saved);
+  useEffect(() => setDraft(cleanColor(cut.color)), [savedKey, shot]);
+  // leaving the clip (or the inspector) drops a preview that wasn't saved
+  useEffect(() => () => store.set({ colorPreview: null }), [shot]);
+  const change = (k: ColorField, v: number) => {
+    const next = cleanColor({ ...draft, [k]: v });
+    setDraft(next);
+    store.set({ colorPreview: { shot, color: next } });
+  };
+  const commit = () => {
+    void setColor(shot, draft).finally(() => store.set({ colorPreview: null }));
+  };
+  const any = hasColor(saved);
+  return (
+    <div className="h3-col h3-small" style={{ gap: 2 }}>
+      <div className="h3-row">
+        <span className="h3-muted">colour</span>
+        <span className="h3-muted h3-grow">
+          {any ? "applied when the cut is exported (assemble); the viewer shows it" : "as shot"}
+          {locked ? " · locked" : ""}
+        </span>
+        {any && <button className="h3-btn" disabled={locked} onClick={() => void setColor(shot, {}, `Reset ${shot}'s colour`)}>Reset</button>}
+      </div>
+      {COLOR_FIELDS.map((k) => {
+        const [lo, hi] = COLOR_RANGES[k];
+        const { label, step, help, unit } = COLOR_LABELS[k];
+        const v = draft[k] ?? 0;
+        return (
+          <label key={k} className="h3-row" title={`${help} (${lo} to ${hi}; 0 as shot). Double-click: back to 0`}>
+            <span className="h3-muted" style={{ width: 70 }}>{label}</span>
+            <input
+              type="range" min={lo} max={hi} step={step} className="h3-grow" value={v} disabled={locked}
+              onChange={(e) => change(k, Number(e.target.value))}
+              onPointerUp={commit}
+              onKeyUp={(e) => { if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") commit(); }}
+              onDoubleClick={() => { change(k, 0); void setColor(shot, { ...draft, [k]: 0 }).finally(() => store.set({ colorPreview: null })); }}
+            />
+            <span className="h3-mono" style={{ width: 52, textAlign: "right" }}>{v > 0 ? "+" : ""}{v.toFixed(step < 0.01 ? 3 : 2)}{unit ?? ""}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }

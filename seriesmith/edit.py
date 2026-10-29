@@ -78,6 +78,7 @@ import re
 import subprocess
 import sys
 
+from seriesmith import color as COL
 from seriesmith import hold as HO
 from seriesmith import jobs as J
 from seriesmith import peaks as PK
@@ -595,6 +596,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out": e.out,
                     # bookmarked to come back to (re-render, a new prompt)
                     "flag": e.flag,
+                    # its colour (seriesmith.color), applied by assemble; null: as shot
+                    "color": e.color,
                     # the cut take's real length (its sidecar's saved frame
                     # count; a `dur: model` take's is the model's), or None
                     "frames": take_frames(chosen) if chosen_ok else None,
@@ -1438,13 +1441,19 @@ def reorder_cut(root: str, pass_: str, shots: list[str]) -> dict:
 def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
                   **fields) -> dict:
     """Change one entry's trim_in / trim_out / locked / note / audio / out /
-    flag (a flag is allowed on a locked entry: it changes nothing played).
-    Trims, audio sources and leaving it out on a locked entry are Locked unless
-    `force`; trims and audio are checked as PUT /seriesmith/cut checks them."""
+    flag / color (a flag is allowed on a locked entry: it changes nothing
+    played). Trims, audio sources, colour and leaving it out on a locked entry
+    are Locked unless `force`; trims and audio are checked as PUT
+    /seriesmith/cut checks them, colour by seriesmith.color.check."""
     entries = cut_entries(root, pass_)
     e = entries[_find(entries, shot_id, pass_)]
-    if ({"trim_in", "trim_out", "audio", "out"} & set(fields)) and e.locked and not force:
+    if ({"trim_in", "trim_out", "audio", "out", "color"} & set(fields)) and e.locked and not force:
         raise Locked(f"{shot_id} is locked in the {pass_} cut: unlock it first")
+    if "color" in fields:
+        try:
+            fields["color"] = COL.check(fields["color"]) or None
+        except ValueError as ex:
+            raise CutError(f"{shot_id}: {ex}") from None
     for k, v in fields.items():
         setattr(e, k, v)
     out = _entries_json(entries, pass_)

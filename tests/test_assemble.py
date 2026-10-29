@@ -390,6 +390,28 @@ class SelectiveTest(unittest.TestCase):
         # one sound for the whole cut, in the copies' rate and layout
         self.assertEqual(self.A.stream_sig(out)[1], (32000, 2))
 
+    def test_a_clip_with_colour_is_re_encoded_with_it(self):
+        self.three()
+        self.cut([{"shot": "sh010"}, {"shot": "sh020", "color": {"saturation": -1}},
+                  {"shot": "sh030"}])
+        r = self.assemble()
+        self.assertIn("colour on 1 shot(s): sh020", r.stdout)
+        self.assertIn("re-encoded 1 clip(s), copied 2", r.stdout)
+        out = self.out()
+        self.assertEqual(probe_frames(out), 117)
+        self.assertEqual(frame_md5s(out, 0, 56), frame_md5s(self.clips[("64x64", 56)], 0, 56))
+        # sh020's frames are grey: its colour went in
+        mid = os.path.join(self.root, "mid.png")
+        ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", out, "-vf", "select=eq(n\\,66)",
+           "-frames:v", "1", mid)
+        from PIL import Image
+        with Image.open(mid) as im:
+            px = [im.convert("RGB").getpixel((x, 20)) for x in range(4, 60, 8)]
+        self.assertTrue(all(max(p) - min(p) <= 6 for p in px), px)
+        # --no-color: as shot, everything copied
+        r = self.assemble("--no-color")
+        self.assertNotIn("colour on", r.stdout)
+
     def test_a_clip_encoded_differently_is_conformed(self):
         self.shotlist([("sh010", 56), ("sh020", 22), ("sh030", 39)])
         self.take("sh010", 56)

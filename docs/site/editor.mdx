@@ -522,6 +522,19 @@ exported. A locked clip can still be flagged. Each pass's cut keeps its own flag
 seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show lists them
 ```
 
+### A clip's colour
+
+The inspector's **In the cut** section has four sliders for the clip: **exposure** (stops),
+**blacks** (lift or crush), **saturation** and **warmth**, each at 0 as shot. Drag one and the
+viewer shows it at once (the shot's takes, and Play all); let go and it's saved in the cut.
+Double-click a slider to put it back to 0; **Reset** clears them all. It's not a grade: one
+simple adjustment to bring a clip in line with its neighbours. Real colour work goes to
+Resolve or Premiere with the cut's clips.
+
+The take isn't changed: the colour is applied when the cut is exported (Export, Titles, 2x and
+Master all assemble it). A clip with a colour has a palette icon on the timeline. It's part of
+the pass's cut, so Ctrl+Z undoes it, a locked clip keeps it, and each pass has its own.
+
 ### A profile for one take
 
 New take… has **Profile…** beside the output's size when the series config has

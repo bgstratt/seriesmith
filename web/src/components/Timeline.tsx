@@ -17,6 +17,7 @@ import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist"
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
+import { ColorDefs, useClipFilter } from "./ColorDefs";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -173,6 +174,8 @@ const Clip = memo(function Clip({
 }) {
   const [cell, scrub] = useScrub();
   const take = clipTake(s, other);
+  // its colour in the cut, previewed on its pictures
+  const colorFilter = useClipFilter(s.shot, "t");
   const takePass: Pass = s.cut.placeholder ? s.cut.pass : pass;
   const secs = shotSeconds(s, fps);
   const mediaW = Math.min(width, Math.round(height * aspect));
@@ -235,7 +238,7 @@ const Clip = memo(function Clip({
     >
       <div
         className={`h3-clip-media${take?.thumb || take?.strip ? "" : " h3-thumb h3-empty"}`}
-        style={{ width: mediaW, ...mediaStyle(ep, take, cell) }}
+        style={{ width: mediaW, ...mediaStyle(ep, take, cell), ...(colorFilter ? { filter: colorFilter } : {}) }}
       >
         {!(take?.thumb || take?.strip) && width > 40 && <span>{take ? (take.status === "ok" ? "no thumb" : take.status) : "no take"}</span>}
       </div>
@@ -252,6 +255,7 @@ const Clip = memo(function Clip({
       <div className="h3-clip-bottom">
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}
+        {colorFilter && <i className="pi pi-palette" title="Its colour is set (the inspector's cut section): applied when the cut is exported" />}
         <b>{label}</b>
         {lengthEstimated(s) && <span className="h3-est" title={ESTIMATE_TITLE}>≈</span>}
         {take && width > 60 && <span>{tn(take.take)}</span>}
@@ -705,6 +709,7 @@ export function Timeline() {
             {drag && drag.gap != null && <div className="h3-drop-marker" style={{ left: drag.x }} />}
             {ext?.kind === "between" && <div className="h3-drop-marker h3-drop-new" style={{ left: ext.x }} title="Drop: a new shot here" />}
             <Playhead trackRef={innerRef} wrapRef={wrapRef} zoom={zoom} />
+            <ColorDefs prefix="t" />
           </div>
         )}
       </div>

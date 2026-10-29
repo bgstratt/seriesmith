@@ -1,6 +1,8 @@
 // Shapes from docs/API.md. Seeds are ALWAYS strings: built seeds are 63-bit and a
 // JS number loses precision above 2^53. Never pass a Seed through Number().
 
+import type { ShotColor } from "./lib/color";
+
 export type Pass = "final" | "proxy";
 export const PASSES: Pass[] = ["final", "proxy"];
 
@@ -108,6 +110,9 @@ export interface CutInfo {
   /** flagged to come back to (re-render it, change its prompt); changes nothing
    * played. Absent from older servers. */
   flag?: boolean;
+  /** its colour in the cut (exposure, black, saturation, warmth; null: as shot),
+   * applied by assemble. Absent from older servers. */
+  color?: ShotColor | null;
   /** The cut take's real frame count (its sidecar's), or null. The shot's
    * `seconds` is the build's (for `dur: model`, an estimate); the timeline and
    * Play all use this when present. Absent from older servers. */
@@ -823,6 +828,8 @@ export interface CutEntry {
   out?: boolean;
   /** flagged to come back to */
   flag?: boolean;
+  /** its colour (seriesmith/color.py): the fields that aren't 0 */
+  color?: ShotColor | null;
 }
 
 export interface CutFile {

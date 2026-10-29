@@ -32,6 +32,8 @@ cut.json (next to shotlist/) holds one ordered list per pass:
 - An entry marked `out` (left out of the cut) is skipped, noted.
 - `pass` naming the other pass makes a placeholder, e.g. a proxy take standing
   in for a final that isn't rendered yet. It is scaled to this cut's size.
+- `color` (seriesmith/color.py: exposure, black, saturation, warmth) is applied to
+  the clip as it's re-encoded; `--no-color` leaves every clip as shot.
 - `trim_in`/`trim_out` drop frames from the head/tail, after the dialogue-window
   trim below.
 - `audio` lays another take's sound, a file's, or silence under the clip
@@ -69,6 +71,7 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
+from seriesmith import color as COL  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
@@ -443,7 +446,8 @@ def prores_from(src: str, mov: str) -> str | None:
 def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
             start: int = 0, size: tuple[int, int] | None = None,
             src_fps: float | None = None, ready: bool = False,
-            quality: str = "review", layout: tuple[int, int] | None = None) -> None:
+            quality: str = "review", layout: tuple[int, int] | None = None,
+            color: dict | None = None) -> None:
     """Re-encode one clip to exactly `frames` frames with a matching audio track.
 
     `audio` is the clip itself (use its own sound), a wav path, or None for
@@ -471,6 +475,9 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
 
     `layout` (sample rate, channels) writes the sound to match clips that are
     copied beside this one (see `selective`); None is 44.1 kHz stereo.
+
+    `color` (a cut entry's: seriesmith.color) is applied to the picture once
+    it's in BT.709 (COL.filters).
     """
     rate, ch = layout or (44100, 2)
     dur = f"{frames / fps:.6f}"
@@ -506,6 +513,7 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
     # as a render saves its takes, so a scaled clip's H.264 headers are a plain
     # one's (`standard`)
     vf += to_bt709(color_matrix(src))
+    vf += COL.filters(color or {})
     vf.append("setsar=0")
     cmd += ["-map", "0:v:0", "-map", amap]
     if vf:
@@ -599,6 +607,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--quality", choices=sorted(QUALITY_ARGS), default="review",
                     help="how clips that must be re-encoded are written: review (x264 CRF 16) or "
                          "master (CRF 12, slow); clips that needn't be are copied either way")
+    ap.add_argument("--no-color", action="store_true",
+                    help="leave every clip as shot: no cut entry's colour")
     ap.add_argument("--reencode-all", action="store_true",
                     help="when any clip needs re-encoding, re-encode every clip (by default "
                          "only those clips are, the rest copied, when their encodings agree)")
@@ -765,6 +775,7 @@ def main(argv: list[str] | None = None) -> int:
              "wav": t.paths.h3_wav if os.path.isfile(t.paths.h3_wav) else None,
              "expected": s["length"], "policy": s.get("audio_policy", "?"),
              "src_fps": src_fps, "convert": convert,
+             "color": None if args.no_color else e.color,
              "size": video_size(clip)}
         if convert and not keep:
             acc_s += clip_s - (trim_in + trim_out) / fps
@@ -826,6 +837,7 @@ def main(argv: list[str] | None = None) -> int:
     windowed = [p for p in plan if p["keep"]]
     trimmed = [p for p in plan if p["trim_in"] or p["trim_out"]]
     placeholders = [p for p in plan if p["placeholder"]]
+    colored = [p for p in plan if p["color"]]
     if windowed:
         print(f"  trimming {len(windowed)} shot(s) to their dialogue "
               f"windows ({sum(p['frames'] - p['keep'] for p in windowed if p['frames'] > 0)} "
@@ -833,6 +845,9 @@ def main(argv: list[str] | None = None) -> int:
     if trimmed:
         print(f"  trimming {len(trimmed)} shot(s) per cut.json "
               f"({sum(p['trim_in'] + p['trim_out'] for p in trimmed)} frames dropped)")
+    if colored:
+        print(f"  colour on {len(colored)} shot(s): " + ", ".join(p["id"] for p in colored[:8])
+              + (" ..." if len(colored) > 8 else ""))
     if placeholders:
         print(f"  {len(placeholders)} placeholder(s) from the {other} pass, "
               f"scaled to {width}x{height}")
@@ -932,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
     # derived take's pixel-aspect tag), found by their headers below. The rest
     # are copied beside them when that is safe (`selective`), else every clip is
     # re-encoded, so the concat demuxer sees one set of stream parameters.
-    reencode = bool(windowed or trimmed or placeholders or converted or resized)
+    reencode = bool(windowed or trimmed or placeholders or converted or resized or colored)
     size = None
     if placeholders or resized:
         if width and height:
@@ -964,7 +979,7 @@ def main(argv: list[str] | None = None) -> int:
     # the first re-encoded clip's headers before the rest are written, and the
     # frames either side of each join after the concat; either failing re-encodes
     # every clip, as a cut always was before (--reencode-all asks for that).
-    needs = {id(p) for p in windowed + trimmed + placeholders + converted + resized}
+    needs = {id(p) for p in windowed + trimmed + placeholders + converted + resized + colored}
     sigs: dict[int, tuple] = {}
     selective = None                    # the cut's standard: its video signature
     if len(needs) < len(plan):
@@ -1019,7 +1034,7 @@ def main(argv: list[str] | None = None) -> int:
                     fps, p["used"], start=p["trim_in"],
                     size=size if (p["placeholder"] or p in resized) else None,
                     src_fps=p["src_fps"], ready=p["sourced"], quality=args.quality,
-                    layout=layout if sel is not None else None)
+                    layout=layout if sel is not None else None, color=p["color"])
         elif sound != src:
             normalise(src, norm, sound, fps, p.get("frames", 0), layout=layout)
         elif id(p) in sigs and (sigs[id(p)][1] != layout or sigs[id(p)][2] > OVERRUN_S):

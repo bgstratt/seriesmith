@@ -970,6 +970,22 @@ class CutTest(ApiTest):
                     [{"shot": "a", "colour": "red"}], "x"):
             self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": bad}), 400)
 
+    def test_cut_colour(self):
+        order = [s["id"] for s in J.load_shotlist(self.ep, "proxy")["shots"]]
+        cut = self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+            {"shot": order[0], "color": {"exposure": 0.5, "warmth": 0, "black": -0.0501}},
+            {"shot": order[1], "color": {"saturation": 0}}]}))["cut"]
+        # what isn't 0 is kept, rounded; all zeros is no colour
+        self.assertEqual(cut["proxy"][:2], [
+            {"shot": order[0], "color": {"exposure": 0.5, "black": -0.05}}, {"shot": order[1]}])
+        _, shots = self.status()
+        self.assertEqual(shots[order[0]]["cut"]["color"], {"exposure": 0.5, "black": -0.05})
+        self.assertIsNone(shots[order[1]]["cut"]["color"])
+        for bad in ({"exposure": 3}, {"tint": 0.1}, {"warmth": "warm"}, "warm"):
+            msg = self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+                {"shot": order[0], "color": bad}]}), 400)
+            self.assertIn(order[0], msg)
+
 
 class OverrideTest(ApiTest):
     def put(self, fields, status=200, **kw):

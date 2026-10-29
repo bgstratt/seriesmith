@@ -529,7 +529,7 @@ Uses `takes.pick`. A take that isn't usable answers 409 unless `"force": true`.
 
 ### `PUT /seriesmith/cut`
 Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?,
-"locked"?, "note"?, "audio"?, "out"?, "flag"?}, …]}`. Replaces that pass's list, for reordering and trims.
+"locked"?, "note"?, "audio"?, "out"?, "flag"?, "color"?}, …]}`. Replaces that pass's list, for reordering and trims.
 Unknown shots are allowed; they become orphans. Returns `{"cut": …}`.
 `"out": true` leaves the shot out of the cut: it stays in the script with its takes, its
 place and its pick, and the status's `cut.out` says so; assemble, Play all, the cut's
@@ -540,6 +540,14 @@ shot) skip it, and the timeline shows it as a stub. A shot named outright (an up
 `"flag": true` is a bookmark, "come back to this one" (re-render it, change its prompt): it
 changes nothing played or assembled, a locked entry takes one, and reset and copying keep each
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
+`"color": {"exposure"?, "black"?, "saturation"?, "warmth"?}` is the clip's colour
+(seriesmith/color.py): exposure in stops (-2..2), the black point (-0.25..0.25: positive
+lifts, negative crushes), saturation (-1..1: -1 grey) and warmth (-1..1). Each is 0 when
+left out; only the non-zero ones are kept (rounded to 3 places), all zeros is none, out of
+range is 400. One linear map of the picture's RGB, applied by assemble when the clip is
+re-encoded (Export, Titles, 2x; `--no-color` skips it); the take is untouched. The status's
+`cut.color` is it (null: as shot); the editor previews the same matrix. A locked entry
+refuses a change of it, as of its trims. Reset and copying leave it as it is.
 
 ### `PUT /seriesmith/override`
 Body:

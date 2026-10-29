@@ -7,6 +7,7 @@
 // takes.cut_entry_to_json would (a take only when picked, a pass only for a
 // placeholder, zero trims and empty notes left out), so nothing else moves.
 
+import { cleanColor, hasColor, sameColor, type ShotColor } from "./color";
 import type { CutAudioSource, CutEntry, EpisodeStatus, Pass, ShotStatus } from "../types";
 import { audioOf, normalizeAudio, resolveAudioFile, sameAudio, audioWhy } from "./audioSource";
 
@@ -27,6 +28,7 @@ export function entryOf(s: ShotStatus, listPass: Pass): CutEntry {
   if (au) e.audio = au;
   if (c?.out) e.out = true;
   if (c?.flag) e.flag = true;
+  if (hasColor(c?.color)) e.color = cleanColor(c?.color);
   return e;
 }
 
@@ -227,12 +229,15 @@ export interface CutFields {
   out: boolean;
   /** flagged to come back to (changes nothing played) */
   flag: boolean;
+  /** its colour (the fields that aren't 0; {} as shot) */
+  color: ShotColor;
 }
 
 export function fieldsOf(e: CutEntry | undefined): CutFields {
   return {
     trim_in: frameInt(e?.trim_in), trim_out: frameInt(e?.trim_out), locked: !!e?.locked,
     audio: normalizeAudio(audioOf(e), e?.shot), out: !!e?.out, flag: !!e?.flag,
+    color: cleanColor(e?.color),
   };
 }
 
@@ -249,6 +254,7 @@ export function withFields(entries: CutEntry[], shot: string, patch: Partial<Cut
     delete out.audio;
     delete out.out;
     delete out.flag;
+    delete out.color;
     if (f.trim_in > 0) out.trim_in = Math.floor(f.trim_in);
     if (f.trim_out > 0) out.trim_out = Math.floor(f.trim_out);
     if (f.locked) out.locked = true;
@@ -257,6 +263,7 @@ export function withFields(entries: CutEntry[], shot: string, patch: Partial<Cut
     if (au) out.audio = au;
     if (f.out) out.out = true;
     if (f.flag) out.flag = true;
+    if (hasColor(f.color)) out.color = cleanColor(f.color);
     return out;
   });
 }
@@ -319,7 +326,7 @@ export function sameEntries(a: CutEntry[], b: CutEntry[]): boolean {
     const fy = fieldsOf(y);
     if (fx.trim_in !== fy.trim_in || fx.trim_out !== fy.trim_out || fx.locked !== fy.locked || (x.note ?? "") !== (y.note ?? "")) return false;
     if (!sameAudio(fx.audio, fy.audio)) return false;
-    if (fx.out !== fy.out || fx.flag !== fy.flag) return false;
+    if (fx.out !== fy.out || fx.flag !== fy.flag || !sameColor(fx.color, fy.color)) return false;
   }
   return true;
 }

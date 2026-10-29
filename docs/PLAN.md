@@ -1336,12 +1336,18 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
         generated rather than by Generate missing.
 - Not doing: an animatic (decided 2026-10-29). Holding pictures on the timeline was the
   point; a pass or an export of keyframes isn't wanted.
-- [ ] **A shot's colour** in the shot inspector: exposure (stops), black point, saturation,
-      warmth, each a slider at 0 by default. Kept on the cut entry (`"color": {...}`, as
-      `trim_in` / `trim_out` are), so nothing re-renders and the take is untouched; applied in
-      assemble (`eq` / `colorbalance` / `curves`, through `ff.py`) on every export, Titles and
-      2x. The viewer and timeline preview it with a CSS filter on the video (close, not exact:
-      the export is the truth). Reset clears it; copied with the cut from the other pass.
+- [x] **A clip's colour** (2026-10-29): exposure (stops), black point, saturation, warmth, four
+      sliders at 0 in the inspector's cut section. Kept on the cut entry (`"color"`, only
+      the non-zero ones; `takes.CutEntry.color`), so nothing re-renders and the take is
+      untouched. One linear map of the picture's RGB (seriesmith/color.py, mirrored in
+      web/src/lib/color.ts and held to the same numbers by tests/fixtures/color_cases.json):
+      assemble applies it as the clip is re-encoded (colorchannelmixer + lutrgb in
+      full-range RGB; `--no-color`), so Export, Titles, 2x and Master all get it; the viewer
+      and the timeline preview the same matrix as an SVG feColorMatrix while the sliders are
+      dragged (`colorPreview`), saved when let go. Undo, locks, the MCP's `edit_cut`. Not
+      copied between passes (each pass's cut has its own, as flags). Tests:
+      tests/test_color.py, test_assemble's colour case, test_api's `test_cut_colour`,
+      web/test/color.test.ts. Not yet live.
 - [ ] **Match to this shot**: pick a base clip; each other clip in its sequence (or the
       selection) gets the colour sliders filled to bring it in line. A helper subprocess
       (numpy, PIL) samples a few frames of each, compares lightness percentiles (blacks,
