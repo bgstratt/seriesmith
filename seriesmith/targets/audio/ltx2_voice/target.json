@@ -22,7 +22,7 @@
   },
 
   "recipe": {
-    "_note": "The brief is targets/audio/common.py's, for every audio target: who is speaking, the series config's `voice` line, and a line to say (the character's longest line in this episode's script, else a neutral sentence)."
+    "_note": "The brief is targets/audio/common.py's, for every audio target: who is speaking, the series config's `voice` line, and what to say (the character's lines in this episode's script, longest first, as many as fill the length, else a neutral sentence; with less to say than the default length, the sample is as long as the lines take)."
   },
 
   "binding": {

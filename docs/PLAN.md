@@ -1239,8 +1239,29 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
       Whisper heard the line on both, median pitch 110 Hz (ltx2) and 115 Hz (ltx2_msr)
       against the sample's 101 Hz. Not yet live: two speakers in one shot (unit-tested).
       `ltx2_ingredients` (LTX-2.3) still renders clone as generate: untried there.
-- [ ] A voice sample's length follows its line: a short line in an 8 s sample is padded with
-      invented words (seen live 2026-10-28, with and without a held sample).
+- [x] A voice sample's length follows its lines (2026-10-28): a short line in an 8 s sample
+      was padded with invented words (seen live, with and without a held sample). Now the
+      character's lines, longest first, fill the length (`common.voice_line`), and with less
+      to say the sample is as long as they take, 2 s at least (`refs.voice_seconds`). Live on
+      a scratch copy of Ballroom ep03 (ltx2_voice, no held sample, seeds 11 and 22, Whisper
+      small.en): the old way's leftover time came back as silence before the line (Mia's 4
+      words began at 5.4 s and 2.4 s of 8) or the line dragged out (Charming's 5 words over
+      6.2 s); the new samples (Stepmother 6 s, four lines; Charming 3.7 s, two; Mia 2 s)
+      spoke from 0 s, every word as asked, one "preparation" for "preparations". No invented
+      words came back either way in these six. With a held sample (each character's new
+      sample picked, two seeds): the old way read the prompt aloud once ("Charming says, ...
+      a tall young man", the invented words) and came back silent once; Mia's 2 s sample (1.1
+      s of speech) came back silent every time, the head held whole, its silence and all; and
+      Charming's continuation skipped "Cindy... the selection is over.", which his sample's
+      head said. So: the held head loses the silence after its last word
+      (`audiocut.speech_end`), and a sample from the script opens with a sentence no shot
+      says (`common.OPENER`, "Hello, this is Mia speaking.", ~1.8 s, where the head is cut;
+      `OPENER_HELD`, "And this is how I sound.", for a generate continuing a held sample, so
+      its take, picked, still does). Again live: all six held takes said every script line,
+      nothing invented, Mia at 193-206 Hz against her sample's 200; the heads were the
+      opener alone. Ref2VA, which takes the whole sample: sh040 dub tracks from Stepmother's
+      6 s sample and the same cut to 2 s both said every word (Mia's part at her sample's
+      226 Hz): a short sample is no problem there.
 
 ## Voices before the picture (2026-10-28)
 

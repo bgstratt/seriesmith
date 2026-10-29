@@ -800,9 +800,13 @@ class Target:
         wording unless the target writes its own)."""
         return self._need("voice_prompt")(name, voice, design, line, seconds)
 
-    def voice_line(self, story, subject: str) -> tuple[str, str]:
-        """(the line a voice sample should say, "script" | "neutral")."""
-        return self._need("voice_line")(story, subject)
+    def voice_line(self, story, subject: str, seconds: float | None = None,
+                   pace: str = "normal", name: str | None = None,
+                   held: bool = False) -> tuple[str, str]:
+        """(the words a voice sample should say, "script" | "neutral"): an
+        opener (naming `name`, or another continuing a `held` sample), then as
+        many of the character's lines as fill `seconds`."""
+        return self._need("voice_line")(story, subject, seconds, pace, name, held)
 
     def seconds_range(self) -> tuple[float, float, float]:
         """(default, maximum, minimum) seconds an audio target generates: its

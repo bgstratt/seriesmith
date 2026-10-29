@@ -71,6 +71,24 @@ def quiet_point(path: str, lo: float, hi: float) -> float:
     return hi if at is None else lo + (at + n / 2) / RATE
 
 
+# Where speech ends: the last 20 ms window within SPEECH_DB of the loudest,
+# and a little after it so the last consonant isn't clipped.
+SPEECH_DB, SPEECH_TAIL = -30.0, 0.08
+
+
+def speech_end(path: str, upto: float) -> float:
+    """Where the last sound of speech in `path`'s first `upto` seconds ends
+    (`upto` when it's all sound, 0 when it's all silence)."""
+    a = _decode(path, 0.0, upto)
+    n = int(RATE * WINDOW)
+    rms = [(sum(x * x for x in a[i:i + n]) / n) ** 0.5 for i in range(0, len(a) - n + 1, n)]
+    if not rms or max(rms) <= 0:
+        return 0.0
+    floor = max(rms) * 10 ** (SPEECH_DB / 20)
+    last = max(k for k, v in enumerate(rms) if v >= floor)
+    return min(upto, (last + 1) * WINDOW + SPEECH_TAIL)
+
+
 def cut(src: str, start: float, end: float, at_least: float = 0.0) -> str:
     """`start..end` seconds of `src` as a wav in `_cuts/` beside it, made once;
     padded with silence to `at_least` seconds when it's shorter (a model with
@@ -106,12 +124,19 @@ def cut(src: str, start: float, end: float, at_least: float = 0.0) -> str:
 
 def voice_clip(sample: str, lo: float = CLIP_MIN, hi: float = CLIP_MAX) -> tuple[str, float]:
     """(the head of voice sample `sample`, its length in seconds): cut at its
-    quietest point between `lo` and `hi` seconds, so it ends between words. A
-    sample no longer than `hi` is used whole."""
+    quietest point between `lo` and `hi` seconds, so it ends between words, and
+    the silence after its last word taken off: a model continuing a head that
+    ends in silence continues the silence (Mia's 2 s sample, 1.1 s of speech,
+    came back silent every time, live 2026-10-28). A sample no longer than `hi`
+    is used whole but for that silence."""
     total = duration(sample)
-    if total is not None and total <= hi:
+    end = float(total) if total is not None and total <= hi else quiet_point(sample, lo, hi)
+    said = speech_end(sample, end)
+    if 0 < said < end - WINDOW:
+        end = said
+    end = round(end, 3)
+    if total is not None and end >= round(float(total), 3):
         return sample, float(total)
-    end = round(quiet_point(sample, lo, hi), 3)
     return cut(sample, 0.0, end), end
 
 

@@ -851,6 +851,31 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
     return object_prompt(design, s.look)
 
 
+def voice_pace(s: Series) -> str:
+    """The series config's speech pace (core.speech), "normal" by default."""
+    return ((s.series_cfg or {}).get("speech") or {}).get("pace", "normal")
+
+
+def voice_held(ref: Ref, target) -> bool:
+    """Whether a generate of voice `ref` on `target` continues its sample
+    (stage_voice_reference holds it): the target copies one and it's on disk."""
+    return bool(target.capabilities().get("reference_audio") and ref.file
+                and os.path.isfile(ref.file))
+
+
+def voice_seconds(s: Series, ref: Ref, target) -> float:
+    """How long a voice sample is when the request names no length: the
+    target's default, or as long as the character's lines take when they
+    have less to say than that (never under the target's minimum): no
+    seconds left over for the model to fill with words of its own."""
+    from seriesmith.targets.audio import common as AC
+    default, _, lo = target.seconds_range()
+    line, source = target.voice_line(episode_story(s.ep), ref.subject or "", default,
+                                     voice_pace(s), ref.entry.get("name", ref.subject),
+                                     voice_held(ref, target))
+    return min(default, max(lo, AC.spoken_seconds(line, voice_pace(s))))
+
+
 def voice_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
                 ) -> tuple[str, str, str]:
     """(the brief a voice generate uses, the line it asks for, where the line
@@ -867,9 +892,12 @@ def voice_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
         target = None
     if target is None or target.kind != "audio":
         return voice_prompt(name, voice), "", "none"
-    line, source = target.voice_line(episode_story(s.ep), ref.subject or "")
     if seconds is None:
         seconds = target.seconds_range()[0]
+    # (snapped onto the frame grid, the length may be a little under what
+    # voice_seconds fitted the words to: they still fit)
+    line, source = target.voice_line(episode_story(s.ep), ref.subject or "", seconds + 0.5,
+                                     voice_pace(s), name, voice_held(ref, target))
     return (target.voice_prompt(name, e.get("voice", ""), e.get("design", ""), line, seconds),
             line, source)
 
@@ -2605,7 +2633,8 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
             if not lo <= float(want) <= hi:
                 raise RefError(f"seconds must be between {lo:g} and {hi:g} on "
                                f"{target.short}, not {float(want):g}")
-        seconds, frames, fps = target.snap_seconds(want)
+        seconds, frames, fps = target.snap_seconds(want if want is not None
+                                                   else voice_seconds(s, ref, target))
         w = h = 0
     elif ref.kind == "keyframe":
         gw, gh, rw, rh, video_target = keyframe_size(s, ref, target, req.pass_)
