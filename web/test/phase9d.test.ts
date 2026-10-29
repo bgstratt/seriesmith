@@ -655,7 +655,7 @@ describe("the Phase 9d surfaces render", () => {
     setClipAudioDraft({ source: "take", shot: "sh020", take: 1, pass: "proxy", start: 0.5, offset: 0.25, gain: 1.5 });
     const html = renderToString(createElement(ClipAudioWindow));
     // React 18 splits adjoining text nodes with comments, so the words are checked apart
-    expect(html).toContain("Audio for");
+    expect(html).toContain("Overlay audio on");
     for (const label of ["its own", "another take", "a file", "silent", "Preview", "start", "offset", "gain", "Use this audio"]) {
       expect(html).toContain(label);
     }
