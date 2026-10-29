@@ -69,13 +69,13 @@ describe("the Refs tab's dub tracks and voices", () => {
   it("lists only the shots with a dub track or set to dub, as keyframes are", () => {
     const s = st([
       { shot: "sh010" },                                                   // nothing: not listed
-      { shot: "sh030", dub_tracks: 2 },
+      { shot: "sh030", dub_tracks: 2, lines: [{ who: "Pip", line: "Shine bright, little diamond." }] },
       { shot: "sh050", sound: { mode: "dub", dub: { from: "track" } } },
       { shot: "sh060", dub_tracks: 1, orphan: true },                      // gone from the script
     ]);
     expect(dubShots(s).map((x) => x.shot)).toEqual(["sh030", "sh050"]);
     const html = renderToString(createElement(DubTracksSection, { st: s }));
-    for (const words of ["Dub tracks", "2 dub tracks", "dubbed to the recording", "dub · "]) {
+    for (const words of ["Dub tracks", "2 dub tracks", "dubbed to the recording", "dub · ", "PIP", "Shine bright, little diamond."]) {
       expect(html).toContain(words);
     }
     expect(html).not.toContain("Generate missing");

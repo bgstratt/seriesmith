@@ -261,6 +261,17 @@ def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | Non
     return out
 
 
+def shot_lines(root: str, shot_id: str) -> list[dict]:
+    """A shot's lines as the build read them: [{"who" (the speaker's name), "line"}]."""
+    from seriesmith import refs as R
+    sh, _ = R.shot_ir(root, shot_id)
+    if sh is None:
+        return []
+    book = (J.series_config(root) or {}).get("subjects") or {}
+    return [{"who": (book.get(d.speaker) or {}).get("name") or d.speaker, "line": d.line}
+            for d in sh.dialogue]
+
+
 def sound_view(root: str, shot_id: str, sound: dict) -> dict:
     """A shot's sound for the editor: the setting, its dub source's label, and
     the file that source plays (relative; null for the track, or a source
@@ -558,9 +569,12 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             # the first sentence of what happens, as the script says it (the board)
             **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,
-            # the dub tracks it has (the Refs tab lists the shots with one)
+            # the dub tracks it has (the Refs tab lists the shots with one), and
+            # for those its lines, to read beside them
             **({"dub_tracks": n} if (n := len(T.take_numbers(root, T.PASSES[0], e.shot,
                                                               T.DUB_FOLDER))) else {}),
+            **({"lines": ln} if (n or (T.shot_sound(ov, e.shot) or {}).get("mode") == "dub")
+               and (ln := shot_lines(root, e.shot)) else {}),
             # the sound overrides.json sets (generate, clone, or a dub of a
             # track: its label), else null: the script's (audio_policy)
             **({"sound": sound_view(root, e.shot, T.shot_sound(ov, e.shot))}

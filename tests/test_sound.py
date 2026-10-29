@@ -242,8 +242,13 @@ class SoundTest(unittest.TestCase):
         self.assertIn("sound", s["takes"][0]["stale"])
         self.assertEqual((s["sound"]["mode"], s["sound"]["label"]), ("dub", f"dub track {d.take}"))
         self.assertTrue(s["sound"]["file"].endswith("_h3.wav"))
-        # the Refs tab's dub tracks: it has one
+        # the Refs tab's dub tracks: it has one, and its lines to read beside it
         self.assertEqual(s.get("dub_tracks"), 1)
+        self.assertEqual(s["lines"], [{"who": "Ada", "line": "You know that one whistles."},
+                                      {"who": "Bo", "line": "I know."},
+                                      {"who": "Bo", "line": "That's the point."}])
+        silent = next(x for x in E.episode_status(self.root, "final")["shots"] if x["shot"] == "sh010")
+        self.assertNotIn("lines", silent)                    # not listed: none sent
         code, out = A.get_dubs(ctx, {"ep": self.root, "shot": "sh020"})
         self.assertEqual(code, 200, out)
         self.assertEqual([x["take"] for x in out["dubs"]], [d.take])

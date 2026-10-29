@@ -187,6 +187,8 @@ export interface ShotStatus {
   sound?: ShotSound;
   /** how many dub tracks it has (absent: none) */
   dub_tracks?: number;
+  /** its lines (who: the speaker's name), sent for the shots with a dub track or a dub set */
+  lines?: { who: string; line: string }[];
   orphan: boolean;
   sequence: string | null;
   length: number | null;

@@ -57,6 +57,13 @@ export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
               <button className="h3-btn" title="The shot's whole Sound card, in a dialog (the cut's sound too)"
                 onClick={(e) => { e.stopPropagation(); openSound([s.shot]); }}>Sound…</button>
             </div>
+            {(s.lines ?? []).length > 0 && (
+              <div className="h3-small h3-col" style={{ gap: 1, paddingLeft: 22 }}>
+                {s.lines!.map((l, i) => (
+                  <span key={i}><span className="h3-muted">{l.who.toUpperCase()}:</span> “{l.line}”</span>
+                ))}
+              </div>
+            )}
             {isOpen && <div className="h3-pad"><SoundCard shot={s.shot} cut={false} /></div>}
           </div>
         );
