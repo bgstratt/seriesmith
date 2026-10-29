@@ -22,6 +22,7 @@ from __future__ import annotations
 import os
 import subprocess
 
+from seriesmith import color as COL
 from seriesmith import ff as FF
 from seriesmith import finish as F
 from seriesmith import takes as T
@@ -121,6 +122,7 @@ def _finish(take: T.Take, notes: list[str], **fields) -> T.Take:
         fps=info["fps"], width=info["width"], height=info["height"],
         mp4=os.path.basename(take.paths.mp4), thumb=thumb, strip=strip,
         save_notes=f"{take.paths.stem}: " + "; ".join(notes), **fields)
+    COL.record_look(take)                               # the timeline's colour check reads it
     return take
 
 

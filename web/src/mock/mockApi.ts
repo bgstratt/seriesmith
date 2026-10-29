@@ -1588,6 +1588,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!(src.status === "ok" && src.has_video)) throw new MockError(`${req.from_shot} t${req.take} isn't a finished take`, 400);
       return mockImportTake(req.pass, req.shot, null, !!req.pick, { shot: req.from_shot, take: req.take, pass: from, src });
     },
+    async colorMeasure(ep, pass) {
+      await wait(200);
+      need(ep);
+      return { measured: [], had: status[pass]?.shots.length ?? 0 };
+    },
     async colorMatch(ep, pass, base, shots) {
       await wait(300);
       need(ep);

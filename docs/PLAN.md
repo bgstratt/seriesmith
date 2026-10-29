@@ -1363,14 +1363,18 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       inspector's **Match the sequence to this**, the clip menu's item, the MCP's
       `match_color`. Tests: tests/test_hold.py's ColorMatchTest (held takes), web/test/color.test.ts.
       Not yet live.
-- [ ] **The continuity report**: the same readings, the last frames of each clip against the
-      first of the next. A continuing cut (`continuous`, a keyframe from the previous take)
-      must carry exposure (±0.35 stop), white balance, palette and the picture; any other
-      cut may change the light (±1.6 stops) but must keep the grade: black level, contrast,
-      saturation, grain, black and white or not, the frame's shape. Plus the odd one out in a
-      sequence (2.5x the typical distance). Said in plain words
-      ("sh040 is 0.8 stop darker and warmer than sh030") with **Match** as the fix; the
-      timeline header counts them as it counts flags. Reports only.
+- [x] **A clip out of line: a badge, not a report** (decided 2026-10-29: a small mark on the
+      clip, not another export). A take's look (color.look: 128 pixels from five frames, hex
+      in its sidecar) is measured as it's made (runner, hold, takeimport; `color/measure` and
+      the Cut menu's **Check colour** for older takes). The episode status compares each
+      clip of a sequence (three at least), through its own colour with the clipping, with the
+      sequence's middle: brightness, contrast, warmth, tint, saturation (color.OFF's limits);
+      `cut.look_off` says what's off, the timeline's badge (three colour circles in a ring)
+      shows it. Not the continuity rules of a cut to the next shot (light may change across
+      a cut): the odd one out of its sequence. Built on the way: colorchannelmixer takes
+      -2..2, so filters() scales the matrix into it and lutrgb back (16-bit; +2 stops failed
+      to export before); Match compares the mean colour too, and starts from it. Tests:
+      tests/test_hold.py's LookTest. Not yet live.
 - [ ] **Dissolve and fade to black**, per cut, optional: a cut entry's `"transition":
       {"type": "dissolve" | "fade", "frames": N}` on the incoming clip; assemble joins those
       two with `xfade` / `acrossfade` (a fade: out to black, then in) instead of the concat

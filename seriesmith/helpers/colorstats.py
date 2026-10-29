@@ -39,6 +39,7 @@ PIXELS = 12000                                # sampled for the search
 LUMA = np.array(C.LUMA)
 PERCENTILES = [5, 25, 50, 75, 95]
 CHROMA_WEIGHT = 3.0                           # saturation counts as much as a channel's spread
+MEAN_WEIGHT = 3.0                             # the mean colour: the cast, as the check reads it
 SIMPLER = 2e-4                                # a pull towards 0, against what's equivalent
 
 
@@ -67,14 +68,16 @@ def apply(rgb: np.ndarray, color: dict) -> np.ndarray:
 
 
 def look(rgb: np.ndarray) -> np.ndarray:
-    """What's compared: each channel's percentiles, then the midtones' chroma."""
+    """What's compared: each channel's percentiles, its mean (as the timeline's
+    out-of-line check sees a clip: color.out_of_line), then the midtones'
+    chroma."""
     y = rgb @ LUMA
     mid = (y > 0.15) & (y < 0.85)
     if mid.sum() < 50:
         mid = np.ones_like(y, dtype=bool)
     chroma = np.sqrt(((rgb[mid] - y[mid, None]) ** 2).sum(axis=1)).mean()
     pct = np.percentile(rgb, PERCENTILES, axis=0).T.ravel()
-    return np.concatenate([pct, [CHROMA_WEIGHT * chroma]])
+    return np.concatenate([pct, MEAN_WEIGHT * rgb.mean(axis=0), [CHROMA_WEIGHT * chroma]])
 
 
 FIELDS = list(C.FIELDS)
@@ -116,6 +119,18 @@ def nelder_mead(f, x0: np.ndarray, step: float = 0.15, iters: int = 400,
     return pts[int(np.argmin(vals))]
 
 
+def guess(base_rgb: np.ndarray, clip_rgb: np.ndarray) -> np.ndarray:
+    """A start: the exposure, warmth and tint that line up the mean colours."""
+    b, c = base_rgb.mean(axis=0) + 1e-4, clip_rgb.mean(axis=0) + 1e-4
+    x = dict.fromkeys(FIELDS, 0.0)
+    x["exposure"] = float(np.log2((b @ LUMA) / (c @ LUMA)))
+    q = (b[0] / b[2]) / (c[0] / c[2])
+    x["warmth"] = float((q - 1) / (C.SHIFT * (q + 1)))
+    g = (b[1] / np.sqrt(b[0] * b[2])) / (c[1] / np.sqrt(c[0] * c[2]))
+    x["tint"] = float((1 - g) / C.SHIFT)
+    return np.clip(np.array([x[k] for k in FIELDS]) / SPAN, -1, 1)
+
+
 def match(base_rgb: np.ndarray, clip_rgb: np.ndarray) -> dict:
     want = look(base_rgb)
 
@@ -126,8 +141,11 @@ def match(base_rgb: np.ndarray, clip_rgb: np.ndarray) -> dict:
                      # the least change that does it: exposure, contrast and the black
                      # point can make nearly the same picture between them
                      + SIMPLER * (x ** 2).sum())
-    x = nelder_mead(cost, np.zeros(len(FIELDS)))
-    x = nelder_mead(cost, x, step=0.05)           # again from there: past a local stall
+    # from no change, and from what the mean colours say (exposure, warmth, tint):
+    # the better of the two, searched again from there (past a local stall)
+    tries = [nelder_mead(cost, np.zeros(len(FIELDS))), nelder_mead(cost, guess(base_rgb, clip_rgb))]
+    x = min(tries, key=cost)
+    x = nelder_mead(cost, x, step=0.05)
     return C.check({k: round(v, 3) for k, v in to_color(x).items()})
 
 

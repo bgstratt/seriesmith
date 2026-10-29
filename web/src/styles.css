@@ -1038,3 +1038,12 @@
   border-radius: 6px; padding: 8px; line-height: 1.45;
 }
 @media (max-width: 760px) { .h3-gal-view { flex-direction: column; } .h3-gal-info { flex: 0 0 auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--h3-border); } }
+
+/* a clip whose colour is out of line with its sequence (LookBadge) */
+.h3-look-off {
+  display: inline-flex;
+  align-items: center;
+  color: #ffb347;
+  flex: none;
+  cursor: help;
+}

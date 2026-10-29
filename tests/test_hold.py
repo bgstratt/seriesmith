@@ -149,8 +149,8 @@ class ColorMatchTest(HoldEpisode):
         from seriesmith import color as COL
         src = os.path.join(self.tmp, "grad.png")
         subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
-                        "gradients=size=320x180:c0=0x704020:c1=0x3060a0:c2=0xd0c0a0:c3=0x202818:"
-                        "nb_colors=4", "-frames:v", "1", src], check=True, capture_output=True)
+                        "gradients=size=320x180:seed=7:c0=0x704020:c1=0x3060a0:c2=0xd0c0a0:"
+                        "c3=0x202818:nb_colors=4", "-frames:v", "1", src], check=True, capture_output=True)
         picture(self.first)
         os.replace(src, self.first)
         dark = os.path.join(self.ep, "refs", "shots", "sh020", "first.png")
@@ -180,3 +180,61 @@ class ColorMatchTest(HoldEpisode):
                          {"sh020": "it's locked", "sh010": "it's the base"})
         # a base with no take
         self.err(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh030"}), 400)
+
+
+class LookTest(HoldEpisode):
+    """A take's look is recorded when it's made, and a clip out of line with
+    the rest of its sequence says so in the status (`cut.look_off`), its colour
+    in the cut counted: the timeline's badge."""
+
+    def setUp(self):
+        super().setUp()
+        with open(self.script, encoding="utf-8") as fh:
+            text = fh.read()
+        for sid in ("sh020", "sh030", "sh040"):
+            text = text.replace(f"## {sid}\n", f"## {sid}\ntarget: hold\n", 1)
+        self.rebuild(text)
+
+    def held(self, sid: str, mix: str | None = None) -> None:
+        """sid's picture: a gradient, its channels scaled by `mix` (colorchannelmixer)."""
+        dst = os.path.join(self.ep, "refs", "shots", sid, "first.png")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        vf = f"colorchannelmixer={mix}" if mix else "null"
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
+                        "gradients=size=320x180:seed=7:c0=0x704020:c1=0x3060a0:c2=0xd0c0a0:"
+                        "c3=0x202818:nb_colors=4", "-vf", vf, "-frames:v", "1", dst],
+                       check=True, capture_output=True)
+
+    def test_the_odd_one_out_is_flagged_until_its_colour_fixes_it(self):
+        for sid in ("sh010", "sh020", "sh030"):
+            self.held(sid)
+        self.held("sh040", "rr=0.5:gg=0.55:bb=0.62")         # darker and cooler
+        self.render("sh010", "sh020", "sh030", "sh040")
+        self.settle()
+        t = T.get_take(self.ep, "proxy", "sh040", 1)
+        self.assertEqual(len(t.sidecar["look"]["px"]), 6 * 128)   # recorded as it was made
+        _, shots = self.status()
+        off = shots["sh040"]["cut"]["look_off"]
+        self.assertTrue(any("darker" in w for w in off), off)
+        self.assertIn("cooler", off)
+        self.assertIsNone(shots["sh010"]["cut"]["look_off"])
+        # matched to sh010, its colour in the cut brings it back in line
+        got = self.ok(A.post_color_match(self.ctx, {"ep": self.ep, "base": "sh010",
+                                                    "shots": ["sh040"]}))
+        self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+            {"shot": "sh040", "color": got["colors"]["sh040"]}]}))
+        _, shots = self.status()
+        self.assertIsNone(shots["sh040"]["cut"]["look_off"])
+
+    def test_older_takes_are_measured_on_asking(self):
+        for sid in ("sh010", "sh020", "sh030"):
+            self.held(sid)
+        self.render("sh010", "sh020", "sh030")
+        self.settle()
+        for sid in ("sh010", "sh020"):
+            t = T.get_take(self.ep, "proxy", sid, 1)
+            T.update_sidecar(t.paths.sidecar, look=None)
+        got = self.ok(A.post_color_measure(self.ctx, {"ep": self.ep}))
+        self.assertEqual((sorted(got["measured"]), got["had"]), (["sh010", "sh020"], 1))
+        got = self.ok(A.post_color_measure(self.ctx, {"ep": self.ep}))
+        self.assertEqual((got["measured"], got["had"]), ([], 3))

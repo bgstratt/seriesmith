@@ -19,6 +19,7 @@ import json
 import os
 import threading
 
+from seriesmith import color as COL
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
@@ -208,6 +209,8 @@ class Runner:
                 status = RD.run_take(job, take, backend, base, gkw, on_progress=progress,
                                      on_run=got_run, prompt_id=qjob.id, on_resume=resume,
                                      on_status=self._remote(qjob, take.paths.sidecar, report))
+                if status == "ok":
+                    COL.record_look(take)                # the timeline's colour check reads it
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -280,6 +283,7 @@ class Runner:
                     if res.get("note"):
                         report(line=res["note"])
                 status = H.render(job, take, report, H.dub_audio(job))
+                COL.record_look(take)
                 if job.notes:
                     had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
                     T.update_sidecar(take.paths.sidecar, notes=list(had) + list(job.notes))
@@ -685,7 +689,10 @@ class Runner:
             take = T.get_take(ep, res["pass"], res["shot"], res["take"])
             if take is None:
                 raise RuntimeError("its take is gone")
-            return RD.collect_run(take, run, status, res)
+            got = RD.collect_run(take, run, status, res)
+            if got == "ok":
+                COL.record_look(take)
+            return got
         if kind == "ref":
             s = R.load_series(ep)
             take = R.get_take(R.find_ref(s, res["ref"]), res.get("view"), res["take"])

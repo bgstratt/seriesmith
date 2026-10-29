@@ -2465,6 +2465,20 @@ def _cut_entry(raw) -> dict:
 
 
 @handler
+def post_color_measure(ctx: Context, body):
+    """The look (color.look) of each take the pass's cut uses that has none
+    yet (edit.measure_looks): what the timeline's out-of-line badge compares.
+    `{ep, pass?}` -> {"measured": [shots], "had": n}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    got = E.measure_looks(ep, pass_)
+    if got["measured"]:
+        episode_event(ctx, ep)
+    return 200, got
+
+
+@handler
 def post_color_match(ctx: Context, body):
     """The colour that brings clips in line with a base clip (edit.match_colors):
     `{ep, pass?, base, shots?}` (shots: default the rest of the base's
@@ -4901,6 +4915,7 @@ ROUTES = [
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
     ("POST", "/seriesmith/color/match", post_color_match, "body"),
+    ("POST", "/seriesmith/color/measure", post_color_measure, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

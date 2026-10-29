@@ -551,6 +551,20 @@ re-encoded (Export, Titles, 2x; `--no-color` skips it); the take is untouched. T
 `cut.color` is it (null: as shot); the editor previews the same matrix. A locked entry
 refuses a change of it, as of its trims. Reset and copying leave it as it is.
 
+### A clip out of line: `cut.look_off`, `POST /seriesmith/color/measure`
+A take's look is measured when it's made (a render, a hold, an import or copy; also when a
+render is found again after a restart): 128 of its pixels from five frames spread across it,
+kept in its sidecar as `look` (`{"px": hex rrggbb..., "size"}`; color.look, stdlib, ~0.1 s).
+`GET /seriesmith/episode` compares, for each sequence with at least three measured clips in
+the cut (not left out, not orphans), each clip's pixels as its `color` leaves them (the
+matrix and its clipping, as the export) with the sequence's middle: brightness (more than
+half a stop), contrast (the luma's 5th-95th spread), warmth and tint (the mean colour), and
+saturation. A clip too far off has `cut.look_off`, what's off in words (`["0.8 stop
+darker", "cooler"]`); otherwise null. The timeline's colour badge. A take whose mp4 changed
+since (its size) isn't counted. `POST /seriesmith/color/measure` `{ep, pass?}` measures the
+cut's takes that have no look yet (made before looks were kept): `{"measured": [shots],
+"had": n}`; the Cut menu's **Check colour**.
+
 ### `POST /seriesmith/color/match`
 `{ep, pass?, base, shots?}`: the colour that brings clips in line with clip `base`, worked
 out, not written: `{"base", "colors": {shot: colour}, "skipped": [{"shot", "why"}]}`.

@@ -537,6 +537,14 @@ saturation closest to this clip's. It takes a few seconds. The result is a start
 check each clip and adjust its sliders. Locked clips are left alone, and Ctrl+Z undoes the
 whole match.
 
+**A clip whose colour is out of line** with the rest of its sequence (brighter or darker,
+flatter or punchier, warmer, cooler, a green or magenta cast, more or less colourful) has a
+small badge on the timeline: three colour circles in a ring. Hover it to see what's off.
+Its colour counts, so fixing it with its sliders, or with **Match the sequence's colour to
+this** on a clip that looks right, clears the badge. A sequence needs three clips with takes
+to have a "rest" to compare with. Every take is measured as it's made; for takes made
+before this, the Cut menu's **Check colour** measures them once.
+
 The take isn't changed: the colour is applied when the cut is exported (Export, Titles, 2x and
 Master all assemble it). A clip with a colour has a palette icon on the timeline. It's part of
 the pass's cut, so Ctrl+Z undoes it, a locked clip keeps it, and each pass has its own.

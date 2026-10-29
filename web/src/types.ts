@@ -113,6 +113,9 @@ export interface CutInfo {
   /** its colour in the cut (exposure, contrast, black, saturation, warmth, tint; null: as shot),
    * applied by assemble. Absent from older servers. */
   color?: ShotColor | null;
+  /** what's out of line with the rest of its sequence ("0.8 stop darker", "cooler"),
+   * its colour counted; null: in line, or not measured. Absent from older servers. */
+  look_off?: string[] | null;
   /** The cut take's real frame count (its sidecar's), or null. The shot's
    * `seconds` is the build's (for `dur: model`, an estimate); the timeline and
    * Play all use this when present. Absent from older servers. */

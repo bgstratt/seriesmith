@@ -60,6 +60,7 @@ class ColorTest(unittest.TestCase):
             base = [v / 255 for v in frame({})]
             for color in ({"exposure": 1}, {"black": 0.1}, {"saturation": -1}, {"warmth": 1},
                           {"contrast": 0.7}, {"contrast": -1}, {"tint": 1}, {"tint": -1},
+                          {"exposure": 2, "contrast": 1},    # past colorchannelmixer's 2x
                           {"exposure": -0.5, "saturation": 0.5, "warmth": -0.5, "black": -0.05,
                            "contrast": 0.2, "tint": 0.4}):
                 m, off = C.matrix(color)

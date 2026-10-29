@@ -535,6 +535,7 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     actions = script_actions(root)
     resolved = T.resolve_cut(cut, pass_, list(shots))
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
+    looks: dict = {}                    # sequence -> {shot: (look, its colour in the cut)}
     name, kept = TF.store(root, pass_)
     for order, e in enumerate(resolved):
         doc, shot = shots.get(e.shot, (doc0, None))
@@ -543,6 +544,11 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
         takes = (listed[e.shot] if e.shot in listed
                  else TF.list_takes(root, pass_, e.shot, folder, kept, name)) if shot else []
         chosen, chosen_take, chosen_ok = cut_take(root, e, takes)
+        # its recorded look (color.look), for the colour check below
+        if chosen_ok and chosen is not None and shot and not e.out and not e.orphan:
+            lk = COL.look_of(chosen.sidecar, chosen.paths.mp4)
+            if lk is not None:
+                looks.setdefault(shot.get("sequence"), {})[e.shot] = (lk, e.color)
         o = T.shot_override(ov, e.shot, pass_, target)
         # what the next render reads: the retargeted entry when retargeted
         cur = J.current_entry(root, pass_, doc, shot, target, cache) if shot else None
@@ -658,6 +664,13 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "post": post_summary(root, t),
             } for t in takes],
         })
+    # a clip out of line with the rest of its sequence (exposure, contrast, a cast,
+    # saturation; its colour in the cut counted): the timeline's badge
+    off = {}
+    for clips in looks.values():
+        off.update(COL.out_of_line(clips))
+    for s in out:
+        s["cut"]["look_off"] = off.get(s["shot"])
     d = doc0.get("defaults", {})
     track = episode_track(root)
     if track is not None:
@@ -1436,6 +1449,24 @@ def reorder_cut(root: str, pass_: str, shots: list[str]) -> dict:
     head = [entries[_find(entries, s, pass_)] for s in shots]
     rest = [e for e in entries if e.shot not in set(shots)]
     return write_cut(root, pass_, _entries_json(head + rest, pass_))
+
+
+def measure_looks(root: str, pass_: str) -> dict:
+    """Record the look (color.record_look) of every take the pass's cut uses
+    that has none yet: a take made before looks were recorded. {"measured":
+    [shots], "had": n}. A take made now records its own when it finishes."""
+    measured, had = [], 0
+    for e in cut_entries(root, pass_):
+        if e.orphan or e.out:
+            continue
+        t, _, ok = cut_take(root, e)
+        if not ok or t is None:
+            continue
+        if COL.look_of(t.sidecar, t.paths.mp4) is not None:
+            had += 1
+        elif COL.record_look(t) is not None:
+            measured.append(e.shot)
+    return {"measured": measured, "had": had}
 
 
 def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = None) -> dict:

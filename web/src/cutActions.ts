@@ -201,6 +201,23 @@ export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}
   return editCut(label, (list) => withFields(list, shot, { color: cleanColor(color) }));
 }
 
+/** Measure the cut's takes made before looks were kept, so the timeline's colour
+ * check (the out-of-line badge) covers them. */
+export async function checkColour(): Promise<void> {
+  const c = ctx();
+  if (!c) return;
+  try {
+    const r = await api().colorMeasure(c.ep, c.pass);
+    host().toast("success", "Colour checked",
+      r.measured.length
+        ? `${r.measured.length} take(s) measured (${r.had} were already). A clip out of line with its sequence has the colour badge.`
+        : `Every take in the cut was already measured (${r.had}). A clip out of line with its sequence has the colour badge.`);
+    await refreshEpisode(c.ep, c.pass);
+  } catch (e) {
+    host().toast("error", "Couldn't check the colour", errText(e));
+  }
+}
+
 /** Match the colour of the rest of `base`'s sequence (or `shots`) to `base`: worked out
  * by the server from their pictures, then set as one cut edit (one undo). */
 export async function matchColors(base: string, shots?: string[]): Promise<boolean> {

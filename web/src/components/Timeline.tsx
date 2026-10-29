@@ -18,6 +18,7 @@ import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
 import { ColorDefs, useClipFilter } from "./ColorDefs";
+import { LookBadge } from "./LookBadge";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -256,6 +257,7 @@ const Clip = memo(function Clip({
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}
         {colorFilter && <i className="pi pi-palette" title="Its colour is set (the inspector's cut section): applied when the cut is exported" />}
+        {s.cut.look_off && s.cut.look_off.length > 0 && <LookBadge off={s.cut.look_off} shot={s.shot} />}
         <b>{label}</b>
         {lengthEstimated(s) && <span className="h3-est" title={ESTIMATE_TITLE}>≈</span>}
         {take && width > 60 && <span>{tn(take.take)}</span>}

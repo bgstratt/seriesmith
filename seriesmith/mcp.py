@@ -488,6 +488,11 @@ TOOLS: list[Tool] = [
          "edit_cut. Locked clips and clips without a take are skipped, said why.",
          {"ep": EP, "pass": PASS, "base": SHOT, "shots": {"type": "array", "items": SHOT}},
          ("ep", "base"), route("POST", "/seriesmith/color/match", "ep", "pass", "base", "shots")),
+    Tool("check_color", "Measure the look of each take the cut uses that has none yet (a "
+         "take made now has its own): then read_episode's cut.look_off says which clips are "
+         "out of line with the rest of their sequence, and how.",
+         {"ep": EP, "pass": PASS}, ("ep",),
+         route("POST", "/seriesmith/color/measure", "ep", "pass"), writes=True),
     Tool("reset_cut", "Put the cut back: what order (script order; picks, locks and notes "
          "kept), trims (none), audio (each shot's own) or all.",
          {"ep": EP, "pass": PASS, "what": _s("order, trims, audio or all",
