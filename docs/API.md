@@ -2950,9 +2950,12 @@ other. Each half writes its own "as built" section.
 - **`POST /seriesmith/refs/generate` on a voice ref** queues a candidate wav, like an image
   candidate: `{ep, ref: "voice:bolt", count, seed_mode, seed, prompt, target, note,
   seconds?}`. The default prompt (`seriesmith/targets/audio/common.py voice_prompt`) is the character's
-  series config `voice` line, their design in one sentence, and a line to say: the
-  character's longest line in this episode's script, else a fixed neutral sentence; the
-  sidecar records the sentence. The take is a wav under `refs/_takes/voice:<id>/`, saved by a
+  series config `voice` line, their design in one sentence, and what to say: the
+  character's lines in this episode's script, longest first, as many as fill the length,
+  in script order (else a fixed neutral sentence); the sidecar records them. Without
+  `seconds` (2026-10-28) the sample is the target's default length, or as long as the
+  character's lines take when they have less to say (never under the target's minimum), so
+  no time is left over for the model to fill. The take is a wav under `refs/_takes/voice:<id>/`, saved by a
   new `H3SaveRefAudio` node (like `H3SaveRefTake`), and `seriesmith.ref` reports it as usual.
 - **Picking** a voice candidate copies it to the series config's `voice_sample` path for that
   character; when the character has none, it writes `refs/voices/<id>.wav` **and** sets

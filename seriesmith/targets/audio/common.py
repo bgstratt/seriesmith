@@ -10,10 +10,13 @@ switching the voice target changes the model, not the brief:
     A clean voice recording of one speaker ... <Name> is <design>.
     Voice: <the series config's `voice` line>. <Name> says: "<line>"
 
-`line` is what the voice should say. The pipeline picks the character's
-longest line in this episode's script (`longest_line`), so the sample is in
-the character's own words and long enough to carry an identity; a character
-with no dialogue yet gets NEUTRAL_LINE. The take's sidecar records the
+`line` is what the voice should say: the character's own lines in this
+episode's script, longest first, as many as fill the sample's length
+(`voice_line`), said in script order, so the sample is in their own words with
+nothing left over for the model to fill with invented ones (a short line in an
+8 s sample came back padded, seen live 2026-10-28); with less dialogue than
+that, the sample is made as long as what there is (`spoken_seconds`). A
+character with no dialogue yet gets NEUTRAL_LINE. The take's sidecar records the
 sentence (`line`), so a candidate can be judged against what it was asked to
 say.
 
@@ -59,10 +62,40 @@ def longest_line(story, subject: str) -> str | None:
     return best or None
 
 
-def voice_line(story, subject: str) -> tuple[str, str]:
-    """(the line to say, where it came from: "script" | "neutral")."""
-    line = longest_line(story, subject)
-    return (line, "script") if line else (NEUTRAL_LINE, "neutral")
+def lines_of(story, subject: str) -> list[str]:
+    """Everything `subject` says in an episode's story IR, in script order,
+    each line once."""
+    out: list[str] = []
+    for sq in (story.sequences if story is not None else []):
+        for sh in sq.shots:
+            for d in sh.dialogue:
+                text = _clean(getattr(d, "line", "") or "") if d.speaker == subject else ""
+                if text and text not in out:
+                    out.append(text)
+    return out
+
+
+def spoken_seconds(text: str, pace: str = "normal") -> float:
+    """How long `text` takes to say at `pace` (core.speech), with air either side."""
+    from seriesmith.core import speech as SP
+    return (SP.syllables(text) / SP.SPEECH_RATE.get(pace, SP.SPEECH_RATE["normal"])
+            + SP.HEAD_AIR + SP.TAIL_AIR)
+
+
+def voice_line(story, subject: str, seconds: float | None = None,
+               pace: str = "normal") -> tuple[str, str]:
+    """(the words to say, where they came from: "script" | "neutral"): the
+    longest line, then the next longest while they still fit `seconds`
+    (None: the longest alone), joined in script order."""
+    lines = lines_of(story, subject)
+    if not lines:
+        return NEUTRAL_LINE, "neutral"
+    chosen = [max(lines, key=len)]
+    if seconds:
+        for ln in sorted(lines, key=len, reverse=True)[1:]:
+            if spoken_seconds(" ".join(chosen + [ln]), pace) <= float(seconds):
+                chosen.append(ln)
+    return " ".join(ln for ln in lines if ln in chosen), "script"
 
 
 def voice_prompt(name: str, voice: str = "", design: str = "", line: str = "",

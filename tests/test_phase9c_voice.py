@@ -196,6 +196,25 @@ class VoiceGenerateTest(Episode):
         self.assertEqual(AC.voice_line(story, "ada")[1], "script")
         self.assertEqual(AC.voice_line(story, "nobody"), (AC.NEUTRAL_LINE, "neutral"))
         self.assertEqual(AC.voice_line(None, "ada"), (AC.NEUTRAL_LINE, "neutral"))
+        # a length to fill: her lines, longest first, as many as fit it, said in script
+        # order; never a seconds left over for the model to invent words in
+        said = AC.lines_of(story, "ada")
+        self.assertGreater(len(said), 1)
+        longest = max(said, key=len)
+        self.assertEqual(AC.voice_line(story, "ada", 0.5)[0], longest)        # at least the longest
+        full = AC.voice_line(story, "ada", 60)[0]
+        self.assertEqual(full, " ".join(said))                                 # room for all of them
+        some = AC.voice_line(story, "ada", AC.spoken_seconds(longest) + 1.0)[0]
+        self.assertIn(longest, some)
+        self.assertLessEqual(AC.spoken_seconds(some), AC.spoken_seconds(longest) + 1.0)
+        # no length asked: as long as the words take, up to the default, never under the minimum
+        (rex,) = R.plan_generate(self.s, R.GenRequest("voice:rex"), rng=random.Random(1))
+        default, _, lo = rex.target.seconds_range()
+        self.assertAlmostEqual(rex.seconds, lo, delta=0.34)                   # "Woof." isn't 8 s
+        (ada8,) = R.plan_generate(self.s, R.GenRequest("voice:ada"), rng=random.Random(1))
+        self.assertLessEqual(ada8.seconds, default + 0.34)
+        self.assertLessEqual(AC.spoken_seconds(ada8.line), ada8.seconds + 0.5)
+        self.assertIn(f"About {round(ada8.seconds):g} seconds of speech.", ada8.prompt)
         # a typed prompt is the caller's, and says so
         (own,) = R.plan_generate(self.s, R.GenRequest("voice:ada", prompt="say something"),
                                  rng=random.Random(1))
