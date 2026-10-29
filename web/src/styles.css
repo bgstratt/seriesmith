@@ -1005,6 +1005,11 @@
 .h3-gal-lightbox { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; background: var(--h3-bg); }
 .h3-gal-bar { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--h3-border); }
 .h3-gal-search { width: 220px; min-width: 120px; flex: 0 1 220px; }
+/* the gallery's toolbar, under its title bar: what's shown on the left, how on the right; it wraps */
+.h3-gal-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px;
+  border-bottom: 1px solid var(--h3-border); flex: 0 0 auto;
+}
 .h3-gal-view { flex: 1 1 auto; min-height: 0; display: flex; }
 .h3-gal-stage { position: relative; flex: 1 1 auto; min-width: 0; background: #000; display: flex; }
 .h3-gal-pane { position: relative; flex: 1 1 0; min-width: 0; }
