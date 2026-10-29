@@ -348,7 +348,7 @@ Everything you do to a shot lives here:
 | **Leave out of the cut** / **Put back in the cut** | The shot keeps its place in the script and its takes; Export, Play all and Master skip it |
 | **Clear trims** | Back to the whole take |
 | **Add issue…** | Note what is wrong with it (see **Noting what's wrong**) |
-| **Audio from…** / **Back to its own audio** | This clip's picture with another clip's (or a file's) sound: its dub tracks are one click there, laid over the take as it is (no lip sync; for that, **Sound…** → Dub and render it again) |
+| **Overlay audio…** / **Back to its own audio** | What the cut plays under this clip: another clip's (or a file's) sound, its dub tracks one click there, laid over the take as it is. It changes no render: the mouths don't follow it (for that, **Sound…** → Dub, and render again) |
 | **Move left / right in the cut** | Reorder (`Alt+←` / `Alt+→` in the timeline) |
 
 ### Editing a shot

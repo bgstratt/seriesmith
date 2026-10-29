@@ -1,4 +1,4 @@
-// Phase 9d: "Audio from…" — a clip's picture with someone else's sound.
+// Phase 9d: "Overlay audio…" — a clip's picture with someone else's sound.
 // The window offers the clip's own audio, any shot's take with sound, a file
 // inside the episode (browse or upload), or silence; draws both waveforms with
 // the clip's picture length marked against the source; and moves `start` and
@@ -332,7 +332,7 @@ function ClipAudioBody({ ep }: { ep: string }) {
 
   return (
     <Dialog
-      title={<>Audio for {c.shot} <span className="h3-muted h3-small">{c.pass} · {fmtSeconds(clipSeconds)}</span></>}
+      title={<>Overlay audio on {c.shot} <span className="h3-muted h3-small">{c.pass} · {fmtSeconds(clipSeconds)}</span></>}
       onClose={closeClipAudio}
       wide
       footer={

@@ -270,7 +270,7 @@ describe("the speaker badge's words", () => {
     expect(b.title).toContain("-0.20 s against the picture");
     expect(b.title).toContain("gain 1.5");
     expect(b.title).toContain("renders_proxy/sh020/sh020_t01.mp4");
-    expect(b.title).toContain("Audio from…");
+    expect(b.title).toContain("Overlay audio…");
   });
   it("silence reads as muted", () => {
     const b = audioBadgeOf({ ...CUT, audio: { source: "none" } }, "sh040")!;
@@ -722,15 +722,15 @@ describe("the Phase 9d surfaces render", () => {
     expect(html).toContain("line_sh030.wav");
     expect(html).toContain("+0.50 s against the picture");
     expect(html).toContain("gain 2");
-    expect(html).toContain("Audio from…");
+    expect(html).toContain("Overlay audio…");
     expect(html).toContain("Clear");
     // a clip on its own sound says so and offers no Clear
     expect(renderToString(createElement(CutSection, { shot: "sh020" }))).toContain("its own take&#x27;s sound");
   });
 
-  it("the clip's context menu has Audio from…", async () => {
+  it("the clip's context menu has Overlay audio…", async () => {
     store.set({ menu: { x: 0, y: 0, shot: "sh010", pass: "proxy", take: 1 } });
-    expect(renderToString(createElement(ContextMenu))).toContain("Audio from…");
+    expect(renderToString(createElement(ContextMenu))).toContain("Overlay audio…");
     await setClipAudio("sh010", { source: "none" });
     await cutSettled();
     const html = renderToString(createElement(ContextMenu));

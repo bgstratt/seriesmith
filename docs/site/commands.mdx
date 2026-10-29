@@ -321,7 +321,7 @@ seriesmith assemble Shows\ep05 --partial         # join what exists so far
   `--audio auto|mp4|h3|none|master` chooses the sound for the clips that have none of
   their own. A clip **can** have its own: `cut.json`'s `audio` lays another take's sound,
   a file's, or silence under it, cut or padded to the clip so the length never changes
-  (the Timeline's **Audio from…**, or `seriesmith cut --audio`). `--audio master` and `none`
+  (the Timeline's **Overlay audio…**, or `seriesmith cut --audio`). `--audio master` and `none`
   override those; the others leave them alone.
 - Shots with an `audio:` window are trimmed to it (re-encoded, x264 CRF 16) so the cut lines up
   with the recording. `--no-trim` keeps the padding.

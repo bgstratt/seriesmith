@@ -147,7 +147,7 @@ function ClipAudioLine({ shot, cut, locked }: { shot: string; cut: ShotStatus["c
       )}
       <span className="h3-grow" />
       <button className="h3-btn" title={`Pick where ${shot}'s sound comes from`} onClick={() => openClipAudio(shot)}>
-        <i className="pi pi-volume-up" /> Audio from…
+        <i className="pi pi-volume-up" /> Overlay audio…
       </button>
       {a && (
         <button
