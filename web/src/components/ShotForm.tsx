@@ -78,6 +78,8 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const targets = useApp((s) => s.targets);
   // the shot's sound as set in the editor (Sound…), beating the script's `policy:`
   const sound = useApp((s) => (shot ? s.status[statusKey(ep, s.pass)]?.shots.find((x) => x.shot === shot)?.sound : undefined));
+  // the episode has recorded dialogue (audio.track): the script's dub is to it
+  const hasTrack = useApp((s) => !!s.status[statusKey(ep, s.pass)]?.track);
   const sc = useSeriesConfig(ep);
   const [doc, setDoc] = useState<SourceDoc | null>(null);
   const [form, setForm] = useState<Form | null>(null);
@@ -440,12 +442,22 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                   <Row label="Last frame" help="The picture it ends on, for the models that take one.">
                     <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
                   </Row>
-                  <Row label="Audio" help="The script's line for this shot's sound: generate, dub (lip-sync to the recording), dub_keep_foley, clone. Empty: the series' dialogue setting. Sound… sets it in the editor instead, a dub track or a take's sound included, and beats this line.">
+                  <Row label="Audio" help="The script's line for this shot's sound: generate, clone, or dub / dub_keep_foley (lip-sync to the shot's window of the episode's recorded dialogue: audio.track, then align). Empty: the series' dialogue setting. Sound… sets it in the editor instead, dubbing to a dub track or a take's sound included (no recording needed), and beats this line.">
                     <span className="h3-row" style={{ gap: 6 }}>
                       <select className="h3-in" value={form.keys.policy ?? ""} onChange={(e) => set("policy", e.target.value)}>
                         <option value="">the series'</option>
-                        {["generate", "dub", "dub_keep_foley", "clone"].map((p) => <option key={p} value={p}>{p}</option>)}
+                        {["generate", "dub", "dub_keep_foley", "clone"].map((p) => {
+                          // the script's dub is to the recorded dialogue track (align):
+                          // without one, a dub is a dub track or a take's sound (Sound…)
+                          const off = !hasTrack && p.startsWith("dub") && form.keys.policy !== p;
+                          return <option key={p} value={p} disabled={off}>{p}{off ? " (needs a recorded track)" : ""}</option>;
+                        })}
                       </select>
+                      {!hasTrack && (form.keys.policy ?? "").startsWith("dub") && (
+                        <span className="h3-small h3-err" title="The script's dub lip-syncs to the shot's window of the episode's recorded dialogue (audio.track, then seriesmith align)">
+                          No recorded track: the build refuses this. For a dub track or a take's sound, use Sound….
+                        </span>
+                      )}
                       {!isNew && shot && (
                         <button type="button" className={`h3-btn${sound ? " h3-primary" : ""}`}
                           title={sound ? "Set in the editor, beating the script's line: change it" : "Generate, clone, or dub a track (a dub track, a take's sound): set in the editor"}
