@@ -1103,7 +1103,13 @@ The cut as an editable track, along the bottom of the page.
   as an upload in Refs is. A shot whose model reads no
   keyframe keeps it unused, and says so. Dropped between two clips, a picture opens the shot
   form there, as a video does: **Save** makes the shot with the picture as its first
-  keyframe, and **Save and generate** renders it from that keyframe.
+  keyframe, **Save and generate** renders it from that keyframe, and **Save and hold it**
+  makes the picture itself the shot's take, held still for the shot's length: a card ("Two
+  hours later") or a still, nothing rendered. Its badge says **held**.
+- **A freeze frame**: a take's menu (in the viewer, right-click the picture at the frame you
+  want; elsewhere, its last frame) has **Hold this frame after it…**. It asks how long, adds a
+  shot right after it in the script (its who, with and size; no dialogue, so no line is said
+  twice) and holds that frame as its take, in the cut.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).

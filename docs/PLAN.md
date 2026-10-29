@@ -1315,14 +1315,15 @@ own way, in seriesmith's own code, nothing copied or depended on. Not a grading 
 real colour work and real editing go to Premiere / Resolve with the cut's clips. What's
 here is what a cut needs before that, and what a cut that never leaves seriesmith needs.
 
-- [ ] **A held picture as a shot** (freeze frames, "Two hours later" cards). A picture dropped
-      between two clips today opens the shot form with it as the first keyframe (to render
-      from); the form gets **Hold it** beside Save / Save and generate: ffmpeg loops the
-      picture into a `dur:`-long H.264 clip at the episode's size and rate (silent: assemble
-      pads), imported as the shot's take through `takeimport` (`source: "imported"`, so never
-      stale; its badge says **held**). Trimmed, moved, exported as any clip. A take's menu
-      gets **Hold this frame…** (the viewer's frame, a length asked) doing the same, a new
-      shot after it. The script line: a shot whose action says it's a card, no who/dialogue.
+- [x] **A held picture as a shot** (freeze frames, "Two hours later" cards):
+      `POST /seriesmith/take/hold` (`takeimport.hold_take` / `hold_frame`): a picture, or a
+      take's frame, looped into an H.264 clip at the pass's size and the cut's rate,
+      letterboxed, silent (assemble pads); an imported take with `held` in its record, never
+      stale, badge **held**. The shot form's **Save and hold it** (a picture dropped between
+      two clips; `dur:` is the length) and a take's **Hold this frame after it…** (a length
+      asked; a new shot after it, its who / with / size, no dialogue: `insertedShot`'s
+      `held`). The MCP's `hold_picture`. Tests: `tests/test_takeimport.py`,
+      `web/test/takeDrop.test.ts`. Not yet live.
 - [ ] **An animatic**: each shot's first keyframe held for its `dur:` (the recording's window
       under it where there is one, else silence), as a third pass beside proxy and final
       (`renders_animatic/`, cut.json's `animatic` list), so it disturbs neither. A shot with

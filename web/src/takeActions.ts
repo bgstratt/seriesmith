@@ -149,6 +149,47 @@ export async function dropTakeBetween(gap: number, from: TakeDrag): Promise<void
   }
 }
 
+/** A freeze frame: frame `frame` of `shot`'s take held still, as a new shot right
+ * after it in the script (its who, with and size; no dialogue) and in the cut.
+ * The length is asked. */
+export async function holdFrameAfter(shot: string, take: number, frame: number | "last", fromPass: "final" | "proxy"): Promise<void> {
+  const { ep, pass } = get();
+  if (!ep) return;
+  const t = get().status[statusKey(ep, fromPass)]?.shots.find((s) => s.shot === shot)?.takes.find((x) => x.take === take);
+  const n = frame === "last" ? (t?.frames ? t.frames - 1 : null) : frame;
+  if (n == null) {
+    host().toast("warn", "Which frame?", `${shot} ${tn(take)} doesn't say how many frames it has: pick the frame in the viewer.`);
+    return;
+  }
+  const raw = window.prompt(`Hold frame ${n} of ${shot} ${tn(take)} for how many seconds?`, "2");
+  if (raw == null) return;
+  const seconds = Number(raw);
+  if (!(seconds > 0)) {
+    host().toast("warn", "Not a length", `${raw} isn't a number of seconds.`);
+    return;
+  }
+  const what = `frame ${n} of ${shot} ${tn(take)}${fromPass !== pass ? ` (${fromPass})` : ""}`;
+  try {
+    const doc = await api().source(ep, "script");
+    const made = insertedShot(doc.text, doc.shots, shot, { after: shot }, seconds, `${what}, held`,
+      `A still: ${what}, held.`);
+    if (!made) {
+      host().toast("error", "Nowhere to put it", `${shot} isn't in the script.`);
+      return;
+    }
+    const r = await api().putSource({ ep, file: "script", text: made.text, base_hash: doc.hash, rebuild: true });
+    afterAuthoredWrite(r.build);
+    if (r.build && !r.build.ok) return;                     // the build said why
+    const h = await api().holdTake({ ep, pass, shot: made.id, from_shot: shot, take, from_pass: fromPass, frame: n, seconds, pick: true });
+    await refreshEpisode(ep, pass);
+    await moveClip(made.id, gapAfter(cutShots(), shot));
+    select(made.id, h.take);
+    host().toast("success", `${made.id} added`, `${what}, held ${seconds} s.`);
+  } catch (e) {
+    host().toast("error", "Couldn't hold the frame", errText(e));
+  }
+}
+
 /** A video file between two clips: the shot form there, its length the file's;
  * Save makes the shot, imports the file as its take and puts the clip there. */
 /** A file dropped on a shot's row or clip: a video becomes a take of it (in the
@@ -202,10 +243,31 @@ export async function dropFileBetween(gap: number, file: File): Promise<void> {
   });
 }
 
+/** A picture held still as `shot`'s new take in the current pass, picked: a card
+ * ("Two hours later"), as long as the shot. The take's number, or null (said). */
+export async function holdPictureFile(shot: string, file: File): Promise<number | null> {
+  const { ep, pass } = get();
+  if (!ep) return null;
+  try {
+    const r = await api().holdTake({ ep, pass, shot, file, name: file.name, pick: true });
+    host().toast("success", `${shot}: ${file.name} held`,
+      `${tn(r.take)}, ${r.sidecar?.held?.seconds ?? "?"} s${r.picked ? ", in the cut" : r.why ? `: ${r.why}` : ""}.`);
+    await refreshEpisode(ep, pass);
+    select(shot, r.take);
+    return r.take;
+  } catch (e) {
+    host().toast("error", `Couldn't hold ${file.name} as ${shot}`, errText(e));
+    return null;
+  }
+}
+
 /** After the shot form saved a new shot that came with a file: the file as its
- * take, and the clip where it was dropped. */
-export async function finishDroppedFile(shot: string, file: File, left: string | null): Promise<void> {
-  if (isPicture(file)) {
+ * take (a picture: its first keyframe, or with `hold` its take, held still), and
+ * the clip where it was dropped. */
+export async function finishDroppedFile(shot: string, file: File, left: string | null, hold = false): Promise<void> {
+  if (hold && isPicture(file)) {
+    if ((await holdPictureFile(shot, file)) == null) return;
+  } else if (isPicture(file)) {
     await keyframeFromFile(shot, file);
     const { ep, pass } = store.get();
     if (ep) await refreshEpisode(ep, pass);         // the new shot in the status, to be moved

@@ -147,10 +147,69 @@ class TakeImportTest(ApiTest):
                                                   "take": src["take"], "from_pass": "proxy"}))
         self.assertEqual(got["pass"], "final")
 
+    def hold(self, status=200, **body):
+        res = A.post_take_hold(self.ctx, dict({"ep": self.ep, "shot": self.shots[1]}, **body))
+        return self.ok(res) if status == 200 else self.err(res, status)
+
+    def picture(self, name="card.png", size="300x300"):
+        path = os.path.join(self.tmp, name)
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
+                        f"color=c=red:size={size}", "-frames:v", "1", path],
+                       check=True, capture_output=True)
+        return path
+
+    def test_a_picture_held(self):
+        from seriesmith import edit as E
+        from seriesmith import jobs as J
+        got = self.hold(source_path=self.picture(), seconds=2, pick=True)
+        t = T.get_take(self.ep, "proxy", self.shots[1], got["take"])
+        sc = t.sidecar
+        fps = E.pass_fps(self.ep, "proxy")
+        d = J.load_shotlist(self.ep, "proxy")["defaults"]
+        self.assertEqual((sc["status"], sc["source"], sc["held"]),
+                         ("ok", "imported", {"seconds": 2.0, "name": "card.png"}))
+        self.assertEqual((sc["frames"], sc["fps"]), (round(2 * fps), fps))
+        self.assertEqual((sc["width"], sc["height"]), (d["width"], d["height"]))
+        self.assertTrue(TI.playable(t.paths.mp4))
+        self.assertTrue(got["picked"])
+        st = self.ok(A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))
+        tk = next(x for s in st["shots"] if s["shot"] == self.shots[1]
+                  for x in s["takes"] if x["take"] == got["take"])
+        self.assertEqual(tk["held"]["name"], "card.png")
+        # an upload; seconds as a form gives them; by default the shot's duration
+        up = A.Upload(self.picture("x.jpg"), "Two hours later.jpg", 1)
+        got = self.hold(file=up, seconds="1.5")
+        self.assertEqual(got["sidecar"]["held"], {"seconds": 1.5, "name": "Two hours later.jpg"})
+        got = self.hold(source_path=self.picture())
+        self.assertGreater(got["sidecar"]["frames"], 0)
+
+    def test_a_freeze_frame(self):
+        src = self.imp(source_path=self.h264)
+        got = self.hold(shot=self.shots[2], from_shot=self.shots[1], take=src["take"],
+                        frame=12, seconds=1)
+        held = got["sidecar"]["held"]
+        self.assertEqual(held, {"seconds": 1.0, "from": {"shot": self.shots[1],
+                                "take": src["take"], "pass": "proxy", "frame": 12}})
+        self.assertEqual(got["sidecar"]["note"], f"frame 12 of {self.shots[1]} t{src['take']:02d}")
+        # past its last frame, a take that isn't there
+        self.assertIn("no frame 99", self.hold(400, from_shot=self.shots[1], take=src["take"],
+                                               frame=99))
+        self.hold(404, from_shot=self.shots[1], take=99, frame=0)
+
+    def test_hold_refusals(self):
+        self.hold(400)
+        self.assertIn("an image", self.hold(400, source_path=self.h264))
+        self.hold(400, source_path=self.picture(), seconds=0)
+        self.hold(400, source_path=self.picture(), seconds="soon")
+        self.hold(400, source_path=self.picture(), seconds=TI.HOLD_MAX_SECONDS + 1)
+        self.hold(404, source_path=os.path.join(self.tmp, "none.png"))
+        self.hold(404, shot="sh999", source_path=self.picture())
+
     def test_routes_are_registered(self):
         got = {(m, p): takes for m, p, _f, takes in A.ROUTES}
         self.assertEqual(got[("POST", "/seriesmith/take/import")], "form")
         self.assertEqual(got[("POST", "/seriesmith/take/copy")], "body")
+        self.assertEqual(got[("POST", "/seriesmith/take/hold")], "form")
         self.assertGreater(A.post_take_import.max_upload, A.MAX_UPLOAD)
 
 

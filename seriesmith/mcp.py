@@ -458,6 +458,18 @@ TOOLS: list[Tool] = [
           "from_pass": PASS, "pick": {"type": "boolean"}}, ("ep", "shot", "from_shot", "take"),
          route("POST", "/seriesmith/take/copy", "ep", "pass", "shot", "from_shot", "take",
                "from_pass", "pick"), writes=True),
+    Tool("hold_picture", "A picture held still as a shot's new take: a card (\"Two hours "
+         "later\") from source_path, or a freeze frame (from_shot, take, frame: from 0; "
+         "from_pass for the other pass). seconds defaults to the shot's duration; the size "
+         "is the pass's, the frame rate the cut's; no sound. Picked if pick is true. To put "
+         "one between two shots, add a shot to the script there first.",
+         {"ep": EP, "shot": SHOT, "pass": PASS, "source_path": _s("the picture's absolute "
+          "path (png, jpg, webp)"), "from_shot": SHOT, "take": TAKE, "from_pass": PASS,
+          "frame": {"type": "integer", "minimum": 0}, "seconds": {"type": "number"},
+          "pick": {"type": "boolean"}, "note": _s("optional")}, ("ep", "shot"),
+         route("POST", "/seriesmith/take/hold", "ep", "pass", "shot", "source_path",
+               "from_shot", "take", "from_pass", "frame", "seconds", "pick", "note"),
+         writes=True),
     Tool("discard_take", "Move a take into renders/_trash/ (out of the lists; the file is "
          "kept there).", {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS},
          ("ep", "shot", "take"),

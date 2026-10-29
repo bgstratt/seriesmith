@@ -2410,6 +2410,69 @@ def post_take_copy(ctx: Context, body):
     return 200, _take_answer(ep, t, extra)
 
 
+def _hold_format(ep: str, pass_: str, shot: str) -> tuple[float, float, tuple[int, int]]:
+    """A held take of `shot`: (its seconds by default: the shot's duration,
+    the cut's frame rate, the pass's size, a shot's own size first)."""
+    fps = E.pass_fps(ep, pass_)
+    doc, i = J.find_shot(ep, pass_, shot)
+    s, d = doc["shots"][i], doc.get("defaults", {})
+    size = (int(s.get("width") or d.get("width") or 1344),
+            int(s.get("height") or d.get("height") or 768))
+    seconds = s.get("duration") or d.get("duration") or 3
+    return float(seconds), fps, size
+
+
+@handler
+def post_take_hold(ctx: Context, body):
+    """A picture held as a shot's new take (takeimport.hold_take): a card, or
+    with `{from_shot, take, frame, from_pass?}` one frame of a take (a freeze
+    frame). `{ep, pass?, shot, seconds?, pick?}` plus a picture: multipart
+    `file`, or `source_path` on this machine. `seconds` defaults to the
+    shot's duration; the size is the pass's, the rate the cut's."""
+    from seriesmith import takeimport as TI
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = _script_shot(ep, pass_, check_shot(body.get("shot")))
+    pick = _pick_flag(body.get("pick"))
+    seconds, fps, size = _hold_format(ep, pass_, shot)
+    raw = body.get("seconds")
+    if raw not in (None, ""):
+        try:
+            seconds = float(raw)
+        except (TypeError, ValueError):
+            raise ApiError(400, f"seconds must be a number, not {raw!r}")
+    up = body.get("file")
+    if body.get("from_shot") is not None:
+        from_shot = check_shot(body.get("from_shot"))
+        take = check_take(body.get("take"))
+        frame = body.get("frame")
+        if isinstance(frame, str) and frame.isdigit():
+            frame = int(frame)
+        try:
+            t = TI.hold_frame(ep, pass_, shot, from_shot, take, frame, seconds, fps, size,
+                              check_pass(body.get("from_pass"), pass_))
+        except LookupError as e:
+            raise ApiError(404, str(e))
+    elif isinstance(up, Upload):
+        TI.check_picture_type(up.filename or "")
+        t = TI.hold_take(ep, pass_, shot, up.path, seconds, fps, size,
+                         original_name=up.filename, note=_opt_str(body, "note") or "")
+    elif up is not None:
+        raise ApiError(400, "file must be sent as multipart/form-data")
+    else:
+        src = body.get("source_path")
+        if not isinstance(src, str) or not src.strip():
+            raise ApiError(400, "a picture is required: multipart `file`, `source_path` on "
+                                "this machine, or from_shot / take / frame")
+        t = TI.hold_take(ep, pass_, shot, src.strip(), seconds, fps, size,
+                         note=_opt_str(body, "note") or "")
+    take_event(ctx, ep, t)
+    extra = _pick_new(ctx, ep, pass_, t) if pick else {"picked": False}
+    episode_event(ctx, ep)
+    return 200, _take_answer(ep, t, extra)
+
+
 def _cut_entry(raw) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("shot"), str) or not raw["shot"]:
         raise ApiError(400, "each cut entry needs a shot id")
@@ -4869,6 +4932,7 @@ ROUTES = [
     ("GET", "/seriesmith/mcp", get_mcp, "query"),
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
+    ("POST", "/seriesmith/take/hold", post_take_hold, "form"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

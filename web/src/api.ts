@@ -21,7 +21,7 @@ import type {
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
-  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
+  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeHoldRequest, TakeImportRequest, TakeUploadRequest,
   DubSources, ShotSound,
 } from "./types";
 import { comboChoices } from "./lib/targets";
@@ -248,6 +248,9 @@ export interface Api {
   uploadTake(req: TakeUploadRequest, onProgress?: UploadProgress): Promise<ImportedShotTake>;
   /** POST /seriesmith/take/copy: another shot's take copied in (the gallery's drag). */
   copyTake(req: TakeCopyRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/take/hold: a picture (a file, multipart) or a take's frame held still
+   * as a shot's take. */
+  holdTake(req: TakeHoldRequest): Promise<ImportedShotTake>;
   // ---- P10: a pass's issues (the notepad) ----
   /** GET /seriesmith/issues: what was noted for a pass, each with `addressed`. */
   issues(ep: string, pass?: Pass | null): Promise<Issue[]>;
@@ -721,6 +724,17 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/take/import", form, onProgress);
     },
     copyTake: (req) => call("POST", "/seriesmith/take/copy", req),
+    holdTake: (req) => {
+      if (!req.file) return call("POST", "/seriesmith/take/hold", req);
+      const form = new FormData();
+      form.append("ep", req.ep);
+      form.append("pass", req.pass);
+      form.append("shot", req.shot);
+      if (req.seconds != null) form.append("seconds", String(req.seconds));
+      if (req.pick) form.append("pick", "1");
+      form.append("file", req.file, req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "picture.png"));
+      return postForm("/seriesmith/take/hold", form);
+    },
     issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
     addIssue: (req) => call("POST", "/seriesmith/issues", req),

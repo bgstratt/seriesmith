@@ -17,7 +17,7 @@ import {
   GALLERY_GROUPS, gallerySections, isShared, itemAspect, sequencesOf, shotSections, takeAspect,
   type GalleryItem, type SharedTakes, type ShotItem,
 } from "../lib/gallery";
-import { fmtWhen, shortName, tn } from "../lib/format";
+import { fmtWhen, heldText, shortName, tn } from "../lib/format";
 import { isKeyframeRef, keyframeSource } from "../lib/keyframes";
 import { regenerateRequest } from "../lib/refSettings";
 import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../lib/refs";
@@ -851,7 +851,7 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
           </div>
           <div className="h3-kv">
             {t.source === "imported" && (
-              <><span>from</span><span>{t.copied_from ? `${t.copied_from.shot} ${tn(t.copied_from.take)} (${t.copied_from.pass}), copied in` : `${t.original_name ?? "a file"}, imported`}</span></>
+              <><span>from</span><span>{t.held ? heldText(t.held) : t.copied_from ? `${t.copied_from.shot} ${tn(t.copied_from.take)} (${t.copied_from.pass}), copied in` : `${t.original_name ?? "a file"}, imported`}</span></>
             )}
             {t.target && <><span>model</span><span>{targetLabel(targets, t.target)}</span></>}
             {sc?.model && <><span>file</span><span title={String(sc.model)}>{shortName(sc.model, 40)}</span></>}

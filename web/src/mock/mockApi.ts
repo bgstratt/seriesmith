@@ -14,7 +14,7 @@ import { promptText } from "../lib/format";
 import type {
   BuildResult, CutAudioSource, CutEntry, EpisodeStatus, EpisodeSummary, Issue, Lora, MissingRef, Override, OverrideResult, Pass,
   RefGenerateMissingResult, RefUsed, RenderResult, ShotDetail, ShotStatus, ShotTargetSource, SourceCheck, SourceFile,
-  TakeDetail, TakeSummary, Target, TargetGraph, Track, TrackResult, ImportedShotTake,
+  TakeDetail, TakeHeld, TakeSummary, Target, TargetGraph, Track, TrackResult, ImportedShotTake,
   ShotSound,
 } from "../types";
 import { localShotSpans } from "../lib/source";
@@ -792,7 +792,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   /** takeimport, mocked: a finished take of `shot` from a file or another take
    * (its pictures borrowed from one already there), picked if asked. */
   async function mockImportTake(pass: Pass, shot: string, name: string | null, pick: boolean,
-    copied: { shot: string; take: number; pass: Pass; src: TakeSummary } | null): Promise<ImportedShotTake> {
+    copied: { shot: string; take: number; pass: Pass; src: TakeSummary } | null,
+    held: TakeHeld | null = null): Promise<ImportedShotTake> {
     await wait(300);
     const s = shotSt(pass, shot);
     const take = (s.takes[s.takes.length - 1]?.take ?? 0) + 1;
@@ -805,11 +806,12 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       save_notes: copied ? `copied from ${copied.shot} t${copied.take} (${copied.pass})` : `uploaded as ${name}`,
       target: null, frames: like?.frames ?? 72, fps: like?.fps ?? 24,
       source: "imported", original_name: copied ? null : name,
-      copied_from: copied ? { shot: copied.shot, take: copied.take, pass: copied.pass } : null,
+      copied_from: copied && !held ? { shot: copied.shot, take: copied.take, pass: copied.pass } : null,
+      held, ...(held ? { frames: Math.round(held.seconds * 24), fps: 24 } : {}),
     };
     s.takes.push(sum);
-    const sidecar = { status: "ok", source: "imported", shot, take, pass, note, seed: null,
-      ...(copied ? { copied_from: { shot: copied.shot, take: copied.take, pass: copied.pass } } : { original_name: name }) };
+    const sidecar = { status: "ok", source: "imported", shot, take, pass, note, seed: null, held,
+      ...(copied && !held ? { copied_from: { shot: copied.shot, take: copied.take, pass: copied.pass } } : { original_name: name }) };
     det(pass, shot).takes.push({ take, status: "ok", has_video: true, stale: [], sidecar: sidecar as unknown as TakeDetail["sidecar"], files: {} });
     let picked = false;
     if (pick) {
@@ -1587,6 +1589,19 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!src) throw new MockError(`${req.from_shot} has no take ${req.take} in ${from}`, 404);
       if (!(src.status === "ok" && src.has_video)) throw new MockError(`${req.from_shot} t${req.take} isn't a finished take`, 400);
       return mockImportTake(req.pass, req.shot, null, !!req.pick, { shot: req.from_shot, take: req.take, pass: from, src });
+    },
+    async holdTake(req) {
+      need(req.ep);
+      const seconds = req.seconds ?? shotSt(req.pass, req.shot).seconds ?? 3;
+      if (req.from_shot != null && req.take != null) {
+        const from = req.from_pass ?? req.pass;
+        const src = shotSt(from, req.from_shot).takes.find((t) => t.take === req.take);
+        if (!src) throw new MockError(`${req.from_shot} has no take ${req.take} in ${from}`, 404);
+        return mockImportTake(req.pass, req.shot, null, !!req.pick, { shot: req.from_shot, take: req.take, pass: from, src },
+          { seconds, from: { shot: req.from_shot, take: req.take, pass: from, frame: req.frame ?? 0 } });
+      }
+      const name = req.name ?? req.source_path?.split(/[\/]/).pop() ?? "picture.png";
+      return mockImportTake(req.pass, req.shot, name, !!req.pick, null, { seconds, name });
     },
     // ---- P10: a pass's issues (the notepad) ----
     async issues(ep, pass) {

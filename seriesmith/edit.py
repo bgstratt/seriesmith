@@ -331,15 +331,16 @@ def set_sound(root: str, shots: list[str], sound: dict | None) -> dict:
 
 
 def take_origin(sidecar: dict | None) -> dict:
-    """An imported take's `source`, `original_name` (or the file's name) and
-    `copied_from`; nothing for a rendered one."""
+    """An imported take's `source`, `original_name` (or the file's name),
+    `copied_from` and `held` (a held picture: {seconds, name | from});
+    nothing for a rendered one."""
     sc = sidecar or {}
     if sc.get("source") != "imported":
         return {}
     name = sc.get("original_name") or (os.path.basename(sc["source_path"])
                                        if sc.get("source_path") else None)
     return {"source": "imported", "original_name": name,
-            "copied_from": sc.get("copied_from")}
+            "copied_from": sc.get("copied_from"), "held": sc.get("held")}
 
 
 def chain_changed(root: str, pass_: str, shot_id: str, held: dict, cache: dict) -> bool:

@@ -36,7 +36,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
-| `POST /seriesmith/take/import`, `POST /seriesmith/take/copy` | Takes from outside |
+| `POST /seriesmith/take/import`, `POST /seriesmith/take/copy`, `POST /seriesmith/take/hold` | Takes from outside |
 | `GET /seriesmith/mcp` | Using seriesmith from an LLM |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
 | `POST /seriesmith/assemble` | Assemble |
@@ -507,6 +507,21 @@ that isn't finished, 404 for one that isn't there. Same answer as import. The ga
 drag onto the timeline: onto a clip, it is copied into that shot and picked; between two
 clips, the editor first adds a shot to the script there (as "Add a shot after" does, its
 lines copied from the take's shot and its `dur:` the take's length), then copies into it.
+
+### `POST /seriesmith/take/hold`
+A picture held still as a shot's new take: a card ("Two hours later"), or a freeze frame.
+`{ep, pass?, shot, seconds?, pick?, note?}` and the picture: multipart `file`, or
+`source_path` (a png, jpg or webp on this machine), or `{from_shot, take, frame,
+from_pass?}` (frame `frame`, from 0, of that take; 400 past its last). `seconds` (over 0, at
+most 600) defaults to the shot's duration in the pass's shotlist. The take is an H.264 mp4
+(x264 CRF 12 slow, BT.709) at the pass's size (the shot's own, else the shotlist's
+defaults), scaled to fit and letterboxed in black, at the cut's frame rate, with no sound
+(assemble lays silence under it). An imported take otherwise (`source: "imported"`, never
+stale); its sidecar's `held` is `{seconds, name}` (the file's name) or `{seconds, from:
+{shot, take, pass, frame}}`, and `GET /seriesmith/episode` carries the same `held` on the
+take. Same answer as import. The editor's **Save and hold it** (a picture dropped between
+two clips) and **Hold this frame after it…** (a take's menu: a new shot after it in the
+script, its who / with / size, no dialogue, then the frame held into it).
 
 ## Using seriesmith from an LLM (2026-10-27)
 

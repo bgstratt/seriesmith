@@ -6,7 +6,7 @@ import {
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
   generateDubTracks, openSound, setSound,
 } from "../actions";
-import { pickTakeFile } from "../takeActions";
+import { holdFrameAfter, pickTakeFile } from "../takeActions";
 import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -128,6 +128,15 @@ export function ContextMenu() {
           }))}
         >
           <i className="pi pi-arrow-right" /> Use this frame as the next shot's first frame
+          <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
+        </button>
+      )}
+      {take && (
+        <button disabled={!usable}
+          title={usable ? `A new shot right after ${menu.shot}: ${frameLabel} of ${tn(take.take)} held still (a freeze frame), as long as you say`
+            : "Only a finished take with video has frames"}
+          onClick={run(() => void holdFrameAfter(menu.shot, take.take, menu.frame ?? "last", menu.pass))}>
+          <i className="pi pi-pause" /> Hold this frame after it…
           <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
         </button>
       )}

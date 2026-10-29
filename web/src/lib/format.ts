@@ -1,4 +1,4 @@
-import type { ShotStatus, TakeSummary } from "../types";
+import type { ShotStatus, TakeHeld, TakeSummary } from "../types";
 import { missingOf, missingRefsTitle } from "./missingRefs";
 
 export type BadgeKind =
@@ -135,6 +135,12 @@ ${missingRefsTitle(missing)}`,
 
 export function tn(take: number | null | undefined): string {
   return take == null ? "t--" : `t${String(take).padStart(2, "0")}`;
+}
+
+/** What a held take holds: "frame 40 of sh020 t03, held 2 s", "card.png, held 2 s". */
+export function heldText(h: TakeHeld): string {
+  const what = h.from ? `frame ${h.from.frame} of ${h.from.shot} ${tn(h.from.take)}` : h.name ?? "a picture";
+  return `${what}, held ${h.seconds} s`;
 }
 
 export interface SequenceGroup {

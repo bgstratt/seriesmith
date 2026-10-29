@@ -93,14 +93,19 @@ export function durOf(seconds: number): string {
 
 /** Keys a copied shot doesn't keep: what ties it to its own neighbours. */
 const NOT_COPIED = ["continuous", "first", "last", "overlap"];
+/** ...and what a held frame (a freeze) doesn't keep either: what moves or sounds. */
+const NOT_HELD = ["camera", "sound", "music", "pace", "audio"];
 
 /**
  * The script with a new shot inserted at `anchor`, its lines those of shot
  * `from` (less its continuity), its `dur:` `seconds`, and a comment saying where
- * it came from. Null when `from` or the anchor isn't in the script.
+ * it came from. Null when `from` or the anchor isn't in the script. `held` (a
+ * freeze frame: the action it says instead) drops the dialogue and what moves
+ * or sounds, so the script says no line twice.
  */
 export function insertedShot(text: string, spans: { id: string; line: number; end_line: number }[], from: string,
-  anchor: { after: string } | { before: string }, seconds: number, note: string): { text: string; id: string } | null {
+  anchor: { after: string } | { before: string }, seconds: number, note: string,
+  held: string | null = null): { text: string; id: string } | null {
   const shots = [...spans].sort((a, b) => a.line - b.line);
   const src = shots.find((s) => s.id === from);
   const ids = shots.map((s) => s.id);
@@ -109,6 +114,11 @@ export function insertedShot(text: string, spans: { id: string; line: number; en
   if (!src) return null;
   const f = parseShot(lines.slice(src.line - 1, src.end_line));
   for (const k of NOT_COPIED) delete f.keys[k];
+  if (held != null) {
+    for (const k of NOT_HELD) delete f.keys[k];
+    f.dialogue = [];
+    f.action = held;
+  }
   f.keys.dur = durOf(seconds);
   f.comments = [...f.comments, `// ${note}`];
   let at: number;

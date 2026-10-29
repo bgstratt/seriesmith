@@ -114,6 +114,18 @@ describe("the script with a dropped take's shot", () => {
     expect(lines.indexOf("## sh025")).toBeGreaterThan(lines.indexOf("# sq02  lawn"));
     expect(lines.indexOf("## sh025")).toBeLessThan(lines.indexOf("## sh030"));
   });
+  it("a held frame: its action instead, no dialogue, nothing that moves or sounds", () => {
+    const got = insertedShot(SCRIPT, spans(SCRIPT), "sh020", { after: "sh020" }, 2, "frame 40 of sh020 t03, held",
+      "A still: frame 40 of sh020 t03, held.")!;
+    const lines = got.text.split("\n");
+    const at = lines.indexOf(`## ${got.id}`);
+    const block = lines.slice(at);
+    expect(block).toContain("A still: frame 40 of sh020 t03, held.");
+    expect(block).toContain("dur: 2");
+    expect(block.some((l) => l.startsWith("ADA:"))).toBe(false);
+    expect(block.some((l) => l.startsWith("Ada lifts") || l.startsWith("sound:"))).toBe(false);
+    expect(block).toContain("with: lantern");
+  });
   it("after the last shot", () => {
     expect(insertedShot(SCRIPT, spans(SCRIPT), "sh010", { after: "sh030" }, 2, "x")!.id).toBe("sh040");
   });
