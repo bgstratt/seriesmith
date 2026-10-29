@@ -337,13 +337,14 @@ groups that open beside the menu when you hover them.
 |---|---|
 | **Render this shot** | Queue it with its current settings, on its backend |
 | **Render with settings…** | The same, after changing model, LoRAs, steps, seed or target for this run |
-| **Play** / **Compare with…** | Open in the viewer; compare two takes side by side or with a wipe |
+| **Play** / **Play from here** | Open the take in the viewer; play the cut starting at this shot |
+| **Compare with…** | Compare two takes side by side or with a wipe |
 | **Use this take** | Put it in the cut |
 | **New take like this one…** | Re-render from *this* take's exact settings, with a new seed by default. The one you will reach for most |
 | **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
 | **Upscale and post ›** | **Upscale (2x)…**, **Keep upscale**, **Remove upscale**: the take's upscale (see **Finishing**; a kept one is left alone by Master). **Post-process…**, **Remove post**: finish the upscale |
-| **In the cut ›** | **Play from here** (the cut from this shot); **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims** |
+| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims** |
 | **Fades and dissolve ›** | **Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: each on at 12 frames, or off (see **Fades and dissolves**) |
 | **Colour ›** | **Match the sequence to this by** skin, frame or luma (see **A clip's colour**) |
 | **Frames ›** | **Use previous shot's last frame as first frame** (continuity: chain this shot onto the one before); **Use this frame as the next shot's first frame** (the same, pushed forward); **Hold this frame after it…** (a freeze frame); **Character or place from this frame…** (in the viewer, at a frame); **Generate first frame** / **Clear keyframe** (make or drop its opening still) |

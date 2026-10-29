@@ -241,10 +241,6 @@ export function ContextMenu() {
 
   const cutGroup = (
     <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged"].filter(Boolean).join(", ") || undefined}>
-      <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
-        <i className="pi pi-forward" /> Play from here
-      </button>
-      <div className="h3-menu-sep" />
       <button
         disabled={!cutShot}
         title={cutShot?.cut.flag ? `Clear ${menu.shot}'s flag (M)` : `Flag ${menu.shot} to come back to: re-render it, change its prompt (M; Shift+M goes to the next flagged clip)`}
@@ -344,6 +340,12 @@ export function ContextMenu() {
     </Sub>
   );
 
+  const playFromHere = (
+    <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
+      <i className="pi pi-forward" /> Play from here
+    </button>
+  );
+
   const groups = (
     <>
       <div className="h3-menu-sep" />
@@ -387,6 +389,7 @@ export function ContextMenu() {
           <button disabled={!take.mp4} onClick={run(() => openViewer(menu.shot, take.take, null, "single", menu.pass))}>
             <i className="pi pi-play" /> Play
           </button>
+          {playFromHere}
           <button
             disabled={!take.mp4 || !other}
             title={other ? `Opens the viewer with ${tn(take.take)} as A and ${tn(other.take)} as B; click another take to change B` : "Needs another take with video"}
@@ -495,6 +498,7 @@ export function ContextMenu() {
           <button onClick={run(() => openRedo(menu.shot, null, menu.pass))}>
             <i className="pi pi-refresh" /> Render with settings…
           </button>
+          {playFromHere}
           {groups}
         </>
       )}
