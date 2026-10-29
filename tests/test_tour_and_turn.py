@@ -223,7 +223,10 @@ class LostTourTest(Base):
         ((side, g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
         side.update(comfy_prompt_id="lost", queue="seriesmith", backend="local")
         TOUR.save_side(ref, side)
-        self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "MANAGED", T.MANAGED)
+        # this queue's records only (takes.lost_job): set here, not left by another test
+        self.addCleanup(setattr, T, "QUEUE", T.QUEUE)
+        T.QUEUE = "seriesmith"
         T.MANAGED = lambda: {"lost"}                 # still on the queue: left alone
         self.assertEqual(TOUR.list_tours(ref)[0]["status"], "queued")
         T.MANAGED = lambda: set()                   # the server restarted
