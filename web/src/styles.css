@@ -244,6 +244,17 @@
 .h3-menu button:hover:not(:disabled) { background: var(--h3-hover); }
 .h3-menu button:disabled { opacity: 0.45; cursor: default; }
 .h3-menu i { width: 14px; color: var(--h3-muted); font-size: 12px; }
+/* a group of the context menu: opens beside it on hover (to the left near the window's
+   right edge, upwards in its bottom half: .h3-menu-flip / .h3-menu-up on the menu) */
+.h3-submenu { position: relative; }
+.h3-submenu-arrow { margin-left: auto; text-align: right; }
+.h3-menu .h3-menu-flyout {
+  display: none; position: absolute; left: calc(100% - 2px); top: -5px; white-space: nowrap; z-index: 2101;
+}
+.h3-submenu:hover > .h3-menu-flyout { display: block; }
+.h3-submenu:hover > .h3-submenu-head { background: var(--h3-hover); }
+.h3-menu-flip .h3-menu-flyout { left: auto; right: calc(100% - 2px); }
+.h3-menu-up .h3-menu-flyout { top: auto; bottom: -5px; }
 
 .h3-window {
   position: fixed; background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 12px;
@@ -1056,6 +1067,14 @@
   fill: none; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: stroke;
 }
+/* a curve's handle: drag it to set the length; a corner's (no fade yet) shows on hover */
+.h3-join-handle {
+  fill: #fff; stroke: rgba(0, 0, 0, 0.8); stroke-width: 1; cursor: ew-resize; pointer-events: all;
+}
+.h3-join-handle:hover, .h3-join-active { fill: var(--h3-accent); }
+.h3-join-corner { opacity: 0; transition: opacity 0.1s; }
+.h3-tl-col:hover .h3-join-corner { opacity: 0.7; }
+.h3-tl-col:hover .h3-join-corner:hover { opacity: 1; }
 
 /* Play all: a clip's fade, as black over it (fadeLevel) */
 .h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }
