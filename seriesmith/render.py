@@ -312,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
         if event == "progress":
             print(f"\r     {data.get('value', 0):4d}%  [{fmt(time.time() - shown['t0'])}]   ",
                   end="", flush=True)
-    runner = RN.Runner(RN.queue_for(settings, heard), backends)
+    runner = RN.Runner(RN.queue_for(settings, heard, name="cli"), backends)
     current = None
     try:
         for root, jobs in plans:

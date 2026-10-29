@@ -1,7 +1,8 @@
 """
 audiocut.py — short pieces of a recording, cut for a model to hear: the head of
-a voice sample an audio target continues (`voice_clip`), and the window of the
-recorded track a dub shot is spoken to (`window`).
+a voice sample an audio target continues (`voice_clip`), the window of the
+recorded track a dub shot is spoken to (`window`), and a voice take's sound
+brought to one loudness for a dub (`levelled`).
 
 A cut is a 16-bit PCM wav kept beside its source, in `_cuts/`, named by the
 source's sha1 and the span: the same cut is made once, and a re-recorded
@@ -118,3 +119,36 @@ def window(track: str, start: float, end: float, at_least: float = 0.0) -> str:
     """The `start..end` window of a recorded track, for a shot spoken to it
     (padded with silence to `at_least` seconds)."""
     return cut(track, max(0.0, float(start)), float(end), at_least)
+
+
+# A voice take's sound, for a dub: H3 at a tiny size speaks the line well but its
+# level wanders with the size (measured live 2026-10-28: -13.5 to -20.3 dBFS
+# RMS, two takes peaking over full scale), so it is brought to one loudness
+# with its peaks kept under full scale before a model is given it.
+LEVEL = "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+
+def levelled(src: str) -> str:
+    """`src`'s sound (a wav, or a video's audio) at one loudness (LEVEL), 48 kHz
+    stereo, as a wav in `_cuts/` beside it, made once per source."""
+    sha = (F.file_digest(src) or "")[:12]
+    stem = os.path.splitext(os.path.basename(src))[0]
+    out = os.path.join(os.path.dirname(os.path.abspath(src)), CUTS, f"{stem}_{sha}_level.wav")
+    if os.path.isfile(out):
+        return out
+    exe = FF.find("ffmpeg")
+    if not exe:
+        raise CutError("ffmpeg isn't installed")
+    tmp = F.temp_beside(out, ".wav")
+    try:
+        r = subprocess.run([*exe, "-v", "error", "-nostdin", "-y", "-i", src, "-vn",
+                            "-af", LEVEL, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp],
+                           capture_output=True, timeout=300)
+        if r.returncode != 0 or not os.path.isfile(tmp):
+            raise CutError(f"ffmpeg could not level the sound of {os.path.basename(src)}: "
+                           f"{r.stderr.decode('utf-8', 'replace').strip()[-300:]}")
+        F.replace(tmp, out)
+    finally:
+        if os.path.isfile(tmp):
+            os.remove(tmp)
+    return out

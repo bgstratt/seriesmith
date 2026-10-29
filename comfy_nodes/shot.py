@@ -545,6 +545,9 @@ class SeriesmithSaveTake:
         <shot_id>_t<take>.mp4          picture + the audio the policy selects
         <shot_id>_t<take>_h3.wav       H3's generated mix, always kept
         <shot_id>_t<take>_foley.wav    vocal-stripped bed (dub_keep_foley only)
+        <shot_id>_t<take>_lines.wav    the lines the take was dubbed with, when
+                                       `lines` is linked (a clone made in the
+                                       graph: H3 FL2VA's, by LTX-2.5)
         <shot_id>_t<take>.jpg          middle frame, longest side 480 px
         <shot_id>_t<take>_strip.jpg    STRIP_FRAMES frames side by side, 192 px
                                        wide each, for hover scrub
@@ -586,6 +589,9 @@ class SeriesmithSaveTake:
                 # continuous: latent: what H3ChainLatent held (its `record`,
                 # JSON), written into the take's record as `continued_from`
                 "chain": ("STRING", {"forceInput": True}),
+                # a clone made in the graph: the lines the picture was dubbed
+                # with, kept as _lines.wav to listen to
+                "lines": ("AUDIO",),
             },
         }
 
@@ -624,7 +630,7 @@ class SeriesmithSaveTake:
     # -- main --------------------------------------------------------------
 
     def save(self, images, shot_id, audio_policy, run, take, fps, save_frames, audio=None,
-             latent=None, ref_info="", chain=""):
+             latent=None, ref_info="", chain="", lines=None):
         import folder_paths
         from PIL import Image
 
@@ -674,6 +680,12 @@ class SeriesmithSaveTake:
             # 'dub' leaves the mp4 mute: the real vocal is laid in at conform,
             # and muxing H3's competing vocal only gets in the way.
             ms["audio"] = round((clock() - t0) * 1000)
+        if lines is not None:
+            try:
+                save_audio(lines, os.path.join(shot_dir, f"{stem}_lines.wav"))
+                notes.append("the dubbed lines -> _lines.wav")
+            except Exception as exc:
+                notes.append(f"lines not kept: {exc}")
 
         # ---- mp4 ---------------------------------------------------------
         mp4 = os.path.join(shot_dir, f"{stem}.mp4")
@@ -733,7 +745,7 @@ class SeriesmithSaveTake:
         ui = {"files": [item(record_file)]}
         if mp4_ok:
             ui["gifs"] = [dict(item(os.path.basename(mp4)), format="video/h264-mp4")]
-        wavs = [n for n in (f"{stem}_h3.wav", f"{stem}_foley.wav")
+        wavs = [n for n in (f"{stem}_h3.wav", f"{stem}_foley.wav", f"{stem}_lines.wav")
                 if os.path.isfile(os.path.join(shot_dir, n))]
         if wavs:
             ui["audio"] = [item(n) for n in wavs]

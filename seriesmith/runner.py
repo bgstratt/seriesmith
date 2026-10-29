@@ -89,8 +89,10 @@ class Runner:
         # ask(path, body) -> (status, data): an API request made from a job (the
         # server sets it; a clip's renders are asked for once its pictures exist)
         self.ask = None
-        # takes this runner owns are checked against its queue, not ComfyUI's
+        # takes this runner owns are checked against its queue, not ComfyUI's;
+        # another queue's (the server's, while the command line renders) aren't
         T.MANAGED = queue.alive
+        T.QUEUE = queue.name
         self._told: set[str] = set()         # backends the page was told have no node pack
 
     def backend(self, name: str):
@@ -247,7 +249,7 @@ class Runner:
                     resume={"kind": "render", "ep": ep, "pass": job.pass_, "shot": job.id,
                             "take": take.take, "asked": asked()})
         T.update_sidecar(take.paths.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
-                         queue="seriesmith")
+                         queue=self.queue.name)
         take.sidecar = T.read_sidecar(take.paths.sidecar)
         self._submit(qjob)
         return take, qjob.id
@@ -352,7 +354,7 @@ class Runner:
                     on_cancel=cancelled, limit=LIMITS["ref"], record=take.paths.sidecar,
                     resume=res)
         R.mark_queued(take, qjob.id)
-        T.update_sidecar(take.paths.sidecar, backend=backend.name, queue="seriesmith")
+        T.update_sidecar(take.paths.sidecar, backend=backend.name, queue=self.queue.name)
         self._submit(qjob)
         return take, qjob.id
 
@@ -418,7 +420,7 @@ class Runner:
                             "take": take.take, "sidecar": fin.sidecar, "out_mp4": fin.out_mp4,
                             "last": fin.last, "latent": fin.latent, "asked": asked()})
         T.update_sidecar(fin.sidecar, backend=backend.name, comfy_prompt_id=qjob.id,
-                         queue="seriesmith")
+                         queue=self.queue.name)
         self._submit(qjob)
         return qjob.id
 
@@ -476,7 +478,7 @@ class Runner:
                     on_cancel=cancelled, limit=LIMITS["tour"],
                     record=TR._tour_file(ref, n, ".json"),
                     resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n, "asked": asked()})
-        side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue="seriesmith")
+        side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue=self.queue.name)
         TR.save_side(ref, side)
         self._submit(qjob)
         return n, qjob.id
@@ -893,4 +895,4 @@ def cli_runner(backend: str | None = None, settings=None, log=print) -> Runner:
         note = ensure_proxy(s)
         if log and "not" in note:
             log(f"  ! {note}")
-    return Runner(queue_for(s), backends)
+    return Runner(queue_for(s, name="cli"), backends)

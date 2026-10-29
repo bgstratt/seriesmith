@@ -841,6 +841,11 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list[
     return out
 
 
+# a dub of a file (a take's sound, a dub track: jobs.apply_sound): the shot's own
+# recording (`audio_file`), which the Shot Loader reads whole
+DUB_BY_FILE = True
+
+
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     """Every reference the loader will read for `shot`: {slot, kind ("image" |
     "audio"), path, subject?}. Paths as the shotlist writes them (relative to

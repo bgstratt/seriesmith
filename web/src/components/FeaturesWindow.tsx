@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { closeFeatures, loadTargets, openSettings } from "../actions";
-import { useApp } from "../store";
+import { store, useApp } from "../store";
 import {
   STATUS_TEXT, cancelInstall, downloadSize, fmtBytes, getFeatures, getSizes, installable, itemsLine, startInstall,
   toInstall, yours, type Feature, type FeaturesView, type InstallJob, type InstallTask,
@@ -57,6 +57,21 @@ function FeaturesBody() {
   }, [running]);
 
   const features = view?.features ?? [];
+  // opened to show one entry (a voice take needs H3 Ref2VA): opened, ticked if it can
+  // be installed, scrolled to, lit for a moment
+  const focus = useApp((s) => s.featuresFocus);
+  const [lit, setLit] = useState<string | null>(null);
+  useEffect(() => {
+    const f = focus ? features.find((x) => x.id === focus) : undefined;
+    if (!f) return;
+    store.set({ featuresFocus: null });
+    setOpenRows((rows) => new Set(rows).add(f.id));
+    if (f.status !== "installed" && installable(f).length > 0) setPicked((p) => new Set(p).add(f.id));
+    setLit(f.id);
+    requestAnimationFrame(() => document.getElementById(`feature-${f.id}`)?.scrollIntoView({ block: "center" }));
+    const t = setTimeout(() => setLit(null), 3000);
+    return () => clearTimeout(t);
+  }, [focus, features]);
   const chosen = useMemo(() => features.filter((f) => picked.has(f.id)), [features, picked]);
   const size = downloadSize(chosen, sizes);
   const gatedPicked = chosen.some((f) => toInstall(f).some((i) => i.gated));
@@ -127,7 +142,7 @@ function FeaturesBody() {
               </div>
               <span className="h3-small h3-muted">{g.about}</span>
               {fs.map((f) => (
-                <FeatureRow key={f.id} f={f} sizes={sizes} checked={f.status === "installed" || picked.has(f.id)}
+                <FeatureRow key={f.id} f={f} sizes={sizes} lit={lit === f.id} checked={f.status === "installed" || picked.has(f.id)}
                   open={openRows.has(f.id)} onToggle={() => toggle(f.id)} onOpen={() => toggleRow(f.id)} />
               ))}
             </section>
@@ -152,8 +167,10 @@ function FeaturesBody() {
   );
 }
 
-function FeatureRow({ f, sizes, checked, open, onToggle, onOpen }: {
+function FeatureRow({ f, sizes, checked, open, onToggle, onOpen, lit = false }: {
   f: Feature; sizes: Record<string, number | null>; checked: boolean; open: boolean; onToggle: () => void; onOpen: () => void;
+  /** the entry the window was opened to show */
+  lit?: boolean;
 }) {
   const installed = f.status === "installed";
   // nothing seriesmith can put in: only what you install yourself is missing
@@ -162,7 +179,9 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen }: {
   const gated = toInstall(f).some((i) => i.gated);
   const chip = f.status === "installed" ? " h3-s-ok" : f.status === "restart" ? " h3-s-rendering" : "";
   return (
-    <div className="h3-col" style={{ gap: 2, padding: "4px 0", borderTop: "1px solid var(--h3-border, #8882)" }}>
+    <div id={`feature-${f.id}`} className="h3-col"
+      style={{ gap: 2, padding: "4px 0", borderTop: "1px solid var(--h3-border, #8882)",
+               ...(lit ? { outline: "2px solid var(--h3-accent)", outlineOffset: 2, borderRadius: 4 } : {}) }}>
       <div className="h3-row" style={{ gap: 8 }}>
         <input type="checkbox" checked={checked} disabled={installed || onlyYours || f.status === "unavailable"} onChange={onToggle}
           aria-label={`Install ${f.label}`} />

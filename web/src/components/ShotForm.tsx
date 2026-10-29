@@ -14,6 +14,7 @@ import {
   CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, newShot,
   parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
 } from "../lib/shotForm";
+import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
 import { isHosted } from "../lib/targets";
 import { useApp } from "../store";
@@ -24,7 +25,8 @@ import { LengthPicker } from "./LengthPicker";
 import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./PresetPicker";
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
-import { finishDroppedFile } from "../takeActions";
+import { finishDroppedFile, isPicture } from "../takeActions";
+import { SoundCard } from "./SoundDialog";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
 
@@ -69,7 +71,8 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   ep: string; shot: string | null; after: string | null;
   /** a new shot ahead of this one (a file dropped before the first clip) */
   before?: string | null;
-  /** a video dropped between two clips: imported as the new shot's take on Save */
+  /** a video dropped between two clips: imported as the new shot's take on Save
+   * (a picture: its first keyframe) */
   file?: File | null; dur?: string | null; left?: string | null;
 }) {
   const pass = useApp((s) => s.pass);
@@ -89,9 +92,14 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const [more, setMore] = useState(false);
   const [showPrompt, setShowPrompt] = useState(true);
   const isNew = shot === null;
+  // unsaved edits from before a reload (lib/drafts): put back when the form opens on
+  // the shot as they were made against; offered when the script has changed it since
+  const draftKey = `shotform|${ep}|${shot ?? ""}`;
+  const [kept, setKept] = useState<{ form: Form; at: number; stale: boolean } | null>(null);
 
-  // the script, and the shot's block in it (or a new shot's place)
-  async function load() {
+  // the script, and the shot's block in it (or a new shot's place); `restore`: a
+  // draft kept from before a reload goes back in (opening, not Revert or a reload)
+  async function load(restore = false) {
     setError(null);
     try {
       const d = await api().source(ep, "script");
@@ -104,8 +112,12 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
           return;
         }
         const f = parseShot(lines.slice(span.line - 1, span.end_line));
-        setForm(f);
-        setOrig(writeShot(f).join("\n"));
+        const text = writeShot(f).join("\n");
+        const dr = restore ? readDraft<{ form: Form; orig: string }>(draftKey) : null;
+        const k = dr ? { form: dr.value.form, at: dr.at, stale: dr.value.orig !== text } : null;
+        setKept(k);
+        setForm(k && !k.stale ? k.form : f);
+        setOrig(text);
       } else {
         const ids = d.shots.map((x) => x.id);
         const b = before ? ids.indexOf(before) : -1;
@@ -125,7 +137,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
     }
   }
   useEffect(() => {
-    void load();
+    void load(true);
   }, [ep, shot]);
 
   const seqs = useMemo(() => (doc ? sequencesOf(doc.text) : []), [doc]);
@@ -159,6 +171,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   }, [card]);
   const block = form ? writeShot(form) : [];
   const dirty = !!form && block.join("\n") !== orig;
+  const forgetDraft = useDraft(draftKey, useMemo(() => ({ form, orig }), [form, orig]), dirty && !isNew);
 
   /** "Save as profile…": this shot's own lens and render settings as a profile in the
    * series config (saved now), and the shot put on it (saved with the shot). */
@@ -222,7 +235,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       if (mine.length) host().toast("warn", `${form.id} saved, with problems`, mine[0].message);
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
-      // a video dropped between two clips: its take now, and the clip where it was dropped
+      // a file dropped between two clips: its take (a picture: its first keyframe) now, and the clip where it was dropped
       if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
       // the script as it is now: a new shot opens as itself; an edited one
@@ -253,7 +266,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const head = (
     <>
       <div className="h3-head-text">
-        <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its take` : ""}` : "Shot"}</span>
+        <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its ${isPicture(file) ? "first keyframe" : "take"}` : ""}` : "Shot"}</span>
         <div className="h3-row">
           <span className="h3-win-title">{form?.id ?? shot ?? ""}</span>
           {dirty && <span className="h3-small h3-muted">not saved</span>}
@@ -262,6 +275,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       {!isNew && <button className="h3-btn" title="Show this shot in the Script window" onClick={() => showInScript(shot!)}><i className="pi pi-file-edit" /> Show in script</button>}
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (dirty && !window.confirm("Close without saving this shot?")) return;
+        forgetDraft();
         openShotForm(null);
       }}><i className="pi pi-times" /></button>
     </>
@@ -272,6 +286,13 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       <div className="sm-shotform">
         <div className="h3-col sm-shotform-main">
           {error && <div className="h3-note h3-note-err">{error} <button className="h3-btn" onClick={() => void load()}>Reload</button></div>}
+          {kept?.stale && form && (
+            <div className="h3-note">
+              You left unsaved edits to {shot} at {keptAt(kept.at)}, and the script has changed this shot since.
+              {" "}<button className="h3-btn" title="Your version of the shot in place of the script's: the changes made to it since are lost when you save (Revert takes yours out again)" onClick={() => { setForm(kept.form); setKept(null); }}>Put them back</button>
+              {" "}<button className="h3-btn" onClick={() => { clearDraft(draftKey); setKept(null); }}>Drop them</button>
+            </div>
+          )}
           {!form && !error && <div className="h3-muted">Loading…</div>}
           {form && (
             <>
@@ -418,11 +439,10 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                   <Row label="Last frame" help="The picture it ends on, for the models that take one.">
                     <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
                   </Row>
-                  <Row label="Audio" help="This shot's sound: generate, dub (lip-sync to the recording), dub_keep_foley, clone. Empty: the series' dialogue setting.">
-                    <select className="h3-in" value={form.keys.policy ?? ""} onChange={(e) => set("policy", e.target.value)}>
-                      <option value="">the series'</option>
-                      {["generate", "dub", "dub_keep_foley", "clone"].map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
+                  <Row label="Sound" help="How this shot's next take sounds: the series' default, or generate, clone or dub for this shot alone, and what a dub is lip-synced to. What the cut plays over a take you already have is Replace audio… (its context menu).">
+                    {!isNew && shot
+                      ? <div className="h3-card" style={{ padding: 8 }}><SoundCard shot={shot} cut={false} /></div>
+                      : <span className="h3-small h3-muted">The series' default. Once the shot is saved, its Sound can be set here.</span>}
                   </Row>
                   <Row label="Pace" help="How fast its lines are spoken: slow 3.6, normal 4.4, fast 5.4 syllables a second (fast marks a deliberate rush).">
                     <select className="h3-in" value={form.keys.pace ?? ""} onChange={(e) => set("pace", e.target.value)}>
@@ -457,7 +477,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       </div>
       <div className="h3-dialog-foot">
         <span className="h3-small h3-muted h3-grow">
-          {dirty || isNew ? "Not saved yet: Save writes only this shot's lines into the script and rebuilds." : "Saved"}
+          {dirty || isNew ? `Not saved yet${kept && !kept.stale && dirty ? ` (your edits from ${keptAt(kept.at)}, kept in this browser)` : ""}: Save writes only this shot's lines into the script and rebuilds.` : "Saved"}
         </span>
         <button className="h3-btn h3-big" disabled={!dirty || busy} onClick={() => void load()}>Revert</button>
         <button className="h3-btn h3-big" disabled={!form || busy || (!dirty && !isNew)} onClick={() => void save(false)}

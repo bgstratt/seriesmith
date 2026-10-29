@@ -199,7 +199,7 @@ describe.skipIf(!dumps.length)("Phase 9d on real episode dumps (test/local/p9d_*
       expect(tl).toContain(why);
       const insp = renderWith({ ...base, shot: me.shot }, createElement(CutSection, { shot: me.shot }));
       expect(insp).toContain(why);
-      expect(insp).toContain("Audio from…");
+      expect(insp).toContain("Replace audio…");
       // dimmed while Play all is on the recording
       const dim = renderWith({ ...base, cutAudio: "recording" as const }, createElement(AudioBadge, {
         shot: me.shot, cut: st.shots.find((s) => s.shot === me.shot)!.cut, dim: true,

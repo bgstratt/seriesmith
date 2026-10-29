@@ -109,11 +109,13 @@ class TakesTest(unittest.TestCase):
         queued = {"status": "queued", "queue": "seriesmith", "comfy_prompt_id": "gone"}
         T.write_json(t.paths.up_sidecar, dict(queued))
         T.write_json(t.paths.post_sidecar, dict(queued, comfy_prompt_id="alive"))
-        saved = T.MANAGED
+        saved = T.MANAGED, T.QUEUE
         try:
-            T.MANAGED = None                      # the command line: left alone
+            T.MANAGED = None                      # no queue here: left alone
             self.assertEqual(T.upscale_of(t)["status"], "queued")
-            T.MANAGED = lambda: {"alive"}         # the server, after a restart
+            T.MANAGED, T.QUEUE = (lambda: set()), "cli"   # another queue's: left alone
+            self.assertEqual(T.upscale_of(t)["status"], "queued")
+            T.MANAGED, T.QUEUE = (lambda: {"alive"}), "seriesmith"   # the server, after a restart
             up = T.upscale_of(t)
             self.assertEqual(up["status"], "failed")
             self.assertIn("restarted", up["error"])
@@ -122,7 +124,7 @@ class TakesTest(unittest.TestCase):
             T.MANAGED = lambda: set()
             self.assertEqual(T.post_of(t)["status"], "failed")
         finally:
-            T.MANAGED = saved
+            T.MANAGED, T.QUEUE = saved
 
     def test_claimed_but_empty_sidecar_reads_as_queued(self):
         touch(T.take_paths(self.root, "final", "sh010", 1).sidecar)

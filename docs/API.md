@@ -405,6 +405,14 @@ renders every shot of the request there.
   - `redo: false` skips shots that already have a usable or queued take, as the CLI does.
   - `null` means "not set in this request", so the built value and `overrides.json`
     apply.
+  - `dub_track: true` makes a **dub track**: the shot rendered for its sound only, on
+    `minimax_h3_ref2va` at 64x64 unless `target` / `size` say otherwise (another H3, or
+    `ltx2`: any model that clones), cloning, its prompt's sound fields asking for the
+    dialogue alone. It is kept as a take of its own in `<episode>/dub/<shot>/`
+    (`takes.DUB_FOLDER`), never in the shot's takes or the cut; its record says
+    `dub_track`.
+  - Each shot renders with its **sound** as overrides.json sets it (`PUT
+    /seriesmith/sound`), below.
   - `size` (`"1344x768"`, or `[1344, 768]`) renders this run at that size instead of the
     shotlist's; the take's sidecar records it, and a master re-samples it by its own size
     (`scale: "auto"`). A size off the target's grid is that shot's error (H3: multiples of
@@ -419,7 +427,7 @@ renders every shot of the request there.
   binding's `workflow_name`, else the repo's `seriesmith/targets/<kind>/<id>/workflow.json`
   (Phase 11). A target whose workflow can't be read fails every shot on it, per shot.
 - For each shot the route calls `plan_job` and `Runner.enqueue_render`, which reserves
-  the take (`start_job`, its record `queued`, `queue: "seriesmith"`, its `backend`) and
+  the take (`start_job`, its record `queued`, `queue`: the queue's name, its `backend`) and
   queues the job. When the job starts its inputs are staged (keyframes, a composed sheet),
   the portable graph is built (`graph_for(..., portable=True)`) and sent to the backend,
   and the files it reports are written into the take (`collect_take`).
@@ -1511,6 +1519,43 @@ write the shot **without** the missing refs, when it can:
   `missing_mode` (`"recompiled"` or `"blank"`), and `missing_note` (why it fell back to
   `blank`). The last two are only present on a take rendered anyway.
 
+## A shot's sound: generate, clone, or dub a track (2026-10-28)
+
+What a shot's next render does for its sound, set in the editor (overrides.json's
+top-level `sound`, beside the script's `policy:` and `audio.mode`, which it beats):
+
+```json
+{"mode": "generate" | "clone" | "dub",
+ "dub": {"from": "track"} | {"from": "take", "pass": "final", "take": 2} | {"from": "dub", "take": 1}}
+```
+
+- `generate` / `clone`: the shot is compiled again with that policy when its entry has
+  another (`jobs.apply_sound`).
+- `dub` from `track`: the shot's window of the recorded track, as `dub_keep_foley` (an
+  error for a shot with no window).
+- `dub` from a `take` (either pass: a proxy's delivery can dub the final) or a `dub` track:
+  that take's sound (its `_h3.wav`, else its mp4's), levelled (`audiocut.levelled`:
+  `loudnorm` I -16, true peak -1.5, kept in `_cuts/` beside it), is the shot's own recording
+  (`audio_file`) and the shot is compiled again as `dub_keep_foley`: H3 FL2VA anchors it,
+  the LTX targets hold it, H3 Ref2VA / FastH3 Omni's Shot Loader reads it whole
+  (`targets.describe` `capabilities.dubs_tracks`; any other target: that shot's error). The
+  speakers' voice samples aren't needed. When the take is collected its mp4 is given the
+  model's whole mix (`jobs.remux_dub`), as a generate or clone take's is, so the cut plays
+  the dubbed voice.
+- A take's record keeps the `sound` it was made with; one made with another sound than the
+  shot's now is stale `sound`.
+
+### `PUT /seriesmith/sound`
+Body `{"ep", "shots": [...], "sound": {...} | null}` (null: back to the script's). A dub of a
+take or a dub track is one shot's. Returns `{shots, sound}`; emits `seriesmith.episode`.
+
+### `GET /seriesmith/dubs?ep=…&shot=…`
+What the shot can be dubbed to: `{"shot", "sound", "track": {"file", "in", "out"} | null,
+"dubs": [{take, status, file, target, seed, note, finished, save_notes, seconds}],
+"takes": [{... , "pass"}]}` (its dub tracks, then every finished take with sound in either
+pass). `GET /seriesmith/episode` gives each shot with a sound set its `sound` (the setting,
+and for a dub its source's `label` and `file`).
+
 ## Phase 8 additions: retargeting a shot (contract written before building)
 
 - **`PUT /seriesmith/override`:** `fields.target` sets a shot's video target, e.g.
@@ -1554,7 +1599,10 @@ open, and what was added:
     whose workflow can't be read no longer fails the whole request with 500: each of its
     shots is reported in `errors`, and shots on other targets still queue.
   - A shot that can't be retargeted (shots.json / the series config no longer build it:
-    rebuild) is reported in `errors` with the reason.
+    rebuild) is reported in `errors` with the reason. A build that is only behind (the
+    series config or seriesmith changed since; the shot's script IR is the build's own) is
+    retargeted as they are now, and the take's notes say so (2026-10-28: it used to refuse,
+    and an update to a target's compile made every shot built before it refuse).
   - `queued` entries carry `"target"`.
   - An LTX shot's keyframes (`refs/shots/<shot>/first.png`, `last.png`, when they exist)
     are uploaded to ComfyUI's input folder as `seriesmith/<sha1>.png` (through ComfyUI's own
@@ -3274,7 +3322,7 @@ behaviour):
   source.
 
 ### Editor
-- A clip's context menu gains **"Audio from…"**: a window with the take's own audio at the
+- A clip's context menu gains **"Replace audio…"**: a window with the take's own audio at the
   top, a shot+take picker (takes with sound; the clip's own shot first), a file picker
   (browse `files=audio`, upload as `/refs/import` does), and "silent".
   - Both waveforms are drawn, the clip's picture length against the source, with the

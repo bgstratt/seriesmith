@@ -69,6 +69,7 @@ class FinishQueueTest(ApiTest):
         self.fb = FakeBackend("local", "local", outputs=saver_outputs, progress=[0.5, 1.0])
         self.runner = Runner(Queue(), {"local": self.fb}, emit=lambda e, d: self.events.append((e, d)))
         self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "QUEUE", None)
 
     def finished(self, qid):
         q = self.runner.queue
@@ -208,6 +209,7 @@ class PostQueueTest(ApiTest):
         self.ctx.runner = Runner(Queue(), {"local": self.fb},
                                  emit=lambda e, d: self.events.append((e, d)))
         self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "QUEUE", None)
 
     def test_a_post_through_the_queue_is_stamped_with_its_upscale(self):
         self.ready_comfy()

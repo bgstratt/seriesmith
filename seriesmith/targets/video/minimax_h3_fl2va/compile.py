@@ -18,8 +18,9 @@ node: every render value is a widget, as with ltx2.
 A shotlist entry carries the neutral keys every target's entries have (id,
 sequence, subjects, background, size, length, seed, steps, audio_policy,
 prompt, duration or audio_in / audio_out) plus `keyframes` {first, last} (the
-conventional paths; optional) and audio_intent / audio_note when the script
-asked for clone, which renders with generate here. `background` is the plate
+conventional paths; optional), and for a clone shot `voice_refs` and `lines`
+(held_audio.clone_entry: who speaks, with which sample, and what each says).
+`background` is the plate
 the script names; FL2VA never reads it (the location is described in words).
 
 Audio: generate is H3's own soundtrack. dub / dub_keep_foley anchor the
@@ -27,7 +28,11 @@ shot's slice of the recording at frame 0 with MiniMaxH3AddGuide (the model
 packs it as conditioning audio on the target's time axis, as it does a
 keyframe's latent); the prompt says the dialogue is the recording's, and dub
 adds nothing else while dub_keep_foley keeps the soundscape. H3 FL2VA has no
-voice-reference slot, so clone renders with generate and says so.
+voice-reference slot, so a clone shot's lines are made first, in the same
+graph, by LTX-2.5's audio-only model continuing each speaker's held sample
+(held_audio.make_lines, as ltx2's clone makes them), and anchored as a
+recording is; its prompt is dub_keep_foley's (the voice is given, H3 lays its
+sound under it), and the take keeps H3's mix with the lines beside it.
 
 Stdlib only.
 """
@@ -39,6 +44,7 @@ import uuid
 
 from seriesmith import targets as TG
 from seriesmith.core import ir
+from seriesmith.targets import held_audio as HA
 from seriesmith.targets import video_compile as VC
 from seriesmith.targets.video_compile import shot_duration as _duration
 
@@ -104,9 +110,15 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
 
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
-    entry["prompt"] = build_prompt(shot, sq, series_cfg, policy)
+    voiced = HA.clone_entry(shot, series_cfg["subjects"]) if policy == "clone" else {}
+    # a clone is dubbed with the lines LTX makes: the prompt says the voice is
+    # given (a clone shot with no lines is prompted as generate)
+    entry["prompt"] = build_prompt(shot, sq, series_cfg,
+                                   "dub_keep_foley" if voiced.get("lines") else
+                                   "generate" if policy == "clone" else policy)
     entry["keyframes"] = {end: keyframe_path(shot.id, end)
                           for end in TG.keyframe_ends(RECIPE, shot, sq)}
+    entry.update(voiced)
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
@@ -271,7 +283,8 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     if shot.get("audio_policy") in DUB:
         out.append({"slot": ANCHOR.get("slot", "dialogue recording"), "kind": "audio",
                     "path": _recording(doc, shot)})
-    return out
+    # a clone shot: each speaker's voice sample, which its lines continue
+    return out + (HA.audio_slots(doc, shot) if shot.get("audio_policy") == "clone" else [])
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +314,9 @@ def stage_inputs(target, job, comfy=None) -> dict:
     job.prompt = with_keyframes(J._prompt_text(job.prompt), roles, job.frames, job.fps)
     out = {}
     shot = job.recompiled or job.shot
+    if shot.get("audio_policy") == "clone":
+        _voice_files_installed(job)
+        return HA.stage_clone(target, job, comfy)
     if shot.get("audio_policy") not in DUB:
         return out
     rec = _recording(job.doc, shot)
@@ -333,6 +349,33 @@ def stage_inputs(target, job, comfy=None) -> dict:
     return out
 
 
+VOICE = ("voice_model", "voice_text_encoder", "voice_audio_vae")
+
+# a dub of a file (a take's sound, a dub track: jobs.apply_sound): the shot's own
+# recording (`audio_file`), anchored as a recording's slice is
+DUB_BY_FILE = True
+
+
+def _voice_files_installed(job) -> None:
+    """A clone shot's lines need LTX-2.5's audio-only files (optional for
+    every other shot): ValueError naming what to download when resolve_models
+    found one missing on this ComfyUI."""
+    off = [p for p in VOICE if (job.resolved or {}).get(p, {}).get("how") == "off"]
+    if off:
+        missing = [TG.missing_message(TG._missing(TARGET, p, TARGET.models[p],
+                                                  job.resolved[p]["want"], "optional"))
+                   for p in off]
+        raise ValueError(f"{job.id}: clone on {TARGET.short} makes the lines with LTX-2.5 "
+                         f"audio-only first, and this ComfyUI lacks its files: "
+                         + "; ".join(missing))
+
+
+def _voice_value(job, param: str) -> str:
+    """The LTX voice file a clone shot loads: as resolved, else the preset's."""
+    from seriesmith import jobs as J
+    return J.model_values(job).get(param) or ""
+
+
 # ---------------------------------------------------------------------------
 # the graph
 # ---------------------------------------------------------------------------
@@ -354,12 +397,41 @@ def _load_image(g: dict, name: str, title: str, reuse: str | None = None) -> str
     return nid
 
 
+def _clone_lines(g: dict, job, inputs: dict) -> list | None:
+    """A clone shot's lines, made in `g` before H3 runs: LTX-2.5's own loaders
+    (the voice_* files) and held_audio.make_lines, each line continuing its
+    speaker's held sample (inputs["voices"], stage_clone). The joined lines go
+    to the saver too (`lines`: the take's _lines.wav). The link of the joined
+    sound, or None for a shot that isn't a clone."""
+    entry = (job.recompiled or job.shot) if job is not None else {}
+    if entry.get("audio_policy") != "clone" or not entry.get("lines"):
+        return None
+
+    def loader(prefix: str, ctype: str, title: str, **ins) -> str:
+        k = _new_id(g, prefix)
+        g[k] = {"class_type": ctype, "inputs": ins, "_meta": {"title": f"{title} (seriesmith)"}}
+        return k
+
+    unet = loader("h3_voice_unet_", "UNETLoader", "LTX-2.5 transformer, for the lines",
+                  unet_name=_voice_value(job, "voice_model"), weight_dtype="default")
+    clip = loader("h3_voice_clip_", "CLIPLoader", "LTX-2.5 text encoder, for the lines",
+                  clip_name=_voice_value(job, "voice_text_encoder"), type="ltxv", device="default")
+    vae = loader("h3_voice_vae_", "VAELoader", "LTX-2.5 audio VAE, for the lines",
+                 vae_name=_voice_value(job, "voice_audio_vae"))
+    sound = HA.make_lines(g, job, inputs, unet, [clip, 0], [vae, 0])
+    for k, v in g.items():
+        if v.get("class_type") in ("H3SaveShot", "SeriesmithSaveTake"):
+            v["inputs"]["lines"] = list(sound)
+    return sound
+
+
 def patch_graph(target, g: dict, job, inputs: dict) -> None:
     """Keyframes: `inputs["first"]` / `inputs["last"]` (names LoadImage reads)
     go straight into MiniMaxH3ImageToVideo's first_frame / last_frame; an end
     without one is disconnected (neither: text-to-video). `inputs["audio"]`
     (a name LoadAudio reads) is anchored at frame 0 by a MiniMaxH3AddGuide
-    between the node's conditioning and the guider."""
+    between the node's conditioning and the guider; a clone shot's lines,
+    made in the graph (_clone_lines), are anchored the same way."""
     i2v = _one(g, "MiniMaxH3ImageToVideo")
     ii = g[i2v]["inputs"]
     # the template's LoadImage (the first frame), reused for it
@@ -372,17 +444,22 @@ def patch_graph(target, g: dict, job, inputs: dict) -> None:
     if inputs.get("last"):
         nid = _load_image(g, inputs["last"], "last frame")
         ii["last_frame"] = [nid, 0]
-    if inputs.get("audio"):
+    lines = _clone_lines(g, job, inputs)
+    if inputs.get("audio") or lines:
         dec = _one(g, "VAEDecodeAudio")
         audio_vae = g[dec]["inputs"]["vae"]
-        load = _new_id(g, "h3_dub_load_")
-        g[load] = {"class_type": "LoadAudio", "inputs": {"audio": inputs["audio"]},
-                   "_meta": {"title": "dialogue slice (h3pipe)"}}
+        if lines:
+            sound = lines
+        else:
+            load = _new_id(g, "h3_dub_load_")
+            g[load] = {"class_type": "LoadAudio", "inputs": {"audio": inputs["audio"]},
+                       "_meta": {"title": "dialogue slice (h3pipe)"}}
+            sound = [load, 0]
         guide = _new_id(g, "h3_dub_guide_")
         consumers = _consumers(g, i2v, 0)
         g[guide] = {"class_type": "MiniMaxH3AddGuide",
                     "inputs": {"positive": [i2v, 0], "latent": [i2v, 1],
-                               "audio_vae": list(audio_vae), "audio": [load, 0],
+                               "audio_vae": list(audio_vae), "audio": sound,
                                "frame_idx": int(ANCHOR.get("frame_idx", 0))},
                     "_meta": {"title": "dialogue anchor at frame 0 (h3pipe)"}}
         for k, name in consumers:

@@ -3,7 +3,7 @@ import {
   type DragEvent, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import {
-  assemble, currentPlaylist, exportUpscaled, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
+  checkThenExport, clickShot, currentPlaylist, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
 import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setTrims, toggleWaves, undoCut } from "../cutActions";
@@ -16,6 +16,7 @@ import { missingRefsSummary } from "../lib/missingRefs";
 import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { targetBadges } from "../lib/targets";
+import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
 import { aspectOf, useSize, useStatus } from "./hooks";
@@ -27,7 +28,7 @@ import { audioBadgeOf } from "../lib/audioSource";
 import { WaveLane } from "./Waveform";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
-import { dropFileBetween, dropTakeBetween, dropTakeOnto, importTakeFile } from "../takeActions";
+import { dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto } from "../takeActions";
 
 const MIN_CLIP = 26;
 /** a shot left out of the cut: a stub, there to be put back */
@@ -150,11 +151,14 @@ function TrimGhost({ ep, take, item, preview, zoom, fps, height }: {
 }
 
 const Clip = memo(function Clip({
-  ep, pass, s, other, width, height, aspect, selected, rendering, progress, targets, seriesDefault, fps, trimmable, dragging,
+  ep, pass, s, other, width, height, aspect, selected, multiSelected, rendering, progress, targets, seriesDefault, fps, trimmable, dragging,
   recording, noted, onBodyDown, onEdgeDown, suppress,
 }: {
   ep: string; pass: Pass; s: ShotStatus; other: EpisodeStatus | undefined; width: number; height: number;
-  aspect: number; selected: boolean; rendering: Set<number>; progress?: { value: number; max: number };
+  aspect: number; selected: boolean;
+  /** one of several shots selected */
+  multiSelected: boolean;
+  rendering: Set<number>; progress?: { value: number; max: number };
   targets: TargetList | null; seriesDefault: string; fps: number; trimmable: boolean; dragging: boolean;
   /** Phase 9d: Play all is on the recording, so per-clip audio is ignored */
   recording: boolean;
@@ -201,7 +205,7 @@ const Clip = memo(function Clip({
     trimIn || trimOut ? `trimmed: ${framesLabel(trimIn, fps)} off the head, ${framesLabel(trimOut, fps)} off the tail` : "",
     locked ? "locked: it can't be moved, trimmed or re-picked (unlock from its menu)" : "",
     ...badges.map((b) => b.title),
-    `click: select (jumps there while playing all) · double-click: viewer · right-click: menu${locked ? "" : " · drag: move · drag an edge: trim"}`,
+    `click: select (jumps there while playing all) · Ctrl/Shift-click: select several · double-click: viewer · right-click: menu${locked ? "" : " · drag: move · drag an edge: trim"}`,
   ].filter(Boolean).join("\n");
   return (
     <div
@@ -209,18 +213,19 @@ const Clip = memo(function Clip({
       style={{ width }}
       title={title}
       onPointerDown={(e) => onBodyDown(e, s)}
-      onClick={() => {
+      onClick={(e) => {
         if (suppress.current) return;
         // while Play all is open, a click jumps the player there
-        seekToShot(s.shot);
-        select(s.shot, take && !s.cut.placeholder ? take.take : null);
+        if (!e.shiftKey && !e.ctrlKey && !e.metaKey) seekToShot(s.shot);
+        clickShot(s.shot, take && !s.cut.placeholder ? take.take : null, e);
       }}
       onDoubleClick={() => take?.mp4 && openViewer(s.shot, take.take, null, "single", takePass)}
       onContextMenu={(e) => {
         e.preventDefault();
-        // the clip right-clicked is the one selected, and the timeline has the keys
+        // the clip right-clicked is the one selected (a selection of several it's in
+        // stays: the menu queues them), and the timeline has the keys
         (e.currentTarget.closest(".h3-timeline") as HTMLElement | null)?.focus({ preventScroll: true });
-        select(s.shot, take && !s.cut.placeholder ? take.take : null);
+        if (!multiSelected) select(s.shot, take && !s.cut.placeholder ? take.take : null);
         openMenu(e.clientX, e.clientY, s.shot, take?.take ?? null, takePass);
       }}
       {...scrub}
@@ -284,6 +289,7 @@ export function Timeline() {
   const pass = useApp((s) => s.pass);
   const zoom = useApp((s) => s.zoom);
   const shot = useApp((s) => s.shot);
+  const multi = useApp((s) => s.multi);
   const running = useApp((s) => s.running);
   const prompts = useApp((s) => s.prompts);
   const progress = useApp((s) => s.progress);
@@ -471,7 +477,7 @@ export function Timeline() {
     if (files.length > 1) host().toast("warn", "One video at a time", `${files[0].name} is used; drop the others one by one.`);
     if (at.kind === "onto") {
       if (take) void dropTakeOnto(at.shot, take);
-      else void importTakeFile(at.shot, files[0]);
+      else void dropFileOnto(at.shot, files[0]);
     } else if (take) void dropTakeBetween(at.gap, take);
     else void dropFileBetween(at.gap, files[0]);
   };
@@ -566,6 +572,7 @@ export function Timeline() {
           <button className="h3-btn h3-icon" aria-label="Undo" disabled={!undo?.undo} title={undo?.undo ? `Undo: ${undo.undo} (Ctrl+Z)` : "Nothing to undo (Ctrl+Z)"} onClick={() => void undoCut()}><i className="pi pi-undo" /></button>
           <button className="h3-btn h3-icon" aria-label="Redo" disabled={!undo?.redo} title={undo?.redo ? `Redo: ${undo.redo} (Ctrl+Shift+Z)` : "Nothing to redo (Ctrl+Shift+Z)"} onClick={() => void redoCut()}><i className="pi pi-refresh" style={{ transform: "scaleX(-1)" }} /></button>
         </span>
+        <MultiBar />
         {flagged.length > 0 && (
           <button
             className="h3-badge h3-b-flag h3-badge-btn"
@@ -592,18 +599,18 @@ export function Timeline() {
           <i className="pi pi-search-plus h3-muted" />
         </span>
         <span className="h3-seg h3-seg-act">
-          <button disabled={!ep || asm.busy} title={`Export: assemble the ${pass} review cut into one mp4 with ffmpeg (missing shots are skipped). Not needed to watch the cut: use Play all.`} onClick={() => void assemble(true)}>
+          <button disabled={!ep || asm.busy} title={`Export: assemble the ${pass} review cut into one mp4 with ffmpeg (it says first what's missing, and missing shots are skipped). Not needed to watch the cut: use Play all.`} onClick={() => checkThenExport({ kind: "export", upscaled: false })}>
             <i className={asm.busy && !asm.publish ? "pi pi-spin pi-spinner" : "pi pi-download"} /> {asm.busy && !asm.publish ? "Assembling…" : "Export"}
           </button>
-          <button disabled={!ep || asm.busy} title={`Export the ${pass} cut from its upscales (2x). Clips without a fresh upscale are upscaled first (the series' upscale.master recipe, as Master does), and the export runs when they're done. Writes <cut>_up.mp4 beside the plain cut`} onClick={() => void exportUpscaled(true)}>
+          <button disabled={!ep || asm.busy} title={`Export the ${pass} cut from its upscales (2x). Clips without a fresh upscale are upscaled first (the series' upscale.master recipe, as Master does), and the export runs when they're done. Writes <cut>_up.mp4 beside the plain cut`} onClick={() => checkThenExport({ kind: "export", upscaled: true })}>
             2x
           </button>
         </span>
         <span className="h3-seg h3-seg-act">
-          <button disabled={!ep || asm.busy} title={`Add Titles: assemble the whole ${pass} cut (fails if a shot is missing), then put the series intro and outro around it with the episode's title (_titles/INTRO.mp4 and OUTRO.mp4 in the show folder). Writes <episode>/publish/`} onClick={() => void assemble(false, { publish: true })}>
+          <button disabled={!ep || asm.busy} title={`Add Titles: assemble the whole ${pass} cut (fails if a shot is missing), then put the series intro and outro around it with the episode's title (_titles/INTRO.mp4 and OUTRO.mp4 in the show folder). Writes <episode>/publish/`} onClick={() => checkThenExport({ kind: "titles", upscaled: false })}>
             <i className={asm.busy && asm.publish ? "pi pi-spin pi-spinner" : "pi pi-bookmark"} /> {asm.busy && asm.publish ? "Adding titles…" : "Titles"}
           </button>
-          <button disabled={!ep || asm.busy} title={`Add Titles to the cut from its upscales (2x), upscaling any clip without a fresh one first, as Export 2x does`} onClick={() => void exportUpscaled(false, true)}>
+          <button disabled={!ep || asm.busy} title={`Add Titles to the cut from its upscales (2x), upscaling any clip without a fresh one first, as Export 2x does`} onClick={() => checkThenExport({ kind: "titles", upscaled: true })}>
             2x
           </button>
         </span>
@@ -635,7 +642,7 @@ export function Timeline() {
                     const take = clipTake(s, s.cut.placeholder ? other : undefined);
                     return (
                       <div key={s.shot} data-shot={s.shot} className={`h3-tl-col${ext?.kind === "onto" && ext.shot === s.shot ? " h3-drop-onto" : ""}`} style={{ width }}
-                        title={ext?.kind === "onto" && ext.shot === s.shot ? `Drop: a take of ${s.shot}, in the cut` : undefined}>
+                        title={ext?.kind === "onto" && ext.shot === s.shot ? `Drop: a video as a take of ${s.shot}, in the cut; a picture as its first keyframe` : undefined}>
                         <Ruler item={it} width={width} zoom={zoom} onDown={onRulerDown} />
                         <div style={{ height: clipH, position: "relative" }}>
                           <Clip
@@ -646,7 +653,8 @@ export function Timeline() {
                             width={width}
                             height={clipH}
                             aspect={aspect}
-                            selected={shot === s.shot}
+                            selected={shot === s.shot || multi.includes(s.shot)}
+                            multiSelected={multi.length > 1 && multi.includes(s.shot)}
                             rendering={r.size ? r : NO_TAKES}
                             progress={r.size && running ? progress[running] : undefined}
                             targets={targets}

@@ -447,7 +447,7 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual((fl["label"], fl["short"]),
                          ("MiniMax H3 FL2VA (first/last frames)", "H3 FL2V"))
         self.assertEqual(fl["capabilities"]["keyframes"], ["first", "last"])
-        self.assertEqual(fl["capabilities"]["policies"], ["generate", "dub", "dub_keep_foley"])
+        self.assertEqual(fl["capabilities"]["policies"], ["generate", "dub", "dub_keep_foley", "clone"])
         self.assertEqual(fl["capabilities"]["policy_fallback"], "generate")
         self.assertFalse(fl["capabilities"]["subject_refs"])
         self.assertEqual(by[H3]["kind"], "video")

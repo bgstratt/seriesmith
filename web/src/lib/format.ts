@@ -63,6 +63,7 @@ const STALE_WHY: Record<string, string> = {
   preset: "model / LoRA / steps / size defaults changed since the take",
   target: "rendered on another target than the shot's next render uses",
   chain: "it continues the shot before it (continuous: latent), whose take in the cut changed since",
+  sound: "the shot's sound (generate, clone, or the track it dubs) changed since the take",
 };
 
 export function staleTitle(reasons: string[]): string {

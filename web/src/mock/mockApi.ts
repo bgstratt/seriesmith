@@ -15,6 +15,7 @@ import type {
   BuildResult, CutAudioSource, CutEntry, EpisodeStatus, EpisodeSummary, Issue, Lora, MissingRef, Override, OverrideResult, Pass,
   RefGenerateMissingResult, RefUsed, RenderResult, ShotDetail, ShotStatus, ShotTargetSource, SourceCheck, SourceFile,
   TakeDetail, TakeSummary, Target, TargetGraph, Track, TrackResult, ImportedShotTake,
+  ShotSound,
 } from "../types";
 import { localShotSpans } from "../lib/source";
 import { buildScript, buildSeries, checkScript, checkSeries, jsonErrorAt, mockHash, planPromote, type MockShotSource } from "./mockSource";
@@ -488,6 +489,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
 
   /** The episode's default target: the editor's, else series.json's. */
   let episodeTarget: string | null = null;
+  // shots' sounds (PUT /seriesmith/sound)
+  const sounds: Record<string, ShotSound> = {};
   // Phase 11: which workflows this "ComfyUI" has saved (Copy to ComfyUI / Revert).
   // H3's is saved already, as it is on a machine that has rendered with it.
   const savedWorkflows = new Set<string>(
@@ -1936,6 +1939,21 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const file = name || t.workflow || `${target}.json`;
       const had = savedWorkflows.delete(file);
       return { ok: true, target, deleted: had, name: file, graph: mockGraph(t) };
+    },
+    async dubs(ep, shot) {
+      await wait();
+      need(ep);
+      return { shot, sound: sounds[shot] ?? null, track: null, dubs: [], takes: [] };
+    },
+    async putSound(ep, shots, sound) {
+      await wait();
+      need(ep);
+      for (const s of shots) {
+        if (sound) sounds[s] = sound;
+        else delete sounds[s];
+      }
+      emit("seriesmith.episode", { ep: EP });
+      return { shots, sound };
     },
     async putEpisodeTarget(ep, target) {
       await wait();

@@ -3,7 +3,7 @@
 // trimmed parts dimmed.
 
 import { useEffect, useState } from "react";
-import { currentPlaylist, openClipAudio } from "../actions";
+import { currentPlaylist, openSound } from "../actions";
 import { clearClipAudio, setTrims, toggleLock } from "../cutActions";
 import { api } from "../host";
 import { GAIN_DEFAULT, RECORDING_IGNORES_AUDIO, audioOf, gainOf, offsetOf, startOf } from "../lib/audioSource";
@@ -146,8 +146,8 @@ function ClipAudioLine({ shot, cut, locked }: { shot: string; cut: ShotStatus["c
         <span className="h3-muted">its own take's sound</span>
       )}
       <span className="h3-grow" />
-      <button className="h3-btn" title={`Pick where ${shot}'s sound comes from`} onClick={() => openClipAudio(shot)}>
-        <i className="pi pi-volume-up" /> Audio from…
+      <button className="h3-btn" title={`Pick where ${shot}'s sound comes from`} onClick={() => openSound([shot], "cut")}>
+        <i className="pi pi-volume-up" /> Replace audio…
       </button>
       {a && (
         <button

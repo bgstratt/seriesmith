@@ -282,7 +282,37 @@ under the shot.
 - **Click a sequence header** to expand or collapse it.
 - **Click a shot** to select it. The Script window follows the selection, and so does
   Inspect.
+- **Select several** with **Ctrl+click** (⌘ on a Mac: adds or takes out one) or **Shift+click**
+  (everything from the last one clicked, in the cut's order), here, on the board or on the
+  timeline. A bar says how many: **Generate N** queues a new take of each (a shot's first at
+  its built seed, a new seed otherwise, as Generate does), **Render…** opens the Render
+  dialog for them first, and × or Esc clears it. Right-click one of them for the same two.
+  Clicking a shot outside the selection ends it.
 - **Click a take** to select that candidate; **double-click** opens it in the Viewer.
+- **Sound.** Everything about a shot's sound is one card, in a dialog from the chip on its
+  row, **Sound…** in its context menu, and **Replace audio…** (which opens it at the cut).
+  The shot form's **Sound** has its first two parts, the next render's; a replacement in the
+  cut is set on purpose, from the dialog, and stays over the takes that come after it. The
+  parts:
+  - **Next take:** **Default** (what the script and series config say, shown in brackets),
+    or **Generate**, **Clone** or **Dub** for this shot alone.
+  - **Dub to** (Dub only): **the recording** (its aligned window, when the episode has a
+    recorded track and the shot was aligned), **a dub track**, or **a take's sound** (any
+    finished take, either pass: a proxy's delivery for the final), each playable. **Generate
+    a dub track** renders the shot for its sound only, on H3 Ref2VA at 64x64 (or FastH3 Omni,
+    or LTX-2.5: the model beside it), its voices cloned, in about 15 seconds once the model is
+    loaded; dub tracks are kept apart from the takes (`<episode>/dub/<shot>/`). **Keep the
+    model's sound effects under the voice** (on), or the voice alone.
+  - **In the cut:** what the cut plays for it: its take's own sound, a dub track or a take's
+    sound in its place, or silence. This changes no render (the mouths don't follow it);
+    **Adjust…** sets where it starts, its offset and level, or another shot's take or a file.
+
+  The next take does what is set: a dub of a track plays it, evened out to one loudness, on
+  any H3 or LTX model, and the take carries the dubbed voice. Changing it marks the shot's
+  takes **stale: sound**, so **Re-render stale** catches them. Without the voice model on your
+  ComfyUI, Generate a dub track carries a warning sign and opens **Features** at it. With
+  several shots selected, **Sound…** sets their next take (a dub of the recording only), and
+  **Generate dub tracks** makes one for each.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
@@ -322,7 +352,7 @@ Everything you do to a shot lives here:
 | **Leave out of the cut** / **Put back in the cut** | The shot keeps its place in the script and its takes; Export, Play all and Master skip it |
 | **Clear trims** | Back to the whole take |
 | **Add issue…** | Note what is wrong with it (see **Noting what's wrong**) |
-| **Audio from…** / **Back to its own audio** | This clip's picture with another clip's (or a file's) sound |
+| **Replace audio…** / **Back to its own audio** | The shot's Sound card at **In the cut**: what the cut plays for this clip instead of its own sound (a dub track, a take's sound, a file, silence). It changes no render: the mouths don't follow it (for that, Dub in the same card, and render again) |
 | **Move left / right in the cut** | Reorder (`Alt+←` / `Alt+→` in the timeline) |
 
 ### Editing a shot
@@ -398,8 +428,16 @@ render it — the take's card has two buttons for that:
 | **Generate (new seed)** | queues another take immediately: the saved override and a new seed, no dialog (**Generate** when the shot has no take yet) |
 | **New take…** | opens the settings dialog first: what changes (from which take, the seed, a note, what to keep), the model, the output's size and pass, the prompt; its foot sums it up beside **Generate proxy take** (or final) |
 
-> **Don't edit while that shot is rendering.** A finishing render refreshes the panel and
-> your unsaved edit goes with it. Let the take finish (or cancel it) first.
+**Unsaved edits are kept.** Edit while the shot renders: a take landing refreshes the panel
+around your edit, not over it. What you haven't saved is also kept in this browser, for
+each shot and pass, so a reload, a closed tab or another shot opened in between puts it
+back where you left it, with when you made it. The same goes for a ref's settings, the
+shot form, Series settings and the Script and series config windows. Save or **Discard
+edits** (Revert, or closing a window without saving) clears it. When the file has changed
+since (a save elsewhere, an outside editor), the Script window shows it as a conflict
+(**Reload** / **Keep mine**), and the shot form and Series settings offer your edits back
+(**Put them back** / **Drop them**) rather than putting them over the newer version. The
+edits live in this browser only: another browser or PC doesn't see them.
 
 Story edits — action, camera, dialogue — belong in the **Script** window instead, not in an
 override. **Promote** moves overrides that the authored files can express back into them.
@@ -679,6 +717,13 @@ script call for is listed here.
 - **Click a candidate** to see what made it: its model, settings and prompt. **show all**
   opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
   on the clipboard, to run it somewhere else.
+- **Voices** has **Generate missing**: a voice sample for each character with none (and
+  none on its way), each a candidate to listen to and pick, as Clone speaks in it.
+- **Dub tracks** (after the refs): the shots that have one, or whose sound is set to dub,
+  as shot keyframes list only those there are: its lines, how many it has and its sound.
+  **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
+  another voice model), or **Sound…** for its whole Sound card. A shot's first dub track
+  comes from its Sound card or **Generate dub tracks** with shots selected.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
@@ -1043,13 +1088,23 @@ The cut as an editable track, along the bottom of the page.
 
 - **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
 - **Drop a take from the gallery, or a video file**, onto a clip (that shot's take) or between
-  two (a new shot there): [Takes from outside](#takes-from-outside).
+  two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
+  jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
+  as an upload in Refs is. A shot whose model reads no
+  keyframe keeps it unused, and says so. Dropped between two clips, a picture opens the shot
+  form there, as a video does: **Save** makes the shot with the picture as its first
+  keyframe, and **Save and generate** renders it from that keyframe.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
-- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped);
+- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
+  Before anything runs it says what's wrong with the cut: shots with nothing to play (no
+  take, a failed one, trims that leave nothing; and whether one is rendering now), takes
+  shorter than their dialogue on the recording, and the other pass's takes standing in.
+  Click a shot to go to it, or **Export anyway**. Titles stops at a missing shot, since it
+  needs every one. A cut with nothing wrong exports at once.
   **2x** beside it assembles from the takes' upscales. A clip without a fresh one (none
   yet, a stale or failed one) is upscaled first, by the series config's `upscale.master`
   recipe as Master does (each take's defaults without one), after saying which; the

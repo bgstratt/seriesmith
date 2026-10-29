@@ -469,6 +469,24 @@ class MixedEpisodeTest(unittest.TestCase):
         job = self.plan("sh050")
         self.assertNotIn("audio", J.stage_inputs(job))
 
+    def test_dub_with_a_first_keyframe(self):
+        """A dub shot with a first keyframe: the picture starts from the keyframe
+        and the recording is still held, each in its own half of the latent."""
+        job = self.plan("sh040", loras=[])
+        g = self.graph(job, {"audio": "seriesmith/w.wav", "first": "h3pipe/a.png"})
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        from seriesmith.targets.video.ltx2 import compile as LC
+        st = LC._stages(g)
+        held = J.node_of(g, "SetLatentNoiseMask")
+        inplace = set(of(g, "LTXVImgToVideoInplace"))
+        self.assertEqual(len(inplace), 2)
+        for n in (1, 2):
+            swap = g[st[n]["sampler"]]["inputs"]["latent_image"][0]
+            self.assertEqual(g[swap]["inputs"]["audio_latent"], [held, 0])
+            # the video half comes from the keyframe's in-place conditioning
+            inner = g[swap]["inputs"]["video_latent"][0]
+            self.assertIn(g[inner]["inputs"]["video_latent"][0], inplace)
+
     def test_clone_makes_the_lines_in_the_shots_graph(self):
         """sh020's final clones (the series' audio mode): each line is made in the
         shot's own graph by the audio-only model, continuing its speaker's held
@@ -531,6 +549,37 @@ class MixedEpisodeTest(unittest.TestCase):
         notes = " ".join(job.notes)
         self.assertIn("3 line(s) made in the shot's own graph, in 2 held voice(s)", notes)
 
+    def test_clone_with_a_first_keyframe(self):
+        """Unlike H3 FL2VA (no voice slot: clone renders as generate), ltx2 clones
+        from a first keyframe: the lines are made and held as without one, and
+        the picture starts from the keyframe."""
+        from test_render import wav_bytes
+        for who, tone in (("ada", 220.0), ("bo", 330.0)):
+            with open(os.path.join(self.root, "audio", "voices", f"{who}_sample.wav"), "wb") as fh:
+                fh.write(wav_bytes(2.0, freq=tone))
+        job = self.plan("sh020", "final", loras=[])
+        self.assertNotIn("renders as generate", " ".join(job.notes))
+        comfy = FakeComfy()
+        try:
+            got = J.stage_inputs(job, J.Comfy(comfy.url))
+        finally:
+            comfy.close()
+        g = self.graph(job, {**got, "first": "h3pipe/a.png"})
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        self.assertEqual(len(of(g, "LTXVImgToVideoInplace")), 2)
+        only = J.node_of(g, "LTXVAudioOnlyModel")
+        video = [k for k in of(g, "SamplerCustomAdvanced")
+                 if g[g[k]["inputs"]["guider"][0]]["inputs"]["model"] != [only, 0]]
+        self.assertEqual(len(video), 2)
+        for k in video:
+            swap = g[k]["inputs"]["latent_image"][0]
+            held = g[swap]["inputs"]["audio_latent"][0]
+            self.assertEqual(g[g[g[held]["inputs"]["samples"][0]]["inputs"]["audio"][0]]["class_type"],
+                             "AudioConcat")
+            inner = g[swap]["inputs"]["video_latent"][0]
+            self.assertEqual(g[g[inner]["inputs"]["video_latent"][0]]["class_type"], "LTXVImgToVideoInplace")
+        self.assertEqual(g[J.node_of(g, "H3SaveShot")]["inputs"]["audio_policy"], "clone")
+
     def test_retarget_by_override_and_request(self):
         ov = T.load_overrides(self.root)
         T.set_shot_target(ov, "sh010", LTX)
@@ -562,15 +611,18 @@ class MixedEpisodeTest(unittest.TestCase):
         self.assertIsInstance(job.prompt, list)
         self.assertEqual((job.frames - 5) % 17, 0)
 
-    def test_retarget_needs_a_current_build(self):
+    def test_retarget_from_a_build_behind_the_series_config(self):
+        """The series config changed since the build: a render on another model
+        compiles with it as it is now and says so (it used to refuse, "rebuild
+        the episode", as it did after any update to a target's compile)."""
         p = os.path.join(self.root, "series.json")
         cfg = json.load(open(p, encoding="utf-8"))
         cfg["subjects"]["ada"]["design"] = "someone else entirely"
         json.dump(cfg, open(p, "w", encoding="utf-8"))
         job = self.plan("sh010", ov={}, target=LTX)
-        self.assertEqual(job.action, "error")
-        self.assertIn("out of date", job.error)
-        self.assertFalse(job.runs)
+        self.assertTrue(job.runs, job.error)
+        self.assertIn("someone else entirely", J._prompt_text(job.prompt))
+        self.assertTrue(any("build is older than the series config" in n for n in job.notes))
 
     def test_status_merges_targets_and_reports_them(self):
         ov = T.load_overrides(self.root)

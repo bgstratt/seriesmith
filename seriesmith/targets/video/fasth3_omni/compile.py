@@ -14,5 +14,6 @@ Stdlib only.
 from __future__ import annotations
 
 from seriesmith.targets.video.minimax_h3_ref2va.compile import (  # noqa: F401
-    compile_episode, compile_shot, compile_without, ref_slots, required_refs,
+    DUB_BY_FILE, compile_episode, compile_shot, compile_without, ref_slots,
+    required_refs,
 )

@@ -1,15 +1,16 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
-  renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
+  clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
-import { host } from "../host";
+import { api, host } from "../host";
 import {
   ESTIMATE_TITLE, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
 import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
+
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
 import type { EpisodeSummary, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -18,6 +19,7 @@ import { useView } from "../lib/viewPref";
 import { aspectOf, useStatus } from "./hooks";
 import { useIssueCount } from "./Issues";
 import { MissingRefsSummary } from "./MissingRefs";
+import { MultiBar } from "./MultiBar";
 import { EpisodeTarget } from "./Readiness";
 import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
@@ -25,7 +27,7 @@ import { TrackButton, TrackLine } from "./Track";
 import { QueueBar } from "./Jobs";
 import { dragHasFiles, uploadText } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake } from "../lib/takeDrop";
-import { dismissTakeUpload, dropTakeOnto, importTakeFile, pickTakeFile, takeUploadKey } from "../takeActions";
+import { dismissTakeUpload, dropFileOnto, dropTakeOnto, pickTakeFile, takeUploadKey } from "../takeActions";
 
 const BROWSE = "__browse__";
 
@@ -204,6 +206,7 @@ function BuildBar() {
       >
         Generate missing{missing.length ? ` (${missing.length})` : ""}
       </button>
+      <MultiBar />
       {st && prog.total > 0 && (
         <div className="h3-col" style={{ gap: 3 }} title={progressTitle(prog)}>
           <span className="h3-small h3-muted">{progressLine(prog)}</span>
@@ -238,6 +241,31 @@ function BuildBar() {
   );
 }
 
+/** The shot's sound, set in the editor (Sound…) or the script's: click to change it;
+ * a dub plays its track. */
+function SoundChip({ s }: { s: ShotStatus }) {
+  const ep = useApp((st) => st.ep);
+  const set = s.sound;
+  const label = set ? (set.mode === "dub" ? `dub · ${set.label ?? "?"}` : set.mode) : s.audio_policy ?? "";
+  if (!label) return null;
+  const play = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (ep && set?.file) void new Audio(api().fileUrl(ep, set.file)).play();
+  };
+  return (
+    <span className="h3-row" style={{ gap: 2 }}>
+      {set?.mode === "dub" && set.file && (
+        <button className="h3-btn h3-icon" title={`Play ${set.label}`} onClick={play}><i className="pi pi-volume-up" /></button>
+      )}
+      <button className={`h3-badge h3-badge-btn${set ? " h3-b-voice" : ""}`}
+        title={set ? `Sound set here: ${label}. Click: change it` : `Sound as the script says (${label}). Click: generate, clone, or dub a track`}
+        onClick={(e) => { e.stopPropagation(); openSound([s.shot]); }}>
+        {label}
+      </button>
+    </span>
+  );
+}
+
 const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, rendering, progress, targets, shotCurrent }: {
   ep: string; pass: Pass; s: ShotStatus; t: TakeSummary; aspect: number; selected: boolean; rendering: boolean;
   progress?: { value: number; max: number };
@@ -269,6 +297,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           {isCut && <span className="h3-badge h3-b-cut" title={s.cut.picked ? "Picked in cut.json" : "The latest usable take"}>{s.cut.picked ? "cut (picked)" : "cut"}</span>}
           {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
           {ub && <span className={`h3-badge h3-b-${ub.kind}`} title={ub.title}>{ub.label}</span>}
+          {t.sound?.mode === "dub" && <span className="h3-badge h3-b-voice" title="Rendered dubbed to a track (Sound…)">dubbed</span>}
           {t.source === "imported" && (
             <span className="h3-badge h3-b-imported" title={originTitle(t)}>{t.copied_from ? `from ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "imported"}</span>
           )}
@@ -304,7 +333,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
 function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
   ep: string; pass: Pass; s: ShotStatus; aspect: number; targets: TargetList | null; seriesDefault: string;
 }) {
-  const selected = useApp((st) => st.shot === s.shot);
+  const selected = useApp((st) => st.shot === s.shot || st.multi.includes(s.shot));
   const selTake = useApp((st) => (st.shot === s.shot ? st.take : null));
   const expanded = useApp((st) => !!st.expanded[s.shot]);
   const running = useApp((st) => st.running);
@@ -340,9 +369,10 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
           if (!take && !file) return;
           e.preventDefault();
           if (take) void dropTakeOnto(s.shot, take);
-          else if (file) void importTakeFile(s.shot, file);
+          else if (file) void dropFileOnto(s.shot, file);
         }}
-        onClick={() => select(s.shot, ct?.take ?? null)}
+        onMouseDown={(e) => e.shiftKey && e.preventDefault() /* no text selection on Shift-click */}
+        onClick={(e) => clickShot(s.shot, ct?.take ?? null, e)}
         onDoubleClick={() => (ct ? openViewer(s.shot, ct.take, null, "single", pass) : toggleExpanded(s.shot))}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -367,6 +397,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
               {lengthEstimated(s) ? <span className="h3-est">≈</span> : null}{fmtSeconds(s.seconds)}{s.size ? ` · ${s.size}` : ""}
             </span>
             <span className="h3-grow" />
+            <SoundChip s={s} />
             <span className="h3-muted h3-small" title={`${n} take(s)${ct ? `; the cut uses ${tn(ct.take)}` : ""}`}>
               {n ? `${n} take${n > 1 ? "s" : ""}` : ""}{ct ? ` · ${tn(ct.take)}` : ""}
             </span>
@@ -442,7 +473,7 @@ function TakeUploadLine({ shot }: { shot: string }) {
 function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
   ep: string; pass: Pass; s: ShotStatus; aspect: number; targets: TargetList | null; seriesDefault: string;
 }) {
-  const selected = useApp((st) => st.shot === s.shot);
+  const selected = useApp((st) => st.shot === s.shot || st.multi.includes(s.shot));
   const running = useApp((st) => st.running);
   const prompts = useApp((st) => st.prompts);
   const progress = useApp((st) => st.progress);
@@ -457,7 +488,8 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
   const newest = s.takes[s.takes.length - 1];
   const n = s.takes.length;
   return (
-    <div className={`h3-tile${selected ? " h3-sel" : ""}`} onClick={() => select(s.shot, ct?.take ?? null)}
+    <div className={`h3-tile${selected ? " h3-sel" : ""}`} onClick={(e) => clickShot(s.shot, ct?.take ?? null, e)}
+      onMouseDown={(e) => e.shiftKey && e.preventDefault()}
       onContextMenu={(e) => { e.preventDefault(); openMenu(e.clientX, e.clientY, s.shot, ct?.take ?? null, pass); }}>
       <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={0} aspect={aspect} fill
         onDoubleClick={(e) => { e.stopPropagation(); if (ct) openViewer(s.shot, ct.take, null, "single", pass); }}>

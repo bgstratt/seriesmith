@@ -295,7 +295,7 @@ export function audioBadgeOf(cut: CutInfo | null | undefined, shot: string): Aud
     if (extra.length) bits.push(extra.join(" · "));
     if (cut?.audio_file) bits.push(cut.audio_file);
   }
-  bits.push("Its menu's “Audio from…” changes it; the inspector's Cut section clears it.");
+  bits.push("Its menu's “Replace audio…” changes it; the inspector's Cut section clears it.");
   return { label, title: bits.join("\n"), kind: a.source };
 }
 

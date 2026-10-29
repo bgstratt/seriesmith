@@ -3,6 +3,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { ToastAction } from "./host";
+import type { ExportProblem, ExportRun } from "./lib/exportCheck";
 import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
@@ -270,7 +271,7 @@ export interface VoiceClipState {
 }
 
 /**
- * Phase 9d: the "Audio from…" window. `draft` is the source being edited,
+ * Phase 9d: the "Replace audio…" window. `draft` is the source being edited,
  * null meaning the clip's own sound; nothing is saved until Use this audio.
  */
 export interface ClipAudioState {
@@ -335,6 +336,10 @@ export interface AppState {
   detailError: Record<string, string>;
   shot: string | null;
   take: number | null;
+  /** several shots selected (Ctrl/Shift-click, lib/multiSelect), in the cut's order; empty: just `shot` */
+  multi: string[];
+  /** where a Shift-click's range starts */
+  anchor: string | null;
   expanded: Record<string, boolean>;
   collapsedSeq: Record<string, boolean>;
   /** ComfyUI prompt id -> the take it renders */
@@ -405,6 +410,8 @@ export interface AppState {
   build: { busy: boolean; result: BuildResult | null; error: string | null };
   /** `publish`: the running one is a Publish (assemble, then the titles) */
   assemble: { busy: boolean; output: string | null; report: string | null; error: string | null; publish?: boolean };
+  /** Export, Titles or a 2x of either, held while the cut's problems are shown (lib/exportCheck) */
+  exportCheck: { run: ExportRun; ep: string; pass: Pass; problems: ExportProblem[] } | null;
   /** in-flight actions, by a caller-chosen key, to disable buttons */
   busy: Record<string, boolean>;
   /** Phase 9a: the Script / Series config windows are open */
@@ -444,7 +451,7 @@ export interface AppState {
   voiceClip: VoiceClipState | null;
   /** P5: the 360 viewer: a location and one of its panoramas (null: closed) */
   panoView: { ref: string; take: number } | null;
-  /** Phase 9d: the "Audio from…" window for one clip (null: closed) */
+  /** Phase 9d: the "Replace audio…" window for one clip (null: closed) */
   clipAudio: ClipAudioState | null;
   /** P8: the Supply window for files dropped in bulk (null: closed) */
   supply: SupplyState | null;
@@ -466,6 +473,10 @@ export interface AppState {
   settingsOpen: boolean;
   /** the Features window: what can be added, and the installer (components/FeaturesWindow.tsx) */
   featuresOpen: boolean;
+  /** a Features entry to show when the window opens (scrolled to, opened, ticked) */
+  featuresFocus: string | null;
+  /** the Sound dialog's shots (generate, clone, or dub a track) */
+  soundAsk: { shots: string[]; focus?: "cut" | null } | null;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */
@@ -515,6 +526,8 @@ export function initialState(prefs: Prefs = {}): AppState {
     detailError: {},
     shot: null,
     take: null,
+    multi: [],
+    anchor: null,
     expanded: {},
     collapsedSeq: {},
     prompts: {},
@@ -564,6 +577,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     zoom: clampZoom(prefs.zoom ?? ZOOM_DEFAULT),
     build: { busy: false, result: null, error: null },
     assemble: { busy: false, output: null, report: null, error: null },
+    exportCheck: null,
     busy: {},
     sourceOpen: { script: false, series: false },
     sourceDirty: { script: false, series: false },
@@ -578,6 +592,8 @@ export function initialState(prefs: Prefs = {}): AppState {
     draftsOpen: false,
     settingsOpen: false,
     featuresOpen: false,
+    featuresFocus: null,
+    soundAsk: null,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},
@@ -615,6 +631,16 @@ export function statusKey(ep: string, pass: Pass): string {
  *  length), so it is part of the key -- the shot's own detail stays cached. */
 export function detailKey(ep: string, pass: Pass, shot: string, target?: string | null): string {
   return `${ep}|${pass}|${shot}${target ? `|${target}` : ""}`;
+}
+
+/** The cached details less `ep`'s, except those `onScreen` ("pass|shot"): those
+ *  stay until a refetch replaces them, so what shows them isn't unmounted. */
+export function keepDetails<T>(details: Record<string, T>, ep: string, onScreen: Set<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [k, v] of Object.entries(details)) {
+    if (!k.startsWith(ep + "|") || onScreen.has(k.slice(ep.length + 1))) out[k] = v;
+  }
+  return out;
 }
 
 export function clampZoom(z: number): number {

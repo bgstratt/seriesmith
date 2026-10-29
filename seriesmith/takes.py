@@ -407,7 +407,7 @@ def lost_job(path: str, data: dict) -> dict:
     failed, as sweep_queued fails such a take: otherwise it reads "on its way"
     forever, and a master waits for it. Left alone outside the server
     (MANAGED None)."""
-    if (data.get("status") != "queued" or data.get("queue") != "seriesmith" or MANAGED is None
+    if (data.get("status") != "queued" or data.get("queue") != QUEUE or MANAGED is None
             or not data.get("comfy_prompt_id") or data["comfy_prompt_id"] in MANAGED()):
         return data
     return update_sidecar(path, status="failed", finished=now(),
@@ -456,6 +456,113 @@ def post_of(take: Take, up: dict | None = None) -> dict | None:
 def latest_usable(takes: list[Take]) -> Take | None:
     ok = [t for t in takes if t.usable]
     return ok[-1] if ok else None
+
+
+# ---------------------------------------------------------------------------
+# a shot's sound: generate, clone, or dub a track (overrides.json `sound`)
+# ---------------------------------------------------------------------------
+#
+# What a shot's next render does for its sound, set in the editor beside the
+# script's own (`policy:`, audio.mode): {"mode": "generate" | "clone" | "dub",
+# "dub": source, "keep_foley"?: false (a dub: the voice alone, no sound of
+# the model's under it)} where a dub's source is
+#
+#   {"from": "track"}                      the shot's window of the recording
+#   {"from": "take", "pass": p, "take": n} a take of the shot's sound (either pass)
+#   {"from": "dub", "take": n}             a generated dub track
+#
+# Dub tracks are the shot rendered tiny on a voice model for its sound only
+# (jobs.RenderRequest.dub_track), kept as takes of their own in
+# <episode>/dub/<shot>/: never in the take list or the cut. It is a top-level
+# map ({"sound": {"sh040": {...}}}), not in a shot's block, whose dicts are
+# per-target overrides.
+
+DUB_FOLDER = "dub"
+SOUND_MODES = ("generate", "clone", "dub")
+DUB_FROM = ("track", "take", "dub")
+
+
+def shot_sound(data: dict, shot_id: str) -> dict | None:
+    """The shot's sound as overrides.json sets it, or None (the script's)."""
+    s = (data.get("sound") or {}).get(shot_id)
+    return dict(s) if isinstance(s, dict) and s.get("mode") in SOUND_MODES else None
+
+
+def check_sound(sound) -> dict | None:
+    """`sound` as set_shot_sound keeps it; ValueError for anything else."""
+    if sound is None:
+        return None
+    if not isinstance(sound, dict) or sound.get("mode") not in SOUND_MODES:
+        raise ValueError(f"sound.mode must be one of {', '.join(SOUND_MODES)}")
+    out = {"mode": sound["mode"]}
+    if sound["mode"] != "dub":
+        return out
+    src = sound.get("dub")
+    if not isinstance(src, dict) or src.get("from") not in DUB_FROM:
+        raise ValueError("a dub names its track: sound.dub.from is track, take or dub")
+    d = {"from": src["from"]}
+    if src["from"] in ("take", "dub"):
+        n = src.get("take")
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError("sound.dub.take must be a take number")
+        d["take"] = n
+    if src["from"] == "take":
+        if src.get("pass") not in PASSES:
+            raise ValueError(f"sound.dub.pass must be one of {', '.join(PASSES)}")
+        d["pass"] = src["pass"]
+    out["dub"] = d
+    # the model's own sound laid under the voice (dub_keep_foley), or the voice
+    # alone (dub); kept only when off, so the default stays as it was
+    keep = sound.get("keep_foley", True)
+    if not isinstance(keep, bool):
+        raise ValueError("sound.keep_foley must be true or false")
+    if not keep:
+        out["keep_foley"] = False
+    return out
+
+
+def set_shot_sound(data: dict, shot_id: str, sound: dict | None) -> dict:
+    """Set a shot's sound (check_sound's form), or None: back to the script's."""
+    sound = check_sound(sound)
+    block = data.setdefault("sound", {})
+    if sound:
+        block[shot_id] = sound
+    else:
+        block.pop(shot_id, None)
+        if not block:
+            data.pop("sound", None)
+    return data
+
+
+def dub_tracks(root: str, shot_id: str) -> list[Take]:
+    """A shot's generated dub tracks, oldest first."""
+    return list_takes(root, PASSES[0], shot_id, DUB_FOLDER)
+
+
+def take_sound(t: Take) -> str | None:
+    """The file holding a take's sound: its _h3.wav, else its mp4 (when it
+    has an audio stream), else None."""
+    from seriesmith import peaks as PK           # imported on demand
+    if os.path.isfile(t.paths.h3_wav):
+        return t.paths.h3_wav
+    return t.paths.mp4 if PK.has_audio(t.paths.mp4) else None
+
+
+def dub_source(root: str, shot_id: str, src: dict) -> tuple[str | None, str]:
+    """(the file a dub source plays, its label) for a take or a dub track; the
+    file is None when the take isn't finished or has no sound. A `track`
+    source is the shot's window of the recording, not a file: (None, "track")."""
+    if src.get("from") == "track":
+        return None, "the recorded track"
+    if src.get("from") == "dub":
+        t = get_take(root, PASSES[0], shot_id, int(src["take"]), DUB_FOLDER)
+        label = f"dub track {int(src['take'])}"
+    else:
+        t = get_take(root, src["pass"], shot_id, int(src["take"]))
+        label = f"t{int(src['take']):02d}" + ("" if src["pass"] == PASSES[0] else f" ({src['pass']})")
+    if t is None or not t.usable:
+        return None, label
+    return take_sound(t), label
 
 
 def reserve_take(root: str, pass_: str, shot_id: str, sidecar: dict,
@@ -540,10 +647,12 @@ def _parse_time(s) -> _dt.datetime | None:
         return None
 
 
-# The ids of the jobs seriesmith's queue still has (runner.Runner sets it in the
-# server): a queued take with a `backend` is swept against these instead of
-# ComfyUI's queue. None (the command line): such takes are left alone.
+# The ids of the jobs this process's queue still has, and its name (runner.Runner
+# sets both): a queued take with a `backend` whose `queue` is this one is swept
+# against these instead of ComfyUI's queue; another queue's is left alone (the
+# server's, while the command line renders). None: no queue here.
 MANAGED = None
+QUEUE = None
 
 
 def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
@@ -573,7 +682,7 @@ def sweep_queued(takes: list[Take], alive: set[str], as_of: str | None = None,
             # a backend runs it, not this ComfyUI's queue: seriesmith's queue
             # says for the takes it owns (`queue`); one rendered from the
             # command line is that process's to finish
-            if sc.get("queue") != "seriesmith" or MANAGED is None:
+            if sc.get("queue") != QUEUE or MANAGED is None:
                 continue
             if managed is None:
                 managed = MANAGED()

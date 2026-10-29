@@ -54,6 +54,8 @@ export interface TakeSummary {
   draft?: { task: string; made: string; expires: string; expired: boolean } | null;
   /** a final made from a draft (that proxy take) */
   from_draft?: { task: string; take: number; pass: string } | null;
+  /** the sound overrides.json set when it rendered (a dub's source) */
+  sound?: ShotSound;
   stale: StaleReason[];
   thumb: string | null;
   strip: string | null;
@@ -137,8 +139,56 @@ export interface MultishotPart {
   size: string;
 }
 
+/** Where a dub's track comes from (overrides.json `sound.dub`). */
+export type DubSource =
+  | { from: "track" }
+  | { from: "take"; pass: Pass; take: number }
+  | { from: "dub"; take: number };
+
+/** A shot's sound as the editor sets it (overrides.json `sound`); none: the script's. */
+export interface ShotSound {
+  mode: "generate" | "clone" | "dub";
+  dub?: DubSource;
+  /** a dub: false for the voice alone (no sound of the model's under it); absent: kept */
+  keep_foley?: boolean;
+  /** a dub: its source as the editor says it ("dub track 2", "t02 (proxy)") */
+  label?: string;
+  /** a dub: the file its source plays (episode-relative), null for the track or one missing */
+  file?: string | null;
+}
+
+/** One sound a shot can be dubbed to (GET /seriesmith/dubs). */
+export interface DubOption {
+  take: number;
+  status: string;
+  file: string | null;
+  target: string | null;
+  seed: string | null;
+  note: string;
+  finished: string | null;
+  save_notes: string;
+  seconds: number | null;
+  /** a take's pass (a dub track has none) */
+  pass?: Pass;
+}
+
+export interface DubSources {
+  shot: string;
+  sound: ShotSound | null;
+  /** the shot's window of the recorded track, when it has one */
+  track: { file: string; in: number; out: number } | null;
+  dubs: DubOption[];
+  takes: DubOption[];
+}
+
 export interface ShotStatus {
   shot: string;
+  /** the sound overrides.json sets; absent: the script's (audio_policy) */
+  sound?: ShotSound;
+  /** how many dub tracks it has (absent: none) */
+  dub_tracks?: number;
+  /** its lines (who: the speaker's name), sent for the shots with a dub track or a dub set */
+  lines?: { who: string; line: string }[];
   orphan: boolean;
   sequence: string | null;
   length: number | null;
@@ -690,6 +740,9 @@ export interface RenderRequest {
   /** Phase 13: keep the take's latent beside it for an upscale later. Absent: the
    * server's default (the series config's upscale.save_latents; final pass only). */
   save_latent?: boolean;
+  /** a dub track: the shot for its sound only (H3 Ref2VA at 64x64 unless target / size say
+   * otherwise), kept apart from its takes. Only sent when set. */
+  dub_track?: boolean;
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
 }
@@ -1814,6 +1867,8 @@ export interface Target {
     keyframes?: string[];
     policies?: string[];
     voice_reference?: boolean;
+    /** it can dub a track of its own: a take's sound, a dub track */
+    dubs_tracks?: boolean;
     subject_refs?: boolean;
     prompt?: string;
     negative_prompt?: boolean;

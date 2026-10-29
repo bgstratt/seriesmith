@@ -4,11 +4,14 @@
 // take: its shot's lines, its length; a file: the shot form, prefilled), the
 // take into it, and the clip moved to where it was dropped.
 
-import { afterAuthoredWrite, openShotForm, pickTake, refreshEpisode, select } from "./actions";
+import { afterAuthoredWrite, openShotForm, pickTake, refreshEpisode, select, uploadRef } from "./actions";
 import { errText } from "./api";
 import { moveClip } from "./cutActions";
 import { api, host } from "./host";
 import { tn } from "./lib/format";
+import { keyframeNote, keyframeRefId } from "./lib/keyframes";
+import { fileKindProblem } from "./lib/lookback";
+import { seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { anchorAt, gapAfter, insertedShot, videoFileProblem, type TakeDrag } from "./lib/takeDrop";
 import { statusKey, store, uploadKey } from "./store";
 import type { ShotStatus } from "./types";
@@ -41,6 +44,11 @@ function cutShots(): ShotStatus[] {
 
 /** A video file as `shot`'s new take in the current pass, picked. The take's
  * number, or null (the reason is on the shot's upload line). */
+/** png, jpg or webp: what a keyframe can be */
+export function isPicture(file: { name: string }): boolean {
+  return fileKindProblem(file, "image") === "";
+}
+
 export async function importTakeFile(shot: string, file: File, pick = true): Promise<number | null> {
   const { ep, pass } = get();
   if (!ep) return null;
@@ -143,15 +151,48 @@ export async function dropTakeBetween(gap: number, from: TakeDrag): Promise<void
 
 /** A video file between two clips: the shot form there, its length the file's;
  * Save makes the shot, imports the file as its take and puts the clip there. */
+/** A file dropped on a shot's row or clip: a video becomes a take of it (in the
+ * cut), a picture its first keyframe (live at once, as an upload in Refs is). */
+export async function dropFileOnto(shot: string, file: File): Promise<void> {
+  if (isPicture(file)) await keyframeFromFile(shot, file);
+  else await importTakeFile(shot, file);
+}
+
+async function keyframeFromFile(shot: string, file: File) {
+  const ref = keyframeRefId(shot, "first");
+  if (await uploadRef(ref, null, file, true)) {
+    // a model that reads no keyframes keeps the picture, unused
+    const s = store.get();
+    const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+    const target = shotTarget(st?.shots.find((x) => x.shot === shot), seriesDefaultTarget(s.targets, st));
+    const note = keyframeNote(s.targets, target);
+    if (note) host().toast("warn", `${shot}'s model reads no keyframe`, `The picture is ${shot}'s first keyframe, but keyframes are ${note}.`);
+    return;
+  }
+  // the slot's error shows in the Refs tab; here, a toast
+  const key = uploadKey(ref, null);
+  const err = store.get().uploads[key]?.error;
+  if (err) {
+    host().toast("error", `${shot}: ${file.name} isn't its first keyframe`, err);
+    store.set((st) => {
+      const uploads = { ...st.uploads };
+      delete uploads[key];
+      return { uploads };
+    });
+  }
+}
+
 export async function dropFileBetween(gap: number, file: File): Promise<void> {
-  const problem = videoFileProblem(file);
+  // a picture: the new shot's first keyframe, its length the form's
+  const picture = isPicture(file);
+  const problem = picture ? "" : videoFileProblem(file);
   if (problem) {
-    host().toast("warn", "Not a video", problem);
+    host().toast("warn", "Not a video or a picture", problem);
     return;
   }
   const cut = cutShots();
   const anchor = anchorAt(cut, gap);
-  const seconds = await videoSeconds(file);
+  const seconds = picture ? null : await videoSeconds(file);
   openShotForm({
     shot: null,
     after: anchor && "after" in anchor ? anchor.after : null,
@@ -164,8 +205,11 @@ export async function dropFileBetween(gap: number, file: File): Promise<void> {
 /** After the shot form saved a new shot that came with a file: the file as its
  * take, and the clip where it was dropped. */
 export async function finishDroppedFile(shot: string, file: File, left: string | null): Promise<void> {
-  const take = await importTakeFile(shot, file);
-  if (take == null) return;
+  if (isPicture(file)) {
+    await keyframeFromFile(shot, file);
+    const { ep, pass } = store.get();
+    if (ep) await refreshEpisode(ep, pass);         // the new shot in the status, to be moved
+  } else if ((await importTakeFile(shot, file)) == null) return;
   await moveClip(shot, gapAfter(cutShots(), left));
 }
 

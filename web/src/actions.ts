@@ -8,6 +8,8 @@ import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
 import { staleShots } from "./lib/progress";
 import { pairFiles } from "./lib/importSeries";
+import { exportCheck, type ExportRun } from "./lib/exportCheck";
+import { clickSelection, selectedShots, type Mods } from "./lib/multiSelect";
 import { buildPlaylist, startOf, totalDuration, upscalesNeeded, type PlayItem } from "./lib/playlist";
 import { type RefTargetKind } from "./lib/imageTargets";
 import {
@@ -18,11 +20,11 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
+import { VOICE_TARGET, VOICE_TARGETS, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
-  detailKey, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
+  detailKey, keepDetails, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
   type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
@@ -32,6 +34,7 @@ import type {
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
   OwnPresetRequest, PresetPictureSource,
+  ShotSound,
 } from "./types";
 
 const set = store.set;
@@ -147,7 +150,7 @@ export async function setEpisodeTarget(target: string | null): Promise<boolean> 
       await api().putEpisodeTarget(ep, target);
       // every shot that follows the episode target changed: refetch both passes
       // and drop the cached shot details (their `target` / `effective` moved)
-      set((s) => ({ details: Object.fromEntries(Object.entries(s.details).filter(([k]) => !k.startsWith(`${ep}|`))) }));
+      set((s) => ({ details: keepDetails(s.details, ep, new Set(s.shot ? [`${s.pass}|${s.shot}`] : [])) }));
       await Promise.all((["final", "proxy"] as Pass[]).map((p) => (get().status[statusKey(ep, p)] || p === get().pass ? refreshEpisode(ep, p) : Promise.resolve(undefined))));
       if (get().shot) void loadDetail(get().shot!, get().pass, true, ep);
       const st = get().status[statusKey(ep, get().pass)];
@@ -587,7 +590,7 @@ export async function loadEpisodes() {
 
 export function selectEpisode(ep: string | null) {
   set((s) => ({
-    ep, shot: null, take: null, viewer: null, menu: null, redo: null, renderAsk: null, upscaleAsk: null, postAsk: null, masterAsk: null, masterJob: null, refSel: null,
+    ep, shot: null, take: null, multi: [], anchor: null, viewer: null, menu: null, redo: null, renderAsk: null, upscaleAsk: null, postAsk: null, masterAsk: null, masterJob: null, refSel: null,
     cutPlay: { ...s.cutPlay, playing: false, pos: 0 },
     build: { busy: false, result: null, error: null },
     // Phase 9c: the Recording and voice-clip windows belong to one episode
@@ -785,16 +788,14 @@ export function scheduleRefresh(delay = 200) {
       if (e === ep) void refreshEpisode(ep, p as Pass);
     }
     if (!s.status[statusKey(ep, s.pass)]) void refreshEpisode();
-    // drop cached details for this episode; refetch the ones on screen
-    set((st) => {
-      const details: typeof st.details = {};
-      for (const [k, v] of Object.entries(st.details)) if (!k.startsWith(ep + "|")) details[k] = v;
-      return { details };
-    });
     const onScreen = new Set<string>();
     if (s.shot) onScreen.add(`${s.pass}|${s.shot}`);
     if (s.viewer) onScreen.add(`${s.viewer.pass}|${s.viewer.shot}`);
     if (s.redo) onScreen.add(`${s.redo.pass}|${s.redo.shot}`);
+    // drop cached details for this episode; the ones on screen stay until their
+    // refetch replaces them (dropping them unmounted the inspector's form, and a
+    // take landing took the edit in it with it)
+    set((st) => ({ details: keepDetails(st.details, ep, onScreen) }));
     for (const k of onScreen) {
       const [p, shot] = k.split("|");
       void loadDetail(shot, p as Pass, true, ep);
@@ -807,8 +808,75 @@ export function scheduleRefresh(delay = 200) {
 // ---------------------------------------------------------------------------
 
 export function select(shot: string | null, take: number | null = null) {
-  set({ shot, take });
+  // a shot outside the selection (a key, a link) leaves it
+  set((s) => ({ shot, take, ...(shot && s.multi.includes(shot) ? {} : { multi: [], anchor: shot }) }));
   if (shot) void loadDetail(shot);
+}
+
+/** A click on a shot's row, tile or clip: alone, or with Ctrl/⌘ and Shift several (lib/multiSelect). */
+export function clickShot(shot: string, take: number | null, mods: Mods) {
+  const s = get();
+  const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+  const order = (st?.shots ?? []).filter((x) => !x.orphan).map((x) => x.shot);
+  const next = clickSelection({ shot: s.shot, multi: s.multi, anchor: s.anchor }, shot, order, mods);
+  const same = next.shot === s.shot;
+  set({ ...next, take: next.shot === shot ? take : same ? s.take : null });
+  if (next.shot) void loadDetail(next.shot);
+}
+
+export function clearMulti() {
+  set({ multi: [] });
+}
+
+/** A dub track of each shot: the shot rendered for its sound only on a voice model
+ * (H3 Ref2VA at 64x64 unless another is chosen), its voices cloned, kept apart from
+ * its takes to dub the shot with (the Sound dialog). */
+export function generateDubTracks(shots: string[], target: string = VOICE_TARGET) {
+  const s = get();
+  if (!s.ep || !shots.length) return;
+  // the voice model isn't installed here: show it in Features, ticked to install
+  if (dubTrackBlock(s.targets, target)) {
+    return openFeatures(true, VOICE_TARGETS.find((v) => v.id === target)?.feature ?? null);
+  }
+  if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks?`)) return;
+  void queueRender({ ...baseRender(s.ep, s.pass, shots, false, target), redo: true, dub_track: true,
+                     note: "dub track" });
+}
+
+/** The Sound dialog, for these shots; `focus` "cut": at what the cut plays (Replace audio…). */
+export function openSound(shots: string[], focus: "cut" | null = null) {
+  set({ soundAsk: shots.length ? { shots, focus } : null, menu: null });
+}
+
+export function closeSound() {
+  set({ soundAsk: null });
+}
+
+/** Set shots' sound (null: back to the script's); their takes made otherwise go stale. */
+export async function setSound(shots: string[], sound: ShotSound | null): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep || !shots.length) return false;
+  return withBusy(`sound|${shots.join(",")}`, async () => {
+    try {
+      await api().putSound(ep, shots, sound);
+      scheduleRefresh(0);
+      return true;
+    } catch (e) {
+      report("Couldn't set the sound", e);
+      return false;
+    }
+  });
+}
+
+/** Queue the selected shots: a new take of each (its first at the built seed, else a
+ * new seed, as Generate does), or the Render dialog first. */
+export function renderSelected(ask = false) {
+  const s = get();
+  const shots = selectedShots(s);
+  if (!shots.length) return;
+  const title = `Render ${shots.length === 1 ? shots[0] : `${shots.length} selected shots`}`;
+  if (ask) set({ renderAsk: { shots, pass: s.pass, redo: true, seedMode: "auto", title }, menu: null });
+  else requestRender(shots, true, title, "auto");
 }
 
 export function toggleExpanded(shot: string) {
@@ -1562,6 +1630,31 @@ export async function discardTake(ref: TakeRef, ask = true): Promise<boolean> {
       return false;
     }
   });
+}
+
+/**
+ * Export, Titles, or a 2x of either (the Timeline's buttons): what the cut is
+ * missing is said first (lib/exportCheck), and nothing runs until it's answered.
+ * A cut with nothing wrong goes straight on.
+ */
+export function checkThenExport(run: ExportRun) {
+  const s = get();
+  if (!s.ep) return;
+  const problems = exportCheck(s.status[statusKey(s.ep, s.pass)], s.ep, s.pass, Object.values(s.prompts));
+  if (!problems.length) return void runExport(run);
+  set({ exportCheck: { run, ep: s.ep, pass: s.pass, problems } });
+}
+
+/** The export held by checkThenExport, now (Export anyway). */
+export function runExport(run: ExportRun) {
+  set({ exportCheck: null });
+  const partial = run.kind === "export";
+  if (run.upscaled) return exportUpscaled(partial, !partial);
+  return assemble(partial, partial ? undefined : { publish: true });
+}
+
+export function closeExportCheck() {
+  set({ exportCheck: null });
 }
 
 export async function assemble(partial = true, opts?: AssembleOptions) {
@@ -3341,7 +3434,7 @@ export function closePano() {
 // Phase 9d: a shot's audio from elsewhere
 // ---------------------------------------------------------------------------
 
-/** Open "Audio from…" for one clip, starting from what it plays now. */
+/** Open "Replace audio…" for one clip, starting from what it plays now. */
 export function openClipAudio(shot: string, pass: Pass = get().pass) {
   const s = get();
   const cut = s.ep ? s.status[statusKey(s.ep, pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined;
@@ -3521,8 +3614,9 @@ export function openSettings(open = true) {
 }
 
 /** The Features window: what can be added to this install, and its installer. */
-export function openFeatures(open = true) {
-  set({ featuresOpen: open, menu: null });
+/** `focus`: a Features entry to show (scrolled to, opened, ticked to install). */
+export function openFeatures(open = true, focus: string | null = null) {
+  set({ featuresOpen: open, featuresFocus: open ? focus : null, menu: null });
 }
 
 export function closeFeatures() {

@@ -325,6 +325,11 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     return _ref_slots(target, doc, shot) + HA.audio_slots(doc, shot)
 
 
+# a dub of a file (a take's sound, a dub track: jobs.apply_sound): the shot's own
+# recording (`audio_file`), its window held as a recording's is
+DUB_BY_FILE = True
+
+
 def stage_inputs(target, job, comfy=None) -> dict:
     """_stage_inputs, then a dub shot's window of the recording, or a clone
     shot's voice samples."""

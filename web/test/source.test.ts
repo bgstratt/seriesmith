@@ -306,6 +306,38 @@ describe("SourceSession", () => {
     expect(replaced.map((r) => r[1])).toEqual(["load"]); // the buffer was never replaced
   });
 
+  it("a buffer kept from before a reload goes back over the file it was edited from", async () => {
+    const srv = fakeServer("one\n");
+    const replaced: [string, string][] = [];
+    const s = new SourceSession(srv.api, "C:/ep05", "script", {
+      replace: (t, why) => replaced.push([t, why]),
+      kept: () => ({ text: "one\nmine\n", baseHash: "h1", at: 5 }),
+    });
+    await s.load();
+    expect(replaced.at(-1)).toEqual(["one\nmine\n", "load"]);
+    expect(s.get()).toMatchObject({ text: "one\nmine\n", dirty: true, baseHash: "h1", conflict: null, restored: 5 });
+    await s.save();
+    expect(srv.disk.text).toBe("one\nmine\n");
+  });
+
+  it("a kept buffer made against an older file comes back as a conflict", async () => {
+    const srv = fakeServer("one\n");
+    srv.outside("theirs\n");
+    const s = new SourceSession(srv.api, "C:/ep05", "script", { kept: () => ({ text: "mine\n", baseHash: "h1", at: 5 }) });
+    await s.load();
+    expect(s.get()).toMatchObject({ text: "mine\n", dirty: true, baseHash: "h1", conflict: { hash: "h2", text: "theirs\n", reason: "disk" } });
+    expect(await s.poll()).toBe("same");
+    s.reload();
+    expect(s.get()).toMatchObject({ text: "theirs\n", dirty: false, conflict: null });
+  });
+
+  it("a kept buffer the same as the file is nothing to put back", async () => {
+    const srv = fakeServer("one\n");
+    const s = new SourceSession(srv.api, "C:/ep05", "script", { kept: () => ({ text: "one\n", baseHash: "h1", at: 5 }) });
+    await s.load();
+    expect(s.get()).toMatchObject({ dirty: false, restored: null });
+  });
+
   it("Reload drops the buffer for the disk's text", async () => {
     const { s, srv, replaced } = session();
     await s.load();

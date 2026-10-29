@@ -55,6 +55,7 @@ class ChainQueueTest(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         stub_refs(self.ep)
         self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "QUEUE", None)
 
     def test_a_chain_queued_at_once_holds_each_previous_take(self):
         fb = FakeBackend(LANE, "deployment", outputs=saver_outputs, progress=[0.5, 1.0])

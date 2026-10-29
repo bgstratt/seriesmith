@@ -29,7 +29,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
-from seriesmith import jobs as J  # noqa: E402
+from seriesmith import jobs as J
+from seriesmith.targets.graph import of  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.core import ir  # noqa: E402
@@ -140,22 +141,27 @@ class TargetTest(unittest.TestCase):
                                                    "H3 FL2V"))
         c = d["capabilities"]
         self.assertEqual(c["keyframes"], ["first", "last"])
-        self.assertEqual(c["policies"], ["generate", "dub", "dub_keep_foley"])
+        self.assertEqual(c["policies"], ["generate", "dub", "dub_keep_foley", "clone"])
         self.assertEqual(c["policy_fallback"], "generate")
-        self.assertFalse(c["subject_refs"] or c["voice_reference"] or c["negative_prompt"])
+        self.assertFalse(c["subject_refs"] or c["negative_prompt"])
+        # clone: the lines made by LTX-2.5 from each speaker's sample, then dubbed
+        self.assertTrue(c["voice_reference"])
         self.assertEqual(self.t.audio_policy("dub"), ("dub", ""))
-        pol, note = self.t.audio_policy("clone")
-        self.assertEqual(pol, "generate")
-        self.assertIn("no voice sample", note)
+        self.assertEqual(self.t.audio_policy("clone"), ("clone", ""))
 
     def test_policies_in_the_build(self):
         doc, report = self.t.compile_episode(self.story, self.cfg, "final")
         by = {s["id"]: s for s in doc["shots"]}
-        # the series config clones: clone shots render with generate, and say so
-        self.assertEqual(by["sh020"]["audio_policy"], "generate")
-        self.assertEqual(by["sh020"]["audio_intent"], "clone")
-        self.assertIn("renders as generate", by["sh020"]["audio_note"])
-        self.assertTrue(any("ask for audio clone" in w for w in report["warnings"]))
+        # the series config clones: a clone shot carries who says what, with
+        # which sample, for LTX to make the lines H3 is then given
+        self.assertEqual(by["sh020"]["audio_policy"], "clone")
+        self.assertNotIn("audio_note", by["sh020"])
+        self.assertEqual([x["who"] for x in by["sh020"]["lines"]], ["ada", "bo", "bo"])
+        self.assertEqual([r["subject"] for r in by["sh020"]["voice_refs"]], ["ada", "bo"])
+        self.assertFalse(any("ask for audio clone" in w for w in report["warnings"]))
+        # ...and is prompted as a recording with H3's sound under it
+        self.assertIn("in the recorded voice", by["sh020"]["prompt"])
+        self.assertIn("laid under the recorded dialogue", by["sh020"]["prompt"])
         # recorded dialogue is anchored, both ways
         self.assertEqual(by["sh110"]["audio_policy"], "dub")
         self.assertEqual(by["sh120"]["audio_policy"], "dub_keep_foley")
@@ -207,11 +213,13 @@ class PromptTest(unittest.TestCase):
         by = {s["id"]: s["prompt"] for s in doc["shots"]}
         # subjects in words, dialogue in H3's tags, voiceover's clause
         self.assertIn("Ada is a tall woman in her thirties", by["sh010"])
-        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1), warmly, says: "
-                      "<d>[English] You know that one whistles.</d>", by["sh020"])
-        self.assertIn("Bo (S2), whispering, says: <d>[English] That's the point.</d>", by["sh020"])
-        self.assertIn("says in an off-screen voiceover: <d>[English] Not today.</d> while their "
-                      "lips remain completely closed.", by["sh030"])
+        # sh020 clones: the lines are given, as a recording's are
+        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1), warmly, says, in the "
+                      "recorded voice: <d>[English] You know that one whistles.</d>", by["sh020"])
+        self.assertIn("Bo (S2), whispering, says, in the recorded voice: <d>[English] That's the "
+                      "point.</d>", by["sh020"])
+        self.assertIn("says in an off-screen voiceover, in the recorded voice: <d>[English] Not "
+                      "today.</d> while their lips remain completely closed.", by["sh030"])
         self.assertIn('Visible on-screen text reads "OPEN 24 HOURS".', by["sh010"])
         self.assertIn("non_diegetic_music: A plucky ukulele sting.", by["sh010"])
         self.assertIn("close-up frames Ada against a tightly cropped portion of", by["sh030"])
@@ -453,10 +461,62 @@ class RenderTest(unittest.TestCase):
         J.stage_inputs(job)
         self.assertEqual(job.inputs, {})
 
-    def test_clone_says_it_falls_back(self):
+    def voices(self):
+        from test_render import wav_bytes
+        for who, tone in (("ada", 220.0), ("bo", 330.0)):    # short: used whole, no ffmpeg
+            path = os.path.join(self.root, "audio", "voices", f"{who}_sample.wav")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as fh:
+                fh.write(wav_bytes(2.0, freq=tone))
+
+    def test_clone_makes_the_lines_then_dubs_them(self):
+        """sh020 clones on the final pass: LTX-2.5 audio-only makes each line from
+        its speaker's held sample in the same graph (its own loaders), and the
+        joined lines are anchored at frame 0 as a recording is, with the first
+        keyframe; the saver keeps them (_lines.wav)."""
+        self.voices()
+        self.keyframe("sh020", "first")
+        job = self.plan("sh020", pass_="final", loras=[])
+        self.assertEqual((job.action, job.shot["audio_policy"]), ("render", "clone"))
+        got, take, _ = self.stage_and_start(job)
+        refs = T.read_sidecar(take.paths.sidecar)["refs"]
+        self.assertEqual([(r["slot"], r.get("subject")) for r in refs if r["kind"] == "audio"],
+                         [("voice 1", "ada"), ("voice 2", "bo")])
+        self.assertEqual(sorted(got["voices"]), ["ada", "bo"])
+        g = self.graph(job, take)
+        # LTX's own loaders, by the preset's files
+        self.assertEqual(g[J.node_of(g, "LTXVAudioOnlyModel")]["inputs"]["model"][0],
+                         next(k for k in of(g, "UNETLoader")
+                              if "ltx" in g[k]["inputs"]["unet_name"]))
+        clips = {g[k]["inputs"]["type"] for k in of(g, "CLIPLoader")}
+        self.assertEqual(clips, {"minimax", "ltxv"})
+        # three lines, each continuing its speaker's sample, joined
+        self.assertEqual(len(of(g, "TrimAudioDuration")), 3)
+        self.assertEqual(len(of(g, "LoadAudio")), 2)
+        guide = g[J.node_of(g, "MiniMaxH3AddGuide")]["inputs"]
+        self.assertEqual(g[guide["audio"][0]]["class_type"], "AudioConcat")
+        self.assertEqual(g[guide["audio_vae"][0]]["inputs"]["vae_name"],
+                         "minimax_h3_audio_vae_fp32.safetensors")
+        i2v = g[J.node_of(g, "MiniMaxH3ImageToVideo")]["inputs"]
+        self.assertEqual(g[i2v["first_frame"][0]]["inputs"]["image"], job.inputs["first"])
+        saver = g[J.node_of(g, "H3SaveShot")]["inputs"]
+        self.assertEqual((saver["audio_policy"], saver["lines"]), ("clone", guide["audio"]))
+        self.assertTrue(any("3 line(s) made" in n for n in job.notes))
+
+    def test_clone_needs_the_ltx_voice_files(self):
+        self.voices()
         job = self.plan("sh020", pass_="final")
-        self.assertEqual(job.shot["audio_policy"], "generate")
-        self.assertTrue(any("audio clone renders as generate" in n for n in job.notes))
+        # only a clone shot resolves them; another shot never names them
+        self.assertIn("voice_model", J.model_values(job))
+        self.assertNotIn("voice_model", J.model_values(self.plan("sh040", pass_="final")))
+        listed = {"diffusion_models": [], "text_encoders": [], "vae": [], "loras": []}
+        J.resolve_models(job, listing=lambda spec: listed.get(spec.get("folder")),
+                         resolve=lambda folder, name: None)
+        self.assertEqual(job.resolved["voice_model"]["how"], "off")
+        with self.assertRaises(ValueError) as e:
+            J.stage_inputs(job)
+        self.assertIn("makes the lines with LTX-2.5 audio-only first", str(e.exception))
+        self.assertIn("ltx-2.5-22b-distilled", str(e.exception))
 
 
 if __name__ == "__main__":

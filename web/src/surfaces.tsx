@@ -9,6 +9,8 @@ import { ContextMenu } from "./components/ContextMenu";
 import { CutMenu } from "./components/CutMenu";
 import { Boundary } from "./components/ErrorBoundary";
 import { RedoDialog, SidecarDialog } from "./components/Dialogs";
+import { ExportCheckDialog } from "./components/ExportCheck";
+import { SoundDialog } from "./components/SoundDialog";
 import { BrowseDialog } from "./components/Browse";
 import { SupplyDialog } from "./components/Supply";
 import { IssueDialog, IssuesWindow } from "./components/Issues";
@@ -180,6 +182,8 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Upscale", UpscaleDialog],
   ["Post-process", PostDialog],
   ["Master", MasterDialog],
+  ["Before export", ExportCheckDialog],
+  ["Sound", SoundDialog],
   ["Relight", RelightDialog],
   ["Preset picture", PresetPictureDialog],
   ["Browse", BrowseDialog],

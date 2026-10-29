@@ -11,7 +11,8 @@ describe("render size", () => {
     expect(parseSize(" 1344 × 768 ")).toBe("1344x768");
     expect(parseSize("1600X896")).toBe("1600x896");
     expect(() => parseSize("big")).toThrow(/1344x768/);
-    expect(() => parseSize("32x32")).toThrow(/64 to 8192/);
+    expect(parseSize("32x32")).toBe("32x32");
+    expect(() => parseSize("16x32")).toThrow(/32 to 8192/);
   });
   it("a size on the grid is fine; off a refusing grid names the nearest legal sides", () => {
     expect(sizeCheck("1600x896", H3)).toBeNull();

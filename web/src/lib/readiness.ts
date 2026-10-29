@@ -293,3 +293,31 @@ export function isMissingFileSkip(x: RenderSkip): boolean {
   return skipMissingFiles(x).length > 0;
 }
 
+
+/** The models a dub track can be made on (the voice, cloned, at a tiny size), the
+ * default first (jobs.VOICE_TARGET), and each one's Features entry. */
+export const VOICE_TARGETS: { id: string; label: string; feature: string }[] = [
+  { id: "minimax_h3_ref2va", label: "H3 Ref2VA", feature: "video.h3" },
+  { id: "fasth3_omni", label: "FastH3 Omni", feature: "video.fasth3_omni" },
+  { id: "ltx2", label: "LTX-2.5", feature: "video.ltx2" },
+];
+export const VOICE_TARGET = VOICE_TARGETS[0].id;
+
+/** Why a dub track can't be made on `target` on this ComfyUI (not installed), or null
+ * (ready, degraded, or not known: the server says then). */
+export function dubTrackBlock(list: TargetList | null | undefined, target: string = VOICE_TARGET): string | null {
+  const r = readinessOf(list, target);
+  if (r?.status !== "not_ready") return null;
+  const name = VOICE_TARGETS.find((v) => v.id === target)?.label ?? target;
+  const files = r.missing.filter((m) => m.tier === "required").map((m) => m.want).filter(Boolean);
+  return `A dub track on ${name} needs it installed on this ComfyUI`
+    + (files.length ? ` (missing: ${files.join(", ")})` : "")
+    + ". Click to install it (the Features window).";
+}
+
+/** Why a shot on `target` can't dub a track of its own, or null when it can. */
+export function dubBlock(list: TargetList | null | undefined, target: string | null | undefined): string | null {
+  const t = list?.targets.find((x) => x.id === target);
+  if (!t || t.capabilities?.dubs_tracks) return null;
+  return `${t.label ?? t.id} can't dub a track of its own: render the shot on an H3 or LTX model for that.`;
+}

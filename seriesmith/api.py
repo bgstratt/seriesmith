@@ -1359,6 +1359,10 @@ def post_render(ctx: Context, body):
     # where every shot of this request renders (seriesmith's queue only;
     # absent: each shot's own, jobs.backend_choice)
     backend = _opt_backend(ctx, body)
+    # a dub track: the shot rendered for its sound only, kept apart from its takes
+    dub_track = body.get("dub_track", False)
+    if not isinstance(dub_track, bool):
+        raise ApiError(400, "dub_track must be true or false")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1367,7 +1371,7 @@ def post_render(ctx: Context, body):
         note=_opt_str(body, "note") or "", allow_missing_refs=allow_missing,
         target=_opt_target(body.get("target")), allow_model_mismatch=allow_mismatch,
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
-        size=_opt_size(body.get("size")))
+        size=_opt_size(body.get("size")), dub_track=dub_track)
     J.load_shotlist(ep, pass_)                           # 404 before anything else
     if body.get("from_draft") is not None:
         # finals made from Seedance drafts: {shot: its proxy draft take}
@@ -1464,8 +1468,8 @@ def post_cancel(ctx: Context, body):
     take = check_take(body.get("take"))
     owned = T.get_take(ep, pass_, shot, take)
     sc = (owned.sidecar or {}) if owned else {}
-    if sc.get("queue") == "seriesmith" and sc.get("status") == "queued":
-        # seriesmith's queue has it: a waiting job leaves it, a running one stops
+    if sc.get("queue") and sc.get("queue") == ctx.runner.queue.name and sc.get("status") == "queued":
+        # this host's queue has it: a waiting job leaves it, a running one stops
         try:
             ctx.runner.queue.cancel(sc.get("comfy_prompt_id"))
             # a running one stops in a moment: answer with how it ended
@@ -3294,6 +3298,35 @@ def put_episode_target(ctx: Context, body):
     return 200, {k: info[k] for k in ("target", "target_source", "series_target")}
 
 
+@handler
+def get_dubs(ctx: Context, query: dict):
+    """What a shot can be dubbed to: its recorded track's window, its dub
+    tracks, its takes with sound (edit.dub_sources), and its sound now."""
+    ep = check_ep(ctx, query.get("ep"))
+    shot = check_shot(query.get("shot"))
+    return 200, E.dub_sources(ep, shot)
+
+
+@handler
+def put_sound(ctx: Context, body):
+    """A shot's sound (overrides.json `sound`): {"mode": "generate" | "clone" |
+    "dub", "dub": {"from": "track" | "take" | "dub", "pass"?, "take"?}}, or
+    null for the script's. The shot's takes made with another sound go stale."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shots = body.get("shots")
+    if not isinstance(shots, list) or not shots or not all(isinstance(s, str) and s for s in shots):
+        raise ApiError(400, "shots must be a list of shot ids")
+    if "sound" not in body:
+        raise ApiError(400, "sound is required: {mode, dub?}, or null for the script's")
+    try:
+        out = E.set_sound(ep, shots, body["sound"])
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, out
+
+
 MATCH_ORDER = {"name": 0, "fingerprint": 1, "other": 2}
 
 
@@ -4751,6 +4784,8 @@ ROUTES = [
     ("POST", "/seriesmith/assemble", post_assemble, "body"),
     ("GET", "/seriesmith/targets", get_targets, "query"),
     ("GET", "/seriesmith/models", get_models, "query"),
+    ("GET", "/seriesmith/dubs", get_dubs, "query"),
+    ("PUT", "/seriesmith/sound", put_sound, "body"),
     ("GET", "/seriesmith/workflows", get_workflows, "query"),
     ("POST", "/seriesmith/targets/inspect", post_targets_inspect, "body"),
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),

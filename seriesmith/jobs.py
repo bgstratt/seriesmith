@@ -73,7 +73,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _replace
 
 from seriesmith import takes as T
 from seriesmith import targets as TG
@@ -1168,6 +1168,10 @@ class RenderRequest:
     allow_model_mismatch: bool = False  # render even if a model file is another family
     negative: str | None = None        # the negative prompt, this run only (negative_for)
     save_latent: bool | None = None    # keep the take's latent; None: latent_default
+    # a dub track: the shot rendered for its sound only (VOICE_TARGET at
+    # VOICE_SIZE unless asked otherwise; its voices cloned), its prompt asking
+    # for the dialogue alone, kept in <episode>/dub/<shot>/ (takes.DUB_FOLDER)
+    dub_track: bool = False
 
 
 @dataclass
@@ -1250,6 +1254,11 @@ class Job:
     # later: the request's choice, else latent_default; always False on a target
     # whose binding names no latent source (`saver.latent`)
     save_latent: bool = False
+    dub_track: bool = False            # a dub track (RenderRequest.dub_track)
+    # the shot's sound as overrides.json sets it (takes.shot_sound), rendered
+    # with; a dub's source as its label says it
+    sound: dict | None = None
+    dub_label: str = ""
 
     @property
     def id(self) -> str:
@@ -1540,6 +1549,12 @@ def built_values(shot: dict, dflt: dict) -> tuple[str, list[dict] | None, int]:
 def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
              overrides: dict | None = None, folder: str | None = None,
              rng: random.Random | None = None) -> Job:
+    if req.dub_track:
+        # a dub track: on the voice model at a size too small to matter, always
+        # a new one, in the shot's dub folder
+        req = _replace(req, target=req.target or VOICE_TARGET, size=req.size or VOICE_SIZE,
+                       redo=True)
+        folder = T.DUB_FOLDER
     built = doc["shots"][index]
     sid = built["id"]
     built_target = shotlist_target(doc)
@@ -1549,6 +1564,9 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
         # retarget: this shot's IR compiled for the other target, now
         try:
             sdoc, shot = retarget(root, pass_, doc, built, target_id)
+            if BEHIND in sdoc:
+                notes.append(sdoc[BEHIND])
+                sdoc = {k: v for k, v in sdoc.items() if k != BEHIND}
         except Exception as e:
             error = f"can't render {sid} on {target_id}: {e}"
     dflt = sdoc.get("defaults", {})
@@ -1601,6 +1619,11 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # render anyway, don't queue it at all; rendering anyway, let the target
     # write the shot without those refs when it can.
     missing = missing_refs(root, sdoc, shot)
+    sound = None if req.dub_track else T.shot_sound(overrides or {}, sid)
+    if sound and sound["mode"] == "dub" and sound["dub"]["from"] != "track":
+        # dubbed to a take's or a dub track's sound: the speakers' samples
+        # (a clone's) and the recording aren't heard
+        missing = [r for r in missing if r.get("kind") != "audio"]
     # a ref the target can't do without (`anyway: false`) blocks even then
     anyway = req.allow_missing_refs and not any(r.get("anyway") is False for r in missing)
     recompiled, missing_mode, missing_why = None, "", ""
@@ -1675,7 +1698,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
         action = "blocked"
     if error and action not in ("skip", "busy"):
         action = "error"
-    return Job(root=root, pass_=pass_, index=index, shot=shot, doc=sdoc, folder=folder,
+    job = Job(root=root, pass_=pass_, index=index, shot=shot, doc=sdoc, folder=folder,
                action=action, take=take, seed=seed, seed_source=source, model=model,
                loras=None if loras is None else [dict(l) for l in loras],
                steps=steps, prompt=prompt, forced=bool(req.take),
@@ -1689,7 +1712,37 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
                steps_set="steps" in explicit, target_source=target_source,
                values=values, negative_source=negative_source, save_latent=save_latent,
                size=size, continuity=(req.continuity or {}).get(sid),
-               from_draft=(req.from_draft or {}).get(sid))
+               from_draft=(req.from_draft or {}).get(sid), dub_track=req.dub_track)
+    if req.dub_track and job.runs:
+        apply_sound(job, {"mode": "clone"})
+        job.prompt = voice_only_prompt(job.prompt)
+        job.notes.append(f"a dub track: the shot rendered for its sound only, at "
+                         f"{job.width}x{job.height}, kept apart from its takes")
+    elif sound and job.runs:
+        apply_sound(job, sound)
+    return job
+
+
+# A dub track: the shot rendered on H3 Ref2VA (its voices cloned from their
+# samples, as Ref2VA does best) at a size too small to see, for its sound.
+# Measured live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768 down to 32x32
+# all said the line word for word (Whisper) in the speaker's voice; 64x64 the
+# loudest without clipping; about 15 s a take once H3 is loaded.
+VOICE_TARGET = "minimax_h3_ref2va"
+VOICE_SIZE = "64x64"
+VOICE_SOUND = ("Only the spoken dialogue, recorded close and dry: no room tone, ambience, "
+               "effects or music.")
+
+
+def voice_only_prompt(prompt):
+    """An H3 prompt's sound fields (in one text, or a section each in a list)
+    made to ask for the dialogue alone (a dub track); any other prompt as it is."""
+    if isinstance(prompt, list):
+        return [voice_only_prompt(x) for x in prompt]
+    if not isinstance(prompt, str):
+        return prompt
+    out = re.sub(r"(?m)^(overall_soundscape:).*$", lambda m: f"{m.group(1)} {VOICE_SOUND}", prompt)
+    return re.sub(r"(?m)^(non_diegetic_music:).*$", lambda m: f"{m.group(1)} N/A", out)
 
 
 def parse_size(v) -> tuple[int, int]:
@@ -1702,8 +1755,10 @@ def parse_size(v) -> tuple[int, int]:
             raise ValueError(f"{v!r} is not a size like 1344x768")
         w, h = m.groups()
     w, h = int(w), int(h)
-    if not (64 <= w <= 8192 and 64 <= h <= 8192):
-        raise ValueError(f"{w}x{h}: each side 64 to 8192")
+    # 32: H3's own floor (its nodes take 32 to 16384 in steps of 32); a
+    # target's template still decides what it renders (run_size)
+    if not (32 <= w <= 8192 and 32 <= h <= 8192):
+        raise ValueError(f"{w}x{h}: each side 32 to 8192")
     return w, h
 
 
@@ -1791,14 +1846,19 @@ def episode_story(root: str):
     raise FileNotFoundError(f"no series.json in {root} or its parent folder")
 
 
+BEHIND = "_build_behind"                # retarget's note, taken off the doc by plan_job
+
+
 def retarget(root: str, pass_: str, doc: dict, shot: dict, target_id: str,
              cache: dict | None = None) -> tuple[dict, dict]:
     """(shotlist doc, entry) of `shot` compiled for `target_id` from
     shotlist/shots.json and the series config, as a build that put the shot on
-    that target would write it. The build must be current: the shot's own
-    target, compiling the same IR, has to give exactly the built entry, else
-    ValueError (rebuild the episode). `cache` (a dict) keeps the result per
-    (pass, shot, target) for callers that ask about many shots."""
+    that target would write it. When the shot's own target, compiling the same
+    IR, no longer gives exactly the built entry (the series config or
+    seriesmith changed since the build; the script's IR is the build's own),
+    it still compiles, and the doc says so (`BEHIND`: a note for the take).
+    `cache` (a dict) keeps the result per (pass, shot, target) for callers
+    that ask about many shots."""
     key = (pass_, shot["id"], target_id)
     if cache is not None and key in cache:
         hit = cache[key]
@@ -1812,9 +1872,14 @@ def retarget(root: str, pass_: str, doc: dict, shot: dict, target_id: str,
             raise ValueError(f"{shot['id']} is not in shots.json (rebuild the episode)")
         now, _ = shotlist_target(doc).compile_episode(story, series_cfg, pass_,
                                                       only={shot["id"]})
-        if [shot] != now["shots"]:
-            raise ValueError(f"the build of {shot['id']} is out of date (rebuild the episode)")
         rdoc, _ = new.compile_episode(story, series_cfg, pass_, only={shot["id"]})
+        if [shot] != now["shots"]:
+            # it used to refuse ("rebuild the episode"): an update to a target's
+            # compile made every shot built before it refuse to retarget,
+            # though its script hadn't changed (a voice take, 2026-10-28)
+            rdoc[BEHIND] = (f"{shot['id']}'s build is older than the series config or "
+                            f"seriesmith: compiled for {target_id} as they are now "
+                            f"(rebuild to make them agree)")
         out = (rdoc, rdoc["shots"][0])
     except Exception as e:
         if cache is not None:
@@ -1974,6 +2039,10 @@ def sidecar_for(job: Job) -> dict:
         **({"base": True} if job.based else {}),
         # asked for; the saver records the file itself as `latent`
         **({"save_latent": True} if job.save_latent else {}),
+        # a dub track; the sound overrides.json set (a dub's source), which the
+        # take is stale against when it changes
+        **({"dub_track": True} if job.dub_track else {}),
+        **({"sound": dict(job.sound)} if job.sound else {}),
     }
 
 
@@ -2089,6 +2158,12 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
     if fields.get("status") == "ok" and not os.path.isfile(take.paths.mp4):
         fields.update(status="failed",
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
+    sc = T.read_sidecar(take.paths.sidecar) or {}
+    if fields.get("status") == "ok" and ((sc.get("sound") or {}).get("dub") or {}).get("from") \
+            in ("take", "dub"):
+        note = remux_dub(take)
+        if note:
+            fields["save_notes"] = f"{fields.get('save_notes', '')}; {note}"
     take.sidecar = T.update_sidecar(take.paths.sidecar, **fields)
     return take.sidecar.get("status", "?")
 
@@ -2885,14 +2960,19 @@ def model_values(job: Job) -> dict[str, str]:
     """{param: file} for every model param the job's target declares a family
     for: the job's model, the shotlist's (else the preset's) text encoder,
     VAEs, upscaler, ..., and the duration head when the shot predicts its
-    length. A param with no file set is left out."""
+    length. A param with no file set is left out, and so is one whose spec
+    names the audio `policies` it serves when the shot renders another (H3
+    FL2VA's LTX voice files: a clone shot's only)."""
     t = job_target(job)
     vals = job_values(job)
     preset = t.presets.get(job.pass_) or t.presets.get("final")
     final = t.presets.get("final")
+    policy = (job.recompiled or job.shot or {}).get("audio_policy")
     out = {}
     for param, m in t.models.items():
         if param == "loras":                            # a list: resolve_models reads job.loras
+            continue
+        if m.get("policies") and policy not in m["policies"]:
             continue
         if param == "model":
             v = job.model
@@ -3095,6 +3175,109 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
         out.update(t.stage_inputs(job, comfy) or {})
     job.inputs = out
     return out
+
+
+POLICY_OF = {"generate": "generate", "clone": "clone"}
+
+
+def apply_sound(job: Job, sound: dict) -> None:
+    """The shot's sound as overrides.json (or a dub track) sets it: the shot
+    compiled again with that audio policy when its entry has another, and a
+    dub from a take's or a dub track's sound with that sound, levelled
+    (audiocut.levelled), as the shot's own recording (`audio_file`): H3 FL2VA
+    anchors it, LTX holds it, H3 Ref2VA / FastH3 Omni's Shot Loader reads it
+    whole (`DUB_BY_FILE`). Anything it can't do makes the job an "error"."""
+    t = job_target(job)
+    entry = job.recompiled or job.shot
+    job.sound = dict(sound)
+    try:
+        if sound["mode"] != "dub":
+            if entry.get("audio_policy") != POLICY_OF[sound["mode"]]:
+                recompile_sound(job, POLICY_OF[sound["mode"]])
+            return
+        src = sound["dub"]
+        dub = "dub_keep_foley" if sound.get("keep_foley", True) else "dub"
+        if src["from"] == "track":
+            if entry.get("audio_policy") != dub:
+                if "audio_in" not in entry:
+                    raise ValueError(f"{job.id} has no window on the recorded track "
+                                     f"(`seriesmith align` writes these)")
+                recompile_sound(job, dub)
+            job.dub_label = "the recorded track"
+            return
+        if not t.supports("DUB_BY_FILE"):
+            raise ValueError(f"{t.short} can't dub a track of its own")
+        sound_file, label = T.dub_source(job.root, job.id, src)
+        if not sound_file:
+            raise ValueError(f"its dub track, {label}, isn't a finished take with sound")
+        from seriesmith import audiocut as AC
+        level = AC.levelled(sound_file)
+        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"))
+        job.dub_label = label
+        job.notes.append(f"dubbed to {label}")
+    except Exception as e:                                # noqa: BLE001  said on the job
+        job.action, job.error = "error", f"can't render {job.id}'s sound as set: {e}"
+
+
+def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> None:
+    """job.shot compiled again from the build's script IR with `policy`; with
+    `audio_file` (relative to the episode) a dub of that file: its window the
+    shot's own length and the file the shot's recording (and, for the compile,
+    the track it is in). Replaces job.shot, and job.prompt unless overridden."""
+    import copy as _copy
+    t = job_target(job)
+    story, series_cfg = episode_story(job.root)
+    story = _copy.deepcopy(story)
+    sh = next((s for s in story.shots() if s.id == job.id), None)
+    if sh is None:
+        raise ValueError(f"{job.id} is not in shots.json (rebuild the episode)")
+    sh.audio = policy
+    if audio_file:
+        shot = job.recompiled or job.shot
+        seconds = (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
+                   else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
+        sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
+        # a window wants a recorded track to be in: the file is this shot's,
+        # so it is the track for this compile (a series with none: Ballroom)
+        series_cfg = _copy.deepcopy(series_cfg)
+        series_cfg.setdefault("audio", {})["track"] = audio_file
+    doc, _ = t.compile_episode(story, series_cfg, job.pass_, only={job.id})
+    entry = dict(doc["shots"][0])
+    if audio_file:
+        entry["audio_file"] = audio_file
+        # prompted as asked (dub_keep_foley: the model's sound laid under the
+        # given voice), saved as a dub: the saver strips no voice for a recording
+        # laid in at the cut (demucs, for nothing), and remux_dub puts the whole
+        # mix in
+        entry["audio_policy"] = "dub"
+    job.shot, job.recompiled = entry, None
+    if "prompt" not in job.overridden:
+        job.prompt = entry["prompt"]
+
+
+def remux_dub(take: T.Take) -> str:
+    """A take dubbed to a file: its mp4 made to carry the model's whole mix (its
+    _h3.wav, the dub spoken in it, the model's sound under it), as a generate or
+    clone take's does, where a dub's saver leaves it mute for a recording laid
+    in at the cut. Returns a note ("" when nothing was done)."""
+    import subprocess
+    from seriesmith import ff as FF
+    if not (os.path.isfile(take.paths.mp4) and os.path.isfile(take.paths.h3_wav)):
+        return ""
+    tmp = F.temp_beside(take.paths.mp4, ".mp4")
+    try:
+        r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-y",
+                            "-i", take.paths.mp4, "-i", take.paths.h3_wav,
+                            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+                            "-c:a", "aac", "-b:a", "192k", "-shortest", tmp],
+                           capture_output=True, timeout=600)
+        if r.returncode != 0 or not os.path.isfile(tmp):
+            return f"the dub's mix wasn't put in the mp4: {r.stderr.decode('utf-8', 'replace')[-200:]}"
+        F.replace(tmp, take.paths.mp4)
+        return "the mp4 carries the dubbed mix"
+    finally:
+        if os.path.isfile(tmp):
+            os.remove(tmp)
 
 
 class InputCollector:

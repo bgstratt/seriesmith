@@ -670,7 +670,10 @@ class Target:
                           # with the wanted file (a step count, a noise stage,
                           # distilled vs dev), and globs it must not match
                           "keep": [str(k) for k in m.get("keep") or []],
-                          "exclude": [str(x) for x in m.get("exclude") or []]}
+                          "exclude": [str(x) for x in m.get("exclude") or []],
+                          # the audio policies it serves (none: every shot);
+                          # a shot rendering another doesn't load it
+                          "policies": [str(x) for x in m.get("policies") or []]}
         return out
 
     @property
@@ -777,6 +780,8 @@ class Target:
                 # it speaks in a character's voice sample (H3's voice slots; a
                 # clone made in the graph, or sent as an audio reference)
                 "voice_reference": bool(r.get("voice_slots")) or "clone" in self.policies,
+                # it can dub a file: a take's sound, a dub track (jobs.apply_sound)
+                "dubs_tracks": self.supports("DUB_BY_FILE"),
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),
