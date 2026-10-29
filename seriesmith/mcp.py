@@ -278,7 +278,8 @@ def passthrough(method: str, path: str) -> Callable:
     return lambda c, a: c.call(method, path, body=dict(a))
 
 
-CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio", "color")
+CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio", "color",
+               "fade_in", "fade_out", "dissolve")
 
 
 def edit_cut(c: Client, a: dict) -> dict:
@@ -468,8 +469,9 @@ TOOLS: list[Tool] = [
          "at the episode's fps), locked, note, out (left out of the cut, kept in the script), "
          "flag (a bookmark), audio (sound from another take or a file: docs/API.md), color "
          "({exposure -2..2 stops, contrast -1..1, black -0.25..0.25, saturation -1..1, "
-         "warmth -1..1, tint -1..1}; null clears it); and/or its order (every shot of the cut, once). Only what is named "
-         "changes.",
+         "warmth -1..1, tint -1..1}; null clears it), fade_in / fade_out (frames from / to "
+         "black at its head / tail, each its own), dissolve (frames it overlaps the clip "
+         "before; 0: a cut); and/or its order (every shot of the cut, once). Only what is named changes.",
          {"ep": EP, "pass": PASS,
           "changes": {"type": "array", "items": {
               "type": "object", "required": ["shot"],
@@ -478,7 +480,10 @@ TOOLS: list[Tool] = [
                              "locked": {"type": "boolean"}, "note": _s("a note"),
                              "out": {"type": "boolean"}, "flag": {"type": "boolean"},
                              "audio": {"type": ["object", "null"]},
-                             "color": {"type": ["object", "null"]}}}},
+                             "color": {"type": ["object", "null"]},
+                             "fade_in": {"type": "integer", "minimum": 0},
+                             "fade_out": {"type": "integer", "minimum": 0},
+                             "dissolve": {"type": "integer", "minimum": 0}}}},
           "order": {"type": "array", "items": SHOT,
                     "description": "every shot of the cut in its new order"}},
          ("ep",), edit_cut, writes=True),

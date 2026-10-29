@@ -2454,6 +2454,13 @@ def _cut_entry(raw) -> dict:
             raise ApiError(400, f"{raw['shot']}: {ex}")
         if color:
             e["color"] = color
+    for k in T.JOIN_FIELDS:
+        try:
+            n = T.check_join_frames(k, raw.get(k))
+        except ValueError as ex:
+            raise ApiError(400, f"{raw['shot']}: {ex}")
+        if n:
+            e[k] = n
     if raw.get("audio") is not None:
         # the shape and what it points at are checked together, in
         # edit.check_audio (E.replace_cut), so the CLI checks them too

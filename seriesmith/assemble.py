@@ -34,6 +34,11 @@ cut.json (next to shotlist/) holds one ordered list per pass:
   in for a final that isn't rendered yet. It is scaled to this cut's size.
 - `color` (seriesmith/color.py: exposure, contrast, black, saturation, warmth, tint) is applied to
   the clip as it's re-encoded; `--no-color` leaves every clip as shot.
+- `fade_in` / `fade_out` (frames) fade a clip from / to black at its head / tail, each its
+  own; `dissolve` (frames) overlaps a clip with the one before it (xfade, acrossfade; the cut
+  is that much shorter), and a join with one has no fades. One that doesn't fit (after the
+  trims, beside the others) is left out, said so; `--no-transitions` leaves them all out. A
+  cut with any is re-encoded whole.
 - `trim_in`/`trim_out` drop frames from the head/tail, after the dialogue-window
   trim below.
 - `audio` lays another take's sound, a file's, or silence under the clip
@@ -447,7 +452,7 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
             start: int = 0, size: tuple[int, int] | None = None,
             src_fps: float | None = None, ready: bool = False,
             quality: str = "review", layout: tuple[int, int] | None = None,
-            color: dict | None = None) -> None:
+            color: dict | None = None, fade_in: int = 0, fade_out: int = 0) -> None:
     """Re-encode one clip to exactly `frames` frames with a matching audio track.
 
     `audio` is the clip itself (use its own sound), a wav path, or None for
@@ -478,6 +483,9 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
 
     `color` (a cut entry's: seriesmith.color) is applied to the picture once
     it's in BT.709 (COL.filters).
+
+    `fade_in` / `fade_out`: frames at the head / tail faded from / to black,
+    the sound with them (a cut entry's fade_in / fade_out).
     """
     rate, ch = layout or (44100, 2)
     dur = f"{frames / fps:.6f}"
@@ -514,6 +522,13 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
     # one's (`standard`)
     vf += to_bt709(color_matrix(src))
     vf += COL.filters(color or {})
+    if fade_in:
+        vf.append(f"fade=t=in:st=0:d={fade_in / fps:.6f}")
+        af.append(f"afade=t=in:st=0:d={fade_in / fps:.6f}")
+    if fade_out:
+        at = (frames - fade_out) / fps
+        vf.append(f"fade=t=out:st={at:.6f}:d={fade_out / fps:.6f}")
+        af.append(f"afade=t=out:st={at:.6f}:d={fade_out / fps:.6f}")
     vf.append("setsar=0")
     cmd += ["-map", "0:v:0", "-map", amap]
     if vf:
@@ -526,6 +541,69 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
     if r.returncode != 0:
         raise RuntimeError(f"trim failed for {os.path.basename(src)}: "
                            f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
+
+
+def lay_transitions(plan: list[dict]) -> dict:
+    """Each plan item's fades and dissolve (`asked`: its cut entry's) fitted to
+    the clips. A dissolve of n frames takes the clip before's last n (`tail`)
+    and this one's first n (`head`, `dissolve_in`), and the fades at that join
+    go (it replaces them). A fade takes frames of the clip's own (`fade_in`,
+    `fade_out`). Each clip keeps at least a frame of its own, its fades inside
+    it; what doesn't fit, or a dissolve into the first clip, is left out.
+    {"count", "said": ["sh050 dissolve 12f"], "dropped": [why]}."""
+    count, said, dropped = 0, [], []
+    for k, p in enumerate(plan):
+        n = (p.get("asked") or {}).get("dissolve") or 0
+        if not n:
+            continue
+        if k == 0:
+            dropped.append(f"{p['id']}'s dissolve is at the start of the cut")
+            continue
+        a = plan[k - 1]
+        if a["used"] - a["head"] - n < 1 or p["used"] - n < 1:
+            dropped.append(f"{p['id']}'s {n}-frame dissolve doesn't fit "
+                           f"({a['id']} {a['used']}f, {p['id']} {p['used']}f)")
+            continue
+        a["tail"], p["head"], p["dissolve_in"] = n, n, n
+        count += 1
+        said.append(f"{p['id']} dissolve {n}f")
+    for k, p in enumerate(plan):
+        asked = p.get("asked") or {}
+        body = p["used"] - p["head"] - p["tail"]
+        for end, key in (("in", "fade_in"), ("out", "fade_out")):
+            n = asked.get(key) or 0
+            if not n:
+                continue
+            if (end == "in" and p["head"]) or (end == "out" and p["tail"]):
+                dropped.append(f"{p['id']}'s fade {end} is where a dissolve is")
+                continue
+            if n > body - (p["fade_in"] if end == "out" else 0):
+                dropped.append(f"{p['id']}'s {n}-frame fade {end} is longer than "
+                               f"its {body}f")
+                continue
+            p[key] = n
+            count += 1
+            said.append(f"{p['id']} fade {end} {n}f")
+    return {"count": count, "said": said, "dropped": dropped}
+
+
+def dissolve(a: str, b: str, frames: int, fps: float, dst: str, quality: str) -> None:
+    """`a` dissolved into `b` (two clips of `frames` frames, conformed alike):
+    xfade for the picture, acrossfade for the sound, written as conform writes
+    a clip (QUALITY_ARGS, 44.1 kHz stereo) so the concat demuxer joins it. The
+    path."""
+    d = f"{frames / fps:.6f}"
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", a, "-i", b, "-filter_complex",
+             f"[0:v][1:v]xfade=transition=fade:duration={d}:offset=0,format=yuv420p[v];"
+             f"[0:a][1:a]acrossfade=d={d}[a]",
+             "-map", "[v]", "-map", "[a]", "-frames:v", str(frames),
+             "-c:v", "libx264", *QUALITY_ARGS[quality], "-pix_fmt", "yuv420p",
+             "-r", f"{fps:g}", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+             "-t", d, dst])
+    if r.returncode != 0:
+        raise RuntimeError(f"the dissolve into {os.path.basename(b)} failed: "
+                           f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
+    return dst
 
 
 def tc(seconds: float) -> str:
@@ -607,6 +685,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--quality", choices=sorted(QUALITY_ARGS), default="review",
                     help="how clips that must be re-encoded are written: review (x264 CRF 16) or "
                          "master (CRF 12, slow); clips that needn't be are copied either way")
+    ap.add_argument("--no-transitions", action="store_true",
+                    help="no cut entry's fades or dissolves: every join a cut")
     ap.add_argument("--no-color", action="store_true",
                     help="leave every clip as shot: no cut entry's colour")
     ap.add_argument("--reencode-all", action="store_true",
@@ -776,6 +856,9 @@ def main(argv: list[str] | None = None) -> int:
              "expected": s["length"], "policy": s.get("audio_policy", "?"),
              "src_fps": src_fps, "convert": convert,
              "color": None if args.no_color else e.color,
+             "asked": ({} if args.no_transitions else
+                       {"fade_in": e.fade_in, "fade_out": e.fade_out, "dissolve": e.dissolve}),
+             "head": 0, "tail": 0, "fade_in": 0, "fade_out": 0, "dissolve_in": 0,
              "size": video_size(clip)}
         if convert and not keep:
             acc_s += clip_s - (trim_in + trim_out) / fps
@@ -828,16 +911,30 @@ def main(argv: list[str] | None = None) -> int:
               f"(the folder that holds {sub}/ and shotlist/).\n")
         return 1
 
+    # ---- fades and dissolves: each fitted to its clips, or left out -------
+    joined = lay_transitions(plan)
+    for why in joined["dropped"]:
+        print(f"  ! {why}: left out")
+
     # ---- timings, frame-count report -------------------------------------
     total = 0
     print()
     for p in plan:
-        p["start"] = total / fps
+        # a dissolve overlaps the clip before: the shot starts at its middle
+        d = p["dissolve_in"]
+        total -= d
+        p["start"] = (total + d / 2) / fps
         total += p["used"]
     windowed = [p for p in plan if p["keep"]]
     trimmed = [p for p in plan if p["trim_in"] or p["trim_out"]]
     placeholders = [p for p in plan if p["placeholder"]]
     colored = [p for p in plan if p["color"]]
+    if joined["count"]:
+        print(f"  {joined['count']} transition(s): {', '.join(joined['said'][:8])}"
+              + (" ..." if len(joined["said"]) > 8 else ""))
+        if args.audio == "master" and any(p["dissolve_in"] for p in plan):
+            print("  ! --audio master with dissolves: the recording runs ahead of the picture "
+                  "after each one (a dissolve shortens the cut)")
     if windowed:
         print(f"  trimming {len(windowed)} shot(s) to their dialogue "
               f"windows ({sum(p['frames'] - p['keep'] for p in windowed if p['frames'] > 0)} "
@@ -947,7 +1044,8 @@ def main(argv: list[str] | None = None) -> int:
     # derived take's pixel-aspect tag), found by their headers below. The rest
     # are copied beside them when that is safe (`selective`), else every clip is
     # re-encoded, so the concat demuxer sees one set of stream parameters.
-    reencode = bool(windowed or trimmed or placeholders or converted or resized or colored)
+    reencode = bool(windowed or trimmed or placeholders or converted or resized or colored
+                    or joined["count"])
     size = None
     if placeholders or resized:
         if width and height:
@@ -982,6 +1080,8 @@ def main(argv: list[str] | None = None) -> int:
     needs = {id(p) for p in windowed + trimmed + placeholders + converted + resized + colored}
     sigs: dict[int, tuple] = {}
     selective = None                    # the cut's standard: its video signature
+    if joined["count"]:
+        needs = {id(p) for p in plan}
     if len(needs) < len(plan):
         say(args.progress, "probe", text="comparing the clips' encodings")
         for p in plan:
@@ -1049,12 +1149,36 @@ def main(argv: list[str] | None = None) -> int:
         layout = pick_layout(sel)
         listing = os.path.join(tmp, "concat.txt")
         clips = []
+        norms: list[str] = []
+
+        def piece(i: int, src: str, start: int, frames: int, fi: int = 0, fo: int = 0) -> str:
+            out = os.path.join(tmp, f"{i:04d}_{start}_{frames}.mp4")
+            conform(src, out, src, fps, frames, start=start, quality=args.quality,
+                    fade_in=fi, fade_out=fo)
+            return out
+
         with open(listing, "w", encoding="utf-8") as fh:
             say(args.progress, "clips", 0, len(plan))
             for i, p in enumerate(plan):
                 norm = made.pop(i, None) or make(i, p, sel, layout, tmp)
-                clips.append((norm, p["used"]))
-                fh.write(f"file '{norm.replace(os.sep, '/')}'\n")
+                norms.append(norm)
+                parts = []
+                n = p["dissolve_in"]
+                if n:
+                    # the clip before's last n frames into this one's first n
+                    a = piece(i - 1, norms[i - 1], plan[i - 1]["used"] - n, n)
+                    b = piece(i, norm, 0, n)
+                    parts.append((dissolve(a, b, n, fps, os.path.join(tmp, f"{i:04d}_x.mp4"),
+                                           args.quality), n))
+                body = p["used"] - p["head"] - p["tail"]
+                if p["head"] or p["tail"] or p["fade_in"] or p["fade_out"]:
+                    parts.append((piece(i, norm, p["head"], body, p["fade_in"], p["fade_out"]),
+                                  body))
+                else:
+                    parts.append((norm, p["used"]))
+                for path, frames in parts:
+                    clips.append((path, frames))
+                    fh.write(f"file '{path.replace(os.sep, '/')}'\n")
                 say(args.progress, "clips", i + 1, len(plan), p["id"])
         say(args.progress, "join", text=os.path.basename(out_path))
         return run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0",

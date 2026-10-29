@@ -11,7 +11,8 @@ import { api, host } from "./host";
 import { audioOf, audioWhy, normalizeAudio, sameAudio } from "./lib/audioSource";
 import { cleanColor, type ShotColor } from "./lib/color";
 import {
-  applyEntries, clampTrim, clearAudio, clearTrims, entriesOf, fieldsOf, moveTo, nudge, sameEntries, scriptOrder, withFields,
+  JOIN_MAX, applyEntries, clampTrim, clearAudio, clearTrims, entriesOf, fieldsOf, moveTo, nudge, sameEntries, scriptOrder,
+  withFields, type JoinKey,
 } from "./lib/cutEdit";
 import { PeaksCache } from "./lib/peaks";
 import { locate, totalDuration } from "./lib/playlist";
@@ -199,6 +200,24 @@ export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}
     return Promise.resolve(false);
   }
   return editCut(label, (list) => withFields(list, shot, { color: cleanColor(color) }));
+}
+
+/** How long a fade or a dissolve is when it's switched on from a menu (frames). */
+export const JOIN_DEFAULT = 12;
+
+const JOIN_WORDS: Record<JoinKey, string> = { fade_in: "fade in", fade_out: "fade out", dissolve: "dissolve" };
+
+/** Set a clip's fade in / fade out / dissolve from the clip before (frames; 0 none). */
+export function setJoin(shot: string, key: JoinKey, frames: number): Promise<boolean> {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  if (isLocked(c.st, shot)) {
+    refuseLocked(shot, "given a fade or a dissolve");
+    return Promise.resolve(false);
+  }
+  const n = Math.max(0, Math.min(JOIN_MAX, Math.round(frames)));
+  return editCut(n ? `${JOIN_WORDS[key]} ${shot} ${n}f` : `No ${JOIN_WORDS[key]} on ${shot}`,
+    (list) => withFields(list, shot, { [key]: n }));
 }
 
 /** Measure the cut's takes made before looks were kept, so the timeline's colour

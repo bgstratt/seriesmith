@@ -18,6 +18,7 @@ import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
 import { ColorDefs, useClipFilter } from "./ColorDefs";
+import { JoinCurves } from "./JoinCurves";
 import { LookBadge } from "./LookBadge";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
@@ -696,6 +697,7 @@ export function Timeline() {
                             onEdgeDown={onEdgeDown}
                             suppress={suppress}
                           />
+                          {it && !s.cut.out && <JoinCurves it={it} width={width} height={clipH} fps={fps} />}
                         </div>
                         {trim && trim.shot === s.shot && trim.held == null && trimItem && (
                           <TrimGhost ep={ep} take={take} item={trimItem} preview={trim} zoom={zoom} fps={fps} height={clipH} />

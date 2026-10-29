@@ -4,11 +4,11 @@
 
 import { useEffect, useState } from "react";
 import { currentPlaylist, openSound } from "../actions";
-import { clearClipAudio, matchColors, setColor, setTrims, toggleLock } from "../cutActions";
+import { clearClipAudio, matchColors, setColor, setJoin, setTrims, toggleLock } from "../cutActions";
 import { api } from "../host";
 import { GAIN_DEFAULT, RECORDING_IGNORES_AUDIO, audioOf, gainOf, offsetOf, startOf } from "../lib/audioSource";
 import { COLOR_FIELDS, COLOR_RANGES, cleanColor, hasColor, type ColorField, type ShotColor } from "../lib/color";
-import { framesLabel, isOutOfOrder, trimLimits } from "../lib/cutEdit";
+import { JOIN_KEYS, JOIN_MAX, framesLabel, isOutOfOrder, trimLimits, type JoinKey } from "../lib/cutEdit";
 import { fmtSeconds, tn } from "../lib/format";
 import { clipTake } from "../lib/playlist";
 import { store, useApp } from "../store";
@@ -111,12 +111,60 @@ export function CutSection({ shot }: { shot: string }) {
         )}
       </div>
       <ClipAudioLine shot={shot} cut={s.cut} locked={locked} />
+      <ClipJoins shot={shot} cut={s.cut} locked={locked} fps={fps} />
       <ClipColorLines shot={shot} cut={s.cut} locked={locked} />
       <span className="h3-small h3-muted">
         {it ? `plays ${fmtSeconds(it.dur)}${total != null ? ` of ${fmtSeconds(total / fps)}` : ""}${it.audioIn != null ? ` · dialogue window ${it.audioIn.toFixed(2)}–${(it.audioOut ?? 0).toFixed(2)} s` : ""}` : "not in Play all"}
         {locked ? " · locked: unlock to trim, move or re-pick" : ""}
       </span>
     </div>
+  );
+}
+
+const JOIN_LABELS: Record<JoinKey, { label: string; help: string }> = {
+  fade_in: { label: "fade in", help: "Frames it fades in from black at its start (0: none)" },
+  fade_out: { label: "fade out", help: "Frames it fades out to black at its end (0: none)" },
+  dissolve: { label: "dissolve in", help: "Frames it dissolves in from the clip before: the two overlap, and the cut is that much shorter (0: a cut). A join with a dissolve has no fades" },
+};
+
+/** The clip's fades and its dissolve from the clip before, in frames: drawn on the
+ * timeline as curves, made by assemble on export. */
+function ClipJoins({ shot, cut, locked, fps }: { shot: string; cut: ShotStatus["cut"]; locked: boolean; fps: number }) {
+  return (
+    <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
+      {JOIN_KEYS.map((k) => (
+        <JoinField key={k} label={JOIN_LABELS[k].label} help={JOIN_LABELS[k].help} value={cut[k] || 0} fps={fps}
+          disabled={locked} onCommit={(n) => void setJoin(shot, k, n)} />
+      ))}
+    </div>
+  );
+}
+
+function JoinField({ label, help, value, fps, disabled, onCommit }: {
+  label: string; help: string; value: number; fps: number; disabled: boolean; onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const n = parseFrames(text);
+  const commit = () => {
+    if (n == null || n > JOIN_MAX) return setText(String(value));
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <label className="h3-row" title={`${help}. ${JOIN_MAX} at most`}>
+      <span className="h3-muted">{label}</span>
+      <input
+        type="text" inputMode="numeric" className={`h3-in h3-mono${n == null || n > JOIN_MAX ? " h3-bad" : ""}`}
+        style={{ width: 40 }} value={text} disabled={disabled}
+        onChange={(e) => setText(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setText(String(value));
+          e.stopPropagation();
+        }}
+      />
+      <span className="h3-muted">f{value ? ` · ${(value / fps).toFixed(2)} s` : ""}</span>
+    </label>
   );
 }
 

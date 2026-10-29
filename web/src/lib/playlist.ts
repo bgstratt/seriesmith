@@ -32,6 +32,14 @@ export interface PlayItem {
   /** Phase 9b: the shot's dialogue window on the episode's track (null: none) */
   audioIn: number | null;
   audioOut: number | null;
+  /** seconds it fades from / to black at its head / tail (0: none) */
+  fadeIn: number;
+  fadeOut: number;
+  /** seconds of the dissolve from the clip before / into the clip after (0: a cut).
+   * A dissolve overlaps the two: each gives half of it from its length here (the
+   * export's timing; Play all cuts at its middle) */
+  dissolveIn: number;
+  dissolveOut: number;
 }
 
 /** The take a timeline clip shows: the cut's take, from the other pass for a placeholder. */
@@ -167,7 +175,10 @@ export function buildPlaylist(st: EpisodeStatus | undefined, other?: EpisodeStat
     const trimOut = Math.max(0, Math.floor(s.cut.trim_out || 0));
     const win = trimWindow(frames, trimIn, trimOut, fps, rate);
     const w = windowOf(s);
-    const extra = { trimIn, trimOut, total, audioIn: w?.audioIn ?? null, audioOut: w?.audioOut ?? null };
+    const extra = {
+      trimIn, trimOut, total, audioIn: w?.audioIn ?? null, audioOut: w?.audioOut ?? null,
+      fadeIn: (s.cut.fade_in || 0) / fps, fadeOut: (s.cut.fade_out || 0) / fps, dissolveIn: 0, dissolveOut: 0,
+    };
     let item: Omit<PlayItem, "start" | "index">;
     if (usable && win) {
       // an upscale has the take's frames and rate, so the timing is the take's
@@ -182,7 +193,43 @@ export function buildPlaylist(st: EpisodeStatus | undefined, other?: EpisodeStat
     out.push({ ...item, index: out.length, start: t });
     t += item.dur;
   }
-  return out;
+  return withDissolves(out, st, fps);
+}
+
+/** A dissolve (the clip after's `dissolve`, frames) laid into the playlist as the
+ * export lays it (assemble.lay_transitions): only between two playable clips, each
+ * keeping a frame of its own; each gives half of it, and the fades at that join go. */
+function withDissolves(items: PlayItem[], st: EpisodeStatus, fps: number): PlayItem[] {
+  const by = new Map(st.shots.map((s) => [s.shot, s]));
+  for (let k = 1; k < items.length; k++) {
+    const a = items[k - 1];
+    const b = items[k];
+    const d = (by.get(b.shot)?.cut.dissolve || 0) / fps;
+    if (!d || !a.mp4 || !b.mp4 || a.dur - a.dissolveIn - d < 1 / fps || b.dur - d < 1 / fps) continue;
+    a.dissolveOut = d;
+    b.dissolveIn = d;
+    a.fadeOut = 0;
+    b.fadeIn = 0;
+    a.outT -= d / 2;
+    a.dur -= d / 2;
+    b.inT += d / 2;
+    b.dur -= d / 2;
+  }
+  let t = 0;
+  for (const it of items) {
+    it.start = t;
+    t += it.dur;
+  }
+  return items;
+}
+
+/** How bright a clip is `offset` seconds in (its fades: 0 black .. 1 as shot). */
+export function fadeLevel(it: PlayItem, offset: number): number {
+  let v = 1;
+  if (it.fadeIn > 0 && offset < it.fadeIn) v = Math.min(v, offset / it.fadeIn);
+  const left = it.dur - offset;
+  if (it.fadeOut > 0 && left < it.fadeOut) v = Math.min(v, left / it.fadeOut);
+  return Math.max(0, Math.min(1, v));
 }
 
 export function totalDuration(items: PlayItem[]): number {

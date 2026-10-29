@@ -604,6 +604,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "flag": e.flag,
                     # its colour (seriesmith.color), applied by assemble; null: as shot
                     "color": e.color,
+                    # frames from / to black, and of a dissolve from the clip before
+                    "fade_in": e.fade_in, "fade_out": e.fade_out, "dissolve": e.dissolve,
                     # the cut take's real length (its sidecar's saved frame
                     # count; a `dur: model` take's is the model's), or None
                     "frames": take_frames(chosen) if chosen_ok else None,
@@ -1533,13 +1535,19 @@ def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
     /seriesmith/cut checks them, colour by seriesmith.color.check."""
     entries = cut_entries(root, pass_)
     e = entries[_find(entries, shot_id, pass_)]
-    if ({"trim_in", "trim_out", "audio", "out", "color"} & set(fields)) and e.locked and not force:
+    if ({"trim_in", "trim_out", "audio", "out", "color", *T.JOIN_FIELDS} & set(fields))             and e.locked and not force:
         raise Locked(f"{shot_id} is locked in the {pass_} cut: unlock it first")
     if "color" in fields:
         try:
             fields["color"] = COL.check(fields["color"]) or None
         except ValueError as ex:
             raise CutError(f"{shot_id}: {ex}") from None
+    for k in T.JOIN_FIELDS:
+        if k in fields:
+            try:
+                fields[k] = T.check_join_frames(k, fields[k])
+            except ValueError as ex:
+                raise CutError(f"{shot_id}: {ex}") from None
     for k, v in fields.items():
         setattr(e, k, v)
     out = _entries_json(entries, pass_)

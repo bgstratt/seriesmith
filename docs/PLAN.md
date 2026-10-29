@@ -1375,11 +1375,20 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       -2..2, so filters() scales the matrix into it and lutrgb back (16-bit; +2 stops failed
       to export before); Match compares the mean colour too, and starts from it. Tests:
       tests/test_hold.py's LookTest. Not yet live.
-- [ ] **Dissolve and fade to black**, per cut, optional: a cut entry's `"transition":
-      {"type": "dissolve" | "fade", "frames": N}` on the incoming clip; assemble joins those
-      two with `xfade` / `acrossfade` (a fade: out to black, then in) instead of the concat
-      demuxer. A dissolve overlaps the clips, so the cut is N frames shorter; it must fit
-      inside both clips after trims, and two may not overlap. Nothing else: no wipes.
+- [x] **Fades and dissolves** (2026-10-29): on the cut entry, in frames, `fade_in` /
+      `fade_out` (from / to black at the clip's own head / tail) and `dissolve` (overlapping
+      the clip before; the cut that much shorter). Decided the same day: a fade in and a fade
+      out are each their own (a scene fades out, the next comes in on a cut), not one "fade"
+      transition across a join; only a dissolve spans one, and a join with one has no fades.
+      Assemble (`lay_transitions`, `dissolve`): every clip re-encoded when any is set; a
+      dissolve is three pieces (the clip before less its last n frames, n frames of xfade /
+      acrossfade, this clip less its first n), a fade is fade / afade on the clip's own frames;
+      what doesn't fit is left out and said; `--no-transitions`. The editor: the timeline
+      draws them as thin curves over the clips, their length (`JoinCurves`; a dissolve an X
+      across the join, each clip giving half, as the playlist lays it: `withDissolves`); Play
+      all dims a fade (`fadeLevel`) and cuts a dissolve at its middle; the clip menu toggles
+      each at 12 frames, the inspector sets the frames. Tests: test_assemble's three,
+      test_api's `test_cut_fades_and_dissolves`, web/test/joins.test.ts. Not yet live.
 - [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
       frozen runs, flashes), reported, never changing it.
 

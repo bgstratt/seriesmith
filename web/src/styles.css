@@ -1047,3 +1047,15 @@
   flex: none;
   cursor: help;
 }
+
+/* a clip's fades and dissolves (JoinCurves): thin curves over its picture */
+.h3-join-curves {
+  position: absolute; left: 0; top: 0; z-index: 2; overflow: visible; pointer-events: none;
+}
+.h3-join-curves path {
+  fill: none; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: stroke;
+}
+
+/* Play all: a clip's fade, as black over it (fadeLevel) */
+.h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }

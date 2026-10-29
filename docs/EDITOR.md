@@ -537,6 +537,22 @@ saturation closest to this clip's. It takes a few seconds. The result is a start
 check each clip and adjust its sliders. Locked clips are left alone, and Ctrl+Z undoes the
 whole match.
 
+### Fades and dissolves
+
+A clip can **fade in** from black at its start and **fade out** to black at its end, each on
+its own: a scene can fade out and the next come in on a cut. It can also **dissolve in** from
+the clip before it: the two overlap, and the cut is that much shorter. Set them in a clip's
+menu (**Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: 12
+frames, or off) or as frames in the inspector's **In the cut** section.
+
+The timeline draws them as thin curves over the clips, as long as they last: a fade in rises
+from the clip's bottom-left corner, a fade out falls to its bottom-right, and a dissolve is
+an X across the join (each clip gives half its length to it, so the timeline is as long as
+the export). Hover a curve for its length. Play all shows the fades; a dissolve plays as a
+cut at its middle, so the timing stays the export's. Exporting makes them for real. A join
+with a dissolve has no fades, and one that doesn't fit the clips is left out (the export
+says which).
+
 **A clip whose colour is out of line** with the rest of its sequence (brighter or darker,
 flatter or punchier, warmer, cooler, a green or magenta cast, more or less colourful) has a
 small badge on the timeline: three colour circles in a ring. Hover it to see what's off.

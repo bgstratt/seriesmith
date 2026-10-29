@@ -970,6 +970,21 @@ class CutTest(ApiTest):
                     [{"shot": "a", "colour": "red"}], "x"):
             self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": bad}), 400)
 
+    def test_cut_fades_and_dissolves(self):
+        order = [s["id"] for s in J.load_shotlist(self.ep, "proxy")["shots"]]
+        cut = self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+            {"shot": order[0], "fade_in": 12, "fade_out": 0},
+            {"shot": order[1], "dissolve": 8}]}))["cut"]
+        self.assertEqual(cut["proxy"][:2], [{"shot": order[0], "fade_in": 12},
+                                            {"shot": order[1], "dissolve": 8}])
+        _, shots = self.status()
+        c = shots[order[0]]["cut"]
+        self.assertEqual((c["fade_in"], c["fade_out"], c["dissolve"]), (12, 0, 0))
+        self.assertEqual(shots[order[1]]["cut"]["dissolve"], 8)
+        for bad in ({"fade_in": -1}, {"fade_out": 241}, {"dissolve": 2.5}, {"dissolve": "8"}):
+            self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
+                dict({"shot": order[0]}, **bad)]}), 400)
+
     def test_cut_colour(self):
         order = [s["id"] for s in J.load_shotlist(self.ep, "proxy")["shots"]]
         cut = self.ok(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [

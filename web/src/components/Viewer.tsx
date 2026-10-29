@@ -15,7 +15,7 @@ import { anyOutOfOrder } from "../lib/cutEdit";
 import { fmtClock, realStale, tn } from "../lib/format";
 import { frameAt } from "../lib/keyframes";
 import {
-  atOutPoint, baseIn, clipOffset, cutTime, fileTime, locate, nextVideo, totalDuration, type PlayItem,
+  atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
@@ -738,6 +738,8 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const cur = items[shown.idx];
   // the clip's colour in the cut, previewed (a placeholder's too: assemble colours it)
   const cutFilter = useClipFilter(cur?.shot, "v");
+  // its fades, previewed: black over it as dark as the export's at this moment
+  const veil = cur ? 1 - fadeLevel(cur, cp.pos - cur.start) : 0;
   const jump = (d: number) => {
     const i = Math.min(items.length - 1, Math.max(0, (eng.current.idx < 0 ? 0 : eng.current.idx) + d));
     if (items[i]) seekCut(items[i].start);
@@ -791,6 +793,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
             onError={(e) => console.warn("seriesmith play all: video error", (e.currentTarget as HTMLVideoElement).error)}
           />
         ))}
+        {veil > 0.003 && <div className="h3-fade-veil" style={{ opacity: veil }} />}
         {cur && !cur.mp4 && (
           <div className="h3-missing-card">
             <b>{cur.shot}</b>

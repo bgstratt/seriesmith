@@ -390,6 +390,53 @@ class SelectiveTest(unittest.TestCase):
         # one sound for the whole cut, in the copies' rate and layout
         self.assertEqual(self.A.stream_sig(out)[1], (32000, 2))
 
+    def luma_at(self, path: str, frame: int) -> float:
+        from PIL import Image, ImageStat
+        png = os.path.join(self.root, "f.png")
+        ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-vf", f"select=eq(n\\,{frame})",
+           "-frames:v", "1", png)
+        with Image.open(png) as im:
+            return ImageStat.Stat(im.convert("L")).mean[0]
+
+    def test_a_dissolve_overlaps_and_shortens_the_cut(self):
+        self.three()
+        self.cut([{"shot": "sh010"}, {"shot": "sh020", "dissolve": 8}, {"shot": "sh030"}])
+        r = self.assemble()
+        self.assertIn("1 transition(s): sh020 dissolve 8f", r.stdout)
+        self.assertEqual(probe_frames(self.out()), 56 + 22 + 39 - 8)
+        # sh020 starts at the dissolve's middle: 52 frames in
+        starts = [row[0] for row in self.shots_txt()]
+        self.assertEqual(starts[1], self.A.tc((56 - 8 + 4) / 24))
+
+    def test_fades_are_each_their_own(self):
+        self.three()
+        # sh010 fades in from black; sh020 fades out; sh030 comes in on a cut
+        self.cut([{"shot": "sh010", "fade_in": 10}, {"shot": "sh020", "fade_out": 10},
+                  {"shot": "sh030"}])
+        r = self.assemble()
+        self.assertIn("sh010 fade in 10f", r.stdout)
+        self.assertIn("sh020 fade out 10f", r.stdout)
+        out = self.out()
+        self.assertEqual(probe_frames(out), 56 + 22 + 39)          # fades take no length
+        self.assertLess(self.luma_at(out, 0), 20)                  # black at the start
+        self.assertGreater(self.luma_at(out, 30), 40)
+        self.assertLess(self.luma_at(out, 56 + 21), 20)            # black at sh020's end
+        self.assertGreater(self.luma_at(out, 56 + 22), 40)         # sh030 on a cut
+
+    def test_what_doesnt_fit_is_left_out(self):
+        self.three()
+        self.cut([{"shot": "sh010", "dissolve": 4}, {"shot": "sh020", "dissolve": 30,
+                                                     "fade_in": 5},
+                  {"shot": "sh030", "fade_out": 200}])
+        r = self.assemble()
+        self.assertIn("sh010's dissolve is at the start of the cut: left out", r.stdout)
+        self.assertIn("sh020's 30-frame dissolve doesn't fit", r.stdout)
+        self.assertIn("sh030's 200-frame fade out is longer than its 39f", r.stdout)
+        self.assertIn("sh020 fade in 5f", r.stdout)
+        self.assertEqual(probe_frames(self.out()), 56 + 22 + 39)
+        r = self.assemble("--no-transitions")
+        self.assertNotIn("transition", r.stdout)
+
     def test_a_clip_with_colour_is_re_encoded_with_it(self):
         self.three()
         self.cut([{"shot": "sh010"}, {"shot": "sh020", "color": {"saturation": -1}},

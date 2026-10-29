@@ -7,7 +7,8 @@ import {
   generateDubTracks, openSound, setSound,
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
-import { clearClipAudio, matchColors, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_DEFAULT, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
@@ -224,6 +225,18 @@ export function ContextMenu() {
       >
         <i className="pi pi-clone" /> Match the sequence's colour to this
       </button>
+      {JOIN_KEYS.map((k) => {
+        const on = (cutShot?.cut[k] || 0) > 0;
+        const words = { fade_in: "Fade in from black", fade_out: "Fade out to black", dissolve: "Dissolve from the clip before" }[k];
+        return (
+          <button key={k} disabled={!cutShot || !!cutShot.orphan || locked}
+            title={on ? `Take it off (${cutShot!.cut[k]} frames now; the inspector sets the length)`
+              : `${words}, ${JOIN_DEFAULT} frames (the inspector's In the cut sets the length); drawn on the timeline as a curve, made on export`}
+            onClick={run(() => void setJoin(menu.shot, k, on ? 0 : JOIN_DEFAULT))}>
+            <i className={on ? "pi pi-check" : "pi pi-minus"} style={{ opacity: on ? 1 : 0.35 }} /> {words}
+          </button>
+        );
+      })}
       {trimmed && (
         <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>
           <i className="pi pi-arrows-h" /> Clear trims
