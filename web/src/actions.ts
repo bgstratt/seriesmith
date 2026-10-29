@@ -3434,7 +3434,7 @@ export function closePano() {
 // Phase 9d: a shot's audio from elsewhere
 // ---------------------------------------------------------------------------
 
-/** Open "Overlay audio…" for one clip, starting from what it plays now. */
+/** Open "Replace audio…" for one clip, starting from what it plays now. */
 export function openClipAudio(shot: string, pass: Pass = get().pass) {
   const s = get();
   const cut = s.ep ? s.status[statusKey(s.ep, pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined;

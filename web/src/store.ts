@@ -271,7 +271,7 @@ export interface VoiceClipState {
 }
 
 /**
- * Phase 9d: the "Overlay audio…" window. `draft` is the source being edited,
+ * Phase 9d: the "Replace audio…" window. `draft` is the source being edited,
  * null meaning the clip's own sound; nothing is saved until Use this audio.
  */
 export interface ClipAudioState {
@@ -451,7 +451,7 @@ export interface AppState {
   voiceClip: VoiceClipState | null;
   /** P5: the 360 viewer: a location and one of its panoramas (null: closed) */
   panoView: { ref: string; take: number } | null;
-  /** Phase 9d: the "Overlay audio…" window for one clip (null: closed) */
+  /** Phase 9d: the "Replace audio…" window for one clip (null: closed) */
   clipAudio: ClipAudioState | null;
   /** P8: the Supply window for files dropped in bulk (null: closed) */
   supply: SupplyState | null;

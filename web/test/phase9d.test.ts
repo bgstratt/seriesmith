@@ -270,7 +270,7 @@ describe("the speaker badge's words", () => {
     expect(b.title).toContain("-0.20 s against the picture");
     expect(b.title).toContain("gain 1.5");
     expect(b.title).toContain("renders_proxy/sh020/sh020_t01.mp4");
-    expect(b.title).toContain("Overlay audio…");
+    expect(b.title).toContain("Replace audio…");
   });
   it("silence reads as muted", () => {
     const b = audioBadgeOf({ ...CUT, audio: { source: "none" } }, "sh040")!;
@@ -655,7 +655,7 @@ describe("the Phase 9d surfaces render", () => {
     setClipAudioDraft({ source: "take", shot: "sh020", take: 1, pass: "proxy", start: 0.5, offset: 0.25, gain: 1.5 });
     const html = renderToString(createElement(ClipAudioWindow));
     // React 18 splits adjoining text nodes with comments, so the words are checked apart
-    expect(html).toContain("Overlay audio on");
+    expect(html).toContain("Replace audio on");
     for (const label of ["its own", "another take", "a file", "silent", "Preview", "start", "offset", "gain", "Use this audio"]) {
       expect(html).toContain(label);
     }
@@ -722,15 +722,15 @@ describe("the Phase 9d surfaces render", () => {
     expect(html).toContain("line_sh030.wav");
     expect(html).toContain("+0.50 s against the picture");
     expect(html).toContain("gain 2");
-    expect(html).toContain("Overlay audio…");
+    expect(html).toContain("Replace audio…");
     expect(html).toContain("Clear");
     // a clip on its own sound says so and offers no Clear
     expect(renderToString(createElement(CutSection, { shot: "sh020" }))).toContain("its own take&#x27;s sound");
   });
 
-  it("the clip's context menu has Overlay audio…", async () => {
+  it("the clip's context menu has Replace audio…", async () => {
     store.set({ menu: { x: 0, y: 0, shot: "sh010", pass: "proxy", take: 1 } });
-    expect(renderToString(createElement(ContextMenu))).toContain("Overlay audio…");
+    expect(renderToString(createElement(ContextMenu))).toContain("Replace audio…");
     await setClipAudio("sh010", { source: "none" });
     await cutSettled();
     const html = renderToString(createElement(ContextMenu));

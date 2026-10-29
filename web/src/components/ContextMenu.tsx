@@ -221,7 +221,7 @@ export function ContextMenu() {
           : `This take's picture with another take's (or a file's) sound under it, cut to ${menu.shot}'s length`}
         onClick={run(() => openClipAudio(menu.shot, curPass))}
       >
-        <i className={clipAudio?.source === "none" ? "pi pi-volume-off" : "pi pi-volume-up"} /> Overlay audio…
+        <i className={clipAudio?.source === "none" ? "pi pi-volume-off" : "pi pi-volume-up"} /> Replace audio…
         {clipAudio && <span className="h3-muted"> ({cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)})</span>}
       </button>
       {clipAudio && (
