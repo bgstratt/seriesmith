@@ -335,14 +335,32 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE, picksOnly: false })}>Refs</button>
         <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE, picksOnly: false })}>Shots</button>
       </span>
-      <span className="h3-grow" />
+      {/* how it's shown: wraps inside itself, so full screen and close stay top right */}
+      <span className="h3-gal-view-tools">
+        <span className="h3-seg" title={`A section per ${shots ? "shot" : "ref"}, or one flow that fills each row (each one's together)`}>
+          <button className={layout === "sections" ? "h3-on" : ""} onClick={() => setLayout("sections")}>Sections</button>
+          <button className={layout === "flow" ? "h3-on" : ""} onClick={() => setLayout("flow")}>Flow</button>
+        </span>
+        <span className="h3-seg" title="Picture size">
+          {(Object.keys(SIZES) as Size[]).map((k) => (
+            <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
+          ))}
+        </span>
+        <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
+          <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
+        </label>
+        {!shots && !g.ref && (
+          <label className="h3-row h3-small" style={{ gap: 4 }} title="Also the refs in the series config that no shot of this episode uses (another episode's cast and places)">
+            <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
+          </label>
+        )}
+      </span>
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close the gallery (Esc)" onClick={closeGallery}><i className="pi pi-times" /></button>
     </>
   );
-  // under the title bar, which keeps to what never moves (full screen and close stay
-  // top right): what's shown on the left, how it's shown on the right; it wraps as
-  // the window narrows
+  // under the title bar (how it's shown, full screen and close): what's shown, and how
+  // many; it wraps as the window narrows
   const tools = (
     <div className="h3-gal-tools">
       <input className="h3-in h3-gal-search" type="search" value={g.query ?? ""}
@@ -401,23 +419,6 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         )}
       </span>
       <span className="h3-grow" />
-      <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
-        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
-      </label>
-      {!shots && !g.ref && (
-        <label className="h3-row h3-small" style={{ gap: 4 }} title="Also the refs in the series config that no shot of this episode uses (another episode's cast and places)">
-          <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
-        </label>
-      )}
-      <span className="h3-seg" title={`A section per ${shots ? "shot" : "ref"}, or one flow that fills each row (each one's together)`}>
-        <button className={layout === "sections" ? "h3-on" : ""} onClick={() => setLayout("sections")}>Sections</button>
-        <button className={layout === "flow" ? "h3-on" : ""} onClick={() => setLayout("flow")}>Flow</button>
-      </span>
-      <span className="h3-seg" title="Picture size">
-        {(Object.keys(SIZES) as Size[]).map((k) => (
-          <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
-        ))}
-      </span>
       {chosen.size > 0 ? (
         <span className="h3-row h3-gal-chosen" style={{ gap: 6 }}>
           <b className="h3-small">{chosen.size} selected</b>

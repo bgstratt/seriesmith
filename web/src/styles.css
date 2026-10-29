@@ -1086,3 +1086,8 @@
 .h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }
 /* the clip's bottom bar lets the pointer through to the clip; these say something on hover */
 .h3-clip-bottom .h3-look-off, .h3-clip-bottom .pi-palette { pointer-events: auto; }
+/* the gallery's title bar never wraps: its view controls wrap among themselves, right-aligned */
+.h3-gallery > .h3-window-head { flex-wrap: nowrap; }
+.h3-gal-view-tools {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 8px;
+}
