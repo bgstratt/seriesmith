@@ -28,6 +28,10 @@
   },
   "recipe": {
     "_note": "Pictures 1-3 are the shot's subjects (characters first, then props and vehicles, in script order); Picture 4 is always the location plate. Each character is fed ONE panel of its 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise. Clone mode feeds one voice sample per speaker, at most 3.",
+    "keyframes": ["first"],
+    "keyframes_when_asked": true,
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "_keyframes_note": "It can open on a first frame (anchored at frame 0 by MiniMaxH3AddGuide after the reference node, its pictures kept: first_frame.py), only for a shot that asks (keyframes_when_asked). A `continuous: first` shot still goes to its partner (continuous.first: H3 FL2VA) unless the series config's series.first_target names this target (or another). Tried live 2026-10-29 (last-light sh030, proxy): frame 0 the keyframe, then the shot the script asked for.",
     "subject_slots": ["Picture 1", "Picture 2", "Picture 3"],
     "plate_slot": "Picture 4",
     "voice_slots": ["Audio 1", "Audio 2", "Audio 3"],

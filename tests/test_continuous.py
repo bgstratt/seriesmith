@@ -187,7 +187,11 @@ class PartnerTest(unittest.TestCase):
         by = TG.shot_targets(st, cfg)
         self.assertEqual((by["sh020"], by["sh040"]), ("h3_singularity_fl2va", "h3_singularity_fl2va"))
         self.assertEqual(by["sh030"], "fasth3_omni")
-        for bad in ("minimax_h3_ref2va", "nope", 3):
+        # Ref2VA itself: it opens on the frame, its pictures kept
+        cfg["series"]["first_target"] = "minimax_h3_ref2va"
+        by = TG.shot_targets(st, cfg)
+        self.assertEqual((by["sh020"], by["sh040"]), ("minimax_h3_ref2va", "minimax_h3_ref2va"))
+        for bad in ("fasth3_omni", "nope", 3):
             cfg["series"]["first_target"] = bad
             with self.assertRaises(ValueError) as cm:
                 TG.shot_targets(st, cfg)

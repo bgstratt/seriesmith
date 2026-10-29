@@ -1660,14 +1660,25 @@ def continuous_target(shot_id: str, mode: str, t: "Target", named: bool,
                       known: list[str], first: str | None = None) -> str:
     """The target a shot continuing by `mode` renders on (shot_targets).
     `first`: the series config's `series.first_target`, which a `first` shot
-    goes to over the target's own partner."""
-    if mode in continuous_modes(t):
-        return t.id
+    goes to over the target's own partner. A target that reads the mode
+    renders it itself, unless it names a partner for it (H3 Ref2VA, which can
+    open on a first frame, still sends a `continuous: first` shot to FL2VA
+    unless `first_target` says otherwise)."""
     partner = (t.spec.get("continuous") or {}).get(mode)
-    if mode == "first" and first:
+    partner = partner if isinstance(partner, str) else None    # `latent` holds settings
+    reads = mode in continuous_modes(t)
+    if mode == "first" and first and (partner or not reads):
+        # the series config's first-frame model, over the partner (it may be t itself:
+        # H3 Ref2VA opening on the frame, its pictures kept)
         partner = first
+    if named and reads:
+        return t.id                      # the shot asked for this target, and it can
+    if partner == t.id or (reads and not partner):
+        return t.id
     if partner and partner in known and not named:
         return partner
+    if reads:
+        return t.id
     # what a shot can name: a draft (not switched on yet) isn't offered
     can = [x.id for x in list_targets("video") if mode in continuous_modes(x) and not x.draft]
     if named:

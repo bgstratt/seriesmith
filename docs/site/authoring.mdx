@@ -189,7 +189,7 @@ shot 93. So:
 
 | target | what pins the look | sound | keyframes | length grid | good for |
 |---|---|---|---|---|---|
-| `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
+| `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
 | `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights. `fasth3_fl2va` is where a `continuous: first` shot on FastH3 Omni goes, so it keeps FastH3's look; either can be named, or be the series' `first_target` |
@@ -1575,13 +1575,17 @@ continuous: first
   its look), unless the shot names its own `target:` (then it's an error that says which
   targets can). **H3 Singularity reads it itself**: the frame is anchored at the start of its
   own render and its character and place pictures still go in, which FL2VA can't read.
-  (FastH3 Omni was tried the same way and ignored the frame: its 8 distilled steps don't
-  take the anchor.) The model can come from the
+  **H3 Ref2VA can too**, but keeps sending such shots to FL2VA unless the series config says
+  `"first_target": "minimax_h3_ref2va"` (or the shot names Ref2VA itself). (FastH3 Omni was
+  tried the same way and ignored the frame: its 8 distilled steps don't take the anchor.) The model can come from the
   series config, the episode or a `#` header. A shot on a model that reads a first frame
   (LTX-2, Wan, the hosted ones) stays on it.
   The series config's `series.first_target` picks where they all go instead (Series
-  settings › Models › **First frames**), e.g. `"first_target": "h3_singularity_fl2va"` keeps
-  Singularity's look on every continuing H3 shot. It only moves the shots that have to move.
+  settings › Models › **First frames**): `"minimax_h3_ref2va"` keeps H3 Ref2VA's shots on
+  Ref2VA, opening on the frame with their pictures; `"h3_singularity"` moves the continuing
+  H3 shots to Singularity; `"minimax_h3_fl2va"` sends FastH3 Omni's to stock FL2VA. It only
+  moves the shots of H3 Ref2VA and FastH3 Omni; Singularity and the models that read a first
+  frame (LTX-2, Wan, the hosted ones) keep their own.
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
   Ref2VA, keeping its own reference sheets. The render holds the end of the previous take
   at its head and generates the rest from there, so motion, sound and the camera carry
@@ -1795,7 +1799,7 @@ What each model takes, local and hosted (generated from the targets by
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
 | `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
-| `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
 | `wan22_vace` | Wan+refs | your ComfyUI | one picture made from the subjects' sheets | first and last | by their order |

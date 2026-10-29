@@ -1428,9 +1428,15 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       close-up the script asks for, Mara's sheet and the plate sent. FastH3 Omni tried the same
       way ignored the anchor (frame 0 not the keyframe: its 8 distilled steps), so it keeps
       `fasth3_fl2va`. `h3_singularity_fl2va` stays as a model to name or set as `first_target`.
-- [ ] Stock H3 Ref2VA the same way (its full weights should take the anchor as Singularity's
-      do), instead of moving to FL2VA; it changes every existing series' continuous shots, so
-      decide first. More seeds at final size before trusting any of this.
+- [x] **Stock H3 Ref2VA can open on a first frame too** (2026-10-29), by the same anchor (the
+      step moved into Ref2VA's compile, for any target whose recipe says
+      `keyframes_when_asked`). Live (last-light sh030 from sh020's last frame, proxy, the same
+      seed): frame 0 the keyframe, then the close-up the script asks for, Mara's sheet and the
+      plate sent; stock FL2VA held the frame more smoothly but stayed wide. Opt-in, so no
+      existing series changes: its `continuous: first` shots still go to FL2VA unless the series
+      config's `first_target` names `minimax_h3_ref2va` (or the shot names it, which used to be
+      an error). The golden error case now names fasth3_omni, which still can't.
+- [ ] More seeds at final size before trusting the anchor or the FL2VA partners.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
