@@ -161,8 +161,9 @@ class CheckTest(unittest.TestCase):
                 + shot("sh020", "bo", "continuous: multishot\n", "cu"))
         st = story(text, c)
         by = TG.shot_targets(st, c)
-        # Omni reads no first keyframe: sh010 renders on FL2VA, and its group with it
-        self.assertEqual((by["sh010"], by["sh020"]), ("minimax_h3_fl2va", "minimax_h3_fl2va"))
+        # Omni reads no first keyframe: sh010 renders on its FL2VA partner (FastH3's
+        # weights in FL2VA's graph), and its group with it
+        self.assertEqual((by["sh010"], by["sh020"]), ("fasth3_fl2va", "fasth3_fl2va"))
         w = TG.multishot_check(st, c)
         self.assertEqual(len(w), 1)
         self.assertIn("without its subjects' pictures", w[0])

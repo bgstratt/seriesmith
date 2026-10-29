@@ -1,0 +1,397 @@
+{
+  "id": "fasth3_fl2va",
+  "kind": "video",
+  "label": "FastH3, first/last frames (FL2VA)",
+  "short": "FastH3 FL2V",
+  "_note": "H3 FL2VA's graph with FastVideo's 8-step FastH3 Omni weights: what a `continuous: first` shot on fasth3_omni renders on, so it keeps FastH3's look. Tried live 2026-10-29 (last-light sh030, proxy, one seed, 8 steps, no LoRA): it opened on the keyframe and gave the shot the script asked for. FL2VA's graph doesn't set FastH3's shifts (12 video, 3 audio) or its sparse attention; it rendered well without them. No default_rank.",
+  "code": "compile.py",
+  "template": {
+    "_note": "The same grid as H3 Ref2VA: 17k+5 frames at 24 fps, width and height multiples of 32. The model is trained on about 124-362 frames (5-15 s); longer shots are allowed, with a warning. No continuous-sequence chaining: a shot continues the one before it through its first keyframe (continuity).",
+    "fps": 24,
+    "frames": {
+      "step": 17,
+      "base": 5,
+      "max": 3592
+    },
+    "size_multiple": 32,
+    "trained_frames": 362
+  },
+  "multishot": {
+    "_note": "H3's timed [Shot N] sections, in FL2VA's three fields (docs/MULTISHOT.md). No reference pictures: every shot's place and people in words, as for a single shot.",
+    "form": "timed",
+    "plates": 0
+  },
+  "recipe": {
+    "_note": "No subject pictures: H3 FL2VA has no reference slots, so subjects are written in words from the series config's `design` and the location from its `description`. Optional keyframes: shot:<id>:first is the first frame, shot:<id>:last the last (MiniMaxH3ImageToVideo's first_frame / last_frame; the text encoder sees them as <Picture 1> and <Picture 2>, in that order). A shot with neither renders text-to-video. Recorded dialogue (dub / dub_keep_foley) is the shot's slice of the series config's audio.track (or its own audio_file), uploaded to ComfyUI's input folder and anchored at frame 0 with MiniMaxH3AddGuide. clone: H3 FL2VA has no voice-sample slot, so the lines are made first in the same graph by LTX-2.5's audio-only model, continuing each speaker's held sample as ltx2's clone does (held_audio.make_lines, its own LTX loaders: the voice_* models), and anchored like a recording; the prompt is the dub_keep_foley one (the voice is given, H3 lays its sound under it), the take keeps H3's mix, and the made lines are kept beside it as _lines.wav. Without the LTX files a clone shot is refused (they're optional: nothing else needs them).",
+    "policies": [
+      "generate",
+      "dub",
+      "dub_keep_foley",
+      "clone"
+    ],
+    "policy_fallback": {
+      "to": "generate",
+      "why": "H3 FL2VA renders generate, dub, dub_keep_foley and clone (its lines made by LTX-2.5 audio-only)"
+    },
+    "keyframes": [
+      "first",
+      "last"
+    ],
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "audio_anchor": {
+      "slot": "dialogue recording",
+      "frame_idx": 0,
+      "take_suffix": "_dub.wav"
+    },
+    "prompt": "fields",
+    "size_hints": {
+      "keyframe": "the render size (any size works: the first frame is stretched to the canvas, the last is cover-cropped)"
+    }
+  },
+  "binding": {
+    "_note": "ComfyUI's MiniMax H3 image-to-video template (video_minimax_h3_i2v.json: a subgraph, flattened by h3jobs.ui_to_api). No loader node: every value is patched into a widget, so it renders without any custom node beyond H3SaveShot, which takes the place of CreateVideo/SaveVideo. The template has no LoRA loader: one is inserted after the UNETLoader for the turbo LoRA. patch_graph wires the keyframes (LoadImage straight into first_frame / last_frame; the template's 1 MP pre-scale is dropped, the node resizes to the canvas itself) and the dialogue anchor (LoadAudio -> MiniMaxH3AddGuide at frame 0); prune drops the rest.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_fasth3_fl2va.json",
+    "env": "SERIESMITH_FASTH3_FL2VA_WORKFLOW",
+    "saver": {
+      "class_type": "H3SaveShot",
+      "inputs": {
+        "root": "project_root",
+        "subfolder": "subfolder",
+        "take": "take",
+        "sidecar": "sidecar"
+      },
+      "replace": {
+        "class_type": "CreateVideo",
+        "inputs": {
+          "images": "images",
+          "audio": "audio"
+        }
+      },
+      "drop": [
+        "SaveVideo"
+      ],
+      "set": {
+        "save_frames": false
+      },
+      "latent": {
+        "class_type": "SamplerCustomAdvanced",
+        "output": 0
+      }
+    },
+    "prune": true,
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true,
+        "insert_after": {
+          "class_type": "UNETLoader",
+          "output": 0
+        }
+      },
+      "steps": {
+        "class_type": "BasicScheduler",
+        "field": "steps"
+      },
+      "seed": {
+        "class_type": "RandomNoise",
+        "field": "noise_seed"
+      },
+      "sampler": {
+        "class_type": "KSamplerSelect",
+        "field": "sampler_name"
+      },
+      "prompt": {
+        "class_type": "MiniMaxH3ImageToVideo",
+        "field": "prompt"
+      },
+      "width": {
+        "class_type": "MiniMaxH3ImageToVideo",
+        "field": "width"
+      },
+      "height": {
+        "class_type": "MiniMaxH3ImageToVideo",
+        "field": "height"
+      },
+      "length": {
+        "class_type": "MiniMaxH3ImageToVideo",
+        "field": "length"
+      },
+      "fps": {
+        "class_type": "H3SaveShot",
+        "field": "fps"
+      },
+      "shot_id": {
+        "class_type": "H3SaveShot",
+        "field": "shot_id"
+      },
+      "audio_policy": {
+        "class_type": "H3SaveShot",
+        "field": "audio_policy"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "video_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecode",
+          "vae"
+        ]
+      },
+      "audio_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecodeAudio",
+          "vae"
+        ]
+      }
+    },
+    "review_nodes": []
+  },
+  "models": {
+    "_note": "The family each model param must be (targets/modelid.py): names first, then the file's header. FL2VA and Ref2VA share every tensor, so a file named neither is accepted as H3 with a note, and one named Ref2VA is refused. Tiers (docs/API.md): the turbo LoRA is an accelerator (without it the pass renders its `base`), the rest are required. A substitute LoRA keeps the wanted one's step count and is never the SLA LoRA (it needs the block-sparse attention node).",
+    "model": {
+      "family": "fasth3-omni",
+      "patterns": [
+        "*fasth3*",
+        "*omniref*"
+      ],
+      "tier": "required"
+    },
+    "text_encoder": {
+      "family": "qwen3vl-32b",
+      "patterns": [
+        "*qwen3*vl*32b*"
+      ],
+      "tier": "required"
+    },
+    "video_vae": {
+      "family": "minimax-h3-video-vae",
+      "patterns": [
+        "*h3*video*vae*"
+      ],
+      "tier": "required"
+    },
+    "audio_vae": {
+      "family": "minimax-h3-audio-vae",
+      "patterns": [
+        "*h3*audio*vae*"
+      ],
+      "tier": "required"
+    },
+    "_voice_note": "clone shots only (`policies`): the lines are made by LTX-2.5 audio-only (ltx2_voice's files and families) before H3 dubs them. Optional: a ComfyUI without them renders every other shot; a clone shot is refused and says what to download.",
+    "voice_model": {
+      "family": "ltx2.5",
+      "patterns": [
+        "ltx-2.5*",
+        "*ltx*2.5*",
+        "*ltx*2_5*"
+      ],
+      "tier": "optional",
+      "keep": [
+        "(?<![a-z])(distilled|dev)(?![a-z])"
+      ],
+      "exclude": [
+        "*lora*"
+      ],
+      "class_type": "UNETLoader",
+      "field": "unet_name",
+      "folder": "diffusion_models",
+      "policies": [
+        "clone"
+      ],
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "voice_text_encoder": {
+      "family": "ltx2.5-text-encoder",
+      "patterns": [
+        "*gemma*4*ltx*2.5*"
+      ],
+      "tier": "optional",
+      "class_type": "CLIPLoader",
+      "field": "clip_name",
+      "folder": "text_encoders",
+      "policies": [
+        "clone"
+      ],
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "voice_audio_vae": {
+      "family": "ltx2.5-audio-vae",
+      "patterns": [
+        "*ltx*2.5*audio*vae*"
+      ],
+      "tier": "optional",
+      "class_type": "VAELoader",
+      "field": "vae_name",
+      "folder": "vae",
+      "policies": [
+        "clone"
+      ],
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    }
+  },
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: the keyframes and the dialogue anchor (required), and LTX-2.5's audio-only nodes that make a clone shot's lines (held_audio.make_lines; ComfyUI core, optional: without them clone is off).",
+    "LoadImage": {
+      "tier": "required"
+    },
+    "LoadAudio": {
+      "tier": "required"
+    },
+    "MiniMaxH3AddGuide": {
+      "tier": "required"
+    },
+    "LTXVAudioOnlyModel": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "LTXVAudioOnlyEmptyVideoLatent": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "LTXVEmptyLatentAudio": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "LTXVDualCFGGuider": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "LTXVAudioVAEDecode": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    },
+    "LTXVAudioVAEEncode": {
+      "tier": "optional",
+      "feature": "clone, its lines made by LTX-2.5 audio-only"
+    }
+  },
+  "presets": {
+    "_note": "FastH3's recipe (fasth3_omni's): 8 steps on both passes, no turbo LoRA (it is step-distilled); res_multistep, as it was tried live. FL2VA's graph keeps its own shifts (FastH3's workflow sets 12 / 3).",
+    "final": {
+      "model": "fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "lora": "",
+      "steps": 8,
+      "width": 1344,
+      "height": 768,
+      "sampler": "res_multistep",
+      "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "video_vae": "minimax_h3_video_vae_fp16.safetensors",
+      "audio_vae": "minimax_h3_audio_vae_fp32.safetensors",
+      "voice_model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "voice_text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "voice_audio_vae": "ltx-2.5-audio-vae-bf16.safetensors"
+    },
+    "proxy": {
+      "lora": "",
+      "steps": 8,
+      "width": 448,
+      "height": 256,
+      "sampler": "res_multistep",
+      "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "video_vae": "minimax_h3_video_vae_fp16.safetensors",
+      "audio_vae": "minimax_h3_audio_vae_fp32.safetensors",
+      "voice_model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "voice_text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "voice_audio_vae": "ltx-2.5-audio-vae-bf16.safetensors"
+    }
+  },
+  "upscale": {
+    "_note": "h3upscale.py: as minimax_h3_ref2va's, a final take re-sampled at `scale` from `start` (0.875: step 7 of 8), its latent's video through the LBH-123-AI latent upscaler, its audio held. No loader here: the new size goes to MiniMaxH3ImageToVideo's width/height (`size`: the binding's params), which stretches the keyframes to it, and the dialogue anchor's MiniMaxH3AddGuide reads its size from that node's latent. The keyframes and the anchor live in the conditioning, not the latent, so replacing the latent keeps them.",
+    "scale": 2,
+    "start": 0.875,
+    "size": "params",
+    "windows": {
+      "_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (h3upscale.windowed): obvpm's H3 Context Windowing (comfyui-obvpm-timeline), MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536, about twice the pixels of the 1920x1088 the pack measured at ~7 GB of activations per 5 s window) fits 32 GB. The series' upscale recipe's `window` overrides the length (0: off).",
+      "class_type": "H3ContextWindows",
+      "pack": "comfyui-obvpm-timeline",
+      "seconds": 5.5,
+      "overlap": 1.25
+    },
+    "upscaler": {
+      "class_type": "MinimaxH3LatentUpscaler3D",
+      "latent": "latent",
+      "scale": "mode.scale",
+      "align": 32,
+      "inputs": {
+        "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+        "mode": "scale by multiplier",
+        "align": 32,
+        "enable_temporal_chunking": true,
+        "force_unload": true,
+        "device": "cuda",
+        "precision": "fp16"
+      }
+    }
+  },
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "fasth3_omniref_8step_pruned_int8_convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_int8_convrot.safetensors",
+      "source": "the Hugging Face repo FastVideo/FastH3-Omni-Comfy (file and name checked on the Hugging Face repo 2026-10-20)"
+    },
+    "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+      "source": "ComfyUI-Manager model list (\"LTX-2.5 22B Distilled Transformer Comfy INT8\")"
+    },
+    "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
+      "source": "ComfyUI-Manager model list (\"LTX-2.5 22B Dev Transformer Comfy INT8\")"
+    },
+    "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+      "source": "ComfyUI-Manager model list (\"LTX-2.5 Gemma4 12B Text Encoder Comfy INT8\")"
+    },
+    "ltx-2.5-audio-vae-bf16.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors",
+      "source": "ComfyUI template video_ltx2_5_i2v.json (properties.models)"
+    },
+    "minimax_h3_audio_vae_fp32.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+      "source": "ComfyUI template video_minimax_h3_i2v.json (properties.models)"
+    },
+    "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors": {
+      "folder": "loras",
+      "url": "https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "source": "the Hugging Face repo Kijai/MiniMax-H3_comfy, loras/ (file and name checked on the Hugging Face repo 2026-10-09)"
+    },
+    "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors": {
+      "folder": "loras",
+      "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "source": "ComfyUI template video_minimax_h3_i2v.json (properties.models)"
+    },
+    "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "source": "ComfyUI template video_minimax_h3_i2v.json (properties.models)"
+    },
+    "minimax_h3_video_vae_fp16.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
+      "source": "ComfyUI template video_minimax_h3_i2v.json (properties.models)"
+    },
+    "minimax_h3_latent_upscaler_3d_fp16.safetensors": {
+      "folder": "latent_upscale_models",
+      "url": "https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+      "source": "the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render."
+    }
+  }
+}

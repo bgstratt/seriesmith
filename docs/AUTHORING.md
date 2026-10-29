@@ -187,7 +187,8 @@ shot 93. So:
 |---|---|---|---|---|---|
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
-| `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion); a `continuous: first` shot goes to H3 FL2VA |
+| `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion); a `continuous: first` shot stays on Singularity: `h3_singularity_fl2va` |
+| `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights: where a `continuous: first` shot on those goes, so it keeps their look (you can name them too) |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
@@ -203,8 +204,9 @@ shot 93. So:
   script.
 - **Name it** (`target:` on a shot, or under a `#` header for its sequence) when a shot
   needs something only one model does: a silent insert on Wan, a shot whose length you want
-  LTX to choose (`dur: model`). A `continuous: first` shot moves to H3 FL2VA by itself (see
-  **Continuous shots**).
+  LTX to choose (`dur: model`). A `continuous: first` shot moves to a model that reads a
+  first frame by itself: H3 Ref2VA's to H3 FL2VA, FastH3 Omni's and Singularity's to their own
+  FL2VA (see **Continuous shots**).
 - **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
   workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
@@ -1572,8 +1574,11 @@ continuous: first
 - `first`: it opens on the previous shot's last frame, as its first keyframe. That needs a
   target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets, the hosted
   models). A shot on
-  H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, unless the shot names
-  its own `target:` (then it's an error that says which targets can).
+  H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, and one on FastH3 Omni
+  or H3 Singularity on **its own FL2VA** (`fasth3_fl2va`, `h3_singularity_fl2va`: FL2VA's
+  graph with that model's weights, so the shot keeps its look), unless the shot names its own
+  `target:` (then it's an error that says which targets can). The model can come from the
+  series config, the episode or a `#` header.
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
   Ref2VA, keeping its own reference sheets. The render holds the end of the previous take
   at its head and generates the rest from there, so motion, sound and the camera carry
@@ -1779,8 +1784,10 @@ What each model takes, local and hosted (generated from the targets by
 
 | Video model | | Runs on | Reference pictures | Keyframes | Told who's who |
 |---|---|---|---|---|---|
+| `fasth3_fl2va` | FastH3 FL2V | your ComfyUI | none | first and last | — |
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `h3_singularity` | Singularity | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `h3_singularity_fl2va` | Singularity FL2V | your ComfyUI | none | first and last | — |
 | `hold` | Hold | this machine | none | first | — |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |

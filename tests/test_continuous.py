@@ -123,3 +123,38 @@ Ada waits more.
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartnerTest(unittest.TestCase):
+    """A `continuous: first` shot on a target that reads no first keyframe
+    renders on its partner (target.json `continuous.first`): H3 Ref2VA's is
+    H3 FL2VA, FastH3 Omni's fasth3_fl2va, Singularity's h3_singularity_fl2va.
+    The render keeps it there when the target came from the script (a `#`
+    header), not only from the series config (jobs.script_targets reads the
+    build's routing)."""
+
+    def test_a_sequence_target_keeps_its_partner_at_render(self):
+        import shutil
+        import subprocess
+        import tempfile
+        from seriesmith import jobs as J
+        from test_render import ENV, FIXTURE
+        with tempfile.TemporaryDirectory() as ep:
+            shutil.copy(os.path.join(FIXTURE, "series.json"), ep)
+            with open(os.path.join(FIXTURE, "script.md"), encoding="utf-8") as fh:
+                text = fh.read()
+            text = text.replace("# sq01  kitchen\n", "# sq01  kitchen\ntarget: h3_singularity\n", 1)
+            text = text.replace("# sq02  street\n", "# sq02  street\ntarget: fasth3_omni\n", 1)
+            text = text.replace("## sh020\n", "## sh020\ncontinuous: first\n", 1)
+            text = text.replace("## sh120\n", "## sh120\ncontinuous: first\n", 1)
+            script = os.path.join(ep, "ep.md")
+            with open(script, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+            subprocess.run([sys.executable, "-m", "seriesmith", "build",
+                            os.path.join(ep, "series.json"), script, "-o", ep],
+                           check=True, capture_output=True, env=ENV)
+            got = J.script_targets(ep)
+            self.assertEqual((got["sh010"], got["sh020"]), ("h3_singularity", "h3_singularity_fl2va"))
+            self.assertEqual((got["sh110"], got["sh120"]), ("fasth3_omni", "fasth3_fl2va"))
+            for sid, want in (("sh020", "h3_singularity_fl2va"), ("sh120", "fasth3_fl2va")):
+                self.assertEqual(J.target_choice({}, sid, want, root=ep), (want, "script"))

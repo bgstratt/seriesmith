@@ -1392,6 +1392,30 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
 - [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
       frozen runs, flashes), reported, never changing it.
 
+## H3 Singularity, and continuous shots that keep their model (2026-10-29)
+
+- [x] **`h3_singularity`**: AIGC-Singularity's community fine-tune of H3 Ref2VA
+      (huggingface.co/WarmBloodAban/Minimax-h3_Singularity, Apache-2.0 over H3's licence):
+      Ref2VA's node, prompt, compile, encoders, VAEs and turbo LoRAs with its v2 pruned INT8
+      (21 GB; the v2 bf16 is 66.3 GB and the full INT8 34 GB, past the 5090's 32 GB beside the
+      text encoder). Its header is stock H3's (932 tensors, the same shapes and INT8 packing,
+      a `model.diffusion_model.` prefix ComfyUI strips); it ships Ref2VA weights only. The
+      stock Ref2VA's model pattern now excludes `*singularity*`. Rendered live 2026-10-29
+      (last-light sh020, proxy): 33 s, on model.
+- [x] **Continuous shots keep their model** (decided 2026-10-29): `fasth3_fl2va` and
+      `h3_singularity_fl2va`, FL2VA's graph with FastH3 Omni's / Singularity's weights (H3
+      Ref2VA and FL2VA have the same tensors), the `continuous.first` partners of
+      `fasth3_omni` and `h3_singularity`. Tried live (last-light sh030 from a keyframe, proxy,
+      one seed): both opened on the keyframe and gave the shot the script asked for (stock
+      FL2VA held the frame more smoothly but missed the close-up). FastH3's runs as FastH3
+      does (no LoRA, 8 steps; res_multistep), without its workflow's shifts (12 / 3) or sparse
+      attention, which FL2VA's graph doesn't set. Fixed on the way: a render re-read the
+      script's target (a `#` header's) and undid the build's move of a `continuous: first`
+      shot to its partner; `jobs.script_targets` now reads the build's routing (this hit
+      Ref2VA -> FL2VA too). Tests: tests/test_continuous.py's PartnerTest.
+- [ ] More seeds at final size before trusting the FL2VA partners' look; FastH3's shifts in
+      its FL2VA graph if it drifts.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

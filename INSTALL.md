@@ -420,31 +420,50 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `fasth3_omniref_8step_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `fasth3_omni`, `fasth3_omni_still` | [FastVideo/FastH3-Omni-Comfy](https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_int8_convrot.safetensors) |
+| `fasth3_omniref_8step_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `fasth3_fl2va`, `fasth3_omni`, `fasth3_omni_still` | [FastVideo/FastH3-Omni-Comfy](https://huggingface.co/FastVideo/FastH3-Omni-Comfy/resolve/main/diffusion_models/fasth3_omniref_8step_pruned_int8_convrot.safetensors) |
 
 **Qwen3-VL 32B (MiniMax H3's text encoder)** (`qwen3vl-32b`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | required | `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
 
 **MiniMax H3 video VAE** (`minimax-h3-video-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
+| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
 
 **MiniMax H3 audio VAE** (`minimax-h3-audio-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_audio_vae_fp32.safetensors` | `models/vae/` | required | `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`, `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+| `minimax_h3_audio_vae_fp32.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+
+**LTX 2.5** (`ltx2.5`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | required | `fasth3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `h3_singularity_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2` (accelerator), `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` (accelerator) | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
+
+**Gemma 4 12B with the LTX 2.5 projection** (`ltx2.5-text-encoder`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `models/text_encoders/` | required | `fasth3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `h3_singularity_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2`, `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
+
+**LTX 2.5 audio VAE** (`ltx2.5-audio-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ltx-2.5-audio-vae-bf16.safetensors` | `models/vae/` | required | `fasth3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `h3_singularity_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2`, `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
 
 **MiniMax H3 Ref2VA** (`minimax-h3-ref2va`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `Minimax-h3_Singularity_ref2va_v2_pruned_int8.safetensors` | `models/diffusion_models/` | required | `h3_singularity` | [WarmBloodAban/Minimax-h3_Singularity](https://huggingface.co/WarmBloodAban/Minimax-h3_Singularity/resolve/main/Minimax-h3_Singularity_ref2va_v2_pruned_int8.safetensors) |
+| `Minimax-h3_Singularity_ref2va_v2_pruned_int8.safetensors` | `models/diffusion_models/` | required | `h3_singularity`, `h3_singularity_fl2va` | [WarmBloodAban/Minimax-h3_Singularity](https://huggingface.co/WarmBloodAban/Minimax-h3_Singularity/resolve/main/Minimax-h3_Singularity_ref2va_v2_pruned_int8.safetensors) |
 | `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `minimax_h3_ref2va`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) |
 
 **MiniMax H3 Ref2V turbo LoRA** (`minimax-h3-ref2v-turbo-lora`)
@@ -454,30 +473,18 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | `minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors` | `models/loras/` | accelerator | `h3_singularity`, `minimax_h3_ref2va` | [Kijai/MiniMax-H3_comfy](https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors) |
 | `minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors` | `models/loras/` | accelerator | `h3_singularity`, `minimax_h3_ref2va`, `minimax_h3_still` | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors) |
 
-**LTX 2.5** (`ltx2.5`)
+**MiniMax H3 FL2V turbo LoRA** (`minimax-h3-fl2v-turbo-lora`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | required | `ltx2` (accelerator), `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` (accelerator) | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
-| `ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors` | `models/diffusion_models/` | accelerator | `ltx2`, `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors) |
-
-**Gemma 4 12B with the LTX 2.5 projection** (`ltx2.5-text-encoder`)
-
-| File | ComfyUI folder | Tier | Targets | Download |
-|---|---|---|---|---|
-| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `models/text_encoders/` | required | `ltx2`, `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | `models/loras/` | accelerator | `h3_singularity_fl2va`, `minimax_h3_fl2va` | [Kijai/MiniMax-H3_comfy](https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors) |
+| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | `models/loras/` | accelerator | `h3_singularity_fl2va`, `minimax_h3_fl2va` | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors) |
 
 **LTX 2.5 video VAE** (`ltx2.5-video-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `ltx-2.5-video-vae-bf16.safetensors` | `models/vae/` | required | `ltx2`, `ltx2_msr` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) |
-
-**LTX 2.5 audio VAE** (`ltx2.5-audio-vae`)
-
-| File | ComfyUI folder | Tier | Targets | Download |
-|---|---|---|---|---|
-| `ltx-2.5-audio-vae-bf16.safetensors` | `models/vae/` | required | `ltx2`, `ltx2_msr`, `minimax_h3_fl2va` (optional: clone, its lines made by LTX-2.5 audio-only), `ltx2_voice` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
 
 **LTX 2.5 latent upscaler** (`ltx2.5-latent-upscaler`)
 
@@ -527,13 +534,6 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `minimax_h3_fl2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
-
-**MiniMax H3 FL2V turbo LoRA** (`minimax-h3-fl2v-turbo-lora`)
-
-| File | ComfyUI folder | Tier | Targets | Download |
-|---|---|---|---|---|
-| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | `models/loras/` | accelerator | `minimax_h3_fl2va` | [Kijai/MiniMax-H3_comfy](https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors) |
-| `minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors` | `models/loras/` | accelerator | `minimax_h3_fl2va` | [lightx2v/Minimax-h3-Turbo](https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors) |
 
 **Wan 2.2 I2V 14B high-noise** (`wan2.2-i2v-14b-high`)
 
@@ -742,7 +742,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 Only to upscale takes (`seriesmith upscale`), never to render. H3's MinimaxH3LatentUpscaler3D comes from the Comfyui_Minimax_h3_latent_Upscaler pack (LBH-123-AI) — not its "Plus" fork, which has the same node without temporal chunking; LTX's LTXVLatentUpsampler is ComfyUI's own. `seriesmith targets` says whether this ComfyUI can upscale.
 
-- `minimax_h3_latent_upscaler_3d_fp16.safetensors` → `models/latent_upscale_models/` (MinimaxH3LatentUpscaler3D, for `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`, `minimax_h3_ref2va`) — [download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors) (the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render.)
+- `minimax_h3_latent_upscaler_3d_fp16.safetensors` → `models/latent_upscale_models/` (MinimaxH3LatentUpscaler3D, for `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`) — [download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors) (the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render.)
 - `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` → `models/latent_upscale_models/` (LTXVLatentUpsampler, for `ltx2_ingredients`) — [download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors) (ComfyUI-Manager model list (model-list.json; ComfyUI's blueprint Image to Video (LTX-2.3).json has the same URL). Only needed to upscale, never to render.)
 
 **SeedVR2** (any take; ComfyUI's own nodes, the models Apache 2.0): the VAE and at least one model.

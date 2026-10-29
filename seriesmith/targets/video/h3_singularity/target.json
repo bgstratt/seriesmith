@@ -20,7 +20,7 @@
     "modes": [
       "latent"
     ],
-    "first": "minimax_h3_fl2va",
+    "first": "h3_singularity_fl2va",
     "latent": {
       "overlap": 39,
       "hold_audio": true,
