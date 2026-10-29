@@ -244,6 +244,17 @@
 .h3-menu button:hover:not(:disabled) { background: var(--h3-hover); }
 .h3-menu button:disabled { opacity: 0.45; cursor: default; }
 .h3-menu i { width: 14px; color: var(--h3-muted); font-size: 12px; }
+/* a group of the context menu: opens beside it on hover (to the left near the window's
+   right edge, upwards in its bottom half: .h3-menu-flip / .h3-menu-up on the menu) */
+.h3-submenu { position: relative; }
+.h3-submenu-arrow { margin-left: auto; text-align: right; }
+.h3-menu .h3-menu-flyout {
+  display: none; position: absolute; left: calc(100% - 2px); top: -5px; white-space: nowrap; z-index: 2101;
+}
+.h3-submenu:hover > .h3-menu-flyout { display: block; }
+.h3-submenu:hover > .h3-submenu-head { background: var(--h3-hover); }
+.h3-menu-flip .h3-menu-flyout { left: auto; right: calc(100% - 2px); }
+.h3-menu-up .h3-menu-flyout { top: auto; bottom: -5px; }
 
 .h3-window {
   position: fixed; background: var(--h3-bg); border: 1px solid var(--h3-border); border-radius: 12px;
@@ -256,6 +267,8 @@
   box-shadow: none; border: 0; min-width: 0; min-height: 0; max-width: none; max-height: none; z-index: auto;
 }
 .h3-window.h3-docked > .h3-window-head { cursor: default; }
+/* room for the resize corner under the content: over a scrollbar, dragging it scrolled */
+.h3-window:not(.h3-docked) { padding-bottom: 12px; }
 .h3-window-head {
   display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; cursor: move; user-select: none;
   border-bottom: 1px solid var(--h3-border); background: var(--h3-bg3); flex: 0 0 auto; flex-wrap: wrap;
@@ -993,6 +1006,12 @@
 }
 .h3-gal-lightbox { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; background: var(--h3-bg); }
 .h3-gal-bar { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-bottom: 1px solid var(--h3-border); }
+.h3-gal-search { width: 220px; min-width: 120px; flex: 0 1 220px; }
+/* the gallery's toolbar, under its title bar: what's shown on the left, how on the right; it wraps */
+.h3-gal-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px;
+  border-bottom: 1px solid var(--h3-border); flex: 0 0 auto;
+}
 .h3-gal-view { flex: 1 1 auto; min-height: 0; display: flex; }
 .h3-gal-stage { position: relative; flex: 1 1 auto; min-width: 0; background: #000; display: flex; }
 .h3-gal-pane { position: relative; flex: 1 1 0; min-width: 0; }
@@ -1056,8 +1075,21 @@
   fill: none; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: stroke;
 }
+/* a curve's handle: drag it to set the length; a corner's (no fade yet) shows on hover */
+.h3-join-handle {
+  fill: #fff; stroke: rgba(0, 0, 0, 0.8); stroke-width: 1; cursor: ew-resize; pointer-events: all;
+}
+.h3-join-handle:hover, .h3-join-active { fill: var(--h3-accent); }
+.h3-join-corner { opacity: 0; transition: opacity 0.1s; }
+.h3-tl-col:hover .h3-join-corner { opacity: 0.7; }
+.h3-tl-col:hover .h3-join-corner:hover { opacity: 1; }
 
 /* Play all: a clip's fade, as black over it (fadeLevel) */
 .h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }
 /* the clip's bottom bar lets the pointer through to the clip; these say something on hover */
 .h3-clip-bottom .h3-look-off, .h3-clip-bottom .pi-palette { pointer-events: auto; }
+/* the gallery's title bar never wraps: its view controls wrap among themselves, right-aligned */
+.h3-gallery > .h3-window-head { flex-wrap: nowrap; }
+.h3-gal-view-tools {
+  flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 8px;
+}

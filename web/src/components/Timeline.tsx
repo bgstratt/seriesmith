@@ -6,9 +6,9 @@ import {
   checkThenExport, clickShot, currentPlaylist, masterCut, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
-import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setTrims, toggleWaves, undoCut } from "../cutActions";
+import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setJoin, setTrims, toggleWaves, undoCut } from "../cutActions";
 import { api, host } from "../host";
-import { clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
+import { JOIN_MAX, clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
 import {
   ESTIMATE_TITLE, fmtClock, fmtSeconds, fmtShotSeconds, groupBySequence, lengthEstimated, shotBadges, shotSeconds, tn,
 } from "../lib/format";
@@ -18,7 +18,7 @@ import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
 import { ColorDefs, useClipFilter } from "./ColorDefs";
-import { JoinCurves } from "./JoinCurves";
+import { JoinCurves, type JoinDrag, type JoinGrab } from "./JoinCurves";
 import { LookBadge } from "./LookBadge";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
@@ -325,8 +325,12 @@ export function Timeline() {
   // a take from the gallery, or a video file, held over the track (takeDrop)
   const [ext, setExt] = useState<ExtDrop | null>(null);
   const [trim, setTrim] = useState<TrimPreview | null>(null);
+  // a fade or dissolve's handle being dragged (JoinCurves), and the pointer (for its tip)
+  const [join, setJoinDrag] = useState<(JoinDrag & { from: number; px: number; py: number }) | null>(null);
   const groups = useMemo(() => groupBySequence(st?.shots ?? [], st?.fps), [st]);
   const itemBy = useMemo(() => new Map(items.map((i) => [i.shot, i])), [items]);
+  // each clip's next in the playlist: a dissolve into it is drawn half on this one
+  const nextOf = useMemo(() => new Map(items.slice(0, -1).map((i, k) => [i.shot, items[k + 1].shot])), [items]);
   const { list: targets, seriesDefault } = useTargets();
   const fps = st?.fps || 24;
   // clip height: the track minus padding, the sequence label, the ruler and the waveform lane
@@ -542,6 +546,26 @@ export function Timeline() {
     });
   }, []);
 
+  // ---- fades and dissolves: drag a curve's handle ----
+  const onJoinDown = useCallback((e: RPointerEvent<SVGElement>, g: JoinGrab) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const x0 = e.clientX;
+    let n = g.frames;
+    const place = (ev: { clientX: number; clientY: number }) => {
+      n = Math.max(0, Math.min(JOIN_MAX, g.max, g.frames + Math.round((ev.clientX - x0) * g.per)));
+      setJoinDrag({ shot: g.shot, key: g.key, frames: n, from: g.frames, px: ev.clientX, py: ev.clientY });
+    };
+    place(e);
+    track(place, (cancelled) => {
+      setJoinDrag(null);
+      endDrag();
+      if (!cancelled && n !== g.frames) void setJoin(g.shot, g.key, n);
+    });
+  }, []);
+
   // ---- the ruler: click or drag to seek ----
   const rulerTime = (clientX: number): number => {
     const inner = innerRef.current;
@@ -698,7 +722,10 @@ export function Timeline() {
                             onEdgeDown={onEdgeDown}
                             suppress={suppress}
                           />
-                          {it && !s.cut.out && <JoinCurves it={it} width={width} height={clipH} fps={fps} />}
+                          {it && !s.cut.out && (
+                            <JoinCurves it={it} next={nextOf.get(s.shot)} width={width} height={clipH} fps={fps}
+                              locked={!!s.cut.locked || !!s.orphan} drag={join} onDown={onJoinDown} />
+                          )}
                         </div>
                         {trim && trim.shot === s.shot && trim.held == null && trimItem && (
                           <TrimGhost ep={ep} take={take} item={trimItem} preview={trim} zoom={zoom} fps={fps} height={clipH} />
@@ -718,6 +745,16 @@ export function Timeline() {
           </div>
         )}
       </div>
+      {join && (
+        <div className="h3-trim-tip" style={{ left: join.px + 14, top: join.py - 34 }}>
+          {join.shot} · {{ fade_in: "fade in", fade_out: "fade out", dissolve: "dissolve" }[join.key]}{" "}
+          {join.frames ? framesLabel(join.frames, fps) : "off"}
+          <br />
+          <span className="h3-muted">
+            {join.from ? `was ${framesLabel(join.from, fps)}` : "new"}{join.frames >= JOIN_MAX ? ` · at most ${JOIN_MAX} frames` : ""} · Esc cancels
+          </span>
+        </div>
+      )}
       {trim && trimShot && trimItem && (
         <div className="h3-trim-tip" style={{ left: trim.px + 14, top: trim.py - 34 }}>
           {trim.held != null ? `${trim.shot} · held ${framesLabel(trim.held, fps)}`

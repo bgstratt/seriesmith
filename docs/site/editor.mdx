@@ -79,7 +79,7 @@ settings and the text windows wait in Advanced. It is remembered in this browser
     its own way), a place picked by its picture, or **+ Create** one to keep: a name and
     a picture you have, or one made from words, so it looks the same in every clip that
     picks it; once added, it is the clip's Where. Decided later that a place should recur? Right-click the clip at a good
-    frame in the viewer (the picture itself, not its thumbnail), **Character or place from this
+    frame in the viewer (the picture itself, not its thumbnail), **Frames › Character or place from this
     frame…** ([below](#a-character-or-a-place-from-a-frame)).
   - **Said** (a clip with people in it): the lines, under who says them.
 - The settings: **Model** (the video model, what each is good at in its tooltip, this
@@ -334,37 +334,29 @@ under the shot.
 
 ### The context menu
 
-Everything you do to a shot lives here:
+Everything you do to a shot lives here. What you do to the take comes first; the rest is in
+groups that open beside the menu when you hover them.
 
 | Item | What it does |
 |---|---|
 | **Render this shot** | Queue it with its current settings, on its backend |
 | **Render with settings…** | The same, after changing model, LoRAs, steps, seed or target for this run |
+| **Play** / **Play from here** | Open the take in the viewer; play the cut starting at this shot |
+| **Compare with…** | Compare two takes side by side or with a wipe |
+| **Use this take** | Put it in the cut |
 | **New take like this one…** | Re-render from *this* take's exact settings, with a new seed by default. The one you will reach for most |
 | **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
-| **Use this take** | Put it in the cut |
-| **Play** / **Compare with…** | Open in the viewer; compare two takes side by side or with a wipe |
-| **Play from here** | Play the cut starting at this shot |
+| **Upscale and post ›** | **Upscale (2x)…**, **Keep upscale**, **Remove upscale**: the take's upscale (see **Finishing**; a kept one is left alone by Master). **Post-process…**, **Remove post**: finish the upscale |
+| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims** |
+| **Fades and dissolve ›** | **Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: each on at 12 frames, or off (see **Fades and dissolves**) |
+| **Colour ›** | **Match the sequence to this by** skin, frame or luma (see **A clip's colour**) |
+| **Frames ›** | **Use previous shot's last frame as first frame** (continuity: chain this shot onto the one before); **Use this frame as the next shot's first frame** (the same, pushed forward); **Hold this frame after it…** (a freeze frame); **Character or place from this frame…** (in the viewer, at a frame); **Generate first frame** / **Clear keyframe** (make or drop its opening still) |
+| **Sound ›** | **Sound…** (how the shot's sound is made); **Dub the shot with this take's sound**; **Generate a dub track** / **Dub track, then render**; **Replace audio…** / **Back to its own audio** (what the cut plays for this clip instead of its own sound: a dub track, a take's sound, a file, silence. It changes no render: the mouths don't follow it) |
+| **Shot ›** | **Edit shot…** / **Add a shot after** (the shot form, below); **Show in script**; **Import video…**; **Show missing refs (n)**; **Add issue…** (see **Noting what's wrong**) |
 | **Inspect shot** | The Inspector: model, overrides, refs used, refs missing |
-| **Show in script** | Jump the Script window to that shot's lines |
-| **Edit shot…** / **Add a shot after** | The shot form (below) |
-| **Show missing refs (n)** | Which pictures this shot is waiting on |
-| **Discard take…** | Move a candidate to `_trash/` — nothing is deleted, but the bin stays readable |
 | **Show details** / **Copy path** | The take's sidecar, and its file path |
-| **Upscale (2x)…** / **Keep upscale** / **Remove upscale** | The take's upscale (see **Finishing**); a kept one is left alone by Master |
-| **Post-process…** / **Remove post** | Finish the take's upscale (see **Finishing**) |
-| **Generate first frame** / **Clear keyframe** | Make (or drop) this shot's opening still |
-| **Use previous shot's last frame as first frame** | Continuity: chain this shot onto the one before it |
-| **Use this frame as the next shot's first frame** | The same, pushed forward |
-| **Character or place from this frame…** | In the viewer, at a frame (see **A character or a place from a frame**) |
-| **Flag to come back to** / **Unflag** | See **Flagging clips** |
-| **Lock in the cut** / **Unlock in the cut** | Freeze a clip so it can't be moved, trimmed or re-picked |
-| **Leave out of the cut** / **Put back in the cut** | The shot keeps its place in the script and its takes; Export, Play all and Master skip it |
-| **Clear trims** | Back to the whole take |
-| **Add issue…** | Note what is wrong with it (see **Noting what's wrong**) |
-| **Replace audio…** / **Back to its own audio** | The shot's Sound card at **In the cut**: what the cut plays for this clip instead of its own sound (a dub track, a take's sound, a file, silence). It changes no render: the mouths don't follow it (for that, Dub in the same card, and render again) |
-| **Move left / right in the cut** | Reorder (`Alt+←` / `Alt+→` in the timeline) |
+| **Discard take…** | Move a candidate to `_trash/` — nothing is deleted, but the bin stays readable |
 
 ### Editing a shot
 
@@ -557,8 +549,16 @@ sliders. Locked clips are left alone, and Ctrl+Z undoes the whole match.
 A clip can **fade in** from black at its start and **fade out** to black at its end, each on
 its own: a scene can fade out and the next come in on a cut. It can also **dissolve in** from
 the clip before it: the two overlap, and the cut is that much shorter. Set them in a clip's
-menu (**Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: 12
-frames, or off) or as frames in the inspector's **In the cut** section.
+menu (**Fades and dissolve ›**: 12 frames, or off), as frames in the inspector's **In the cut**
+section, or by dragging on the timeline:
+
+- Each curve has a small handle at its inner end. Drag it to make the fade or dissolve longer
+  or shorter; drag it back to the clip's edge (or the join) to take it off. A tip shows the
+  length as you go, Esc cancels, and Ctrl+Z undoes it.
+- A clip with no fade shows a handle in each top corner when you hover it: drag one inwards
+  to make a fade in or a fade out.
+- A dissolve starts from the menu; then either half's handle sets its length.
+- A locked clip has no handles.
 
 The timeline draws them as thin curves over the clips, as long as they last: a fade in rises
 from the clip's bottom-left corner, a fade out falls to its bottom-right, and a dissolve is
@@ -733,7 +733,7 @@ the UI (`--save --every-show` for every show).
 
 It's in **the viewer**, the player above the timeline: double-click a take to open it there,
 play or scrub it to the moment you like, and right-click **the picture itself** →
-**Character or place from this frame…**. The same menu from a take's thumbnail, the
+**Frames › Character or place from this frame…**. The same menu from a take's thumbnail, the
 timeline or the shot list has no frame to take, so there it only says where to go.
 
 - **A new character**: a name, who they are in the frame ("the woman in the red coat, on
@@ -1106,8 +1106,12 @@ the episode list switches episode with it open.
 
 **The grid.** In Refs, chips for the groups (**Everything**, Characters, Props & vehicles,
 Locations, Shot keyframes) and **live only** (each ref's live picture); in Shots, a list
-(**Every sequence**, **In the cut**, then each sequence) and **cut only**. Each ref or shot
-is a section, its versions newest first, the one in use badged **live** or **cut**, a take
+(**Every sequence**, **In the cut**, then each sequence) and **cut only**. The **search** box
+narrows either to what has every word typed: in Refs, a ref's name, kind (character, prop,
+location), group, whose it is, a picture's view (face, side, back, sheet, 360, tour), the
+episode it's from, or **live**; in Shots, as the Shots tab's filter, a shot's id, size, who's
+in it, sequence or what happens, and a take's number (t03), its model, or **cut** (`ecu seedance`: the extreme close-ups rendered on Seedance). Enter goes back to the arrows; Esc
+clears it. Each ref or shot is a section, its versions newest first, the one in use badged **live** or **cut**, a take
 with a fresh upscale **2x**. A ref whose live file has no candidate behind it (put in its
 folder by hand, or brought in with the series: the Refs tab's **not from here**) shows that
 file first as its **live file**, badged **live**, to look at and download; it has no prompt or
@@ -1172,7 +1176,7 @@ The cut as an editable track, along the bottom of the page.
   in the shot form, pick another model to render it instead, export, upscale and master
   it. (See AUTHORING.md, "A picture held still".)
 - **A freeze frame**: a take's menu (in the viewer, right-click the picture at the frame you
-  want; elsewhere, its last frame) has **Hold this frame after it…**. It asks how long, adds a
+  want; elsewhere, its last frame) has **Frames › Hold this frame after it…**. It asks how long, adds a
   shot on the Hold model right after it (its who, with and size; no dialogue, so no line is
   said twice), that frame its first keyframe, and generates it.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so

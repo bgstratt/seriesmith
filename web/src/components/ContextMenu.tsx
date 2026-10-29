@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs,
   openIssue,
@@ -18,7 +18,24 @@ import { dubBlock, dubTrackBlock } from "../lib/readiness";
 import { statusKey, useApp } from "../store";
 import { useTargets } from "./Targets";
 
-/** The thumbnail context menu, the same in the bin, the timeline and the viewer strip. */
+/** A group of the menu's items, opened beside it on hover (in the page all along,
+ * shown by CSS: .h3-submenu:hover). */
+function Sub({ icon, label, note, children }: { icon: string; label: string; note?: string; children: ReactNode }) {
+  return (
+    <div className="h3-submenu">
+      <button className="h3-submenu-head" tabIndex={-1}>
+        <i className={`pi ${icon}`} /> {label}
+        {note && <span className="h3-muted"> ({note})</span>}
+        <i className="pi pi-angle-right h3-submenu-arrow" />
+      </button>
+      <div className="h3-menu h3-menu-flyout">{children}</div>
+    </div>
+  );
+}
+
+/** The thumbnail context menu, the same in the bin, the timeline and the viewer strip:
+ * what's done to the take at the top, then the rest in groups (Cut, Fades and
+ * dissolve, Colour, Frames, Sound, Shot), each opening beside it. */
 export function ContextMenu() {
   const menu = useApp((s) => s.menu);
   const ep = useApp((s) => s.ep);
@@ -26,7 +43,7 @@ export function ContextMenu() {
   const st = useApp((s) => (s.ep && s.menu ? s.status[statusKey(s.ep, s.menu.pass)] : undefined));
   const cutSt = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; flip: boolean; up: boolean } | null>(null);
   const { list: targets, seriesDefault } = useTargets();
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const multi = useApp((s) => s.multi);
@@ -35,9 +52,14 @@ export function ContextMenu() {
   useLayoutEffect(() => {
     if (!menu || !ref.current) return setPos(null);
     const r = ref.current.getBoundingClientRect();
+    const left = Math.max(4, Math.min(menu.x, window.innerWidth - r.width - 4));
+    const top = Math.max(4, Math.min(menu.y, window.innerHeight - r.height - 4));
     setPos({
-      left: Math.max(4, Math.min(menu.x, window.innerWidth - r.width - 4)),
-      top: Math.max(4, Math.min(menu.y, window.innerHeight - r.height - 4)),
+      left, top,
+      // the groups open to the left when there's no room on the right, upwards in the
+      // bottom half of the window
+      flip: left + r.width + 300 > window.innerWidth,
+      up: top + r.height / 2 > window.innerHeight / 2,
     });
   }, [menu]);
 
@@ -104,9 +126,10 @@ export function ContextMenu() {
   };
   const firstKf = refs?.find((r) => r.id === keyframeRefId(menu.shot, "first"));
   const frameLabel = menu.frame == null || menu.frame === "last" ? "its last frame" : `frame ${menu.frame}`;
-  const keyframes = (
-    <>
-      <div className="h3-menu-sep" />
+  const joins = JOIN_KEYS.filter((k) => (cutShot?.cut[k] || 0) > 0).length;
+
+  const frames = (
+    <Sub icon="pi-image" label="Frames">
       <button
         disabled={!prev}
         title={(prev
@@ -156,6 +179,7 @@ export function ContextMenu() {
           <i className="pi pi-user-plus" /> Character or place from this frame…
         </button>
       )}
+      <div className="h3-menu-sep" />
       <button
         title={`A still of ${menu.shot}'s opening moment, made by the keyframe image model; it goes live if ${menu.shot} has no first keyframe yet` + kfNote(shot)}
         onClick={run(() => void generateKeyframe(menu.shot, "first"))}
@@ -171,15 +195,21 @@ export function ContextMenu() {
       >
         <i className="pi pi-times" /> Clear keyframe
       </button>
-    </>
+    </Sub>
   );
-  const common = (
-    <>
-      {keyframes}
-      <div className="h3-menu-sep" />
+
+  const soundGroup = (
+    <Sub icon="pi-volume-up" label="Sound" note={clipAudio ? "replaced" : sound ? (sound.mode === "dub" ? "dub" : sound.mode) : undefined}>
       <button disabled={!!shot?.orphan} title="How the shot's sound is made: generate, clone, or dub a track" onClick={run(() => openSound([menu.shot]))}>
         <i className="pi pi-volume-up" /> Sound…{sound ? ` (${sound.mode === "dub" ? `dub · ${sound.label}` : sound.mode})` : ""}
       </button>
+      {take?.status === "ok" && (
+        <button disabled={!!noDub}
+          title={noDub ?? `Dub ${menu.shot} to ${tn(take.take)}'s sound from now on (its next render; its takes go stale)`}
+          onClick={run(() => void setSound([menu.shot], { mode: "dub", dub: { from: "take", pass: menu.pass, take: take.take } }))}>
+          <i className="pi pi-volume-up" /> Dub the shot with this take's sound
+        </button>
+      )}
       <button disabled={!!shot?.orphan}
         title={noVoice ?? "Queue a dub track now: the shot rendered for its sound only (H3 Ref2VA, 64x64), its voices cloned; pick it in Sound… to dub the shot with"}
         onClick={run(() => generateDubTracks([menu.shot]))}>
@@ -191,10 +221,26 @@ export function ContextMenu() {
         <i className="pi pi-forward" /> Dub track, then render
       </button>
       <div className="h3-menu-sep" />
-      <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
-        <i className="pi pi-forward" /> Play from here
+      <button
+        disabled={!cutShot}
+        title={clipAudio
+          ? `${menu.shot} plays ${cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)} instead of its own sound — change or clear it`
+          : `This take's picture with another take's (or a file's) sound under it, cut to ${menu.shot}'s length`}
+        onClick={run(() => openSound([menu.shot], "cut"))}
+      >
+        <i className={clipAudio?.source === "none" ? "pi pi-volume-off" : "pi pi-volume-up"} /> Replace audio…
+        {clipAudio && <span className="h3-muted"> ({cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)})</span>}
       </button>
-      <div className="h3-menu-sep" />
+      {clipAudio && (
+        <button disabled={locked} title={locked ? `${menu.shot} is locked` : `${menu.shot} back to its own take's sound`} onClick={run(() => void clearClipAudio(menu.shot))}>
+          <i className="pi pi-undo" /> Back to its own audio
+        </button>
+      )}
+    </Sub>
+  );
+
+  const cutGroup = (
+    <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged"].filter(Boolean).join(", ") || undefined}>
       <button
         disabled={!cutShot}
         title={cutShot?.cut.flag ? `Clear ${menu.shot}'s flag (M)` : `Flag ${menu.shot} to come back to: re-render it, change its prompt (M; Shift+M goes to the next flagged clip)`}
@@ -218,6 +264,41 @@ export function ContextMenu() {
       >
         <i className={cutShot?.cut.out ? "pi pi-plus-circle" : "pi pi-minus-circle"} /> {cutShot?.cut.out ? "Put back in the cut" : "Leave out of the cut"}
       </button>
+      <div className="h3-menu-sep" />
+      <button disabled={locked || cutIdx <= 0} title="Alt+← in the timeline" onClick={run(() => void nudgeClip(menu.shot, -1))}>
+        <i className="pi pi-arrow-left" /> Move left in the cut
+      </button>
+      <button disabled={locked || cutIdx < 0 || cutIdx >= (cutSt?.shots.length ?? 0) - 1} title="Alt+→ in the timeline" onClick={run(() => void nudgeClip(menu.shot, 1))}>
+        <i className="pi pi-arrow-right" /> Move right in the cut
+      </button>
+      {trimmed && (
+        <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>
+          <i className="pi pi-arrows-h" /> Clear trims
+        </button>
+      )}
+    </Sub>
+  );
+
+  const joinGroup = (
+    <Sub icon="pi-sort-alt" label="Fades and dissolve" note={joins ? `${joins} on` : undefined}>
+      {JOIN_KEYS.map((k) => {
+        const on = (cutShot?.cut[k] || 0) > 0;
+        const words = { fade_in: "Fade in from black", fade_out: "Fade out to black", dissolve: "Dissolve from the clip before" }[k];
+        return (
+          <button key={k} disabled={!cutShot || !!cutShot.orphan || locked}
+            title={on ? `Take it off (${cutShot!.cut[k]} frames now; drag its handle on the timeline, or the inspector, to set the length)`
+              : `${words}, ${JOIN_DEFAULT} frames (drag its handle on the timeline, or the inspector's In the cut, to change it); made on export`}
+            onClick={run(() => void setJoin(menu.shot, k, on ? 0 : JOIN_DEFAULT))}>
+            <i className={on ? "pi pi-check" : "pi pi-minus"} style={{ opacity: on ? 1 : 0.35 }} /> {words}
+            {on && <span className="h3-muted"> ({cutShot!.cut[k]}f)</span>}
+          </button>
+        );
+      })}
+    </Sub>
+  );
+
+  const colourGroup = (
+    <Sub icon="pi-palette" label="Colour">
       {MATCH_WAYS.map((w) => (
         <button
           key={w.by}
@@ -225,24 +306,29 @@ export function ContextMenu() {
           title={`Set the colour of the rest of ${menu.shot}'s sequence so it looks like ${menu.shot}, by ${w.title}: a starting point for each clip's sliders (the inspector). Locked clips are left alone; Ctrl+Z undoes it`}
           onClick={run(() => void matchColors(menu.shot, undefined, w.by))}
         >
-          <i className="pi pi-clone" /> Match the sequence to this: {w.label.toLowerCase()}
+          <i className="pi pi-clone" /> Match the sequence to this by {w.label.toLowerCase()}
         </button>
       ))}
-      {JOIN_KEYS.map((k) => {
-        const on = (cutShot?.cut[k] || 0) > 0;
-        const words = { fade_in: "Fade in from black", fade_out: "Fade out to black", dissolve: "Dissolve from the clip before" }[k];
-        return (
-          <button key={k} disabled={!cutShot || !!cutShot.orphan || locked}
-            title={on ? `Take it off (${cutShot!.cut[k]} frames now; the inspector sets the length)`
-              : `${words}, ${JOIN_DEFAULT} frames (the inspector's In the cut sets the length); drawn on the timeline as a curve, made on export`}
-            onClick={run(() => void setJoin(menu.shot, k, on ? 0 : JOIN_DEFAULT))}>
-            <i className={on ? "pi pi-check" : "pi pi-minus"} style={{ opacity: on ? 1 : 0.35 }} /> {words}
-          </button>
-        );
-      })}
-      {trimmed && (
-        <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>
-          <i className="pi pi-arrows-h" /> Clear trims
+    </Sub>
+  );
+
+  const shotGroup = (
+    <Sub icon="pi-file-edit" label="Shot" note={missing.length ? `${missing.length} missing` : undefined}>
+      <button disabled={!!shot?.orphan} title="Edit the shot as a form: who, size, length, action, dialogue, camera, sound" onClick={run(() => openShotForm({ shot: menu.shot, after: null }))}>
+        <i className="pi pi-pencil" /> Edit shot…
+      </button>
+      <button disabled={!!shot?.orphan} title={shot?.orphan ? `${menu.shot} is no longer in the script` : `Open the script at ${menu.shot}'s lines`} onClick={run(() => showInScript(menu.shot))}>
+        <i className="pi pi-file-edit" /> Show in script
+      </button>
+      <button title={`Add a shot after ${menu.shot}`} onClick={run(() => openShotForm({ shot: null, after: menu.shot }))}>
+        <i className="pi pi-plus" /> Add a shot after
+      </button>
+      <button disabled={!!shot?.orphan} title={`A video file as a new take of ${menu.shot}, in the cut (or drop one on its row or clip)`} onClick={run(() => pickTakeFile(menu.shot))}>
+        <i className="pi pi-upload" /> Import video…
+      </button>
+      {missing.length > 0 && (
+        <button title={missing.map((m) => `${m.slot}: ${m.path}`).join("\n")} onClick={run(() => showMissingRefs(menu.shot))}>
+          <i className="pi pi-exclamation-triangle" /> Show missing refs ({missing.length})
         </button>
       )}
       <button
@@ -251,46 +337,27 @@ export function ContextMenu() {
       >
         <i className="pi pi-comment" /> Add issue…
       </button>
-      <button
-        disabled={!cutShot}
-        title={clipAudio
-          ? `${menu.shot} plays ${cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)} instead of its own sound — change or clear it`
-          : `This take's picture with another take's (or a file's) sound under it, cut to ${menu.shot}'s length`}
-        onClick={run(() => openSound([menu.shot], "cut"))}
-      >
-        <i className={clipAudio?.source === "none" ? "pi pi-volume-off" : "pi pi-volume-up"} /> Replace audio…
-        {clipAudio && <span className="h3-muted"> ({cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)})</span>}
-      </button>
-      {clipAudio && (
-        <button disabled={locked} title={locked ? `${menu.shot} is locked` : `${menu.shot} back to its own take's sound`} onClick={run(() => void clearClipAudio(menu.shot))}>
-          <i className="pi pi-undo" /> Back to its own audio
-        </button>
-      )}
-      <button disabled={locked || cutIdx <= 0} title="Alt+← in the timeline" onClick={run(() => void nudgeClip(menu.shot, -1))}>
-        <i className="pi pi-arrow-left" /> Move left in the cut
-      </button>
-      <button disabled={locked || cutIdx < 0 || cutIdx >= (cutSt?.shots.length ?? 0) - 1} title="Alt+→ in the timeline" onClick={run(() => void nudgeClip(menu.shot, 1))}>
-        <i className="pi pi-arrow-right" /> Move right in the cut
-      </button>
-      {missing.length > 0 && (
-        <button title={missing.map((m) => `${m.slot}: ${m.path}`).join("\n")} onClick={run(() => showMissingRefs(menu.shot))}>
-          <i className="pi pi-exclamation-triangle" /> Show missing refs ({missing.length})
-        </button>
-      )}
+    </Sub>
+  );
+
+  const playFromHere = (
+    <button disabled={!inCut} title="Play the cut from this shot, in the viewer" onClick={run(() => playAll(menu.shot))}>
+      <i className="pi pi-forward" /> Play from here
+    </button>
+  );
+
+  const groups = (
+    <>
+      <div className="h3-menu-sep" />
+      {cutGroup}
+      {joinGroup}
+      {colourGroup}
+      {frames}
+      {soundGroup}
+      {shotGroup}
+      <div className="h3-menu-sep" />
       <button onClick={run(() => openInspector(menu.shot, take?.take ?? null))}>
         <i className="pi pi-sliders-h" /> Inspect shot
-      </button>
-      <button disabled={!!shot?.orphan} title={shot?.orphan ? `${menu.shot} is no longer in the script` : `Open the script at ${menu.shot}'s lines`} onClick={run(() => showInScript(menu.shot))}>
-        <i className="pi pi-file-edit" /> Show in script
-      </button>
-      <button disabled={!!shot?.orphan} title="Edit the shot as a form: who, size, length, action, dialogue, camera, sound" onClick={run(() => openShotForm({ shot: menu.shot, after: null }))}>
-        <i className="pi pi-pencil" /> Edit shot…
-      </button>
-      <button title={`Add a shot after ${menu.shot}`} onClick={run(() => openShotForm({ shot: null, after: menu.shot }))}>
-        <i className="pi pi-plus" /> Add a shot after
-      </button>
-      <button disabled={!!shot?.orphan} title={`A video file as a new take of ${menu.shot}, in the cut (or drop one on its row or clip)`} onClick={run(() => pickTakeFile(menu.shot))}>
-        <i className="pi pi-upload" /> Import video…
       </button>
     </>
   );
@@ -298,8 +365,8 @@ export function ContextMenu() {
   return (
     <div
       ref={ref}
-      className="h3-menu"
-      style={pos ?? { left: menu.x, top: menu.y, visibility: "hidden" }}
+      className={`h3-menu${pos?.flip ? " h3-menu-flip" : ""}${pos?.up ? " h3-menu-up" : ""}`}
+      style={pos ? { left: pos.left, top: pos.top } : { left: menu.x, top: menu.y, visibility: "hidden" }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="h3-menu-head">
@@ -322,6 +389,7 @@ export function ContextMenu() {
           <button disabled={!take.mp4} onClick={run(() => openViewer(menu.shot, take.take, null, "single", menu.pass))}>
             <i className="pi pi-play" /> Play
           </button>
+          {playFromHere}
           <button
             disabled={!take.mp4 || !other}
             title={other ? `Opens the viewer with ${tn(take.take)} as A and ${tn(other.take)} as B; click another take to change B` : "Needs another take with video"}
@@ -353,6 +421,54 @@ export function ContextMenu() {
               <i className="pi pi-forward" /> Make final from draft (1080p)…
             </button>
           )}
+          {take.status === "queued" && (
+            <button onClick={run(() => void cancelTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
+              <i className="pi pi-ban" /> Cancel this render
+            </button>
+          )}
+          <Sub icon="pi-arrow-up-right" label="Upscale and post"
+            note={take.post?.fresh ? "posted" : take.upscale?.fresh ? "upscaled" : undefined}>
+            <button
+              disabled={!usable || take.upscale?.status === "queued"}
+              title={take.upscale?.status === "queued"
+                ? "Its upscale is queued"
+                : "Upscale this take 2x: a re-sample (more detail, the same performance) or an upscale model, its own audio kept"}
+              onClick={run(() => void upscaleTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.upscale?.fresh))}
+            >
+              <i className="pi pi-arrow-up-right" /> {take.upscale?.fresh ? "Upscale again (2x)…" : "Upscale (2x)…"}
+            </button>
+            {take.upscale?.status === "ok" && (
+              <button
+                title={take.upscale.keep
+                  ? "Let Master and a whole-cut redo replace this upscale again"
+                  : "Keep this upscale: Master and a whole-cut redo leave it alone, even when the series recipe changes (naming this take still redoes it)"}
+                onClick={run(() => void keepUpscale({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !take.upscale!.keep))}
+              >
+                <i className={`pi ${take.upscale.keep ? "pi-lock-open" : "pi-lock"}`} /> {take.upscale.keep ? "Unkeep upscale" : "Keep upscale"}
+              </button>
+            )}
+            {take.upscale && take.upscale.status !== "queued" && (
+              <button onClick={run(() => void removeUpscale({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
+                <i className="pi pi-times" /> Remove upscale
+              </button>
+            )}
+            <div className="h3-menu-sep" />
+            <button
+              disabled={!take.upscale?.fresh || take.upscale.status !== "ok" || take.post?.status === "queued"}
+              title={take.post?.status === "queued" ? "Its post is queued"
+                : !take.upscale?.fresh || take.upscale.status !== "ok" ? "Upscale it first: a post finishes the upscale"
+                : "Finish its upscale: SeedVR2 clean-up and/or motion blur, by the series recipe or your choice"}
+              onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh))}
+            >
+              <i className="pi pi-sparkles" /> {take.post?.fresh ? "Post-process again…" : "Post-process…"}
+            </button>
+            {take.post && take.post.status !== "queued" && (
+              <button onClick={run(() => void removePost({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
+                <i className="pi pi-times" /> Remove post
+              </button>
+            )}
+          </Sub>
+          {groups}
           <button onClick={run(() => openSidecar(menu.shot, take.take, menu.pass))}>
             <i className="pi pi-info-circle" /> Show details
           </button>
@@ -362,49 +478,7 @@ export function ContextMenu() {
           >
             <i className="pi pi-copy" /> Copy path
           </button>
-          {take.status === "queued" && (
-            <button onClick={run(() => void cancelTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
-              <i className="pi pi-ban" /> Cancel this render
-            </button>
-          )}
-          <button
-            disabled={!usable || take.upscale?.status === "queued"}
-            title={take.upscale?.status === "queued"
-              ? "Its upscale is queued"
-              : "Upscale this take 2x: a re-sample (more detail, the same performance) or an upscale model, its own audio kept"}
-            onClick={run(() => void upscaleTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.upscale?.fresh))}
-          >
-            <i className="pi pi-arrow-up-right" /> {take.upscale?.fresh ? "Upscale again (2x)…" : "Upscale (2x)…"}
-          </button>
-          {take.upscale?.status === "ok" && (
-            <button
-              title={take.upscale.keep
-                ? "Let Master and a whole-cut redo replace this upscale again"
-                : "Keep this upscale: Master and a whole-cut redo leave it alone, even when the series recipe changes (naming this take still redoes it)"}
-              onClick={run(() => void keepUpscale({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !take.upscale!.keep))}
-            >
-              <i className={`pi ${take.upscale.keep ? "pi-lock-open" : "pi-lock"}`} /> {take.upscale.keep ? "Unkeep upscale" : "Keep upscale"}
-            </button>
-          )}
-          {take.upscale && take.upscale.status !== "queued" && (
-            <button onClick={run(() => void removeUpscale({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
-              <i className="pi pi-times" /> Remove upscale
-            </button>
-          )}
-          <button
-            disabled={!take.upscale?.fresh || take.upscale.status !== "ok" || take.post?.status === "queued"}
-            title={take.post?.status === "queued" ? "Its post is queued"
-              : !take.upscale?.fresh || take.upscale.status !== "ok" ? "Upscale it first: a post finishes the upscale"
-              : "Finish its upscale: SeedVR2 clean-up and/or motion blur, by the series recipe or your choice"}
-            onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh))}
-          >
-            <i className="pi pi-sparkles" /> {take.post?.fresh ? "Post-process again…" : "Post-process…"}
-          </button>
-          {take.post && take.post.status !== "queued" && (
-            <button onClick={run(() => void removePost({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>
-              <i className="pi pi-times" /> Remove post
-            </button>
-          )}
+          <div className="h3-menu-sep" />
           <button
             className="h3-menu-danger"
             disabled={take.status === "queued"}
@@ -415,14 +489,6 @@ export function ContextMenu() {
           >
             <i className="pi pi-trash" /> Discard take…
           </button>
-          {take.status === "ok" && (
-            <button disabled={!!noDub}
-              title={noDub ?? `Dub ${menu.shot} to ${tn(take.take)}'s sound from now on (its next render; its takes go stale)`}
-              onClick={run(() => void setSound([menu.shot], { mode: "dub", dub: { from: "take", pass: menu.pass, take: take.take } }))}>
-              <i className="pi pi-volume-up" /> Dub the shot with this take's sound
-            </button>
-          )}
-          {common}
         </>
       ) : (
         <>
@@ -432,7 +498,8 @@ export function ContextMenu() {
           <button onClick={run(() => openRedo(menu.shot, null, menu.pass))}>
             <i className="pi pi-refresh" /> Render with settings…
           </button>
-          {common}
+          {playFromHere}
+          {groups}
         </>
       )}
     </div>

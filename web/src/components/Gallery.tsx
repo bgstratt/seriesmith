@@ -14,7 +14,7 @@ import { errText } from "../api";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
-  GALLERY_GROUPS, gallerySections, isShared, itemAspect, sequencesOf, shotSections, takeAspect,
+  GALLERY_GROUPS, gallerySections, isShared, itemAspect, searchRefSections, searchShotSections, sequencesOf, shotSections, takeAspect,
   type GalleryItem, type SharedTakes, type ShotItem,
 } from "../lib/gallery";
 import { fmtWhen, shortName, tn } from "../lib/format";
@@ -197,15 +197,15 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
 
   const shared = useSharedTakes(ep);
   const refSecs = useMemo(
-    () => (shots ? [] : gallerySections(refs ?? [], g, pass, shared.got)),
+    () => (shots ? [] : searchRefSections(gallerySections(refs ?? [], g, pass, shared.got), g.query)),
     // the scope's fields, not `g`: moving through it changes `g` too
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shots, refs, g.group, g.ref, g.picksOnly, g.series, pass, shared.got],
+    [shots, refs, g.group, g.ref, g.picksOnly, g.series, g.query, pass, shared.got],
   );
   const shotSecs = useMemo(
-    () => (shots ? shotSections(st, g, pass) : []),
+    () => (shots ? searchShotSections(shotSections(st, g, pass), g.query) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shots, st, g.seq, g.shot, g.picksOnly, pass],
+    [shots, st, g.seq, g.shot, g.picksOnly, g.query, pass],
   );
   const epAspect = aspectOf(st);
   const sections: GridSection[] = useMemo(() => shots
@@ -335,6 +335,49 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE, picksOnly: false })}>Refs</button>
         <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE, picksOnly: false })}>Shots</button>
       </span>
+      {/* how it's shown: wraps inside itself, so full screen and close stay top right */}
+      <span className="h3-gal-view-tools">
+        <span className="h3-seg" title={`A section per ${shots ? "shot" : "ref"}, or one flow that fills each row (each one's together)`}>
+          <button className={layout === "sections" ? "h3-on" : ""} onClick={() => setLayout("sections")}>Sections</button>
+          <button className={layout === "flow" ? "h3-on" : ""} onClick={() => setLayout("flow")}>Flow</button>
+        </span>
+        <span className="h3-seg" title="Picture size">
+          {(Object.keys(SIZES) as Size[]).map((k) => (
+            <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
+          ))}
+        </span>
+        <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
+          <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
+        </label>
+        {!shots && !g.ref && (
+          <label className="h3-row h3-small" style={{ gap: 4 }} title="Also the refs in the series config that no shot of this episode uses (another episode's cast and places)">
+            <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
+          </label>
+        )}
+      </span>
+      <FullscreenButton />
+      <button className="h3-btn h3-icon" title="Close the gallery (Esc)" onClick={closeGallery}><i className="pi pi-times" /></button>
+    </>
+  );
+  // under the title bar (how it's shown, full screen and close): what's shown, and how
+  // many; it wraps as the window narrows
+  const tools = (
+    <div className="h3-gal-tools">
+      <input className="h3-in h3-gal-search" type="search" value={g.query ?? ""}
+        placeholder={shots ? "Search shots (id, size, who, model)" : "Search (name, kind, view, episode)"}
+        title={shots
+          ? "Only the takes whose shot or take has every word: its id, size, who's in it, sequence, what happens, the take (t03), its model, cut. Enter: back to the arrows; Esc clears it"
+          : "Only the pictures whose ref or picture has every word: its name or id, kind (character, prop, location), group, whose it is, the view (face, side, sheet, 360), the episode, live. Enter: back to the arrows; Esc clears it"}
+        onChange={(e) => updateGallery({ query: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            // the gallery's own Esc would close it: here it clears the box, then leaves it
+            e.stopPropagation();
+            if (g.query) updateGallery({ query: "" });
+            else e.currentTarget.blur();
+          }
+        }} />
       <span className="h3-row h3-wrap" style={{ gap: 4 }}>
         {!shots && (
           <button className={`h3-chip${!g.group && !g.ref ? " h3-on" : ""}`} onClick={() => updateGallery(WIDE)}>
@@ -376,23 +419,6 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         )}
       </span>
       <span className="h3-grow" />
-      <span className="h3-seg" title={`A section per ${shots ? "shot" : "ref"}, or one flow that fills each row (each one's together)`}>
-        <button className={layout === "sections" ? "h3-on" : ""} onClick={() => setLayout("sections")}>Sections</button>
-        <button className={layout === "flow" ? "h3-on" : ""} onClick={() => setLayout("flow")}>Flow</button>
-      </span>
-      <span className="h3-seg" title="Picture size">
-        {(Object.keys(SIZES) as Size[]).map((k) => (
-          <button key={k} className={size === k ? "h3-on" : ""} onClick={() => setSize(k)}>{k.toUpperCase()}</button>
-        ))}
-      </span>
-      <label className="h3-row h3-small" style={{ gap: 4 }} title={shots ? "Only the take each shot's cut uses" : "Only the picture each ref uses now"}>
-        <input type="checkbox" checked={g.picksOnly} onChange={(e) => updateGallery({ picksOnly: e.target.checked })} /> {shots ? "cut only" : "live only"}
-      </label>
-      {!shots && !g.ref && (
-        <label className="h3-row h3-small" style={{ gap: 4 }} title="Also the refs in the series config that no shot of this episode uses (another episode's cast and places)">
-          <input type="checkbox" checked={g.series} onChange={(e) => updateGallery({ series: e.target.checked })} /> unused too
-        </label>
-      )}
       {chosen.size > 0 ? (
         <span className="h3-row h3-gal-chosen" style={{ gap: 6 }}>
           <b className="h3-small">{chosen.size} selected</b>
@@ -415,15 +441,14 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           {keys.length}{more ? "…" : ""} {shots ? "take" : "picture"}{keys.length === 1 && !more ? "" : "s"}
         </span>
       )}
-      <FullscreenButton />
-      <button className="h3-btn h3-icon" title="Close the gallery (Esc)" onClick={closeGallery}><i className="pi pi-times" /></button>
-    </>
+    </div>
   );
 
   const loading = shots ? !st : !refs;
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultGalleryRect} head={head} winRef={winRef} className="h3-gallery" minW={480} minH={360}>
       <div className="h3-gal-body">
+        {ep && tools}
         {!ep && <div className="h3-empty-state">Pick an episode.</div>}
         {ep && loading && <div className="h3-empty-state">Loading…</div>}
         {/* the grid stays under an open picture, so closing it comes back to where it was */}
