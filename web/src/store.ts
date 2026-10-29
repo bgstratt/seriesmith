@@ -476,7 +476,7 @@ export interface AppState {
   /** a Features entry to show when the window opens (scrolled to, opened, ticked) */
   featuresFocus: string | null;
   /** the Sound dialog's shots (generate, clone, or dub a track) */
-  soundAsk: { shots: string[] } | null;
+  soundAsk: { shots: string[]; focus?: "cut" | null } | null;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
   /** P10: the Issues window is open */

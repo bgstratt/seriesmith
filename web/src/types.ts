@@ -149,6 +149,8 @@ export type DubSource =
 export interface ShotSound {
   mode: "generate" | "clone" | "dub";
   dub?: DubSource;
+  /** a dub: false for the voice alone (no sound of the model's under it); absent: kept */
+  keep_foley?: boolean;
   /** a dub: its source as the editor says it ("dub track 2", "t02 (proxy)") */
   label?: string;
   /** a dub: the file its source plays (episode-relative), null for the track or one missing */

@@ -843,9 +843,9 @@ export function generateDubTracks(shots: string[], target: string = VOICE_TARGET
                      note: "dub track" });
 }
 
-/** The Sound dialog, for these shots. */
-export function openSound(shots: string[]) {
-  set({ soundAsk: shots.length ? { shots } : null, menu: null });
+/** The Sound dialog, for these shots; `focus` "cut": at what the cut plays (Replace audio…). */
+export function openSound(shots: string[], focus: "cut" | null = null) {
+  set({ soundAsk: shots.length ? { shots, focus } : null, menu: null });
 }
 
 export function closeSound() {

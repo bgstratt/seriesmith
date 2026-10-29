@@ -464,7 +464,8 @@ def latest_usable(takes: list[Take]) -> Take | None:
 #
 # What a shot's next render does for its sound, set in the editor beside the
 # script's own (`policy:`, audio.mode): {"mode": "generate" | "clone" | "dub",
-# "dub": source} where a dub's source is
+# "dub": source, "keep_foley"?: false (a dub: the voice alone, no sound of
+# the model's under it)} where a dub's source is
 #
 #   {"from": "track"}                      the shot's window of the recording
 #   {"from": "take", "pass": p, "take": n} a take of the shot's sound (either pass)
@@ -510,6 +511,13 @@ def check_sound(sound) -> dict | None:
             raise ValueError(f"sound.dub.pass must be one of {', '.join(PASSES)}")
         d["pass"] = src["pass"]
     out["dub"] = d
+    # the model's own sound laid under the voice (dub_keep_foley), or the voice
+    # alone (dub); kept only when off, so the default stays as it was
+    keep = sound.get("keep_foley", True)
+    if not isinstance(keep, bool):
+        raise ValueError("sound.keep_foley must be true or false")
+    if not keep:
+        out["keep_foley"] = False
     return out
 
 

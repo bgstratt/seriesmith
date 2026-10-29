@@ -146,6 +146,11 @@ class SoundTest(unittest.TestCase):
         self.assertEqual([(r["slot"], r["path"]) for r in J.ref_slots(job.doc, job.shot)
                           if r["kind"] == "audio"], [("Audio 1", job.shot["audio_file"])])
         self.assertEqual(job.dub_label, f"dub track {d.take}")
+        # the voice alone: prompted as a dub, nothing of the model's under it
+        self.sound("sh020", {"mode": "dub", "dub": {"from": "dub", "take": d.take}, "keep_foley": False})
+        self.assertEqual(T.shot_sound(T.load_overrides(self.root), "sh020")["keep_foley"], False)
+        job = self.plan("sh020")
+        self.assertEqual((job.shot["audio_policy"], job.shot["audio_retention"]), ("dub", "fully_copy"))
 
     @unittest.skipUnless(FF.have("ffmpeg"), "ffmpeg not on PATH")
     def test_fl2va_anchors_a_takes_sound(self):

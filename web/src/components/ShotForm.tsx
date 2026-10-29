@@ -6,7 +6,7 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, copyText, loadRefs, openShotForm, openSound, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, copyText, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
@@ -17,7 +17,7 @@ import {
 import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
 import { isHosted } from "../lib/targets";
-import { statusKey, useApp } from "../store";
+import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
@@ -26,6 +26,7 @@ import { PresetPicker, useCameraTiles, useFramingTiles, useLensTiles } from "./P
 import { Hover, PicturePicker, Thumb, usePictureBrowse, type Named } from "./Picture";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { finishDroppedFile, isPicture } from "../takeActions";
+import { SoundCard } from "./SoundDialog";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
 
@@ -76,10 +77,6 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
 }) {
   const pass = useApp((s) => s.pass);
   const targets = useApp((s) => s.targets);
-  // the shot's sound as set in the editor (Sound…), beating the script's `policy:`
-  const sound = useApp((s) => (shot ? s.status[statusKey(ep, s.pass)]?.shots.find((x) => x.shot === shot)?.sound : undefined));
-  // the episode has recorded dialogue (audio.track): the script's dub is to it
-  const hasTrack = useApp((s) => !!s.status[statusKey(ep, s.pass)]?.track);
   const sc = useSeriesConfig(ep);
   const [doc, setDoc] = useState<SourceDoc | null>(null);
   const [form, setForm] = useState<Form | null>(null);
@@ -442,30 +439,10 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                   <Row label="Last frame" help="The picture it ends on, for the models that take one.">
                     <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
                   </Row>
-                  <Row label="Audio" help="The script's line for this shot's sound: generate, clone, or dub / dub_keep_foley (lip-sync to the shot's window of the episode's recorded dialogue: audio.track, then align). Empty: the series' dialogue setting. Sound… sets it in the editor instead, dubbing to a dub track or a take's sound included (no recording needed), and beats this line.">
-                    <span className="h3-row" style={{ gap: 6 }}>
-                      <select className="h3-in" value={form.keys.policy ?? ""} onChange={(e) => set("policy", e.target.value)}>
-                        <option value="">the series'</option>
-                        {["generate", "dub", "dub_keep_foley", "clone"].map((p) => {
-                          // the script's dub is to the recorded dialogue track (align):
-                          // without one, a dub is a dub track or a take's sound (Sound…)
-                          const off = !hasTrack && p.startsWith("dub") && form.keys.policy !== p;
-                          return <option key={p} value={p} disabled={off}>{p}{off ? " (needs a recorded track)" : ""}</option>;
-                        })}
-                      </select>
-                      {!hasTrack && (form.keys.policy ?? "").startsWith("dub") && (
-                        <span className="h3-small h3-err" title="The script's dub lip-syncs to the shot's window of the episode's recorded dialogue (audio.track, then seriesmith align)">
-                          No recorded track: the build refuses this. For a dub track or a take's sound, use Sound….
-                        </span>
-                      )}
-                      {!isNew && shot && (
-                        <button type="button" className={`h3-btn${sound ? " h3-primary" : ""}`}
-                          title={sound ? "Set in the editor, beating the script's line: change it" : "Generate, clone, or dub a track (a dub track, a take's sound): set in the editor"}
-                          onClick={() => openSound([shot])}>
-                          <i className="pi pi-volume-up" /> {sound ? `Sound: ${sound.mode === "dub" ? `dub · ${sound.label}` : sound.mode}` : "Sound…"}
-                        </button>
-                      )}
-                    </span>
+                  <Row label="Sound" help="How this shot's next take sounds (the series' default, or generate, clone or dub for this shot alone), what a dub is lip-synced to, and what the cut plays for it.">
+                    {!isNew && shot
+                      ? <div className="h3-card" style={{ padding: 8 }}><SoundCard shot={shot} /></div>
+                      : <span className="h3-small h3-muted">The series' default. Once the shot is saved, its Sound can be set here.</span>}
                   </Row>
                   <Row label="Pace" help="How fast its lines are spoken: slow 3.6, normal 4.4, fast 5.4 syllables a second (fast marks a deliberate rush).">
                     <select className="h3-in" value={form.keys.pace ?? ""} onChange={(e) => set("pace", e.target.value)}>

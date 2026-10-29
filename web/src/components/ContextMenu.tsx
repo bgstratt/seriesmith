@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, openClipAudio,
+  cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs,
   openIssue,
   keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
@@ -219,7 +219,7 @@ export function ContextMenu() {
         title={clipAudio
           ? `${menu.shot} plays ${cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)} instead of its own sound — change or clear it`
           : `This take's picture with another take's (or a file's) sound under it, cut to ${menu.shot}'s length`}
-        onClick={run(() => openClipAudio(menu.shot, curPass))}
+        onClick={run(() => openSound([menu.shot], "cut"))}
       >
         <i className={clipAudio?.source === "none" ? "pi pi-volume-off" : "pi pi-volume-up"} /> Replace audio…
         {clipAudio && <span className="h3-muted"> ({cutShot?.cut.audio_why || audioWhy(clipAudio, menu.shot)})</span>}

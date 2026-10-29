@@ -3196,12 +3196,13 @@ def apply_sound(job: Job, sound: dict) -> None:
                 recompile_sound(job, POLICY_OF[sound["mode"]])
             return
         src = sound["dub"]
+        dub = "dub_keep_foley" if sound.get("keep_foley", True) else "dub"
         if src["from"] == "track":
-            if entry.get("audio_policy") not in ("dub", "dub_keep_foley"):
+            if entry.get("audio_policy") != dub:
                 if "audio_in" not in entry:
                     raise ValueError(f"{job.id} has no window on the recorded track "
                                      f"(`seriesmith align` writes these)")
-                recompile_sound(job, "dub_keep_foley")
+                recompile_sound(job, dub)
             job.dub_label = "the recorded track"
             return
         if not t.supports("DUB_BY_FILE"):
@@ -3211,7 +3212,7 @@ def apply_sound(job: Job, sound: dict) -> None:
             raise ValueError(f"its dub track, {label}, isn't a finished take with sound")
         from seriesmith import audiocut as AC
         level = AC.levelled(sound_file)
-        recompile_sound(job, "dub_keep_foley", os.path.relpath(level, job.root).replace(os.sep, "/"))
+        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"))
         job.dub_label = label
         job.notes.append(f"dubbed to {label}")
     except Exception as e:                                # noqa: BLE001  said on the job
@@ -3244,9 +3245,10 @@ def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> Non
     entry = dict(doc["shots"][0])
     if audio_file:
         entry["audio_file"] = audio_file
-        # prompted as dub_keep_foley (the voice given, the model's sound laid under
-        # it), saved as a dub: the saver strips no voice for a recording laid in
-        # at the cut (demucs, for nothing), and remux_dub puts the whole mix in
+        # prompted as asked (dub_keep_foley: the model's sound laid under the
+        # given voice), saved as a dub: the saver strips no voice for a recording
+        # laid in at the cut (demucs, for nothing), and remux_dub puts the whole
+        # mix in
         entry["audio_policy"] = "dub"
     job.shot, job.recompiled = entry, None
     if "prompt" not in job.overridden:
