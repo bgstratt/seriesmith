@@ -289,9 +289,11 @@ under the shot.
   dialog for them first, and × or Esc clears it. Right-click one of them for the same two.
   Clicking a shot outside the selection ends it.
 - **Click a take** to select that candidate; **double-click** opens it in the Viewer.
-- **Sound.** Everything about a shot's sound is one card: in the shot form (**Sound**), and
-  in a dialog from the chip on its row, **Sound…** in its context menu, and **Replace
-  audio…** (which opens it at the cut). It has three parts:
+- **Sound.** Everything about a shot's sound is one card, in a dialog from the chip on its
+  row, **Sound…** in its context menu, and **Replace audio…** (which opens it at the cut).
+  The shot form's **Sound** has its first two parts, the next render's; a replacement in the
+  cut is set on purpose, from the dialog, and stays over the takes that come after it. The
+  parts:
   - **Next take:** **Default** (what the script and series config say, shown in brackets),
     or **Generate**, **Clone** or **Dub** for this shot alone.
   - **Dub to** (Dub only): **the recording** (its aligned window, when the episode has a

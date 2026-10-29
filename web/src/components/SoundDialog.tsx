@@ -64,8 +64,10 @@ function same(a: DubSource | undefined, b: DubSource): boolean {
     && ("pass" in a ? a.pass : null) === ("pass" in b ? b.pass : null);
 }
 
-/** The card itself: one shot's sound, its next take's and the cut's. */
-export function SoundCard({ shot, focus }: { shot: string; focus?: "cut" | null }) {
+/** The card itself: one shot's sound, its next take's and (`cut`, default on) the
+ * cut's. The shot form leaves the cut's out: it is about the next render, and a
+ * replacement is set on purpose, from the dialog (Replace audio…). */
+export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "cut" | null; cut?: boolean }) {
   const ep = useApp((s) => s.ep)!;
   const pass = useApp((s) => s.pass);
   const targets = useApp((s) => s.targets);
@@ -183,10 +185,12 @@ export function SoundCard({ shot, focus }: { shot: string; focus?: "cut" | null 
       )}
 
       {/* ---- what the cut plays ---- */}
-      <div ref={cutRef} className="h3-col" style={{ gap: 4 }}>
-        <b>In the cut</b>
-        <CutSound ep={ep} shot={shot} dubs={okDubs} takes={okTakes} />
-      </div>
+      {cut && (
+        <div ref={cutRef} className="h3-col" style={{ gap: 4 }}>
+          <b>In the cut</b>
+          <CutSound ep={ep} shot={shot} dubs={okDubs} takes={okTakes} />
+        </div>
+      )}
     </div>
   );
 }

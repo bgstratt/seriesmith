@@ -41,6 +41,13 @@ describe("the Sound card", () => {
     }
   });
 
+  it("the shot form's card is the next take's alone", () => {
+    const shot = store.get().status[statusKey(EP, "proxy")]!.shots[0];
+    const html = renderToString(createElement(SoundCard, { shot: shot.shot, cut: false }));
+    expect(html).toContain("Next take");
+    expect(html).not.toContain("In the cut");
+  });
+
   it("with the script's sound, no dub part; Replace audio opens it at the cut", () => {
     const shot = store.get().status[statusKey(EP, "proxy")]!.shots[0];
     const html = renderToString(createElement(SoundCard, { shot: shot.shot }));

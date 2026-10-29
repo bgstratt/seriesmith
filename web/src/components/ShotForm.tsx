@@ -439,9 +439,9 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                   <Row label="Last frame" help="The picture it ends on, for the models that take one.">
                     <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
                   </Row>
-                  <Row label="Sound" help="How this shot's next take sounds (the series' default, or generate, clone or dub for this shot alone), what a dub is lip-synced to, and what the cut plays for it.">
+                  <Row label="Sound" help="How this shot's next take sounds: the series' default, or generate, clone or dub for this shot alone, and what a dub is lip-synced to. What the cut plays over a take you already have is Replace audio… (its context menu).">
                     {!isNew && shot
-                      ? <div className="h3-card" style={{ padding: 8 }}><SoundCard shot={shot} /></div>
+                      ? <div className="h3-card" style={{ padding: 8 }}><SoundCard shot={shot} cut={false} /></div>
                       : <span className="h3-small h3-muted">The series' default. Once the shot is saved, its Sound can be set here.</span>}
                   </Row>
                   <Row label="Pace" help="How fast its lines are spoken: slow 3.6, normal 4.4, fast 5.4 syllables a second (fast marks a deliberate rush).">
