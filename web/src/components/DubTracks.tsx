@@ -1,5 +1,6 @@
-// The Refs tab's Dub tracks: every speaking shot, how many dub tracks it has and
-// what its next take does for its sound. A row opens to the shot's Sound card (its
+// The Refs tab's Dub tracks: the shots that have one, or whose sound is set to dub
+// (as shot keyframes list only those there are), how many each has and what its
+// next take does for its sound. A row opens to the shot's Sound card (its
 // dub tracks fetched then: playable, Use, Generate a dub track). Dub tracks aren't
 // refs (they are the shot rendered tiny for its sound, kept in dub/<shot>/), but
 // they are references a render reads, so they are listed beside the refs.
@@ -11,14 +12,9 @@ import { useApp } from "../store";
 import type { EpisodeStatus, ShotStatus } from "../types";
 import { SoundCard } from "./SoundDialog";
 
-/** The shots the section lists: those with lines, and any with a dub track or a dub set. */
+/** The shots the section lists: those with a dub track, and any whose sound is a dub. */
 export function dubShots(st: EpisodeStatus | undefined): ShotStatus[] {
-  return (st?.shots ?? []).filter((s) => !s.orphan && (s.speaks || (s.dub_tracks ?? 0) > 0 || s.sound?.mode === "dub"));
-}
-
-/** The speaking shots with no dub track yet (Generate missing makes one each). */
-export function dubMissing(st: EpisodeStatus | undefined): string[] {
-  return dubShots(st).filter((s) => s.speaks && !(s.dub_tracks ?? 0)).map((s) => s.shot);
+  return (st?.shots ?? []).filter((s) => !s.orphan && ((s.dub_tracks ?? 0) > 0 || s.sound?.mode === "dub"));
 }
 
 function soundLabel(s: ShotStatus): string {
@@ -32,7 +28,6 @@ export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
   const [folded, setFolded] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const shots = dubShots(st);
-  const missing = dubMissing(st);
   const noModel = dubTrackBlock(targets);
   if (!shots.length) return null;
   return (
@@ -41,14 +36,7 @@ export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
         title="The shot's lines rendered tiny on a voice model for their sound only: what a shot set to Dub is lip-synced to">
         <span className="h3-chev">{folded ? "▶" : "▼"}</span>
         <b>Dub tracks</b>
-        <span className="h3-muted h3-small">{shots.length - missing.length} of {shots.filter((s) => s.speaks).length} speaking shots have one</span>
-        <span className="h3-grow" />
-        {missing.length > 0 && (
-          <button className="h3-btn h3-primary" title={noModel ?? `Queue a dub track for each speaking shot without one (H3 Ref2VA, 64x64): ${missing.join(", ")}`}
-            onClick={(e) => { e.stopPropagation(); generateDubTracks(missing); }}>
-            <i className={noModel ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate missing ({missing.length})
-          </button>
-        )}
+        <span className="h3-muted h3-small">{shots.length}</span>
       </div>
       {!folded && shots.map((s) => {
         const n = s.dub_tracks ?? 0;
@@ -59,7 +47,7 @@ export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
               title={isOpen ? "Fold" : "Its dub tracks (play, use, make another) and its sound"}>
               <span className="h3-chev">{isOpen ? "▼" : "▶"}</span>
               <b>{s.shot}</b>
-              <span className={n ? "" : "h3-muted"}>{n ? `${n} dub track${n > 1 ? "s" : ""}` : s.speaks ? "no dub track yet" : ""}</span>
+              <span className={n ? "" : "h3-muted"}>{n ? `${n} dub track${n > 1 ? "s" : ""}` : "dubbed to the recording"}</span>
               <span className="h3-grow" />
               <span className={`h3-badge${s.sound ? " h3-b-voice" : ""}`}>{soundLabel(s)}</span>
               <button className="h3-btn" title={noModel ?? "Queue a dub track of this shot now (H3 Ref2VA, 64x64)"}

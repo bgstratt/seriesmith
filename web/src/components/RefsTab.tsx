@@ -48,6 +48,7 @@ import { DropSlot, SupplyPicker, UploadButton } from "./Upload";
 import { EditForm, editSourceText } from "./RefEdit";
 import { PanoSection } from "./PanoViewer";
 import { TourSection } from "./TourSection";
+import { voicesMissing } from "../lib/refs";
 import { DubTracksSection } from "./DubTracks";
 
 const FILTERS: { id: RefFilter; label: string; title: string }[] = [
@@ -1310,6 +1311,16 @@ const ADD_LABEL: Partial<Record<string, string>> = {
   characters: "Character", props: "Prop", locations: "Place", voices: "Voice",
 };
 
+/** A voice sample for each voice ref with none (lib/refs voicesMissing), one at a time. */
+function generateMissingVoices(refs: Ref[]) {
+  void (async () => {
+    for (const r of voicesMissing(refs)) {
+      await generateRef({ ref: r.id, view: null, count: 1, seed_mode: "auto", seed: null, prompt: null,
+                          model: null, loras: null, steps: null, note: "" });
+    }
+  })();
+}
+
 export function RefsTab() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
@@ -1463,6 +1474,16 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>
+                    {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
+                      <>
+                        <span className="h3-grow" />
+                        <button className="h3-btn h3-primary"
+                          title={`A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
+                          onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs); }}>
+                          <i className="pi pi-microphone" /> Generate missing ({voicesMissing(g.refs).length})
+                        </button>
+                      </>
+                    )}
                     {ADD_KIND[g.id] && (
                       <>
                         <span className="h3-grow" />

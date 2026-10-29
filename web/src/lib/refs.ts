@@ -15,6 +15,13 @@ export const REF_GROUPS: { id: RefGroupId; label: string }[] = [
   { id: "keyframes", label: "Shot keyframes" },
 ];
 
+/** The voice samples a clone needs and nothing is on its way for: a voice ref with
+ * no live sample and no candidate finished or queued. */
+export function voicesMissing(refs: Ref[]): Ref[] {
+  return refs.filter((r) => r.kind === "voice" && !r.exists
+    && !(r.takes ?? []).some((t) => t.status === "ok" || t.status === "queued"));
+}
+
 /** kreagen.VIEWS, in order. */
 export const VIEWS: { view: string; label: string }[] = [
   { view: "01_threequarter", label: "three-quarter" },

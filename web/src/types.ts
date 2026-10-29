@@ -185,8 +185,6 @@ export interface ShotStatus {
   shot: string;
   /** the sound overrides.json sets; absent: the script's (audio_policy) */
   sound?: ShotSound;
-  /** it has lines: a dub track is for it */
-  speaks?: boolean;
   /** how many dub tracks it has (absent: none) */
   dub_tracks?: number;
   orphan: boolean;

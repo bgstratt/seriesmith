@@ -717,10 +717,13 @@ script call for is listed here.
 - **Click a candidate** to see what made it: its model, settings and prompt. **show all**
   opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
   on the clipboard, to run it somewhere else.
-- **Dub tracks** (after the refs): every shot with lines, how many dub tracks it has and
-  its sound. **Generate** makes one for a shot, **Generate missing** one for each speaking
-  shot without any; open a row for its dub tracks (play, **Use**, make another on another
-  voice model), or **Sound…** for its whole Sound card.
+- **Voices** has **Generate missing**: a voice sample for each character with none (and
+  none on its way), each a candidate to listen to and pick, as Clone speaks in it.
+- **Dub tracks** (after the refs): the shots that have one, or whose sound is set to dub,
+  as shot keyframes list only those there are: how many each has and its sound.
+  **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
+  another voice model), or **Sound…** for its whole Sound card. A shot's first dub track
+  comes from its Sound card or **Generate dub tracks** with shots selected.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
