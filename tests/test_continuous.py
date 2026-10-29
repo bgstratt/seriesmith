@@ -123,3 +123,76 @@ Ada waits more.
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartnerTest(unittest.TestCase):
+    """A `continuous: first` shot on a target that reads no first keyframe
+    renders on its partner (target.json `continuous.first`): H3 Ref2VA's is
+    H3 FL2VA, FastH3 Omni's fasth3_fl2va. The render keeps it there when the
+    target came from the script (a `#` header), not only from the series
+    config (jobs.script_targets reads the build's routing). H3 Singularity
+    reads one when asked (keyframes_when_asked): its shot stays on it."""
+
+    def test_a_sequence_target_keeps_its_partner_at_render(self):
+        import shutil
+        import subprocess
+        import tempfile
+        from seriesmith import jobs as J
+        from test_render import ENV, FIXTURE
+        with tempfile.TemporaryDirectory() as ep:
+            shutil.copy(os.path.join(FIXTURE, "series.json"), ep)
+            with open(os.path.join(FIXTURE, "script.md"), encoding="utf-8") as fh:
+                text = fh.read()
+            text = text.replace("# sq01  kitchen\n", "# sq01  kitchen\ntarget: h3_singularity\n", 1)
+            text = text.replace("# sq02  street\n", "# sq02  street\ntarget: fasth3_omni\n", 1)
+            text = text.replace("## sh020\n", "## sh020\ncontinuous: first\n", 1)
+            text = text.replace("## sh120\n", "## sh120\ncontinuous: first\n", 1)
+            script = os.path.join(ep, "ep.md")
+            with open(script, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+            subprocess.run([sys.executable, "-m", "seriesmith", "build",
+                            os.path.join(ep, "series.json"), script, "-o", ep],
+                           check=True, capture_output=True, env=ENV)
+            got = J.script_targets(ep)
+            self.assertEqual((got["sh010"], got["sh020"]), ("h3_singularity", "h3_singularity"))
+            self.assertEqual((got["sh110"], got["sh120"]), ("fasth3_omni", "fasth3_fl2va"))
+            self.assertEqual(J.target_choice({}, "sh120", "fasth3_fl2va", root=ep),
+                             ("fasth3_fl2va", "script"))
+            # Singularity's shot carries its first frame; the others' don't ask
+            doc, i = J.find_shot(ep, "final", "sh020")
+            self.assertEqual(doc["shots"][i]["keyframes"], {"first": "refs/shots/sh020/first.png"})
+            doc, i = J.find_shot(ep, "final", "sh010")
+            self.assertNotIn("keyframes", doc["shots"][i])
+            # the Refs tab asks only the shot that asks for one (not every Singularity shot)
+            from seriesmith import refs as R
+            needs = R.keyframe_needs(ep)
+            self.assertIn(("sh020", "first"), needs)
+            self.assertNotIn(("sh010", "first"), needs)
+            self.assertNotIn(("sh030", "first"), needs)
+
+    def test_the_series_config_names_the_first_frame_model(self):
+        from seriesmith import targets as TG
+        from seriesmith.core.story import parse_story
+        text = ("= e01  Test\n# sq01  kitchen\n## sh010\nwho: ada\nAda waits.\n"
+                "## sh020\ncontinuous: first\nwho: ada\nAda waits more.\n"
+                "# sq02  street\ntarget: fasth3_omni\n## sh030\nwho: ada\nAda walks.\n"
+                "## sh040\ncontinuous: first\nwho: ada\nAda stops.\n")
+        st = parse_story(text, {"ada"}, {"ada"})
+        cfg = {"series": {"target": "minimax_h3_ref2va"}}
+        by = TG.shot_targets(st, cfg)
+        # each target's own partner
+        self.assertEqual((by["sh020"], by["sh040"]), ("minimax_h3_fl2va", "fasth3_fl2va"))
+        # the series config's, over every partner
+        cfg["series"]["first_target"] = "h3_singularity_fl2va"
+        by = TG.shot_targets(st, cfg)
+        self.assertEqual((by["sh020"], by["sh040"]), ("h3_singularity_fl2va", "h3_singularity_fl2va"))
+        self.assertEqual(by["sh030"], "fasth3_omni")
+        # Ref2VA itself: it opens on the frame, its pictures kept
+        cfg["series"]["first_target"] = "minimax_h3_ref2va"
+        by = TG.shot_targets(st, cfg)
+        self.assertEqual((by["sh020"], by["sh040"]), ("minimax_h3_ref2va", "minimax_h3_ref2va"))
+        for bad in ("fasth3_omni", "nope", 3):
+            cfg["series"]["first_target"] = bad
+            with self.assertRaises(ValueError) as cm:
+                TG.shot_targets(st, cfg)
+            self.assertIn("first_target", str(cm.exception))

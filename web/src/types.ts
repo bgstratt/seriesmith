@@ -1,6 +1,8 @@
 // Shapes from docs/API.md. Seeds are ALWAYS strings: built seeds are 63-bit and a
 // JS number loses precision above 2^53. Never pass a Seed through Number().
 
+import type { ShotColor } from "./lib/color";
+
 export type Pass = "final" | "proxy";
 export const PASSES: Pass[] = ["final", "proxy"];
 
@@ -108,6 +110,17 @@ export interface CutInfo {
   /** flagged to come back to (re-render it, change its prompt); changes nothing
    * played. Absent from older servers. */
   flag?: boolean;
+  /** its colour in the cut (exposure, contrast, black, saturation, warmth, tint; null: as shot),
+   * applied by assemble. Absent from older servers. */
+  color?: ShotColor | null;
+  /** frames from / to black at its head / tail, and of a dissolve from the clip before
+   * (0: none; absent from older servers) */
+  fade_in?: number;
+  fade_out?: number;
+  dissolve?: number;
+  /** what's out of line with the rest of its sequence ("0.8 stop darker", "cooler"),
+   * its colour counted; null: in line, or not measured. Absent from older servers. */
+  look_off?: string[] | null;
   /** The cut take's real frame count (its sidecar's), or null. The shot's
    * `seconds` is the build's (for `dur: model`, an estimate); the timeline and
    * Play all use this when present. Absent from older servers. */
@@ -823,6 +836,24 @@ export interface CutEntry {
   out?: boolean;
   /** flagged to come back to */
   flag?: boolean;
+  /** its colour (seriesmith/color.py): the fields that aren't 0 */
+  color?: ShotColor | null;
+  /** frames from / to black at its head / tail; of a dissolve from the clip before */
+  fade_in?: number;
+  fade_out?: number;
+  dissolve?: number;
+}
+
+/** What a colour match compares (color.MATCH_BY): the whole frame (six sliders), the
+ * skin in it (exposure, warmth, tint, saturation) or its brightness alone (exposure,
+ * contrast, black point); the sliders it doesn't set stay the clip's own. */
+export type MatchBy = "frame" | "skin" | "luma";
+
+/** POST /seriesmith/color/match: the colour bringing clips in line with a base clip. */
+export interface ColorMatch {
+  base: string;
+  colors: Record<string, ShotColor>;
+  skipped: { shot: string; why: string }[];
 }
 
 export interface CutFile {

@@ -240,9 +240,9 @@ class CutTest(unittest.TestCase):
             T.pick(cut, "final", self.ORDER, "sh999", 1)
 
     def test_extra_fields_survive(self):
-        cut = {"final": [{"shot": "sh010", "color": "red"}]}
+        cut = {"final": [{"shot": "sh010", "label": "red"}]}
         cut = T.pick(cut, "final", self.ORDER, "sh010", 2)
-        self.assertEqual(cut["final"][0], {"shot": "sh010", "take": 2, "color": "red"})
+        self.assertEqual(cut["final"][0], {"shot": "sh010", "take": 2, "label": "red"})
 
 
 if __name__ == "__main__":

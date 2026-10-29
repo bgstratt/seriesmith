@@ -4,13 +4,14 @@
 
 import { useEffect, useState } from "react";
 import { currentPlaylist, openSound } from "../actions";
-import { clearClipAudio, setTrims, toggleLock } from "../cutActions";
+import { MATCH_WAYS, clearClipAudio, matchColors, setColor, setJoin, setTrims, toggleLock } from "../cutActions";
 import { api } from "../host";
 import { GAIN_DEFAULT, RECORDING_IGNORES_AUDIO, audioOf, gainOf, offsetOf, startOf } from "../lib/audioSource";
-import { framesLabel, isOutOfOrder, trimLimits } from "../lib/cutEdit";
+import { COLOR_FIELDS, COLOR_RANGES, cleanColor, hasColor, type ColorField, type ShotColor } from "../lib/color";
+import { JOIN_KEYS, JOIN_MAX, framesLabel, isOutOfOrder, trimLimits, type JoinKey } from "../lib/cutEdit";
 import { fmtSeconds, tn } from "../lib/format";
 import { clipTake } from "../lib/playlist";
-import { useApp } from "../store";
+import { store, useApp } from "../store";
 import type { ShotStatus } from "../types";
 import { AudioBadge } from "./ClipAudio";
 import { useStatus } from "./hooks";
@@ -110,10 +111,136 @@ export function CutSection({ shot }: { shot: string }) {
         )}
       </div>
       <ClipAudioLine shot={shot} cut={s.cut} locked={locked} />
+      <ClipJoins shot={shot} cut={s.cut} locked={locked} fps={fps} />
+      <ClipColorLines shot={shot} cut={s.cut} locked={locked} />
       <span className="h3-small h3-muted">
         {it ? `plays ${fmtSeconds(it.dur)}${total != null ? ` of ${fmtSeconds(total / fps)}` : ""}${it.audioIn != null ? ` · dialogue window ${it.audioIn.toFixed(2)}–${(it.audioOut ?? 0).toFixed(2)} s` : ""}` : "not in Play all"}
         {locked ? " · locked: unlock to trim, move or re-pick" : ""}
       </span>
+    </div>
+  );
+}
+
+const JOIN_LABELS: Record<JoinKey, { label: string; help: string }> = {
+  fade_in: { label: "fade in", help: "Frames it fades in from black at its start (0: none)" },
+  fade_out: { label: "fade out", help: "Frames it fades out to black at its end (0: none)" },
+  dissolve: { label: "dissolve in", help: "Frames it dissolves in from the clip before: the two overlap, and the cut is that much shorter (0: a cut). A join with a dissolve has no fades" },
+};
+
+/** The clip's fades and its dissolve from the clip before, in frames: drawn on the
+ * timeline as curves, made by assemble on export. */
+function ClipJoins({ shot, cut, locked, fps }: { shot: string; cut: ShotStatus["cut"]; locked: boolean; fps: number }) {
+  return (
+    <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
+      {JOIN_KEYS.map((k) => (
+        <JoinField key={k} label={JOIN_LABELS[k].label} help={JOIN_LABELS[k].help} value={cut[k] || 0} fps={fps}
+          disabled={locked} onCommit={(n) => void setJoin(shot, k, n)} />
+      ))}
+    </div>
+  );
+}
+
+function JoinField({ label, help, value, fps, disabled, onCommit }: {
+  label: string; help: string; value: number; fps: number; disabled: boolean; onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const n = parseFrames(text);
+  const commit = () => {
+    if (n == null || n > JOIN_MAX) return setText(String(value));
+    if (n !== value) onCommit(n);
+  };
+  return (
+    <label className="h3-row" title={`${help}. ${JOIN_MAX} at most`}>
+      <span className="h3-muted">{label}</span>
+      <input
+        type="text" inputMode="numeric" className={`h3-in h3-mono${n == null || n > JOIN_MAX ? " h3-bad" : ""}`}
+        style={{ width: 40 }} value={text} disabled={disabled}
+        onChange={(e) => setText(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setText(String(value));
+          e.stopPropagation();
+        }}
+      />
+      <span className="h3-muted">f{value ? ` · ${(value / fps).toFixed(2)} s` : ""}</span>
+    </label>
+  );
+}
+
+const COLOR_LABELS: Record<ColorField, { label: string; step: number; help: string; unit?: string }> = {
+  exposure: { label: "exposure", step: 0.05, unit: " st", help: "Brighter or darker, in stops" },
+  contrast: { label: "contrast", step: 0.05, help: "Flatter (-1: half as much) or punchier (1: twice as much), around mid grey" },
+  black: { label: "blacks", step: 0.005, help: "Lift the blacks (milky) or crush them (deeper)" },
+  saturation: { label: "saturation", step: 0.05, help: "Less colour (-1: grey) or more" },
+  warmth: { label: "warmth", step: 0.05, help: "Warmer (more red, less blue) or cooler" },
+  tint: { label: "tint", step: 0.05, help: "Magenta (less green) or green: with warmth, any colour cast" },
+};
+
+/**
+ * The clip's colour in the cut (src/lib/color.ts): six sliders at 0, previewed
+ * in the viewer while dragged, saved when let go, applied by assemble on export.
+ */
+function ClipColorLines({ shot, cut, locked }: { shot: string; cut: ShotStatus["cut"]; locked: boolean }) {
+  const saved = cleanColor(cut.color);
+  const [draft, setDraft] = useState<ShotColor>(saved);
+  const savedKey = JSON.stringify(saved);
+  useEffect(() => setDraft(cleanColor(cut.color)), [savedKey, shot]);
+  // leaving the clip (or the inspector) drops a preview that wasn't saved
+  useEffect(() => () => store.set({ colorPreview: null }), [shot]);
+  const change = (k: ColorField, v: number) => {
+    const next = cleanColor({ ...draft, [k]: v });
+    setDraft(next);
+    store.set({ colorPreview: { shot, color: next } });
+  };
+  const commit = () => {
+    void setColor(shot, draft).finally(() => store.set({ colorPreview: null }));
+  };
+  const any = hasColor(saved);
+  const busy = useApp((s) => s.busy);
+  const matching = !!busy[`colormatch|${shot}`];
+  return (
+    <div className="h3-col h3-small" style={{ gap: 2 }}>
+      <div className="h3-row">
+        <span className="h3-muted">colour</span>
+        <span className="h3-muted h3-grow">
+          {any ? "applied when the cut is exported (assemble); the viewer shows it" : "as shot"}
+          {locked ? " · locked" : ""}
+        </span>
+        {any && <button className="h3-btn" disabled={locked} onClick={() => void setColor(shot, {}, `Reset ${shot}'s colour`)}>Reset</button>}
+      </div>
+      <div className="h3-row">
+        <span className="h3-muted h3-grow" title={`Set the colour of the rest of this clip's sequence so it looks like ${shot} (as it is now, its sliders included): worked out from the pictures, each a starting point to adjust. Locked clips are left alone; Ctrl+Z undoes it`}>
+          <i className="pi pi-clone" /> match the sequence to this by
+        </span>
+        <span className="h3-group">
+          {MATCH_WAYS.map((w) => (
+            <button key={w.by} className="h3-btn" disabled={matching}
+              title={`Match the rest of this clip's sequence to ${shot} by ${w.title}. Locked clips are left alone; Ctrl+Z undoes it`}
+              onClick={() => void matchColors(shot, undefined, w.by)}>
+              {busy[`colormatch|${shot}|${w.by}`] && <i className="pi pi-spin pi-spinner" />} {w.label}
+            </button>
+          ))}
+        </span>
+      </div>
+      {COLOR_FIELDS.map((k) => {
+        const [lo, hi] = COLOR_RANGES[k];
+        const { label, step, help, unit } = COLOR_LABELS[k];
+        const v = draft[k] ?? 0;
+        return (
+          <label key={k} className="h3-row" title={`${help} (${lo} to ${hi}; 0 as shot). Double-click: back to 0`}>
+            <span className="h3-muted" style={{ width: 70 }}>{label}</span>
+            <input
+              type="range" min={lo} max={hi} step={step} className="h3-grow" value={v} disabled={locked}
+              onChange={(e) => change(k, Number(e.target.value))}
+              onPointerUp={commit}
+              onKeyUp={(e) => { if (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") commit(); }}
+              onDoubleClick={() => { change(k, 0); void setColor(shot, { ...draft, [k]: 0 }).finally(() => store.set({ colorPreview: null })); }}
+            />
+            <span className="h3-mono" style={{ width: 52, textAlign: "right" }}>{v > 0 ? "+" : ""}{v.toFixed(step < 0.01 ? 3 : 2)}{unit ?? ""}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }

@@ -78,8 +78,12 @@ def video_row(t) -> str:
             who = "`Image N`, by their order"
         else:
             takes, who = "none", "—"
-        where = "your ComfyUI"
-    return f"| `{t.id}` | {t.short or t.label} | {where} | {takes} | {_frames(caps)} | {who} |"
+        # seriesmith's own hold runs nothing of ComfyUI's: ffmpeg on this machine
+        where = "this machine" if t.spec.get("local_render") else "your ComfyUI"
+    frames = _frames(caps)
+    if r.get("keyframes_when_asked") and frames != "—":
+        frames += ", when the shot asks"                  # an H3 reference model's
+    return f"| `{t.id}` | {t.short or t.label} | {where} | {takes} | {frames} | {who} |"
 
 
 def image_row(t) -> str:

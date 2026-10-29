@@ -3,20 +3,22 @@
 // Each edit is one PUT /seriesmith/cut of the whole pass's list, shown at once
 // (optimistic) and rolled back if the server refuses it.
 
-import { ApiError } from "./api";
+import { ApiError, errText } from "./api";
 import {
   currentPlaylist, openIssue, playAll, refreshEpisode, report, seekCut, select, setCutPlaying, setStatusHook,
 } from "./actions";
 import { api, host } from "./host";
 import { audioOf, audioWhy, normalizeAudio, sameAudio } from "./lib/audioSource";
+import { cleanColor, type ShotColor } from "./lib/color";
 import {
-  applyEntries, clampTrim, clearAudio, clearTrims, entriesOf, fieldsOf, moveTo, nudge, sameEntries, scriptOrder, withFields,
+  JOIN_MAX, applyEntries, clampTrim, clearAudio, clearTrims, entriesOf, fieldsOf, moveTo, nudge, sameEntries, scriptOrder,
+  withFields, type JoinKey,
 } from "./lib/cutEdit";
 import { PeaksCache } from "./lib/peaks";
 import { locate, totalDuration } from "./lib/playlist";
 import { UndoStack, applyEdit, diffEdit, type CutEdit } from "./lib/undo";
 import { statusKey, store, type CutAudio } from "./store";
-import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, Pass } from "./types";
+import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, MatchBy, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -187,6 +189,93 @@ export function nudgeClip(shot: string, delta: -1 | 1): Promise<boolean> {
     return Promise.resolve(false);
   }
   return editCut(`Move ${shot} ${delta < 0 ? "left" : "right"}`, (list) => nudge(list, shot, delta));
+}
+
+/** Set a clip's colour (exposure, contrast, black, saturation, warmth, tint; {} as shot), applied by assemble. */
+export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}`): Promise<boolean> {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  if (isLocked(c.st, shot)) {
+    refuseLocked(shot, "recoloured");
+    return Promise.resolve(false);
+  }
+  return editCut(label, (list) => withFields(list, shot, { color: cleanColor(color) }));
+}
+
+/** How long a fade or a dissolve is when it's switched on from a menu (frames). */
+export const JOIN_DEFAULT = 12;
+
+const JOIN_WORDS: Record<JoinKey, string> = { fade_in: "fade in", fade_out: "fade out", dissolve: "dissolve" };
+
+/** Set a clip's fade in / fade out / dissolve from the clip before (frames; 0 none). */
+export function setJoin(shot: string, key: JoinKey, frames: number): Promise<boolean> {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  if (isLocked(c.st, shot)) {
+    refuseLocked(shot, "given a fade or a dissolve");
+    return Promise.resolve(false);
+  }
+  const n = Math.max(0, Math.min(JOIN_MAX, Math.round(frames)));
+  return editCut(n ? `${JOIN_WORDS[key]} ${shot} ${n}f` : `No ${JOIN_WORDS[key]} on ${shot}`,
+    (list) => withFields(list, shot, { [key]: n }));
+}
+
+/** Measure the cut's takes made before looks were kept, so the timeline's colour
+ * check (the out-of-line badge) covers them. */
+export async function checkColour(): Promise<void> {
+  const c = ctx();
+  if (!c) return;
+  try {
+    const r = await api().colorMeasure(c.ep, c.pass);
+    host().toast("success", "Colour checked",
+      r.measured.length
+        ? `${r.measured.length} take(s) measured (${r.had} were already). A clip out of line with its sequence has the colour badge.`
+        : `Every take in the cut was already measured (${r.had}). A clip out of line with its sequence has the colour badge.`);
+    await refreshEpisode(c.ep, c.pass);
+  } catch (e) {
+    host().toast("error", "Couldn't check the colour", errText(e));
+  }
+}
+
+/** What each way of matching compares, in the editor's words (types.MatchBy). */
+export const MATCH_WAYS: { by: MatchBy; label: string; title: string }[] = [
+  { by: "skin", label: "Skin", title: "the people's skin: exposure, warmth, tint and saturation, so faces sit in the same light whatever else is in the frame (best across different framings; a clip with little skin is skipped). Contrast and the black point stay as they are" },
+  { by: "frame", label: "Frame", title: "the whole picture: all six sliders. Good between shots of the same setup; across different framings it matches what's in them too (a frame of green dresses pulls a close-up green)" },
+  { by: "luma", label: "Luma", title: "the brightness alone: exposure, contrast and the black point. Warmth, tint and saturation stay as they are" },
+];
+
+/** Match the colour of the rest of `base`'s sequence (or `shots`) to `base`, compared
+ * `by` (skin, the whole frame, the brightness): worked out by the server from their
+ * pictures, then set as one cut edit (one undo). */
+export async function matchColors(base: string, shots?: string[], by: MatchBy = "frame"): Promise<boolean> {
+  const c = ctx();
+  if (!c) return false;
+  const key = `colormatch|${base}`;
+  if (store.get().busy[key]) return false;
+  store.set((s) => ({ busy: { ...s.busy, [key]: true, [`${key}|${by}`]: true } }));
+  try {
+    const r = await api().colorMatch(c.ep, c.pass, base, shots, by);
+    const ids = Object.keys(r.colors);
+    const skipped = r.skipped.length ? ` Skipped: ${r.skipped.map((x) => `${x.shot} (${x.why})`).join(", ")}.` : "";
+    if (!ids.length) {
+      host().toast("warn", `Nothing to match to ${base}`, `No clip could be matched.${skipped}`);
+      return false;
+    }
+    const ok = await editCut(`Match ${ids.length} clip(s) to ${base} (${by})`,
+      (list) => ids.reduce((l, id) => withFields(l, id, { color: cleanColor(r.colors[id]) }), list));
+    if (ok) host().toast("success", `${ids.length} clip(s) matched to ${base} by ${by}`, `${ids.join(", ")}: their sliders are set; Ctrl+Z undoes it.${skipped}`);
+    return ok;
+  } catch (e) {
+    host().toast("error", `Couldn't match to ${base}`, errText(e));
+    return false;
+  } finally {
+    store.set((s) => {
+      const busy = { ...s.busy };
+      delete busy[key];
+      delete busy[`${key}|${by}`];
+      return { busy };
+    });
+  }
 }
 
 /** The clip's untrimmed length in the cut's frames (null: unknown), from Play all's list. */

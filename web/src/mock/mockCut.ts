@@ -2,12 +2,14 @@
 // cut_entry_to_json), the PUT /seriesmith/cut checks, and /cut/reset and /cut/copy.
 // Pure; mockApi.ts holds the state.
 
+import { cleanColor, hasColor, type ShotColor } from "../lib/color";
 import { GAIN_MAX, GAIN_MIN, audioOf, audioShot, audioWhy, normalizeAudio } from "../lib/audioSource";
 import { applyOrder, outOfOrder } from "../lib/cutEdit";
 import { trimWindow } from "../lib/playlist";
 import type { CutAudioSource, CutEntry, CutWhat, Pass, ShotStatus } from "../types";
 
-export const ENTRY_FIELDS = ["shot", "take", "pass", "trim_in", "trim_out", "locked", "note", "audio", "out", "flag"];
+export const ENTRY_FIELDS = ["shot", "take", "pass", "trim_in", "trim_out", "locked", "note", "audio", "out", "flag", "color",
+  "fade_in", "fade_out", "dissolve"];
 /** Phase 9d: the keys a cut entry's `audio` may carry. */
 export const AUDIO_FIELDS = ["source", "shot", "take", "pass", "path", "start", "offset", "gain"];
 
@@ -27,6 +29,11 @@ export interface Resolved {
   audio: CutAudioSource | null;
   out: boolean;
   flag: boolean;
+  /** its colour (the fields that aren't 0; null: as shot) */
+  color: ShotColor | null;
+  fade_in: number;
+  fade_out: number;
+  dissolve: number;
 }
 
 /** takes.resolve_cut: listed entries keep their order, unlisted script shots
@@ -44,6 +51,8 @@ export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Reso
       shot: sid, pass: src, take: raw.take ?? null, trim_in: Math.floor(raw.trim_in || 0), trim_out: Math.floor(raw.trim_out || 0),
       locked: !!raw.locked, note: raw.note || "", in_cut_file: true, orphan: !inScript.has(sid), placeholder: src !== pass,
       audio: normalizeAudio(audioOf(raw), sid), out: !!raw.out, flag: !!raw.flag,
+      color: hasColor(raw.color) ? cleanColor(raw.color) : null,
+      fade_in: Math.floor(raw.fade_in || 0), fade_out: Math.floor(raw.fade_out || 0), dissolve: Math.floor(raw.dissolve || 0),
     });
   }
   script.forEach((sid, i) => {
@@ -58,7 +67,7 @@ export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Reso
     }
     out.splice(pos, 0, {
       shot: sid, pass, take: null, trim_in: 0, trim_out: 0, locked: false, note: "", in_cut_file: false, orphan: false,
-      placeholder: false, audio: null, out: false, flag: false,
+      placeholder: false, audio: null, out: false, flag: false, color: null, fade_in: 0, fade_out: 0, dissolve: 0,
     });
     seen.add(sid);
   });
@@ -77,6 +86,10 @@ export function toJson(e: Resolved, listPass: Pass): CutEntry {
   if (e.audio) out.audio = e.audio;
   if (e.out) out.out = true;
   if (e.flag) out.flag = true;
+  if (e.color) out.color = e.color;
+  if (e.fade_in) out.fade_in = e.fade_in;
+  if (e.fade_out) out.fade_out = e.fade_out;
+  if (e.dissolve) out.dissolve = e.dissolve;
   return out;
 }
 
@@ -257,7 +270,7 @@ export function applyCut(
     s.cut = {
       ...s.cut, take: e.take ?? chosen?.take ?? null, picked: e.take != null, pass: e.pass, placeholder: e.placeholder, usable,
       trim_in: e.trim_in, trim_out: e.trim_out, locked: e.locked, note: e.note, in_cut_file: e.in_cut_file,
-      out: e.out, flag: e.flag,
+      out: e.out, flag: e.flag, color: e.color, fade_in: e.fade_in, fade_out: e.fade_out, dissolve: e.dissolve,
       frames: usable ? chosen!.frames ?? null : null,
       order: i, script_index: sIdx.has(e.shot) ? sIdx.get(e.shot)! : null, out_of_order: ooo[i],
       // Phase 9d: as stored, plus what will play and the badge's words

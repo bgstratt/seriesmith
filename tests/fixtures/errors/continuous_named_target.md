@@ -5,7 +5,7 @@ who: ada
 dur: 3.04
 Ada waits.
 ## sh020
-target: minimax_h3_ref2va
+target: fasth3_omni
 continuous: first
 who: ada
 dur: 3.04

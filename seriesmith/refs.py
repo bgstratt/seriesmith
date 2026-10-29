@@ -409,16 +409,20 @@ def keyframe_needs(ep: str) -> dict[tuple[str, str], dict]:
                 continue
             tid = J.effective_target(ov, sh.id, built[sh.id], root=ep)
             try:
-                caps = TG.load_target(tid, "video").capabilities()
+                vt = TG.load_target(tid, "video")
+                caps = vt.capabilities()
+                # a reference model reads a first frame only when the shot asks
+                when_asked = bool(vt.recipe.get("keyframes_when_asked"))
             except Exception:
                 caps = {"keyframes": [], "requires_first": False}
+                when_asked = False
             for end in KEYFRAME_ENDS:
                 script = sh.keyframe(end, sq)
                 reads = end in (caps.get("keyframes") or [])
                 required = end == "first" and bool(caps.get("requires_first"))
                 if script == "none" and not required:
                     continue
-                if not (reads or script):
+                if not (reads or script) or (when_asked and not script):
                     continue
                 if script in KEYFRAME_METHODS and script != "none":
                     method = script

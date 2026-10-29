@@ -1,4 +1,4 @@
 exit 1
 
-  error in continuous_named_target.md: shot sh020: `continuous: first` on minimax_h3_ref2va, which the shot names, but minimax_h3_ref2va can't render it: name one that can (flux_3_video, kling_v3_omni, kling_video_o1, ltx2, minimax_h3, minimax_h3_fl2va, runway_gen4_turbo, seedance_2_0, seedance_2_5, veo_3_1_fast, wan22_i2v, wan22_ti2v, wan22_vace, wan_3_0), or drop the shot's `target:`
+  error in continuous_named_target.md: shot sh020: `continuous: first` on fasth3_omni, which the shot names, but fasth3_omni can't render it: name one that can (fasth3_fl2va, flux_3_video, h3_singularity, h3_singularity_fl2va, hold, kling_v3_omni, kling_video_o1, ltx2, minimax_h3, minimax_h3_fl2va, minimax_h3_ref2va, runway_gen4_turbo, seedance_2_0, seedance_2_5, veo_3_1_fast, wan22_i2v, wan22_ti2v, wan22_vace, wan_3_0), or drop the shot's `target:`
 

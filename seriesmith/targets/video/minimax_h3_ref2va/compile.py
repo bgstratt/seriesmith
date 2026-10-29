@@ -30,6 +30,7 @@ from seriesmith.core.ir import stable_seed
 from seriesmith.core.series_config import members, variant_of
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
 
+from . import first_frame as FF
 from .prompt import build_multishot_prompt, build_prompt
 
 ID = "minimax_h3_ref2va"
@@ -760,7 +761,11 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
 
 def compile_episode(target, story: ir.Episode, series_cfg: dict,
                     pass_: str, only: set[str] | None = None) -> tuple[dict, dict]:
-    return compile_legacy(target, legacy_episode(story), series_cfg, pass_, only)
+    doc, report = compile_legacy(target, legacy_episode(story), series_cfg, pass_, only)
+    # a target that reads a first frame when a shot asks (first_frame.py)
+    if target.recipe.get("keyframes_when_asked"):
+        FF.with_keyframes(target, story, doc)
+    return doc, report
 
 
 def _find(story: ir.Episode, shot_id: str) -> tuple[ir.Sequence, int]:
@@ -788,7 +793,10 @@ def compile_shot(target, shot_ir: ir.Shot, series_cfg: dict, preset, ctx=None) -
     seq = legacy_sequence(sq)
     seq["shots"] = legacy_shots(sq)
     seq_loc = c.register_sequence(seq)
-    return _compile_shot(c, seq, i, seq["shots"][i], seq_loc)
+    entry = _compile_shot(c, seq, i, seq["shots"][i], seq_loc)
+    if target.recipe.get("keyframes_when_asked"):
+        FF.keyframe_entry(target, shot_ir, sq, entry)
+    return entry
 
 
 def compile_without(target, story: ir.Episode, series_cfg: dict, pass_: str,
@@ -866,4 +874,9 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     elif policy in ("dub", "dub_keep_foley"):
         out.append({"slot": voice_slots[0], "kind": "audio", "path": shot.get("audio_file")
                     or doc.get("defaults", {}).get("master_track", "")})
-    return out
+    return out + FF.keyframe_slots(shot)
+
+
+def patch_graph(target, g: dict, job, inputs: dict) -> None:
+    """A first frame, when the shot has one (first_frame.patch_first)."""
+    FF.patch_first(g, inputs)

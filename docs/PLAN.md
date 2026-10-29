@@ -1308,6 +1308,148 @@ LTX makes only what's around it. `targets/held_audio.py` does it for every LTX s
 - [ ] Its draft mode (a fast preview, then `draft_enhance` from the returned `draft_cache`)
       as the proxy pass: not Seedance's draft (a task id), so not wired yet.
 
+## The cut, finished in place: holds, colour, continuity, two transitions (planned; 2026-10-29)
+
+Ideas from reading two other projects (gobo, OpenKatana; decided 2026-10-29): written our
+own way, in seriesmith's own code, nothing copied or depended on. Not a grading suite or an editor:
+real colour work and real editing go to Premiere / Resolve with the cut's clips. What's
+here is what a cut needs before that, and what a cut that never leaves seriesmith needs.
+
+- [x] **A held picture is a shot on a model of seriesmith's own** (decided 2026-10-29, after
+      two tries that bolted it on beside the shot: an imported take, then routes to make
+      and re-length one): `target: hold` (targets/video/hold/target.json, the generic
+      `video_prose` compile). Its first keyframe (required) held still for its `dur:`, at
+      the pass's size and the cut's rate, letterboxed (seriesmith/hold.py). Generate plans
+      it as any shot (`plan_job`: blocked without its picture; `sidecar_for`'s hashes, so
+      it goes stale when `dur:` or the picture changes) and then, instead of a backend, runs
+      it on the local lane (`runner.enqueue_hold`, from `edit.queue_shots` and
+      `seriesmith render`); always ready, never paid (`backends: ["local"]`). Sound: silent,
+      or a dub's track laid under it (`hold.dub_audio`). Upscale: pixel or SeedVR2 (no
+      latent). The editor: a picture dropped between two clips writes a hold shot
+      (`takeDrop.heldShot`), uploads the picture as its first keyframe and generates it; a
+      held clip's edge sets its `dur:` (`withDur`) and generates it again; a take's **Hold
+      this frame after it…** writes one after it (`insertedShot`'s `held`) with that frame
+      as its first keyframe. Tests: `tests/test_hold.py`, `web/test/takeDrop.test.ts`,
+      `web/test/shotPicks.test.ts`. Not yet live.
+      - [ ] Later, maybe: a held shot's upscale as the picture held again at the bigger size
+        (sharper than any upscale of the held frames), and `first:` paths imported when it's
+        generated rather than by Generate missing.
+- Not doing: an animatic (decided 2026-10-29). Holding pictures on the timeline was the
+  point; a pass or an export of keyframes isn't wanted.
+- [x] **A clip's colour** (2026-10-29): exposure (stops), contrast, black point, saturation,
+      warmth, tint, six sliders at 0 in the inspector's cut section (tint and contrast added
+      the same day: warmth alone is one axis of a cast, and models differ most in contrast). Kept on the cut entry (`"color"`, only
+      the non-zero ones; `takes.CutEntry.color`), so nothing re-renders and the take is
+      untouched. One linear map of the picture's RGB (seriesmith/color.py, mirrored in
+      web/src/lib/color.ts and held to the same numbers by tests/fixtures/color_cases.json):
+      assemble applies it as the clip is re-encoded (colorchannelmixer + lutrgb in
+      full-range RGB; `--no-color`), so Export, Titles, 2x and Master all get it; the viewer
+      and the timeline preview the same matrix as an SVG feColorMatrix while the sliders are
+      dragged (`colorPreview`), saved when let go. Undo, locks, the MCP's `edit_cut`. Not
+      copied between passes (each pass's cut has its own, as flags). Tests:
+      tests/test_color.py, test_assemble's colour case, test_api's `test_cut_colour`,
+      web/test/color.test.ts. Not yet live.
+- [x] **Match to this shot** (2026-10-29): `POST /seriesmith/color/match` (`edit.match_colors`,
+      `color.match`): the colour bringing the rest of a clip's sequence (or the shots named)
+      in line with it, worked out, not written; the editor sets them as one cut edit. A
+      closed-form fit of luma percentiles and midtone means was tried first and failed
+      wherever a correction clips (bright, saturated pictures: the percentiles bunch at 0
+      and 1); so helpers/colorstats.py (numpy, a subprocess) searches the six sliders
+      (Nelder-Mead) through color.matrix with the clipping, comparing each channel's
+      percentiles and the midtones' chroma, with a slight pull towards 0 (exposure,
+      contrast and blacks overlap). Measured on a gradient picture with a known colour
+      applied: warmth, tint, saturation and exposure come back within a few hundredths;
+      exposure / contrast / blacks may come back as another mix giving the same look. The
+      inspector's **Match the sequence to this**, the clip menu's item, the MCP's
+      `match_color`. Tests: tests/test_hold.py's ColorMatchTest (held takes), web/test/color.test.ts.
+      Tried live 2026-10-29 on Ballroom ms04 (base a Seedance clip, the rest LTX-2 and H3):
+      fine where the content was alike (sh070), wrong on a pale close-up before a bright
+      window (sh030: -1.2 stops, warmth 1, a magenta cast), because the whole frame's
+      percentiles and mean see the content (the base's green and blue dresses) as much as the
+      light. So three ways, a button each (`by`, color.MATCH_BY): **skin** (the pixels that
+      look like lit skin, found once on each picture: median brightness, cast, saturation;
+      exposure / warmth / tint / saturation, not contrast, whose spread is the shot's
+      lighting and moved the exposure a stop), **frame** (the old one), **luma** (brightness
+      alone; the clip's own warmth / tint / saturation kept). Tried first and dropped: the
+      whole frame less clipped pixels, the cast from the near-grey ones (sh030 worse: -1
+      stop, saturation +1). Skin on ms04: sh070 and sh110 close to the base, sh030 gentle but
+      a little green (that actress's skin is pinker than the base's cast's). Tests:
+      tests/test_color.py's MatchByTest.
+- [x] **A clip out of line: a badge, not a report** (decided 2026-10-29: a small mark on the
+      clip, not another export). A take's look (color.look: 128 pixels from five frames, hex
+      in its sidecar) is measured as it's made (runner, hold, takeimport; `color/measure` and
+      the Cut menu's **Check colour** for older takes). The episode status compares each
+      clip of a sequence (three at least), through its own colour with the clipping, with the
+      sequence's middle: brightness, contrast, warmth, tint, saturation (color.OFF's limits);
+      `cut.look_off` says what's off, the timeline's badge (three colour circles in a ring)
+      shows it. Not the continuity rules of a cut to the next shot (light may change across
+      a cut): the odd one out of its sequence. Built on the way: colorchannelmixer takes
+      -2..2, so filters() scales the matrix into it and lutrgb back (16-bit; +2 stops failed
+      to export before); Match compares the mean colour too, and starts from it. Tests:
+      tests/test_hold.py's LookTest. Not yet live.
+- [x] **Fades and dissolves** (2026-10-29): on the cut entry, in frames, `fade_in` /
+      `fade_out` (from / to black at the clip's own head / tail) and `dissolve` (overlapping
+      the clip before; the cut that much shorter). Decided the same day: a fade in and a fade
+      out are each their own (a scene fades out, the next comes in on a cut), not one "fade"
+      transition across a join; only a dissolve spans one, and a join with one has no fades.
+      Assemble (`lay_transitions`, `dissolve`): every clip re-encoded when any is set; a
+      dissolve is three pieces (the clip before less its last n frames, n frames of xfade /
+      acrossfade, this clip less its first n), a fade is fade / afade on the clip's own frames;
+      what doesn't fit is left out and said; `--no-transitions`. The editor: the timeline
+      draws them as thin curves over the clips, their length (`JoinCurves`; a dissolve an X
+      across the join, each clip giving half, as the playlist lays it: `withDissolves`); Play
+      all dims a fade (`fadeLevel`) and cuts a dissolve at its middle; the clip menu toggles
+      each at 12 frames, the inspector sets the frames. Tests: test_assemble's three,
+      test_api's `test_cut_fades_and_dissolves`, web/test/joins.test.ts. Not yet live.
+- [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
+      frozen runs, flashes), reported, never changing it.
+
+## H3 Singularity, and continuous shots that keep their model (2026-10-29)
+
+- [x] **`h3_singularity`**: AIGC-Singularity's community fine-tune of H3 Ref2VA
+      (huggingface.co/WarmBloodAban/Minimax-h3_Singularity, Apache-2.0 over H3's licence):
+      Ref2VA's node, prompt, compile, encoders, VAEs and turbo LoRAs with its v2 pruned INT8
+      (21 GB; the v2 bf16 is 66.3 GB and the full INT8 34 GB, past the 5090's 32 GB beside the
+      text encoder). Its header is stock H3's (932 tensors, the same shapes and INT8 packing,
+      a `model.diffusion_model.` prefix ComfyUI strips); it ships Ref2VA weights only. The
+      stock Ref2VA's model pattern now excludes `*singularity*`. Rendered live 2026-10-29
+      (last-light sh020, proxy): 33 s, on model.
+- [x] **Continuous shots keep their model** (decided 2026-10-29): `fasth3_fl2va` and
+      `h3_singularity_fl2va`, FL2VA's graph with FastH3 Omni's / Singularity's weights (H3
+      Ref2VA and FL2VA have the same tensors), the `continuous.first` partners of
+      `fasth3_omni` and `h3_singularity`. Tried live (last-light sh030 from a keyframe, proxy,
+      one seed): both opened on the keyframe and gave the shot the script asked for (stock
+      FL2VA held the frame more smoothly but missed the close-up). FastH3's runs as FastH3
+      does (no LoRA, 8 steps; res_multistep), without its workflow's shifts (12 / 3) or sparse
+      attention, which FL2VA's graph doesn't set. Fixed on the way: a render re-read the
+      script's target (a `#` header's) and undid the build's move of a `continuous: first`
+      shot to its partner; `jobs.script_targets` now reads the build's routing (this hit
+      Ref2VA -> FL2VA too). Tests: tests/test_continuous.py's PartnerTest.
+- [x] **`series.first_target`** (decided 2026-10-29): the series config names the first-frame
+      model as it names the video, picture and keyframe ones (Series settings › Models ›
+      First frames). A `continuous: first` shot whose model reads no first frame (H3 Ref2VA,
+      FastH3 Omni, Singularity) goes there over its model's own partner; a model that reads
+      one (LTX-2, Wan, the hosted ones) keeps its shots either way. `targets.first_target`,
+      validated (a video target reading a first keyframe). Tests: PartnerTest's.
+- [x] **Singularity opens on a first frame itself** (2026-10-29): ComfyUI's `MiniMaxH3AddGuide`
+      anchors a picture at frame 0 of the reference node's render (as FL2VA anchors a dub), so
+      a shot that asks for one (`continuous: first`, a `first:` line) stays on Singularity with
+      its pictures, which FL2VA can't read (minimax_h3_ref2va/first_frame.py; recipe
+      `keyframes_when_asked`: the Refs tab lists a first keyframe only for a shot that asks).
+      Live (last-light sh030 from sh020's last frame, proxy): frame 0 the keyframe, then the
+      close-up the script asks for, Mara's sheet and the plate sent. FastH3 Omni tried the same
+      way ignored the anchor (frame 0 not the keyframe: its 8 distilled steps), so it keeps
+      `fasth3_fl2va`. `h3_singularity_fl2va` stays as a model to name or set as `first_target`.
+- [x] **Stock H3 Ref2VA can open on a first frame too** (2026-10-29), by the same anchor (the
+      step moved into Ref2VA's compile, for any target whose recipe says
+      `keyframes_when_asked`). Live (last-light sh030 from sh020's last frame, proxy, the same
+      seed): frame 0 the keyframe, then the close-up the script asks for, Mara's sheet and the
+      plate sent; stock FL2VA held the frame more smoothly but stayed wide. Opt-in, so no
+      existing series changes: its `continuous: first` shots still go to FL2VA unless the series
+      config's `first_target` names `minimax_h3_ref2va` (or the shot names it, which used to be
+      an error). The golden error case now names fasth3_omni, which still can't.
+- [ ] More seeds at final size before trusting the anchor or the FL2VA partners.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

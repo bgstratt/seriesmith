@@ -1588,6 +1588,31 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!(src.status === "ok" && src.has_video)) throw new MockError(`${req.from_shot} t${req.take} isn't a finished take`, 400);
       return mockImportTake(req.pass, req.shot, null, !!req.pick, { shot: req.from_shot, take: req.take, pass: from, src });
     },
+    async colorMeasure(ep, pass) {
+      await wait(200);
+      need(ep);
+      return { measured: [], had: status[pass]?.shots.length ?? 0 };
+    },
+    async colorMatch(ep, pass, base, shots, by) {
+      await wait(300);
+      need(ep);
+      const st = status[pass];
+      const sq = st?.shots.find((s) => s.shot === base)?.sequence;
+      const ids = shots ?? (st?.shots ?? []).filter((s) => s.shot !== base && s.sequence === sq && !s.orphan && !s.cut?.out).map((s) => s.shot);
+      const colors: Record<string, Record<string, number>> = {};
+      const skipped: { shot: string; why: string }[] = [];
+      ids.forEach((id, i) => {
+        const s = st?.shots.find((x) => x.shot === id);
+        if (!s || s.cut?.locked) skipped.push({ shot: id, why: s ? "it's locked" : "it isn't in the cut" });
+        else {
+          const exposure = Math.round(((i % 3) - 1) * 150) / 1000;
+          // luma sets the brightness alone: the clip's own colour stays
+          colors[id] = by === "luma" ? { ...(s.cut?.color ?? {}), exposure }
+            : { exposure, warmth: Math.round(((i % 2) - 0.5) * 200) / 1000 };
+        }
+      });
+      return { base, colors, skipped };
+    },
     // ---- P10: a pass's issues (the notepad) ----
     async issues(ep, pass) {
       await wait();

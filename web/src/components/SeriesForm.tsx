@@ -318,7 +318,7 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
   lookParts?: LookParts | null;
   onLookParts?: (p: LookParts) => void;
 }) {
-  const kind = f.kind === "video_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
+  const kind = f.kind === "video_target" || f.kind === "first_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
   let input;
   if (f.kind === "long") {
     input = <textarea className="h3-in" rows={3} style={{ fontFamily: "inherit", resize: "vertical" }} value={value}
@@ -335,12 +335,14 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
       </select>
     );
   } else if (kind) {
-    const mine = (targets ?? []).filter((t) => t.kind === kind && !t.draft);
-    const dflt = defaults?.[kind as TargetKind];
+    // first frames: only the video models that read one
+    const mine = (targets ?? []).filter((t) => t.kind === kind && !t.draft
+      && (f.kind !== "first_target" || (t.capabilities?.keyframes ?? []).includes("first")));
+    const dflt = f.kind === "first_target" ? undefined : defaults?.[kind as TargetKind];
     input = (
       <div className="h3-row" style={{ gap: 4 }}>
         <select className="h3-in h3-grow" value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{dflt ? `default (${mine.find((t) => t.id === dflt)?.label ?? dflt})` : "default"}</option>
+          <option value="">{f.kind === "first_target" ? "each model's own" : dflt ? `default (${mine.find((t) => t.id === dflt)?.label ?? dflt})` : "default"}</option>
           <ModelOptions targets={mine} text={(t) => `${t.label}${readinessNote(t)}`} />
           {value && !mine.some((t) => t.id === value) && <option value={value}>{value} (not known here)</option>}
         </select>

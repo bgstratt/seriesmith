@@ -10,6 +10,8 @@
 //    `effective.prompt` read-only.
 
 import type {
+  ColorMatch,
+  MatchBy,
   AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
@@ -248,6 +250,11 @@ export interface Api {
   uploadTake(req: TakeUploadRequest, onProgress?: UploadProgress): Promise<ImportedShotTake>;
   /** POST /seriesmith/take/copy: another shot's take copied in (the gallery's drag). */
   copyTake(req: TakeCopyRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/color/match: the colour bringing clips in line with `base`
+   * (default: the rest of its sequence), worked out, not written. */
+  colorMatch(ep: string, pass: Pass, base: string, shots?: string[], by?: MatchBy): Promise<ColorMatch>;
+  /** POST /seriesmith/color/measure: the look of each of the cut's takes that has none yet. */
+  colorMeasure(ep: string, pass: Pass): Promise<{ measured: string[]; had: number }>;
   // ---- P10: a pass's issues (the notepad) ----
   /** GET /seriesmith/issues: what was noted for a pass, each with `addressed`. */
   issues(ep: string, pass?: Pass | null): Promise<Issue[]>;
@@ -721,6 +728,8 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/take/import", form, onProgress);
     },
     copyTake: (req) => call("POST", "/seriesmith/take/copy", req),
+    colorMeasure: (ep, pass) => call("POST", "/seriesmith/color/measure", { ep, pass }),
+    colorMatch: (ep, pass, base, shots, by) => call("POST", "/seriesmith/color/match", { ep, pass, base, ...(shots ? { shots } : {}), ...(by ? { by } : {}) }),
     issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
     addIssue: (req) => call("POST", "/seriesmith/issues", req),

@@ -7,6 +7,7 @@
 // takes.cut_entry_to_json would (a take only when picked, a pass only for a
 // placeholder, zero trims and empty notes left out), so nothing else moves.
 
+import { cleanColor, hasColor, sameColor, type ShotColor } from "./color";
 import type { CutAudioSource, CutEntry, EpisodeStatus, Pass, ShotStatus } from "../types";
 import { audioOf, normalizeAudio, resolveAudioFile, sameAudio, audioWhy } from "./audioSource";
 
@@ -27,6 +28,11 @@ export function entryOf(s: ShotStatus, listPass: Pass): CutEntry {
   if (au) e.audio = au;
   if (c?.out) e.out = true;
   if (c?.flag) e.flag = true;
+  if (hasColor(c?.color)) e.color = cleanColor(c?.color);
+  for (const k of JOIN_KEYS) {
+    const n = frameInt(c?.[k]);
+    if (n) e[k] = n;
+  }
   return e;
 }
 
@@ -227,12 +233,25 @@ export interface CutFields {
   out: boolean;
   /** flagged to come back to (changes nothing played) */
   flag: boolean;
+  /** its colour (the fields that aren't 0; {} as shot) */
+  color: ShotColor;
+  /** frames from / to black at its head / tail, and of a dissolve from the clip before */
+  fade_in: number;
+  fade_out: number;
+  dissolve: number;
 }
+
+/** A clip's fades and dissolve, in frames (takes.JOIN_FIELDS; at most JOIN_MAX). */
+export const JOIN_KEYS = ["fade_in", "fade_out", "dissolve"] as const;
+export type JoinKey = (typeof JOIN_KEYS)[number];
+export const JOIN_MAX = 240;
 
 export function fieldsOf(e: CutEntry | undefined): CutFields {
   return {
     trim_in: frameInt(e?.trim_in), trim_out: frameInt(e?.trim_out), locked: !!e?.locked,
     audio: normalizeAudio(audioOf(e), e?.shot), out: !!e?.out, flag: !!e?.flag,
+    color: cleanColor(e?.color),
+    fade_in: frameInt(e?.fade_in), fade_out: frameInt(e?.fade_out), dissolve: frameInt(e?.dissolve),
   };
 }
 
@@ -249,6 +268,10 @@ export function withFields(entries: CutEntry[], shot: string, patch: Partial<Cut
     delete out.audio;
     delete out.out;
     delete out.flag;
+    delete out.color;
+    delete out.fade_in;
+    delete out.fade_out;
+    delete out.dissolve;
     if (f.trim_in > 0) out.trim_in = Math.floor(f.trim_in);
     if (f.trim_out > 0) out.trim_out = Math.floor(f.trim_out);
     if (f.locked) out.locked = true;
@@ -257,6 +280,8 @@ export function withFields(entries: CutEntry[], shot: string, patch: Partial<Cut
     if (au) out.audio = au;
     if (f.out) out.out = true;
     if (f.flag) out.flag = true;
+    if (hasColor(f.color)) out.color = cleanColor(f.color);
+    for (const k of JOIN_KEYS) if (f[k] > 0) out[k] = Math.min(JOIN_MAX, Math.floor(f[k]));
     return out;
   });
 }
@@ -294,6 +319,12 @@ export function applyEntries(st: EpisodeStatus, entries: CutEntry[]): EpisodeSta
         ? fieldsOf(e)
         : { trim_in: s.cut.trim_in, trim_out: s.cut.trim_out, locked: s.cut.locked, audio: audioOf(s.cut), out: !!s.cut.out, flag: !!s.cut.flag };
       const cut = { ...s.cut, trim_in: f.trim_in, trim_out: f.trim_out, locked: f.locked, out: f.out, flag: f.flag, in_cut_file: e ? true : s.cut.in_cut_file };
+      if (e) {
+        // its colour, fades and dissolve follow at once too (the preview, the curves)
+        const g = fieldsOf(e);
+        cut.color = hasColor(g.color) ? g.color : null;
+        for (const k of JOIN_KEYS) cut[k] = g[k];
+      }
       // Phase 9d: the badge and the inspector follow at once; the server sends
       // its own `audio_file` / `audio_why` with the next status
       if (!sameAudio(audioOf(s.cut), f.audio)) {
@@ -319,7 +350,8 @@ export function sameEntries(a: CutEntry[], b: CutEntry[]): boolean {
     const fy = fieldsOf(y);
     if (fx.trim_in !== fy.trim_in || fx.trim_out !== fy.trim_out || fx.locked !== fy.locked || (x.note ?? "") !== (y.note ?? "")) return false;
     if (!sameAudio(fx.audio, fy.audio)) return false;
-    if (fx.out !== fy.out || fx.flag !== fy.flag) return false;
+    if (fx.out !== fy.out || fx.flag !== fy.flag || !sameColor(fx.color, fy.color)) return false;
+    if (JOIN_KEYS.some((k) => fx[k] !== fy[k])) return false;
   }
   return true;
 }

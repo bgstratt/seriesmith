@@ -1038,3 +1038,26 @@
   border-radius: 6px; padding: 8px; line-height: 1.45;
 }
 @media (max-width: 760px) { .h3-gal-view { flex-direction: column; } .h3-gal-info { flex: 0 0 auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--h3-border); } }
+
+/* a clip whose colour is out of line with its sequence (LookBadge) */
+.h3-look-off {
+  display: inline-flex;
+  align-items: center;
+  color: #ffb347;
+  flex: none;
+  cursor: help;
+}
+
+/* a clip's fades and dissolves (JoinCurves): thin curves over its picture */
+.h3-join-curves {
+  position: absolute; left: 0; top: 0; z-index: 2; overflow: visible; pointer-events: none;
+}
+.h3-join-curves path {
+  fill: none; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: stroke;
+}
+
+/* Play all: a clip's fade, as black over it (fadeLevel) */
+.h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }
+/* the clip's bottom bar lets the pointer through to the clip; these say something on hover */
+.h3-clip-bottom .h3-look-off, .h3-clip-bottom .pi-palette { pointer-events: auto; }

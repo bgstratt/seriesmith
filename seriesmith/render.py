@@ -48,6 +48,7 @@ import os
 import sys
 import time
 
+from seriesmith import hold as HO
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import targets as TG
@@ -217,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
         ov = T.load_overrides(root)
         for j in jobs:
             t = J.job_target(j)
+            if HO.is_hold(t):
+                continue                                  # held here: no backend, no model
             if j.runs:
                 try:
                     name, _src, note = J.backend_choice(ov, j.id, t, args.backend, root)
@@ -320,21 +323,25 @@ def main(argv: list[str] | None = None) -> int:
             for j in (j for j in jobs if j.runs):
                 t0 = shown["t0"] = time.time()
                 label = f"{ep}/{j.id}"
-                backend = backends[where[id(j)]]
                 target = J.job_target(j)
                 try:
-                    base = None if hosted(target) else base_for(j.target)[0]
-                    take, qid = runner.enqueue_render(
-                        j, base, backend.name, probe=comfy if backend.shares_disk else None,
-                        continuity=j.continuity, save_frames=args.save_frames,
-                        review_copy=False, panel_mode=args.panel_mode)
+                    if HO.is_hold(target):
+                        take, qid = runner.enqueue_hold(j, continuity=j.continuity)
+                    else:
+                        backend = backends[where[id(j)]]
+                        base = None if hosted(target) else base_for(j.target)[0]
+                        take, qid = runner.enqueue_render(
+                            j, base, backend.name, probe=comfy if backend.shares_disk else None,
+                            continuity=j.continuity, save_frames=args.save_frames,
+                            review_copy=False, panel_mode=args.panel_mode)
                 except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
                     failed += 1
                     failures.append(label)
                     print(f"  !! {label}: {e}", flush=True)
                     continue
                 label = f"{ep}/{j.id} t{take.take:02d}"
-                print(f"  .. {label}  ({j.frames}f, {j.target} on {backend.name}, "
+                runs_on = "this machine" if HO.is_hold(target) else backend.name
+                print(f"  .. {label}  ({j.frames}f, {j.target} on {runs_on}, "
                       f"{j.shot.get('audio_policy', '')}, seed {j.seed} {j.seed_source})",
                       flush=True)
                 current = qid
@@ -378,6 +385,8 @@ def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> i
         for j in (j for j in jobs if j.runs):
             take = T.Take(j.id, j.take, pass_, T.take_paths(root, pass_, j.id, j.take))
             target = J.job_target(j)
+            if HO.is_hold(target):
+                continue                  # held here: nothing is sent, so nothing to show
             if hosted(target):
                 try:
                     model, call = target.module.router_call(target, j)

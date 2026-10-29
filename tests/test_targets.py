@@ -47,7 +47,7 @@ def kitchen_sink():
 class LoadingTest(unittest.TestCase):
     def test_list_and_load(self):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
-        self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "ltx2"), ("video", "ltx2_ingredients"), ("video", "ltx2_msr"),
+        self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "hold"), ("video", "h3_singularity"), ("video", "h3_singularity_fl2va"), ("video", "fasth3_fl2va"), ("video", "ltx2"), ("video", "ltx2_ingredients"), ("video", "ltx2_msr"),
                                ("video", "minimax_h3_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
@@ -62,7 +62,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "fibo2_dev"), ("image", "fibo2_edit_turbo"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
-                         ["fasth3_omni", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "seedance_2_5",
+                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
         with self.assertRaises(TG.TargetError) as cm:
@@ -128,12 +128,13 @@ class TemplateTest(unittest.TestCase):
 
     def test_continuous_modes(self):
         """docs/CONTINUOUS.md: `first` where a target reads a first keyframe;
-        H3 Ref2VA declares `latent` and FL2VA as its partner for `first`; the
-        H3 targets' `multishot` form (docs/MULTISHOT.md) adds `multishot`."""
+        H3 Ref2VA declares `latent`, reads a first frame when a shot asks, and
+        still names FL2VA its partner for `first`; the H3 targets' `multishot`
+        form (docs/MULTISHOT.md) adds `multishot`."""
         self.assertEqual(TG.continuous_modes(TG.load_target("minimax_h3_fl2va")),
                          {"first", "multishot"})
         r2v = TG.load_target(H3)
-        self.assertEqual(TG.continuous_modes(r2v), {"latent", "multishot"})
+        self.assertEqual(TG.continuous_modes(r2v), {"first", "latent", "multishot"})
         self.assertEqual(r2v.spec["continuous"]["first"], "minimax_h3_fl2va")
         self.assertIn("first", TG.continuous_modes(TG.load_target("ltx2")))
 
@@ -195,7 +196,7 @@ class ProfileTest(unittest.TestCase):
         self.assertIn("not a video target (known: ", str(cm.exception))
         known = str(cm.exception).split("(known: ")[1].split(")")[0].split(", ")
         self.assertEqual(sorted(set(known) - ROUTER),
-                         ["fasth3_omni", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va",
+                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va",
                           "minimax_h3_ref2va", "seedance_2_5", "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         # sh320 names the series target itself, which beats its profile's; sh330
         # takes the profile's
@@ -423,7 +424,7 @@ class TargetsRouteTest(ApiTest):
     def test_targets(self):
         data = self.ok(A.get_targets(self.ctx, {}))
         by = {t["id"]: t for t in data["targets"]}
-        self.assertEqual(set(by) - ROUTER, {H3, "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "krea2",
+        self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "flux3_klein", "flux3_klein_turbo",

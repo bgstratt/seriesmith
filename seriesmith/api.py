@@ -2446,6 +2446,21 @@ def _cut_entry(raw) -> dict:
             raise ApiError(400, f"{raw['shot']}: flag must be true or false")
         if raw["flag"]:
             e["flag"] = True
+    if raw.get("color") is not None:
+        from seriesmith import color as COL
+        try:
+            color = COL.check(raw["color"])
+        except ValueError as ex:
+            raise ApiError(400, f"{raw['shot']}: {ex}")
+        if color:
+            e["color"] = color
+    for k in T.JOIN_FIELDS:
+        try:
+            n = T.check_join_frames(k, raw.get(k))
+        except ValueError as ex:
+            raise ApiError(400, f"{raw['shot']}: {ex}")
+        if n:
+            e[k] = n
     if raw.get("audio") is not None:
         # the shape and what it points at are checked together, in
         # edit.check_audio (E.replace_cut), so the CLI checks them too
@@ -2454,6 +2469,47 @@ def _cut_entry(raw) -> dict:
     if unknown:
         raise ApiError(400, f"{raw['shot']}: unknown cut field(s) {', '.join(sorted(unknown))}")
     return e
+
+
+@handler
+def post_color_measure(ctx: Context, body):
+    """The look (color.look) of each take the pass's cut uses that has none
+    yet (edit.measure_looks): what the timeline's out-of-line badge compares.
+    `{ep, pass?}` -> {"measured": [shots], "had": n}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    got = E.measure_looks(ep, pass_)
+    if got["measured"]:
+        episode_event(ctx, ep)
+    return 200, got
+
+
+@handler
+def post_color_match(ctx: Context, body):
+    """The colour that brings clips in line with a base clip (edit.match_colors):
+    `{ep, pass?, base, shots?, by?}` (shots: default the rest of the base's
+    sequence; by: frame, skin or luma, default frame). Worked out, not written: {"base", "colors": {shot: colour},
+    "skipped": [{"shot", "why"}]}; the editor sets them with PUT /seriesmith/cut."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    base = check_shot(body.get("base"))
+    shots = body.get("shots")
+    if shots is not None:
+        if not isinstance(shots, list):
+            raise ApiError(400, "shots must be a list of shot ids")
+        shots = [check_shot(s) for s in shots]
+    from seriesmith import color as COL
+    by = body.get("by") or "frame"
+    if by not in COL.MATCH_BY:
+        raise ApiError(400, f"by must be one of {', '.join(COL.MATCH_BY)}")
+    try:
+        return 200, E.match_colors(ep, pass_, base, shots, by)
+    except E.CutError as e:
+        raise ApiError(400, str(e))
+    except ValueError as e:
+        raise ApiError(500, f"matching failed: {e}")
 
 
 @handler
@@ -4869,6 +4925,8 @@ ROUTES = [
     ("GET", "/seriesmith/mcp", get_mcp, "query"),
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
+    ("POST", "/seriesmith/color/match", post_color_match, "body"),
+    ("POST", "/seriesmith/color/measure", post_color_measure, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

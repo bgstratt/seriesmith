@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import type { ToastAction } from "./host";
 import type { ExportProblem, ExportRun } from "./lib/exportCheck";
+import type { ShotColor } from "./lib/color";
 import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
@@ -407,6 +408,8 @@ export interface AppState {
   /** GET /seriesmith/presets (null until loaded; a server without it: empty lists) */
   presets: PresetList | null;
   zoom: number;
+  /** a clip's colour while its sliders are dragged, before it's saved: what the preview shows */
+  colorPreview: { shot: string; color: ShotColor } | null;
   build: { busy: boolean; result: BuildResult | null; error: string | null };
   /** `publish`: the running one is a Publish (assemble, then the titles) */
   assemble: { busy: boolean; output: string | null; report: string | null; error: string | null; publish?: boolean };
@@ -575,6 +578,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     modelFiles: {},
     presets: null,
     zoom: clampZoom(prefs.zoom ?? ZOOM_DEFAULT),
+    colorPreview: null,
     build: { busy: false, result: null, error: null },
     assemble: { busy: false, output: null, report: null, error: null },
     exportCheck: null,

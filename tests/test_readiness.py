@@ -676,7 +676,7 @@ class DownloadsDataTest(unittest.TestCase):
     def test_every_named_file_has_a_download_entry(self):
         for t in TG.list_targets():
             named = t.named_files()
-            if t.spec.get("router"):                  # a hosted model names no files
+            if t.spec.get("router") or t.spec.get("local_render"):   # hosted, or held here: no files
                 self.assertEqual((named, t.downloads), ({}, {}), t.id)
                 continue
             self.assertTrue(named, t.id)
@@ -727,7 +727,7 @@ class DownloadsDataTest(unittest.TestCase):
                     self.assertNotIn("base", p.extra)
         self.assertEqual({t.id for t in TG.list_targets()
                           if any(m["tier"] == "accelerator" for m in t.models.values())},
-                         {"minimax_h3_ref2va", "minimax_h3_fl2va", "minimax_h3_still",
+                         {"minimax_h3_ref2va", "h3_singularity", "h3_singularity_fl2va", "minimax_h3_fl2va", "minimax_h3_still",
                           "wan22_i2v", "wan22_vace", "ltx2", "ltx2_ingredients", "flux2_klein",
                           "flux2_klein_edit", "ltx2_voice"})
         self.assertEqual({p for p, m in TG.load_target("ltx2").models.items()

@@ -6,8 +6,9 @@ import {
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
   generateDubTracks, openSound, setSound,
 } from "../actions";
-import { pickTakeFile } from "../takeActions";
-import { clearClipAudio, nudgeClip, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { holdFrameAfter, pickTakeFile } from "../takeActions";
+import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
@@ -131,6 +132,15 @@ export function ContextMenu() {
           <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
         </button>
       )}
+      {take && (
+        <button disabled={!usable}
+          title={usable ? `A new shot right after ${menu.shot}: ${frameLabel} of ${tn(take.take)} held still (a freeze frame), as long as you say`
+            : "Only a finished take with video has frames"}
+          onClick={run(() => void holdFrameAfter(menu.shot, take.take, menu.frame ?? "last", menu.pass))}>
+          <i className="pi pi-pause" /> Hold this frame after it…
+          <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
+        </button>
+      )}
       {take && menu.frame == null && (
         // the menu from a thumbnail or the timeline has no frame to take: say where it is
         <button disabled title="Play or scrub the take in the viewer to the frame you want, then right-click the picture itself">
@@ -208,6 +218,28 @@ export function ContextMenu() {
       >
         <i className={cutShot?.cut.out ? "pi pi-plus-circle" : "pi pi-minus-circle"} /> {cutShot?.cut.out ? "Put back in the cut" : "Leave out of the cut"}
       </button>
+      {MATCH_WAYS.map((w) => (
+        <button
+          key={w.by}
+          disabled={!cutShot || !!cutShot.orphan}
+          title={`Set the colour of the rest of ${menu.shot}'s sequence so it looks like ${menu.shot}, by ${w.title}: a starting point for each clip's sliders (the inspector). Locked clips are left alone; Ctrl+Z undoes it`}
+          onClick={run(() => void matchColors(menu.shot, undefined, w.by))}
+        >
+          <i className="pi pi-clone" /> Match the sequence to this: {w.label.toLowerCase()}
+        </button>
+      ))}
+      {JOIN_KEYS.map((k) => {
+        const on = (cutShot?.cut[k] || 0) > 0;
+        const words = { fade_in: "Fade in from black", fade_out: "Fade out to black", dissolve: "Dissolve from the clip before" }[k];
+        return (
+          <button key={k} disabled={!cutShot || !!cutShot.orphan || locked}
+            title={on ? `Take it off (${cutShot!.cut[k]} frames now; the inspector sets the length)`
+              : `${words}, ${JOIN_DEFAULT} frames (the inspector's In the cut sets the length); drawn on the timeline as a curve, made on export`}
+            onClick={run(() => void setJoin(menu.shot, k, on ? 0 : JOIN_DEFAULT))}>
+            <i className={on ? "pi pi-check" : "pi pi-minus"} style={{ opacity: on ? 1 : 0.35 }} /> {words}
+          </button>
+        );
+      })}
       {trimmed && (
         <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>
           <i className="pi pi-arrows-h" /> Clear trims

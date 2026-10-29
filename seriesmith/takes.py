@@ -65,6 +65,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from seriesmith import color as COL
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
 
@@ -922,6 +923,21 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # SH`; `--unflag SH`). A locked entry can be flagged. Each pass's cut has its
 # own; resetting or copying the cut keeps a pass's flags as they are.
 #
+# An entry may carry `color` (seriesmith/color.py): the clip's exposure,
+# contrast, black point, saturation, warmth and tint, the ones that aren't 0. Assemble applies it;
+# the take is untouched. A value out of range (a hand-edited file) is ignored.
+#
+#   {"shot": "sh040", "color": {"exposure": 0.3, "warmth": -0.2}}
+#
+# An entry may carry fades and a dissolve, in frames: `fade_in` from black at
+# its head, `fade_out` to black at its tail (each its own: a scene can fade out
+# and the next come in on a cut), and `dissolve`, how it comes in from the clip
+# before it: the two overlap for that many frames (the cut is that much
+# shorter). A join with a dissolve has no fades. Assemble makes them
+# (check_join_frames says what's allowed; assemble whether they fit).
+#
+#   {"shot": "sh050", "dissolve": 12}, {"shot": "sh090", "fade_out": 24}
+#
 # `start` is seconds into the source, `offset` seconds the sound is shifted
 # against the picture (positive = later), `gain` a linear multiplier. The
 # audio is cut or padded with silence to the clip's length, so a clip's
@@ -930,7 +946,20 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 
 CUT_FILE = "cut.json"
 ENTRY_FIELDS = ("shot", "take", "pass", "trim_in", "trim_out", "locked", "note", "audio", "out",
-                "flag")
+                "flag", "color", "fade_in", "fade_out", "dissolve")
+
+JOIN_FIELDS = ("fade_in", "fade_out", "dissolve")
+JOIN_MAX = 240                                    # frames: 10 s at 24 fps
+
+
+def check_join_frames(key: str, raw) -> int:
+    """A cut entry's fade_in / fade_out / dissolve: frames, 0 (or None) for
+    none. ValueError says what's wrong."""
+    if raw is None:
+        return 0
+    if isinstance(raw, bool) or not isinstance(raw, int) or not 0 <= raw <= JOIN_MAX:
+        raise ValueError(f"{key} is a whole number of frames, 0 to {JOIN_MAX}, not {raw!r}")
+    return raw
 
 AUDIO_SOURCES = ("take", "file", "none")
 AUDIO_FIELDS = ("source", "shot", "take", "pass", "path", "start", "offset", "gain")
@@ -1070,6 +1099,10 @@ class CutEntry:
     audio: dict | None = None       # where the clip's sound comes from (audio_spec)
     out: bool = False               # left out of the cut (still in the script)
     flag: bool = False              # bookmarked: come back to it (changes nothing played)
+    color: dict | None = None       # exposure, contrast, black, ... (seriesmith.color)
+    fade_in: int = 0                # frames from black at its head
+    fade_out: int = 0               # frames to black at its tail
+    dissolve: int = 0               # frames it overlaps the clip before (a dissolve)
     in_cut_file: bool = True        # False: not listed, placed by script order
     orphan: bool = False            # listed, but no longer in the script
     placeholder: bool = False       # take comes from the other pass
@@ -1097,11 +1130,22 @@ def resolve_cut(data: dict, pass_: str, script_order: list[str]) -> list[CutEntr
             audio = audio_spec(raw.get("audio"), pass_)
         except ValueError:
             audio = None                        # a hand-edited file: ignored, not kept
+        try:
+            color = COL.check(raw.get("color")) or None
+        except ValueError:
+            color = None                        # the same
+        joins = {}
+        for k in JOIN_FIELDS:
+            try:
+                joins[k] = check_join_frames(k, raw.get(k))
+            except ValueError:
+                joins[k] = 0                    # the same
         entries.append(CutEntry(
             shot=sid, pass_=src, take=raw.get("take"),
             trim_in=int(raw.get("trim_in") or 0), trim_out=int(raw.get("trim_out") or 0),
             locked=bool(raw.get("locked")), note=raw.get("note") or "", audio=audio,
-            out=bool(raw.get("out")), flag=bool(raw.get("flag")),
+            out=bool(raw.get("out")), flag=bool(raw.get("flag")), color=color,
+            **joins,
             orphan=sid not in in_script, placeholder=src != pass_,
             extra={k: v for k, v in raw.items() if k not in ENTRY_FIELDS}))
     for i, sid in enumerate(script_order):
@@ -1138,6 +1182,11 @@ def cut_entry_to_json(e: CutEntry, list_pass: str) -> dict:
         out["out"] = True
     if e.flag:
         out["flag"] = True
+    if e.color:
+        out["color"] = dict(e.color)
+    for k in JOIN_FIELDS:
+        if getattr(e, k):
+            out[k] = getattr(e, k)
     out.update(e.extra)
     return out
 

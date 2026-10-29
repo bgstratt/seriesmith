@@ -1523,6 +1523,16 @@ def script_targets(root: str) -> dict[str, str | None] | None:
             for s in sq.shots:
                 shot = {"id": s.id, "profile": s.profile, "target": s.target}
                 out[s.id] = TG.layered(TG.render_layers(cfg, seq, shot, profiles), "target")
+        # a continuous shot the build moved to its target's partner (`continuous:
+        # first` on Ref2VA, FastH3 Omni or Singularity goes to their FL2VA): the
+        # script's target, as the build reads it
+        try:
+            routed = TG.shot_targets(story, cfg)
+        except ValueError:
+            routed = {}
+        for sid, st in out.items():
+            if st and routed.get(sid) and routed[sid] != st:
+                out[sid] = routed[sid]
     except Exception:
         out = None
     _SCRIPT_TARGETS.clear()                      # one episode's worth is enough

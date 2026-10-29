@@ -518,6 +518,64 @@ exported. A locked clip can still be flagged. Each pass's cut keeps its own flag
 seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show lists them
 ```
 
+### A clip's colour
+
+The inspector's **In the cut** section has six sliders for the clip: **exposure** (stops),
+**contrast**, **blacks** (lift or crush), **saturation**, **warmth** (amber or blue) and
+**tint** (magenta or green), each at 0 as shot. Warmth and tint together correct any colour
+cast. Drag one and the
+viewer shows it at once (the shot's takes, and Play all); let go and it's saved in the cut.
+Double-click a slider to put it back to 0; **Reset** clears them all. It's not a grade: one
+simple adjustment to bring a clip in line with its neighbours. Real colour work goes to
+Resolve or Premiere with the cut's clips.
+
+**Match the sequence to this by** (above the sliders, or **Match the sequence to this** in a
+clip's menu) sets the sliders of every other clip in its sequence so they look like this one,
+as it is now (its own sliders included). seriesmith looks at a few frames of each clip and
+finds the settings that bring it closest to this clip. There are three ways to compare:
+
+- **Skin**: the people's skin. Exposure, warmth, tint and saturation are set so the faces
+  sit in the same light, whatever else is in the frame; contrast and the black point stay as
+  they are. Usually the best across different framings (a wide shot and a close-up, or two
+  models). A clip with too little skin in it is skipped. Two actors with different skin
+  tones pull each other's colour a little.
+- **Frame**: the whole picture, all six sliders. Good between shots of the same setup. Across
+  different framings it matches what's in them as well as the light: a frame full of green
+  dresses pulls a pale close-up green.
+- **Luma**: the brightness alone. Exposure, contrast and the black point are set; warmth,
+  tint and saturation stay as they are. Handy after Skin, or when only the exposure is off.
+
+It takes a few seconds. The result is a starting point: check each clip and adjust its
+sliders. Locked clips are left alone, and Ctrl+Z undoes the whole match.
+
+### Fades and dissolves
+
+A clip can **fade in** from black at its start and **fade out** to black at its end, each on
+its own: a scene can fade out and the next come in on a cut. It can also **dissolve in** from
+the clip before it: the two overlap, and the cut is that much shorter. Set them in a clip's
+menu (**Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: 12
+frames, or off) or as frames in the inspector's **In the cut** section.
+
+The timeline draws them as thin curves over the clips, as long as they last: a fade in rises
+from the clip's bottom-left corner, a fade out falls to its bottom-right, and a dissolve is
+an X across the join (each clip gives half its length to it, so the timeline is as long as
+the export). Hover a curve for its length. Play all shows the fades; a dissolve plays as a
+cut at its middle, so the timing stays the export's. Exporting makes them for real. A join
+with a dissolve has no fades, and one that doesn't fit the clips is left out (the export
+says which).
+
+**A clip whose colour is out of line** with the rest of its sequence (brighter or darker,
+flatter or punchier, warmer, cooler, a green or magenta cast, more or less colourful) has a
+small badge on the timeline: three colour circles in a ring. Hover it to see what's off.
+Its colour counts, so fixing it with its sliders, or with **Match the sequence to this** on
+a clip that looks right, clears the badge. A sequence needs three clips with takes
+to have a "rest" to compare with. Every take is measured as it's made; for takes made
+before this, the Cut menu's **Check colour** measures them once.
+
+The take isn't changed: the colour is applied when the cut is exported (Export, Titles, 2x and
+Master all assemble it). A clip with a colour has a palette icon on the timeline. It's part of
+the pass's cut, so Ctrl+Z undoes it, a locked clip keeps it, and each pass has its own.
+
 ### A profile for one take
 
 New take… has **Profile…** beside the output's size when the series config has
@@ -1101,9 +1159,19 @@ The cut as an editable track, along the bottom of the page.
   two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
   jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
   as an upload in Refs is. A shot whose model reads no
-  keyframe keeps it unused, and says so. Dropped between two clips, a picture opens the shot
-  form there, as a video does: **Save** makes the shot with the picture as its first
-  keyframe, and **Save and generate** renders it from that keyframe.
+  keyframe keeps it unused, and says so.
+- **Drop a picture between two clips** and it's held right there, a clip of its own: a card
+  ("Two hours later"), a title, a still. A shot goes into the script for it on the **Hold**
+  model (`target: hold`: no one in it, its action naming the picture, 3 s), the picture is
+  its first keyframe, and it's generated: held still, on this machine, in a moment.
+  **Drag either edge** of a held clip to make it as long as you want, frame by frame: its
+  `dur:` changes and it's held again at that length. It's a shot like any other: edit it
+  in the shot form, pick another model to render it instead, export, upscale and master
+  it. (See AUTHORING.md, "A picture held still".)
+- **A freeze frame**: a take's menu (in the viewer, right-click the picture at the frame you
+  want; elsewhere, its last frame) has **Hold this frame after it…**. It asks how long, adds a
+  shot on the Hold model right after it (its who, with and size; no dialogue, so no line is
+  said twice), that frame its first keyframe, and generates it.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).

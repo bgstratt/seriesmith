@@ -529,7 +529,7 @@ Uses `takes.pick`. A take that isn't usable answers 409 unless `"force": true`.
 
 ### `PUT /seriesmith/cut`
 Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?,
-"locked"?, "note"?, "audio"?, "out"?, "flag"?}, …]}`. Replaces that pass's list, for reordering and trims.
+"locked"?, "note"?, "audio"?, "out"?, "flag"?, "color"?, "fade_in"?, "fade_out"?, "dissolve"?}, …]}`. Replaces that pass's list, for reordering and trims.
 Unknown shots are allowed; they become orphans. Returns `{"cut": …}`.
 `"out": true` leaves the shot out of the cut: it stays in the script with its takes, its
 place and its pick, and the status's `cut.out` says so; assemble, Play all, the cut's
@@ -540,6 +540,62 @@ shot) skip it, and the timeline shows it as a stub. A shot named outright (an up
 `"flag": true` is a bookmark, "come back to this one" (re-render it, change its prompt): it
 changes nothing played or assembled, a locked entry takes one, and reset and copying keep each
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
+`"color": {"exposure"?, "contrast"?, "black"?, "saturation"?, "warmth"?, "tint"?}` is the
+clip's colour (seriesmith/color.py): exposure in stops (-2..2), contrast (-1..1: a gain of
+2^contrast around mid grey), the black point (-0.25..0.25: positive lifts, negative
+crushes), saturation (-1..1: -1 grey), warmth (-1..1: amber / blue) and tint (-1..1:
+magenta / green). Each is 0 when
+left out; only the non-zero ones are kept (rounded to 3 places), all zeros is none, out of
+range is 400. One linear map of the picture's RGB, applied by assemble when the clip is
+re-encoded (Export, Titles, 2x; `--no-color` skips it); the take is untouched. The status's
+`cut.color` is it (null: as shot); the editor previews the same matrix. A locked entry
+refuses a change of it, as of its trims. Reset and copying leave it as it is.
+
+`"fade_in"` / `"fade_out"`: frames the clip fades from / to black at its head / tail, each
+its own (0 or absent: none). `"dissolve"`: frames it dissolves in from the clip before (the
+two overlap: the cut is that much shorter; 0: a cut). Whole numbers 0..240 (400 otherwise).
+Assemble makes them (xfade and acrossfade for a dissolve, fade and afade for a fade); a
+join with a dissolve has no fades, and one that doesn't fit (a clip must keep a frame of
+its own, its fades inside it; a dissolve into the first clip) is left out and said.
+`--no-transitions` leaves them all out. The status's `cut.fade_in` / `fade_out` /
+`dissolve` are them. A locked entry refuses a change, as of its trims.
+
+### A clip out of line: `cut.look_off`, `POST /seriesmith/color/measure`
+A take's look is measured when it's made (a render, a hold, an import or copy; also when a
+render is found again after a restart): 128 of its pixels from five frames spread across it,
+kept in its sidecar as `look` (`{"px": hex rrggbb..., "size"}`; color.look, stdlib, ~0.1 s).
+`GET /seriesmith/episode` compares, for each sequence with at least three measured clips in
+the cut (not left out, not orphans), each clip's pixels as its `color` leaves them (the
+matrix and its clipping, as the export) with the sequence's middle: brightness (more than
+half a stop), contrast (the luma's 5th-95th spread), warmth and tint (the mean colour), and
+saturation. A clip too far off has `cut.look_off`, what's off in words (`["0.8 stop
+darker", "cooler"]`); otherwise null. The timeline's colour badge. A take whose mp4 changed
+since (its size) isn't counted. `POST /seriesmith/color/measure` `{ep, pass?}` measures the
+cut's takes that have no look yet (made before looks were kept): `{"measured": [shots],
+"had": n}`; the Cut menu's **Check colour**.
+
+### `POST /seriesmith/color/match`
+`{ep, pass?, base, shots?, by?}`: the colour that brings clips in line with clip `base`, worked
+out, not written: `{"base", "colors": {shot: colour}, "skipped": [{"shot", "why"}]}`.
+`shots` defaults to the rest of the base's sequence in the cut (not orphans, not left out).
+A clip is skipped when it's locked, left out, the base itself, or has no finished take. Each
+clip is looked at over what the cut uses of its take (its trims: five frames spread over
+it), at 160x90; the base as the cut colours it (its own `color` applied), a clip's own
+colour replaced. The fields are searched (Nelder-Mead, helpers/colorstats.py, numpy, run
+as a subprocess) through the same matrix assemble applies, clipping included, for the look
+nearest the base's. `by` (default `frame`, `color.MATCH_BY`) is what's compared:
+- `frame`: the whole picture, all six fields: each channel's 5th to 95th percentiles, its
+  mean, and the midtones' distance from grey. Matches the content as well as the light.
+- `skin`: the pixels that look like lit skin (found once in each, on the picture as it came):
+  their median brightness, cast and saturation; sets exposure, warmth, tint and saturation.
+  A clip (or a base) with under 2% skin is skipped, "too little skin".
+- `luma`: luma's 5th to 95th percentiles; sets exposure, contrast and black.
+
+The fields `by` doesn't set are the clip's own colour in the cut. 400 for an unknown `by`.
+A starting point, not a grade: exposure, contrast and the black point can make nearly
+the same picture between them, and the search prefers the least change. The editor sets the
+colours with `PUT /seriesmith/cut` as one edit. 400 for a base not in the cut or without a
+take.
 
 ### `PUT /seriesmith/override`
 Body:

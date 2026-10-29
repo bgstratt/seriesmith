@@ -1281,6 +1281,22 @@ def video_target(series_cfg: dict | None = None) -> Target:
     return load_target(tid, "video")
 
 
+def first_target(series_cfg: dict | None = None) -> str | None:
+    """The series config's `series.first_target`: the video target a
+    `continuous: first` shot renders on when its own target reads no first
+    keyframe (H3 Ref2VA, FastH3 Omni, H3 Singularity), over that target's own
+    partner (target.json `continuous.first`). None when unset. ValueError for
+    one that isn't a video target reading a first keyframe."""
+    tid = ((series_cfg or {}).get("series") or {}).get("first_target")
+    if tid in (None, ""):
+        return None
+    can = [t.id for t in list_targets("video") if "first" in continuous_modes(t)]
+    if not isinstance(tid, str) or tid not in can:
+        raise ValueError(f"series.json series.first_target: {tid!r} is not a video target that "
+                         f"reads a first keyframe (known: {', '.join(can)})")
+    return tid
+
+
 DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs target
 
 
@@ -1504,12 +1520,14 @@ def shot_targets(story, series_cfg: dict) -> dict[str, str]:
     A continuous shot (`continuous:`, docs/CONTINUOUS.md) needs a target that
     renders its mode. `first` on one that reads no first keyframe (H3 Ref2VA)
     renders on that target's partner for it (its target.json `continuous.first`:
-    H3 FL2VA) -- unless the shot names its own target, which is then an error, as
-    is a mode neither renders. `latent` renders on a target whose
+    H3 FL2VA), or the series config's `series.first_target` when it names one --
+    unless the shot names its own target, which is then an error, as is a mode
+    neither renders. `latent` renders on a target whose
     `continuous.modes` lists it (H3 Ref2VA)."""
     profiles = series_profiles(series_cfg)
     default = video_target(series_cfg)
     known = [x.id for x in list_targets("video")]
+    first = first_target(series_cfg)
     out = {}
     for sq in story.sequences:
         seq = {"id": sq.id, "profile": sq.profile, "target": sq.target}
@@ -1535,7 +1553,7 @@ def shot_targets(story, series_cfg: dict) -> dict[str, str]:
             head = None
             if mode:
                 tid = continuous_target(s.id, mode, load_target(tid, "video"), bool(s.target),
-                                        known)
+                                        known, first)
             out[s.id] = tid
     return out
 
@@ -1639,13 +1657,28 @@ def multishot_check(story, series_cfg: dict) -> list[str]:
 
 
 def continuous_target(shot_id: str, mode: str, t: "Target", named: bool,
-                      known: list[str]) -> str:
-    """The target a shot continuing by `mode` renders on (shot_targets)."""
-    if mode in continuous_modes(t):
-        return t.id
+                      known: list[str], first: str | None = None) -> str:
+    """The target a shot continuing by `mode` renders on (shot_targets).
+    `first`: the series config's `series.first_target`, which a `first` shot
+    goes to over the target's own partner. A target that reads the mode
+    renders it itself, unless it names a partner for it (H3 Ref2VA, which can
+    open on a first frame, still sends a `continuous: first` shot to FL2VA
+    unless `first_target` says otherwise)."""
     partner = (t.spec.get("continuous") or {}).get(mode)
+    partner = partner if isinstance(partner, str) else None    # `latent` holds settings
+    reads = mode in continuous_modes(t)
+    if mode == "first" and first and (partner or not reads):
+        # the series config's first-frame model, over the partner (it may be t itself:
+        # H3 Ref2VA opening on the frame, its pictures kept)
+        partner = first
+    if named and reads:
+        return t.id                      # the shot asked for this target, and it can
+    if partner == t.id or (reads and not partner):
+        return t.id
     if partner and partner in known and not named:
         return partner
+    if reads:
+        return t.id
     # what a shot can name: a draft (not switched on yet) isn't offered
     can = [x.id for x in list_targets("video") if mode in continuous_modes(x) and not x.draft]
     if named:

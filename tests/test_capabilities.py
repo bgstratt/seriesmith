@@ -29,6 +29,10 @@ class BackendsTest(unittest.TestCase):
             if t.spec.get("router"):
                 continue                        # a hosted model: RouterTargetTest
             with self.subTest(target=t.id):
+                if t.spec.get("local_render"):
+                    # hold: ffmpeg on this machine, no workflow to run anywhere else
+                    self.assertEqual(t.capabilities()["backends"], ["local"])
+                    continue
                 self.assertEqual(t.capabilities()["backends"], ["local", "cloud", "deployment"])
 
     def test_a_target_can_name_its_own(self):
@@ -67,7 +71,8 @@ class VideoCapabilitiesTest(unittest.TestCase):
     def test_h3_takes_three_subjects_and_three_voices_and_chains_latents(self):
         c = self.caps("minimax_h3_ref2va")
         self.assertEqual((c["max_subjects"], c["max_voices"]), (3, 3))
-        self.assertEqual(c["continuous"], ["latent", "multishot"])
+        # `first` too: it opens on a first frame when a shot asks (keyframes_when_asked)
+        self.assertEqual(c["continuous"], ["first", "latent", "multishot"])
         self.assertTrue(c["latents"])
 
     def test_a_reference_sheet_has_no_fixed_subject_limit(self):

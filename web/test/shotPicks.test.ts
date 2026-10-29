@@ -1,5 +1,5 @@
 // Through the mock API: several shots selected and queued together, a picture
-// dropped on a shot as its first keyframe, and an image refused between clips.
+// dropped on a shot as its first keyframe or between clips (held), a text file refused.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickShot, generateDubTracks, loadRefs, refreshEpisode, renderSelected, select, setSound } from "../src/actions";
 import { VOICE_TARGET, VOICE_TARGETS } from "../src/lib/readiness";
@@ -60,14 +60,24 @@ describe("several shots, and a picture as a keyframe", () => {
     expect(spy.mock.calls[0][0]).toMatchObject({ ref: keyframeRefId(shot, "first"), view: null, pick: true });
   });
 
-  it("a picture dropped between clips opens the shot form there, for a new shot with it as its first keyframe", async () => {
+  it("a picture dropped between clips is held there: a new shot on the hold model, the picture its first keyframe", async () => {
     expect(isPicture({ name: "a.PNG" })).toBe(true);
     expect(isPicture({ name: "a.webp" })).toBe(true);
     expect(isPicture({ name: "a.mp4" })).toBe(false);
-    const [a] = shots();
+    const put = vi.spyOn(api, "putSource");
+    const upload = vi.spyOn(api, "refsUpload");
+    const render = vi.spyOn(api, "render");
     const pic = new File([], "frame.jpg");
     await dropFileBetween(1, pic);
-    expect(store.get().shotForm).toMatchObject({ shot: null, after: a, file: pic, dur: null, left: a });
+    expect(store.get().shotForm).toBeNull();
+    const text = put.mock.calls[0][0].text;
+    expect(text).toContain("A held picture: frame.jpg.");
+    expect(text).toContain("target: hold");
+    const head = text.slice(0, text.indexOf("A held picture"));
+    const id = head.slice(head.lastIndexOf("## ") + 3).split("\n")[0];
+    expect(upload.mock.calls[0]?.[0]).toMatchObject({ ref: keyframeRefId(id, "first"), view: null });
+    await vi.waitFor(() => expect(render).toHaveBeenCalled());
+    expect(render.mock.calls[0][0]).toMatchObject({ shots: [id], redo: true });
     await dropFileBetween(1, new File([], "notes.txt"));
     expect(toasts.at(-1)?.[1]).toBe("Not a video or a picture");
   });

@@ -78,6 +78,8 @@ import re
 import subprocess
 import sys
 
+from seriesmith import color as COL
+from seriesmith import hold as HO
 from seriesmith import jobs as J
 from seriesmith import peaks as PK
 from seriesmith import takefiles as TF
@@ -533,6 +535,7 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     actions = script_actions(root)
     resolved = T.resolve_cut(cut, pass_, list(shots))
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
+    looks: dict = {}                    # sequence -> {shot: (look, its colour in the cut)}
     name, kept = TF.store(root, pass_)
     for order, e in enumerate(resolved):
         doc, shot = shots.get(e.shot, (doc0, None))
@@ -541,6 +544,11 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
         takes = (listed[e.shot] if e.shot in listed
                  else TF.list_takes(root, pass_, e.shot, folder, kept, name)) if shot else []
         chosen, chosen_take, chosen_ok = cut_take(root, e, takes)
+        # its recorded look (color.look), for the colour check below
+        if chosen_ok and chosen is not None and shot and not e.out and not e.orphan:
+            lk = COL.look_of(chosen.sidecar, chosen.paths.mp4)
+            if lk is not None:
+                looks.setdefault(shot.get("sequence"), {})[e.shot] = (lk, e.color)
         o = T.shot_override(ov, e.shot, pass_, target)
         # what the next render reads: the retargeted entry when retargeted
         cur = J.current_entry(root, pass_, doc, shot, target, cache) if shot else None
@@ -594,6 +602,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out": e.out,
                     # bookmarked to come back to (re-render, a new prompt)
                     "flag": e.flag,
+                    # its colour (seriesmith.color), applied by assemble; null: as shot
+                    "color": e.color,
+                    # frames from / to black, and of a dissolve from the clip before
+                    "fade_in": e.fade_in, "fade_out": e.fade_out, "dissolve": e.dissolve,
                     # the cut take's real length (its sidecar's saved frame
                     # count; a `dur: model` take's is the model's), or None
                     "frames": take_frames(chosen) if chosen_ok else None,
@@ -654,6 +666,13 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "post": post_summary(root, t),
             } for t in takes],
         })
+    # a clip out of line with the rest of its sequence (exposure, contrast, a cast,
+    # saturation; its colour in the cut counted): the timeline's badge
+    off = {}
+    for clips in looks.values():
+        off.update(COL.out_of_line(clips))
+    for s in out:
+        s["cut"]["look_off"] = off.get(s["shot"])
     d = doc0.get("defaults", {})
     track = episode_track(root)
     if track is not None:
@@ -1434,16 +1453,103 @@ def reorder_cut(root: str, pass_: str, shots: list[str]) -> dict:
     return write_cut(root, pass_, _entries_json(head + rest, pass_))
 
 
+def measure_looks(root: str, pass_: str) -> dict:
+    """Record the look (color.record_look) of every take the pass's cut uses
+    that has none yet: a take made before looks were recorded. {"measured":
+    [shots], "had": n}. A take made now records its own when it finishes."""
+    measured, had = [], 0
+    for e in cut_entries(root, pass_):
+        if e.orphan or e.out:
+            continue
+        t, _, ok = cut_take(root, e)
+        if not ok or t is None:
+            continue
+        if COL.look_of(t.sidecar, t.paths.mp4) is not None:
+            had += 1
+        elif COL.record_look(t) is not None:
+            measured.append(e.shot)
+    return {"measured": measured, "had": had}
+
+
+def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = None,
+                 by: str = "frame") -> dict:
+    """The colour that brings each of `shots` in line with clip `base` in the
+    pass's cut (seriesmith.color.match: the base as the cut colours it, each
+    other clip's own colour replaced), worked out, not written: the editor
+    sets them as one cut edit, so one undo takes them back. `shots` None: the
+    rest of the base's sequence in the cut. `by`: what's compared
+    (color.MATCH_BY: the whole frame, its skin, its brightness). Each clip is
+    looked at over what the cut uses of its take (its trims). {"base", "colors": {shot: colour},
+    "skipped": [{"shot", "why"}]}. CutError for a base that can't be matched to."""
+    entries = cut_entries(root, pass_)
+    entry = {e.shot: e for e in entries}
+    seq = {d["shots"][i]["id"]: d["shots"][i].get("sequence")
+           for d, i in J.episode_shots(root, pass_)}
+    if base not in entry:
+        raise CutError(f"{base} isn't in the {pass_} cut")
+
+    def clip(e: T.CutEntry) -> dict:
+        t, _, ok = cut_take(root, e)
+        if not ok or t is None or not os.path.isfile(t.paths.mp4):
+            raise CutError("it has no finished take in the cut")
+        n = take_frames(t) or 0
+        last = (n - 1 - e.trim_out) if n else e.trim_in
+        return {"path": t.paths.mp4, "frames": COL.sample_frames(e.trim_in, last),
+                **({"color": e.color} if e.color else {})}
+
+    b = entry[base]
+    try:
+        base_clip = clip(b)
+    except CutError as ex:
+        raise CutError(f"{base}: {ex}") from None
+    if shots is None:
+        shots = [e.shot for e in entries
+                 if e.shot != base and not e.orphan and not e.out
+                 and seq.get(e.shot) == seq.get(base)]
+    skipped, todo = [], []
+    for sid in shots:
+        e = entry.get(sid)
+        why = ("it's the base" if sid == base else "it isn't in the cut" if e is None
+               else "it's locked" if e.locked else "it's left out of the cut" if e.out else None)
+        if why is None:
+            try:
+                todo.append((sid, clip(e)))
+                continue
+            except CutError as ex:
+                why = str(ex)
+        skipped.append({"shot": sid, "why": why})
+    colors = {}
+    if todo:
+        for (sid, _), got in zip(todo, COL.match(base_clip, [c for _, c in todo], by)):
+            if "error" in got:
+                skipped.append({"shot": sid, "why": got["error"]})
+            else:
+                colors[sid] = got
+    return {"base": base, "colors": colors, "skipped": skipped}
+
+
 def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
                   **fields) -> dict:
     """Change one entry's trim_in / trim_out / locked / note / audio / out /
-    flag (a flag is allowed on a locked entry: it changes nothing played).
-    Trims, audio sources and leaving it out on a locked entry are Locked unless
-    `force`; trims and audio are checked as PUT /seriesmith/cut checks them."""
+    flag / color (a flag is allowed on a locked entry: it changes nothing
+    played). Trims, audio sources, colour and leaving it out on a locked entry
+    are Locked unless `force`; trims and audio are checked as PUT
+    /seriesmith/cut checks them, colour by seriesmith.color.check."""
     entries = cut_entries(root, pass_)
     e = entries[_find(entries, shot_id, pass_)]
-    if ({"trim_in", "trim_out", "audio", "out"} & set(fields)) and e.locked and not force:
+    if ({"trim_in", "trim_out", "audio", "out", "color", *T.JOIN_FIELDS} & set(fields))             and e.locked and not force:
         raise Locked(f"{shot_id} is locked in the {pass_} cut: unlock it first")
+    if "color" in fields:
+        try:
+            fields["color"] = COL.check(fields["color"]) or None
+        except ValueError as ex:
+            raise CutError(f"{shot_id}: {ex}") from None
+    for k in T.JOIN_FIELDS:
+        if k in fields:
+            try:
+                fields[k] = T.check_join_frames(k, fields[k])
+            except ValueError as ex:
+                raise CutError(f"{shot_id}: {ex}") from None
     for k, v in fields.items():
         setattr(e, k, v)
     out = _entries_json(entries, pass_)
@@ -1763,6 +1869,20 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         if job.action == "error":
             out["errors"].append({"shot": sid, "error": job.error})
             continue
+        if HO.is_hold(J.job_target(job)):
+            # a held picture: no model, no backend; ffmpeg on the local lane
+            try:
+                take, qid = runner.enqueue_hold(job, continuity=job.continuity,
+                                                after=queued_ids.get((job.continuity or {})
+                                                                     .get("after")))
+            except Exception as e:
+                out["errors"].append({"shot": sid, "error": str(e)[:800]})
+                continue
+            queued_ids[sid] = qid
+            out["queued"].append({"shot": sid, "take": take.take, "prompt_id": qid,
+                                  "seed": job.seed, "seed_source": job.seed_source,
+                                  "target": job.target, "backend": "this machine"})
+            continue
         J.resolve_models(job, cloud_listing(job, ov) or listing, model_resolve, model_cache)
         if job.action == "missing_files":
             out["skipped"].append({"shot": sid, "target": job.target,
@@ -1980,6 +2100,12 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
     degraded: only accelerators or optional files (or optional nodes)."""
     out = {}
     for t in targets:
+        if HO.is_hold(t):
+            # held here by ffmpeg: nothing of ComfyUI's, nothing to install
+            out[t.id] = {"status": "ready", "missing": [], "resolved": {},
+                         "by_pass": {p: {} for p in J.TG.PASSES}, "features_off": [],
+                         "nodes_missing": []}
+            continue
         if object_info is None:
             out[t.id] = {"status": "unknown", "missing": [], "resolved": {}, "by_pass": {},
                          "features_off": [], "nodes_missing": [],

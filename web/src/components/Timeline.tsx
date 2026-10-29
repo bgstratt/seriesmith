@@ -15,7 +15,11 @@ import {
 import { missingRefsSummary } from "../lib/missingRefs";
 import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
-import { targetBadges } from "../lib/targets";
+import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
+import { HOLD_TARGET } from "../lib/takeDrop";
+import { ColorDefs, useClipFilter } from "./ColorDefs";
+import { JoinCurves } from "./JoinCurves";
+import { LookBadge } from "./LookBadge";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
@@ -28,7 +32,7 @@ import { audioBadgeOf } from "../lib/audioSource";
 import { WaveLane } from "./Waveform";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
-import { dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto } from "../takeActions";
+import { HOLD_MAX_SECONDS, dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto, holdLength } from "../takeActions";
 
 const MIN_CLIP = 26;
 /** a shot left out of the cut: a stub, there to be put back */
@@ -57,6 +61,8 @@ export interface TrimPreview {
   trimOut: number;
   px: number;
   py: number;
+  /** a held picture: the edge sets its length (frames), not a trim */
+  held?: number;
 }
 
 /** The Play all playhead: a line over the clip playing, at its offset. While
@@ -170,6 +176,8 @@ const Clip = memo(function Clip({
 }) {
   const [cell, scrub] = useScrub();
   const take = clipTake(s, other);
+  // its colour in the cut, previewed on its pictures
+  const colorFilter = useClipFilter(s.shot, "t");
   const takePass: Pass = s.cut.placeholder ? s.cut.pass : pass;
   const secs = shotSeconds(s, fps);
   const mediaW = Math.min(width, Math.round(height * aspect));
@@ -198,6 +206,7 @@ const Clip = memo(function Clip({
     `${label} · ${fmtShotSeconds(s, secs)}${s.size ? ` · ${s.size}` : ""}${lengthEstimated(s) ? `\n≈ ${ESTIMATE_TITLE}` : ""}`,
     group ? `one generation of ${group.length} shots (continuous: multishot): ${group.map((p) => `${p.id} at ${framesLabel(p.start, fps)}`).join(", ")}; the marks are where the script times the cuts, and the model lands near them` : "",
     flagged ? "flagged to come back to (M: unflag · Shift+M: the next flagged clip)" : "",
+    s.cut.look_off?.length ? `colour out of line with its sequence: ${s.cut.look_off.join(", ")} (its colour in the inspector, or Match the sequence's colour to a clip that looks right)` : "",
     noted ? `${noted} open note${noted > 1 ? "s" : ""} (the Shots tab's Issues list)` : "",
     s.cut.out ? "left out of the cut: Play all, assemble and Master skip it (right-click: Put back in the cut)" : "",
     take ? `${s.cut.placeholder ? `${s.cut.pass} ` : ""}${tn(take.take)} (${take.status})` : "no take in the cut",
@@ -232,7 +241,7 @@ const Clip = memo(function Clip({
     >
       <div
         className={`h3-clip-media${take?.thumb || take?.strip ? "" : " h3-thumb h3-empty"}`}
-        style={{ width: mediaW, ...mediaStyle(ep, take, cell) }}
+        style={{ width: mediaW, ...mediaStyle(ep, take, cell), ...(colorFilter ? { filter: colorFilter } : {}) }}
       >
         {!(take?.thumb || take?.strip) && width > 40 && <span>{take ? (take.status === "ok" ? "no thumb" : take.status) : "no take"}</span>}
       </div>
@@ -249,6 +258,8 @@ const Clip = memo(function Clip({
       <div className="h3-clip-bottom">
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}
+        {colorFilter && <i className="pi pi-palette" title="Its colour is set (the inspector's cut section): applied when the cut is exported" />}
+        {s.cut.look_off && s.cut.look_off.length > 0 && <LookBadge off={s.cut.look_off} shot={s.shot} />}
         <b>{label}</b>
         {lengthEstimated(s) && <span className="h3-est" title={ESTIMATE_TITLE}>≈</span>}
         {take && width > 60 && <span>{tn(take.take)}</span>}
@@ -496,6 +507,25 @@ export function Timeline() {
     const a0 = it.trimIn;
     const b0 = it.trimOut;
     const x0 = e.clientX;
+    // a shot on the hold model: either edge sets its length (its `dur:`), held again at that
+    const app = store.get();
+    const st = app.status[statusKey(app.ep ?? "", app.pass)];
+    if (shotTarget(s, seriesDefaultTarget(app.targets, st)) === HOLD_TARGET) {
+      const l0 = Math.max(1, total - a0 - b0);
+      let l = l0;
+      const sizeTo = (ev: { clientX: number; clientY: number }) => {
+        const d = pxToFrames(ev.clientX - x0, z, f);
+        l = Math.max(1, Math.min(Math.round(HOLD_MAX_SECONDS * f), side === "out" ? l0 + d : l0 - d));
+        setTrim({ shot: s.shot, side, trimIn: 0, trimOut: total - l, px: ev.clientX, py: ev.clientY, held: l });
+      };
+      sizeTo(e);
+      track(sizeTo, (cancelled) => {
+        setTrim(null);
+        endDrag();
+        if (!cancelled && (l !== l0 || a0 || b0)) void holdLength(s.shot, l, f, a0 > 0 || b0 > 0);
+      });
+      return;
+    }
     let a = a0;
     let b = b0;
     const place = (ev: { clientX: number; clientY: number }) => {
@@ -668,8 +698,9 @@ export function Timeline() {
                             onEdgeDown={onEdgeDown}
                             suppress={suppress}
                           />
+                          {it && !s.cut.out && <JoinCurves it={it} width={width} height={clipH} fps={fps} />}
                         </div>
-                        {trim && trim.shot === s.shot && trimItem && (
+                        {trim && trim.shot === s.shot && trim.held == null && trimItem && (
                           <TrimGhost ep={ep} take={take} item={trimItem} preview={trim} zoom={zoom} fps={fps} height={clipH} />
                         )}
                         {waves && <WaveLane ep={ep} s={s} item={it} take={take} st={st} width={width} height={WAVE_H} zoom={zoom} />}
@@ -683,15 +714,18 @@ export function Timeline() {
             {drag && drag.gap != null && <div className="h3-drop-marker" style={{ left: drag.x }} />}
             {ext?.kind === "between" && <div className="h3-drop-marker h3-drop-new" style={{ left: ext.x }} title="Drop: a new shot here" />}
             <Playhead trackRef={innerRef} wrapRef={wrapRef} zoom={zoom} />
+            <ColorDefs prefix="t" />
           </div>
         )}
       </div>
       {trim && trimShot && trimItem && (
         <div className="h3-trim-tip" style={{ left: trim.px + 14, top: trim.py - 34 }}>
-          {trim.shot} · {trim.side === "in" ? "head" : "tail"} trim {framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}
+          {trim.held != null ? `${trim.shot} · held ${framesLabel(trim.held, fps)}`
+            : `${trim.shot} · ${trim.side === "in" ? "head" : "tail"} trim ${framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}`}
           <br />
           <span className="h3-muted">
-            clip {fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of {fmtSeconds((trimItem.total ?? 0) / fps)} · Esc cancels
+            {trim.held != null ? `a held picture: as long as you drag it (was ${fmtSeconds((trimItem.total ?? 0) / fps)})`
+              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`} · Esc cancels
           </span>
         </div>
       )}

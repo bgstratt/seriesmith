@@ -32,7 +32,9 @@ except ImportError:                                   # pragma: no cover
 
 
 def workflow_targets() -> list[TG.Target]:
-    return [t for t in TG.list_targets("video") if not t.spec.get("router")]
+    # not a hosted model's, nor hold's (ffmpeg here: no graph)
+    return [t for t in TG.list_targets("video")
+            if not t.spec.get("router") and not t.spec.get("local_render")]
 
 
 @unittest.skipUnless(PIL, "composing reference sheets needs Pillow")

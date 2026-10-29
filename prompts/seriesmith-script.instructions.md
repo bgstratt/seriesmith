@@ -139,7 +139,7 @@ recipe before it can run.
 | **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
 | **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
 | **Titles** | Is there a series intro and outro (clips made once for the whole show)? | `_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; `publish` only to name other files or style the episode title | Nothing to write: a master picks the clips up when they're there. See **Series intro and outro** |
-| **Model** | Does it have to render on one model (what's installed, a hosted one)? | `series.target`, `refs` | Leave both out: the series renders on the machine's default models |
+| **Model** | Does it have to render on one model (what's installed, a hosted one)? | `series.target`, `series.first_target`, `refs` | Leave both out: the series renders on the machine's default models |
 | **Pace** | How fast do people talk? | `speech.pace` | `normal` |
 
 Ask these in **one message**, only the ones the brief doesn't already answer ("for
@@ -201,8 +201,10 @@ shot 93. So:
 
 | target | what pins the look | sound | keyframes | length grid | good for |
 |---|---|---|---|---|---|
-| `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
+| `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
+| `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
+| `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights. `fasth3_fl2va` is where a `continuous: first` shot on FastH3 Omni goes, so it keeps FastH3's look; either can be named, or be the series' `first_target` |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
@@ -218,10 +220,11 @@ shot 93. So:
   script.
 - **Name it** (`target:` on a shot, or under a `#` header for its sequence) when a shot
   needs something only one model does: a silent insert on Wan, a shot whose length you want
-  LTX to choose (`dur: model`). A `continuous: first` shot moves to H3 FL2VA by itself (see
-  **Continuous shots**).
+  LTX to choose (`dur: model`). A `continuous: first` shot moves to a model that reads a
+  first frame by itself: H3 Ref2VA's to H3 FL2VA, FastH3 Omni's to its own FL2VA; H3
+  Singularity opens on it itself (see **Continuous shots**).
 - **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
-  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `minimax_h3_fl2va`). Wan acts the lines silently.
+  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
   `wan22_ti2v`; `wan22_vace` takes the sheets but not the plate), the `design` and location
   `description` sentences are what the model knows about the look, apart from any
@@ -1275,7 +1278,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
@@ -1587,8 +1590,22 @@ continuous: first
 - `first`: it opens on the previous shot's last frame, as its first keyframe. That needs a
   target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets, the hosted
   models). A shot on
-  H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, unless the shot names
-  its own `target:` (then it's an error that says which targets can).
+  H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, and one on FastH3 Omni
+  on **its own FL2VA** (`fasth3_fl2va`: FL2VA's graph with FastH3's weights, so the shot keeps
+  its look), unless the shot names its own `target:` (then it's an error that says which
+  targets can). **H3 Singularity reads it itself**: the frame is anchored at the start of its
+  own render and its character and place pictures still go in, which FL2VA can't read.
+  **H3 Ref2VA can too**, but keeps sending such shots to FL2VA unless the series config says
+  `"first_target": "minimax_h3_ref2va"` (or the shot names Ref2VA itself). (FastH3 Omni was
+  tried the same way and ignored the frame: its 8 distilled steps don't take the anchor.) The model can come from the
+  series config, the episode or a `#` header. A shot on a model that reads a first frame
+  (LTX-2, Wan, the hosted ones) stays on it.
+  The series config's `series.first_target` picks where they all go instead (Series
+  settings › Models › **First frames**): `"minimax_h3_ref2va"` keeps H3 Ref2VA's shots on
+  Ref2VA, opening on the frame with their pictures; `"h3_singularity"` moves the continuing
+  H3 shots to Singularity; `"minimax_h3_fl2va"` sends FastH3 Omni's to stock FL2VA. It only
+  moves the shots of H3 Ref2VA and FastH3 Omni; Singularity and the models that read a first
+  frame (LTX-2, Wan, the hosted ones) keep their own.
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
   Ref2VA, keeping its own reference sheets. The render holds the end of the previous take
   at its head and generates the rest from there, so motion, sound and the camera carry
@@ -1702,6 +1719,39 @@ usable one, else a still);
 `seriesmith keyframe Shows\ep05 sh030 --generate` makes one still; `--clear` takes a keyframe away
 (the shot renders without one, and nothing puts it back until you pick one).
 
+### A picture held still: `target: hold`
+
+`target: hold` is seriesmith's own model: the shot's first keyframe held still for its
+`dur:`. A card ("Two hours later"), a title, a still, a freeze frame. It runs on this
+machine (ffmpeg, a moment a take), needs no ComfyUI and nothing installed, and costs
+nothing.
+
+```
+## sh045
+target: hold
+dur: 2
+first: cards/two_hours_later.png
+A card: Two hours later.
+```
+
+- **The picture is its first keyframe**, and it's required: a picture of yours (`first:` a
+  path, as above, imported by **Generate missing** in the Refs tab as on any model), one
+  dropped on the shot in the editor, or `continuous: first` (the shot before it's last
+  frame: a freeze frame). The editor's **Hold this frame after it…** on a take
+  makes a held shot of any frame.
+- **`dur:` is its length**, to the frame. Change it (or drag the clip's edge on the
+  timeline) and its take is stale, as is a take whose picture changed: Generate holds it
+  again.
+- It's made at the size its pass renders every shot at, the picture scaled to fit and
+  letterboxed in black.
+- **It reads nothing else**: who, the action and the dialogue are the script's, not the
+  picture's. Write an action all the same (a shot needs one); it's what the shot is.
+- **Sound**: silent, or with its sound set to dub (a stretch of the episode's recording, a
+  file, a dub track) that track laid under it. A line said over it is a dub track (a
+  voice model) dubbed in. Or lay a sound under the clip in the cut.
+- **Upscale**: there's no latent to re-sample, so the pixel method or SeedVR2 (an
+  `upscale.master` section `"hold"`, or `"*"` set to one of them).
+
 ### Rendering a shot on a hosted model: Seedance, Kling, Veo, …
 
 A hosted model (`target: seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, …)
@@ -1761,12 +1811,16 @@ What each model takes, local and hosted (generated from the targets by
 
 | Video model | | Runs on | Reference pictures | Keyframes | Told who's who |
 |---|---|---|---|---|---|
+| `fasth3_fl2va` | FastH3 FL2V | your ComfyUI | none | first and last | — |
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `h3_singularity` | Singularity | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `h3_singularity_fl2va` | Singularity FL2V | your ComfyUI | none | first and last | — |
+| `hold` | Hold | this machine | none | first | — |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
 | `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
-| `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
 | `wan22_vace` | Wan+refs | your ComfyUI | one picture made from the subjects' sheets | first and last | by their order |
