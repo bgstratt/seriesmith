@@ -383,6 +383,7 @@ class PickTest(RefsTest):
         self.assertEqual(picks["refs"]["location:kitchen"]["sha1"], T.file_sha1(live))
         r = self.listing()["location:kitchen"]
         self.assertEqual((r["picked"], r["exists"], r["sha1"]), (2, True, T.file_sha1(live)))
+        self.assertEqual(r["size"], list(R.image_size(live)))
         R.pick_take(self.s, kitchen, None, 1)
         self.assertEqual(T.file_sha1(live), T.file_sha1(t1.paths.image))
         with self.assertRaises(R.UnknownRef):

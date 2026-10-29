@@ -4219,6 +4219,9 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         "relight": ref.entry.get("relight") or None,
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,
+        # the live picture's [width, height] from its header (the gallery's tile
+        # for a file with no candidate behind it); None for a sample or no file
+        "size": list(wh) if exists and (wh := image_size(live)) else None,
         "used_by": (usage or {}).get(ref.id) or {p: [] for p in T.PASSES},
         # a character's own prompt is its hand-made-sheet description (as in
         # refs_todo); what each view generates with is in its `views` entry

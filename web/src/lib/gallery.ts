@@ -80,7 +80,8 @@ function newestFirst(a: GalleryItem, b: GalleryItem): number {
  * there outside the editor can still be seen. */
 export function liveFileItem(r: Ref): GalleryItem {
   const view = hasViews(r) ? SHEET_VIEW : null;
-  const take: RefTake = { take: 0, view, status: "ok", seed: null, image: r.path, source: "imported", note: "" };
+  const [width, height] = r.size ?? [];
+  const take: RefTake = { take: 0, view, status: "ok", seed: null, image: r.path, source: "imported", note: "", width, height };
   return { key: `${r.id}|live`, ref: r, view, take, file: r.path!, live: true, outside: true };
 }
 

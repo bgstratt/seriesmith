@@ -76,6 +76,10 @@ describe("gallery sections", () => {
       ["subject:mia|live", "sheet", "refs/mia.png", true, true], [itemKey("subject:mia", "04_face", 1), "04_face", "refs/_takes/t1.png", false, false],
     ]);
     expect(liveKey([s], "subject:mia")).toBe("subject:mia|live");
+    // at its own shape: one whole portrait, not a sheet's strip
+    expect(itemAspect(s.items[0])).toBe(4);
+    const [own] = gallerySections([{ ...mia, size: [600, 900] }], { ...ALL, ref: "subject:mia" }, "proxy");
+    expect(itemAspect(own.items[0])).toBeCloseTo(2 / 3);
     expect(gallerySections([mia], { ...ALL, picksOnly: true }, "proxy")[0].items.map((i) => i.key)).toEqual(["subject:mia|live"]);
     // a plain ref with nothing but its file
     const hall = ref("location:hall", "location");
