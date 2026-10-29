@@ -1028,6 +1028,17 @@ collide with the package.
       `POST /seriesmith/check`, `GET /seriesmith/mcp`, `POST /seriesmith/take/import`,
       `POST /seriesmith/take/copy`; `GET /seriesmith/refs?fresh=1`. Published by the merge's
       version bump.
+- [x] **0.1.8** (2026-10-28, `release-0.1.8`): a shot's sound and dub tracks (#67): each shot
+      set to the series' default, generate, clone, or dub (a recording, a dub track, or a
+      take's sound), in one Sound card (the shot form, Sound…, Replace audio…); dub tracks (the
+      shot rendered tiny on H3 Ref2VA for its voice alone, kept in `dub/<shot>/`) listed in the
+      Refs tab with the shot's lines, Voices' Generate missing; FL2VA clone; drafts that survive
+      renders and reloads, a check before Export, multi-select queueing, a picture dropped on a
+      shot as its first keyframe. Voices across models (#62: LTX dub and clone, Seedance
+      audio), whole-picture keyframes (#63), FLUX 3 video on Router (#64), Adding models in the
+      docs (#66), the gallery showing a ref's live file with no candidate behind it at its own
+      shape (#68). New routes `GET /seriesmith/dubs`, `PUT /seriesmith/sound`. Published by the
+      merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
