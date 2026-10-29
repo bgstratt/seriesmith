@@ -187,6 +187,7 @@ shot 93. So:
 |---|---|---|---|---|---|
 | `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | not read | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
+| `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion); a `continuous: first` shot goes to H3 FL2VA |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
 | `ltx2_ingredients` | a reference sheet made from your refs (required) | generated, or dubbed (no clone) | not read | `8k+1` at 24 fps, 2–20 s, best 5.04 s | identity on LTX |
@@ -205,7 +206,7 @@ shot 93. So:
   LTX to choose (`dur: model`). A `continuous: first` shot moves to H3 FL2VA by itself (see
   **Continuous shots**).
 - **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
-  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `minimax_h3_fl2va`). Wan acts the lines silently.
+  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
   `wan22_ti2v`; `wan22_vace` takes the sheets but not the plate), the `design` and location
   `description` sentences are what the model knows about the look, apart from any
@@ -1779,6 +1780,7 @@ What each model takes, local and hosted (generated from the targets by
 | Video model | | Runs on | Reference pictures | Keyframes | Told who's who |
 |---|---|---|---|---|---|
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `h3_singularity` | Singularity | your ComfyUI | 3 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
 | `hold` | Hold | this machine | none | first | — |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |

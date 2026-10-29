@@ -84,7 +84,8 @@
 
   "models": {
     "_note": "The family each model param must be (targets/modelid.py). Names are checked first (case-insensitive globs; a series config's model_families adds more), then the file's header. Ref2VA and FL2VA share every tensor, so a file named neither is accepted as H3 with a note, and one named FL2VA is refused. Tiers (docs/API.md): the turbo LoRA is an accelerator (without it the pass renders its `base`); the rest are required. text_encoder / video_vae / audio_vae are the workflow's own files (`default`): patched only when another file of the family stands in. A substitute LoRA keeps the wanted one's step count (`keep`).",
-    "model": {"family": "minimax-h3-ref2va", "patterns": ["*h3*ref2v*", "*ref2va*"], "tier": "required"},
+    "model": {"family": "minimax-h3-ref2va", "patterns": ["*h3*ref2v*", "*ref2va*"], "tier": "required",
+              "exclude": ["*singularity*"]},
     "loras": {"family": "minimax-h3-ref2v-turbo-lora", "patterns": ["*h3*ref2v*turbo*", "*h3*ref2v*lightx2v*"],
               "tier": "accelerator", "keep": ["(\\d+)[_-]?steps?"], "exclude": ["*sla*"],
               "class_type": "LoraLoaderModelOnly", "field": "lora_name", "folder": "loras"},
