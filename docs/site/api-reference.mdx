@@ -41,7 +41,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
-| `POST /seriesmith/take/import`, `POST /seriesmith/take/copy`, `POST /seriesmith/take/hold` | Takes from outside |
+| `POST /seriesmith/take/import`, `POST /seriesmith/take/copy`, `POST /seriesmith/take/hold`, `POST /seriesmith/take/hold-length` | Takes from outside |
 | `GET /seriesmith/mcp` | Using seriesmith from an LLM |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
 | `POST /seriesmith/assemble` | Assemble |
@@ -510,10 +510,20 @@ most 600) defaults to the shot's duration in the pass's shotlist. The take is an
 (x264 CRF 12 slow, BT.709) at the pass's size (the shot's own, else the shotlist's
 defaults), scaled to fit and letterboxed in black, at the cut's frame rate, with no sound
 (assemble lays silence under it). An imported take otherwise (`source: "imported"`, never
-stale); its sidecar's `held` is `{seconds, name}` (the file's name) or `{seconds, from: {shot, take, pass, frame}}`, and `GET /seriesmith/episode` carries the same `held` on the
-take. Same answer as import. The editor's **Save and hold it** (a picture dropped between
-two clips) and **Hold this frame after it…** (a take's menu: a new shot after it in the
+stale). The picture is kept beside it (`<stem>_held.<ext>`, discarded with it). Its
+sidecar's `held` is `{seconds, picture, name}` (the file's name) or `{seconds, picture, from: {shot, take, pass, frame}}`, and `GET /seriesmith/episode` carries the same `held` on
+the take. Same answer as import. The editor: a picture dropped between two clips (a new
+shot in the script there, no one in it, `dur: 3`, its action "A held picture: &lt;name>.",
+held 3 s), and **Hold this frame after it…** (a take's menu: a new shot after it in the
 script, its who / with / size, no dialogue, then the frame held into it).
+
+### `POST /seriesmith/take/hold-length`
+`{ep, pass?, shot, take, frames}`: a held take made again in place, `frames` long (at its
+own rate and size) from its kept picture; `held.seconds` follows. 400 for a take that isn't
+held (or was held before pictures were kept), or `frames` not a whole number over 0 (at most
+600 s); 404 for no such take. Its upscale and post go stale (they're made from the old mp4)
+and are made again when wanted; the cut isn't touched. The timeline's drag of a held clip's
+edge, which then clears its trims. Same answer as import (`picked: false`).
 
 ## Using seriesmith from an LLM (2026-10-27)
 

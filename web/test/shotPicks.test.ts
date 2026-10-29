@@ -1,5 +1,5 @@
 // Through the mock API: several shots selected and queued together, a picture
-// dropped on a shot as its first keyframe, and an image refused between clips.
+// dropped on a shot as its first keyframe or between clips (held), a text file refused.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickShot, generateDubTracks, loadRefs, refreshEpisode, renderSelected, select, setSound } from "../src/actions";
 import { VOICE_TARGET, VOICE_TARGETS } from "../src/lib/readiness";
@@ -60,14 +60,18 @@ describe("several shots, and a picture as a keyframe", () => {
     expect(spy.mock.calls[0][0]).toMatchObject({ ref: keyframeRefId(shot, "first"), view: null, pick: true });
   });
 
-  it("a picture dropped between clips opens the shot form there, for a new shot with it as its first keyframe", async () => {
+  it("a picture dropped between clips is held there: a new shot in the script, the picture its take", async () => {
     expect(isPicture({ name: "a.PNG" })).toBe(true);
     expect(isPicture({ name: "a.webp" })).toBe(true);
     expect(isPicture({ name: "a.mp4" })).toBe(false);
-    const [a] = shots();
+    const put = vi.spyOn(api, "putSource");
+    const hold = vi.spyOn(api, "holdTake");
     const pic = new File([], "frame.jpg");
     await dropFileBetween(1, pic);
-    expect(store.get().shotForm).toMatchObject({ shot: null, after: a, file: pic, dur: null, left: a });
+    expect(store.get().shotForm).toBeNull();
+    expect(put.mock.calls[0][0].text).toContain("A held picture: frame.jpg.");
+    expect(hold).toHaveBeenCalledTimes(1);
+    expect(hold.mock.calls[0][0]).toMatchObject({ file: pic, seconds: 3, pick: true });
     await dropFileBetween(1, new File([], "notes.txt"));
     expect(toasts.at(-1)?.[1]).toBe("Not a video or a picture");
   });

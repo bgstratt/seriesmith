@@ -28,7 +28,7 @@ import { audioBadgeOf } from "../lib/audioSource";
 import { WaveLane } from "./Waveform";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
-import { dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto } from "../takeActions";
+import { HOLD_MAX_SECONDS, dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto, holdLength } from "../takeActions";
 
 const MIN_CLIP = 26;
 /** a shot left out of the cut: a stub, there to be put back */
@@ -57,6 +57,8 @@ export interface TrimPreview {
   trimOut: number;
   px: number;
   py: number;
+  /** a held picture: the edge sets its length (frames), not a trim */
+  held?: number;
 }
 
 /** The Play all playhead: a line over the clip playing, at its offset. While
@@ -496,6 +498,26 @@ export function Timeline() {
     const a0 = it.trimIn;
     const b0 = it.trimOut;
     const x0 = e.clientX;
+    // a held picture: either edge makes it longer or shorter, held again at that length
+    const held = it.take != null && store.get().status[statusKey(store.get().ep ?? "", it.pass)]?.shots
+      .find((x) => x.shot === s.shot)?.takes.find((t) => t.take === it.take)?.held;
+    if (held && it.take != null) {
+      const take = it.take;
+      const l0 = Math.max(1, total - a0 - b0);
+      let l = l0;
+      const sizeTo = (ev: { clientX: number; clientY: number }) => {
+        const d = pxToFrames(ev.clientX - x0, z, f);
+        l = Math.max(1, Math.min(Math.round(HOLD_MAX_SECONDS * f), side === "out" ? l0 + d : l0 - d));
+        setTrim({ shot: s.shot, side, trimIn: 0, trimOut: total - l, px: ev.clientX, py: ev.clientY, held: l });
+      };
+      sizeTo(e);
+      track(sizeTo, (cancelled) => {
+        setTrim(null);
+        endDrag();
+        if (!cancelled && (l !== l0 || a0 || b0)) void holdLength(s.shot, take, it.pass, l, a0 > 0 || b0 > 0);
+      });
+      return;
+    }
     let a = a0;
     let b = b0;
     const place = (ev: { clientX: number; clientY: number }) => {
@@ -669,7 +691,7 @@ export function Timeline() {
                             suppress={suppress}
                           />
                         </div>
-                        {trim && trim.shot === s.shot && trimItem && (
+                        {trim && trim.shot === s.shot && trim.held == null && trimItem && (
                           <TrimGhost ep={ep} take={take} item={trimItem} preview={trim} zoom={zoom} fps={fps} height={clipH} />
                         )}
                         {waves && <WaveLane ep={ep} s={s} item={it} take={take} st={st} width={width} height={WAVE_H} zoom={zoom} />}
@@ -688,10 +710,12 @@ export function Timeline() {
       </div>
       {trim && trimShot && trimItem && (
         <div className="h3-trim-tip" style={{ left: trim.px + 14, top: trim.py - 34 }}>
-          {trim.shot} · {trim.side === "in" ? "head" : "tail"} trim {framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}
+          {trim.held != null ? `${trim.shot} · held ${framesLabel(trim.held, fps)}`
+            : `${trim.shot} · ${trim.side === "in" ? "head" : "tail"} trim ${framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}`}
           <br />
           <span className="h3-muted">
-            clip {fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of {fmtSeconds((trimItem.total ?? 0) / fps)} · Esc cancels
+            {trim.held != null ? `a held picture: as long as you drag it (was ${fmtSeconds((trimItem.total ?? 0) / fps)})`
+              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`} · Esc cancels
           </span>
         </div>
       )}

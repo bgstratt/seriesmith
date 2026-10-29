@@ -21,7 +21,7 @@ import type {
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
-  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeHoldRequest, TakeImportRequest, TakeUploadRequest,
+  LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeHoldLengthRequest, TakeHoldRequest, TakeImportRequest, TakeUploadRequest,
   DubSources, ShotSound,
 } from "./types";
 import { comboChoices } from "./lib/targets";
@@ -251,6 +251,8 @@ export interface Api {
   /** POST /seriesmith/take/hold: a picture (a file, multipart) or a take's frame held still
    * as a shot's take. */
   holdTake(req: TakeHoldRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/take/hold-length: a held take made again at another length, in place. */
+  holdTakeLength(req: TakeHoldLengthRequest): Promise<ImportedShotTake>;
   // ---- P10: a pass's issues (the notepad) ----
   /** GET /seriesmith/issues: what was noted for a pass, each with `addressed`. */
   issues(ep: string, pass?: Pass | null): Promise<Issue[]>;
@@ -735,6 +737,7 @@ export function createHttpApi(t: Transport): Api {
       form.append("file", req.file, req.name ?? (typeof File !== "undefined" && req.file instanceof File ? req.file.name : "picture.png"));
       return postForm("/seriesmith/take/hold", form);
     },
+    holdTakeLength: (req) => call("POST", "/seriesmith/take/hold-length", req),
     issues: (ep, pass) => get<{ issues: Issue[] }>(`/seriesmith/issues?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.issues),
     addIssue: (req) => call("POST", "/seriesmith/issues", req),

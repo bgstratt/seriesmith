@@ -1319,16 +1319,17 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       `POST /seriesmith/take/hold` (`takeimport.hold_take` / `hold_frame`): a picture, or a
       take's frame, looped into an H.264 clip at the pass's size and the cut's rate,
       letterboxed, silent (assemble pads); an imported take with `held` in its record, never
-      stale, badge **held**. The shot form's **Save and hold it** (a picture dropped between
-      two clips; `dur:` is the length) and a take's **Hold this frame after it…** (a length
+      stale, badge **held**. Decided 2026-10-29: a held picture is a core part of the
+      timeline, not a form. A picture dropped between two clips is held there at once (a
+      shot in the script, `takeDrop.heldShot`: no who, its action naming it; 3 s), and
+      either edge of a held clip sets its length (`POST /seriesmith/take/hold-length`: held
+      again in place from the picture kept beside the take, trims cleared; its upscale and
+      post go stale by their source hash). A take's **Hold this frame after it…** (a length
       asked; a new shot after it, its who / with / size, no dialogue: `insertedShot`'s
-      `held`). The MCP's `hold_picture`. Tests: `tests/test_takeimport.py`,
+      `held`). The MCP's `hold_picture`, `hold_length`. Tests: `tests/test_takeimport.py`,
       `web/test/takeDrop.test.ts`. Not yet live.
-- [ ] **An animatic**: each shot's first keyframe held for its `dur:` (the recording's window
-      under it where there is one, else silence), as a third pass beside proxy and final
-      (`renders_animatic/`, cut.json's `animatic` list), so it disturbs neither. A shot with
-      no keyframe is a card with its id and action. Export and Play all as for the other
-      passes. Costs nothing to make: the cheapest whole-episode review there is.
+- Not doing: an animatic (decided 2026-10-29). Holding pictures on the timeline was the
+  point; a pass or an export of keyframes isn't wanted.
 - [ ] **A shot's colour** in the shot inspector: exposure (stops), black point, saturation,
       warmth, each a slider at 0 by default. Kept on the cut entry (`"color": {...}`, as
       `trim_in` / `trim_out` are), so nothing re-renders and the take is untouched; applied in

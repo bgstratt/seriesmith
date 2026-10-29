@@ -223,7 +223,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
     return () => window.clearTimeout(timer.current);
   }, [JSON.stringify(block), seq, newSeq.id, newSeq.location, pass, doc?.hash]);
 
-  async function save(render: boolean, hold = false) {
+  async function save(render: boolean) {
     const text = scriptText();
     if (!doc || !form || !text) return;
     setBusy(true);
@@ -236,7 +236,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
       // a file dropped between two clips: its take (a picture: its first keyframe) now, and the clip where it was dropped
-      if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left, hold);
+      if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
       // the script as it is now: a new shot opens as itself; an edited one
       // reads the script again (its new hash, the shot as saved), or the form
@@ -484,12 +484,6 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
           title="Write this shot into the script and rebuild">
           {busy && <i className="pi pi-spin pi-spinner" />} Save
         </button>
-        {isNew && file && isPicture(file) && (
-          <button className="h3-btn h3-big" disabled={!form || busy} onClick={() => void save(false, true)}
-            title={`Save, and make the picture itself the shot's take: held still for its length (a card, a freeze frame), nothing rendered`}>
-            <i className="pi pi-image" /> Save and hold it
-          </button>
-        )}
         <button className="h3-btn h3-primary h3-big" disabled={!form || busy || preview?.ok === false} onClick={() => void save(true)}
           title={`Save, then render a new ${pass} take of it`}>
           <i className="pi pi-play" /> Save and generate {pass}

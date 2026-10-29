@@ -6,13 +6,13 @@
 
 import { afterAuthoredWrite, openShotForm, pickTake, refreshEpisode, select, uploadRef } from "./actions";
 import { errText } from "./api";
-import { moveClip } from "./cutActions";
+import { moveClip, setTrims } from "./cutActions";
 import { api, host } from "./host";
 import { tn } from "./lib/format";
 import { keyframeNote, keyframeRefId } from "./lib/keyframes";
 import { fileKindProblem } from "./lib/lookback";
 import { seriesDefaultTarget, shotTarget } from "./lib/targets";
-import { anchorAt, gapAfter, insertedShot, videoFileProblem, type TakeDrag } from "./lib/takeDrop";
+import { anchorAt, gapAfter, heldShot, insertedShot, videoFileProblem, type TakeDrag } from "./lib/takeDrop";
 import { statusKey, store, uploadKey } from "./store";
 import type { ShotStatus } from "./types";
 
@@ -224,16 +224,16 @@ async function keyframeFromFile(shot: string, file: File) {
 }
 
 export async function dropFileBetween(gap: number, file: File): Promise<void> {
-  // a picture: the new shot's first keyframe, its length the form's
-  const picture = isPicture(file);
-  const problem = picture ? "" : videoFileProblem(file);
+  // a picture: held still there, a clip of its own
+  if (isPicture(file)) return dropPictureBetween(gap, file);
+  const problem = videoFileProblem(file);
   if (problem) {
     host().toast("warn", "Not a video or a picture", problem);
     return;
   }
   const cut = cutShots();
   const anchor = anchorAt(cut, gap);
-  const seconds = picture ? null : await videoSeconds(file);
+  const seconds = await videoSeconds(file);
   openShotForm({
     shot: null,
     after: anchor && "after" in anchor ? anchor.after : null,
@@ -243,31 +243,58 @@ export async function dropFileBetween(gap: number, file: File): Promise<void> {
   });
 }
 
-/** A picture held still as `shot`'s new take in the current pass, picked: a card
- * ("Two hours later"), as long as the shot. The take's number, or null (said). */
-export async function holdPictureFile(shot: string, file: File): Promise<number | null> {
+/** The longest a picture is held (takeimport.HOLD_MAX_SECONDS). */
+export const HOLD_MAX_SECONDS = 600;
+/** How long a dropped picture is held at first; its edge makes it longer or shorter. */
+export const HOLD_SECONDS = 3;
+
+/** A picture dropped between two clips: held still right there, a clip of its own
+ * (a card, a still). A new shot goes into the script (its action names the
+ * picture), the picture becomes its take, and the clip lands where it was
+ * dropped. Its length is the clip's edge. */
+export async function dropPictureBetween(gap: number, file: File): Promise<void> {
   const { ep, pass } = get();
-  if (!ep) return null;
+  if (!ep) return;
+  const cut = cutShots();
+  const anchor = anchorAt(cut, gap);
+  const left = gap > 0 ? cut[gap - 1].shot : null;
   try {
-    const r = await api().holdTake({ ep, pass, shot, file, name: file.name, pick: true });
-    host().toast("success", `${shot}: ${file.name} held`,
-      `${tn(r.take)}, ${r.sidecar?.held?.seconds ?? "?"} s${r.picked ? ", in the cut" : r.why ? `: ${r.why}` : ""}.`);
+    const doc = await api().source(ep, "script");
+    const made = anchor && heldShot(doc.text, doc.shots, anchor, HOLD_SECONDS, file.name);
+    if (!made) {
+      host().toast("error", "Nowhere to put it", "There's no shot beside the drop to put it after.");
+      return;
+    }
+    const r = await api().putSource({ ep, file: "script", text: made.text, base_hash: doc.hash, rebuild: true });
+    afterAuthoredWrite(r.build);
+    if (r.build && !r.build.ok) return;                     // the build said why
+    const h = await api().holdTake({ ep, pass, shot: made.id, file, name: file.name, seconds: HOLD_SECONDS, pick: true });
     await refreshEpisode(ep, pass);
-    select(shot, r.take);
-    return r.take;
+    await moveClip(made.id, gapAfter(cutShots(), left));
+    select(made.id, h.take);
+    host().toast("success", `${file.name} held`, `${made.id}, ${HOLD_SECONDS} s: drag its edge to make it longer or shorter.`);
   } catch (e) {
-    host().toast("error", `Couldn't hold ${file.name} as ${shot}`, errText(e));
-    return null;
+    host().toast("error", `Couldn't hold ${file.name}`, errText(e));
+  }
+}
+
+/** A held clip's edge let go: held again at `frames` (its trims cleared). */
+export async function holdLength(shot: string, take: number, takePass: "final" | "proxy", frames: number, trimmed: boolean): Promise<void> {
+  const { ep, pass } = get();
+  if (!ep) return;
+  try {
+    await api().holdTakeLength({ ep, pass: takePass, shot, take, frames });
+    if (trimmed) await setTrims(shot, 0, 0, `Hold ${shot}`);
+    await refreshEpisode(ep, pass);
+  } catch (e) {
+    host().toast("error", `Couldn't change ${shot}'s length`, errText(e));
   }
 }
 
 /** After the shot form saved a new shot that came with a file: the file as its
- * take (a picture: its first keyframe, or with `hold` its take, held still), and
- * the clip where it was dropped. */
-export async function finishDroppedFile(shot: string, file: File, left: string | null, hold = false): Promise<void> {
-  if (hold && isPicture(file)) {
-    if ((await holdPictureFile(shot, file)) == null) return;
-  } else if (isPicture(file)) {
+ * take, and the clip where it was dropped. */
+export async function finishDroppedFile(shot: string, file: File, left: string | null): Promise<void> {
+  if (isPicture(file)) {
     await keyframeFromFile(shot, file);
     const { ep, pass } = store.get();
     if (ep) await refreshEpisode(ep, pass);         // the new shot in the status, to be moved

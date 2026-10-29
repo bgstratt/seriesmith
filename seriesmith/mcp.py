@@ -470,6 +470,13 @@ TOOLS: list[Tool] = [
          route("POST", "/seriesmith/take/hold", "ep", "pass", "shot", "source_path",
                "from_shot", "take", "from_pass", "frame", "seconds", "pick", "note"),
          writes=True),
+    Tool("hold_length", "A held picture's take (hold_picture's) made again at another length, "
+         "in place: frames at the take's own rate. Clear the shot's trims with edit_cut "
+         "if they no longer fit.",
+         {"ep": EP, "shot": SHOT, "pass": PASS, "take": TAKE,
+          "frames": {"type": "integer", "minimum": 1}}, ("ep", "shot", "take", "frames"),
+         route("POST", "/seriesmith/take/hold-length", "ep", "pass", "shot", "take", "frames"),
+         writes=True),
     Tool("discard_take", "Move a take into renders/_trash/ (out of the lists; the file is "
          "kept there).", {"ep": EP, "shot": SHOT, "take": TAKE, "pass": PASS},
          ("ep", "shot", "take"),

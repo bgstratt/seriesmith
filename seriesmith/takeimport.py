@@ -7,6 +7,7 @@ drag"); the shot-side counterpart of refs.import_take / copy_take.
     copy_take(root, pass_, shot, from_shot, take)      -> Take  (copied_from)
     hold_take(root, pass_, shot, picture, seconds, ...) -> Take  (held)
     hold_frame(root, pass_, shot, from_shot, take, frame, seconds, ...) -> Take
+    hold_length(root, pass_, shot, take, frames) -> Take  (the same take, longer or shorter)
 
 An imported take is a take like any other on disk (<renders>/<shot>/<stem>.mp4,
 its sidecar, thumbnail and strip), with nothing that made it: no seed, prompt,
@@ -21,6 +22,9 @@ A held take is a picture (a card, "Two hours later"; or one frame of a take,
 a freeze frame) held for a number of seconds: an H.264 mp4 at the pass's size
 and the cut's frame rate, letterboxed if its aspect differs, with no sound
 (assemble lays silence under it). Imported as any other, `held` in its record.
+The picture is kept beside it (`<stem>_held.<ext>`), so its length can change:
+the take is held again in place, at the new length (its upscale and post,
+made from the old mp4, are then stale and made again when they're wanted).
 
 ffmpeg / ffprobe through seriesmith.ff.
 """
@@ -251,11 +255,41 @@ def hold_take(root: str, pass_: str, shot: str, picture: str, seconds: float, fp
     what = (f"frame {held_from['frame']} of {held_from['shot']} t{held_from['take']:02d}"
             if held_from else name)
     try:
-        encode_hold(picture, take.paths.mp4, seconds, fps, size)
+        kept = os.path.join(take.paths.dir, take.paths.stem + "_held"
+                            + (os.path.splitext(name)[1].lower() or ".png"))
+        fileio.copy(picture, kept)
+        held["picture"] = os.path.basename(kept)
+        take.sidecar = T.update_sidecar(take.paths.sidecar, held=held)
+        encode_hold(kept, take.paths.mp4, seconds, fps, size)
         return _finish(take, [f"{what} held {seconds:g} s"])
     except BaseException as e:
         take.sidecar = T.record_failed(take.paths.sidecar, f"hold failed: {e}")
         raise
+
+
+def hold_length(root: str, pass_: str, shot: str, take: int, frames: int) -> T.Take:
+    """A held take made again in place, `frames` long (at its own rate and
+    size) from its kept picture: what dragging its edge past its end asks.
+    LookupError for no such take, TakeImportError for a take that isn't held."""
+    t = T.get_take(root, pass_, shot, take)
+    if t is None:
+        raise LookupError(f"{shot} has no take {take} in {pass_}")
+    sc = t.sidecar or {}
+    held = sc.get("held")
+    if not isinstance(held, dict) or not t.usable:
+        raise TakeImportError(f"{shot} t{take:02d} isn't a held picture: only a held take's "
+                           "length can change")
+    kept = os.path.join(t.paths.dir, held.get("picture") or "")
+    if not held.get("picture") or not os.path.isfile(kept):
+        raise TakeImportError(f"{shot} t{take:02d} has no kept picture (held before they were "
+                           "kept): hold the picture again")
+    if isinstance(frames, bool) or not isinstance(frames, int) or frames < 1:
+        raise TakeImportError(f"frames is a whole number over 0, not {frames!r}")
+    fps = float(sc.get("fps") or 24)
+    seconds, fps, size = check_hold(frames / fps, fps, (sc.get("width"), sc.get("height")))
+    encode_hold(kept, t.paths.mp4, seconds, fps, size)
+    held = dict(held, seconds=round(seconds, 3))
+    return _finish(t, [f"held again: {frames} frames"], held=held)
 
 
 def grab_frame(mp4: str, frame: int, dst: str) -> None:

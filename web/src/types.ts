@@ -1729,6 +1729,15 @@ export interface TakeHoldRequest {
   pick?: boolean;
 }
 
+/** POST /seriesmith/take/hold-length: a held take made again `frames` long, in place. */
+export interface TakeHoldLengthRequest {
+  ep: string;
+  pass: Pass;
+  shot: string;
+  take: number;
+  frames: number;
+}
+
 /** What take/import, take/copy and take/hold answer. */
 export interface ImportedShotTake {
   shot: string;

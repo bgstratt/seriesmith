@@ -1101,11 +1101,14 @@ The cut as an editable track, along the bottom of the page.
   two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
   jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
   as an upload in Refs is. A shot whose model reads no
-  keyframe keeps it unused, and says so. Dropped between two clips, a picture opens the shot
-  form there, as a video does: **Save** makes the shot with the picture as its first
-  keyframe, **Save and generate** renders it from that keyframe, and **Save and hold it**
-  makes the picture itself the shot's take, held still for the shot's length: a card ("Two
-  hours later") or a still, nothing rendered. Its badge says **held**.
+  keyframe keeps it unused, and says so.
+- **Drop a picture between two clips** and it's held right there, a clip of its own: a card
+  ("Two hours later"), a title, a still. A shot goes into the script for it (no one in it,
+  its action naming the picture) and the picture is its take, 3 s long. **Drag either
+  edge** to make it as long as you want, frame by frame; it's held again at that length.
+  Its badge says **held**. It exports, upscales and masters as any clip does. (Drop a
+  picture onto it later and that's its first keyframe, should you want it rendered
+  instead.)
 - **A freeze frame**: a take's menu (in the viewer, right-click the picture at the frame you
   want; elsewhere, its last frame) has **Hold this frame after it…**. It asks how long, adds a
   shot right after it in the script (its who, with and size; no dialogue, so no line is said

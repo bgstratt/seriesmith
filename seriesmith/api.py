@@ -2473,6 +2473,30 @@ def post_take_hold(ctx: Context, body):
     return 200, _take_answer(ep, t, extra)
 
 
+@handler
+def post_take_hold_length(ctx: Context, body):
+    """A held take made again at another length, in place
+    (takeimport.hold_length): `{ep, pass?, shot, take, frames}` (at the
+    take's own rate). Its upscale and post go stale; the cut isn't touched.
+    The timeline's drag of a held clip's edge (which clears its trims)."""
+    from seriesmith import takeimport as TI
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    take = check_take(body.get("take"))
+    frames = body.get("frames")
+    if isinstance(frames, bool) or not isinstance(frames, int):
+        raise ApiError(400, f"frames must be a whole number, not {frames!r}")
+    try:
+        t = TI.hold_length(ep, pass_, shot, take, frames)
+    except LookupError as e:
+        raise ApiError(404, str(e))
+    take_event(ctx, ep, t)
+    episode_event(ctx, ep)
+    return 200, _take_answer(ep, t, {"picked": False})
+
+
 def _cut_entry(raw) -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("shot"), str) or not raw["shot"]:
         raise ApiError(400, "each cut entry needs a shot id")
@@ -4933,6 +4957,7 @@ ROUTES = [
     ("POST", "/seriesmith/take/import", post_take_import, "form"),
     ("POST", "/seriesmith/take/copy", post_take_copy, "body"),
     ("POST", "/seriesmith/take/hold", post_take_hold, "form"),
+    ("POST", "/seriesmith/take/hold-length", post_take_hold_length, "body"),
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),

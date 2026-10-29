@@ -1603,6 +1603,19 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const name = req.name ?? req.source_path?.split(/[\/]/).pop() ?? "picture.png";
       return mockImportTake(req.pass, req.shot, name, !!req.pick, null, { seconds, name });
     },
+    async holdTakeLength(req) {
+      need(req.ep);
+      const s = shotSt(req.pass, req.shot);
+      const t = s.takes.find((x) => x.take === req.take);
+      if (!t) throw new MockError(`${req.shot} has no take ${req.take} in ${req.pass}`, 404);
+      if (!t.held) throw new MockError(`${req.shot} t${String(req.take).padStart(2, "0")} isn't a held picture`, 400);
+      t.frames = req.frames;
+      t.held = { ...t.held, seconds: req.frames / (t.fps || 24) };
+      recut(req.pass);
+      emit("seriesmith.take", { ep: EP, pass: req.pass, shot: req.shot, take: req.take, status: "ok", thumb: t.thumb });
+      emit("seriesmith.episode", { ep: EP });
+      return { shot: req.shot, take: req.take, pass: req.pass, status: "ok", sidecar: { held: t.held } as ImportedShotTake["sidecar"], mp4: t.mp4, thumb: t.thumb, picked: false };
+    },
     // ---- P10: a pass's issues (the notepad) ----
     async issues(ep, pass) {
       await wait();
