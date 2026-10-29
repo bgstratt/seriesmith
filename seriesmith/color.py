@@ -1,6 +1,7 @@
 """
-color — a shot's colour in the cut: exposure, black point, saturation and
-warmth, four sliders at 0 (docs/PLAN.md, "The cut, finished in place").
+color — a shot's colour in the cut: exposure, contrast, black point,
+saturation, warmth and tint, six sliders at 0 (docs/PLAN.md, "The cut,
+finished in place").
 Kept on the cut entry (`"color": {...}`), so nothing is rendered again and the
 take is untouched; assemble applies it (`filters`), and the editor previews
 it with the same numbers (web/src/lib/color.ts, an SVG feColorMatrix).
@@ -13,21 +14,28 @@ Not a grade: one linear map of the picture's (gamma-encoded) RGB, so the
 preview and the export agree, and a match to another shot can solve for it.
 
     exposure    stops of gain, -2..2: every channel times 2**exposure
+    contrast    -1..1: a gain of 2**contrast around mid grey (0.5): -1 half
+                as much, 1 twice as much
     black       the black point, -0.25..0.25: positive lifts the blacks
                 (x -> x(1-b) + b), negative crushes them (the same line)
     saturation  -1..1: 0 is as shot, -1 grey, 1 twice as colourful (around
                 Rec.709 luma)
-    warmth      -1..1: red up and blue down by WARMTH a unit (cooler below 0)
+    warmth      -1..1: red up and blue down by SHIFT a unit (cooler below 0)
+    tint        -1..1: green down by SHIFT a unit (magenta), up below 0
+                (green); with warmth, any colour cast
+
+In that order: saturation, the channel gains (exposure, warmth, tint), the
+contrast, the black point.
 
 Stdlib only.
 """
 from __future__ import annotations
 
-RANGES = {"exposure": (-2.0, 2.0), "black": (-0.25, 0.25), "saturation": (-1.0, 1.0),
-          "warmth": (-1.0, 1.0)}
+RANGES = {"exposure": (-2.0, 2.0), "contrast": (-1.0, 1.0), "black": (-0.25, 0.25),
+          "saturation": (-1.0, 1.0), "warmth": (-1.0, 1.0), "tint": (-1.0, 1.0)}
 FIELDS = tuple(RANGES)
 LUMA = (0.2126, 0.7152, 0.0722)                  # Rec.709
-WARMTH = 0.15                                    # red / blue gain at warmth 1
+SHIFT = 0.15                                     # a channel's gain at warmth or tint 1
 
 
 def check(raw) -> dict:
@@ -56,22 +64,25 @@ def check(raw) -> dict:
 def matrix(color: dict) -> tuple[list[list[float]], list[float]]:
     """(m, offset): out = m . rgb + offset per pixel, rgb in 0..1 (clipped
     after). Saturation around luma, then the channel gains (exposure,
-    warmth), then the black point."""
+    warmth, tint), then the contrast around mid grey, then the black point."""
     c = check(color)
     s = 1.0 + c.get("saturation", 0.0)
     sat = [[(1 - s) * LUMA[j] + (s if i == j else 0.0) for j in range(3)] for i in range(3)]
-    w = c.get("warmth", 0.0)
+    w, t = c.get("warmth", 0.0), c.get("tint", 0.0)
     gain = 2.0 ** c.get("exposure", 0.0)
-    gains = (gain * (1 + WARMTH * w), gain, gain * (1 - WARMTH * w))
+    gains = (gain * (1 + SHIFT * w), gain * (1 - SHIFT * t), gain * (1 - SHIFT * w))
+    k = 2.0 ** c.get("contrast", 0.0)
     b = c.get("black", 0.0)
-    m = [[gains[i] * sat[i][j] * (1 - b) for j in range(3)] for i in range(3)]
-    return m, [b, b, b]
+    m = [[(1 - b) * k * gains[i] * sat[i][j] for j in range(3)] for i in range(3)]
+    o = (1 - b) * 0.5 * (1 - k) + b
+    return m, [o, o, o]
 
 
 def filters(color: dict) -> list[str]:
     """ffmpeg filters applying `color` to a clip (none for {}): its frames to
-    full-range RGB (BT.709), the matrix (colorchannelmixer), the black point
-    (lutrgb), and back to BT.709 4:2:0, limited range."""
+    full-range RGB (BT.709), the matrix (colorchannelmixer), the offset the
+    contrast and black point add (lutrgb), and back to BT.709 4:2:0, limited
+    range."""
     c = check(color)
     if not c:
         return []

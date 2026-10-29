@@ -1336,8 +1336,9 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
         generated rather than by Generate missing.
 - Not doing: an animatic (decided 2026-10-29). Holding pictures on the timeline was the
   point; a pass or an export of keyframes isn't wanted.
-- [x] **A clip's colour** (2026-10-29): exposure (stops), black point, saturation, warmth, four
-      sliders at 0 in the inspector's cut section. Kept on the cut entry (`"color"`, only
+- [x] **A clip's colour** (2026-10-29): exposure (stops), contrast, black point, saturation,
+      warmth, tint, six sliders at 0 in the inspector's cut section (tint and contrast added
+      the same day: warmth alone is one axis of a cast, and models differ most in contrast). Kept on the cut entry (`"color"`, only
       the non-zero ones; `takes.CutEntry.color`), so nothing re-renders and the take is
       untouched. One linear map of the picture's RGB (seriesmith/color.py, mirrored in
       web/src/lib/color.ts and held to the same numbers by tests/fixtures/color_cases.json):

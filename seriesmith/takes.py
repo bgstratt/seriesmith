@@ -923,8 +923,8 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # SH`; `--unflag SH`). A locked entry can be flagged. Each pass's cut has its
 # own; resetting or copying the cut keeps a pass's flags as they are.
 #
-# An entry may carry `color` (seriesmith/color.py): the clip's exposure, black
-# point, saturation and warmth, the ones that aren't 0. Assemble applies it;
+# An entry may carry `color` (seriesmith/color.py): the clip's exposure,
+# contrast, black point, saturation, warmth and tint, the ones that aren't 0. Assemble applies it;
 # the take is untouched. A value out of range (a hand-edited file) is ignored.
 #
 #   {"shot": "sh040", "color": {"exposure": 0.3, "warmth": -0.2}}
@@ -1077,7 +1077,7 @@ class CutEntry:
     audio: dict | None = None       # where the clip's sound comes from (audio_spec)
     out: bool = False               # left out of the cut (still in the script)
     flag: bool = False              # bookmarked: come back to it (changes nothing played)
-    color: dict | None = None       # exposure / black / saturation / warmth (seriesmith.color)
+    color: dict | None = None       # exposure, contrast, black, ... (seriesmith.color)
     in_cut_file: bool = True        # False: not listed, placed by script order
     orphan: bool = False            # listed, but no longer in the script
     placeholder: bool = False       # take comes from the other pass

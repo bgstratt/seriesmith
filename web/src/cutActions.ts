@@ -190,7 +190,7 @@ export function nudgeClip(shot: string, delta: -1 | 1): Promise<boolean> {
   return editCut(`Move ${shot} ${delta < 0 ? "left" : "right"}`, (list) => nudge(list, shot, delta));
 }
 
-/** Set a clip's colour (exposure, black, saturation, warmth; {} as shot), applied by assemble. */
+/** Set a clip's colour (exposure, contrast, black, saturation, warmth, tint; {} as shot), applied by assemble. */
 export function setColor(shot: string, color: ShotColor, label = `Colour ${shot}`): Promise<boolean> {
   const c = ctx();
   if (!c) return Promise.resolve(false);

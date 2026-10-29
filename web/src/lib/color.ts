@@ -1,18 +1,18 @@
 // A shot's colour in the cut (seriesmith/color.py, the same numbers): exposure,
-// black point, saturation and warmth, four sliders at 0, kept on the cut entry
+// contrast, black point, saturation, warmth and tint, six sliders at 0, kept on the cut entry
 // and applied by assemble. Here: the ranges, the check, and the matrix as an
 // SVG feColorMatrix, so the viewer and the timeline preview what the export
 // will be.
 
-export type ColorField = "exposure" | "black" | "saturation" | "warmth";
+export type ColorField = "exposure" | "contrast" | "black" | "saturation" | "warmth" | "tint";
 export type ShotColor = Partial<Record<ColorField, number>>;
 
 export const COLOR_RANGES: Record<ColorField, [number, number]> = {
-  exposure: [-2, 2], black: [-0.25, 0.25], saturation: [-1, 1], warmth: [-1, 1],
+  exposure: [-2, 2], contrast: [-1, 1], black: [-0.25, 0.25], saturation: [-1, 1], warmth: [-1, 1], tint: [-1, 1],
 };
 export const COLOR_FIELDS = Object.keys(COLOR_RANGES) as ColorField[];
 const LUMA = [0.2126, 0.7152, 0.0722];
-const WARMTH = 0.15;
+const SHIFT = 0.15;
 
 /** The non-zero fields, rounded to 3 places and clamped to their ranges. */
 export function cleanColor(c: ShotColor | null | undefined): ShotColor {
@@ -52,10 +52,13 @@ export function colorMatrix(c: ShotColor): { m: number[][]; offset: number[] } {
   const s = 1 + (k.saturation ?? 0);
   const sat = [0, 1, 2].map((i) => [0, 1, 2].map((j) => (1 - s) * LUMA[j] + (i === j ? s : 0)));
   const w = k.warmth ?? 0;
+  const t = k.tint ?? 0;
   const gain = 2 ** (k.exposure ?? 0);
-  const gains = [gain * (1 + WARMTH * w), gain, gain * (1 - WARMTH * w)];
+  const gains = [gain * (1 + SHIFT * w), gain * (1 - SHIFT * t), gain * (1 - SHIFT * w)];
+  const ctr = 2 ** (k.contrast ?? 0);
   const b = k.black ?? 0;
-  return { m: [0, 1, 2].map((i) => [0, 1, 2].map((j) => gains[i] * sat[i][j] * (1 - b))), offset: [b, b, b] };
+  const o = (1 - b) * 0.5 * (1 - ctr) + b;
+  return { m: [0, 1, 2].map((i) => [0, 1, 2].map((j) => (1 - b) * ctr * gains[i] * sat[i][j])), offset: [o, o, o] };
 }
 
 /** The feColorMatrix `values` (20 numbers: four rows of r g b a offset). */

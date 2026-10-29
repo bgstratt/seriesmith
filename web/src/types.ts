@@ -110,7 +110,7 @@ export interface CutInfo {
   /** flagged to come back to (re-render it, change its prompt); changes nothing
    * played. Absent from older servers. */
   flag?: boolean;
-  /** its colour in the cut (exposure, black, saturation, warmth; null: as shot),
+  /** its colour in the cut (exposure, contrast, black, saturation, warmth, tint; null: as shot),
    * applied by assemble. Absent from older servers. */
   color?: ShotColor | null;
   /** The cut take's real frame count (its sidecar's), or null. The shot's

@@ -520,8 +520,10 @@ seriesmith cut Shows\ep05 --proxy --flag sh0140      # --unflag to clear; --show
 
 ### A clip's colour
 
-The inspector's **In the cut** section has four sliders for the clip: **exposure** (stops),
-**blacks** (lift or crush), **saturation** and **warmth**, each at 0 as shot. Drag one and the
+The inspector's **In the cut** section has six sliders for the clip: **exposure** (stops),
+**contrast**, **blacks** (lift or crush), **saturation**, **warmth** (amber or blue) and
+**tint** (magenta or green), each at 0 as shot. Warmth and tint together correct any colour
+cast. Drag one and the
 viewer shows it at once (the shot's takes, and Play all); let go and it's saved in the cut.
 Double-click a slider to put it back to 0; **Reset** clears them all. It's not a grade: one
 simple adjustment to bring a clip in line with its neighbours. Real colour work goes to

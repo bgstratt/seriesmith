@@ -467,8 +467,8 @@ TOOLS: list[Tool] = [
     Tool("edit_cut", "Change the cut: per shot its take, trims (trim_in / trim_out, frames "
          "at the episode's fps), locked, note, out (left out of the cut, kept in the script), "
          "flag (a bookmark), audio (sound from another take or a file: docs/API.md), color "
-         "({exposure -2..2 stops, black -0.25..0.25, saturation -1..1, warmth -1..1}; null "
-         "clears it); and/or its order (every shot of the cut, once). Only what is named "
+         "({exposure -2..2 stops, contrast -1..1, black -0.25..0.25, saturation -1..1, "
+         "warmth -1..1, tint -1..1}; null clears it); and/or its order (every shot of the cut, once). Only what is named "
          "changes.",
          {"ep": EP, "pass": PASS,
           "changes": {"type": "array", "items": {

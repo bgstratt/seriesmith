@@ -32,7 +32,7 @@ cut.json (next to shotlist/) holds one ordered list per pass:
 - An entry marked `out` (left out of the cut) is skipped, noted.
 - `pass` naming the other pass makes a placeholder, e.g. a proxy take standing
   in for a final that isn't rendered yet. It is scaled to this cut's size.
-- `color` (seriesmith/color.py: exposure, black, saturation, warmth) is applied to
+- `color` (seriesmith/color.py: exposure, contrast, black, saturation, warmth, tint) is applied to
   the clip as it's re-encoded; `--no-color` leaves every clip as shot.
 - `trim_in`/`trim_out` drop frames from the head/tail, after the dialogue-window
   trim below.

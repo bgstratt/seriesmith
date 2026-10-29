@@ -533,9 +533,11 @@ shot) skip it, and the timeline shows it as a stub. A shot named outright (an up
 `"flag": true` is a bookmark, "come back to this one" (re-render it, change its prompt): it
 changes nothing played or assembled, a locked entry takes one, and reset and copying keep each
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
-`"color": {"exposure"?, "black"?, "saturation"?, "warmth"?}` is the clip's colour
-(seriesmith/color.py): exposure in stops (-2..2), the black point (-0.25..0.25: positive
-lifts, negative crushes), saturation (-1..1: -1 grey) and warmth (-1..1). Each is 0 when
+`"color": {"exposure"?, "contrast"?, "black"?, "saturation"?, "warmth"?, "tint"?}` is the
+clip's colour (seriesmith/color.py): exposure in stops (-2..2), contrast (-1..1: a gain of
+2^contrast around mid grey), the black point (-0.25..0.25: positive lifts, negative
+crushes), saturation (-1..1: -1 grey), warmth (-1..1: amber / blue) and tint (-1..1:
+magenta / green). Each is 0 when
 left out; only the non-zero ones are kept (rounded to 3 places), all zeros is none, out of
 range is 400. One linear map of the picture's RGB, applied by assemble when the clip is
 re-encoded (Export, Titles, 2x; `--no-color` skips it); the take is untouched. The status's

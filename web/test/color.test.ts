@@ -12,7 +12,7 @@ describe("a shot's colour", () => {
     for (const c of CASES) {
       const { m, offset } = colorMatrix(c.color);
       m.forEach((row, i) => row.forEach((v, j) => expect(v).toBeCloseTo(c.m[i][j], 7)));
-      expect(offset).toEqual(c.offset);
+      offset.forEach((v, i) => expect(v).toBeCloseTo(c.offset[i], 7));
     }
   });
   it("keeps what isn't 0, in range", () => {

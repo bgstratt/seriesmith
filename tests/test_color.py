@@ -29,7 +29,8 @@ class ColorTest(unittest.TestCase):
     def test_check(self):
         self.assertEqual(C.check(None), {})
         self.assertEqual(C.check({"exposure": 0, "warmth": 0.12345}), {"warmth": 0.123})
-        for bad in ({"tint": 1}, {"exposure": 3}, {"black": "0.1"}, {"saturation": True}, [1]):
+        for bad in ({"hue": 1}, {"exposure": 3}, {"contrast": -1.5}, {"black": "0.1"},
+                    {"saturation": True}, [1]):
             with self.assertRaises(ValueError):
                 C.check(bad)
 
@@ -41,7 +42,8 @@ class ColorTest(unittest.TestCase):
             for row, want in zip(m, case["m"]):
                 for v, w in zip(row, want):
                     self.assertAlmostEqual(v, w, places=7)
-            self.assertEqual(off, case["offset"])
+            for v, w in zip(off, case["offset"]):
+                self.assertAlmostEqual(v, w, places=7)
         self.assertEqual(C.filters({}), [])
 
     @unittest.skipUnless(Image, "reading the frame needs Pillow")
@@ -57,7 +59,9 @@ class ColorTest(unittest.TestCase):
                     return im.convert("RGB").getpixel((32, 32))
             base = [v / 255 for v in frame({})]
             for color in ({"exposure": 1}, {"black": 0.1}, {"saturation": -1}, {"warmth": 1},
-                          {"exposure": -0.5, "saturation": 0.5, "warmth": -0.5, "black": -0.05}):
+                          {"contrast": 0.7}, {"contrast": -1}, {"tint": 1}, {"tint": -1},
+                          {"exposure": -0.5, "saturation": 0.5, "warmth": -0.5, "black": -0.05,
+                           "contrast": 0.2, "tint": 0.4}):
                 m, off = C.matrix(color)
                 want = [max(0.0, min(1.0, sum(m[i][j] * base[j] for j in range(3)) + off[i])) * 255
                         for i in range(3)]

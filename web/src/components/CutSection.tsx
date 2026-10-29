@@ -122,13 +122,15 @@ export function CutSection({ shot }: { shot: string }) {
 
 const COLOR_LABELS: Record<ColorField, { label: string; step: number; help: string; unit?: string }> = {
   exposure: { label: "exposure", step: 0.05, unit: " st", help: "Brighter or darker, in stops" },
+  contrast: { label: "contrast", step: 0.05, help: "Flatter (-1: half as much) or punchier (1: twice as much), around mid grey" },
   black: { label: "blacks", step: 0.005, help: "Lift the blacks (milky) or crush them (deeper)" },
   saturation: { label: "saturation", step: 0.05, help: "Less colour (-1: grey) or more" },
   warmth: { label: "warmth", step: 0.05, help: "Warmer (more red, less blue) or cooler" },
+  tint: { label: "tint", step: 0.05, help: "Magenta (less green) or green: with warmth, any colour cast" },
 };
 
 /**
- * The clip's colour in the cut (src/lib/color.ts): four sliders at 0, previewed
+ * The clip's colour in the cut (src/lib/color.ts): six sliders at 0, previewed
  * in the viewer while dragged, saved when let go, applied by assemble on export.
  */
 function ClipColorLines({ shot, cut, locked }: { shot: string; cut: ShotStatus["cut"]; locked: boolean }) {

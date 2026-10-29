@@ -981,7 +981,7 @@ class CutTest(ApiTest):
         _, shots = self.status()
         self.assertEqual(shots[order[0]]["cut"]["color"], {"exposure": 0.5, "black": -0.05})
         self.assertIsNone(shots[order[1]]["cut"]["color"])
-        for bad in ({"exposure": 3}, {"tint": 0.1}, {"warmth": "warm"}, "warm"):
+        for bad in ({"exposure": 3}, {"hue": 0.1}, {"warmth": "warm"}, "warm"):
             msg = self.err(A.put_cut(self.ctx, {"ep": self.ep, "pass": "proxy", "entries": [
                 {"shot": order[0], "color": bad}]}), 400)
             self.assertIn(order[0], msg)
