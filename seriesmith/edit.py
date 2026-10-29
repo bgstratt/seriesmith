@@ -520,6 +520,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     out = []
     script_idx = {sid: i for i, sid in enumerate(shots)}
     actions = script_actions(root)
+    # who speaks (the build's IR): the shots a dub track is for, and how many each has
+    from seriesmith import refs as R
+    story = R.episode_story(root)
+    speaks = {s.id for s in story.shots() if s.dialogue} if story else set()
     resolved = T.resolve_cut(cut, pass_, list(shots))
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
     name, kept = TF.store(root, pass_)
@@ -558,6 +562,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             # the first sentence of what happens, as the script says it (the board)
             **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,
+            # it has lines (a dub track is for it), and the dub tracks it has
+            **({"speaks": True} if e.shot in speaks else {}),
+            **({"dub_tracks": n} if (n := len(T.take_numbers(root, T.PASSES[0], e.shot,
+                                                              T.DUB_FOLDER))) else {}),
             # the sound overrides.json sets (generate, clone, or a dub of a
             # track: its label), else null: the script's (audio_policy)
             **({"sound": sound_view(root, e.shot, T.shot_sound(ov, e.shot))}

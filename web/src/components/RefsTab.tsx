@@ -48,6 +48,7 @@ import { DropSlot, SupplyPicker, UploadButton } from "./Upload";
 import { EditForm, editSourceText } from "./RefEdit";
 import { PanoSection } from "./PanoViewer";
 import { TourSection } from "./TourSection";
+import { DubTracksSection } from "./DubTracks";
 
 const FILTERS: { id: RefFilter; label: string; title: string }[] = [
   { id: "episode", label: "this episode", title: "Refs used by this episode's shots (this pass)" },
@@ -1503,6 +1504,7 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                 </div>
               );
             })}
+            {refs && view !== "board" && <DubTracksSection st={st} />}
           </div>
         </>
       )}

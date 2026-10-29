@@ -58,3 +58,28 @@ describe("the Sound card", () => {
     expect(renderToString(createElement(SoundDialog))).toContain(`Sound · ${shot.shot}`);
   });
 });
+
+import { DubTracksSection, dubMissing, dubShots } from "../src/components/DubTracks";
+import type { EpisodeStatus } from "../src/types";
+
+describe("the Refs tab's dub tracks", () => {
+  const st = (shots: Partial<ShotStatus>[]) =>
+    ({ shots: shots.map((s) => ({ orphan: false, takes: [], cut: {}, ...s })) } as unknown as EpisodeStatus);
+  it("lists the speaking shots and any with a dub; the speaking ones with none are missing", () => {
+    const s = st([
+      { shot: "sh010" },                                                   // silent: not listed
+      { shot: "sh020", speaks: true },                                     // missing
+      { shot: "sh030", speaks: true, dub_tracks: 2 },
+      { shot: "sh040", dub_tracks: 1 },                                    // a dub track, no lines now
+      { shot: "sh050", sound: { mode: "dub", dub: { from: "track" } } },
+      { shot: "sh060", speaks: true, orphan: true },                       // gone from the script
+    ]);
+    expect(dubShots(s).map((x) => x.shot)).toEqual(["sh020", "sh030", "sh040", "sh050"]);
+    expect(dubMissing(s)).toEqual(["sh020"]);
+    const html = renderToString(createElement(DubTracksSection, { st: s }));
+    for (const words of ["Dub tracks", "Generate missing", "no dub track yet", "2 dub tracks", "dub · "]) {
+      expect(html).toContain(words);
+    }
+    expect(renderToString(createElement(DubTracksSection, { st: st([{ shot: "sh010" }]) }))).toBe("");
+  });
+});

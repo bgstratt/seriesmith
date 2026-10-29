@@ -242,6 +242,8 @@ class SoundTest(unittest.TestCase):
         self.assertIn("sound", s["takes"][0]["stale"])
         self.assertEqual((s["sound"]["mode"], s["sound"]["label"]), ("dub", f"dub track {d.take}"))
         self.assertTrue(s["sound"]["file"].endswith("_h3.wav"))
+        # the Refs tab's dub tracks: it speaks, and has one
+        self.assertEqual((s.get("speaks"), s.get("dub_tracks")), (True, 1))
         code, out = A.get_dubs(ctx, {"ep": self.root, "shot": "sh020"})
         self.assertEqual(code, 200, out)
         self.assertEqual([x["take"] for x in out["dubs"]], [d.take])
