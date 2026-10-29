@@ -206,6 +206,7 @@ const Clip = memo(function Clip({
     `${label} · ${fmtShotSeconds(s, secs)}${s.size ? ` · ${s.size}` : ""}${lengthEstimated(s) ? `\n≈ ${ESTIMATE_TITLE}` : ""}`,
     group ? `one generation of ${group.length} shots (continuous: multishot): ${group.map((p) => `${p.id} at ${framesLabel(p.start, fps)}`).join(", ")}; the marks are where the script times the cuts, and the model lands near them` : "",
     flagged ? "flagged to come back to (M: unflag · Shift+M: the next flagged clip)" : "",
+    s.cut.look_off?.length ? `colour out of line with its sequence: ${s.cut.look_off.join(", ")} (its colour in the inspector, or Match the sequence's colour to a clip that looks right)` : "",
     noted ? `${noted} open note${noted > 1 ? "s" : ""} (the Shots tab's Issues list)` : "",
     s.cut.out ? "left out of the cut: Play all, assemble and Master skip it (right-click: Put back in the cut)" : "",
     take ? `${s.cut.placeholder ? `${s.cut.pass} ` : ""}${tn(take.take)} (${take.status})` : "no take in the cut",

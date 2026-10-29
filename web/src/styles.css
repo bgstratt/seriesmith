@@ -1059,3 +1059,5 @@
 
 /* Play all: a clip's fade, as black over it (fadeLevel) */
 .h3-fade-veil { position: absolute; inset: 0; background: #000; pointer-events: none; z-index: 1; }
+/* the clip's bottom bar lets the pointer through to the clip; these say something on hover */
+.h3-clip-bottom .h3-look-off, .h3-clip-bottom .pi-palette { pointer-events: auto; }
