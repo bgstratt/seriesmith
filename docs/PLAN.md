@@ -1419,8 +1419,18 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       FastH3 Omni, Singularity) goes there over its model's own partner; a model that reads
       one (LTX-2, Wan, the hosted ones) keeps its shots either way. `targets.first_target`,
       validated (a video target reading a first keyframe). Tests: PartnerTest's.
-- [ ] More seeds at final size before trusting the FL2VA partners' look; FastH3's shifts in
-      its FL2VA graph if it drifts.
+- [x] **Singularity opens on a first frame itself** (2026-10-29): ComfyUI's `MiniMaxH3AddGuide`
+      anchors a picture at frame 0 of the reference node's render (as FL2VA anchors a dub), so
+      a shot that asks for one (`continuous: first`, a `first:` line) stays on Singularity with
+      its pictures, which FL2VA can't read (minimax_h3_ref2va/first_frame.py; recipe
+      `keyframes_when_asked`: the Refs tab lists a first keyframe only for a shot that asks).
+      Live (last-light sh030 from sh020's last frame, proxy): frame 0 the keyframe, then the
+      close-up the script asks for, Mara's sheet and the plate sent. FastH3 Omni tried the same
+      way ignored the anchor (frame 0 not the keyframe: its 8 distilled steps), so it keeps
+      `fasth3_fl2va`. `h3_singularity_fl2va` stays as a model to name or set as `first_target`.
+- [ ] Stock H3 Ref2VA the same way (its full weights should take the anchor as Singularity's
+      do), instead of moving to FL2VA; it changes every existing series' continuous shots, so
+      decide first. More seeds at final size before trusting any of this.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

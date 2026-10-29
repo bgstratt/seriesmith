@@ -36,7 +36,7 @@ overlap: 39          # optional: frames of the previous clip held (latent only)
 
 | `continuous:` | What it does | Where it renders |
 |---|---|---|
-| `first` | The previous take's last frame is this shot's first keyframe (the old `first: continuity`). | Any target that reads a first frame, hosted ones included. An H3 Ref2VA shot builds on H3 FL2VA instead; FastH3 Omni and H3 Singularity on their own FL2VA (`fasth3_fl2va`, `h3_singularity_fl2va`: that model's weights in FL2VA's graph). |
+| `first` | The previous take's last frame is this shot's first keyframe (the old `first: continuity`). | Any target that reads a first frame, hosted ones included. An H3 Ref2VA shot builds on H3 FL2VA instead, FastH3 Omni on its own FL2VA (`fasth3_fl2va`: its weights in FL2VA's graph). H3 Singularity reads it itself, anchored at frame 0 of its own render with its pictures kept (`keyframes_when_asked`). |
 | `latent` | The tail of the previous take's latent (video and audio: its kept latent, else its last frames encoded) is held at the head of this shot's latent (noise mask 0), and H3 generates the rest. The held frames are trimmed after decode. This shot keeps its own refs and prompt. | H3 Ref2VA (FL2VA possibly later). |
 | *(absent)* | The shot doesn't continue. This is the default. | — |
 

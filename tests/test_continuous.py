@@ -128,10 +128,10 @@ if __name__ == "__main__":
 class PartnerTest(unittest.TestCase):
     """A `continuous: first` shot on a target that reads no first keyframe
     renders on its partner (target.json `continuous.first`): H3 Ref2VA's is
-    H3 FL2VA, FastH3 Omni's fasth3_fl2va, Singularity's h3_singularity_fl2va.
-    The render keeps it there when the target came from the script (a `#`
-    header), not only from the series config (jobs.script_targets reads the
-    build's routing)."""
+    H3 FL2VA, FastH3 Omni's fasth3_fl2va. The render keeps it there when the
+    target came from the script (a `#` header), not only from the series
+    config (jobs.script_targets reads the build's routing). H3 Singularity
+    reads one when asked (keyframes_when_asked): its shot stays on it."""
 
     def test_a_sequence_target_keeps_its_partner_at_render(self):
         import shutil
@@ -154,10 +154,21 @@ class PartnerTest(unittest.TestCase):
                             os.path.join(ep, "series.json"), script, "-o", ep],
                            check=True, capture_output=True, env=ENV)
             got = J.script_targets(ep)
-            self.assertEqual((got["sh010"], got["sh020"]), ("h3_singularity", "h3_singularity_fl2va"))
+            self.assertEqual((got["sh010"], got["sh020"]), ("h3_singularity", "h3_singularity"))
             self.assertEqual((got["sh110"], got["sh120"]), ("fasth3_omni", "fasth3_fl2va"))
-            for sid, want in (("sh020", "h3_singularity_fl2va"), ("sh120", "fasth3_fl2va")):
-                self.assertEqual(J.target_choice({}, sid, want, root=ep), (want, "script"))
+            self.assertEqual(J.target_choice({}, "sh120", "fasth3_fl2va", root=ep),
+                             ("fasth3_fl2va", "script"))
+            # Singularity's shot carries its first frame; the others' don't ask
+            doc, i = J.find_shot(ep, "final", "sh020")
+            self.assertEqual(doc["shots"][i]["keyframes"], {"first": "refs/shots/sh020/first.png"})
+            doc, i = J.find_shot(ep, "final", "sh010")
+            self.assertNotIn("keyframes", doc["shots"][i])
+            # the Refs tab asks only the shot that asks for one (not every Singularity shot)
+            from seriesmith import refs as R
+            needs = R.keyframe_needs(ep)
+            self.assertIn(("sh020", "first"), needs)
+            self.assertNotIn(("sh010", "first"), needs)
+            self.assertNotIn(("sh030", "first"), needs)
 
     def test_the_series_config_names_the_first_frame_model(self):
         from seriesmith import targets as TG
