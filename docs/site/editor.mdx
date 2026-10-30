@@ -1184,23 +1184,36 @@ The cut as an editable track, along the bottom of the page.
 - **Ctrl + wheel** over the track zooms (or the slider).
 - **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
   with a recording attached.
-- **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
+- **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
+  **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
+  says what's running (Assembling…, Adding titles…, Writing the XML…).
+  **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
   Before anything runs it says what's wrong with the cut: shots with nothing to play (no
   take, a failed one, trims that leave nothing; and whether one is rendering now), takes
   shorter than their dialogue on the recording, and the other pass's takes standing in.
   Click a shot to go to it, or **Export anyway**. Titles stops at a missing shot, since it
   needs every one. A cut with nothing wrong exports at once.
-  **2x** beside it assembles from the takes' upscales. A clip without a fresh one (none
+  **Export 2x** assembles from the takes' upscales. A clip without a fresh one (none
   yet, a stale or failed one) is upscaled first, by the series config's `upscale.master`
   recipe as Master does (each take's defaults without one), after saying which; the
   export starts by itself when the last upscale is in, and a failed one stops it.
   **Titles** assembles the whole cut and puts the series intro and outro around it with
   the episode's title (`_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; into
-  `<episode>/publish/`), and its **2x** upscales what's missing the same way.
+  `<episode>/publish/`), and **Titles 2x** upscales what's missing the same way.
+  **Premiere / Resolve XML** writes the cut as a timeline an editor opens (FCP7 XML,
+  `<cut>.xml` beside where the mp4 goes; Premiere: File ▸ Import, Resolve: File ▸ Import ▸
+  Timeline). Nothing is encoded, so it's quick: each clip is its take's own file, in and
+  out where the cut uses it, so the frames a trim or a dialogue window leaves out are there
+  to slip into. The clips' sound is on A1/A2 (a replaced audio source as that file), the
+  recording on A3/A4 when the episode has one; a dissolve is a cross dissolve on the join,
+  a fade one from or to black; a sequence starts with a marker. A clip's colour isn't
+  carried (grade it there), missing shots are skipped, and the files stay where they are
+  (move the show and the editor asks to relink). **XML 2x** points at the upscales,
+  upscaling what's missing first.
   **Play all** watches the cut straight from the takes without assembling anything.
 - **Cut** (the menu in the header): undo / redo, **Reset order**, **Clear trims**, copy the
   order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the
-  cut…**, **Master…** and the waveforms. The header also counts the clips flagged (click:
+  cut…**, **Check colour** and the waveforms. The header also counts the clips flagged (click:
   the next one), moved out of script order, and missing refs (click: the Refs tab).
 
 ### Takes from outside
@@ -1246,7 +1259,7 @@ that upscale: an enhance step (draft, production or cinematic) and motion blur. 
 dialog follows the series' recipe (`upscale.master`, `post.master`, in Series settings) or,
 with **Choose for this run**, your choice. The Cut menu does the same for the whole pass.
 
-**Master** (the timeline header, or Cut → **Master…**) shows what each shot of the cut is
+**Master** (the timeline's Export ▾ → **Master…**) shows what each shot of the cut is
 against the series' upscale recipe, queues the upscales it needs, then assembles the master
 into `<episode>/master/`, with the intro and outro when the show has `_titles/`. It is a
 job the server keeps, so closing the dialog or reloading the page doesn't stop it. **Keep

@@ -442,9 +442,12 @@ TOOLS: list[Tool] = [
          ("ep", "shot", "take"),
          route("PUT", "/seriesmith/pick", "ep", "pass", "shot", "take"), writes=True),
     Tool("assemble", "Cut the pass's picked takes together into one video (can take "
-         "minutes). partial: true leaves shots without a usable take out instead of failing.",
-         {"ep": EP, "pass": PASS, "partial": {"type": "boolean"}}, ("ep",),
-         route("POST", "/seriesmith/assemble", "ep", "pass", "partial"), writes=True),
+         "minutes). partial: true leaves shots without a usable take out instead of failing. "
+         "xml: true writes the cut as an FCP7 XML timeline instead (for Premiere, Resolve: "
+         "each clip its take's own file, nothing encoded, missing shots skipped).",
+         {"ep": EP, "pass": PASS, "partial": {"type": "boolean"}, "xml": {"type": "boolean"}},
+         ("ep",), route("POST", "/seriesmith/assemble", "ep", "pass", "partial", "xml"),
+         writes=True),
     Tool("import_take", "A video on this machine as a shot's new take (an H.264 mp4 copied, "
          "anything else converted to one), picked if pick is true. It keeps its own length; "
          "it has no seed or prompt, so it is never stale and can't be re-rendered as such.",

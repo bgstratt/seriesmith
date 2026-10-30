@@ -412,7 +412,7 @@ export interface AppState {
   colorPreview: { shot: string; color: ShotColor } | null;
   build: { busy: boolean; result: BuildResult | null; error: string | null };
   /** `publish`: the running one is a Publish (assemble, then the titles) */
-  assemble: { busy: boolean; output: string | null; report: string | null; error: string | null; publish?: boolean };
+  assemble: { busy: boolean; output: string | null; report: string | null; error: string | null; publish?: boolean; xml?: boolean };
   /** Export, Titles or a 2x of either, held while the cut's problems are shown (lib/exportCheck) */
   exportCheck: { run: ExportRun; ep: string; pass: Pass; problems: ExportProblem[] } | null;
   /** in-flight actions, by a caller-chosen key, to disable buttons */
@@ -438,6 +438,8 @@ export interface AppState {
   cutUndo: Record<string, { undo: string | null; redo: string | null }>;
   /** Phase 9b: the timeline's Cut menu, open at (x, y) */
   cutMenu: { x: number; y: number } | null;
+  /** the timeline's Export menu (Export, Titles, XML, each 2x; Master), open at (x, y) */
+  exportMenu: { x: number; y: number } | null;
   /** Phase 9c-A: the Recording window (null: closed) */
   trackPanel: TrackPanelState | null;
   /** Phase 9c-A: GET /seriesmith/align/ready, once loaded (null: not asked yet) */
@@ -602,6 +604,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     upscaled: prefs.upscaled ?? false,
     cutUndo: {},
     cutMenu: null,
+    exportMenu: null,
     trackPanel: null,
     alignReady: null,
     alignReadyError: null,

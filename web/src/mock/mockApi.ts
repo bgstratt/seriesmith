@@ -1252,7 +1252,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(1500);
       need(ep);
       const n = st(pass).shots.filter((s) => s.cut.usable).length;
-      const name = `ep05_${pass}${opts?.upscaled ? "_up" : ""}.mp4`;
+      const name = `ep05_${pass}${opts?.upscaled ? "_up" : ""}.${opts?.xml ? "xml" : "mp4"}`;
       const cut = `${st(pass).folder}/${name}`;
       if (opts?.publish) return { ok: true, output: `publish/${name}`, cut, published: `publish/${name}`, report: `  ${n} shots\n  -> publish/${name}\n` };
       return { ok: true, output: cut, report: `  ${n} shots, partial cut\n  wrote ${cut}\n` };

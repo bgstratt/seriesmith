@@ -641,6 +641,10 @@ as `seriesmith assemble` followed by `seriesmith publish <ep> --input <cut>`.
  "published": "publish/ep05_up.mp4", "report": "…", "error": ""}
 ```
 
+`"xml": true` writes the cut as an FCP7 XML timeline instead (`seriesmith assemble --xml`):
+`output` is the `.xml`, nothing is encoded, and missing shots are skipped whatever `partial`
+says. With `"upscaled": true` its clips are the upscales. Not with `publish` (400).
+
 ## Upscale (Phase 13)
 
 An upscale is a version of a take (either pass), not a take: `<stem>.up.mp4` and `<stem>.up.json`

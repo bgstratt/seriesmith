@@ -648,6 +648,76 @@ def choose_take(root: str, e: T.CutEntry, folder: str | None,
     return None, f"{why_unusable(t, n)} (picked by {src})"
 
 
+def sound_info(path: str, fps: float) -> tuple[int, int]:
+    """(channels, length in the cut's frames) of a file's first audio stream."""
+    a = _stream(path, "audio")
+    try:
+        channels = int(a.get("channels") or 0)
+    except (TypeError, ValueError):
+        channels = 0
+    secs = _float(a.get("duration")) or video_duration(path) or 0.0
+    return channels, round(secs * fps)
+
+
+def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict],
+              fps: float, size: tuple[int, int] | None, pass_: str, base_in: float,
+              args) -> int:
+    """The plan as an FCP7 XML timeline (nle_xml), nothing encoded: each clip its
+    file, its sound as the mp4 export lays it (--audio none: none), and the
+    recorded dialogue, when the shotlist has one, under it on A3/A4."""
+    from seriesmith import nle_xml as NX
+    from seriesmith.core import fileio as FIO
+    clips, last_seq = [], None
+    for p in plan:
+        n = p["frames"] if p["frames"] > 0 else p["trim_in"] + p["used"]
+        frames = round(n / p["src_fps"] * fps) if p["convert"] else n
+        audio = None
+        if args.audio != "none":
+            if p["audio_spec"]:
+                spec, snd = p["audio_spec"], p["audio_src"]
+                at = round((float(spec.get("offset") or 0.0)
+                            - float(spec.get("start") or 0.0)) * fps)
+                gain = float(spec.get("gain", 1.0))
+            else:
+                snd = p["wav"] if args.audio == "h3" else PK.clip_audio(p["path"], p["wav"])
+                at, gain = -p["trim_in"], 1.0
+            if snd:
+                channels, length = sound_info(snd, fps)
+                if channels:
+                    audio = {"path": snd, "channels": channels, "frames": length,
+                             "at": at, "gain": gain}
+        seq = by_id[p["id"]].get("sequence")
+        clips.append({"name": f"{p['id']} t{p['take']:02d}", "path": p["path"],
+                      "frames": frames, "fps": p["src_fps"], "size": p["size"],
+                      "in": p["trim_in"], "used": p["used"], "dissolve_in": p["dissolve_in"],
+                      "fade_in": p["fade_in"], "fade_out": p["fade_out"],
+                      "marker": seq if seq and seq != last_seq else None, "audio": audio})
+        last_seq = seq or last_seq
+    recording = None
+    track = doc.get("defaults", {}).get("master_track", "")
+    if track:
+        track = track if os.path.isabs(track) else os.path.join(root, track)
+        if os.path.isfile(track):
+            start = plan[0]["audio_in"] if plan[0]["audio_in"] is not None else base_in
+            start += plan[0]["trim_in"] / fps
+            channels, length = sound_info(track, fps)
+            if channels:
+                recording = {"path": track, "channels": channels, "frames": length,
+                             "at": -round(start * fps)}
+    name = f"{doc.get('episode', 'cut')} ({pass_}{', 2x' if args.upscaled else ''})"
+    FIO.write_text(xml_path, NX.write(name, fps, size, clips, recording))
+    colored = [p["id"] for p in plan if p["color"]]
+    if colored:
+        print(f"  ! colour isn't carried (grade it in the editor): {', '.join(colored[:8])}"
+              + (" ..." if len(colored) > 8 else ""))
+    if recording:
+        print(f"  the recorded dialogue on A3/A4: {os.path.relpath(track, root)}")
+    print(f"\n  {len(clips)} clip(s), each its take's own file; open it in Premiere "
+          f"(File > Import) or Resolve (File > Import > Timeline)")
+    print(f"\n  -> {xml_path}\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="seriesmith assemble", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -695,6 +765,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--intermediate", choices=["prores"], default=None,
                     help="also write the cut as a ProRes 422 HQ .mov (10-bit, PCM audio) beside "
                          "it, for an editor downstream")
+    ap.add_argument("--xml", action="store_true",
+                    help="write the cut as an FCP7 XML timeline (<cut>.xml, for Premiere, Resolve "
+                         "and the like) instead of an mp4: each clip its take's own file, in and "
+                         "out where the cut uses it; nothing encoded, missing shots skipped")
     ap.add_argument("--size", default=None, metavar="WxH",
                     help="the cut's size (every clip scaled, letterboxed if its aspect "
                          "differs), e.g. 1920x1080")
@@ -900,7 +974,7 @@ def main(argv: list[str] | None = None) -> int:
         for sid, why in missing:
             if why != NOT_RENDERED:
                 print(f"    {sid}: {why}")
-        if not args.partial and not args.check:
+        if not args.partial and not args.check and not args.xml:
             print("\n  refusing to assemble an incomplete cut. Re-run with --partial "
                   "to stitch what exists.\n", file=sys.stderr)
             return 1
@@ -1037,6 +1111,10 @@ def main(argv: list[str] | None = None) -> int:
         base = base[:-4] + "_up.mp4"
     out_path = os.path.join(root, sub, base)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    if args.xml:
+        return write_xml(os.path.splitext(out_path)[0] + ".xml", root, doc, by_id, plan,
+                         fps, (int(width), int(height)) if width and height else None,
+                         pass_, base_in, args)
 
     # Dialogue windows, cut.json trims and placeholders all need a re-encode;
     # so do clips at another frame rate or size (a mixed-target cut), and clips

@@ -1645,7 +1645,7 @@ export async function discardTake(ref: TakeRef, ask = true): Promise<boolean> {
 }
 
 /**
- * Export, Titles, or a 2x of either (the Timeline's buttons): what the cut is
+ * Export, Titles, the XML, or a 2x of any (the Timeline's Export menu): what the cut is
  * missing is said first (lib/exportCheck), and nothing runs until it's answered.
  * A cut with nothing wrong goes straight on.
  */
@@ -1660,9 +1660,11 @@ export function checkThenExport(run: ExportRun) {
 /** The export held by checkThenExport, now (Export anyway). */
 export function runExport(run: ExportRun) {
   set({ exportCheck: null });
-  const partial = run.kind === "export";
-  if (run.upscaled) return exportUpscaled(partial, !partial);
-  return assemble(partial, partial ? undefined : { publish: true });
+  // Titles needs the whole cut; the export and the XML skip what's missing
+  const partial = run.kind !== "titles";
+  const opts: AssembleOptions | undefined = run.kind === "titles" ? { publish: true } : run.kind === "xml" ? { xml: true } : undefined;
+  if (run.upscaled) return exportUpscaled(partial, opts);
+  return assemble(partial, opts);
 }
 
 export function closeExportCheck() {
@@ -1673,39 +1675,44 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
   const s = get();
   if (!s.ep) return;
   const pub = !!opts?.publish;
-  set({ assemble: { busy: true, output: null, report: null, error: null, publish: pub } });
+  const xml = !!opts?.xml;
+  set({ assemble: { busy: true, output: null, report: null, error: null, publish: pub, xml } });
   try {
     const r = await api().assemble(s.ep, s.pass, partial, opts);
     set({ assemble: { busy: false, output: r.output, report: r.report, error: r.ok ? null : r.report } });
-    if (r.ok) host().toast("success", pub ? "Published" : "Assembled", absPath(s.ep, r.output));
+    if (r.ok && xml) {
+      host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}
+Open it in Premiere (File ▸ Import) or Resolve (File ▸ Import ▸ Timeline).`);
+    } else if (r.ok) host().toast("success", pub ? "Published" : "Assembled", absPath(s.ep, r.output));
     else if (pub && r.cut) host().toast("error", "Assembled, but publishing failed", r.error || r.report.slice(-400));
-    else host().toast("error", "Assemble failed", r.report.slice(-400));
+    else host().toast("error", xml ? "The XML failed" : "Assemble failed", r.report.slice(-400));
   } catch (e) {
     set({ assemble: { busy: false, output: null, report: null, error: errText(e) } });
-    report(pub ? "Publish failed" : "Assemble failed", e);
+    report(pub ? "Publish failed" : xml ? "The XML failed" : "Assemble failed", e);
   }
 }
 
 /**
- * The 2x exports (beside Export and Titles): the cut from each clip's fresh upscale.
+ * The 2x exports (Export, Titles, the XML): the cut from each clip's fresh upscale.
  * A clip without one is upscaled first, by the series config's upscale.master recipe
  * (Master's), else each take's defaults; clips already being upscaled are waited for.
  * The export runs by itself when the last one is in (upscalePending, followed through
  * the seriesmith.upscale events); a failed one stops it, and says which.
  */
-export async function exportUpscaled(partial: boolean, publish = false) {
+export async function exportUpscaled(partial: boolean, extra?: AssembleOptions) {
   const s = get();
   if (!s.ep) return;
   const ep = s.ep;
   const pass = s.pass;
   const { make, waiting } = upscalesNeeded(s.status[statusKey(ep, pass)]);
-  const opts: AssembleOptions = { upscaled: true, ...(publish ? { publish: true } : {}) };
+  const opts: AssembleOptions = { upscaled: true, ...extra };
+  const verb = extra?.publish ? "add titles" : extra?.xml ? "write the XML" : "export";
   if (!make.length && !waiting.length) return assemble(partial, opts);
   const names = [...make, ...waiting].map((x) => x.shot);
   const list = names.slice(0, 8).join(", ") + (names.length > 8 ? ` and ${names.length - 8} more` : "");
   if (!confirm(`${names.length} clip${names.length === 1 ? " has" : "s have"} no fresh upscale (${list}).\n\n`
     + `Upscale ${make.length ? "them" : "nothing new"}${waiting.length ? ` (${waiting.length} already on the way)` : ""} `
-    + `by the series recipe, then ${publish ? "add titles" : "export"} at 2x when they're done?`)) return;
+    + `by the series recipe, then ${verb} at 2x when they're done?`)) return;
   if (make.length) {
     const req = { pass, takes: make };
     try {
@@ -1726,7 +1733,7 @@ export async function exportUpscaled(partial: boolean, publish = false) {
   }
   upscalePending = { ep, pass, partial, opts, left: new Set(names), failed: [] };
   host().toast("info", `Upscaling ${names.length} clip${names.length === 1 ? "" : "s"}`,
-               `${publish ? "Titles" : "The export"} at 2x starts when they're done (keep this page open).`);
+               `${extra?.publish ? "Titles" : extra?.xml ? "The XML" : "The export"} at 2x starts when they're done (keep this page open).`);
   scheduleRefresh(0);
 }
 

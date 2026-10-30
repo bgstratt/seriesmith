@@ -915,6 +915,8 @@ export interface AssembleOptions {
   upscaled?: boolean;
   size?: string | null;
   publish?: boolean;
+  /** the cut as an FCP7 XML timeline (<cut>.xml), nothing encoded */
+  xml?: boolean;
 }
 
 /** Phase 13: a final take's upscale (<stem>.up.mp4), as GET /seriesmith/episode says it. */

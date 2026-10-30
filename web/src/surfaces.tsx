@@ -7,6 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { dismissToast } from "./actions";
 import { ContextMenu } from "./components/ContextMenu";
 import { CutMenu } from "./components/CutMenu";
+import { ExportMenu } from "./components/ExportMenu";
 import { Boundary } from "./components/ErrorBoundary";
 import { RedoDialog, SidecarDialog } from "./components/Dialogs";
 import { ExportCheckDialog } from "./components/ExportCheck";
@@ -177,6 +178,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Clip audio", ClipAudioWindow],
   ["Context menu", ContextMenu],
   ["Cut menu", CutMenu],
+  ["Export menu", ExportMenu],
   ["Redo", RedoDialog],
   ["Render", RenderDialog],
   ["Upscale", UpscaleDialog],

@@ -2,7 +2,7 @@
 // shots to go to, and Export anyway where the export can still run.
 
 import { closeExportCheck, runExport, select } from "../actions";
-import { blocks, type ExportProblem, type ExportProblemKind } from "../lib/exportCheck";
+import { blocks, EXPORT_NAMES, type ExportProblem, type ExportProblemKind } from "../lib/exportCheck";
 import { useApp } from "../store";
 import { Dialog } from "./Dialogs";
 
@@ -20,7 +20,7 @@ export function ExportCheckDialog() {
   if (!c) return null;
   const { run, problems, pass } = c;
   const stop = blocks(run, problems);
-  const what = `${run.kind === "titles" ? "Titles" : "Export"}${run.upscaled ? " 2x" : ""}`;
+  const what = `${EXPORT_NAMES[run.kind]}${run.upscaled ? " 2x" : ""}`;
   const go = (p: ExportProblem) => {
     closeExportCheck();
     select(p.shot, null);
