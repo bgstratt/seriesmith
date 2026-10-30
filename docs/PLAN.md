@@ -1462,6 +1462,86 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       an error). The golden error case now names fasth3_omni, which still can't.
 - [ ] More seeds at final size before trusting the anchor or the FL2VA partners.
 
+## The cut as an editor's timeline: FCP7 XML, and one Export menu (planned; 2026-10-30)
+
+Real editing goes to Premiere / Resolve (above), but until now only as one flattened mp4
+(or its ProRes .mov) and a `_shots.txt`. This hands the editor the cut itself: every clip,
+its take, its trims, on a timeline it opens. Branch `fcp-xml-export`.
+
+Decided 2026-10-30: **FCP7 XML** (xmeml v4, `.xml`) only. It's the one Premiere, Resolve,
+Avid (via import), Final Cut 7, Kdenlive and Shotcut all read, it carries several tracks and
+each clip's file path, and it's plain text (the standard library writes it). Not EDL (one
+video track and no file paths: it needs the media gathered and named by reel first, and the
+XML covers every editor that reads one), not FCPXML (Final Cut X; less portable), not AAF
+(binary, Avid's), not OpenTimelineIO (a dependency for formats we don't want).
+
+- [ ] **assemble's plan, written as XML, nothing encoded.** `assemble --xml` stops after
+      the plan (as `--check` does, after `lay_transitions` and the timings) and writes
+      `<sub>/<episode>.xml` beside where the mp4 would go (`_up.xml` with `--upscaled`), so
+      it picks exactly what Export picks: cut.json's order, picks, `out`, placeholders from
+      the other pass, `--upscaled` / `--post` clips. First, the plan-building half of
+      `main()` (resolve each entry → plan item, `lay_transitions`, `start`) comes out into a
+      function both use, golden outputs unchanged. The writer is its own stdlib module
+      (`seriesmith/nle_xml.py`: plan + fps + size → xmeml text, `xml.etree`), so it's
+      tested without ffmpeg.
+  - Each clip: a `clipitem` on V1 pointing at the take's own file (`pathurl`
+    `file://localhost/C:/...`, percent-encoded), named `sh010 t03`, in = `trim_in`,
+    out = `trim_in + used`. The frames a trim, a dialogue window (`keep`) or the take's own
+    length leave out stay in the file as **handles** the editor can slip into, which the
+    mp4 export can't give. Its linked audio on A1/A2 (stereo), from the same file.
+  - Sound as Export lays it: a mute mp4's `_h3.wav`; a cut entry's `audio` source (another
+    take's sound, a file) as that file's clipitem on A1 in place of the take's own, with its
+    `start` / `offset` as in/out and a gap (`gain` as the clip's level). `source: none`: no
+    audio clip.
+  - The recorded dialogue (`master_track`, when the shotlist has one) on A3, from the first
+    clip's `audio_in` (assemble's `--audio master` rule), so the editor can check sync
+    against it (at level: it's the reference, the editor mutes it).
+  - Transitions: a dissolve as a centred Cross Dissolve of n frames on the join (the edit
+    at its middle: the clip before's out `n/2` early, this one's in `n/2` late, the
+    frames either side the handles; the same frames assemble's xfade uses). A fade in /
+    out as a Cross Dissolve from / to black at the clip's head / tail (`start-black` /
+    `end-black`), which Premiere and Resolve read as a fade.
+  - The sequence: the episode's fps (`timebase` + `ntsc` for 23.976 / 29.97), the cut's
+    size (the pass's, `--size`, or the upscales' as assemble decides), named
+    `<episode> (<pass>)`. A clip at another rate (Wan's 16 fps) carries its own `rate`
+    and the editor conforms it; a clip at another size is scaled to fit by the editor (say
+    so in the report). Markers: one per sequence (`ms01`…) at its first clip.
+  - Not carried, said in the report: a clip's colour (`color`: the editor grades), anything
+    missing (skipped, as Export does; no gap left). Media stays where it is (absolute
+    paths); moving the show means relinking. Gathering the media into one folder ("collect")
+    is later, if wanted.
+- [ ] **The route and the edit:** `POST /seriesmith/assemble` takes `"xml": true` →
+      `edit.assemble_episode(..., xml=True)` (output parsing takes `.xml` as well as `.mp4`).
+      It never refuses a partial cut (it's a timeline; Titles' whole-cut rule doesn't
+      apply). `seriesmith assemble --xml` from the command table as is; the MCP's assemble
+      tool gets the flag.
+- [ ] **One Export menu on the timeline** (in place of the Export | 2x and Titles | 2x
+      pairs and the Master button): an **Export ▾** button opening a menu in the overlay,
+      as the Cut menu does (`CutMenu.tsx`'s positioning and dismissal, its own
+      `exportMenu` in the store), a spinner on the button while one runs:
+  - Export (review mp4) · Export 2x
+  - Titles · Titles 2x
+  - Premiere / Resolve XML · Premiere / Resolve XML 2x (from the upscales; clips without
+    a fresh one are upscaled first, as Export 2x does: `exportUpscaled`'s flow)
+  - Master…
+  
+  Each item keeps today's tooltip; every one goes through `checkThenExport` (the XML items
+  as a new `kind: "xml"`, whose missing shots are a note, not a stop). Master leaves the
+  Cut menu (it's in the Export menu now); Upscale the cut and Post-process stay in Cut.
+  The toast after an XML: its path, and "open it in Premiere (File ▸ Import) or Resolve
+  (File ▸ Import ▸ Timeline)". The mock API gets the flag.
+- [ ] **Tests:** `tests/test_nle_xml.py` (the writer: tracks, in/out, handles, a dissolve's
+      centred in/out, fades, an audio source, 23.976's `ntsc`, a 16 fps clip's own rate,
+      paths with spaces percent-encoded, parses back with `xml.etree`); test_assemble: `--xml`
+      on the fake takes picks what the mp4 export picks and writes no mp4; test_api's
+      assemble with `xml`; web/test for the menu's items calling the right run.
+- [ ] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
+      (`--xml`), API.md (`xml`), DESIGN.md's cut section; `npm run build:standalone` and
+      `npm run build`; `tools/make_site_docs.py`.
+- [ ] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
+      a placeholder and a 16 fps clip) opened in DaVinci Resolve and in Premiere Pro; the
+      cut plays as Export's mp4 does, and a trimmed clip's handles are there.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
