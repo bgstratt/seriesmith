@@ -1051,6 +1051,12 @@ collide with the package.
       track then the render in one request (#70); voice samples as long as the character's
       lines (#71). New routes `POST /seriesmith/color/match`, `POST /seriesmith/color/measure`.
       Published by the merge's version bump.
+- [x] **0.1.10** (2026-10-30, `release-0.1.10`): the cut as an FCP7 XML timeline (#76):
+      `assemble --xml`, each clip its take's own file with its handles, sound and the
+      recording on their tracks, fades and dissolves as cross dissolves; tried in Resolve and
+      FilmCraft. The timeline's buttons as one Export ▾ menu (Export, Titles, the XML, each
+      2x; Master). The lost-tour test naming its own queue (#75). The `xml` flag on
+      `POST /seriesmith/assemble` and the MCP's assemble. Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
