@@ -305,6 +305,38 @@ class AssembleTest(unittest.TestCase):
         self.assertIn("master track will drift", r.stdout)
         self.assertRegex(r.stdout, r"sh010 .* 32/56 ")     # 36-frame window, minus 4
 
+    def test_xml_is_the_cut_as_a_timeline(self):
+        """--xml picks what the mp4 export picks, writes no mp4, never refuses a
+        partial cut, and each clip is its take's own file, a trim its in and out."""
+        import xml.etree.ElementTree as ET
+        from urllib.parse import unquote
+        self.shotlist([("sh010", 22), ("sh020", 39), ("sh030", 56)])
+        self.take("sh010", 22)
+        t = self.take("sh020", 39)
+        self.cut([{"shot": "sh020", "take": t, "trim_in": 4, "trim_out": 5},
+                  {"shot": "sh010", "fade_in": 6}])
+        r = self.assemble("--xml")                  # sh030 missing, no --partial
+        self.assertIn("missing (1): sh030", r.stdout)
+        xml = os.path.join(self.root, "renders", "ep01.xml")
+        self.assertIn(f"-> {xml}", r.stdout)
+        self.assertFalse(os.path.exists(self.out()))
+        with open(xml, encoding="utf-8") as fh:
+            text = fh.read()
+        x = ET.fromstring(text.split("\n", 2)[2])
+        self.assertEqual(x.findtext("sequence/name"), "ep01 (final)")
+        self.assertEqual(x.findtext("sequence/duration"), str(30 + 22))
+        v1 = x.find("sequence/media/video/track")
+        got = [(c.findtext("name"), int(c.findtext("start")), int(c.findtext("end")),
+                int(c.findtext("in")), int(c.findtext("out"))) for c in v1.findall("clipitem")]
+        self.assertEqual(got, [("sh020 t01", 0, 30, 4, 34), ("sh010 t01", 30, 52, 0, 22)])
+        self.assertEqual(v1.findtext("transitionitem/alignment"), "start-black")
+        url = unquote(x.find(".//file/pathurl").text)
+        tp = T.take_paths(self.root, "final", "sh020", t)
+        self.assertTrue(url.replace("\\", "/").lower().endswith(
+            tp.mp4.replace(os.sep, "/").split(":", 1)[-1].lower()))
+        a1 = x.findall("sequence/media/audio/track")[0]
+        self.assertEqual(len(a1.findall("clipitem")), 2)
+
     def test_take_flag_beats_cut(self):
         self.shotlist([("sh010", 22), ("sh020", 39)])
         for sid, n in (("sh010", 22), ("sh020", 39)):

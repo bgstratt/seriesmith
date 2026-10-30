@@ -610,6 +610,7 @@ export function createHttpApi(t: Transport): Api {
       ...(opts?.upscaled ? { upscaled: true } : {}),
       ...(opts?.size ? { size: opts.size } : {}),
       ...(opts?.publish ? { publish: true } : {}),
+      ...(opts?.xml ? { xml: true } : {}),
     }),
     upscale: (req) => call("POST", "/seriesmith/upscale", req),
     upscaleOptions: (ep) => get(`/seriesmith/upscale/options${ep ? `?${qs({ ep })}` : ""}`),

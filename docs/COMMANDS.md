@@ -296,7 +296,15 @@ seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the
 ```
 seriesmith assemble Shows\ep05 --proxy --check   # report only
 seriesmith assemble Shows\ep05 --partial         # join what exists so far
+seriesmith assemble Shows\ep05 --xml             # the cut as a Premiere / Resolve timeline
 ```
+
+- `--xml` writes the cut as an FCP7 XML timeline (`<cut>.xml`, `_up.xml` with `--upscaled`)
+  instead of an mp4, for Premiere, Resolve, Avid, Kdenlive and the like: the same clips,
+  takes and order the mp4 would have, each clip its take's own file with its in and out, so
+  what a trim leaves out is there as handles. Nothing is encoded, and missing shots are
+  skipped without `--partial`. Sound as the mp4 lays it (`--audio none`: none), the
+  recording on A3/A4; fades and dissolves as cross dissolves; colour isn't carried.
 
 - Follows the episode's `cut.json` if there is one (a list per pass of
   `{"shot", "take", "pass", "trim_in", "trim_out", "audio"}` entries). The list sets the order and,

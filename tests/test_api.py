@@ -1114,6 +1114,18 @@ class AssembleTest(ApiTest):
         self.assertFalse(data["ok"])
         self.assertNotIn("published", data)
 
+    def test_xml(self):
+        # nothing is encoded, so FakeComfy's empty mp4 is enough; a missing shot
+        # is skipped, partial or not
+        self.render("sh010")
+        data = self.ok(A.post_assemble(self.ctx, {"ep": self.ep, "pass": "proxy",
+                                                  "partial": False, "xml": True}))
+        self.assertTrue(data["ok"], data["report"])
+        self.assertTrue(data["output"].endswith(".xml"))
+        self.assertTrue(os.path.isfile(os.path.join(self.ep, *data["output"].split("/"))))
+        self.err(A.post_assemble(self.ctx, {"ep": self.ep, "xml": "yes"}), 400)
+        self.err(A.post_assemble(self.ctx, {"ep": self.ep, "xml": True, "publish": True}), 400)
+
 
 class SeedTest(unittest.TestCase):
     def test_seeds_out(self):

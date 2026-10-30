@@ -1,21 +1,19 @@
 // Phase 9b: the timeline's Cut menu (in the overlay, so the bottom panel's
 // height never clips it): undo / redo, reset the order or the trims, copy them
-// from the other pass.
+// from the other pass. OverlayMenu is how it (and the Export menu) opens and closes.
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { masterCut, postCut, upscaleCut } from "../actions";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { postCut, upscaleCut } from "../actions";
 import { checkColour, copyCut, redoCut, resetCut, toggleWaves, undoCut } from "../cutActions";
 import { clipsWithAudio } from "../lib/audioSource";
 import { statusKey, store, useApp } from "../store";
 
-const close = () => store.set({ cutMenu: null });
-
-export function CutMenu() {
-  const menu = useApp((s) => s.cutMenu);
-  const pass = useApp((s) => s.pass);
-  const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
-  const waves = useApp((s) => s.waves);
-  const st = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
+/** A menu in the overlay at `menu` (under its button, else above it), closed by
+ * a click outside it but on `btn` (the button toggles it itself), Escape or the
+ * window losing focus. */
+export function OverlayMenu({ menu, btn, close, children }: {
+  menu: { x: number; y: number } | null; btn: string; close: () => void; children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -33,8 +31,7 @@ export function CutMenu() {
     if (!menu) return;
     const down = (e: Event) => {
       const t = e.target as HTMLElement | null;
-      // the Cut button toggles it itself
-      if (t && typeof t.closest === "function" && t.closest("[data-cutmenu-btn]")) return;
+      if (t && typeof t.closest === "function" && t.closest(`[${btn}]`)) return;
       if (ref.current && !ref.current.contains(t as Node)) close();
     };
     const key = (e: KeyboardEvent) => e.key === "Escape" && close();
@@ -49,6 +46,23 @@ export function CutMenu() {
   }, [menu]);
 
   if (!menu) return null;
+  return (
+    <div ref={ref} className="h3-menu" style={pos ?? { left: menu.x, top: menu.y, visibility: "hidden" }} onContextMenu={(e) => e.preventDefault()}>
+      {children}
+    </div>
+  );
+}
+
+const close = () => store.set({ cutMenu: null });
+
+export function CutMenu() {
+  const menu = useApp((s) => s.cutMenu);
+  const pass = useApp((s) => s.pass);
+  const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
+  const waves = useApp((s) => s.waves);
+  const st = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
+
+  if (!menu) return null;
   const other = pass === "proxy" ? "final" : "proxy";
   const run = (fn: () => unknown) => () => {
     close();
@@ -58,7 +72,7 @@ export function CutMenu() {
   const moved = (st?.shots ?? []).filter((s) => s.cut?.out_of_order).length;
   const withAudio = clipsWithAudio(st?.shots ?? []).length;
   return (
-    <div ref={ref} className="h3-menu" style={pos ?? { left: menu.x, top: menu.y, visibility: "hidden" }} onContextMenu={(e) => e.preventDefault()}>
+    <OverlayMenu menu={menu} btn="data-cutmenu-btn" close={close}>
       <div className="h3-menu-head">The {pass} cut</div>
       <button disabled={!undo?.undo} onClick={run(undoCut)} title="Ctrl+Z (timeline or Play all focused)">
         <i className="pi pi-undo" /> Undo{undo?.undo ? `: ${undo.undo}` : ""}
@@ -105,13 +119,10 @@ export function CutMenu() {
       <button onClick={run(() => void checkColour())} title="A take is measured when it's made; this measures the cut's older takes, so a clip whose colour is out of line with its sequence gets the colour badge">
         <i className="pi pi-palette" /> Check colour
       </button>
-      <button onClick={run(() => masterCut())} title={`The series recipe (upscale.master) on every shot of the ${pass} cut, then the master assembled into the episode's master folder`}>
-        <i className="pi pi-video" /> Master…
-      </button>
       <div className="h3-menu-sep" />
       <button onClick={run(() => toggleWaves())}>
         <i className="pi pi-wave-pulse" /> {waves ? "Hide waveforms" : "Show waveforms"}
       </button>
-    </div>
+    </OverlayMenu>
   );
 }

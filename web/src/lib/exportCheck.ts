@@ -1,4 +1,4 @@
-// What Export (and Titles, Master) would find wrong with the cut, from the status
+// What Export (and Titles, the XML, Master) would find wrong with the cut, from the status
 // the page already has, before ffmpeg starts: shots with no take (assemble skips
 // them; Titles fails on them), trims that leave nothing, takes shorter than their
 // dialogue window on the recording, and other-pass takes standing in.
@@ -7,11 +7,15 @@ import type { EpisodeStatus, Pass, TakeRef } from "../types";
 import { cutTake, sameEp } from "./format";
 import { fpsOf, trimWindow } from "./playlist";
 
-/** What was asked for: Export or Titles, from the takes or from their upscales (2x). */
+/** What was asked for: Export, Titles or the XML timeline, from the takes or from
+ * their upscales (2x). */
 export interface ExportRun {
-  kind: "export" | "titles";
+  kind: "export" | "titles" | "xml";
   upscaled: boolean;
 }
+
+/** Each run's name, as its menu item and the dialog before it say it. */
+export const EXPORT_NAMES: Record<ExportRun["kind"], string> = { export: "Export", titles: "Titles", xml: "XML" };
 
 export type ExportProblemKind = "missing" | "short" | "placeholder";
 

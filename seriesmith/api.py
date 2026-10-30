@@ -3688,8 +3688,14 @@ def post_assemble(ctx: Context, body):
     publish = body.get("publish", False)
     if not isinstance(publish, bool):
         raise ApiError(400, "publish must be true or false")
+    # the cut as an FCP7 XML timeline for an editor, nothing encoded
+    xml = body.get("xml", False)
+    if not isinstance(xml, bool):
+        raise ApiError(400, "xml must be true or false")
+    if xml and publish:
+        raise ApiError(400, "xml and publish don't go together")
     J.load_shotlist(ep, pass_)
-    res = E.assemble_episode(ep, pass_, partial, upscaled=upscaled, size=size)
+    res = E.assemble_episode(ep, pass_, partial or xml, upscaled=upscaled, size=size, xml=xml)
     if not publish or not res["ok"]:
         return 200, res
     pub = E.publish_episode(ep, res["output"])

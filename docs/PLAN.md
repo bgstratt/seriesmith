@@ -1462,7 +1462,7 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       an error). The golden error case now names fasth3_omni, which still can't.
 - [ ] More seeds at final size before trusting the anchor or the FL2VA partners.
 
-## The cut as an editor's timeline: FCP7 XML, and one Export menu (planned; 2026-10-30)
+## The cut as an editor's timeline: FCP7 XML, and one Export menu (2026-10-30)
 
 Real editing goes to Premiere / Resolve (above), but until now only as one flattened mp4
 (or its ProRes .mov) and a `_shots.txt`. This hands the editor the cut itself: every clip,
@@ -1475,15 +1475,14 @@ video track and no file paths: it needs the media gathered and named by reel fir
 XML covers every editor that reads one), not FCPXML (Final Cut X; less portable), not AAF
 (binary, Avid's), not OpenTimelineIO (a dependency for formats we don't want).
 
-- [ ] **assemble's plan, written as XML, nothing encoded.** `assemble --xml` stops after
-      the plan (as `--check` does, after `lay_transitions` and the timings) and writes
-      `<sub>/<episode>.xml` beside where the mp4 would go (`_up.xml` with `--upscaled`), so
-      it picks exactly what Export picks: cut.json's order, picks, `out`, placeholders from
-      the other pass, `--upscaled` / `--post` clips. First, the plan-building half of
-      `main()` (resolve each entry → plan item, `lay_transitions`, `start`) comes out into a
-      function both use, golden outputs unchanged. The writer is its own stdlib module
-      (`seriesmith/nle_xml.py`: plan + fps + size → xmeml text, `xml.etree`), so it's
-      tested without ffmpeg.
+- [x] **assemble's plan, written as XML, nothing encoded.** `assemble --xml` stops after
+      the plan (as `--check` does, after `lay_transitions` and the timings; `write_xml`) and
+      writes `<sub>/<episode>.xml` beside where the mp4 would go (`_up.xml` with
+      `--upscaled`), so it picks exactly what Export picks: cut.json's order, picks, `out`,
+      placeholders from the other pass, `--upscaled` / `--post` clips. Pulling the plan out
+      of `main()` first wasn't needed: the branch sits where `--check`'s does, so the mp4
+      path is untouched. The writer is its own stdlib module (`seriesmith/nle_xml.py`:
+      clips + fps + size → xmeml text, `xml.etree`), tested without ffmpeg.
   - Each clip: a `clipitem` on V1 pointing at the take's own file (`pathurl`
     `file://localhost/C:/...`, percent-encoded), named `sh010 t03`, in = `trim_in`,
     out = `trim_in + used`. The frames a trim, a dialogue window (`keep`) or the take's own
@@ -1493,9 +1492,12 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
     take's sound, a file) as that file's clipitem on A1 in place of the take's own, with its
     `start` / `offset` as in/out and a gap (`gain` as the clip's level). `source: none`: no
     audio clip.
-  - The recorded dialogue (`master_track`, when the shotlist has one) on A3, from the first
-    clip's `audio_in` (assemble's `--audio master` rule), so the editor can check sync
-    against it (at level: it's the reference, the editor mutes it).
+  - The recorded dialogue (`master_track`, when the shotlist has one) on A3/A4, from the
+    first clip's `audio_in` (assemble's `--audio master` rule), so the editor can check sync
+    against it (at level: it's the reference, the editor mutes it). Stereo is two mono
+    tracks (A1/A2), as FCP7 wrote it, which every importer reads; a mono file is A1 alone.
+    A dissolve's and a fade's sound gets a Cross Fade (+3dB) where the clip's sound meets
+    its edges.
   - Transitions: a dissolve as a centred Cross Dissolve of n frames on the join (the edit
     at its middle: the clip before's out `n/2` early, this one's in `n/2` late, the
     frames either side the handles; the same frames assemble's xfade uses). A fade in /
@@ -1510,15 +1512,16 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
     missing (skipped, as Export does; no gap left). Media stays where it is (absolute
     paths); moving the show means relinking. Gathering the media into one folder ("collect")
     is later, if wanted.
-- [ ] **The route and the edit:** `POST /seriesmith/assemble` takes `"xml": true` →
+- [x] **The route and the edit:** `POST /seriesmith/assemble` takes `"xml": true` →
       `edit.assemble_episode(..., xml=True)` (output parsing takes `.xml` as well as `.mp4`).
       It never refuses a partial cut (it's a timeline; Titles' whole-cut rule doesn't
-      apply). `seriesmith assemble --xml` from the command table as is; the MCP's assemble
-      tool gets the flag.
-- [ ] **One Export menu on the timeline** (in place of the Export | 2x and Titles | 2x
+      apply; `xml` with `publish` is a 400). `seriesmith assemble --xml` from the command
+      table as is; the MCP's assemble tool gets the flag.
+- [x] **One Export menu on the timeline** (in place of the Export | 2x and Titles | 2x
       pairs and the Master button): an **Export ▾** button opening a menu in the overlay,
-      as the Cut menu does (`CutMenu.tsx`'s positioning and dismissal, its own
-      `exportMenu` in the store), a spinner on the button while one runs:
+      as the Cut menu does (its positioning and dismissal now `OverlayMenu` in CutMenu.tsx,
+      both menus on it; `ExportMenu.tsx`, `exportMenu` in the store), a spinner and what's
+      running on the button:
   - Export (review mp4) · Export 2x
   - Titles · Titles 2x
   - Premiere / Resolve XML · Premiere / Resolve XML 2x (from the upscales; clips without
@@ -1530,12 +1533,12 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
   Cut menu (it's in the Export menu now); Upscale the cut and Post-process stay in Cut.
   The toast after an XML: its path, and "open it in Premiere (File ▸ Import) or Resolve
   (File ▸ Import ▸ Timeline)". The mock API gets the flag.
-- [ ] **Tests:** `tests/test_nle_xml.py` (the writer: tracks, in/out, handles, a dissolve's
+- [x] **Tests:** `tests/test_nle_xml.py` (the writer: tracks, in/out, handles, a dissolve's
       centred in/out, fades, an audio source, 23.976's `ntsc`, a 16 fps clip's own rate,
       paths with spaces percent-encoded, parses back with `xml.etree`); test_assemble: `--xml`
       on the fake takes picks what the mp4 export picks and writes no mp4; test_api's
-      assemble with `xml`; web/test for the menu's items calling the right run.
-- [ ] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
+      assemble with `xml`; web/test/exportMenu.test.ts.
+- [x] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
       (`--xml`), API.md (`xml`), DESIGN.md's cut section; `npm run build:standalone` and
       `npm run build`; `tools/make_site_docs.py`.
 - [ ] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
