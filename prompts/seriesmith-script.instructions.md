@@ -1585,7 +1585,7 @@ they answer different needs:
 | `continuous:` | What it does | Use it for | Renders on |
 |---|---|---|---|
 | `first` | opens on the previous shot's last frame | picking up exactly where a shot ended, on almost any model | every model that reads a first frame; H3 Ref2VA's and FastH3 Omni's move to their FL2VA |
-| `latent` | holds the previous take's last 1.6 s (picture and sound) and goes on from them | one unbroken take built from several renders: the camera and the action keep running, no cut | H3 Ref2VA, FastH3 Omni, H3 Singularity |
+| `latent` | holds the previous take's last 1.6 s (picture and sound) and goes on from them | one unbroken take built from several renders: the camera and the action keep running, no cut | H3 Ref2VA, FastH3 Omni, H3 Singularity; the shot it continues can be from any model |
 | `multishot` | renders it **in the same generation** as the shot before: one clip with cuts in it | a scene cut between angles, where the model sees every shot at once | the H3 family (Ref2VA, FastH3 Omni, FL2VA, Singularity), Seedance, Kling v3 Omni, Kling O1 |
 
 `first` and `latent` make a **continuous take**: each shot is its own render, joined so the
@@ -1664,7 +1664,12 @@ its `dur:` asks, like any H3 length. It continues whichever take the cut uses fo
 previous shot when its render **starts**: a whole chain can be queued at once, each shot
 behind the one it continues. The previous take's kept latent is used when it has one (the
 final pass keeps them, `upscale.save_latents`); otherwise its last frames and sound are read
-back through H3's VAEs, which works for any take, even one from another target. Both kinds
+back through H3's VAEs, which works for any take, even one from another target. So **the
+shot a latent shot continues can be on any model** (LTX-2, Wan, a hosted one, an imported
+clip): another model's kept latent is never used (it's not H3's shape), its last frames are
+fitted to the shot's size and encoded instead, and the take's `continued_from.via` says
+`frames`. That take needs at least as many frames as the hold (39), and a silent one (Wan)
+holds no sound, so H3 starts the sound fresh at the join. Both kinds
 of continuous shot render on any backend (your ComfyUI, Comfy Cloud, a deployment): what
 they need from the previous take is sent with the job.
 
