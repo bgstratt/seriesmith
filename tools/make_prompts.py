@@ -54,17 +54,16 @@ INSTRUCTIONS = "seriesmith-script.instructions.md"
 
 DESCRIPTION = (
     "Write episode scripts and series configs for seriesmith, the script-to-episode AI video "
-    "pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, "
-    "who/with/size/dur/plate/camera/sound fields, target and first/last keyframe lines) and "
-    "the series config (series.json) of subjects, locations, voices, profiles and targets, "
-    "with the series' delivery (render size, upscale and master recipes, post, titles). Shots "
-    "render on a video target per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and "
-    "others) on a local ComfyUI or Comfy's cloud. Use it whenever the user wants to write, "
-    "outline or extend an episode, start a series, break a screenplay or scene into shots, "
-    "add characters, props or locations to a series config, set up how a series is upscaled "
-    "and mastered, choose which model renders a shot, re-time shots whose dialogue doesn't "
-    "fit, or fix a script seriesmith check rejected, even if they never name seriesmith or "
-    "the file formats."
+    "pipeline, fresh or converted from an existing screenplay. Covers the epNN.md script "
+    "format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound "
+    "fields, continuity and keyframe lines) and the series config (series.json) with what's "
+    "required, what each optional block defaults to, the cast, locations, look, voices, "
+    "profiles, render size and master recipe. Shots render on a video model per shot or "
+    "episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others). Use it whenever the user "
+    "wants to write, outline or extend an episode, start a series, break a screenplay or "
+    "scene into shots, add characters, props or locations to a series config, choose which "
+    "model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script "
+    "seriesmith check rejected, even if they never name seriesmith or the file formats."
 )
 
 PREAMBLE = """You are writing for seriesmith. Follow this format exactly: the output is compiled
@@ -85,10 +84,14 @@ use that section's defaults and list what you assumed. An existing series config
 show's: add what the episode needs and change nothing else unasked, but if it has no
 `upscale.master` block, say once that it can't be mastered by recipe until it has one.
 
-Write the film, not the model. Leave `target:` lines out unless a shot needs something only
-one model does (see **Choosing a video target**); advice that holds for one target only is
-marked with that target's name. Validate with `seriesmith check series.json <script>` and
-`--pace` before calling a script finished."""
+Converting an existing screenplay, keep its story and dialogue and break it into shots
+(`references/script_conversion.md` works a scene through); writing fresh, write the shots
+directly. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+needs something only one model does (see **Choosing a video target**); advice that holds for
+one target only is marked with that target's name. Validate with `seriesmith check
+series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
+and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
+and `docs/COMMANDS.md` for those."""
 
 BUNDLE_NOTE = """## Files in this skill
 

@@ -35,6 +35,7 @@ PAGES = [
     ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),
     ("docs/SETUP.md", "setup", "Where shots render: your ComfyUI, Comfy Cloud, a deployment or Comfy Router, and the settings that choose."),
     ("docs/CONTINUOUS.md", "continuous", "Shots that carry straight on from the one before: from its last frame, or its held latent."),
+    ("docs/FINISHING.md", "finishing", "From takes to a delivered master: render size, the upscale methods, the master recipe, the post pass and the titles."),
     ("docs/POST_PROCESSING.md", "post-processing", "The post pass: face restore, enhancement and motion blur, per take or across a master."),
     ("docs/RECORDED_DIALOGUE.md", "recorded-dialogue", "Lip-synced episodes from real recorded lines instead of generated voices."),
     ("docs/KREAGEN.md", "reference-images", "How the reference pictures are made: sheets, plates, props and keyframes on an image model."),

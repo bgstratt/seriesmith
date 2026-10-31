@@ -131,6 +131,39 @@ ComfyUI-PlagueKind-Nodes.
 them use core ComfyUI nodes. The hosted models on Comfy Router need no files, only a Comfy
 API key ([SETUP.md](SETUP.md)).
 
+## What's installed: `seriesmith targets`
+
+Run `seriesmith targets` (with ComfyUI running). It prints one
+line per target, `ready`, `degraded`, `not_ready` or `unknown` (ComfyUI didn't answer),
+and under it every file that target is missing, with the models folder it goes in and
+where to download it:
+
+```
+  ltx2                 degraded   missing 1 optional
+      optional    duration_head ltx-2.5-duration-head-bf16.safetensors  [feature off: dur: model (duration head)]
+                  -> models/model_patches/   https://huggingface.co/Lightricks/LTX-2.5/...
+```
+
+Add an episode (`seriesmith targets Shows\ep05`) to use its series config (the pass
+blocks' model and LoRA, `model_families`) and mark the episode's target. `--json` prints
+the same as data.
+
+- **Required** files (the model, text encoder, VAEs): without one the target can't render.
+  Its shots are skipped when you queue them, and the message names the file, the folder
+  and the download link.
+- **Accelerators** (the turbo LoRAs, LTX 2.3's distilled checkpoint): without one the
+  shot still renders, on the pass's slower `base` settings (more steps, no turbo LoRA),
+  and the take says so.
+- **Optional** files (the LTX duration head): only their feature is off (`dur: model`
+  renders the estimate).
+
+In the editor, a missing file with a link has an **Install** button in the model
+picker's **What's missing** window, and **Settings → Features…** installs a whole model (or
+an upscaler, a node pack, ffmpeg) at once. A link is only given when ComfyUI's own
+templates, your saved workflows or ComfyUI-Manager's model list record it. Otherwise the line says to search for the exact
+file name. If you have a file of the same family under another name (another
+precision, a merge), it is used instead, and the take notes which file it was.
+
 ## Pictures: characters, places, props and keyframes
 
 **Krea 2** draws the character sheets, props and location plates (`krea2`, the default
@@ -154,6 +187,69 @@ picture model):
 The other picture models (Z-Image Turbo, Qwen-Image 2.1, FLUX.3 Klein, MOSS-Image, FLUX.1 Kontext,
 Qwen-Image-Edit Rapid) are in [INSTALL.md](../INSTALL.md#everything-by-model-family).
 
+Which one makes what is the series config's `refs` block (`target`, `keyframe_target`,
+`voice_target`; [AUTHORING.md](AUTHORING.md)), the editor's per-episode choice, or a
+ref's own. Every picture model, and the voice model:
+
+| image target | what it is |
+|---|---|
+| `krea2` | Krea 2 turbo, text to image (the default for refs) |
+| `z_image_turbo` | Z-Image Turbo, fast text to image |
+| `flux2_klein` | FLUX.2 Klein 9B, text to image |
+| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when it is installed; otherwise keyframes use the refs model) |
+| `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
+| `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
+| `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
+| `flux3_klein` | FLUX.3 Image Klein — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 10 reference images. Takes a real negative prompt |
+| `flux3_klein_turbo` | FLUX.3 Image Klein step-distilled: the same as `flux3_klein` in 16 steps, over twice as fast, without a negative prompt |
+| `fasth3_omni_still` | FastH3 Omni as an image model, as `minimax_h3_still`: up to 9 reference images, 8 steps, no turbo LoRA |
+| `fibo2_dev` | Bria's Fibo 2.0 Dev: text to image, or an edit of up to 4 reference images (relights too); 50 steps at cfg 5. Non-commercial licence (CC BY-NC 4.0) |
+| `fibo2_edit_turbo` | Fibo 2.0 Edit Turbo: edits only (it needs a picture to start from), 4 steps at cfg 1. Non-commercial licence |
+| `moss_image_sft` | MOSS-Image SFT, text to image: strong on lettering and layout, 50 steps at cfg 3 with a real negative prompt |
+| `moss_image_base` | MOSS-Image Base: the model the SFT is tuned from, for LoRAs trained on the base |
+| `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 reference images |
+| `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
+| hosted on Comfy Router: `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | one call a picture, nothing to install; most take reference images |
+
+| audio target | what it is |
+|---|---|
+| `ltx2_voice` | LTX-2.5 audio-only: one speaking voice saying a line from the script, from the character's `voice` line, or continuing the voice ref's own sample when it has one (the default for voices) |
+
+What each picture model takes (generated from the models by `python tools/make_refs_md.py`):
+
+<!-- BEGIN PICTURE MODELS (generated by tools/make_refs_md.py — do not edit) -->
+
+| Picture model | | Runs on | Reference pictures | Makes |
+|---|---|---|---|---|
+| `fasth3_omni_still` | Omni still | your ComfyUI | up to 9 | edits and new pictures |
+| `fibo2_dev` | Fibo | your ComfyUI | up to 4 | edits and new pictures |
+| `fibo2_edit_turbo` | Fibo turbo | your ComfyUI | up to 4 | edits and new pictures |
+| `flux2_klein` | Klein | your ComfyUI | none | new pictures |
+| `flux2_klein_edit` | Klein edit | your ComfyUI | up to 4 | edits and new pictures |
+| `flux3_klein` | Klein 3 | your ComfyUI | up to 10 | edits and new pictures |
+| `flux3_klein_turbo` | Klein 3 turbo | your ComfyUI | up to 10 | edits and new pictures |
+| `flux_kontext` | Kontext | your ComfyUI | up to 1 | edits and new pictures |
+| `klein_erp_360` | Klein 360 | your ComfyUI | up to 1 | new pictures |
+| `krea2` | krea2 | your ComfyUI | none | new pictures |
+| `minimax_h3_still` | H3 still | your ComfyUI | up to 9 | edits and new pictures |
+| `moss_image_base` | MOSS base | your ComfyUI | none | new pictures |
+| `moss_image_sft` | MOSS | your ComfyUI | none | new pictures |
+| `qwen_image_21` | Qwen 2.1 | your ComfyUI | up to 16 | edits and new pictures |
+| `qwen_rapid_aio` | Rapid AIO | your ComfyUI | up to 3 | edits and new pictures |
+| `z_image_turbo` | Z-Image | your ComfyUI | none | new pictures |
+| `flux_2_pro` | Flux 2 Pro | Comfy Router | up to 8, as links | edits and new pictures |
+| `flux_kontext_pro` | Kontext Pro | Comfy Router | up to 4, as links | edits and new pictures |
+| `gemini_3_1_flash_image` | Gemini Flash | Comfy Router | up to 3, inline | edits and new pictures |
+| `gpt_image_2` | GPT Image | Comfy Router | up to 8, as links | edits and new pictures |
+| `kling_image_o1` | Kling Image | Comfy Router | up to 10, as links | edits and new pictures |
+| `krea_2_router` | Krea 2 (Router) | Comfy Router | none | new pictures |
+| `nano_banana_2_1` | Nano Banana | Comfy Router | up to 6, inline | edits and new pictures |
+| `nano_banana_pro` | Nano Banana Pro | Comfy Router | up to 6, inline | edits and new pictures |
+| `qwen_image_3` | Qwen Image | Comfy Router | up to 3, as links | edits and new pictures |
+| `seedream_5_0` | Seedream | Comfy Router | up to 10, as links | edits and new pictures |
+
+<!-- END PICTURE MODELS -->
+
 ## Sound: voices and recorded dialogue
 
 H3 and LTX-2.5 make a shot's sound themselves. These are for the rest.
@@ -170,6 +266,18 @@ and three of LTX-2.5's files:
 | `ltx-2.5-audio-vae-bf16.safetensors` | `vae` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-audio-vae-bf16.safetensors) |
 
 ComfyUI-LTXVideo also lets the `ltx2` video model read reference sheets.
+
+A character with no `voice_sample` still has a voice ref: generating one and picking it
+writes `refs/voices/<id>.wav` **and** adds the `voice_sample` line to `series.json` for
+you (the only thing the editor writes there). `seriesmith refs <ep> --voices` does the
+same from the command line, and `--from-take sh020:3:1.2-6.4` makes a sample out of a
+line the model already spoke in a take, with no model at all.
+
+Generating a voice that **already has a sample** copies it: the first 1.5–2.5 seconds of the
+sample (cut in a pause between words) are played to `ltx2_voice`, which carries on in that
+voice with the character's line, and that head is cut off again. So a short or rough
+recording, or a few seconds cut from a take, becomes a clean sample of the character saying
+their own words. The voice comes out close, not identical: listen before you pick.
 
 **Recorded dialogue** lip-syncs an episode to lines you recorded
 ([RECORDED_DIALOGUE.md](RECORDED_DIALOGUE.md)):
@@ -267,6 +375,36 @@ Only the button that uses one needs it:
 | `flux-2-klein-9B-360-erp-outpaint-lora_V1.safetensors` | **Make 360** on FLUX.2 Klein (the default; also needs `flux-2-klein-base-9b-fp8.safetensors`) | [nomadoor/flux-2-klein-9B-360-erp-outpaint-lora](https://huggingface.co/nomadoor/flux-2-klein-9B-360-erp-outpaint-lora/resolve/main/flux-2-klein-9B-360-erp-outpaint-lora_V1.safetensors) |
 | `pano360_qwen21_edit_v1.safetensors` | **Make 360** on Qwen-Image 2.1 | [Gogodr/qwen-image-2.1-edit-pano360-lora](https://huggingface.co/Gogodr/qwen-image-2.1-edit-pano360-lora/resolve/main/pano360_qwen21_edit_v1.safetensors) |
 | `angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors` | a character's **Turn** (Qwen-Image 2.1) | [akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA](https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA/resolve/main/checkpoints_v2/angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors) |
+
+## Renamed or merged model files: `model_families`
+
+Every model file a shot loads is checked against the model family its target needs
+(LTX 2.5 for `ltx2`, H3 Ref2VA for `minimax_h3_ref2va`, ...) when it is queued. A file
+named like the family passes. Any other name is identified from the file's own header
+(the tensor names and shapes of a `.safetensors` file; the weights aren't loaded). If the
+header says it's the right family, it renders with a note. If it says it's **another**
+family, the shot is skipped ("wan2.2_i2v_low_noise_14B_fp8_scaled is Wan 2.2 I2V 14B
+low-noise, but this LTX-2 target's model must be LTX 2.5") unless you render anyway.
+
+A header can't tell every family apart. H3 Ref2VA and FL2VA files are identical inside, and
+so are Wan 2.2's high- and low-noise experts and the LTX 2.3 and 2.5 upscalers. For
+those, the name decides. If you rename or merge such a file, add its name to the series
+config so the pipeline knows which one it is:
+
+```json
+"model_families": {
+  "ltx2.5": ["my_ltx25_merge*"],
+  "minimax-h3-ref2va": ["h3_faces_finetune*"]
+}
+```
+
+- Keys are family ids: `minimax-h3-ref2va`, `minimax-h3-fl2va`, `ltx2.5`, `ltx2.3`,
+  `ltx2.5-latent-upscaler`, `krea2`, `wan2.2-i2v-14b-high`, `wan2.2-i2v-14b-low`, ...
+  (`targets/modelid.py` lists them all; each target's `target.json` `models` block says
+  which one each of its model settings needs).
+- Values are file-name patterns: `*` matches anything, case doesn't matter. They add to
+  the target's own patterns; they don't replace them.
+- A matching name is trusted without reading the file, so keep the patterns specific.
 
 ## Software outside ComfyUI
 

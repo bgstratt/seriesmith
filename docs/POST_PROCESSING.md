@@ -5,7 +5,7 @@ Status (2026-10-12): **enhance and motion blur are built** (`seriesmith/post.py`
 editor (the Post dialog, the take menu, the Master dialog's Post-process). Posts run on
 any backend through seriesmith's queue (`seriesmith/finishing.py`). **Faces are dropped**:
 see **Bake-off, round 1**, below. This file is the design record; the contracts are in the
-docstrings, `docs/API.md` (**Post-process**) and `docs/AUTHORING.md` (**Post-process: the
+docstrings, `docs/API.md` (**Post-process**) and `docs/FINISHING.md` (**Post-process: the
 `post` block**). The face sections below are the plan as it stood when it was dropped.
 
 ## Why

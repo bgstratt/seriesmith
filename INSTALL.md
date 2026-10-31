@@ -857,8 +857,8 @@ seriesmith render   Shows\ep01
 seriesmith assemble Shows\ep01          # -> renders\ep01.mp4
 ```
 
-With the upscaler installed and the final pass rendering at 960×544 (docs/AUTHORING.md,
-**Final resolution**), the picked takes go to 2x once the cut is locked:
+With the upscaler installed and the final pass rendering at 960×544 (docs/FINISHING.md,
+**Render size**), the picked takes go to 2x once the cut is locked:
 
 ```
 seriesmith upscale  Shows\ep01 --check  # what it would upscale, and how
