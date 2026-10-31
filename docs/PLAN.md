@@ -1065,6 +1065,11 @@ collide with the package.
       bundled as `references/story_structures.md`. Defaults: an absent `audio.mode` generates
       (a named `audio.track` still dubs), a new series' proxy is 896×512 (1344×768's shape).
       Published by the merge's version bump.
+- [x] **0.1.12** (2026-10-31, `release-0.1.12`): a faster episode open (#82): the refs fetched
+      on first use instead of with every open, one targets load per `GET /seriesmith/targets`,
+      the takes' prompt ids only while queued and save notes only when failed (Porchlights
+      ep01 cold: ~5.3 s -> ~3.5 s). `render --dry-run` writes into the episode folder.
+      Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
