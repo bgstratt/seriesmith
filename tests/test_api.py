@@ -535,6 +535,31 @@ class ReadTest(ApiTest):
             self.assertNotIn("\n", s["action"])
         self.assertEqual(E.script_actions(os.path.join(self.tmp, "nowhere")), {})
 
+    def test_status_says_how_a_shot_continues(self):
+        """`continuous`: the script's mode (a shot's own line, else its sequence's
+        for every shot after its first; `none` breaks it), the shot before it in
+        the cut, and the frames a latent shot holds. Shots that don't continue
+        have none."""
+        script = os.path.join(self.ep, "ks01.md")
+        with open(script, encoding="utf-8") as fh:
+            text = fh.read()
+        text = text.replace("# sq04  kitchen\n", "# sq04  kitchen\ncontinuous: latent\n", 1)
+        text = text.replace("## sh330\n", "## sh330\ncontinuous: none\n", 1)
+        text = text.replace("## sh120\n", "## sh120\ncontinuous: first\n", 1)
+        with open(script, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        r = E.build_episode(self.ep)
+        self.assertTrue(r["ok"], r)
+        _, shots = self.status()
+        self.assertNotIn("continuous", shots["sh310"])          # the sequence's first shot
+        self.assertEqual(shots["sh320"]["continuous"], {"mode": "latent", "from": "sh310", "hold": 39})
+        self.assertNotIn("continuous", shots["sh330"])          # `continuous: none`
+        self.assertEqual(shots["sh340"]["continuous"]["from"], "sh330")
+        self.assertEqual(shots["sh120"]["continuous"], {"mode": "first", "from": "sh110"})
+        self.assertNotEqual(shots["sh120"]["target"], "minimax_h3_ref2va")   # moved to read the frame
+        self.assertNotIn("continuous", shots["sh010"])
+        self.assertEqual(E.script_continuous(os.path.join(self.tmp, "nowhere")), {})
+
     def test_thumb_is_a_small_jpeg_made_once(self):
         """The Refs tab shows reference pictures at a few dozen pixels: /thumb
         serves them small, made once into the settings folder and again when

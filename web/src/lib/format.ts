@@ -1,4 +1,5 @@
 import type { ShotStatus, TakeSummary } from "../types";
+import { continuityBadge } from "./continuity";
 import { missingOf, missingRefsTitle } from "./missingRefs";
 
 export type BadgeKind =
@@ -18,6 +19,7 @@ export type BadgeKind =
   | "unusable"
   | "missing-refs"
   | "target"
+  | "continuous"
   | "upscaled";
 
 export interface Badge {
@@ -84,6 +86,8 @@ export function shotBadges(s: ShotStatus, rendering: ReadonlySet<number> = new S
   if ((s.cut?.trim_in ?? 0) > 0 || (s.cut?.trim_out ?? 0) > 0) {
     out.push({ kind: "trimmed", label: "trimmed", title: `Trimmed in the cut: ${s.cut.trim_in || 0} frames off the head, ${s.cut.trim_out || 0} off the tail` });
   }
+  const cb = continuityBadge(s);
+  if (cb) out.push(cb);
   const missing = missingOf(s);
   if (missing.length) {
     out.push({

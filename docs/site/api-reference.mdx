@@ -204,7 +204,11 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
   (Phase 7/8), `missing_refs`, `retarget_error`, `length_estimated`, `audio_in` /
   `audio_out`, `multishot` (a `continuous: multishot` group's script shots, each
   `{id, start, frames, size}`, `start` the frame it begins on in the take, as the script
-  times it: docs/MULTISHOT.md); `cut.fps`, `order`, `script_index`, `out_of_order` (Phase 9b), `audio`,
+  times it: docs/MULTISHOT.md), `continuous` (how it carries on from the shot before it,
+  docs/CONTINUOUS.md: `{mode, from, hold?}`, `mode` the script's `first` | `latent` |
+  `multishot` (its own `continuous:` line, else its sequence's), `from` the shot before it
+  in the pass's cut, skipping orphans and shots left out (null: it's the first), `hold` the
+  frames a latent shot holds of it; absent when it doesn't continue); `cut.fps`, `order`, `script_index`, `out_of_order` (Phase 9b), `audio`,
   `audio_file`, `audio_why` (Phase 9d); a take's `fps`, `width`, `height`, `target`,
   `audio`, `draft` / `from_draft` (Seedance drafts), `upscale` and `post`.
 
