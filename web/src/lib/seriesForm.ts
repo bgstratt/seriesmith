@@ -70,8 +70,8 @@ export function slug(title: string): string {
 /** The final sizes offered (H3's 32 grid; 1344x768 is its native canvas). */
 export const FINAL_SIZES = ["1344x768", "1280x704", "1024x576", "960x544"];
 /** The proxy sizes offered: 480p and up — smaller is too small to judge a shot by. */
-export const PROXY_SIZES = ["864x480", "896x512", "960x544", "640x352", "448x256"];
-export const DEFAULT_PROXY = "864x480";
+export const PROXY_SIZES = ["896x512", "864x480", "960x544", "640x352", "448x256"];
+export const DEFAULT_PROXY = "896x512";
 
 /** A note when the proxy is another shape from the final (more than 1% off):
  * a proxy take standing in for a final shot in a cut is scaled to fit. */
@@ -141,7 +141,6 @@ export interface Section {
 }
 
 const AUDIO_MODES: Choice[] = [
-  { value: "", label: "recorded track (the default)" },
   { value: "generate", label: "generate: the model invents each voice" },
   { value: "source_track", label: "recorded track: shots dub to your mix" },
   { value: "clone", label: "clone: the written lines in each sampled voice" },
@@ -183,13 +182,14 @@ export const SECTIONS: Section[] = [
         choices: [{ value: "", label: "normal (the default)" }, { value: "slow", label: "slow: 3.6 syllables a second" },
           { value: "normal", label: "normal: 4.4 syllables a second" }, { value: "fast", label: "fast: 5.4 syllables a second" }],
         help: "How fast lines are spoken: `dur: auto` shots are timed by it, and `check` warns when a line won't fit its shot at it." },
-      { path: ["audio", "mode"], label: "Dialogue", kind: "select", choices: AUDIO_MODES,
+      { path: ["audio", "mode"], label: "Dialogue", kind: "select",
+        choices: [{ value: "", label: "generate (the default; a recorded track when one is named)" }, ...AUDIO_MODES],
         help: "How dialogue shots sound. Generate needs nothing recorded; a recorded track lip-syncs H3 to your own mix (Recording window); clone speaks the written lines in each character's voice sample." },
       { path: ["audio", "track"], label: "Recorded track", kind: "text", placeholder: "audio/ep01_dialogue.wav",
-        when: (r) => (getPath(r, ["audio", "mode"]) ?? "source_track") === "source_track",
+        when: (r) => (getPath(r, ["audio", "mode"]) ?? (getPath(r, ["audio", "track"]) ? "source_track" : "generate")) === "source_track",
         help: "The episode's dialogue mix, relative to the episode. The Recording window attaches one and times the script to it." },
       { path: ["proxy", "audio_mode"], label: "Dialogue (proxy)", kind: "select",
-        choices: [{ value: "", label: "as the final" }, ...AUDIO_MODES.slice(1)],
+        choices: [{ value: "", label: "as the final" }, ...AUDIO_MODES],
         help: "The animatic can generate voices while the final pass dubs to the recording: the usual set-up before the recording exists." },
       { path: ["negative"], label: "Negative prompt", kind: "long", more: true,
         help: "What models that take one should avoid (LTX-2, Wan, the image models; not H3). An episode's negative.txt beats it." },
@@ -289,11 +289,11 @@ export function shownPaths(): string[] {
     "series.width", "series.height", "proxy.width", "proxy.height"];
 }
 
-/** A new series' config: the starter's settings, a 480p proxy. */
+/** A new series' config: the starter's settings, a proxy of their shape. */
 export function newSeries(title: string): Raw {
   return {
     series: { id: slug(title) || "my_series", title: title || "My Series", fps: 24, width: 1344, height: 768 },
-    proxy: { width: 864, height: 480, audio_mode: "generate" },
+    proxy: { width: 896, height: 512, audio_mode: "generate" },
     // every prompt opens with it, and the build needs one: a plain default to change
     style: { look: "a cinematic live-action film, natural light" },
     subjects: {},

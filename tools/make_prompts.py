@@ -12,6 +12,8 @@ assistant expects, so the copies cannot drift from the document:
         SKILL.md                             the same text, plus what the folder bundles
         references/script_conversion.md      docs/SCRIPT_CONVERSION.md (a screenplay scene
                                              worked through to shots)
+        references/story_structures.md       docs/STORY_STRUCTURES.md (story structures,
+                                             for outlining an episode written fresh)
         scripts/check.py, scripts/seriesmith/ (build.py, core/, targets/)
                                              the build, to validate a script with --check
                                              where seriesmith isn't installed
@@ -24,7 +26,7 @@ assistant expects, so the copies cannot drift from the document:
 
 prompts/ is committed; build/ is not. The zip is stamped with the release in
 pyproject.toml, not the commit, so the same sources give the same zip. Run it after
-editing docs/AUTHORING.md or docs/SCRIPT_CONVERSION.md, and before a release (the
+editing docs/AUTHORING.md, docs/SCRIPT_CONVERSION.md or docs/STORY_STRUCTURES.md, and before a release (the
 zip also bundles the build: the core and the targets):
 
     python tools/make_prompts.py
@@ -47,6 +49,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, "docs", "AUTHORING.md")
 BREAKDOWN = os.path.join(ROOT, "docs", "SCRIPT_CONVERSION.md")
+STRUCTURES = os.path.join(ROOT, "docs", "STORY_STRUCTURES.md")
 
 NAME = "seriesmith-episode-script"
 MAX_DESCRIPTION = 1024           # claude.ai's limit on a skill's description
@@ -54,17 +57,16 @@ INSTRUCTIONS = "seriesmith-script.instructions.md"
 
 DESCRIPTION = (
     "Write episode scripts and series configs for seriesmith, the script-to-episode AI video "
-    "pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, "
-    "who/with/size/dur/plate/camera/sound fields, target and first/last keyframe lines) and "
-    "the series config (series.json) of subjects, locations, voices, profiles and targets, "
-    "with the series' delivery (render size, upscale and master recipes, post, titles). Shots "
-    "render on a video target per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and "
-    "others) on a local ComfyUI or Comfy's cloud. Use it whenever the user wants to write, "
-    "outline or extend an episode, start a series, break a screenplay or scene into shots, "
-    "add characters, props or locations to a series config, set up how a series is upscaled "
-    "and mastered, choose which model renders a shot, re-time shots whose dialogue doesn't "
-    "fit, or fix a script seriesmith check rejected, even if they never name seriesmith or "
-    "the file formats."
+    "pipeline, fresh or converted from an existing screenplay. Covers the epNN.md script "
+    "format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound "
+    "fields, continuity and keyframe lines) and the series config (series.json) with what's "
+    "required, what each optional block defaults to, the cast, locations, look, voices, "
+    "profiles, render size and master recipe. Shots render on a video model per shot or "
+    "episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others). Use it whenever the user "
+    "wants to write, outline or extend an episode, pick a story structure, start a series, break a screenplay or "
+    "scene into shots, add characters, props or locations to a series config, choose which "
+    "model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script "
+    "seriesmith check rejected, even if they never name seriesmith or the file formats."
 )
 
 PREAMBLE = """You are writing for seriesmith. Follow this format exactly: the output is compiled
@@ -85,16 +87,26 @@ use that section's defaults and list what you assumed. An existing series config
 show's: add what the episode needs and change nothing else unasked, but if it has no
 `upscale.master` block, say once that it can't be mastered by recipe until it has one.
 
-Write the film, not the model. Leave `target:` lines out unless a shot needs something only
-one model does (see **Choosing a video target**); advice that holds for one target only is
-marked with that target's name. Validate with `seriesmith check series.json <script>` and
-`--pace` before calling a script finished."""
+Converting an existing screenplay, keep its story and dialogue and break it into shots
+(`references/script_conversion.md` works a scene through). Writing fresh, outline the story
+before the shots: if the person hasn't given it a shape, offer the menu in
+`references/story_structures.md` (with the questions above, in the same message), then mark
+each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+needs something only one model does (see **Choosing a video target**); advice that holds for
+one target only is marked with that target's name. Validate with `seriesmith check
+series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
+and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
+and `docs/COMMANDS.md` for those."""
 
 BUNDLE_NOTE = """## Files in this skill
 
 - `references/script_conversion.md`: a spec-format screenplay scene worked through to shots, with
   where the cuts land and why. Read it when adapting existing script pages rather than
   writing shots directly.
+- `references/story_structures.md`: the story structures (three-act, Story Circle, Fable,
+  Kishōtenketsu, the Hero's Journey and its 27 beats, …), a menu to offer, each one's beats
+  with their share of the runtime, and how beats become shots. Read it when outlining an
+  episode written fresh.
 - `scripts/check.py` (with `scripts/seriesmith/`: the build, its core and the targets): the
   build, bundled so a script can be validated anywhere:
 
@@ -187,6 +199,15 @@ def bundle_breakdown() -> str:
             f"the cuts land and why.\n\n{rest}")
 
 
+def bundle_structures() -> str:
+    """references/story_structures.md: the structures, their lede pointing at SKILL.md
+    rather than into the repo."""
+    title, _lede, rest = read(STRUCTURES).split("\n\n", 2)
+    return (f"{title}\n\n"
+            "A reference for SKILL.md: the major story structures, for outlining an episode\n"
+            f"written from scratch.\n\n{rest}")
+
+
 def bundle(text: str, out: str | None = None) -> str:
     """The skill's folder and zip, in `out` (build/skill/ by default)."""
     out = out or os.path.join(ROOT, "build", "skill")
@@ -195,6 +216,7 @@ def bundle(text: str, out: str | None = None) -> str:
         shutil.rmtree(folder)
     write(os.path.join(folder, "SKILL.md"), bundle_skill(text))
     write(os.path.join(folder, "references", "script_conversion.md"), bundle_breakdown())
+    write(os.path.join(folder, "references", "story_structures.md"), bundle_structures())
 
     scripts = os.path.join(folder, "scripts")
     pkg = os.path.join(scripts, "seriesmith")
@@ -237,7 +259,7 @@ def main() -> int:
     ap.add_argument("--no-bundle", action="store_true",
                     help="write prompts/ only, not build/skill/")
     args = ap.parse_args()
-    for p in (SOURCE, BREAKDOWN):
+    for p in (SOURCE, BREAKDOWN, STRUCTURES):
         if not os.path.isfile(p):
             sys.exit(f"  !! {p} not found")
     text = body()

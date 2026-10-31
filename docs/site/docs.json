@@ -21,7 +21,7 @@
   "navigation": {
     "groups": [
       { "group": "Get started", "pages": ["index", "quickstart"] },
-      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion"] },
+      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion", "story-structures"] },
       {
         "group": "Tutorials",
         "pages": [
@@ -46,7 +46,7 @@
       { "group": "Setup in detail", "pages": ["full-setup", "install", "setup"] },
       {
         "group": "Guides",
-        "pages": ["continuous", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]
+        "pages": ["continuous", "finishing", "post-processing", "recorded-dialogue", "reference-images", "h3-target"]
       },
       { "group": "Reference", "pages": ["adding-models", "api-reference"] }
     ]

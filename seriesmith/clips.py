@@ -28,11 +28,11 @@ import re
 SHOW = "Clips"
 NAME = "clips"
 
-# a new Clips project's series config: the series defaults, a 480p proxy,
+# a new Clips project's series config: the series defaults, a proxy of their shape,
 # nobody and nowhere yet (each clip adds what it needs)
 SERIES = {
     "series": {"id": "clips", "title": "Clips", "fps": 24, "width": 1344, "height": 768},
-    "proxy": {"width": 864, "height": 480, "audio_mode": "generate"},
+    "proxy": {"width": 896, "height": 512, "audio_mode": "generate"},
     "style": {"look": "a cinematic live-action film, natural light"},
     "subjects": {},
     "locations": {},

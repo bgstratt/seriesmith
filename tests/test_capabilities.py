@@ -95,5 +95,28 @@ class VideoCapabilitiesTest(unittest.TestCase):
         self.assertEqual((c["max_subjects"], c["max_voices"], c["latents"]), (6, 2, True))
 
 
+class AudioModeTest(unittest.TestCase):
+    """How a dialogue shot sounds when the series config leaves `audio.mode` out:
+    generated, unless a recording is named (docs/AUTHORING.md, "Required and optional")."""
+
+    def intent(self, audio: dict, pass_: str = "final", proxy: dict | None = None) -> str:
+        from types import SimpleNamespace
+        shot = SimpleNamespace(audio=None, dialogue=["a line"])
+        return TG.audio_intent(shot, {"audio": audio, "proxy": proxy or {}}, pass_)
+
+    def test_left_out_it_generates(self):
+        self.assertEqual(TG.audio_mode({}), "generate")
+        self.assertEqual(self.intent({}), "generate")
+
+    def test_a_named_track_still_dubs(self):
+        self.assertEqual(TG.audio_mode({"track": "audio/ep01_dialogue.wav"}), "source_track")
+        self.assertEqual(self.intent({"track": "audio/ep01_dialogue.wav"}), "dub_keep_foley")
+
+    def test_a_written_mode_wins(self):
+        self.assertEqual(self.intent({"mode": "clone"}), "clone")
+        self.assertEqual(self.intent({"mode": "generate", "track": "a.wav"}), "generate")
+        self.assertEqual(self.intent({"track": "a.wav"}, "proxy", {"audio_mode": "generate"}), "generate")
+
+
 if __name__ == "__main__":
     unittest.main()

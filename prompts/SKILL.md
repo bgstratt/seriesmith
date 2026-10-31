@@ -1,6 +1,6 @@
 ---
 name: seriesmith-episode-script
-description: Write episode scripts and series configs for seriesmith, the script-to-episode AI video pipeline. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound fields, target and first/last keyframe lines) and the series config (series.json) of subjects, locations, voices, profiles and targets, with the series' delivery (render size, upscale and master recipes, post, titles). Shots render on a video target per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others) on a local ComfyUI or Comfy's cloud. Use it whenever the user wants to write, outline or extend an episode, start a series, break a screenplay or scene into shots, add characters, props or locations to a series config, set up how a series is upscaled and mastered, choose which model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script seriesmith check rejected, even if they never name seriesmith or the file formats.
+description: Write episode scripts and series configs for seriesmith, the script-to-episode AI video pipeline, fresh or converted from an existing screenplay. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound fields, continuity and keyframe lines) and the series config (series.json) with what's required, what each optional block defaults to, the cast, locations, look, voices, profiles, render size and master recipe. Shots render on a video model per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others). Use it whenever the user wants to write, outline or extend an episode, pick a story structure, start a series, break a screenplay or scene into shots, add characters, props or locations to a series config, choose which model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script seriesmith check rejected, even if they never name seriesmith or the file formats.
 ---
 
 # Writing an episode for seriesmith
@@ -23,10 +23,16 @@ use that section's defaults and list what you assumed. An existing series config
 show's: add what the episode needs and change nothing else unasked, but if it has no
 `upscale.master` block, say once that it can't be mastered by recipe until it has one.
 
-Write the film, not the model. Leave `target:` lines out unless a shot needs something only
-one model does (see **Choosing a video target**); advice that holds for one target only is
-marked with that target's name. Validate with `seriesmith check series.json <script>` and
-`--pace` before calling a script finished.
+Converting an existing screenplay, keep its story and dialogue and break it into shots
+(`references/script_conversion.md` works a scene through). Writing fresh, outline the story
+before the shots: if the person hasn't given it a shape, offer the menu in
+`references/story_structures.md` (with the questions above, in the same message), then mark
+each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+needs something only one model does (see **Choosing a video target**); advice that holds for
+one target only is marked with that target's name. Validate with `seriesmith check
+series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
+and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
+and `docs/COMMANDS.md` for those.
 
 ## Your first episode
 
@@ -57,7 +63,7 @@ under a show at once.
     "width": 1344,
     "height": 768
   },
-  "proxy": { "width": 864, "height": 480 },
+  "proxy": { "width": 896, "height": 512 },
   "style": {
     "look": "a 2D hand-drawn cartoon animation with flat 2D illustration, clean black line art, flat solid colors, and cel-shaded artwork"
   },
@@ -124,7 +130,8 @@ Build it with `seriesmith check Shows\ep01` and then `seriesmith build
 Shows\ep01`; [INSTALL.md](../INSTALL.md) has the rest of the commands, and
 `docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
 shots if you are starting from one (the script-writing skill bundles it as
-`references/script_conversion.md`).
+`references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
+for outlining one from scratch (`references/story_structures.md`).
 
 ## Starting a series: what to settle first
 
@@ -137,7 +144,7 @@ recipe before it can run.
 | Decision | What to ask | Where it goes | With no answer |
 |---|---|---|---|
 | **Look** | Live action or animated? What should it look like (film stock, lens, palette, drawing style)? | `style.look` | Ask: there's no good default. See **Writing the `look` line** |
-| **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed) and master 1440p. See **Final resolution** and **Masters** |
+| **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed) and master 1440p. See **Render size and delivery** |
 | **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
 | **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
 | **Titles** | Is there a series intro and outro (clips made once for the whole show)? | `_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; `publish` only to name other files or style the episode title | Nothing to write: a master picks the clips up when they're there. See **Series intro and outro** |
@@ -175,11 +182,9 @@ pass, and the intro and outro picked up from `_titles/`:
 }
 ```
 
-The other deliveries change the size and the recipe together: **Delivering 1080p**
-(960×544, re-sample 2x) and **Delivering 4K** (a re-sample, then an upscale model) under
-**Masters**. The upscale methods need their files installed: in the editor, **Settings →
-Features…** installs them (the H3 latent upscaler, SeedVR2, Real-ESRGAN, RTX Video Super
-Resolution).
+The other deliveries change the size and the recipe together (**Render size and
+delivery**). Add `"fasth3_*": { "method": "latent", "scale": 2 }` beside the H3 section
+when the series renders on FastH3 Omni.
 
 **An existing series config** is the show's, not yours to restyle. Add the subjects and
 locations a new episode needs, and change nothing else unasked. If it has no
@@ -234,14 +239,9 @@ shot 93. So:
 - A keyframe is a picture: plan `first:` / `last:` lines (see **Keyframes**) for the
   targets that read them.
 
-Details per target are under **Rendering a shot on …** below; `seriesmith targets` says
-which ones your ComfyUI can render. A hosted model sends one call per take through Comfy
-Router: its prompt is the same prose the LTX and Wan targets get, with each character's
-`design` less what describes a body (the provider's content filter refuses it; see **Writing
-the `design` sentence**), its seed is the provider's (`reproducible: false`), and `seriesmith
-backends` says whether this machine has the API key for it. A show can add its own models too: another Router model, or a
-workflow saved in ComfyUI (the editor's **Models** window; `seriesmith
-target-from-workflow`), named in `target:` like any other.
+Details per target are under **Rendering a shot on …** below. A show can have models of
+its own too (another hosted model, or a workflow saved in ComfyUI), named in `target:` like
+any other.
 
 ## The series config: series.json
 
@@ -249,7 +249,7 @@ target-from-workflow`), named in `target:` like any other.
 {
   "series": { "id": "gold_path", "title": "The Gold Path",
               "fps": 24, "width": 1344, "height": 768, "steps": 8 },
-  "proxy":  { "width": 864, "height": 480, "steps": 4, "audio_mode": "generate" },
+  "proxy":  { "width": 896, "height": 512, "steps": 4, "audio_mode": "generate" },
   "style":  { "look": "a 2D hand-drawn cartoon animation with clean black line art, flat solid colors and cel shading" },
   "speech": { "pace": "normal" },
   "subjects": {
@@ -298,283 +298,85 @@ target-from-workflow`), named in `target:` like any other.
   different clothes, the same prop in a different state. See **A wardrobe change is a new
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
-  each character's sampled voice), `source_track` (the default: you supply a recorded mix,
-  `audio.track`, and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the model
+  each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
+  and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
   `audio.default_policy` forces one policy for every dialogue shot, and `audio.retention`
   sets the dub `retention:` default. A target that can't do a mode says so and generates.
-- `upscale.save_latents` decides which renders keep their latent for an upscale later:
-  `"final"` (the default: the final pass is what gets upscaled; a proxy take can still be,
-  through the VAE), `"always"` or `"never"` (to
-  save the disk space, a few MB a take; an upscale then goes through the VAE).
-- Resolution must be a multiple of 32 on both axes for H3. **1280×720 is illegal**, because
-  720 is not. 1344×768 is H3's native canvas. The other targets snap it to their own sizes.
-  Whether the final pass renders at the size you deliver, or smaller and is upscaled, is
-  **Final resolution** below.
-- `steps`, `lora` and `model` are optional per pass. `lora` takes one LoRA or a chain, as
-  the script's `lora:` line does (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`);
-  see [COMMANDS.md](COMMANDS.md), **Steps, model and LoRA**.
-- `series.target` names the video model the episode renders on. Leave it out unless you
-  want one in particular: the series then renders on this machine's default, the model
-  its owner picked or the first one installed (MiniMax H3, else LTX-2, else Wan 2.2), and
-  a new series is given it. The models: `minimax_h3_ref2va` (MiniMax H3), `ltx2` (LTX-2.5 distilled), `ltx2_ingredients`
-  (LTX-2.3 with your character sheets and plates), `ltx2_msr` (LTX-2.5 with up to four
-  people's pictures and the plate), `minimax_h3_fl2va` (MiniMax H3 from
-  first/last keyframes), one of the silent Wan 2.2 models: `wan22_i2v` (14B, from a
-  first frame), `wan22_ti2v` (5B, text or a first frame) or `wan22_vace` (14B with your
-  character sheets), or a hosted model (`seedance_2_5`, `kling_v3_omni`, ...). `series.backend`
-  says where its jobs run (`local`, `cloud`, `deployment:<target>`, `router`), else each
-  target's own. Single shots or sequences can render on another one; see
-  **Rendering a shot on LTX-2**, **Rendering a shot on H3 from keyframes** and **Rendering a
-  shot on Wan 2.2** below.
-- `"simple": true` marks a project the editor's Simple mode made (Clips, or + New project):
-  its project picker lists it. It changes nothing about how the episode builds or renders.
+- `series.width` / `height` and the `proxy` block: **Render size and delivery** below.
+- `steps`, `lora` and `model` are optional per pass (the model's own otherwise). `lora`
+  takes one LoRA or a chain, as the script's `lora:` line does
+  (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`).
+- `series.target` names the video model the episode renders on (one of the ids in
+  **Choosing a video target**). Leave it out unless they want one in particular: the series
+  then renders on this machine's default. `series.backend` says where its jobs run
+  (`local`, `cloud`, `deployment:<target>`, `router`), else each model's own.
 
-### Final resolution: render at size, or render small and upscale
+**Required and optional.** A series config must have `series` with an `id` and a `title`,
+`style.look`, and `subjects` and `locations` blocks (either may be empty); every subject a
+`name` and a `design` (or only a `voice`, for someone who is never seen), every location a
+`description`. Everything else is optional, and left out means:
+
+| Key | Left out |
+|---|---|
+| `series.fps` | 24 |
+| `series.width` / `height` | the model's own (1344×768 on H3) |
+| `proxy` | the model's own proxy (512×288 on H3: too small; write one) |
+| `series.target` | this machine's default model |
+| `audio.mode` | `generate` (`source_track` when `audio.track` names a recording) |
+| `speech.pace` | `normal` |
+| `refs` | Krea 2 for pictures, LTX-2.5 for voices |
+| `upscale.master`, `post` | no recipe: the episode can't be mastered by recipe |
+| a subject's `sheet`, a location's `plate` | described in words only (fine for a first try) |
+
+### Render size and delivery
 
 `series.width` / `series.height` is the size every final take renders at, and
-`proxy.width` / `proxy.height` the proxy pass's. The usual setups:
+`proxy.width` / `proxy.height` the proxy pass's. Sizes on H3 must be multiples of 32 on
+both axes (**1280×720 is illegal**: 720 isn't); the other models snap a size to their own
+grid. The four setups, and the master each delivers:
 
-| | final | proxy | shape | a 3 s take | upscaled (picks only) | delivers |
-|---|---|---|---|---|---|---|
-| **Render at size** (the default) | 1344×768 | 864×480 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
-| **Render small, upscale to 1080p** | 960×544 | 864×480 | ≈7:4 | ~20 s | re-sample 2x → 1920×1088, ~25–35 s | 1920×1080 (8 rows cropped) |
-| **Render 16:9, upscale to 1080p or 4K** | 1024×576 | 512×288 | 16:9 | ~23–24 s (est.) | re-sample 2x → 2048×1152 (scaled down to 1080p; for 4K, then an upscale model) | 1920×1080 or 3840×2160, exactly |
-| **Render at size, master 1440p** | 1344×768 | 960×544 (8 steps) | 7:4 | ~53 s | re-sample 2x → 2688×1536, ~75 s | 2560×1440 (scaled down, 23 rows cropped) |
+| Setup | final | proxy | delivers | for |
+|---|---|---|---|---|
+| **Render at size** (the default) | 1344×768 | 896×512 | 1344×768, or a 1440p master | anything; renders on every model with nothing extra installed |
+| **Render small, master 1080p** | 960×544 | 864×480 | 1920×1080 (8 rows cropped) | the cheapest takes; mostly H3 shots, upscaled after the cut is locked |
+| **16:9, master 1080p or 4K** | 1024×576 | 512×288 | 1920×1080 or 3840×2160 exactly | an exact 16:9 frame; many shots on LTX |
+| **At size, master 1440p** | 1344×768 | 960×544, 8 steps | 2560×1440 (23 rows cropped) | live action with close dialogue, where faces need the pixels |
 
-(Measured on an RTX 5090 with the 8-step turbo LoRA; the 1024×576 time is estimated from
-its 13% more pixels than 960×544, since attention grows a little faster than the pixel
-count.)
-
-**A proxy smaller than 480p is too small to judge a shot by**: faces, hands and small props
-blur into each other. 864×480 is the default for a new series; 896×512 is the same 7:4 shape
-as 1344×768 exactly, if a proxy take will stand in for a final one in a cut (a proxy of
-another shape is scaled to fit there). 448×256 renders quicker, for a rough check of timing
-only.
-
-**The shape matters as much as the size.** 1344×768 is 7:4 (1.75), not 16:9
-(1.78): H3 sizes are multiples of 32, and 1344×768 is the model's native size. A 7:4 take
-delivered at a 16:9 size is either cropped (1344×768 to 4K loses 18 rows top and bottom,
-1.6%) or padded (30 px of black each side); the upscale's **Output size** does either
-(`--deliver 4k --fit crop|pad`; the dialog's Crop to fill / Pad with bars). 1024×576 is the
-16:9 size on H3's 32 grid (512×288 its proxy), so nothing is lost at 1080p or 4K, at the
-cost of a slightly smaller frame than 1344×768. The LTX and Wan targets snap a size down to
-their own grid (LTX-2's is 64: a 512×288 proxy renders there at 512×256, a little wider than
-16:9); the H3 targets refuse a size off theirs, naming the nearest.
-
-- **Render small and upscale** when the episode renders on `minimax_h3_ref2va`,
-  `fasth3_omni` or `minimax_h3_fl2va` with the latent upscaler installed (INSTALL.md, **The upscaler**), on
-  `ltx2`, which upscales with its own second stage and needs nothing extra, or on
-  `ltx2_ingredients` with LTX-2.3's latent upsampler installed (INSTALL.md, **For
-  upscaling**; `seriesmith targets` says `upscale ready` for each). Every take you try costs under half as much, and only the ones the cut
-  keeps are upscaled, once, after the cut is locked. The upscale re-samples the take from
-  late in its schedule under its own prompt, references and seed, with its audio held, so
-  the performance and the lip sync are the take's; it adds detail a 960×544 frame is short
-  of (hands, small props, texture). It can't add a face the render didn't draw: at 960×544 a
-  face in a medium-wide or wider is a few of H3's 16-pixel cells, and the re-sample
-  sharpens what's there (see **Faces need room**). A live-action series that lives on
-  faces and dialogue renders at 1344×768 (**Delivering 1440p** below).
-- **Render at size** when shots render on Wan (`wan22_i2v`, `wan22_ti2v`, `wan22_vace`:
-  they re-sample, a pixel model then their own sampler, but slowly: minutes a shot), when
-  the upscaler isn't installed, or when 1344×768 is the delivery. Upscaling a 1344×768 take to 2688×1536 works
-  but adds little: that frame already holds most of what the model can draw.
-- Pick one per series. A single take can still render at another size: the New take
-  dialog's **Size** (that take only; `seriesmith render --size 1344x768`), or the shot's override
-  (the inspector's **Size**, `seriesmith override --size 1344x768`: every later take of that pass).
-  A master with `"scale": "auto"` re-samples each take by its own size, so a cut that mixes
-  960×544 and 1344×768 takes delivers one 1080p master. Switching the series size later only
-  changes the takes rendered after the switch.
-
-**Writing a new series config for someone**, ask once which setup they want, unless they
-already said (a delivery size, "upscale", "fast iterations", "4K"): render at size
-(1344×768), render small for 1080p (960×544), 16:9 for exact 1080p/4K (1024×576, proxy
-512×288), or render at size and master 1440p (1344×768, proxy 960×544) for a live-action
-series with close dialogue, where faces need the pixels. With no answer, write 1344×768: it renders on every target with nothing extra
-installed. When they name a delivery size, say what shape the frame will be and whether
-the delivery crops or pads it. For an existing series config, never change the size
-unasked.
+- 1344×768 is 7:4, H3's native canvas, not 16:9: a 16:9 delivery crops it slightly
+  (`fit: crop`) or pads it with bars (`fit: pad`). Say so when someone names a 16:9 size.
+- A proxy under 480 rows is too small to judge faces and hands by (16:9's 512×288 is the
+  exception: H3's grid has no 16:9 size between it and 1024×576). Without a `proxy` block
+  the proxy is the model's own (512×288 on H3), so write one.
+- Changing the size later changes only the takes rendered after it; never change an
+  existing series' size unasked.
+- Why each setup, its timings, and the upscale methods are in [FINISHING.md](FINISHING.md).
 
 ```json
-"series": { "id": "porchlight", "title": "Porchlight", "fps": 24,
-            "width": 960, "height": 544, "steps": 8 }
+"series": { "id": "porchlight", "title": "Porchlight", "fps": 24, "width": 960, "height": 544 },
+"proxy":  { "width": 864, "height": 480 }
 ```
 
-For 16:9 (exact 1080p or 4K):
-
-```json
-"series": { "id": "porchlight", "title": "Porchlight", "fps": 24,
-            "width": 1024, "height": 576, "steps": 8 },
-"proxy": { "width": 512, "height": 288 }
-```
-
-An upscale starts 7/8 of the way through the take's schedule (step 7 of 8), which keeps a
-speaking mouth exactly as the take had it. A shot with no dialogue can take more detail with
-`seriesmith upscale <ep> --only sh100 --redo --detail 2` (two steps earlier: more change, check
-it).
-
-Takes on a show's own targets (and any take, by choice) can still be upscaled by the
-**pixel method**: an upscale model (RealESRGAN, UltraSharp, from
-ComfyUI's `models/upscale_models`) over the frames, with the take's audio copied on. It is
-fast and needs nothing but the model, but it only sharpens what's there; it draws no new
-detail the way a re-sample does. `seriesmith upscale <ep> --method pixel` uses it for any take.
-On an NVIDIA RTX card, **RTX Video Super Resolution** is offered among the upscale models
-(`--pixel-model rtx_vsr`; INSTALL.md says how to add it): no model file, and about 15 s a
-5 s shot at 2x against RealESRGAN_x2's two minutes (SeedVR2 7B: seven to nine). It is a
-little softer than RealESRGAN and a little steadier frame to frame, and likewise draws
-nothing new. Its default level (ULTRA) is the one for generated takes; HIGHBITRATE_ULTRA
-leaves a clean take nearly as it was. It goes wherever an
-upscale model goes (the pixel method, `--then-pixel rtx_vsr`, a Wan re-sample's start, a post).
-
-**SeedVR2** is the third method, for any take too: a one-step video restoration model
-(ComfyUI's own nodes; files in INSTALL.md). It gives the sharpest single frames of the three,
-in about a minute a shot, with no prompt (so nothing ties it to the take's performance but
-the picture); its frames change a little more from one to the next than a re-sample's, and
-the colour finish after it halves that. `seriesmith upscale <ep> --method seedvr2` (the 7B;
-`--seedvr2-model 3b` for the smaller one). It can also follow a re-sample in the same job,
-in place of an upscale model: `seriesmith upscale <ep> --then-seedvr2 --deliver 4k` (the dialog's
-Then: SeedVR2), so the take is redrawn under its own prompt with its lips held, then
-restored to the output size.
-
-`--scale` is any number above 1, up to 4 (a pixel upscale lands on even sides, an H3
-re-sample on the 32 grid, so 1.5x, 2x, 3x of 1024×576 all work; the LTX targets' is 2x
-only). For 4x with generated detail, re-sample then upscale in one go:
-`seriesmith upscale <ep> --then-pixel RealESRGAN_x2.pth` (re-sample 2x, then the model 2x more).
-The editor's Upscale dialog offers the same, and shows the size each choice makes. An
-upscale you already have can be taken further later with the pixel method alone:
-`seriesmith upscale <ep> --only sh100 --method pixel --from-upscale` (the dialog's "On top of the
-existing upscale").
-
-A pixel model has a fixed factor of its own (RealESRGAN_x2 makes 2x, RealESRGAN_x4 4x), but
-the upscale is resized to whatever scale you ask for: RealESRGAN_x2 at 1.5x is the model's
-2x shrunk to 1.5x, which is sharp and cheap. So pair a 2x model with 1.5x or 2x and a 4x
-model with 3x or 4x (a 4x model at 1.5x does four times the work to throw most of it away).
-**Output size** (`--deliver 1080p|1440p|4k|WxH`, `--fit crop|pad`; the dialog's Output
-size) makes the upscale exactly that size instead of a multiple: the last step that can
-make any size (the upscale model, SeedVR2) is scaled to cover it (crop) or fit inside it
-(pad), and the rest is trimmed or barred. A 4K master from a 1344×768 take: `seriesmith upscale
-<ep> --then-pixel RealESRGAN_x2.pth --deliver 4k` (re-sample 2x to 2688×1536, the model to
-3840×2196, 36 rows cropped); from 1024×576 the same makes 3840×2160 with nothing cropped. A
-re-sample alone keeps its own scale and is resized to the output size (a downscale is fine;
-a stretch up is noted, and an upscale model after it is the better way). Every upscale of a
-cut at the same output size assembles without resizing. Past 4K the output is heavy to make
-and to play: up to 4096 wide upscales encode on the GPU (NVENC); past it they're written
-with x264 on the CPU, which takes a couple of minutes but plays in the editor (the GPU
-encoder can only write HEVC that big, which browsers often show as black).
-
-A pixel model's output is finished before it's saved. By default its colour and tone come
-from the original frames and only its fine detail from the model (upscale models shift
-colour a little; this keeps an upscaled clip matching the cut around it). Two more, off by
-default: **keep soft areas soft** fades the detail the model invents where the original was
-out of focus, so shallow depth of field stays shallow (`--keep-soft 1`), and **grain** puts
-back the film grain the model scrubbed away (`--grain 0.02` is light).
-
-### Masters: one recipe for every shot
+### The master recipe: `upscale.master`
 
 A **master** is the locked cut delivered at one size, every shot upscaled the same way.
-The series config says how, once, in `upscale.master` (the **recipe**):
+The recipe says how, per video model (an id or a glob; the exact id wins, then the most
+specific glob, then `"*"`):
 
-```json
-"upscale": { "save_latents": "final",
-  "master": { "deliver": "4k", "fit": "crop", "quality": "master",
-    "finish": { "frequency_split": true },
-    "targets": {
-      "minimax_h3_*": { "method": "latent", "then": "RealESRGAN_x2.pth" },
-      "fasth3_*":     { "method": "latent" },
-      "ltx2*":        { "method": "latent" },
-      "wan22_*":      { "method": "seedvr2" },
-      "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" } } } }
-```
+- `deliver` (`1080p`, `1440p`, `4k` or `WxH`), `fit` (`crop` or `pad`), `quality`
+  (`master` for delivery, `review` quicker).
+- Per model: `method` (`latent`: re-sampled by the take's own model, the best for H3 and
+  LTX; `pixel`: an upscale model, `pixel_model`; `seedvr2`: a restoration model,
+  `seedvr2_model`), `scale` (a number, or `"auto"`: the smallest that covers `deliver`),
+  `then` (an upscale model file, or `"seedvr2"`, after a re-sample).
+- FastH3 Omni re-samples as H3 does but isn't `minimax_h3_*`: give `fasth3_*` its own
+  section, or its shots fall to `"*"`.
+- `upscale.save_latents` (`"final"`, the default) keeps each final take's latent so a
+  re-sample can start from it.
 
-- `deliver` (1080p, 1440p, 4k or WxH), `fit` (crop or pad) and `quality` (`master`: x264
-  CRF 12, for delivery; `review` is quicker) are the whole master's: one size, one encoding.
-- `targets` has a section per video target (an id or a glob; the exact id wins, then the
-  most specific glob, then `"*"`). A take is always upscaled through its own target: an H3
-  shot re-samples with H3, an LTX shot with LTX. FastH3 Omni (`fasth3_omni`) re-samples as H3
-  does but isn't `minimax_h3_*`: give it its own section, or its shots fall to `"*"`. A section takes `method` (latent, pixel,
-  seedvr2), `scale`, `detail`, `pixel_model`, `seedvr2_model`, `then` (an upscale model
-  file, or `"seedvr2"`, after a re-sample), `then_scale`, and the finish (`keep_soft`,
-  `grain`); `finish` sets those for every section. `"scale": "auto"` (a re-sample alone)
-  picks, per take, the smallest scale on the target's grid that covers `deliver`: 2x for a
-  960×544 take, 1.5x for a 1344×768 one (2016×1152, scaled down to 1920 and cropped), so an
-  episode that renders some shots at 1344×768 masters with no wasted pixels.
-- `window` (seconds) is for a long H3 re-sample. A take longer than one window is sampled
-  in overlapping windows along time (5.5 s with 1.25 s of overlap by default: a usual 4–5 s
-  shot still re-samples in one pass), so a 2x
-  re-sample of 1344×768 (2688×1536) fits a 32 GB card at any length. Shorter takes are
-  sampled in one pass, as before. Set a longer window if your card holds it, or `0` to
-  turn windowing off. It needs the `comfyui-obvpm-timeline` node pack (its H3 Context
-  Windowing); without it, a long shot's upscale says so instead of running out of memory.
-- A **continuity shot** (its first keyframe the previous shot's last frame) starts its
-  upscale from the previous shot's *upscaled* last frame, so the two meet on one picture.
-  Re-sampling each from the same low-res frame gave two different 2x pictures of it, which
-  shows as a colour jump at a cut that should be seamless. Every upscale keeps its last
-  frame (`<take>.up_last.png`). The master queues a source before the shot that continues
-  it, and makes either upscale again when it was made before this (never a Keep).
-- A **`continuous: latent` shot** does the same in latent space: its re-sample holds its
-  first frames on the previous shot's upscaled latent, which that upscale keeps
-  (`<take>.up.latent.safetensors`, about 60 MB for 5 s at 2x) only when the next shot in
-  the cut is such a shot. The master queues the source first and makes an upscale again
-  when the source kept no latent, or the chained shot wasn't held (it ran first).
-- A shot can have its own recipe over its target's (a dialogue close-up kept light, a wide
-  given `detail: 1`, a shot SeedVR2 got wrong sent to the pixel method): the editor's
-  Upscale dialog, **Choose for this run**, then **Save as sh020's recipe**.
-
-`seriesmith master Shows\ep05 --wait` (or the cut menu's **Master…**) goes through the cut:
-
-- a shot with no upscale, one made from an older take, or one that failed is upscaled by
-  the recipe;
-- a fresh upscale made with the recipe's settings is used as it is;
-- a fresh upscale made with **other settings** (an older recipe, or before upscales
-  recorded theirs) is **kept**, not redone: `--conform` (the dialog's Conform) redoes those;
-- an upscale marked **Keep** (the take menu's **Keep upscale**, `seriesmith upscale --only sh020
-  --keep`) is never redone by Master, even with `--conform`;
-- a shot with no usable pick, or a kept upscale at another size, is a **gap**: no master is
-  made until it's fixed, unless `--allow-gaps`.
-
-Then it assembles the master from the upscales into `Shows\ep05\master\`
-(`ep05_master_3840x2160.mp4`, with `--prores` a ProRes 422 HQ `.mov` too; a master already
-made gets its `.mov` without assembling again from `--prores-only`, or the dialog's
-**ProRes from this master**) and writes
-`ep05_master.md` / `.json`: every shot's take, target, recipe and status. It never changes
-the cut: lock the picks first. Several episodes, or a whole show folder, master in one go
-(`seriesmith master Shows`); an episode with gaps is skipped, not half-made. `--check` shows the
-plan without queueing anything.
-
-The upscales are queued **in cut order** by default: watch them land, and if one is off you
-can stop there knowing everything before it is good. For a batch you'll leave running
-(overnight, over lunch), `--order target` (the dialog's Queue: Grouped by target) runs the
-shots that load the same model together, so ComfyUI loads each model once instead of at
-every change of target; the dialog remembers the choice.
-
-**Writing a new series config**, add an `upscale.master` block for the delivery they named
-(ask once if they didn't: 1080p is the usual; 1440p for a series rendered at 1344×768; 4K
-when they say so). The patterns below are
-the best value in time and quality we've measured; say which you chose and why.
-
-#### Delivering 1080p
-
-Render small and re-sample 2x; nothing after it. Per picked take the re-sample costs about
-as much as one 960×544 render, and it redraws detail at full size under the take's own
-prompt, references and seed with its audio held, which no pixel upscale of a bigger render
-matches. Rendering at 1344×768 costs every take ~53 s instead of ~20 s and still needs an
-upscale to reach 1080p. With about 4 takes a shot, a 100-shot episode is roughly 3 hours
-this way against about 7 at 1344×768 (extrapolated from 3–5 s shots: master one real
-episode before planning a season on it).
-
-- **960×544** (proxy 448×256) when the shots are mostly H3: the re-sample makes 1920×1088,
-  cropped by 8 rows (0.7%, invisible).
-- **1024×576** (proxy 512×288) when many shots are on LTX, or for a touch more crispness:
-  it's on both H3's 32 grid and LTX's 64 (LTX snaps 960×544 to 960×512, whose 2x is
-  stretched about 5% to fill 1080), and the 2048×1152 re-sample is scaled down to exactly
-  1920×1080. About 15–25% more time a take and an upscale.
-- Wan shots: SeedVR2 7B (about a minute a shot), or a pixel model (about 40 s) when time
-  matters more; Wan's own re-sample takes minutes and isn't worth it at 1080p.
-- Some shots at **1344×768** (dialogue-heavy mediums the small render doesn't hold): give
-  the H3 section `"scale": "auto"`. Those takes re-sample 1.5x to 2016×1152 (about the
-  pixels of a 960×544 take's 2x), scaled down to 1920 wide and cropped by 18 rows; the
-  960×544 takes still re-sample 2x. A fixed 2x would take them to 2688×1536 only to throw
-  most of it away.
+One recipe per delivery; pick the one they asked for (1080p is the usual, 1440p for a
+series rendered at 1344×768, 4K only when asked):
 
 ```json
 "upscale": { "save_latents": "final",
@@ -582,154 +384,44 @@ episode before planning a season on it).
     "finish": { "frequency_split": true },
     "targets": {
       "minimax_h3_*": { "method": "latent" },
+      "fasth3_*":     { "method": "latent" },
       "ltx2*":        { "method": "latent" },
       "wan22_*":      { "method": "seedvr2", "seedvr2_model": "7b" },
       "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" } } } }
 ```
 
-`save_latents: "final"` (the default) lets the re-sample start from the take's latent
-instead of re-encoding its video. A wide shot without dialogue that looks soft can take its
-own recipe with `detail: 1`; don't raise `detail` for every shot, it can change a speaking
-mouth.
-
-#### Delivering 1440p
-
-Render at 1344×768 and re-sample 2x; nothing after it. The take holds faces and mouths a
-960×544 render can't (see **Faces need room**), and the 2x re-sample to 2688×1536 is
-scaled down about 5% to 2560×1463 and cropped by 23 rows, so the master is slightly
-supersampled. Measured on an RTX 5090: **about 75 s a shot**, and cleaner than re-sampling
-1.5x and finishing with RealESRGAN, which took 210–230 s (the upscale model's pass at
-1440p is the slow part). Uploaded to YouTube at 1440p, it also streams better to viewers
-watching at 1080p than a 1080p upload does.
-
-- **Proxy at 960×544, on the 8-step LoRA at 8 steps** (`"proxy": {"width": 960, "height":
-  544, "steps": 8, "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"}`):
-  a proxy then looks like a final, so a good one can stand in. Its 2x is only 1920×1088,
-  stretched to 1440p: give such a shot its own recipe at `"scale": 2.75` (960→2640), on a
-  short shot only.
-- **Long shots:** a 2x re-sample of 1344×768 is heavy. Up to about 6–7 s it fits a 32 GB
-  card; a 10 s shot at 2x ran out of VRAM and stalled. Give long shots their own recipe at
-  `"scale": 1.5` with `"then": "RealESRGAN_x2.pth"`.
-- Keep `"scale": 2`, not `"auto"`: auto would also choose 2x for a 1344×768 take, but takes
-  at other sizes would re-sample differently.
-
-```json
-"upscale": { "save_latents": "final",
-  "master": { "deliver": "1440p", "fit": "crop", "quality": "master",
-    "finish": { "frequency_split": true },
-    "targets": {
-      "minimax_h3_*": { "method": "latent", "scale": 2 },
-      "ltx2*":        { "method": "latent", "scale": 2 },
-      "wan22_*":      { "method": "seedvr2", "seedvr2_model": "7b" },
-      "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x2.pth" } } } }
-```
-
-#### Delivering 4K
-
-The same small render, the same 2x re-sample, then an upscale model the rest of the way:
-`"then": "RealESRGAN_x2.pth"` with `"deliver": "4k"`. From 960×544 the model makes an
-exact 2x of the 1920×1088 re-sample (3840×2176, 16 rows cropped), so it runs at its own
-factor with no resize; from 1024×576 it takes 2048×1152 to exactly 3840×2160. Measured (RTX 5090, 3 s shots,
-master quality): **about 3 minutes a shot** on H3 (the re-sample ~30 s, the model's pass at
-4K ~2 minutes, the encode ~11 s), nearer 4 on LTX, about 2 for a Wan shot through
-RealESRGAN_x4, against well under a minute a shot for 1080p. For a 100-shot episode that's
-some 5 hours of upscaling at 4K against under an hour at 1080p: master 1080p as you go and
-4K when it's asked for.
-
-- Don't re-sample 4x in one go: a single refine step on a 4x latent is unmeasured and heavy
-  on VRAM. Re-sample 2x, then a model.
-- The model after the re-sample is the steadiest frame to frame. SeedVR2 there
-  (`"then": "seedvr2"`) gives the sharpest stills but is several minutes a shot at 4K:
-  give it to the shots that earn it, as their own recipe, not the whole series.
-- Rendering at 1344×768 for 4K works (re-sample 2x to 2688×1536, the model the last 1.43x)
-  but costs every take more and the re-sample more, for little.
-- Wan shots: a 4x model (`RealESRGAN_x4.pth`, about 3x from 1280×704), or SeedVR2 for the few
-  that need it.
-
-```json
-"upscale": { "save_latents": "final",
-  "master": { "deliver": "4k", "fit": "crop", "quality": "master",
-    "finish": { "frequency_split": true },
-    "targets": {
-      "minimax_h3_*": { "method": "latent", "then": "RealESRGAN_x2.pth" },
-      "ltx2*":        { "method": "latent", "then": "RealESRGAN_x2.pth" },
-      "wan22_*":      { "method": "pixel", "pixel_model": "RealESRGAN_x4.pth" },
-      "*":            { "method": "pixel", "pixel_model": "RealESRGAN_x4.pth" } } } }
-```
-
-**Both 1080p and 4K** from one cut: a take keeps one upscale, so make the 4K master and
-scale it down for 1080p, rather than upscaling every shot twice (switching the recipe's
-`deliver` makes the 1080p upscales the wrong size for a 4K master, and `--conform` replaces
-them).
-
-`fit: crop` unless they'd rather keep the whole frame with bars (`pad`).
+- **1440p** (rendered at 1344×768): `"deliver": "1440p"` and `"scale": 2` on the H3,
+  FastH3 and LTX sections.
+- **4K** (rendered at 960×544 or 1024×576): `"deliver": "4k"`, `"then": "RealESRGAN_x2.pth"`
+  on the H3, FastH3 and LTX sections, and `RealESRGAN_x4.pth` as the pixel model for Wan
+  and `"*"`.
 
 ### Post-process: the `post` block
 
-A **post** finishes a shot's upscale, at the same size: a clean-up pass over the whole
-frame, then motion blur. It is for what H3's latents leave behind even after the re-sample:
-blocky edges and shadows, and moving things that smear in blocks instead of blurring.
+A clean-up pass over each upscale before the master (blocky edges and shadows, smeared
+motion), then motion blur:
 
 ```json
 "post": { "master": { "enhance": "production", "motion_blur": 0.3 } }
 ```
 
-- `enhance`:
-  - `"production"` is SeedVR2 7B at the upscale's size, the one to use. It was chosen on
-    Porchlights ep01 against the upscale alone, an earlier re-sample start, SeedVR2 3B, an
-    upscale model and SUPIR. It cleaned edges, lettering, hairnets and faces in motion
-    best, and took about 4.5 minutes a 5 s shot at 1080p. At 1440p it's about 100 seconds per second of
-    footage (11 minutes for a 6.6 s shot, against 4 for its 2x re-sample), so post the shots
-    that need it, or plan an overnight run.
-  - `"draft"` is an upscale model at 1x: a quick sharpen that also sharpens the blocks.
-  - `"cinematic"` is SUPIR: about 30 minutes a shot, frame by frame.
-  - `"none"` skips the clean-up.
-- `motion_blur`: a fraction of the frame interval, 0 to 1. 0.3 smooths blocky motion; 0.5 is
-  a 180° film shutter. Still areas are left alone.
-- A shot can have its own over it in overrides.json: `"post": {"sh040": {"motion_blur": 0},
-  "sh050": {"enhance": "none"}}`.
-- Face detailing (redrawing faces with an image model) was tried and dropped: it changed who
-  the characters were (docs/POST_PROCESSING.md).
-
-`seriesmith post Shows\ep05` posts every upscaled shot of the cut by the recipe (`--only`,
-`--redo`, or `--enhance` / `--blur` for a one-off), and the editor's take and cut menus
-have **Post-process…**. The Master dialog's **Post-process** says what the master is made from:
-
-- **Off**: the upscales.
-- **Where present** (`seriesmith master Shows\ep05 --post present`): each shot's fresh post where
-  it has one, its upscale otherwise; nothing is post-processed and no `post` block is needed.
-  The way to post only the shots that need it: upscale, scrub the cut, **Post-process…** the
-  ones that need it from the take menu, then master.
-- **All by recipe** (`seriesmith master Shows\ep05 --post --wait`): every shot by the `post`
-  block; a shot without an upscale gets its post queued right behind the upscale.
-
-**Writing a new series config**, add a `post` block with `"enhance": "production"` and
-`"motion_blur": 0.3` when the master is 1080p or 1440p. Leave it out if they haven't asked
-for it, or if the episode will be mastered at 4K: a post at 4K hasn't been measured.
+`enhance` is `production` (SeedVR2 7B, the one to use), `draft` (a quick upscale-model
+sharpen), `cinematic` (SUPIR, very slow) or `none`; `motion_blur` is a fraction of the
+frame interval (0.3 smooths blocky motion, 0.5 is a 180° shutter). Write it for a 1080p or
+1440p master; leave it out for 4K (unmeasured there) or when they haven't asked.
 
 ### Series intro and outro: the `publish` block
 
-The show's opening and closing are two clips made once for the whole series, not shots
-in each script: every episode then opens on the same picture, and a model never has to
-spell the episode's name. Put them in the show folder as `_titles\INTRO.mp4` and
-`_titles\OUTRO.mp4`, and every master (`seriesmith master`, or Master in the editor) is made
-with them: the intro, the episode, the outro, with the episode's title from its `=` line
-written under the series title the clips carry, in one font, size and colour for every
-episode. Without the files a master is made plain. `seriesmith publish Shows\ep05` does
-the same to the review cut, into `ep05\publish\` (the editor's Publish button).
-
-The cut's picture is copied, not re-encoded: only the two title clips are encoded, to
-match it, and the result is checked frame by frame at each join (a cut that can't be
-matched is re-encoded whole, and publish says why). To use other clips, name them in the
-series config, relative to the episode folder:
+The show's opening and closing are two clips made once for the whole series, not shots in
+a script: `_titles\INTRO.mp4` and `_titles\OUTRO.mp4` in the show folder. Every master is
+made with them when they're there, the episode's title (its `=` line) written under the
+series title. Nothing to write unless the clips live elsewhere:
 
 ```json
 "publish": { "intro": "../_titles/INTRO.mp4", "outro": "../_titles/OUTRO.mp4" }
 ```
 
-An optional `subtitle` object sets `font`,
-`size` and `y` (fractions of the frame height), `color`, `glow`, and the fades in seconds:
-`intro_in`, `outro_in`, `outro_out` (see `seriesmith/publish.py` for the defaults).
+An optional `subtitle` object sets the title's `font`, `size`, `y`, `color`, `glow` and fades.
 
 ### Render profiles
 
@@ -761,8 +453,8 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
                                "lens": "shallow" } }
   ```
 
-  then `profile: flashback` under the sequence's `#` header. Pair it with a sequence
-  relight (the editor's **Relight…**) for plates in the flashback's light.
+  then `profile: flashback` under the sequence's `#` header. Pair it with relit plates
+  (**A relit plate is a location too**) for the flashback's light.
 - A profile applies to both passes, like a shot's own `model:` line.
 - **What wins**, from weakest to strongest: the series config's `series` / `proxy` block →
   the sequence's profile → the sequence's own `model:` / `lora:` / `steps:` lines → the
@@ -784,146 +476,43 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
   then `profile: full` on the shots with a big move (or `lora: none` on one shot, or
   `"lora": "none"` in the series config's `series` block for all of them).
 
-### Model files: `model_families`
+### Which model a shot renders on
 
-Every model file a shot loads is checked against the model family its target needs
-(LTX 2.5 for `ltx2`, H3 Ref2VA for `minimax_h3_ref2va`, ...) when it is queued. A file
-named like the family passes. Any other name is identified from the file's own header
-(the tensor names and shapes of a `.safetensors` file; the weights aren't loaded). If the
-header says it's the right family, it renders with a note. If it says it's **another**
-family, the shot is skipped ("wan2.2_i2v_low_noise_14B_fp8_scaled is Wan 2.2 I2V 14B
-low-noise, but this LTX-2 target's model must be LTX 2.5") unless you render anyway.
+Most specific first:
 
-A header can't tell every family apart. H3 Ref2VA and FL2VA files are identical inside, and
-so are Wan 2.2's high- and low-noise experts and the LTX 2.3 and 2.5 upscalers. For
-those, the name decides. If you rename or merge such a file, add its name to the series
-config so the pipeline knows which one it is:
-
-```json
-"model_families": {
-  "ltx2.5": ["my_ltx25_merge*"],
-  "minimax-h3-ref2va": ["h3_faces_finetune*"]
-}
-```
-
-- Keys are family ids: `minimax-h3-ref2va`, `minimax-h3-fl2va`, `ltx2.5`, `ltx2.3`,
-  `ltx2.5-latent-upscaler`, `krea2`, `wan2.2-i2v-14b-high`, `wan2.2-i2v-14b-low`, ...
-  (`targets/modelid.py` lists them all; each target's `target.json` `models` block says
-  which one each of its model settings needs).
-- Values are file-name patterns: `*` matches anything, case doesn't matter. They add to
-  the target's own patterns; they don't replace them.
-- A matching name is trusted without reading the file, so keep the patterns specific.
-
-### Which model? Readiness and downloads
-
-Run `seriesmith targets` (with ComfyUI running) before you pick a target. It prints one
-line per target, `ready`, `degraded`, `not_ready` or `unknown` (ComfyUI didn't answer),
-and under it every file that target is missing, with the models folder it goes in and
-where to download it:
-
-```
-  ltx2                 degraded   missing 1 optional
-      optional    duration_head ltx-2.5-duration-head-bf16.safetensors  [feature off: dur: model (duration head)]
-                  -> models/model_patches/   https://huggingface.co/Lightricks/LTX-2.5/...
-```
-
-Add an episode (`seriesmith targets Shows\ep05`) to use its series config (the pass
-blocks' model and LoRA, `model_families`) and mark the episode's target. `--json` prints
-the same as data.
-
-- **Required** files (the model, text encoder, VAEs): without one the target can't render.
-  Its shots are skipped when you queue them, and the message names the file, the folder
-  and the download link.
-- **Accelerators** (the turbo LoRAs, LTX 2.3's distilled checkpoint): without one the
-  shot still renders, on the pass's slower `base` settings (more steps, no turbo LoRA),
-  and the take says so.
-- **Optional** files (the LTX duration head): only their feature is off (`dur: model`
-  renders the estimate).
-
-In the editor, a missing file with a link has an **Install** button in the model
-picker's **What's missing** window, and **Settings → Features…** installs a whole model (or
-an upscaler, a node pack, ffmpeg) at once. A link is only given when ComfyUI's own
-templates, your saved workflows or ComfyUI-Manager's model list record it. Otherwise the line says to search for the exact
-file name. If you have a file of the same family under another name (another
-precision, a merge), it is used instead, and the take notes which file it was.
-
-**Which target a shot renders on**, most specific first:
-
-1. the render request (the redo dialog, `render --target`);
-2. the shot's override (the editor, or `seriesmith override Shows\ep05 sh020 --target ltx2`);
+1. the render request (`render --target`, the New take dialog);
+2. the shot's override in the editor (`seriesmith override <ep> sh020 --target ltx2`);
 3. the script: a `target:` line, or a profile's target, on the shot or its sequence;
-4. the **episode target** set in the editor, or with
-   `seriesmith override Shows\ep05 --episode-target ltx2` (`built` clears it). It is
-   kept in the episode's `overrides.json`, not in `series.json`. While it is set, a shot
-   can be pinned to its built target from the editor (or `--target built`).
+4. the episode target set in the editor (kept in `overrides.json`, not `series.json`);
 5. `series.target` in `series.json`;
-6. this machine's default: the model picked in Settings, else the first installed
-   (`minimax_h3_ref2va`, `ltx2`, `ltx2_ingredients`, the Wan 2.2 models), else
-   `minimax_h3_ref2va`.
+6. this machine's default: the model picked in Settings, else the first installed.
 
-A shot whose target is not the one it was built for is compiled for its new target when
-it is queued, so you don't need to rebuild. To make an episode target permanent, put
-`"target": "<id>"` in `series.json`'s `series` block and rebuild.
+So leave `target:` out of a script and `series.target` out of a config unless the choice is
+the film's: the episode then follows whatever the person renders on. Which models are
+installed, and what each still needs, is `seriesmith targets` ([FULL_SETUP.md](FULL_SETUP.md)).
 
 ### Reference images and voices: the `refs` block
 
-Reference images (character views, props, plates) and shot keyframes are made by an
-**image model**; a character's voice sample is made by an **audio model**. The series
-config can say which:
+The pictures (character sheets, props, plates) and shot keyframes are made by an image
+model, a character's voice sample by an audio model. Leave the block out for the defaults
+(Krea 2 for pictures, FLUX.2 Klein edit for keyframes when it's installed, LTX-2.5 for
+voices), or name others:
 
 ```json
-"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit",
-         "voice_target": "ltx2_voice"}
+"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "voice_target": "ltx2_voice"}
 ```
 
-| image target | what it is |
-|---|---|
-| `krea2` | Krea 2 turbo, text to image (the default for refs) |
-| `z_image_turbo` | Z-Image Turbo, fast text to image |
-| `flux2_klein` | FLUX.2 Klein 9B, text to image |
-| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when it is installed; otherwise keyframes use the refs model) |
-| `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
-| `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
-| `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
-| `flux3_klein` | FLUX.3 Image Klein — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 10 reference images. Takes a real negative prompt |
-| `flux3_klein_turbo` | FLUX.3 Image Klein step-distilled: the same as `flux3_klein` in 16 steps, over twice as fast, without a negative prompt |
-| `fasth3_omni_still` | FastH3 Omni as an image model, as `minimax_h3_still`: up to 9 reference images, 8 steps, no turbo LoRA |
-| `fibo2_dev` | Bria's Fibo 2.0 Dev: text to image, or an edit of up to 4 reference images (relights too); 50 steps at cfg 5. Non-commercial licence (CC BY-NC 4.0) |
-| `fibo2_edit_turbo` | Fibo 2.0 Edit Turbo: edits only (it needs a picture to start from), 4 steps at cfg 1. Non-commercial licence |
-| `moss_image_sft` | MOSS-Image SFT, text to image: strong on lettering and layout, 50 steps at cfg 3 with a real negative prompt |
-| `moss_image_base` | MOSS-Image Base: the model the SFT is tuned from, for LoRAs trained on the base |
-| `qwen_rapid_aio` | Qwen-Image-Edit Rapid AIO: a 4-step all-in-one edit checkpoint, up to 3 reference images |
-| `klein_erp_360` | FLUX.2 Klein 9B with a 360 outpaint LoRA: a plate as an equirectangular panorama (the Refs tab's **Make 360**) |
-| hosted on Comfy Router: `krea_2_router`, `nano_banana_pro`, `nano_banana_2_1`, `gemini_3_1_flash_image`, `seedream_5_0`, `gpt_image_2`, `flux_kontext_pro`, `flux_2_pro`, `qwen_image_3`, `kling_image_o1` | one call a picture, nothing to install; most take reference images |
+The picture models, and what each needs installed, are in [FULL_SETUP.md](FULL_SETUP.md)
+(**Pictures**). Two things matter when writing:
 
-| audio target | what it is |
-|---|---|
-| `ltx2_voice` | LTX-2.5 audio-only: one speaking voice saying a line from the script, from the character's `voice` line, or continuing the voice ref's own sample when it has one (the default for voices) |
-
-A **variant**'s view (a subject with `of:`) is generated as an edit of the same view of the
-character it is a variant of, on any target that reads reference images — so its back panel
-is drawn from their back panel, and the face carries. On a text-to-image target there is
-nothing to edit from, so it falls back to drawing the variant from its `design` on the
-base's seed; write that sentence as close to the original's as the change allows, because
-there the wording is all the identity there is.
-
-An image workflow of your own (a show's model made from a workflow saved in ComfyUI) is an
-image target too. The editor can choose per episode (kept in `overrides.json`, not here) and
-per ref, and a generate request can name one; most specific wins. `seriesmith targets --kind image`
-(or `--kind audio`) says which are installed and what to download for the rest. A ref is
-worded the same whichever model makes it.
-
-A character with no `voice_sample` still has a voice ref: generating one and picking it
-writes `refs/voices/<id>.wav` **and** adds the `voice_sample` line to `series.json` for
-you (the only thing the editor writes there). `seriesmith refs <ep> --voices` does the
-same from the command line, and `--from-take sh020:3:1.2-6.4` makes a sample out of a
-line the model already spoke in a take, with no model at all.
-
-Generating a voice that **already has a sample** copies it: the first 1.5–2.5 seconds of the
-sample (cut in a pause between words) are played to `ltx2_voice`, which carries on in that
-voice with the character's line, and that head is cut off again. So a short or rough
-recording, or a few seconds cut from a take, becomes a clean sample of the character saying
-their own words. The voice comes out close, not identical: listen before you pick.
+- A **variant**'s pictures (a subject with `of:`) are edits of its original's, on a model
+  that reads reference images, so the face carries. On a text-to-image model (Krea 2) the
+  variant is drawn from its `design` alone: write that sentence as close to the
+  original's as the change allows.
+- A character with no `voice_sample` still gets one: generating and picking a voice in the
+  editor (or `seriesmith refs <ep> --voices`) writes `refs/voices/<id>.wav` and adds the
+  `voice_sample` line to `series.json`. Don't invent a `voice_sample` path for a file that
+  doesn't exist.
 
 ### Negative prompts
 
@@ -988,14 +577,11 @@ them invented behind the face. In one H3 test, an extreme close-up asked for "ey
 came out a close-up, hairline to collar with candle flames behind, until only that clause of
 the look changed to "soft practical light". On the same seed it was then eyes to lips, with
 nothing behind but the plate's blur, and a wide of the same room lost nothing but an invented
-chandelier. The look builder's Light row is written this way ("low-key practical light, pools
-of light and deep soft shadow"); the windows, candles and lamps go in each location's
-description, where the shots that see them read them. `seriesmith check` warns when a look
-(the series' or a profile's) names a light source.
-
-The editor's look builder (Series settings, the new-series wizard) writes such a line from
-its parts (medium, camera, lens, film, light, grade) and keeps its picks beside it in
-`style.look_parts`; only `style.look` reaches a prompt.
+chandelier. Write "low-key practical light, pools of light and deep soft shadow"; the
+windows, candles and lamps go in each location's description, where the shots that see them
+read them. `seriesmith check` warns when a look (the series' or a profile's) names a light
+source. (`style.look_parts` is the editor's look builder's own record; only `style.look`
+reaches a prompt.)
 
 Each clause is something the model can see: shallow focus and bokeh separate the subject
 from the room and soften what the model draws worst, low-key practical light gives the frame
@@ -1042,13 +628,11 @@ angles of it:
 - On an edit model (Klein, Qwen, Rapid AIO, H3 still), an angle's plate is generated **from
   the master's plate**: the same building, materials and light, with only the camera moved.
   On a text-to-image model (Krea 2) it is drawn from its words as before.
-- The Refs tab lists the angles under their master.
 - An angle's master must be a location that isn't itself an angle.
 
 **A relit plate is a location too.** The same view under another light (the street at dusk
 for a flashback, the porch at night) is a location with `of:` and `relight:`, a relight
-preset's id (`dusk`, `night`, `rain`, `neon`…: the editor's Relight pictures) or the
-instruction in your own words:
+preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your own words:
 
 ```json
 "street_dusk": {"name": "Street (Dusk)", "of": "street", "relight": "dusk",
@@ -1061,14 +645,8 @@ instruction in your own words:
   shots read it.
 - Name it like any location: `# sq04 street_dusk`, or `plate: street_dusk` on a shot.
 - The source may be an angle; a relit plate's source can't itself be relit.
-- The editor writes these for you: **Relight…** on a sequence's header relights every
-  plate the sequence uses in one go and can point the sequence at them.
-- The Refs tab can also make an angle's picture from the master's plate in two other ways:
-  a **360 panorama** of it (Make 360), whose viewer saves any view you turn to; or an H3
-  **camera tour** through it, whose held frames (and any frame you stop on) become
-  candidates. Both keep the master's room exactly, and a picture made this way is picked
-  into the angle like any other. Qwen's multi-angle LoRA (a character's **Turn**) isn't
-  used on plates: it turns a room into a diorama.
+- The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
+  camera tour of a master for its angles' pictures): in a config you only name them.
 
 ### Two people talking need an angle each
 
@@ -1299,247 +877,99 @@ sequence (`continuous:` for every shot after the first); a shot's own line beats
 ### Rendering a shot on LTX-2
 
 `target: ltx2` on a `##` shot, under a `#` header, or in a profile renders that shot (or
-sequence) on LTX-2.5 instead of the series target; a name that isn't a target is an error. One episode
-can mix the two: the build writes the LTX shots to their own shotlist, and the editor, the
-render command and the review cut treat the episode as one. What changes for an LTX shot:
+sequence) on LTX-2.5; one episode can mix models freely. What changes for an LTX shot:
 
-- **Your refs are used when they are there.** Everyone in `who:` / `with:` is described in
-  words from their `design` and the place from the location's `description`, so the
-  sentences carry the look on their own — and when the shot's subjects and plate have
-  picked refs on disk **and** the LTX-2.5 ingredients IC-LoRA is installed, those refs are
-  also drawn onto one reference sheet that conditions the clip, exactly as
-  `target: ltx2_ingredients` does (see below for the sheet's layout). It is decided when
-  the shot is queued, never at build time, so nothing in the shotlist changes; the take
-  says which panels it used, keeps the sheet as `<shot>_tNN_refsheet.png`, and re-picking a
-  view marks it stale. Without the refs or without the LoRA the shot renders from the
-  prompt alone, as it always did. **No panel is ever required**: a missing one just leaves
-  that element off the sheet. To turn the sheet off for a shot, sequence or profile, write
-  `lora: none` (`"loras": ["none"]` in a profile) — the opposite of `ltx2_ingredients`,
-  where the IC-LoRA is put back because the target is pointless without it.
-- **One person on the sheet works; more is a gamble.** One character (with a prop and the
-  plate) holds well. With two or more people the panels get small, and LTX can render the
-  sheet itself — the figures standing on white, panel for panel, the whole clip — whatever
-  the prompt says (rewording it and a negative prompt were both tried). For a group shot,
-  use `target: ltx2_msr` (below), or `lora: none` to render it from words alone.
-  A first- and/or last-frame keyframe (`refs/shots/<shot>/first.png`, `last.png`, imported
-  in the editor's Refs tab) pins the picture when you have one; without keyframes and
-  without a sheet the shot is text-to-video.
-- **Its own grid:** `8k + 1` frames (9, 17, 25, … 73 = 3.04s, 97 = 4.04s at 24fps), up to
-  about 20 seconds. The same `dur:` snaps to a slightly different length than on H3.
-- **Sound is generated with the picture, or dubbed.** A `dub` or `dub_keep_foley` shot's
-  `audio:` window of the recording (`audio.track`) is held as the shot's whole soundtrack and
-  the picture is made to it, so the mouths follow your recording (`ltx2_ingredients` and
-  `ltx2_msr` too). LTX adds nothing under it, so `dub_keep_foley`'s foley bed is near silent.
-  A `clone` shot's lines are made in the same render: each line is spoken by LTX's
-  audio-only model carrying on from its speaker's `voice_sample` (its first seconds), the
-  lines are put together with natural pauses, and the picture is made to them. One job,
-  nothing to review first; the voices come out close to the samples, not identical
-  (`ltx2_msr` too; on `ltx2_ingredients`, an LTX-2.3 model, `clone` renders with `generate`
-  and says so).
-- **One paragraph of prose**, written for you: the look, then the framing and the camera,
-  then who is in frame and what they do, the lines with who says them and how, then the
-  sound and music. Write `camera:` for a move you want; without it the camera stays still.
-- **Size** comes from the series config's pass blocks, snapped down to a multiple of 64 and
-  kept under 1 MP (1344×768 stays; a 480×272 proxy becomes 448×256). Its model, LoRA
-  and steps are the target's own: a series written for H3 doesn't hand them H3's.
-- **Two transformers: fast by default, or a quality pass.** The default is the *distilled*
-  LTX-2.5 transformer, which was distilled for a fixed 8-step schedule at guidance 1 — a
-  `steps:` line can't change that, and the take says so. Name the *dev* (non-distilled)
-  transformer as the model and LTX-2 renders the **quality profile** instead: 30 steps with
-  real guidance, for crisper lines and steadier faces. It costs very little — the extra
-  steps run on the half-size base pass, and a 4-second 768×512 shot measured 39 s either
-  way. Set it wherever a model is set — a profile for a kind of
-  shot, a `model:` line on a shot or sequence, the series config's `series` block for the
-  whole episode, or the editor's model picker for one shot:
+- **Words first, pictures when they're there.** Everyone in `who:` / `with:` is described
+  from their `design` and the place from its `description`, so those sentences must carry
+  the look. When the pictures exist and LTX's ingredients LoRA is installed, they're also
+  tiled into one reference sheet for the shot (`lora: none` turns that off). One person on
+  the sheet holds well; with two or more LTX can render the sheet itself, so put a group
+  shot on `ltx2_msr`, or render it from words with `lora: none`. A first or last keyframe
+  pins the picture when there is one.
+- **Its own grid:** `8k + 1` frames, up to about 20 s; a `dur:` lands slightly differently
+  than on H3.
+- **Sound** is made with the picture: generated, dubbed to the recording, or cloned from
+  each speaker's `voice_sample`.
+- **`camera:`** for a move you want; without it the camera stays still.
+- **A quality pass:** the default transformer is distilled (8 fixed steps). The dev
+  transformer renders a 30-step quality profile for crisper lines and steadier faces, at
+  little extra cost; give the shots that want it a profile:
 
   ```json
-  "profiles": {
-    "quality": { "target": "ltx2",
-                 "model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors" }
-  }
+  "profiles": { "quality": { "target": "ltx2",
+                             "model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors" } }
   ```
-
-  Then `profile: quality` on a `##` shot or a `#` header. A `steps:` line on such a shot
-  wins over the profile's 30. The dev file is optional: without it installed, `seriesmith
-  targets` says the feature is off and everything else still renders. With *only* the dev
-  file installed, LTX-2.5 is degraded rather than not ready: every shot renders on it, on
-  the quality profile, and the take says so.
-
-To try a shot on LTX without touching the script, retarget it from the editor or with
-`seriesmith override <ep> sh040 --target ltx2` (`--target built` undoes it).
 
 ### Rendering a shot on LTX-2 with its refs: `target: ltx2_ingredients`
 
-`target: ltx2_ingredients` renders on LTX-2.3 with the "ingredients" IC-LoRA, which keeps a
-recurring character looking like its sheet (and a prop like its picture, the set like its
-plate). Everything above about LTX-2 holds (generated sound, `camera:`, retargeting), except:
+LTX-2.3 with the "ingredients" LoRA, which keeps a recurring character like its sheet.
+As LTX-2 above, except:
 
-- **Your refs are used, and required.** Each shot gets a reference sheet, made when it is
-  queued from the picked refs: one panel per element, tiling the frame, in order: each character in
-  `who:` (one panel of its 4-panel sheet: the face on a one-character `close`/`cu` shot, the
-  three-quarter body otherwise, as on H3), then each prop and vehicle in `with:`, then the
-  location's plate. A shot whose ref is missing is blocked, as on H3. Rendering anyway
-  leaves that element off the sheet (it is still described in words); a shot left with no
-  refs at all renders text-only, without the IC-LoRA. The sheet is kept beside the take
-  (`<shot>_tNN_refsheet.png`), and re-picking a view marks the take stale.
-- **Give important things their own panel.** The model only reproduces what is on the
-  sheet, and bigger panels carry over better: a crowded shot (many `who:`/`with:`) gets
-  small panels. Keep the plate clean.
-- **The shot's own length**, on LTX's `8k + 1` grid from 2 s (49 frames) to 20 s (481 frames)
-  at 24 fps. The IC-LoRA was trained on 121 frames (5.04 s), so any other length gets a
-  soft warning in `--check` (identity may weaken); it still renders. Longer than 20 s is an
-  error: split the shot.
-- **Size is the model's**: 768×448 for the final, 512×288 for the proxy, whatever the series
-  config's pass blocks say.
-- **A two-part prompt**, written for you: `Reference sheet:` names each panel in order (the
-  character's `name` and `design` and which view, the prop's, the location's
-  `description`), then `Generated video:` is the LTX-2 paragraph, where someone on the
-  sheet is only named.
-- A `lora:` line or profile written for another model doesn't remove the IC-LoRA: it is
-  put back first in the list, and the take says so.
+- **Its pictures are required**: one sheet tiled from each character in `who:` (the face on
+  a one-character close-up, else the body), each prop in `with:`, then the plate. The model
+  only reproduces what's on the sheet, and bigger panels carry better: keep important shots
+  to few subjects, and the plate clean.
+- **Best at 5.04 s** (what it was trained on); 2 to 20 s render, with a warning off 5.04.
+- No `clone`: such shots generate.
 
 ### Rendering a shot on LTX-2.5 with several people's pictures: `target: ltx2_msr`
 
-`target: ltx2_msr` renders on LTX-2.5 with Licon's MSR LoRA, which takes up to four people
-or things and the place as pictures. Everything above about LTX-2 holds (generated sound,
-`camera:`, retargeting), except:
+LTX-2.5 with the MSR LoRA: up to four people or things as pictures, plus the plate. As
+LTX-2 above, except:
 
-- **Your refs are used, and required.** The first four people and things in `who:` /
-  `with:` are each given a picture, then the location's plate. Each person's picture is
-  made when the shot is queued, at the render size on grey, the way MSR's own are: from a
-  4-panel sheet, the full body, the face and the back side by side; from one full-length
-  picture, the picture and its face. Give a person a face picture as a variant named for it
-  (`charming_face`, `"of": "charming"`) and it is used for the face; without one, the top
-  of the picture is. A missing ref blocks the shot, as on H3; rendering anyway leaves it
-  out. A shot with no one pictured renders from words alone. The pictures are kept beside
-  the take (`<shot>_tNN_msr1.png`, ...).
-- **People are called by their picture.** The prompt opens with `Image 1: the Stepmother,
-  <design>.` for each picture and the place, then the look; the shot itself calls each
-  person in it `Image N`.
+- **Its pictures are required.** A person's face picture can be a variant named for it
+  (`charming_face`, `"of": "charming"`); without one, the top of their picture is used.
 - **Write the action plainly.** MSR follows the words closely: "the women behind him" in a
-  close-up can put them in it. Say who is in frame, and keep anyone else out of the sentence.
-- **Better with groups than the sheet, not certain.** Three people in a 4–5 s shot held on
-  every seed tried; three in a 1–2 s shot usually lost one or two of them. A short group
-  shot wants more time, or a few rerolls. One person holds well at any length.
-- **Speech varies by seed**, as on every LTX target: a take can come out garbled or silent
-  where another seed says the line cleanly. Reroll it.
-- **One shot at a time.** A `continuous: multishot` group is refused on it: tried, LTX cut
-  on its own but put people in shots they weren't in.
-- **Two stages, always**: the shot at half size, then doubled and refined, both under the
-  pictures. The final is 1664×960 unless the series config sets a size; below about 832×480
-  for the first stage, faces in a group shot get too small to hold.
-- **Install**: the MSR LoRA and two node packs, ComfyUI-LTX2.5-MSR and ComfyUI-PromptRelay
-  (the Features window, **LTX-2.5 + MSR**), beside LTX-2.5's own files.
+  close-up can put them in it. Name who is in frame and keep anyone else out of the sentence.
+- **Give a group time.** Three people held in 4–5 s shots; in 1–2 s shots one or two often
+  went missing. One person holds at any length.
+- Speech varies by seed: reroll a garbled line. No `continuous: multishot`.
 
 ### Rendering a shot on H3 from keyframes: `target: minimax_h3_fl2va`
 
-`target: minimax_h3_fl2va` renders on MiniMax H3's first/last-frame model. It is H3 (same
-grid, same sizes, same turbo-LoRA presets and speaker tags), but it takes **no reference
-pictures**: what pins the look is the shot's keyframes. What changes for such a shot:
+H3's first/last-frame model: H3's grid, sizes and dialogue, but **no reference pictures**.
+What pins the look is the shot's keyframes (`first:` / `last:`, or the previous shot's last
+frame with `continuous: first`); with neither it is text-to-video.
 
-- **Keyframes instead of sheets.** `refs/shots/<shot>/first.png` is the first frame and
-  `last.png` the last. Both are optional; with neither the shot is text-to-video. They come
-  from the previous shot (`continuous: first`, see **Continuous shots**; or by hand,
-  `seriesmith keyframe <ep> <shot>`, or `--last` for the next shot's first frame as this
-  one's last; the editor's Refs tab does the same), from a still (`first: generate`) or from
-  an **import** in the Refs tab. The render adds
-  the model's alignment line for whichever it has, so there is nothing to write for them.
-- **Subjects in words.** No `<Picture N>` slots: everyone in `who:` / `with:` is described
-  from their `design`, and the place from the location's `description` (all of it on a
-  wide, what is behind them on a medium, a shallow slice on a close-up). A keyframe wins
-  where it and the words differ.
-- **The H3 prompt, without the picture sections.** Written for you in H3's three fields:
-  `integrated_multimodal_description` (the look, the framing, who is in frame, the action,
-  `camera:`, then each line as `<d>[English] …</d>` with a speaker id), then
-  `overall_soundscape` (`sound:`) and `non_diegetic_music` (`music:`).
-- **Sound:** `generate` as usual. `dub` and `dub_keep_foley` work: the shot's `audio:` window
-  of the recording (`audio.track`) is cut and anchored at the start of the shot, so the
-  mouths follow your recording; `dub` makes it the whole soundtrack, `dub_keep_foley` lays
-  `sound:` under it. `retention:` has no effect here. `clone`: this model has no
-  voice-sample slot, so the lines are made first, in the same render, by LTX-2.5's
-  audio-only model, each continuing its speaker's `voice_sample` as `ltx2`'s clone does,
-  and then anchored as a recording is (with `sound:` laid under them). The take keeps the
-  made lines beside it (`_lines.wav`) to listen to. It needs LTX-2.5's transformer, text
-  encoder and audio VAE on the ComfyUI (INSTALL.md): without them a clone shot is refused
-  and says what to download. It loads both models, so it's slower than a dub.
-- **Length:** H3's `17k + 5` grid. The model is trained on about 5 to 15 seconds (124 to
-  362 frames); longer shots render with a warning. A shot continues the one before by its
-  first keyframe: `continuous: first`.
-- **Size** comes from the series config's pass blocks (multiples of 32). Model, LoRA and
-  steps are the target's own unless it is the series target.
-
-To try a shot this way without touching the script, retarget it from the editor or with
-`seriesmith override <ep> sh040 --target minimax_h3_fl2va`.
+- Everyone is described from their `design`, the place from its `description`; a keyframe
+  wins where it and the words differ.
+- Sound: generated, dubbed, or cloned (the lines are made by LTX-2.5 first, so `clone` needs
+  LTX-2.5 installed too).
+- Best at 5 to 15 s; longer renders with a warning.
 
 ### Rendering a shot on Wan 2.2: `wan22_i2v`, `wan22_ti2v`, `wan22_vace`
 
-Three Wan 2.2 targets, for pictures without sound:
+Three silent models:
 
-- **`wan22_i2v`** (label "Wan 2.2 14B I2V"): the 14B image-to-video pair (a high noise model,
-  then a low noise one, each with its 4-step turbo LoRA). It animates a picture you give
-  it: **a first frame is required** (`refs/shots/<shot>/first.png`: generated from the
-  shot's description, cut from the previous shot with `continuous: first`, or imported; see
-  **Keyframes**). A shot without one is blocked, and rendering anyway can't help: "Wan 14B
-  I2V needs a first frame: generate one, import one, give the shot `continuous: first` (the
-  previous shot's last frame), or retarget to wan22_ti2v". A `last.png` too makes it a first/last-frame shot.
-- **`wan22_ti2v`** ("Wan 2.2 5B TI2V"): the small 5B model, text-to-video, or from a first
-  frame when there is one. Nothing blocks it: the fast, cheap choice for proxies, and
-  where an I2V shot without a first frame can go.
-- **`wan22_vace`** ("Wan 2.2 14B VACE (refs)"): the 14B VACE pair, which keeps your
-  characters looking like their sheets. When the shot is queued, one reference picture is
-  made from the picked refs: one panel per subject on white (each character in `who:`,
-  the face panel on a one-character `close`/`cu` shot, else the three-quarter body; then
-  each prop and vehicle in `with:`). The plate isn't used: the place is described in words.
-  A missing sheet blocks the shot, as on H3; rendering anyway leaves it off. First and last
-  keyframes are optional and pin the ends of the shot. No turbo LoRA exists for it here,
-  so it renders at 10 steps for a proxy and 20 for a final: slower than the other two.
+- **`wan22_i2v`** (14B) animates a picture: **a first frame is required** (`first:
+  generate`, an imported picture, or `continuous: first`). A last frame too makes it a
+  first/last-frame shot.
+- **`wan22_ti2v`** (5B): text-to-video, or from a first frame when there is one. The fast,
+  cheap one, and where an I2V shot with no first frame can go.
+- **`wan22_vace`** (14B): keeps characters like their sheets (one picture made from the
+  sheets of `who:` and `with:`; the place is in words). First and last frames optional.
 
 What every Wan shot has in common:
 
-- **No sound at all.** Wan makes none. Every shot renders a mute mp4 whatever its
-  `policy:` says (the take's notes say so), and the review cut lays silence under it. A
-  dialogue shot gets a `--check` warning ("no audio or lip-sync on Wan"): the lines are
-  **acted silently** (the prompt says who talks and how, mouth moving), so the recording or
-  another take's sound goes on at the edit. Keep dialogue shots on a target with sound if
-  you need lip-sync.
-- **Its frame rate, and keeping shots short.** All three render at **24 fps**. The 14B
-  models (`wan22_i2v`, `wan22_vace`) are specified at 16 fps, but their motion is paced for
-  24: at 16 a take plays as slow motion, so seriesmith times and saves them at 24. Lengths are on
-  a `4k + 1` grid: 3 s is 73 frames. The 14B models were trained on 81 frames, **3.4 s** at
-  24, and their prompt adherence falls off after that: a longer shot renders with a
-  warning, and past 161 frames (6.7 s) it must be split. **Write Wan shots of 3 s or less**,
-  and cut a longer action into two shots. (A take rendered before this at 16 fps keeps its
-  own rate: assemble and Play all time it by what it recorded.)
-- **Prose prompts**, written for you: the look, the framing and `camera:`, who is in frame
-  from their `design`, the action, on-screen text, then the lines as silent acting. No
-  `sound:` or `music:`: they are ignored. Wan's standard (Chinese) negative prompt is
-  added for you.
-- **Size is the model's own** (Wan is trained at 480p and 720p, far above H3's proxy):
-  `wan22_i2v` and `wan22_vace` 832×480 final, 640×352 proxy (multiples of 16); `wan22_ti2v`
-  1280×704 final, 640×352 proxy (multiples of 32). A cut mixing sizes is scaled to the
-  episode's size when assembled.
-- **A `lora:` line or profile** replaces the preset's LoRAs. On the 14B models there are
-  two chains, one per stage: a LoRA whose name says `high_noise` / `low_noise` goes to that
-  stage, any other to both.
-
-To try a shot on Wan without touching the script, retarget it from the editor or with
-`seriesmith override <ep> sh040 --target wan22_ti2v`.
+- **No sound.** Dialogue is acted silently (`check` warns); the sound goes on in the edit.
+  Keep a shot that needs lip sync on a model with sound.
+- **Keep it to 3 s or less.** The 14B models were trained on 3.4 s and follow the prompt less
+  after that; past 6.7 s a shot must be split. Lengths are on a `4k + 1` grid.
+- **No `sound:` or `music:`**: they are ignored.
+- Sizes are the model's own (832×480 or 1280×704 final, 640×352 proxy); the cut scales them.
 
 ### Keyframes: `first:` and `last:`
 
-Some video targets start (or end) a shot on a picture you give them: its **keyframes**,
-`refs/shots/<shot>/first.png` and `last.png`. Which shots need one follows from the target
-each shot renders on:
+Some models start (or end) a shot on a picture: its **keyframes**. Which shots need one
+follows from the model:
 
-- `wan22_i2v` **requires** a first frame (it animates it);
-- `ltx2`, `minimax_h3_fl2va`, `wan22_ti2v` (first only), `wan22_vace` and the hosted video
-  models (first and last on most; `runway_gen4_turbo` and `wan_2_7_r2v` first only) use them
-  when they exist (**optional**; a hosted model given a first frame is sent the keyframes
-  instead of the refs);
-- `minimax_h3_ref2va` and `ltx2_ingredients` don't read keyframes.
+- `wan22_i2v` and `hold` **require** a first frame;
+- `ltx2`, the FL2VA models, `wan22_ti2v` (first only), `wan22_vace` and the hosted models
+  use them when they exist (a hosted model given a first frame is sent the keyframes instead
+  of the character pictures);
+- H3 Ref2VA, FastH3 Omni and `ltx2_ingredients` don't read them.
 
-The Refs tab lists every keyframe a shot needs, before anything exists, with how it will be
-made. You choose that with a line on the shot, or under a `#` header for all its shots:
+How each is made, on the shot or under a `#` header for all its shots:
 
 ```
 # sq02  workshop
@@ -1553,31 +983,16 @@ first: refs/stills/sh030_open.png
 | value | meaning |
 |---|---|
 | `generate` | a still made from the shot's own description (the default) |
-| `import` | you'll import one (the Refs tab) |
-| a path | this image is imported as the keyframe (relative to the episode) |
-| `none` | no keyframe, even where the target could use one (a required one stays required) |
+| `import` | the person will import one |
+| a path | this image, relative to the episode |
+| `none` | no keyframe, even where the model could use one (a required one stays required) |
 
-A first frame cut from the previous shot isn't a `first:` value: the shot says
-`continuous: first` (see **Continuous shots**). The old `first: continuity` still reads that
-way, and `seriesmith check` says how to write it.
+A generated still draws the shot's look, framing, place and cast at a moment of the action:
+`first` from the action's first sentence (about to happen), `last` from its last (done). So
+write the action as a short sequence of sentences, and both ends come out right.
 
-**A render keeps continuity current, and a whole chain queues at once.** A
-`continuous: first` shot's first frame is cut when its render **starts**, from the take
-the cut uses at that moment for the shot before it, and sent with the job. Each such job
-waits for the one it continues, so queue sh080, sh090 and sh110 together and each starts on
-the new last frame of the one ahead of it, on any backend. The take's sidecar records what it started from (`continuity`). A chain is queued in
-cut order whatever order it was asked for. Before queueing, a keyframe that doesn't exist
-yet is cut from the previous shot's current take so the graph has a frame to wire; a
-continuity shot whose previous shot has no take at all and none coming is an error. The
-Refs tab marks a keyframe **out of date** when the previous shot's take has changed since
-it was cut; a keyframe you imported or generated is left alone. "Before" is the cut's
-order, not the script's: move a shot on the timeline and its continuity comes from its new
-neighbour.
-
-**Continuity is for a shot that picks up the previous one's picture**: the same framing
-carrying on, or a match on action. After a real cut (a new subject, a new angle, a
-different size) the previous shot's last frame is the wrong opening picture: leave
-`continuous:` off that shot (or write `continuous: none` under a header that sets it).
+A first frame from the previous shot isn't a `first:` value: the shot says
+`continuous: first`.
 
 ### Continuous shots: `continuous:`
 
@@ -1592,88 +1007,49 @@ they answer different needs:
 
 `first` and `latent` make a **continuous take**: each shot is its own render, joined so the
 cut doesn't show. `multishot` makes **real cuts inside one render**: the model draws a shot,
-cuts, and draws the next, and keeps the people, the light and the blocking the same across
-them, because it sees them all at once. See **Several shots in one generation** below.
+cuts, and draws the next, keeping the people, the light and the blocking the same across
+them because it sees them all at once.
 
 ```
 ## sh090
 continuous: first
 ```
 
-**Over a long chain, prefer `latent`.** Every `latent` shot is given its reference pictures
-again, so the look stays anchored; a `first` shot on FL2VA has only the frame it opens on,
-so whatever drifts in one shot is where the next one starts. In a ten-shot test of one man
-pacing a room (the same script, the same opening shot), the `latent` chain held its exposure
-(brightness 36 to 39 of 255) while the FL2VA chain climbed to 90, with its contrast doubled
-and the room redrawn (a second window, more shelves, other lamps) by the end. `first` is
-the right tool for one cut, not ten.
+- Only the shot that continues says it, and "previous" is the previous shot in the cut.
+- Under a `#` header, `continuous:` covers every shot after the first **in that sequence**.
+  A shot breaks the chain with `continuous: none`.
+- Use `first` or `latent` only when the shot really picks up the previous picture (the same
+  framing carrying on, a match on action). After a real cut (a new subject, a new angle, a
+  different size) leave it off.
 
-- `first`: it opens on the previous shot's last frame, as its first keyframe. That needs a
-  target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets, the hosted
-  models). A shot on
-  H3 Ref2VA (which doesn't) builds on **H3 FL2VA instead**, by itself, and one on FastH3 Omni
-  on **its own FL2VA** (`fasth3_fl2va`: FL2VA's graph with FastH3's weights, so the shot keeps
-  its look), unless the shot names its own `target:` (then it's an error that says which
-  targets can). **H3 Singularity reads it itself**: the frame is anchored at the start of its
-  own render and its character and place pictures still go in, which FL2VA can't read.
-  **H3 Ref2VA can too**, but keeps sending such shots to FL2VA unless the series config says
-  `"first_target": "minimax_h3_ref2va"` (or the shot names Ref2VA itself). (FastH3 Omni was
-  tried the same way and ignored the frame: its 8 distilled steps don't take the anchor.) The model can come from the
-  series config, the episode or a `#` header. A shot on a model that reads a first frame
-  (LTX-2, Wan, the hosted ones) stays on it.
-  The series config's `series.first_target` picks where they all go instead (Series
-  settings › Models › **First frames**): `"minimax_h3_ref2va"` keeps H3 Ref2VA's shots on
-  Ref2VA, opening on the frame with their pictures; `"h3_singularity"` moves the continuing
-  H3 shots to Singularity; `"minimax_h3_fl2va"` sends FastH3 Omni's to stock FL2VA. It only
-  moves the shots of H3 Ref2VA and FastH3 Omni; Singularity and the models that read a first
-  frame (LTX-2, Wan, the hosted ones) keep their own.
-- `latent`: it carries on from the previous take's last frames and their sound, on H3
-  Ref2VA, FastH3 Omni or H3 Singularity, keeping its own reference sheets. The render holds the end of the previous take
-  at its head and generates the rest from there, so motion, sound and the camera carry
-  across the join; the held frames are cut off again, and the take starts where the
-  previous one ended. Use it for one action running across a cut in framing that the
-  same reference sheets can draw (a camera that keeps moving, someone walking into the
-  frame of the next shot). See **How much a latent shot holds** below. **Keep the framing
-  and the camera move the same across a latent chain**, and open each shot's action on
-  what the held frames show: a shot that asks for a new size, a new move or a new place in
-  the room is read as a new shot, and H3 cuts to it right after the held frames.
-- `multishot`: it is rendered with the shot before it as one take, a cut between them.
-  It's under **Several shots in one generation**, next.
-- Only the shot that continues says it. "Previous" is the previous shot in the cut, so
-  moving a shot on the timeline changes what it continues from.
-- Under a `#` header, `continuous:` covers every shot after the first **in that sequence**
-  (it stops at the next `#`). A shot breaks the chain with `continuous: none`. A shot can
-  also say it on the first shot of a sequence, continuing the last shot of the one before.
-- Old scripts: `first: continuity` reads as `continuous: first`, and `continuous: yes` under
-  a header as `continuous: latent`. `seriesmith check` says how to write each.
+**`first`.** A shot on a model that reads a first frame (LTX-2, Wan, the hosted ones) stays
+on it. One on H3 Ref2VA moves to H3 FL2VA, and one on FastH3 Omni to its own FL2VA, unless
+the shot names its own `target:`. FL2VA draws everyone from words, without their pictures.
+H3 Singularity opens on the frame itself with its pictures kept, and so can Ref2VA with
+`"first_target": "minimax_h3_ref2va"` in the `series` block (`"h3_singularity"` sends the
+continuing H3 shots there instead).
 
-**How much a latent shot holds: `overlap:`.** The number of frames of the previous take
-held at the head of the render. Leave it alone: **39 frames (1.6 s), the default**, is what
-was tested. Fewer frames give H3 too little motion to carry on: at 22, with the sound not
-held, someone walking in popped into frame and was then drawn twice. More frames cost
-render time without a better join. H3 can only hold certain lengths (22, 39, 56, 73, ...:
-17 more each time), so any other number is **rounded up** to the next one, and
-`seriesmith check` says so (`overlap: 30` holds 39). Set it on a shot, under a `#` header for its
-shots, or for the whole series in the series config:
+**`latent`.** The render holds the end of the previous take at its head and generates the
+rest from there, so motion, sound and the camera carry across the join; the held frames are
+cut off again, so the take starts where the previous one ended. It keeps its own pictures.
+The previous shot can be on any model: when it isn't H3's, its last frames are encoded
+instead (a silent one, such as Wan, holds no sound).
 
-```
-"continuous": { "overlap": 39 }
-```
-
-The held frames are rendered and thrown away, so a latent shot costs about 40% more render
-time than the same shot cut fresh, and its take can run up to 16 frames (0.7 s) longer than
-its `dur:` asks, like any H3 length. It continues whichever take the cut uses for the
-previous shot when its render **starts**: a whole chain can be queued at once, each shot
-behind the one it continues. The previous take's kept latent is used when it has one (the
-final pass keeps them, `upscale.save_latents`); otherwise its last frames and sound are read
-back through H3's VAEs, which works for any take, even one from another target. So **the
-shot a latent shot continues can be on any model** (LTX-2, Wan, a hosted one, an imported
-clip): another model's kept latent is never used (it's not H3's shape), its last frames are
-fitted to the shot's size and encoded instead, and the take's `continued_from.via` says
-`frames`. That take needs at least as many frames as the hold (39), and a silent one (Wan)
-holds no sound, so H3 starts the sound fresh at the join. Both kinds
-of continuous shot render on any backend (your ComfyUI, Comfy Cloud, a deployment): what
-they need from the previous take is sent with the job.
+- **Keep the framing and the camera move the same across a latent chain**, and open each
+  shot's action on what the held frames show. A shot that asks for a new size, a new move or
+  a new place in the room is read as a new shot, and H3 cuts to it right after the held
+  frames.
+- **Over a long chain, prefer `latent` to `first`.** Every latent shot gets its pictures
+  again, so the look stays anchored; a `first` shot on FL2VA has only the frame it opens on,
+  so whatever drifts in one shot is where the next starts. In a ten-shot test of one man
+  pacing a room, the latent chain held its brightness (36 to 39 of 255) while the FL2VA
+  chain climbed to 90, doubled its contrast and redrew the room.
+- **`overlap:`** is how many frames are held: leave it at the default, 39 (1.6 s). Fewer
+  give H3 too little motion to carry on; more cost time for nothing. Any other number rounds
+  up to H3's next (22, 39, 56, 73, …). Per shot, under a header, or for the series:
+  `"continuous": { "overlap": 39 }`.
+- A latent shot costs about 40% more render time, and its take can run up to 0.7 s longer
+  than its `dur:`.
 
 ### Several shots in one generation: `continuous: multishot`
 
@@ -1702,60 +1078,28 @@ dur: 1.62
 ```
 
 - **Every shot stays a shot in the script**, with its own `who:`, `size:`, `dur:`, action,
-  lines and `sound:`. Under a `#` header, `continuous: multishot` groups every shot after the
-  sequence's first; `continuous: none` starts a new group. A group never crosses a `#`.
-- **It renders as one take**, under the group's first shot (`sh040`), its length the shots'
-  `dur:` together. In the cut it is one clip, marked where the script times each cut.
-- **On H3** (Ref2VA, FastH3 Omni, FL2VA), the prompt cuts at each shot's start
-  (`[Shot 2] At 00:04.458, the shot cuts.`). H3 lands its cuts within about half a second of
-  those times, not to the frame.
-- **On Seedance** (2.5 and 2.0), the scene is told in prose: the look once, then a paragraph a
-  shot, each "a hard cut" from the one before. Seedance times the cuts itself. It takes up to
-  30 pictures, so every shot's plate goes in, and a group is at most 30 s (2.0: 15 s).
-- **On Kling v3 Omni**, the scene is one short prompt: the look, the place and who's who
-  once, then a paragraph a shot under its whole seconds (`Shot 2 (2 s), a hard cut: ...`).
-  Kling lands its cuts within about a second of those. At most 6 shots and 15 s, one plate,
-  7 pictures in all.
-- **On Kling Video O1**, a group is sent as Kling's own storyboard: each shot's prose (cut to
-  512 characters) and whole seconds, which it keeps to the frame; at most 6 shots and 15 s,
-  the cast's 4 pictures and one plate. (On v3 Omni the storyboard lost the people's faces:
-  its short parts have no room for who's who.)
-- **Other models** (Veo, Runway, Wan, LTX, LTX + MSR) render one shot a call: `seriesmith check` refuses
-  a group on them and says which models can render it, and rendering a group's first shot
-  on one from the editor says why it can't.
-- **One set of pictures for the whole generation**: every person in the group once (the
-  first picture named of each: a wardrobe variant in a later shot isn't sent, and `check`
-  says so), up to the model's slots (FastH3 Omni takes eight; Ref2VA three: background people
-  can be one group subject, `members`), and **one plate**, the first shot's. A close-up on
-  another plate is drawn as a blurred crop of the plate sent; a wider shot on another plate
-  gets its place in words.
-- **A group can carry on from the shot before it**: `continuous: latent` on its first shot
-  holds the previous take's end at its head. `continuous: first` works too, but renders the
-  whole group from words and that frame, without its pictures (`check` says so).
-- **Sound is generated.** A dubbed or cloned shot in a group is refused for now.
-
-**Generating a keyframe** writes a still from the shot: the look, the framing and the
-location, who is in frame (their `design`), and the action at that moment: for `first` how
-the shot opens (the action's first sentence, about to happen); for `last` how it ends (its
-last sentence, finished). Write the action as a short sequence of sentences and both ends
-come out right. Dialogue isn't drawn. The keyframe model (the series config's
-`refs.keyframe_target`, else FLUX.2 Klein edit when it is installed) also gets **the picked
-character views** (the face on a one-character close-up, else the three-quarter body), the
-props and **the plate** as reference images, so the characters look like their sheets; the
-prompt names each one ("image 1 is Ada: draw this character exactly as in image 1").
-
-`seriesmith keyframe Shows\ep05 --missing` fills every required keyframe and every one the
-script asks for (a `continuous: first` shot's from the previous shot's take when it has a
-usable one, else a still);
-`seriesmith keyframe Shows\ep05 sh030 --generate` makes one still; `--clear` takes a keyframe away
-(the shot renders without one, and nothing puts it back until you pick one).
+  lines and `sound:`. Under a `#` header it groups every shot after the sequence's first;
+  `continuous: none` starts a new group. A group never crosses a `#`.
+- **It renders as one take**, under the group's first shot, its length the shots' `dur:`
+  together. The model lands its cuts near the script's times: H3 within about half a second,
+  Kling v3 Omni within about a second, Kling O1 to the frame; Seedance times them itself.
+- **Limits:** Kling, at most 6 shots and 15 s; Seedance 2.5, 30 s (2.0: 15 s). `check`
+  refuses a group on a model that renders one shot a call (Veo, Runway, Wan, LTX).
+- **One set of pictures for the whole generation**: every person in the group once (a
+  wardrobe variant in a later shot isn't sent), up to the model's slots (FastH3 Omni eight,
+  Ref2VA three: background people can be one group subject, `members`), and **one plate**,
+  the first shot's (Seedance: every shot's). A close-up on another plate is drawn as a
+  blurred crop of the one sent; a wider shot on another plate gets its place in words.
+- **A group can carry on from the shot before it** with `continuous: latent` on its first
+  shot. `continuous: first` works too, but renders the group from words and that frame,
+  without its pictures.
+- **Sound is generated**: a dubbed or cloned shot can't be in a group.
+- It is no fix for a jump cut: two near-identical shots in one generation still cut as one.
 
 ### A picture held still: `target: hold`
 
-`target: hold` is seriesmith's own model: the shot's first keyframe held still for its
-`dur:`. A card ("Two hours later"), a title, a still, a freeze frame. It runs on this
-machine (ffmpeg, a moment a take), needs no ComfyUI and nothing installed, and costs
-nothing.
+`target: hold` holds the shot's first keyframe still for its `dur:`: a card ("Two hours
+later"), a title, a still, a freeze frame. It runs on this machine and costs nothing.
 
 ```
 ## sh045
@@ -1765,78 +1109,38 @@ first: cards/two_hours_later.png
 A card: Two hours later.
 ```
 
-- **The picture is its first keyframe**, and it's required: a picture of yours (`first:` a
-  path, as above, imported by **Generate missing** in the Refs tab as on any model), one
-  dropped on the shot in the editor, or `continuous: first` (the shot before it's last
-  frame: a freeze frame). The editor's **Hold this frame after it…** on a take
-  makes a held shot of any frame.
-- **`dur:` is its length**, to the frame. Change it (or drag the clip's edge on the
-  timeline) and its take is stale, as is a take whose picture changed: Generate holds it
-  again.
-- It's made at the size its pass renders every shot at, the picture scaled to fit and
-  letterboxed in black.
-- **It reads nothing else**: who, the action and the dialogue are the script's, not the
-  picture's. Write an action all the same (a shot needs one); it's what the shot is.
-- **Sound**: silent, or with its sound set to dub (a stretch of the episode's recording, a
-  file, a dub track) that track laid under it. A line said over it is a dub track (a
-  voice model) dubbed in. Or lay a sound under the clip in the cut.
-- **Upscale**: there's no latent to re-sample, so the pixel method or SeedVR2 (an
-  `upscale.master` section `"hold"`, or `"*"` set to one of them).
+- **The picture is required**: a picture of the person's (`first:` a path), or
+  `continuous: first` for a freeze frame of the shot before.
+- It reads nothing else, but write an action all the same: it's what the shot is.
+- Silent unless its sound is set to a dub in the editor.
 
 ### Rendering a shot on a hosted model: Seedance, Kling, Veo, …
 
 A hosted model (`target: seedance_2_5`, `kling_v3_omni`, `veo_3_1_fast`, `wan_3_0`, …)
-renders in its provider's cloud, one paid call per take through Comfy Router (it needs a
-Comfy API key, and Settings' paid limit caps how many go out). What it is sent:
+renders in its provider's cloud, one paid call per take (it needs a Comfy API key). What it
+is sent:
 
-- **The prompt:** the same prose the LTX and Wan targets get (the framing, the action,
-  the lines, the sound), with each character's `design` less what describes a body: the
-  provider's content filter reads the request (see **Writing the `design` sentence**).
-- **The pictures:** the shot's keyframes when the model takes a first one and the shot
-  has it on disk (and the last, where the model takes one). Otherwise its references, in
-  order: one panel of each character's sheet in `who:` order, each prop and vehicle in
-  `with:`, then the location's plate, up to the model's limit (the table below).
-- **Who's who:** Seedance's prompt opens by defining each picture, as BytePlus's prompt
-  guide asks: *Define a young woman with blonde hair swept up into a loose bun, a small
-  silver tiara in @Image 1 as Cindy, and define … in @Image 2 as Ella. Define an empty
-  palace ballroom by candlelight in @Image 3 as the scene.* `@Image N` is the picture's
-  place among the request's images, and each one's features are the opening of its
-  `design` (or the location's description), so a design that leads with who they are,
-  their hair and their clothes defines them best. Kling's prompt ends naming each picture
-  (`<<<image_1>>> is Cindy.`); the others take the pictures by their order.
-- **How the pictures travel:** most go up to Comfy's asset store and are sent as links;
-  Veo, Gemini and Nano Banana take them inline. Seedance's also go into the Seedance
-  library, since BytePlus refuses a photoreal person (an AI-made one too) as a plain link:
-  a picture is registered once, recognized by its content, and sent as `asset://…`.
-- **Past the limit:** a shot with more subjects than its model takes sends the first ones
-  and leaves the rest to the prose, and `seriesmith check` says who wasn't sent (*sh110:
-  Veo takes 3 picture(s); Dee, the plate not sent as pictures …*). For a crowded shot,
-  pick a model that takes more, or describe a subject in the action text instead.
-- **What can still be refused:** the provider looks at the pictures too. A revealing
-  reference can be refused whatever the prompt says.
-- **FLUX 3 video** (`flux_3_video`) takes no reference pictures through Router: the shot's
-  first keyframe (and last, when there is one) become frames of the clip, and a shot with
-  neither is made from words alone. So make the first keyframe of a shot whose people have
-  to look like themselves. Write it as BFL's prompt guide asks, as the prose already is: what
-  happens, one framing and one camera move, the place and light, the lines, then the sound.
-  It takes no negative prompt and no seed (a take can't be made again the same), and 5 to
-  20 seconds a shot.
-- **Sound, on Seedance:** it hears audio as well as pictures. A `clone` shot sends each
-  speaker's `voice_sample` and names it after the pictures (*Use @Audio 1 as the voice of
-  Ada.*); a `dub` shot sends its `audio:` window of the recording (*Use @Audio 1 as the exact
-  dialogue and soundtrack of the shot: the lips are synced to it.*). Each clip is 2 to 15
-  seconds: a longer sample is cut in a pause, a shorter window padded with silence, and a
-  sample under 2 seconds is refused before anything is sent. Seedance 2.0 takes 3 clips and
-  never without a picture; 2.5 takes 10. Seedance won't take a first or last frame together
-  with audio, so a shot that sends audio goes by its reference pictures and its keyframes
-  are left out (the take says so). What to expect: a `clone` speaks the new line in a voice
-  close to the sample. A `dub` comes back in the recording's voice with its words, but
-  re-performed at Seedance's own pace (stretched over the clip), so the lips follow the
-  take's own sound: keep it, rather than laying the recording over the cut. The other
-  hosted models make their own sound.
+- **The prompt:** the same prose LTX and Wan get, with each character's `design` less what
+  describes a body: the provider's content filter reads the request (see **Writing the
+  `design` sentence**). The provider looks at the pictures too: a revealing reference can be
+  refused whatever the prompt says.
+- **The pictures:** the shot's keyframes when the model reads a first one and the shot has
+  it. Otherwise one picture of each character in `who:`, each prop in `with:`, then the
+  plate, up to the model's limit (the table below). Past the limit the rest are left to the
+  words, and `check` says who wasn't sent: pick a model that takes more, or describe a
+  subject in the action instead.
+- **Who's who:** Seedance's prompt defines each picture from the opening of its `design`
+  (*Define a young woman with blonde hair … in @Image 1 as Cindy*), so a design that leads
+  with who they are, their hair and their clothes defines them best. Kling names each
+  picture; the others take them in order.
+- **FLUX 3 video** takes no character pictures, only keyframes: make the first keyframe of
+  any shot whose people must look like themselves. 5 to 20 s a shot, no seed.
+- **Sound on Seedance:** a `clone` shot sends each speaker's `voice_sample` (2 to 15 s), a
+  `dub` shot its window of the recording; with audio, its keyframes are left out. A dub comes
+  back re-performed at Seedance's own pace: keep the take's sound rather than the recording.
+  The other hosted models make their own sound.
 
-What each model takes, local and hosted (generated from the targets by
-`python tools/make_refs_md.py`):
+What each video model takes (generated from the models by `python tools/make_refs_md.py`):
 
 <!-- BEGIN PICTURES (generated by tools/make_refs_md.py — do not edit) -->
 
@@ -1871,35 +1175,6 @@ What each model takes, local and hosted (generated from the targets by
 | `wan_2_7_r2v` | Wan | Comfy Router | up to 5: the subjects, then the plate; as links | first | by their order |
 | `wan_3_0` | Wan | Comfy Router | up to 10: the subjects, then the plate; as links | first and last | by their order |
 | `wan_3_0_prime` | Wan | Comfy Router | up to 10: the subjects, then the plate; as links | first and last | by their order |
-
-| Picture model | | Runs on | Reference pictures | Makes |
-|---|---|---|---|---|
-| `fasth3_omni_still` | Omni still | your ComfyUI | up to 9 | edits and new pictures |
-| `fibo2_dev` | Fibo | your ComfyUI | up to 4 | edits and new pictures |
-| `fibo2_edit_turbo` | Fibo turbo | your ComfyUI | up to 4 | edits and new pictures |
-| `flux2_klein` | Klein | your ComfyUI | none | new pictures |
-| `flux2_klein_edit` | Klein edit | your ComfyUI | up to 4 | edits and new pictures |
-| `flux3_klein` | Klein 3 | your ComfyUI | up to 10 | edits and new pictures |
-| `flux3_klein_turbo` | Klein 3 turbo | your ComfyUI | up to 10 | edits and new pictures |
-| `flux_kontext` | Kontext | your ComfyUI | up to 1 | edits and new pictures |
-| `klein_erp_360` | Klein 360 | your ComfyUI | up to 1 | new pictures |
-| `krea2` | krea2 | your ComfyUI | none | new pictures |
-| `minimax_h3_still` | H3 still | your ComfyUI | up to 9 | edits and new pictures |
-| `moss_image_base` | MOSS base | your ComfyUI | none | new pictures |
-| `moss_image_sft` | MOSS | your ComfyUI | none | new pictures |
-| `qwen_image_21` | Qwen 2.1 | your ComfyUI | up to 16 | edits and new pictures |
-| `qwen_rapid_aio` | Rapid AIO | your ComfyUI | up to 3 | edits and new pictures |
-| `z_image_turbo` | Z-Image | your ComfyUI | none | new pictures |
-| `flux_2_pro` | Flux 2 Pro | Comfy Router | up to 8, as links | edits and new pictures |
-| `flux_kontext_pro` | Kontext Pro | Comfy Router | up to 4, as links | edits and new pictures |
-| `gemini_3_1_flash_image` | Gemini Flash | Comfy Router | up to 3, inline | edits and new pictures |
-| `gpt_image_2` | GPT Image | Comfy Router | up to 8, as links | edits and new pictures |
-| `kling_image_o1` | Kling Image | Comfy Router | up to 10, as links | edits and new pictures |
-| `krea_2_router` | Krea 2 (Router) | Comfy Router | none | new pictures |
-| `nano_banana_2_1` | Nano Banana | Comfy Router | up to 6, inline | edits and new pictures |
-| `nano_banana_pro` | Nano Banana Pro | Comfy Router | up to 6, inline | edits and new pictures |
-| `qwen_image_3` | Qwen Image | Comfy Router | up to 3, as links | edits and new pictures |
-| `seedream_5_0` | Seedream | Comfy Router | up to 10, as links | edits and new pictures |
 
 <!-- END PICTURES -->
 

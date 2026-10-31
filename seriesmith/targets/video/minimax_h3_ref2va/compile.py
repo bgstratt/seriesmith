@@ -187,7 +187,7 @@ class Ctx:
         target.template.validate_size(self.preset.width, self.preset.height)
         self.book = series_cfg["subjects"]
         audio_cfg = series_cfg.get("audio", {})
-        mode = audio_cfg.get("mode", "source_track")
+        mode = TG.audio_mode(audio_cfg)
         track = audio_cfg.get("track", "")
         # The recorded dialogue still times the picture when the proxy lets H3
         # invent the voices, and assemble lays it under the cut to check sync.

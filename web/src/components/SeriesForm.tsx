@@ -122,7 +122,7 @@ function SeriesForm({ ep }: { ep: string }) {
                           onChange={(v) => sc.setDraft((d) => setSize(d, "series", v))} />
                         <SizeField label="Size (proxy)" value={sizeOf(draft, "proxy")} choices={PROXY_SIZES} rule={rule}
                           placeholder={DEFAULT_PROXY} note={shapeNote(sizeOf(draft, "series"), sizeOf(draft, "proxy"))}
-                          help="The animatic: the same shots at the same seeds, rendered small and quick to judge the cut by. 480p is the smallest that still reads; 896×512 is exactly 1344×768's shape."
+                          help="The animatic: the same shots at the same seeds, rendered small and quick to judge the cut by. 480p is the smallest that still reads; 896×512 (the default) is exactly 1344×768's shape."
                           onChange={(v) => sc.setDraft((d) => setSize(d, "proxy", v))} />
                       </>
                     )}
