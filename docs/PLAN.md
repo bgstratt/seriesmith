@@ -1058,6 +1058,13 @@ collide with the package.
       FilmCraft. The timeline's buttons as one Export ▾ menu (Export, Titles, the XML, each
       2x; Master). The lost-tour test naming its own queue (#75). The `xml` flag on
       `POST /seriesmith/assemble` and the MCP's assemble. Published by the merge's version bump.
+- [x] **0.1.11** (2026-10-31, `release-0.1.11`): how a shot continues shown in the inspector,
+      the shot form and its badges (#78); the three continuous modes in one place, and latent
+      continuing a take from any model (#79). The skill trimmed to the format (#80): finishing
+      to FINISHING.md, setup to FULL_SETUP.md, a required/optional table; story structures
+      bundled as `references/story_structures.md`. Defaults: an absent `audio.mode` generates
+      (a named `audio.track` still dubs), a new series' proxy is 896×512 (1344×768's shape).
+      Published by the merge's version bump.
 - [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
