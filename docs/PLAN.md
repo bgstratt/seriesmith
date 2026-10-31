@@ -1569,7 +1569,7 @@ start to the shots on screen: status 0.9 s alone but 2.7 s beside targets, refs 
       `GET /seriesmith/targets` (`TG.one_load`: 10,500 stats -> one listing); the takes'
       prompt ids only while queued, save notes only when failed. ~3.5 s now, 1.3 s of it the
       server starting. `render --dry-run` writes into the episode folder.
-- [ ] **Live:** open Porchlights ep01 / ep02 after a restart; the Refs tab, a shot's
+- [x] **Live** (2026-10-31): open Porchlights ep01 / ep02 after a restart; the Refs tab, a shot's
       pictures, the shot form's cast and the gallery each fill on first open.
 - Left for now: the status's own 0.9 s (each take's upscale against the recipe 0.33 s, the
   takes listing 0.24 s, the retargeted shots' compile 0.23 s), cacheable per episode.
