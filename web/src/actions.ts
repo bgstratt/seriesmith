@@ -599,10 +599,9 @@ export function selectEpisode(ep: string | null) {
     gallery: s.gallery && { ...s.gallery, ref: null, seq: null, shot: null, open: null, at: null },
   }));
   if (ep) {
-    const shots = openOnTakes(ep);
-    // the refs once the shots are in (so the Refs tab is ready when it's
-    // opened), not beside them: one server makes both, and they slowed each other
-    void shots.then(() => { if (get().ep === ep) void loadRefs(ep); });
+    // the shots only: the refs are fetched by whatever shows them first (useRefs),
+    // so an open that never looks at a ref doesn't wait on them
+    void openOnTakes(ep);
     // another show may have its own targets
     void loadTargets(true);
   }
@@ -2692,6 +2691,7 @@ export async function openSupply(files: File[]): Promise<void> {
   const ep = get().ep;
   if (!ep || !files.length) return;
   set({ supply: { files, match: null, error: null, busy: null, done: [] } });
+  if (!get().refs[ep]) void loadRefs(ep);              // the dialog names each ref
   try {
     const match = await api().refsMatch(ep, files.map((f) => f.name));
     if (get().supply) set({ supply: { ...get().supply!, match } });

@@ -53,6 +53,7 @@ from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.backends import BackendError, File, available, files_in
+from seriesmith.core import fileio
 from seriesmith.settings import load_settings
 
 
@@ -109,8 +110,9 @@ def parse_args(argv):
     lt.add_argument("--no-latent", dest="save_latent", action="store_false")
     ap.add_argument("--list", action="store_true", help="show the job list and stop")
     ap.add_argument("--dry-run", action="store_true",
-                    help="write what the first shot would send (render_graph.json, or "
-                         "render_call.json for a hosted model), run nothing")
+                    help="write what the first shot would send into its episode folder "
+                         "(render_graph.json, or render_call.json for a hosted model), "
+                         "run nothing")
     ap.add_argument("--stop-on-error", action="store_true",
                     help="stop at the first failed shot")
     return ap, ap.parse_args(argv)
@@ -377,8 +379,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> int:
-    """Write what the first shot that would run would send; nothing is
-    reserved, written or uploaded. `on`: id(job) -> its backend (a Comfy
+    """Write what the first shot that would run would send, into its episode
+    folder (render_graph.json, or render_call.json for a hosted model); nothing
+    is reserved, rendered or uploaded. `on`: id(job) -> its backend (a Comfy
     Cloud one gets the graph made of Cloud's nodes, seriesmith.cloud.lower;
     the files it would upload are left in a folder it names)."""
     for root, jobs in plans:
@@ -393,10 +396,8 @@ def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> i
                 except ValueError as e:            # what the call would refuse: said, not sent
                     print(f"\n  !! {j.id}: {e}")
                     return 1
-                out = os.path.join(os.getcwd(), "render_call.json")
-                with open(out, "w", encoding="utf-8") as fh:
-                    json.dump({"model": model, "arguments": as_json(call)}, fh, indent=2,
-                              ensure_ascii=False)
+                out = os.path.join(root, "render_call.json")
+                fileio.write_json(out, {"model": model, "arguments": as_json(call)})
 
                 def files(v) -> int:
                     if isinstance(v, File):
@@ -419,9 +420,8 @@ def dry_run(plans, pass_: str, base_for, gkw: dict, on: dict | None = None) -> i
             finally:
                 if plan is None:
                     unstage(j)
-            out = os.path.join(os.getcwd(), "render_graph.json")
-            with open(out, "w", encoding="utf-8") as fh:
-                json.dump(as_json(g), fh, indent=2)
+            out = os.path.join(root, "render_graph.json")
+            fileio.write_json(out, as_json(g), ensure_ascii=True)
             if plan is not None:
                 ups = len({f.path for _, _, f in files_in(g)})
                 print(f"\n  wrote {out} ({j.id}, {j.target} as Comfy Cloud's nodes; {ups} "

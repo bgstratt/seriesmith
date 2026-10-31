@@ -20,6 +20,7 @@ import type { Ref, RefTake } from "../types";
 import { Dialog } from "./Dialogs";
 import { useTargets } from "./Targets";
 import { PeaksCanvas, usePeaks, useSeen } from "./Waveform";
+import { useRefs } from "./hooks";
 
 const WAVE_H = 34;
 const CLIP_WAVE_H = 72;
@@ -263,7 +264,7 @@ export function VoiceClipWindow() {
 
 function VoiceClipBody({ ep }: { ep: string }) {
   const v = useApp((s) => s.voiceClip)!;
-  const refs = useApp((s) => s.refs[ep]);
+  const refs = useRefs(ep);
   const st = useApp((s) => s.status[statusKey(ep, v.pass)]);
   const busy = useApp((s) => !!s.busy[`voiceclip|${v.ref}`]);
   const r = refs?.find((x) => x.id === v.ref);

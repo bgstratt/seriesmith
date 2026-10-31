@@ -20,6 +20,7 @@ import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { RefDetail } from "./RefsTab";
 import { CheckMessages, FieldRow, FileLine, SaveBar } from "./SeriesForm";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { useRefs } from "./hooks";
 
 const RECT_KEY = "seriesmith.subjectcard.rect";
 
@@ -228,10 +229,7 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
 
 /** The entry's picture (and a character's voice) as the Refs tab shows it. */
 function Pictures({ ep, kind, id, changed }: { ep: string; kind: CardKind; id: string; changed: boolean }) {
-  const refs = useApp((s) => s.refs[ep]);
-  useEffect(() => {
-    if (!refs) void loadRefs(ep);
-  }, [ep]);
+  const refs = useRefs(ep);
   const pic = kind === "voice" ? null : refs?.find((r) => r.id === refIdOf(kind, id));
   const voice = kind === "character" || kind === "voice" ? refs?.find((r) => r.id === `voice:${id}`) : null;
   return (

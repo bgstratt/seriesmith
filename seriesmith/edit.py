@@ -687,9 +687,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 # whose sound the cut plays for it (assemble's --audio auto)
                 "audio": take_audio(root, t),
                 "queued": (t.sidecar or {}).get("queued"),
-                "comfy_prompt_id": (t.sidecar or {}).get("comfy_prompt_id"),
                 "finished": (t.sidecar or {}).get("finished"),
-                "save_notes": (t.sidecar or {}).get("save_notes", ""),
+                **live_fields(t.status, t.sidecar or {}),
                 # Phase 13: its upscale (null: never upscaled)
                 "upscale": upscale_summary(root, t, cache),
                 # its post (post; null: never post-processed)
@@ -1984,6 +1983,15 @@ def _graph_key(graph: dict | None) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def live_fields(status: str, rec: dict) -> dict:
+    """A take's (or its upscale's, its post's) ComfyUI prompt id while it's queued (the
+    progress events name it) and its save notes when it failed (the error shown):
+    the rest of the time they are the take's detail (GET /seriesmith/take), not the
+    episode's list, which carries them for every take."""
+    return {"comfy_prompt_id": rec.get("comfy_prompt_id") if status == "queued" else None,
+            "save_notes": rec.get("save_notes", "") if status == "failed" else ""}
+
+
 def upscale_summary(root: str, t: T.Take, cache: dict | None = None) -> dict | None:
     """A take's upscale for the editor (None: it has none): status, whether
     it is fresh (made from the take as it is now), its size and file, Keep,
@@ -2015,9 +2023,8 @@ def upscale_summary(root: str, t: T.Take, cache: dict | None = None) -> dict | N
             "on_upscale": up.get("on_upscale"),
             "encoder": up.get("encoder"), "precision": up.get("precision"),
             "finish": up.get("finish"),
-            "comfy_prompt_id": up.get("comfy_prompt_id"),
             "mp4": take_rel(root, t, t.paths.up_mp4),
-            "save_notes": up.get("save_notes", "")}
+            **live_fields(up.get("status", "queued"), up)}
 
 
 def post_summary(root: str, t: T.Take) -> dict | None:
@@ -2033,9 +2040,8 @@ def post_summary(root: str, t: T.Take) -> dict | None:
         po = T.post_of(t) or {}
     return {"status": po.get("status", "queued"), "fresh": bool(po.get("fresh")),
             "recipe": po.get("recipe"), "width": po.get("width"), "height": po.get("height"),
-            "comfy_prompt_id": po.get("comfy_prompt_id"),
             "mp4": take_rel(root, t, t.paths.post_mp4),
-            "save_notes": po.get("save_notes", "")}
+            **live_fields(po.get("status", "queued"), po)}
 
 
 def target_nodes(t, graph: dict | None = None, where: str = "") -> dict[str, dict]:

@@ -371,17 +371,18 @@ class RenderRouterTest(Episode):
         self.assertEqual(self.render(fb, "--target", SEEDANCE), 0)    # nothing ran
         self.assertEqual((fb.calls, T.list_takes(self.root, "final", self.shot_id)), ([], []))
 
-    def test_dry_run_writes_the_request(self):
+    def test_dry_run_writes_the_request_into_the_episode(self):
         fb = FakeBackend("router", "router")
         with tempfile.TemporaryDirectory() as cwd:
             old = os.getcwd()
             os.chdir(cwd)
             try:
                 self.assertEqual(self.render(fb, "--target", SEEDANCE, "--dry-run"), 0)
-                with open("render_call.json", encoding="utf-8") as fh:
-                    call = json.load(fh)
+                self.assertEqual(os.listdir(cwd), [])          # not wherever it was run from
             finally:
                 os.chdir(old)
+        with open(os.path.join(self.root, "render_call.json"), encoding="utf-8") as fh:
+            call = json.load(fh)
         self.assertEqual(call["model"], MODEL)
         self.assertIn("File", call["arguments"]["content"][1]["image_url"]["url"])
         self.assertEqual((fb.calls, fb.uploaded), ([], []))

@@ -276,8 +276,8 @@ seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the
   renders the chosen shots on another target for this run (their story is compiled for it
   on the spot, no rebuild); `seriesmith override <ep> <shot> --target ltx2` does it for every
   run. An LTX shot's keyframes (`refs/shots/<shot>/first.png`, `last.png`) go up with its
-  job. `--dry-run` writes what the first shot would send (`render_graph.json`, or
-  `render_call.json` for a hosted model) and runs nothing.
+  job. `--dry-run` writes what the first shot would send into its episode folder
+  (`render_graph.json`, or `render_call.json` for a hosted model) and runs nothing.
 - Failed shots are reported and skipped; `--stop-on-error` halts instead. A shot whose
   reference images are still missing is **blocked**, and the report names the exact files;
   `--allow-missing-refs` renders it against flat grey stand-ins.

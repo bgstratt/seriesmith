@@ -27,6 +27,7 @@ import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { keptAt } from "../lib/drafts";
 import { useSeriesConfig } from "./useSeriesConfig";
 import { ModelOptions, ModelsButton } from "./Targets";
+import { useRefs } from "./hooks";
 
 const RECT_KEY = "seriesmith.seriesform.rect";
 
@@ -430,7 +431,7 @@ const CAST_SHOWN = 60;
 function CastList({ raw }: { raw: Raw }) {
   const [q, setQ] = useState("");
   const ep = useApp((s) => s.ep);
-  const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
+  const refs = useRefs(ep);
   const groups: { label: string; block: "subjects" | "locations"; kinds: CardKind[] }[] = [
     { label: "Characters", block: "subjects", kinds: ["character", "group", "voice"] },
     { label: "Props and vehicles", block: "subjects", kinds: ["prop", "vehicle"] },

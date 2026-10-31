@@ -179,6 +179,9 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
 - `action`: the first sentence of what happens in the shot, as the script says it (cut
   at a word past 160 characters), for the board; left out when the script has none.
 - `status` is `queued` | `ok` | `failed`.
+- `comfy_prompt_id` is set only while the take is queued (null after), and `save_notes`
+  only when it failed (`""` otherwise): a finished take's are in `GET /seriesmith/take`.
+  The same holds for its `upscale` and `post`.
 - `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
   `continuous: latent` take whose previous shot in the cut now uses another take, or that
   take was rendered again, or the cut puts another shot before it); `unknown` means a
