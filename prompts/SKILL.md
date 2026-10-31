@@ -1581,13 +1581,32 @@ different size) the previous shot's last frame is the wrong opening picture: lea
 
 ### Continuous shots: `continuous:`
 
-A shot that carries straight on from the one before it (the same moment, the camera still
-running) says so, and how:
+A shot that carries on from the one before it says so, and how. There are three ways, and
+they answer different needs:
+
+| `continuous:` | What it does | Use it for | Renders on |
+|---|---|---|---|
+| `first` | opens on the previous shot's last frame | picking up exactly where a shot ended, on almost any model | every model that reads a first frame; H3 Ref2VA's and FastH3 Omni's move to their FL2VA |
+| `latent` | holds the previous take's last 1.6 s (picture and sound) and goes on from them | one unbroken take built from several renders: the camera and the action keep running, no cut | H3 Ref2VA, FastH3 Omni, H3 Singularity; the shot it continues can be from any model |
+| `multishot` | renders it **in the same generation** as the shot before: one clip with cuts in it | a scene cut between angles, where the model sees every shot at once | the H3 family (Ref2VA, FastH3 Omni, FL2VA, Singularity), Seedance, Kling v3 Omni, Kling O1 |
+
+`first` and `latent` make a **continuous take**: each shot is its own render, joined so the
+cut doesn't show. `multishot` makes **real cuts inside one render**: the model draws a shot,
+cuts, and draws the next, and keeps the people, the light and the blocking the same across
+them, because it sees them all at once. See **Several shots in one generation** below.
 
 ```
 ## sh090
 continuous: first
 ```
+
+**Over a long chain, prefer `latent`.** Every `latent` shot is given its reference pictures
+again, so the look stays anchored; a `first` shot on FL2VA has only the frame it opens on,
+so whatever drifts in one shot is where the next one starts. In a ten-shot test of one man
+pacing a room (the same script, the same opening shot), the `latent` chain held its exposure
+(brightness 36 to 39 of 255) while the FL2VA chain climbed to 90, with its contrast doubled
+and the room redrawn (a second window, more shelves, other lamps) by the end. `first` is
+the right tool for one cut, not ten.
 
 - `first`: it opens on the previous shot's last frame, as its first keyframe. That needs a
   target that reads a first frame (`minimax_h3_fl2va`, `ltx2`, the Wan targets, the hosted
@@ -1609,12 +1628,17 @@ continuous: first
   moves the shots of H3 Ref2VA and FastH3 Omni; Singularity and the models that read a first
   frame (LTX-2, Wan, the hosted ones) keep their own.
 - `latent`: it carries on from the previous take's last frames and their sound, on H3
-  Ref2VA, keeping its own reference sheets. The render holds the end of the previous take
+  Ref2VA, FastH3 Omni or H3 Singularity, keeping its own reference sheets. The render holds the end of the previous take
   at its head and generates the rest from there, so motion, sound and the camera carry
   across the join; the held frames are cut off again, and the take starts where the
   previous one ended. Use it for one action running across a cut in framing that the
   same reference sheets can draw (a camera that keeps moving, someone walking into the
-  frame of the next shot). See **How much a latent shot holds** below.
+  frame of the next shot). See **How much a latent shot holds** below. **Keep the framing
+  and the camera move the same across a latent chain**, and open each shot's action on
+  what the held frames show: a shot that asks for a new size, a new move or a new place in
+  the room is read as a new shot, and H3 cuts to it right after the held frames.
+- `multishot`: it is rendered with the shot before it as one take, a cut between them.
+  It's under **Several shots in one generation**, next.
 - Only the shot that continues says it. "Previous" is the previous shot in the cut, so
   moving a shot on the timeline changes what it continues from.
 - Under a `#` header, `continuous:` covers every shot after the first **in that sequence**
@@ -1642,7 +1666,12 @@ its `dur:` asks, like any H3 length. It continues whichever take the cut uses fo
 previous shot when its render **starts**: a whole chain can be queued at once, each shot
 behind the one it continues. The previous take's kept latent is used when it has one (the
 final pass keeps them, `upscale.save_latents`); otherwise its last frames and sound are read
-back through H3's VAEs, which works for any take, even one from another target. Both kinds
+back through H3's VAEs, which works for any take, even one from another target. So **the
+shot a latent shot continues can be on any model** (LTX-2, Wan, a hosted one, an imported
+clip): another model's kept latent is never used (it's not H3's shape), its last frames are
+fitted to the shot's size and encoded instead, and the take's `continued_from.via` says
+`frames`. That take needs at least as many frames as the hold (39), and a silent one (Wan)
+holds no sound, so H3 starts the sound fresh at the join. Both kinds
 of continuous shot render on any backend (your ComfyUI, Comfy Cloud, a deployment): what
 they need from the previous take is sent with the job.
 
@@ -2123,7 +2152,11 @@ between them:
    re-poses (on H3 FL2VA, which the shot moves to by itself; see **Continuous shots**). Its
    upscale starts from the previous shot's upscaled last frame, so the two meet on one
    picture. When the action itself runs across the cut (someone walking into the next
-   framing), `continuous: latent` carries the motion and sound too, on H3 Ref2VA.
+   framing), `continuous: latent` carries the motion and sound too, on H3 Ref2VA, FastH3
+   Omni or H3 Singularity.
+
+`continuous: multishot` is no fix for a jump cut: the model draws the cut the script asks
+for, so two near-identical shots in one generation still cut as one.
 
 `seriesmith check` warns about consecutive shots that do none of the first two and don't continue:
 the same people, the same plate, sizes less than two steps apart, the second not
@@ -2330,8 +2363,9 @@ kitchen`, `# sq04 phone_room`, `# sq05 kitchen`.
 Keep a sequence intact and vary the shots with `plate:` rather than splitting a scene into
 one-shot sequences, which re-seeds every shot in it.
 
-`continuous:` under the `#` header makes every shot after the first carry straight on from
-the one before (see **Continuous shots**).
+`continuous:` under the `#` header applies to every shot after the first: `first` or
+`latent` chains each onto the one before as one continuous take, and `multishot` renders the
+whole sequence as one generation with cuts in it (see **Continuous shots**).
 
 ## What goes on which line
 
