@@ -17,6 +17,7 @@ import {
 import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
 import { isHosted } from "../lib/targets";
+import { continuityBadge, continuityText } from "../lib/continuity";
 import { useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
@@ -29,6 +30,8 @@ import { finishDroppedFile, isPicture } from "../takeActions";
 import { SoundCard } from "./SoundDialog";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
+import { useShotStatus } from "./hooks";
+import { Badges } from "./Thumb";
 
 const RECT_KEY = "seriesmith.shotform.rect";
 const PREVIEW_MS = 600;
@@ -260,6 +263,11 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const noSteps = renderT?.presets?.final?.steps === 0;
   // a Comfy Router model has no file or LoRAs to pick
   const hosted = !!renderT && isHosted(renderT);
+  // how the saved shot carries on from the one before it (its own line or its sequence's)
+  const status = useShotStatus(isNew ? null : shot);
+  const cont = status?.continuous ? continuityBadge(status) : null;
+  const contText = status ? continuityText(status, targets) : null;
+  const inherited = !form?.keys.continuous && status?.continuous ? status.continuous.mode : null;
 
 
   const after0 = isNew ? after : null;
@@ -269,6 +277,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
         <span className="h3-kicker">{isNew ? `New shot${before ? ` · before ${before}` : after0 ? ` · after ${after0}` : ""}${file ? ` · ${file.name} as its ${isPicture(file) ? "first keyframe" : "take"}` : ""}` : "Shot"}</span>
         <div className="h3-row">
           <span className="h3-win-title">{form?.id ?? shot ?? ""}</span>
+          {cont && <Badges badges={[{ ...cont, title: contText ?? cont.title }]} />}
           {dirty && <span className="h3-small h3-muted">not saved</span>}
         </div>
       </div>
@@ -429,9 +438,12 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                     ? <Row label="Steps" help="This model has no steps setting: the provider decides."><span className="h3-small h3-muted">none (the provider's)</span></Row>
                     : <SmallKey label="Steps" k="steps" form={form} set={set} help="Sampler steps for this shot." />}
                   <Row label="Continues" help="Carries straight on from the shot before in the cut: first opens on its last frame, latent holds its last frames and goes on from them; multishot renders it in one generation with the shot before (one take for the group).">
-                    <select className="h3-in" value={form.keys.continuous ?? ""} onChange={(e) => set("continuous", e.target.value)}>
-                      <option value="">no</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="multishot">multishot: one generation with the shot before</option><option value="none">none: break a sequence's chain</option>
-                    </select>
+                    <div className="h3-col" style={{ gap: 2 }}>
+                      <select className="h3-in" value={form.keys.continuous ?? ""} onChange={(e) => set("continuous", e.target.value)}>
+                        <option value="">{inherited ? `the sequence's (${inherited})` : "no"}</option><option value="first">first: from the last frame</option><option value="latent">latent: held and carried on</option><option value="multishot">multishot: one generation with the shot before</option><option value="none">none: break a sequence's chain</option>
+                      </select>
+                      {contText && <span className="h3-small h3-muted">{contText}{dirty ? " (as saved)" : ""}</span>}
+                    </div>
                   </Row>
                   <Row label="First frame" help="The picture the shot opens on, for models that read keyframes (H3 FL2VA, LTX-2, Wan); others ignore it.">
                     <KeyframeField ep={ep} k="first" value={form.keys.first ?? ""} onChange={(v) => set("first", v)} />

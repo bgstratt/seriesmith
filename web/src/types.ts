@@ -235,10 +235,24 @@ export interface ShotStatus {
    * generation renders, each with the frame it starts on in the take (as the script
    * times it: the model lands its cuts near there), its frames and size. */
   multishot?: MultishotPart[];
+  /** How it carries on from the shot before it in the cut (docs/CONTINUOUS.md), from
+   * the script (its own `continuous:`, else its sequence's); absent: it doesn't. */
+  continuous?: ShotContinuous;
   /** Phase 9b: the shot's dialogue window on the episode's `track`, seconds
    * (a shot timed against recorded dialogue); absent otherwise. */
   audio_in?: number | null;
   audio_out?: number | null;
+}
+
+/** A continuous shot's chain (ShotStatus.continuous). */
+export interface ShotContinuous {
+  /** first: opens on that shot's last frame; latent: holds its last frames and goes
+   * on from them; multishot: one generation with it */
+  mode: "first" | "latent" | "multishot" | (string & {});
+  /** the shot before it in this pass's cut (null: it's the first) */
+  from: string | null;
+  /** latent: the frames of that take held at the head of the render */
+  hold?: number;
 }
 
 /** "series" / "default": the shot has no target of its own and follows the episode's

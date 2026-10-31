@@ -350,7 +350,7 @@ groups that open beside the menu when you hover them.
 | **Frames ›** | **Use previous shot's last frame as first frame** (continuity: chain this shot onto the one before); **Use this frame as the next shot's first frame** (the same, pushed forward); **Hold this frame after it…** (a freeze frame); **Character or place from this frame…** (in the viewer, at a frame); **Generate first frame** / **Clear keyframe** (make or drop its opening still) |
 | **Sound ›** | **Sound…** (how the shot's sound is made); **Dub the shot with this take's sound**; **Generate a dub track** / **Dub track, then render**; **Replace audio…** / **Back to its own audio** (what the cut plays for this clip instead of its own sound: a dub track, a take's sound, a file, silence. It changes no render: the mouths don't follow it) |
 | **Shot ›** | **Edit shot…** / **Add a shot after** (the shot form, below); **Show in script**; **Import video…**; **Show missing refs (n)**; **Add issue…** (see **Noting what's wrong**) |
-| **Inspect shot** | The Inspector: model, overrides, refs used, refs missing |
+| **Inspect shot** | The Inspector: model (and, for a continuous shot, **Continues:** how it carries on from the shot before it and on what model: latent, a first frame on FL2VA or anchored on Ref2VA, multishot), overrides, refs used, refs missing. A continuous shot also wears a badge everywhere it's listed (`latent ← sh010`, `first frame ← sh010`) |
 | **Show details** / **Copy path** | The take's sidecar, and its file path |
 | **Discard take…** | Move a candidate to `_trash/` — nothing is deleted, but the bin stays readable |
 
@@ -394,7 +394,8 @@ pictures to pick from, and pointing at a name shows it larger.
 - **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
   file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
-  (**Continues**); first and last frames (the default, generate, import, none, or **a
+  (**Continues**: its own line, or *the sequence's (latent)* when the `#` header sets it,
+  with a line under it saying how it carries on and on what model); first and last frames (the default, generate, import, none, or **a
   picture you have…**, picked in the folder browser and kept relative to the episode); the
   audio policy, pace and profile.
 - **LoRAs** is a chain: one row per LoRA with its strength, **+ LoRA** for another, applied

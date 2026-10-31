@@ -143,6 +143,7 @@
 .h3-b-upscaled { color: var(--h3-ok); font-weight: 600; }
 .h3-b-ok { color: var(--h3-ok); }
 .h3-b-target { color: var(--h3-target); font-weight: 600; letter-spacing: 0.02em; }
+.h3-b-continuous { color: var(--h3-target); border-style: dashed; }
 .h3-b-imported { color: var(--h3-muted); border: 1px dashed currentColor; }
 .h3-b-voice { color: var(--h3-accent, #5fb8ae); border: 1px dotted currentColor; }
 .h3-pane-label .h3-b-target { color: #6fe0da; }

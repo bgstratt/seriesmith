@@ -449,7 +449,7 @@ def shot_fps(doc: dict, shot: dict | None, fallback: float) -> float:
         else fallback
 
 
-_ACTIONS: dict = {}                       # episode -> (script and config stamps, {shot: action})
+_ACTIONS: dict = {}                       # episode -> (script and config stamps, its script_read)
 ACTION_CHARS = 160
 
 
@@ -457,6 +457,21 @@ def script_actions(root: str) -> dict[str, str]:
     """{shot id: the first sentence of what happens in it}, from the script as
     it is now (a sentence past ACTION_CHARS is cut at a word). Read again when
     the script or the series config changes; {} when it can't be read."""
+    return script_read(root).get("actions", {})
+
+
+def script_continuous(root: str) -> dict[str, str]:
+    """{shot id: how it carries on from the shot before it in the cut} (first |
+    latent | multishot, docs/CONTINUOUS.md), from the script as it is now: the
+    shot's own `continuous:`, else its sequence's (ir.Shot.continues), and the
+    old `first: continuity` as `first`. Shots that don't continue are left out."""
+    return script_read(root).get("continuous", {})
+
+
+def script_read(root: str) -> dict:
+    """What the episode status reads from the script itself, read once while
+    the script and the series config are unchanged: {"actions": script_actions',
+    "continuous": script_continuous'}; {} when it can't be read."""
     import json as _json
     from seriesmith import build as BLD
     from seriesmith.core.series_config import variant_of
@@ -488,7 +503,7 @@ def script_actions(root: str) -> dict[str, str]:
         epi = BLD.parse_script(text, set(book), chars, variant_of(cfg))
     except Exception:                     # a script that won't parse: no lines, not an error
         return {}
-    out = {}
+    actions, cont = {}, {}
     for seq in epi.get("sequences") or []:
         for sh in seq.get("shots") or []:
             a = " ".join(str(sh.get("action") or "").split())
@@ -498,7 +513,15 @@ def script_actions(root: str) -> dict[str, str]:
             first = a[:m.end()].strip() if m else a
             if len(first) > ACTION_CHARS:
                 first = first[:ACTION_CHARS].rsplit(" ", 1)[0] + "…"
-            out[sh.get("id")] = first
+            actions[sh.get("id")] = first
+        # ir.Shot.continues' rule: its own line (`none` breaks the chain), else
+        # the sequence's for every shot after its first (the parser has read
+        # the old `first: continuity` as `first`)
+        for i, sh in enumerate(seq.get("shots") or []):
+            mode = sh.get("continuous") or (seq.get("continuous") if i else None)
+            if mode and mode != "none":
+                cont[sh.get("id")] = mode
+    out = {"actions": actions, "continuous": cont}
     if len(_ACTIONS) > 64:
         _ACTIONS.clear()
     _ACTIONS[key] = (sig, out)
@@ -533,7 +556,9 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     out = []
     script_idx = {sid: i for i, sid in enumerate(shots)}
     actions = script_actions(root)
+    continuous = script_continuous(root)
     resolved = T.resolve_cut(cut, pass_, list(shots))
+    prev_in_cut = None                  # the shot a continuous one carries on from (cut_neighbour's)
     moved = out_of_order([script_idx.get(e.shot) for e in resolved])
     looks: dict = {}                    # sequence -> {shot: (look, its colour in the cut)}
     name, kept = TF.store(root, pass_)
@@ -574,6 +599,11 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             # a `continuous: multishot` group (docs/MULTISHOT.md): its script shots,
             # the frame each starts on in the take, its frames and size
             **({"multishot": shot["multishot"]} if shot and shot.get("multishot") else {}),
+            # how it carries on from the shot before it in the cut (docs/CONTINUOUS.md):
+            # the script's mode, that shot, and the frames a latent shot holds of it
+            **({"continuous": {"mode": continuous[e.shot], "from": prev_in_cut,
+                               **({"hold": int(rshot["hold"])} if rshot and rshot.get("hold") else {})}}
+               if shot and e.shot in continuous else {}),
             # the first sentence of what happens, as the script says it (the board)
             **({"action": actions[e.shot]} if actions.get(e.shot) else {}),
             "audio_policy": shot.get("audio_policy") if shot else None,
@@ -666,6 +696,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "post": post_summary(root, t),
             } for t in takes],
         })
+        if not e.orphan and not e.out:
+            prev_in_cut = e.shot
     # a clip out of line with the rest of its sequence (exposure, contrast, a cast,
     # saturation; its colour in the cut counted): the timeline's badge
     off = {}

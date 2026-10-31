@@ -8,6 +8,7 @@ import {
 } from "../actions";
 import { errText } from "../api";
 import { api, host } from "../host";
+import { continuityText } from "../lib/continuity";
 import { ESTIMATE_TITLE, cutTake, fmtShotSeconds, lengthEstimated, shortName, shotBadges, tn } from "../lib/format";
 import { KEYFRAME_ENDS, cutNeighbour, keyframeNote, keyframeRefId, shotKeyframes, usesKeyframes } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
@@ -71,6 +72,11 @@ function TargetPicker({ d, shot }: { d: ShotDetail | undefined; shot: string }) 
         )}
       </div>
       <TargetReadinessNote id={current} list={list} />
+      {s?.continuous && (
+        <div className="h3-small" title="From the script: the shot's own continuous: line, else its sequence's (docs/CONTINUOUS.md)">
+          <b>Continues:</b> {continuityText(s, list)}
+        </div>
+      )}
     </div>
   );
 }
