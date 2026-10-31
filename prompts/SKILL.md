@@ -1,6 +1,6 @@
 ---
 name: seriesmith-episode-script
-description: Write episode scripts and series configs for seriesmith, the script-to-episode AI video pipeline, fresh or converted from an existing screenplay. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound fields, continuity and keyframe lines) and the series config (series.json) with what's required, what each optional block defaults to, the cast, locations, look, voices, profiles, render size and master recipe. Shots render on a video model per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others). Use it whenever the user wants to write, outline or extend an episode, start a series, break a screenplay or scene into shots, add characters, props or locations to a series config, choose which model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script seriesmith check rejected, even if they never name seriesmith or the file formats.
+description: Write episode scripts and series configs for seriesmith, the script-to-episode AI video pipeline, fresh or converted from an existing screenplay. Covers the epNN.md script format (sequences, shots, ALL-CAPS dialogue, who/with/size/dur/plate/camera/sound fields, continuity and keyframe lines) and the series config (series.json) with what's required, what each optional block defaults to, the cast, locations, look, voices, profiles, render size and master recipe. Shots render on a video model per shot or episode (MiniMax H3, LTX-2, Wan 2.2, Seedance and others). Use it whenever the user wants to write, outline or extend an episode, pick a story structure, start a series, break a screenplay or scene into shots, add characters, props or locations to a series config, choose which model renders a shot, re-time shots whose dialogue doesn't fit, or fix a script seriesmith check rejected, even if they never name seriesmith or the file formats.
 ---
 
 # Writing an episode for seriesmith
@@ -24,8 +24,10 @@ show's: add what the episode needs and change nothing else unasked, but if it ha
 `upscale.master` block, say once that it can't be mastered by recipe until it has one.
 
 Converting an existing screenplay, keep its story and dialogue and break it into shots
-(`references/script_conversion.md` works a scene through); writing fresh, write the shots
-directly. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+(`references/script_conversion.md` works a scene through). Writing fresh, outline the story
+before the shots: if the person hasn't given it a shape, offer the menu in
+`references/story_structures.md` (with the questions above, in the same message), then mark
+each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
 needs something only one model does (see **Choosing a video target**); advice that holds for
 one target only is marked with that target's name. Validate with `seriesmith check
 series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
@@ -128,7 +130,8 @@ Build it with `seriesmith check Shows\ep01` and then `seriesmith build
 Shows\ep01`; [INSTALL.md](../INSTALL.md) has the rest of the commands, and
 `docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
 shots if you are starting from one (the script-writing skill bundles it as
-`references/script_conversion.md`).
+`references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
+for outlining one from scratch (`references/story_structures.md`).
 
 ## Starting a series: what to settle first
 

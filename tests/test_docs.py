@@ -66,7 +66,8 @@ class TestScriptSkill(unittest.TestCase):
         text = P.body()
         with zipfile.ZipFile(path) as zf:
             for arc, want in ((f"{P.NAME}/SKILL.md", P.bundle_skill(text)),
-                              (f"{P.NAME}/references/script_conversion.md", P.bundle_breakdown())):
+                              (f"{P.NAME}/references/script_conversion.md", P.bundle_breakdown()),
+                              (f"{P.NAME}/references/story_structures.md", P.bundle_structures())):
                 with self.subTest(file=arc):
                     self.assertEqual(zf.read(arc).decode("utf-8"), want,
                                      f"prompts/{P.NAME}.zip is out of date -- run "

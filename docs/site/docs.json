@@ -21,7 +21,7 @@
   "navigation": {
     "groups": [
       { "group": "Get started", "pages": ["index", "quickstart"] },
-      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion"] },
+      { "group": "Writing episodes", "pages": ["last-light", "authoring", "script-conversion", "story-structures"] },
       {
         "group": "Tutorials",
         "pages": [
