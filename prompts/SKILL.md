@@ -61,7 +61,7 @@ under a show at once.
     "width": 1344,
     "height": 768
   },
-  "proxy": { "width": 864, "height": 480 },
+  "proxy": { "width": 896, "height": 512 },
   "style": {
     "look": "a 2D hand-drawn cartoon animation with flat 2D illustration, clean black line art, flat solid colors, and cel-shaded artwork"
   },
@@ -246,7 +246,7 @@ any other.
 {
   "series": { "id": "gold_path", "title": "The Gold Path",
               "fps": 24, "width": 1344, "height": 768, "steps": 8 },
-  "proxy":  { "width": 864, "height": 480, "steps": 4, "audio_mode": "generate" },
+  "proxy":  { "width": 896, "height": 512, "steps": 4, "audio_mode": "generate" },
   "style":  { "look": "a 2D hand-drawn cartoon animation with clean black line art, flat solid colors and cel shading" },
   "speech": { "pace": "normal" },
   "subjects": {
@@ -295,8 +295,8 @@ any other.
   different clothes, the same prop in a different state. See **A wardrobe change is a new
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
-  each character's sampled voice), `source_track` (the default: you supply a recorded mix,
-  `audio.track`, and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the model
+  each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
+  and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
   `audio.default_policy` forces one policy for every dialogue shot, and `audio.retention`
@@ -321,7 +321,7 @@ any other.
 | `series.width` / `height` | the model's own (1344×768 on H3) |
 | `proxy` | the model's own proxy (512×288 on H3: too small; write one) |
 | `series.target` | this machine's default model |
-| `audio.mode` | `source_track`, dubbing to a recording: write `generate` unless there is one |
+| `audio.mode` | `generate` (`source_track` when `audio.track` names a recording) |
 | `speech.pace` | `normal` |
 | `refs` | Krea 2 for pictures, LTX-2.5 for voices |
 | `upscale.master`, `post` | no recipe: the episode can't be mastered by recipe |
@@ -336,7 +336,7 @@ grid. The four setups, and the master each delivers:
 
 | Setup | final | proxy | delivers | for |
 |---|---|---|---|---|
-| **Render at size** (the default) | 1344×768 | 864×480 | 1344×768, or a 1440p master | anything; renders on every model with nothing extra installed |
+| **Render at size** (the default) | 1344×768 | 896×512 | 1344×768, or a 1440p master | anything; renders on every model with nothing extra installed |
 | **Render small, master 1080p** | 960×544 | 864×480 | 1920×1080 (8 rows cropped) | the cheapest takes; mostly H3 shots, upscaled after the cut is locked |
 | **16:9, master 1080p or 4K** | 1024×576 | 512×288 | 1920×1080 or 3840×2160 exactly | an exact 16:9 frame; many shots on LTX |
 | **At size, master 1440p** | 1344×768 | 960×544, 8 steps | 2560×1440 (23 rows cropped) | live action with close dialogue, where faces need the pixels |

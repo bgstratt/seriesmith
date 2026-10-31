@@ -244,7 +244,7 @@ class TestWizard(NewEpisodeCase):
 
     SERIES = {
         "series": {"id": "dusk", "title": "Dusk", "fps": 24, "width": 1344, "height": 768},
-        "proxy": {"width": 864, "height": 480},
+        "proxy": {"width": 896, "height": 512},
         "style": {"look": "a live-action drama on 35mm film"},
         "subjects": {"nell": {"kind": "character", "name": "Nell", "design": "a woman in a red coat",
                               "sheet": "../refs/nell/nell_sheet_4panel.png"}},

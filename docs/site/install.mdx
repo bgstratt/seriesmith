@@ -931,7 +931,7 @@ own proxy preset — 512×288 for MiniMax H3 — rather than a scaled-down copy 
 size. That is fine until your final size is not 16:9, at which point the proxy and the
 final have different aspect ratios and proxy placeholders in a final cut get scaled
 oddly. Add a `proxy` block (the Series settings form's **Size (proxy)**): a new series gets
-864×480; 896×512 is exactly 1344×768's shape, both axes on H3's /32 grid.
+896×512, exactly 1344×768's shape, both axes on H3's /32 grid.
 
 **Shots skipped with a missing-model message.**
 Run `seriesmith targets` (add the episode folder to include its series config's model

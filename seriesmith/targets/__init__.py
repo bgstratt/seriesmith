@@ -333,6 +333,13 @@ class RefRequest:
 GENERATE_MODES = ("generate", "generated", "generated_audio")
 
 
+def audio_mode(audio_cfg: dict) -> str:
+    """The series config's `audio.mode`; left out, `generate` (the model
+    invents the voices: nothing to record first), or `source_track` when
+    `audio.track` names a recording."""
+    return audio_cfg.get("mode") or ("source_track" if audio_cfg.get("track") else "generate")
+
+
 def audio_intent(shot_ir, series_cfg: dict, pass_: str) -> str:
     """What the script and series config ask of a shot's audio, before any
     target decides how: the shot's own `policy:`, else for a shot with
@@ -345,7 +352,7 @@ def audio_intent(shot_ir, series_cfg: dict, pass_: str) -> str:
     if not shot_ir.dialogue:
         return "generate"
     audio_cfg = series_cfg.get("audio", {})
-    mode = audio_cfg.get("mode", "source_track")
+    mode = audio_mode(audio_cfg)
     if pass_ == "proxy":
         mode = series_cfg.get("proxy", {}).get("audio_mode") or mode
     if mode == "source_track":

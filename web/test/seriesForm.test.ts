@@ -58,12 +58,12 @@ describe("series settings form", () => {
     expect(same(JSON.parse(text), JSON.parse(text))).toBe(true);
   });
 
-  it("a new series starts from the starter's settings with a 480p proxy", () => {
+  it("a new series starts from the starter's settings with a proxy of their shape", () => {
     const s = newSeries("First Light");
     expect(getPath(s, ["series", "id"])).toBe("first_light");
     expect(sizeOf(s, "series")).toBe("1344x768");
     expect(sizeOf(s, "proxy")).toBe(DEFAULT_PROXY);
-    expect(DEFAULT_PROXY).toBe("864x480");
+    expect(DEFAULT_PROXY).toBe("896x512");
   });
 
   it("every field has a label and help, and paths are unique", () => {

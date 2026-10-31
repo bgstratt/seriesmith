@@ -13,7 +13,7 @@ describe("the new episode wizard", () => {
     expect(showFolder("Porch Lights!")).toBe("Porch_Lights");
     const s = seriesConfig("First Light");
     expect(s.series).toMatchObject({ id: "first_light", title: "First Light", width: 1344, height: 768 });
-    expect(s.proxy).toMatchObject({ width: 864, height: 480 });
+    expect(s.proxy).toMatchObject({ width: 896, height: 512 });
   });
 
   it("adds the cast by the card's rules, and says what's wrong", () => {

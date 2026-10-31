@@ -20,7 +20,7 @@ and delivery**); this page is the why and the how behind them. The commands are 
 
 | | final | proxy | shape | a 3 s take | upscaled (picks only) | delivers |
 |---|---|---|---|---|---|---|
-| **Render at size** (the default) | 1344×768 | 864×480 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
+| **Render at size** (the default) | 1344×768 | 896×512 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
 | **Render small, upscale to 1080p** | 960×544 | 864×480 | ≈7:4 | ~20 s | re-sample 2x → 1920×1088, ~25–35 s | 1920×1080 (8 rows cropped) |
 | **Render 16:9, upscale to 1080p or 4K** | 1024×576 | 512×288 | 16:9 | ~23–24 s (est.) | re-sample 2x → 2048×1152 (scaled down to 1080p; for 4K, then an upscale model) | 1920×1080 or 3840×2160, exactly |
 | **Render at size, master 1440p** | 1344×768 | 960×544 (8 steps) | 7:4 | ~53 s | re-sample 2x → 2688×1536, ~75 s | 2560×1440 (scaled down, 23 rows cropped) |
@@ -30,8 +30,8 @@ its 13% more pixels than 960×544, since attention grows a little faster than th
 count.)
 
 **A proxy smaller than 480p is too small to judge a shot by**: faces, hands and small props
-blur into each other. 864×480 is the default for a new series; 896×512 is the same 7:4 shape
-as 1344×768 exactly, if a proxy take will stand in for a final one in a cut (a proxy of
+blur into each other. 896×512 is the default for a new series: the same 7:4 shape as
+1344×768 exactly, so a proxy take can stand in for a final one in a cut (a proxy of
 another shape is scaled to fit there). 448×256 renders quicker, for a rough check of timing
 only.
 

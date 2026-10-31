@@ -356,9 +356,10 @@ check, history copy and rebuild.
       mode and track, the video / refs / keyframe / voice models with what each is
       for and whether it's installed, the master and post recipes' main settings,
       the intro and outro; steps, LoRAs, model files, negative and backend under
-      More. A new series' proxy is 864×480 (480p is the minimum that reads;
-      896×512 offered for 1344×768's exact shape, and the form says when the shapes
-      differ). Checked live on an imported Porchlights S2 episode: a proxy change
+      More. A new series' proxy is 896×512 (480p is the minimum that reads, and
+      896×512 is 1344×768's exact shape; it was 864×480 until 2026-10-31, which
+      the form itself flagged as another shape), and the form says when the shapes
+      differ. Checked live on an imported Porchlights S2 episode: a proxy change
       saved as just those two lines, rebuilt, with a history copy.
 - [x] Cast and places: a card per character, group, prop, vehicle, voice-only
       character and location (name, design, voice, description; variant /
