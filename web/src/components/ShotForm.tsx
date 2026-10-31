@@ -6,7 +6,7 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { afterAuthoredWrite, copyText, loadRefs, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, copyText, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
@@ -30,7 +30,7 @@ import { finishDroppedFile, isPicture } from "../takeActions";
 import { SoundCard } from "./SoundDialog";
 import { profileFromShot, profileNameOk, profilesOf, setProfile, shotOnProfile } from "../lib/profiles";
 import { ModelOptions, ModelsButton } from "./Targets";
-import { useShotStatus } from "./hooks";
+import { useRefs, useShotStatus } from "./hooks";
 import { Badges } from "./Thumb";
 
 const RECT_KEY = "seriesmith.shotform.rect";
@@ -144,10 +144,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   }, [ep, shot]);
 
   const seqs = useMemo(() => (doc ? sequencesOf(doc.text) : []), [doc]);
-  const refs = useApp((s) => s.refs[ep]);
-  useEffect(() => {
-    if (!refs) void loadRefs(ep);
-  }, [ep]);
+  const refs = useRefs(ep);
   const cast = useMemo(() => castOf(sc.base, refs), [sc.base, refs]);
   // a card saved a new character or place (+ Character, + Location): the series
   // config again, so it can be picked without reopening the form

@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  baseRender, clearRef, closeInspector, focusRef, keyframeFromTake, loadDetail, loadRefs, openPromote, openRedo, openViewer, queueRender,
+  baseRender, clearRef, closeInspector, focusRef, keyframeFromTake, loadDetail, openPromote, openRedo, openViewer, queueRender,
   renderShots, revertOverride, saveOverride, setShotTarget, showInScript,
 } from "../actions";
 import { errText } from "../api";
@@ -20,7 +20,7 @@ import { findTarget, isRetargeted, retargetNote, shotTarget, targetBadges, targe
 import { useApp } from "../store";
 import type { ShotDetail } from "../types";
 import { FloatingWindow, defaultInspectorRect } from "./FloatingWindow";
-import { useDetail, useDetailError, useShotStatus, useStatus } from "./hooks";
+import { useDetail, useDetailError, useRefs, useShotStatus, useStatus } from "./hooks";
 import { MissingRefsNote } from "./MissingRefs";
 import { OverrideFields } from "./OverrideFields";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
@@ -117,15 +117,12 @@ function TakeResolved({ d, take }: { d: ShotDetail; take: number | null }) {
 function RefsUsed({ shot, d }: { shot: string; d: ShotDetail | undefined }) {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
-  const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
+  const refs = useRefs(ep);
   const busyPrev = useApp((s) => !!s.busy[`keyframe|${shot}|first`]);
   const busyClear = useApp((s) => !!s.busy[`refclear|${keyframeRefId(shot, "first")}`] || !!s.busy[`refclear|${keyframeRefId(shot, "last")}`]);
   const st = useStatus();
   const s = useShotStatus(shot);
   const { list, seriesDefault } = useTargets();
-  useEffect(() => {
-    if (ep && !refs) void loadRefs(ep);
-  }, [ep, refs]);
   const { tiles, exact } = useMemo(() => shotRefTiles(d?.refs_used, refs, shot, pass), [d?.refs_used, refs, shot, pass]);
   if (!ep) return null;
   const prev = cutNeighbour(st, shot, -1);

@@ -2722,9 +2722,12 @@ def get_targets(ctx: Context, query: dict):
     ready = query.get("ready")
     if ready not in (None, "", "0", "1", "true", "false"):
         raise ApiError(400, f"ready must be 1 or 0, not {ready!r}")
-    targets = TG.list_targets(kind)
-    out = [t.describe() for t in targets]
-    graphs = target_graphs(ctx)
+    # one load: target_graphs asks for the whole list once per target, and each
+    # listing walked the target folders and stat-ed the settings file again
+    with TG.one_load():
+        targets = TG.list_targets(kind)
+        out = [t.describe() for t in targets]
+        graphs = target_graphs(ctx)
     for d in out:
         g = graphs.get(d["id"])
         if g is not None:

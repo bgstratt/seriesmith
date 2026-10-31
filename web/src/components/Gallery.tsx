@@ -27,7 +27,7 @@ import { targetLabel } from "../lib/targets";
 import { useApp, type GalleryState } from "../store";
 import type { OwnerTake, Pass, Ref, TakeInfo, TakeSummary } from "../types";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
-import { aspectOf, useStatus } from "./hooks";
+import { aspectOf, useRefs, useStatus } from "./hooks";
 import { EpisodeSelect } from "./ShotsTab";
 import { useTargets } from "./Targets";
 import { useScrub } from "./Thumb";
@@ -185,7 +185,7 @@ export function Gallery() {
 }
 
 function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
-  const refs = useApp((s) => (ep ? s.refs[ep] : undefined));
+  const refs = useRefs(ep);
   const pass = useApp((s) => s.pass);
   const st = useStatus();
   const winRef = useRef<HTMLDivElement>(null);

@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from "react";
+import { loadRefs } from "../actions";
 import { detailKey, statusKey, useApp } from "../store";
-import type { EpisodeStatus, Pass, ShotDetail, ShotStatus } from "../types";
+import type { EpisodeStatus, Pass, Ref, ShotDetail, ShotStatus } from "../types";
 
 export function useStatus(pass?: Pass): EpisodeStatus | undefined {
   return useApp((s) => (s.ep ? s.status[statusKey(s.ep, pass ?? s.pass)] : undefined));
+}
+
+/** The episode's refs, fetched the first time something shows them: not with the
+ *  episode, whose shots come first and whose opens mostly never look at a ref. A
+ *  failed fetch isn't retried here (the Refs tab has Retry). */
+export function useRefs(ep: string | null | undefined): Ref[] | undefined {
+  const refs = useApp((s) => (ep ? s.refs[ep] : undefined));
+  const failed = useApp((s) => !!(ep && s.refsError[ep]));
+  useEffect(() => {
+    if (ep && !refs && !failed) void loadRefs(ep);
+  }, [ep, refs, failed]);
+  return refs;
 }
 
 export function useShotStatus(shot: string | null | undefined, pass?: Pass): ShotStatus | undefined {

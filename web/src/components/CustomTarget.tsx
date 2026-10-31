@@ -4,14 +4,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteCustomTarget, enableCustomTarget, generateRef, inspectTarget, loadRefs, loadWorkflows, probeTarget,
+  deleteCustomTarget, enableCustomTarget, generateRef, inspectTarget, loadWorkflows, probeTarget,
   saveCustomTarget,
 } from "../actions";
 import { customTargets, isHosted } from "../lib/targets";
 import type { RouterCatalogModel, RouterDryRun, RouterProposal } from "../api";
 import { ImageLimitsForm, LimitsCard, LimitsForm, changedImageLimits, changedLimits } from "./Limits";
 import { api } from "../host";
-import { useStatus } from "./hooks";
+import { useRefs, useStatus } from "./hooks";
 import { useApp } from "../store";
 import type { ImageLimits, Limits, Ref, Target, TargetList, TargetProposal, WorkflowFile } from "../types";
 
@@ -155,10 +155,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
  * first (they show the pictures going in), then characters, props, places. */
 function useProbeRefs(): Ref[] {
   const ep = useApp((s) => s.ep);
-  const refs = useApp((s) => (ep ? s.refs[ep] : undefined));
-  useEffect(() => {
-    if (ep && !refs) void loadRefs(ep);
-  }, [ep, refs]);
+  const refs = useRefs(ep);
   return useMemo(() => {
     const order: Record<string, number> = { keyframe: 0, character: 1, prop: 2, vehicle: 3, location: 4 };
     return (refs ?? []).filter((r) => r.kind !== "voice")

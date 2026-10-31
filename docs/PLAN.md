@@ -1559,6 +1559,44 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
       a placeholder and a 16 fps clip) opened in DaVinci Resolve and in Premiere Pro; the
       cut plays as Export's mp4 does, and a trimmed clip's handles are there.
 
+## Faster episode open, and the CLI's `continuous: first` chains (2026-10-31)
+
+A cold open of Porchlights ep01 (324 shots, 1,773 takes) took ~5.3 s from the server's
+start to the shots on screen: status 0.9 s alone but 2.7 s beside targets, refs 1.5 s and
+1.4 MB fetched with every open, targets 0.7 s.
+
+- [x] Refs on first use (`useRefs`), not with the episode; one targets load per
+      `GET /seriesmith/targets` (`TG.one_load`: 10,500 stats -> one listing); the takes'
+      prompt ids only while queued, save notes only when failed. ~3.5 s now, 1.3 s of it the
+      server starting. `render --dry-run` writes into the episode folder.
+- [x] **Live** (2026-10-31): open Porchlights ep01 / ep02 after a restart; the Refs tab, a shot's
+      pictures, the shot form's cast and the gallery each fill on first open.
+- Left for now: the status's own 0.9 s (each take's upscale against the recipe 0.33 s, the
+  takes listing 0.24 s, the retargeted shots' compile 0.23 s), cacheable per episode.
+
+**`seriesmith render` and `continuous: first`.** The CLI renders every shot of every episode
+it's given, one at a time in order, so a `continuous: latent` chain works: each holds the
+take rendered just before it. A `continuous: first` chain doesn't, without `--only`:
+`continuity_before_render` passes `shots=None`, and `refresh_continuity` counts only a
+batch it's given as coming, so with `--redo` each shot is given a first frame cut from the
+previous shot's *old* take (it reads as fresh, so nothing waits). The editor's queue passes
+its batch (`api.py`, `cut_at_start=True`) and is right.
+
+- [ ] Plan the episode first, then the continuity: the shots that will actually run
+      (`j.runs` after `--only`, `--redo` and the skips) are the batch, so a shot after one
+      rendering in this run waits for it and its first frame is cut as its render starts
+      (`cut_at_start=True`, as the editor). A shot held for want of a frame is dropped from
+      the plan, as now. Without `--redo`, a shot with a finished take isn't in the batch, so
+      the shot after it starts from that take.
+- [ ] Say it: `--list` / `--dry-run` print "sh020: opens on sh010's new take in this run".
+      When the previous shot's cut entry is picked or locked on an older take, the chain
+      starts from that pick (the take the cut uses, as the editor's), and the line says so.
+- [ ] **Tests** (test_render, fake backend): a three-shot FL2VA chain with `--redo` cuts
+      sh020's first frame from sh010's new take and sh030's from sh020's; without `--redo`,
+      only the shot with no take renders and opens on its finished neighbour; `--only sh030`
+      starts from sh020's take in the cut.
+- [ ] **Docs:** COMMANDS.md (`render` and continuous chains).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or
