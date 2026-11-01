@@ -1347,6 +1347,17 @@ worst must-hit's error, or why it can't be planned. Below either is **exactly wh
 model is told**, and the script's `music:` notes it took in. Each change is saved and the
 cue planned again (typing saves when you pause).
 
+**Meter** is a choice of 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8 and 12/8, or **Other…** for your own
+(beats/unit, 1 to 16 beats of a 2, 4, 8 or 16); the grid's beats to the bar are its top number.
+ACE-Step's time signature takes 2, 3, 4 or 6 beats, so for another meter it says which it gets
+(the meter as written goes in its tags). **Key** is none (the model's choice), one of the 12
+major or 12 minor keys, or **Other…** for your own text (a mode, "D dorian": only Stable Audio
+reads a key that isn't major or minor).
+
+Each tab has a **?** in the window's head: a strip of numbered steps for that tab and a link
+to the full guide ([SCORING.md](SCORING.md)). Close it with its **×**; it stays as you left it,
+per tab. A cue with no takes yet links the guide too.
+
 The **Arc** tab is the intensity lane large, on the same bar grid, with the picture, the hits
 and the sections above it for reference (edit the sections in Score). Draw the arc first:
 

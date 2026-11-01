@@ -21,8 +21,9 @@ import { compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from ".
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
-  ARC_SHAPES, LEVEL_WORDS, ORCH_LEVELS, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
-  cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, levelY, levelsAsEnergy, mergeStroke, moveEdge,
+  ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
+  cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
+  meterText, moveEdge,
   movePoint, orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords,
   sectionsFromArc, smoothPoints, snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
@@ -60,9 +61,72 @@ const LOWER_DB = -6;
 const EMPTY: number[] = [];
 const LEVELS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 const REPAINT_TITLE = "not measured yet (docs/SOUND.md 'Fixing part of a take')";
+/** the user's guide to the cue window (docs/SCORING.md on the docs site) */
+export const SCORING_URL = "https://docs.seriesmith.com/scoring";
+/** each tab's help strip, open or closed, kept in this browser */
+export const HELP_KEY = "seriesmith.cue.help";
 
 export type CueTab = "score" | "arc" | "orch";
 type ArcMode = "draw" | "points";
+
+/** How to use each tab: a few steps from docs/SCORING.md, and the section of it that has the rest. */
+const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
+  score: {
+    anchor: "3-shape-it-the-score-tab",
+    steps: [
+      "Mark the hits first: double-click the timeline's Hits lane where the music must answer (accent, arrive, drop or turn); Must land fits the tempo to put it on its line.",
+      "Shape the sections: drag an edge (whole bars), click one to give it words and an energy from and to; drag the green energy line's points (double-click adds one).",
+      "Render 8 takes: each is measured against the hits and the arc as it lands, best first.",
+      "Listen to the top few (the playhead runs over the grid), then Pick one: it goes on the Music lane, its level fitted to the arc.",
+    ],
+  },
+  arc: {
+    anchor: "4-optional-the-arc-and-orchestration-&-takes-tabs",
+    steps: [
+      "Draw the energy freehand (or edit Points), or start from a shape: slow burn, build and release, sting, pulse.",
+      "Snap peaks to hits: the arc's peaks move onto arrive hits and its lows onto drops, within a bar.",
+      "Sections from the arc cuts the sections where it turns, on bar lines (it replaces their names and words).",
+      "Mind the flags on the right: a peak or dip inside one section won't be heard (models follow sections, not bars); Split at bar N keeps it.",
+    ],
+  },
+  orch: {
+    anchor: "4-optional-the-arc-and-orchestration-&-takes-tabs",
+    steps: [
+      "Pick a brush (off, under, present, lead) and paint who plays in each bar: click a cell, or drag across bars and rows; Family adds a row.",
+      "It becomes each section's words, loudest first (\"solo horn present, strings under\"); a change inside a section is hatched: the strongest level wins.",
+      "On a take, drag across bars to select them: comp them from another take, or lower them in the mix with breakpoints (the take in the mix).",
+    ],
+  },
+};
+
+/** Whether a tab's help strip is open (closed when this browser keeps nothing). */
+export function helpOpen(tab: CueTab): boolean {
+  try {
+    return localStorage.getItem(`${HELP_KEY}.${tab}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function keepHelp(tab: CueTab, on: boolean) {
+  try {
+    localStorage.setItem(`${HELP_KEY}.${tab}`, on ? "1" : "0");
+  } catch { /* not kept */ }
+}
+
+/** A tab's "how to use this tab": its steps and a link to the guide's section. */
+function HelpStrip({ tab, onClose }: { tab: CueTab; onClose: () => void }) {
+  const h = HELP[tab];
+  return (
+    <div className="h3-cue-help">
+      <ol>{h.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+      <span className="h3-col" style={{ gap: 4, alignItems: "flex-end" }}>
+        <button className="h3-btn h3-icon" title="Hide this help (? shows it again)" aria-label="Hide the help" onClick={onClose}><i className="pi pi-times" /></button>
+        <a className="h3-small" href={`${SCORING_URL}#${h.anchor}`} target="_blank" rel="noopener noreferrer">The full guide</a>
+      </span>
+    </div>
+  );
+}
 
 let musicTargets: Promise<Target[]> | null = null;
 /** The orchestration grid's rows by episode and cue, either pass (a family off throughout isn't stored, so the window keeps the rows) */
@@ -100,6 +164,11 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
   const winRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<number | null>(null);
   const [tab, setTab] = useState<CueTab>("score");
+  const [help, setHelp] = useState<Record<CueTab, boolean>>(() => ({ score: helpOpen("score"), arc: helpOpen("arc"), orch: helpOpen("orch") }));
+  const showHelp = (on: boolean) => {
+    keepHelp(tab, on);
+    setHelp((h) => ({ ...h, [tab]: on }));
+  };
   // fetched on open, and for each pass it's shown on (its takes' landing fetches it again: cueActions)
   useEffect(() => {
     if (id) void loadCue(ep, pass, id);
@@ -133,6 +202,8 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
         {tabBtn("Arc", "arc", "The intensity lane large: draw it, shape it from a preset, snap its peaks to hits, cut sections from it")}
         {tabBtn("Orchestration & takes", "orch", "Who plays in each bar; the takes, where bars are comped from another take or lowered")}
       </span>
+      <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
+        onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
       <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>
       <FullscreenButton />
@@ -144,7 +215,7 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
       {!res ? (
         <div className="h3-empty-state">{err ? <span className="h3-err">{id}: {err}</span> : <><i className="pi pi-spin pi-spinner" /> {id}…</>}</div>
       ) : (
-        <CueBody ep={ep} v={v} res={res} sel={sel} setSel={setSel} tab={tab} />
+        <CueBody ep={ep} v={v} res={res} sel={sel} setSel={setSel} tab={tab} help={help[tab] ? <HelpStrip tab={tab} onClose={() => showHelp(false)} /> : null} />
       )}
     </FloatingWindow>
   );
@@ -163,8 +234,8 @@ interface ArcState {
   commit: (next: ArcPt[]) => void;
 }
 
-function CueBody({ ep, v, res, sel, setSel, tab }: {
-  ep: string; v: ViewerState; res: CueResult; sel: number | null; setSel: (i: number | null) => void; tab: CueTab;
+function CueBody({ ep, v, res, sel, setSel, tab, help }: {
+  ep: string; v: ViewerState; res: CueResult; sel: number | null; setSel: (i: number | null) => void; tab: CueTab; help: ReactNode;
 }) {
   const { spec, plan } = res;
   const items = useApp((s) => currentPlaylist(s));
@@ -190,6 +261,7 @@ function CueBody({ ep, v, res, sel, setSel, tab }: {
     return (
       <div className="h3-cue-body">
         <div className="h3-cue-main h3-empty-state">
+          {help}
           <div><b>{spec.id} can't be planned.</b><div className="h3-err" style={{ marginTop: 6 }}>{res.plan_error ?? "no plan"}</div>
             <div className="h3-muted h3-small" style={{ marginTop: 6 }}>Its in and out are anchored to shots of the cut; put them back in the {v.pass} cut, or make the cue again over the shots it plays over.</div></div>
         </div>
@@ -225,9 +297,10 @@ function CueBody({ ep, v, res, sel, setSel, tab }: {
   return (
     <div className="h3-cue-body">
       <div className="h3-cue-main">
+        {help}
         <div className="h3-cue-bar">
           <span className="h3-mono h3-small" title={`the cue's exact tempo (the model is asked ${plan.fit.ask_bpm}, stretched by ${plan.fit.stretch})`}>
-            {plan.fit.bpm} bpm · {g.meter}/4 · {plan.bars} bars · {fmtClock(plan.seconds)}
+            {plan.fit.bpm} bpm · {meterText(spec.meter) ?? "4/4"} · {plan.bars} bars · {fmtClock(plan.seconds)}
           </span>
           <span className="h3-muted h3-small" title="the bars before the cue's in point, and after its out point">pre-roll {plan.preroll.toFixed(2)} s</span>
           {placed && <span className="h3-badge h3-b-ok" title={`${tn(placed.take)} is the cue's item on the music track of the ${v.pass} mix`}>{tn(placed.take)} in the mix</span>}
@@ -416,7 +489,7 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
     </Lane>
   );
   const ruler = (
-    <Lane label={`${g.meter}/4`} h={RULER_H} W={W} cls="h3-cue-ruler" title={`Bars at ${plan.fit.bpm} bpm, beats as ticks`}>
+    <Lane label={meterText(spec.meter) ?? "4/4"} h={RULER_H} W={W} cls="h3-cue-ruler" title={`Bars at ${plan.fit.bpm} bpm, beats as ticks`}>
       {bars.map((b) => (
         <div key={b} className="h3-cue-bnum" style={{ left: b * g.bar * pps, width: g.bar * pps }}>
           {g.bar * pps > 14 && <span>{b + 1}</span>}
@@ -469,7 +542,10 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
       ))}
       {tab !== "arc" && !takes.length && (
         <Lane label="Takes" h={TAKE_H} W={W}>
-          <span className="h3-muted h3-small" style={{ padding: 8 }}>No takes yet: Render makes several, each measured against the hits and the arc, best first.</span>
+          <span className="h3-muted h3-small" style={{ padding: 8 }}>
+            No takes yet: Render makes several, each measured against the hits and the arc, best first.
+            {" "}New to this? <a href={SCORING_URL} target="_blank" rel="noopener noreferrer">Read Scoring an episode</a>
+          </span>
         </Lane>
       )}
     </div>
@@ -915,6 +991,71 @@ function LevelSelect({ value, onChange, label }: { value: number; onChange: (v: 
   );
 }
 
+/** The meter: one of METERS, or Other… (beats/unit text, checked as the server does). */
+function MeterPicker({ spec, target, edit }: { spec: CueSpec; target: Target | undefined; edit: (patch: Partial<CueSpec>) => void }) {
+  const text = meterText(spec.meter) ?? String(spec.meter);
+  const listed = METERS.includes(text);
+  const [other, setOther] = useState(!listed);
+  const [bad, setBad] = useState<string | null>(null);
+  useEffect(() => {
+    if (!listed) setOther(true);
+  }, [listed]);
+  const save = (m: string) => edit({ meter: m === "4/4" ? undefined : m });
+  const beats = meterBeats(spec.meter);
+  const ace = target?.capabilities?.tempo === "bpm" && ![2, 3, 4, 6].includes(beats);
+  return (
+    <span className="h3-col" style={{ gap: 4 }}>
+      <select className="h3-in" aria-label="Meter" value={other ? "other" : text} onChange={(e) => {
+        const m = e.target.value;
+        setBad(null);
+        setOther(m === "other");
+        if (m !== "other") save(m);
+      }}>
+        {METERS.map((m) => <option key={m} value={m}>{m}</option>)}
+        <option value="other">Other…</option>
+      </select>
+      {other && (
+        <Draft label="Meter (beats/unit)" value={text} placeholder="5/8" onCommit={(x) => {
+          const m = meterText(x);
+          setBad(m ? null : `A meter is beats/unit: 1 to 16 beats of a 2, 4, 8 or 16 (5/8, 11/8), not "${x.trim()}"`);
+          if (m) save(m);
+        }} />
+      )}
+      {bad && <span className="h3-err h3-small">{bad}</span>}
+      {ace && <span className="h3-small h3-muted">ACE-Step's time signature takes 2, 3, 4 or 6 beats: it gets {aceBeats(beats)} and '{text}' in its tags</span>}
+    </span>
+  );
+}
+
+/** The key: none (the model's choice), a major or minor key, or Other… (its own text: a mode). */
+function KeyPicker({ spec, edit }: { spec: CueSpec; edit: (patch: Partial<CueSpec>) => void }) {
+  const choice = keyChoice(spec.key);
+  const [other, setOther] = useState(choice == null);
+  useEffect(() => {
+    if (choice == null) setOther(true);
+  }, [choice]);
+  return (
+    <span className="h3-col" style={{ gap: 4 }}>
+      <select className="h3-in" aria-label="Key" value={other ? "other" : choice ?? ""} onChange={(e) => {
+        const k = e.target.value;
+        setOther(k === "other");
+        if (k !== "other") edit({ key: k || undefined });
+      }}>
+        <option value="">(none: the model's choice)</option>
+        <optgroup label="Major">{KEYS.filter((k) => k.endsWith("major")).map((k) => <option key={k} value={k}>{k}</option>)}</optgroup>
+        <optgroup label="Minor">{KEYS.filter((k) => k.endsWith("minor")).map((k) => <option key={k} value={k}>{k}</option>)}</optgroup>
+        <option value="other">Other…</option>
+      </select>
+      {other && (
+        <>
+          <Draft label="Key (other)" value={spec.key ?? ""} placeholder="D dorian" onCommit={(key) => edit({ key: key.trim() || undefined })} />
+          <span className="h3-small h3-muted">Only Stable Audio reads a key that isn't major or minor</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 function CueInspector({ res, target, targets, sel, sections, setSel }: {
   res: CueResult; target: Target | undefined; targets: Target[]; sel: number | null; sections: CueSection[]; setSel: (i: number | null) => void;
 }) {
@@ -992,12 +1133,8 @@ function CueInspector({ res, target, targets, sel, sections, setSel }: {
           <label className="h3-check" title="Keep this tempo exactly: the pre-roll alone lands the hits"><input type="checkbox" checked={!!spec.fixed_tempo} onChange={(e) => edit({ fixed_tempo: e.target.checked })} /> fixed</label>
         </span>
       ), "bpm asked; the fit moves it up to 8 % to put the must-hits on bar lines, unless fixed")}
-      {field("Meter", (
-        <select className="h3-in" aria-label="Meter" value={String(spec.meter ?? 4)} onChange={(e) => edit({ meter: Number(e.target.value) === 4 ? undefined : Number(e.target.value) })}>
-          {[2, 3, 4, 6].map((m) => <option key={m} value={String(m)}>{m}/4</option>)}
-        </select>
-      ))}
-      {field("Key", <Draft label="Key" value={spec.key ?? ""} placeholder="D minor" onCommit={(key) => edit({ key })} />)}
+      {field("Meter", <MeterPicker spec={spec} target={target} edit={edit} />, "Beats to the bar and the note a beat is; the tempo counts the beats")}
+      {field("Key", <KeyPicker spec={spec} edit={edit} />)}
       {field("Style", <Draft label="Style" multiline value={spec.style ?? ""} placeholder="romantic, solo horn for Edmund (after the series' score direction)" onCommit={(style) => edit({ style })} />)}
       {field("Tail", <Draft label="Tail seconds" value={String(spec.tail ?? 2)} onCommit={(t) => edit({ tail: num(t) === 2 ? undefined : num(t) })} />, "seconds after its out point, to ring out")}
       {field("Takes", <Draft label="Takes per render" value={spec.takes != null ? String(spec.takes) : ""} placeholder={String(TAKES_DEFAULT)} onCommit={(t) => edit({ takes: num(t) })} />, "how many takes a render makes (the model's preset's when empty)")}

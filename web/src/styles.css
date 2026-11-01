@@ -796,6 +796,12 @@
 .h3-cue-lvtext { font-size: 9px; fill: var(--h3-muted); pointer-events: none; }
 .h3-cue-sect.h3-ro { cursor: default; }
 .h3-cue-read { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid var(--h3-border); }
+/* a tab's "how to use this tab" (the ? in the window's head) */
+.h3-cue-help {
+  display: flex; align-items: flex-start; gap: 8px; padding: 4px 8px; flex: 0 0 auto; font-size: 11px;
+  border-bottom: 1px solid var(--h3-border); background: color-mix(in srgb, var(--h3-accent) 8%, var(--h3-bg));
+}
+.h3-cue-help ol { flex: 1 1 auto; margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .h3-cue-flag { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; color: var(--h3-stale); }
 /* the orchestration grid: a cell's level in one colour, stronger as it's louder; a cell the
    model won't hear as painted (a change inside a section) hatched */

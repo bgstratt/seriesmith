@@ -2559,8 +2559,8 @@ export interface CueSpec {
   style?: string;
   bpm?: number;
   fixed_tempo?: boolean;
-  /** beats to the bar (absent: 4) */
-  meter?: number;
+  /** beats/unit: "3/4", "6/8", "7/8", "12/8" (absent: 4/4; a bare number, the older form, is N/4) */
+  meter?: string | number;
   key?: string;
   /** seconds after its out point (absent: 2) */
   tail?: number;

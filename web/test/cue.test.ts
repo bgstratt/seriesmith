@@ -6,14 +6,15 @@
 // snapped to hits and sections cut from the arc; the orchestration grid painted
 // into the spec's lists; a take's bars selected and lowered; then the window on
 // the mock's cue (its hits, sections, arc and ranked takes), an edit, a pick, a
-// new cue, and the Arc and Orchestration & takes tabs.
+// new cue, and the Arc and Orchestration & takes tabs; the meter (beats/unit) and
+// key pickers, and each tab's help strip.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ORCH_FAMILIES, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
-  editableSections, gridOf, heldCells, hitChip, impliedPoints, levelY, levelsAsEnergy, mergeStroke, moveEdge, movePoint, newCueId, newCueSpan,
-  orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
+  KEYS, ORCH_FAMILIES, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
+  editableSections, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
+  orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
 } from "../src/lib/cue";
 import { lowerStretch } from "../src/lib/mix";
@@ -33,6 +34,59 @@ function clip(shot: string, start: number, dur: number, trimIn = 0): PlayItem {
 const ITEMS: PlayItem[] = [clip("sh010", 0, 4), clip("sh020", 4, 4, 12), clip("sh030", 8, 4)].map((x, i) => ({ ...x, index: i }));
 // 120 bpm in 4/4: a bar is 2 s, a beat 0.5 s; the first bar starts 0.5 s before the in point
 const PLAN = { bar: 2, bars: 6, preroll: 0.5 };
+
+describe("a cue's meter and key", () => {
+  it("reads a meter as the server does: beats/unit text, or a bare number of beats in 4", () => {
+    expect(parseMeter("7/8")).toEqual({ beats: 7, unit: 8 });
+    expect(parseMeter(" 12 / 8 ")).toEqual({ beats: 12, unit: 8 });
+    expect(parseMeter(3)).toEqual({ beats: 3, unit: 4 });
+    expect(parseMeter(undefined)).toEqual({ beats: 4, unit: 4 });
+    for (const bad of ["7", "7/6", "17/8", "0/4", "x/4", "", 3.5, 0]) expect(parseMeter(bad)).toBeNull();
+    expect(meterText(6)).toBe("6/4");
+    expect(meterText("6 /8")).toBe("6/8");
+    expect(meterText("6/5")).toBeNull();
+  });
+
+  it("the grid's beats to the bar are the meter's top number", () => {
+    const g7 = gridOf(PLAN, { meter: "7/8" });
+    expect(g7).toMatchObject({ meter: 7, bar: 2 });
+    expect(g7.beat).toBeCloseTo(2 / 7);
+    // the second bar's first beat is 2 s from the first bar line; the beat before it is 1.7
+    expect(barBeat(g7, 1.5).label).toBe("2.1");
+    expect(barBeat(g7, 1.5 - 2 / 7).label).toBe("1.7");
+    const g12 = gridOf(PLAN, { meter: "12/8" });
+    expect(g12.meter).toBe(12);
+    expect(barBeat(g12, 1.5 + 11 * (2 / 12)).label).toBe("2.12");
+    expect(snapBeat(g12, 100)).toBeCloseTo(11.5);
+    // a stored number, the older form, is beats in 4; a meter that doesn't read is 4
+    expect(gridOf(PLAN, { meter: 3 }).meter).toBe(3);
+    expect(gridOf(PLAN, { meter: "nonsense" }).meter).toBe(4);
+  });
+
+  it("ACE-Step's time signature gets the nearest of 2, 3, 4 or 6 beats", () => {
+    expect([1, 2, 5, 7, 9, 12].map(aceBeats)).toEqual([2, 2, 4, 6, 6, 6]);
+  });
+
+  it("the key picker offers the 24 keys as ACE-Step spells them; another key is Other", () => {
+    expect(KEYS).toHaveLength(24);
+    expect(KEYS).toContain("C# major");
+    expect(KEYS).toContain("Eb minor");
+    expect(keyChoice(undefined)).toBe("");
+    expect(keyChoice("D minor")).toBe("D minor");
+    expect(keyChoice("c#  MAJOR")).toBe("C# major");
+    expect(keyChoice("D dorian")).toBeNull();
+    expect(keyChoice("Db major")).toBeNull();
+  });
+
+  it("the mock stores a meter as the server does", async () => {
+    const { checkCue } = await import("../src/mock/mockCue");
+    const base = { id: "m01", in: { shot: "sh010", frame: 0 }, out: { shot: "sh030", frame: 0 } };
+    expect(checkCue({ ...base, meter: 7 }).meter).toBe("7/4");
+    expect(checkCue({ ...base, meter: "12/8" }).meter).toBe("12/8");
+    expect(checkCue({ ...base, meter: "4/4" }).meter).toBeUndefined();
+    expect(() => checkCue({ ...base, meter: "7/6" })).toThrow(/meter/);
+  });
+});
 
 describe("a cue's kind", () => {
   it("names it score or song where it's listed", async () => {
@@ -324,7 +378,8 @@ describe("a take's bars", () => {
 
 import { refreshEpisode } from "../src/actions";
 import { Viewer } from "../src/components/Viewer";
-import { cueKey, cueSettled, loadCue, newCue, openCue, pickCueTake } from "../src/cueActions";
+import { HELP_KEY } from "../src/components/CueWindow";
+import { cueKey, cueSettled, loadCue, newCue, openCue, pickCueTake, saveCue } from "../src/cueActions";
 import { resetCutHistory } from "../src/cutActions";
 import { setApi, setHost, type Host } from "../src/host";
 import { createMockApi } from "../src/mock/mockApi";
@@ -563,5 +618,139 @@ describe("the cue window", () => {
     const spec = (await api.getCue(EP, "proxy", "m02")).spec;
     expect(spec.in).toEqual({ shot: shots[4].shot, frame: 10 });
     expect(spec.out.shot).toBe(shots[4].shot);
+  });
+
+  // the inspector's pickers and the help strips
+  const side = () => q(".h3-cue-side")[0];
+  const choose = async (sel: HTMLSelectElement, value: string) => {
+    await act(async () => {
+      sel.value = value;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await settle();
+  };
+  const typeIn = async (input: HTMLInputElement, value: string) => {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await settle();
+  };
+  const field = <T extends HTMLElement>(label: string) => side().querySelector<T>(`[aria-label='${label}']`);
+
+  it("the meter: a choice of eight, or Other (beats/unit, checked), the grid's beats its top number, ACE-Step told the nearest", async () => {
+    await open();
+    const meter = field<HTMLSelectElement>("Meter")!;
+    expect(meter.value).toBe("4/4");
+    expect([...meter.options].map((o) => o.value)).toEqual(["2/4", "3/4", "4/4", "5/4", "6/8", "7/8", "9/8", "12/8", "other"]);
+    await choose(meter, "7/8");
+    expect(res().spec.meter).toBe("7/8");
+    expect((await api.getCue(EP, "proxy", "m01")).spec.meter).toBe("7/8");
+    expect(q(".h3-cue-ruler .h3-cue-lab")[0].textContent).toBe("7/8");
+    // Other: its own text, refused here when it isn't a meter
+    await choose(field<HTMLSelectElement>("Meter")!, "other");
+    const own = field<HTMLInputElement>("Meter (beats/unit)")!;
+    expect(own.value).toBe("7/8");
+    await typeIn(own, "11");
+    expect(side().querySelector(".h3-err")!.textContent).toMatch(/beats\/unit/);
+    expect(res().spec.meter).toBe("7/8");
+    await typeIn(field<HTMLInputElement>("Meter (beats/unit)")!, "11/8");
+    expect(res().spec.meter).toBe("11/8");
+    expect(side().querySelector(".h3-err")).toBeNull();
+    expect(field<HTMLSelectElement>("Meter")!.value).toBe("other");
+    // ACE-Step's time signature takes 2, 3, 4 or 6 beats
+    expect(side().textContent).not.toContain("ACE-Step's time signature");
+    await choose(field<HTMLSelectElement>("Music model")!, "ace_step15");
+    expect(side().textContent).toContain("ACE-Step's time signature takes 2, 3, 4 or 6 beats: it gets 6 and '11/8' in its tags");
+    // 4/4 is the default: dropped
+    await choose(field<HTMLSelectElement>("Meter")!, "4/4");
+    expect(res().spec.meter).toBeUndefined();
+    expect(side().textContent).not.toContain("ACE-Step's time signature");
+  });
+
+  it("the key: none, one of the 24, or Other (a mode) kept as its text", async () => {
+    await open();
+    const key = field<HTMLSelectElement>("Key")!;
+    expect(key.value).toBe("");
+    expect(field("Key (other)")).toBeNull();
+    await choose(key, "other");
+    expect(side().textContent).toContain("Only Stable Audio reads a key that isn't major or minor");
+    await typeIn(field<HTMLInputElement>("Key (other)")!, "D dorian");
+    expect(res().spec.key).toBe("D dorian");
+    expect(field<HTMLSelectElement>("Key")!.value).toBe("other");
+    await choose(field<HTMLSelectElement>("Key")!, "Eb minor");
+    expect(res().spec.key).toBe("Eb minor");
+    expect(field("Key (other)")).toBeNull();
+    // a key of its own already in the spec shows as Other, with its text
+    await act(async () => {
+      await saveCue({ ...res().spec, key: "A phrygian" });
+    });
+    await settle();
+    expect(field<HTMLSelectElement>("Key")!.value).toBe("other");
+    expect(field<HTMLInputElement>("Key (other)")!.value).toBe("A phrygian");
+    await choose(field<HTMLSelectElement>("Key")!, "");
+    expect(res().spec.key).toBeUndefined();
+  });
+
+  it("each tab's help: the ? toggles it, remembered per tab; a cue with no takes links the guide", async () => {
+    localStorage.clear();
+    await open();
+    const help = () => q(".h3-cue-win button[aria-label='How to use this tab']")[0];
+    expect(q(".h3-cue-help")).toHaveLength(0);
+    await act(async () => help().click());
+    expect(q(".h3-cue-help li")).toHaveLength(4);
+    expect(q(".h3-cue-help a")[0].getAttribute("href")).toBe("https://docs.seriesmith.com/scoring#3-shape-it-the-score-tab");
+    expect(localStorage.getItem(`${HELP_KEY}.score`)).toBe("1");
+    // the Arc tab's is its own, closed
+    await tab("Arc");
+    expect(q(".h3-cue-help")).toHaveLength(0);
+    await act(async () => help().click());
+    expect(q(".h3-cue-help li")[0].textContent).toMatch(/^Draw/);
+    await tab("Score");
+    expect(q(".h3-cue-help li")[0].textContent).toMatch(/^Mark the hits/);
+    await act(async () => q(".h3-cue-help button[aria-label='Hide the help']")[0].click());
+    expect(q(".h3-cue-help")).toHaveLength(0);
+    expect(localStorage.getItem(`${HELP_KEY}.score`)).toBe("0");
+    // opened again: as it was left
+    act(() => root.unmount());
+    root = createRoot(el);
+    await open();
+    expect(q(".h3-cue-help")).toHaveLength(0);
+    await tab("Arc");
+    expect(q(".h3-cue-help")).toHaveLength(1);
+    // a browser that keeps nothing: closed, and the ? still works
+    act(() => root.unmount());
+    root = createRoot(el);
+    const spy = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const spySet = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    try {
+      await open();
+      await tab("Arc");
+      expect(q(".h3-cue-help")).toHaveLength(0);
+      await act(async () => help().click());
+      expect(q(".h3-cue-help")).toHaveLength(1);
+    } finally {
+      spy.mockRestore();
+      spySet.mockRestore();
+    }
+    // no takes yet: the guide
+    let id: string | null = null;
+    await act(async () => {
+      id = await newCue({ shot: store.get().status[statusKey(EP, "proxy")]!.shots[4].shot, frame: 10 });
+    });
+    await act(async () => {
+      await loadCue(EP, "proxy", id!);
+    });
+    await tab("Score");
+    const link = q(".h3-cue-win a").find((a) => a.textContent === "Read Scoring an episode")!;
+    expect(link.getAttribute("href")).toBe("https://docs.seriesmith.com/scoring");
+    localStorage.clear();
   });
 });

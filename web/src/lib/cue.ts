@@ -27,9 +27,61 @@ export interface Grid {
 }
 
 export function gridOf(plan: Pick<CuePlan, "bar" | "bars" | "preroll">, spec: Pick<CueSpec, "meter">): Grid {
-  const meter = spec.meter || 4;
+  const meter = meterBeats(spec.meter);
   const bar = plan.bar > 0 ? plan.bar : 2.4;
   return { bar, beat: bar / meter, meter, bars: Math.max(1, plan.bars), preroll: plan.preroll, seconds: Math.max(1, plan.bars) * bar };
+}
+
+// ---------------------------------------------------------------------------
+// meter and key (cue.py's parse_meter; ace_step15/prompt.py's keyscale)
+// ---------------------------------------------------------------------------
+
+/** The meters the inspector offers; another is "Other…" (beats/unit text). */
+export const METERS = ["2/4", "3/4", "4/4", "5/4", "6/8", "7/8", "9/8", "12/8"];
+
+/**
+ * A meter's beats to the bar and the note a beat is, as cue.py's parse_meter reads it:
+ * "7/8", "12/8", or a bare number of beats in 4 (the stored form before meters were
+ * text); absent is 4/4. Null for one that isn't 1 to 16 beats of a 2, 4, 8 or 16.
+ */
+export function parseMeter(m: string | number | null | undefined): { beats: number; unit: number } | null {
+  let beats: number;
+  let unit: number;
+  if (m == null) return { beats: 4, unit: 4 };
+  if (typeof m === "number") {
+    if (!Number.isInteger(m)) return null;
+    [beats, unit] = [m, 4];
+  } else {
+    const x = /^\s*(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.exec(m);
+    if (!x) return null;
+    [beats, unit] = [Number(x[1]), Number(x[2])];
+  }
+  return beats >= 1 && beats <= 16 && [2, 4, 8, 16].includes(unit) ? { beats, unit } : null;
+}
+
+/** A meter as the spec stores it ("7/8"), or null when it isn't one. */
+export function meterText(m: string | number | null | undefined): string | null {
+  const p = parseMeter(m);
+  return p ? `${p.beats}/${p.unit}` : null;
+}
+
+/** The beats to a bar (the grid's), 4 for a meter that doesn't read. */
+export const meterBeats = (m: string | number | null | undefined) => parseMeter(m)?.beats ?? 4;
+
+/** ACE-Step's time signature: 2, 3, 4 or 6 beats, the nearest (the lower on a tie), as its prompt writer picks. */
+export const aceBeats = (beats: number) => [2, 3, 4, 6].reduce((a, b) => (Math.abs(b - beats) < Math.abs(a - beats) ? b : a));
+
+/** The keys the inspector offers, spelled as ACE-Step's keyscale combo spells them. */
+export const KEY_NOTES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+export const KEYS = [...KEY_NOTES.map((n) => `${n} major`), ...KEY_NOTES.map((n) => `${n} minor`)];
+
+/** A spec's key as the picker shows it: "" (the model's choice), one of KEYS, or null (Other: its own text). */
+export function keyChoice(key: string | undefined): string | null {
+  const parts = (key ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length !== 2) return null;
+  const k = `${parts[0][0].toUpperCase()}${parts[0].slice(1)} ${parts[1].toLowerCase()}`;
+  return KEYS.includes(k) ? k : null;
 }
 
 /** x of cue time `tau`, `pps` pixels a second, 0 at the first bar line. */

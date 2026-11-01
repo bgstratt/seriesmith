@@ -5,6 +5,7 @@
 // bar), and made-up measurements for a take, enough for the dev page and the
 // tests to draw the cue window and round-trip its edits.
 
+import { meterBeats, meterText } from "../lib/cue";
 import { anchorTime } from "../lib/mix";
 import type { PlayItem } from "../lib/playlist";
 import type { CueHit, CueMeasured, CuePlan, CueSection, CueSpec, Mix, Target } from "../types";
@@ -60,9 +61,9 @@ export function checkCue(raw: CueSpec): CueSpec {
     out.bpm = Math.round(raw.bpm * 1000) / 1000;
   }
   if (raw.fixed_tempo) out.fixed_tempo = true;
-  const m = raw.meter ?? 4;
-  if (![2, 3, 4, 6].includes(m)) throw new CueError(`cue ${raw.id}'s meter is 2, 3, 4 or 6 beats to the bar, not ${m}`);
-  if (m !== 4) out.meter = m;
+  const m = meterText(raw.meter);
+  if (!m) throw new CueError(`cue ${raw.id}'s meter is 1 to 16 beats of a 2, 4, 8 or 16 (4/4, 6/8, 7/8), not ${JSON.stringify(raw.meter)}`);
+  if (m !== "4/4") out.meter = m;
   const tail = raw.tail ?? 2;
   if (typeof tail !== "number" || tail < 0 || tail > 30) throw new CueError(`cue ${raw.id}'s tail is 0 to 30 seconds, not ${tail}`);
   if (tail !== 2) out.tail = tail;
@@ -193,7 +194,7 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
     hits.push({ id: h.id, name: h.name || h.id, kind: h.kind ?? "accent", must: h.must !== false, t: Math.round((t - a) * 10000) / 10000 });
   }
   hits.sort((x, y) => x.t - y.t);
-  const meter = spec.meter ?? 4;
+  const meter = meterBeats(spec.meter);
   const asked = spec.bpm ?? 100;
   // the tempo within 8 % whose bars put the must-hits nearest a line, from a pre-roll that lands the first
   const musts = hits.filter((h) => h.must);
@@ -250,7 +251,7 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
   const ask = Math.round(bpm);
   const stretch = Math.round((bpm / ask) * 100000) / 100000;
   const shotNotes = items.filter((it) => it.start < b && it.start + it.dur > a && notes[it.shot]).map((it) => ({ shot: it.shot, music: notes[it.shot] }));
-  const head = `${spec.style || "cinematic orchestral film score"}, ${ask} BPM, ${meter}/4${spec.key ? `, ${spec.key}` : ""}.`;
+  const head = `${spec.style || "cinematic orchestral film score"}, ${ask} BPM, ${meterText(spec.meter)} time${spec.key ? `, ${spec.key}` : ""}.`;
   const mood = shotNotes.length ? ` Mood: ${shotNotes.map((n) => n.music).join("; ")}.` : "";
   const story = sections.map((s, i) => `${i === 0 ? "Opens with" : i === sections.length - 1 ? "ending with" : "then"} ${s.words || s.name}, ${LEVEL_WORDS[Math.round(s.from)]}${s.to !== s.from ? ` to ${LEVEL_WORDS[Math.round(s.to)]}` : ""}`).join(", ") + ".";
   const values: Record<string, unknown> = { seconds: Math.round(seconds * stretch * 1000) / 1000 };
