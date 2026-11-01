@@ -24,7 +24,7 @@ import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
   cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
   meterText, moveEdge,
-  movePoint, orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords,
+  movePoint, orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
   sectionsFromArc, smoothPoints, snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
 } from "../lib/cue";
@@ -92,7 +92,7 @@ const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
   orch: {
     anchor: "4-optional-the-arc-and-orchestration-&-takes-tabs",
     steps: [
-      "Pick a brush (off, under, present, lead) and paint who plays in each bar: click a cell, or drag across bars and rows; Family adds a row.",
+      "Paint who plays in each bar. Step (the default) moves a clicked cell up a level, Shift-click down, and a drag gives every cell the first one's new level; or pick a level and paint it. Keys 1-5 pick the brush; Family adds a row.",
       "It becomes each section's words, loudest first (\"solo horn present, strings under\"); a change inside a section is hatched: the strongest level wins.",
       "On a take, drag across bars to select them: comp them from another take, or lower them in the mix with breakpoints (the take in the mix).",
     ],
@@ -164,6 +164,7 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
   const winRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<number | null>(null);
   const [tab, setTab] = useState<CueTab>("score");
+  const [brush, setBrush] = useState(ORCH_STEP);
   const [help, setHelp] = useState<Record<CueTab, boolean>>(() => ({ score: helpOpen("score"), arc: helpOpen("arc"), orch: helpOpen("orch") }));
   const showHelp = (on: boolean) => {
     keepHelp(tab, on);
@@ -174,12 +175,19 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
     if (id) void loadCue(ep, pass, id);
   }, [ep, pass, id]);
 
-  // Esc: the section selected, else the window
+  // Esc: the section selected, else the window; 1-5 on Orchestration: the brush (off, under, present, lead, step)
   useEffect(() => {
     const el = winRef.current;
     if (!el) return;
     const h = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || isTyping(e.target)) return;
+      if (isTyping(e.target)) return;
+      const k = Number(e.key);
+      if (tab === "orch" && k >= 1 && k <= ORCH_STEP + 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setBrush(k - 1);
+        return;
+      }
+      if (e.key !== "Escape") return;
       e.preventDefault();
       e.stopPropagation();
       if (sel != null) setSel(null);
@@ -187,7 +195,7 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
     };
     el.addEventListener("keydown", h);
     return () => el.removeEventListener("keydown", h);
-  }, [sel]);
+  }, [sel, tab]);
 
   const tabBtn = (name: string, t: CueTab, title: string) => (
     <button className={tab === t ? "h3-on" : ""} title={title} onClick={() => setTab(t)}>{name}</button>
@@ -215,7 +223,8 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
       {!res ? (
         <div className="h3-empty-state">{err ? <span className="h3-err">{id}: {err}</span> : <><i className="pi pi-spin pi-spinner" /> {id}…</>}</div>
       ) : (
-        <CueBody ep={ep} v={v} res={res} sel={sel} setSel={setSel} tab={tab} help={help[tab] ? <HelpStrip tab={tab} onClose={() => showHelp(false)} /> : null} />
+        <CueBody ep={ep} v={v} res={res} sel={sel} setSel={setSel} tab={tab} brush={brush} setBrush={setBrush}
+          help={help[tab] ? <HelpStrip tab={tab} onClose={() => showHelp(false)} /> : null} />
       )}
     </FloatingWindow>
   );
@@ -234,8 +243,9 @@ interface ArcState {
   commit: (next: ArcPt[]) => void;
 }
 
-function CueBody({ ep, v, res, sel, setSel, tab, help }: {
-  ep: string; v: ViewerState; res: CueResult; sel: number | null; setSel: (i: number | null) => void; tab: CueTab; help: ReactNode;
+function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
+  ep: string; v: ViewerState; res: CueResult; sel: number | null; setSel: (i: number | null) => void; tab: CueTab;
+  brush: number; setBrush: (b: number) => void; help: ReactNode;
 }) {
   const { spec, plan } = res;
   const items = useApp((s) => currentPlaylist(s));
@@ -246,7 +256,6 @@ function CueBody({ ep, v, res, sel, setSel, tab, help }: {
   const [zoom, setZoom] = useState<number | null>(null);
   const [count, setCount] = useState<number>(spec.takes ?? TAKES_DEFAULT);
   const [mode, setMode] = useState<ArcMode>("draw");
-  const [brush, setBrush] = useState(2);
   const rowsKey = `${ep}|${spec.id}`;
   const [kept, setKept] = useState<string[] | undefined>(() => keptRows.get(rowsKey));
   useEffect(() => setKept(keptRows.get(rowsKey)), [rowsKey]);
@@ -321,10 +330,17 @@ function CueBody({ ep, v, res, sel, setSel, tab, help }: {
         {tab === "orch" && (
           <div className="h3-cue-bar h3-cue-tools">
             <span className="h3-small h3-muted">Brush</span>
-            <span className="h3-seg" title="Paint cells with this level: click one, or drag across bars and rows">
+            <span className="h3-seg">
               {ORCH_LEVELS.map((name, k) => (
-                <button key={k} className={brush === k ? "h3-on" : ""} onClick={() => setBrush(k)}><i className={`h3-cue-swatch h3-lv-${k}`} /> {name}</button>
+                <button key={k} className={brush === k ? "h3-on" : ""} onClick={() => setBrush(k)}
+                  title={`Paint ${name}: click a cell, or drag across bars and rows (key ${k + 1})`}>
+                  <i className={`h3-cue-swatch h3-lv-${k}`} /> {name}
+                </button>
               ))}
+              <button className={brush === ORCH_STEP ? "h3-on" : ""} onClick={() => setBrush(ORCH_STEP)}
+                title={`Step: a click moves a cell up a level (off, under, present, lead, off), Shift-click down; a drag gives every cell the first one's new level (key ${ORCH_STEP + 1})`}>
+                <i className="pi pi-sort-alt" /> step
+              </button>
             </span>
             <button className="h3-btn" title="Add a row for another family (rename it in its label)" onClick={() => {
               let n = rows.length + 1;
@@ -737,7 +753,7 @@ function OrchestraRows({ g, pps, W, spec, plan, rows, setRows, brush }: {
   g: Grid; pps: number; W: number; spec: CueSpec; plan: CuePlan; rows: string[]; setRows: (r: string[]) => void; brush: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [paint, setPaint] = useState<{ r0: number; r1: number; b0: number; b1: number } | null>(null);
+  const [paint, setPaint] = useState<{ r0: number; r1: number; b0: number; b1: number; level: number } | null>(null);
   const orch: Orchestra = spec.orchestra ?? {};
   const held = heldCells(orch, plan.sections);
   const save = (next: Orchestra) => void saveCue(withSpec(spec, { orchestra: Object.keys(next).length ? next : undefined }));
@@ -756,7 +772,8 @@ function OrchestraRows({ g, pps, W, spec, plan, rows, setRows, brush }: {
     const c = cell(e);
     if (c.x < 0) return;
     e.preventDefault();
-    let p = { r0: c.row, r1: c.row, b0: c.bar, b1: c.bar };
+    // the level the stroke paints: the brush's, or the first cell's stepped (Shift: down)
+    let p = { r0: c.row, r1: c.row, b0: c.bar, b1: c.bar, level: strokeLevel(orch, rows[c.row], c.bar, brush, e.shiftKey) };
     setPaint(p);
     trackPointer((ev) => {
       const d = cell(ev);
@@ -766,7 +783,7 @@ function OrchestraRows({ g, pps, W, spec, plan, rows, setRows, brush }: {
       setPaint(null);
       if (cancelled) return;
       const fams = rows.slice(Math.min(p.r0, p.r1), Math.max(p.r0, p.r1) + 1);
-      const next = paintOrchestra(orch, fams, p.b0, p.b1, brush);
+      const next = paintOrchestra(orch, fams, p.b0, p.b1, p.level);
       if (JSON.stringify(next) !== JSON.stringify(trimOrchestra(orch))) save(next);
     });
   };
@@ -799,7 +816,7 @@ function OrchestraRows({ g, pps, W, spec, plan, rows, setRows, brush }: {
           )}
           title={`${fam}: paint who plays in each bar (off, under, present, lead)`}>
           {Array.from({ length: g.bars }, (_, b) => {
-            const lv = inStroke(r, b) ? brush : orch[fam]?.[b] ?? 0;
+            const lv = paint && inStroke(r, b) ? paint.level : orch[fam]?.[b] ?? 0;
             const isHeld = !inStroke(r, b) && held.has(`${fam}|${b}`);
             if (!lv && !isHeld) return null;
             return (

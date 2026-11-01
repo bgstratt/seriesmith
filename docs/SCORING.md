@@ -106,9 +106,16 @@ section, and the script's `music:` notes for the shots it covers, which go in to
 
 **Orchestration & takes** is who plays when:
 
-- **The grid**: a row per instrument family, a column per bar. Paint cells **under**, **present**
-  or **lead** (or off). Each section is told its families, loudest first ("solo horn present,
-  strings under"). A family that changes inside a section is marked: the strongest level wins.
+- **The grid**: a row per instrument family, a column per bar, each cell **off**, **under**,
+  **present** or **lead**. The **step** brush (the one it opens on) moves a clicked cell up a
+  level (off, under, present, lead, off) and **Shift**-click down; a drag gives every cell it
+  crosses the first one's new level. The other brushes paint their level: click a cell, or drag
+  across bars and rows. Keys **1-5** pick the brush (off, under, present, lead, step). Each
+  section is told its families, loudest first ("solo horn present, strings under"). A family
+  that changes inside a section is marked: the strongest level wins.
+- **The rows** start as an orchestra's families; **+ Family** adds one, and a row's name can be
+  any sound (celesta, fiddle, 808 bass, analog synth pad, gospel choir): it goes to the model as
+  written, so name it as you'd describe it.
 - **The takes** on the same bars, for fixing part of one (step 6).
 
 ## 5. Render and choose a take

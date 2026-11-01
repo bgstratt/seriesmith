@@ -15,7 +15,7 @@ import {
   KEYS, ORCH_FAMILIES, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
   editableSections, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
-  snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
+  snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
 } from "../src/lib/cue";
 import { lowerStretch } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
@@ -320,6 +320,13 @@ describe("the orchestration grid", () => {
     // a stroke over two rows, dragged backwards
     expect(paintOrchestra({ strings: [1] }, ["brass", "harp"], 3, 1, 3)).toEqual({ strings: [1], brass: [0, 3, 3, 3], harp: [0, 3, 3, 3] });
     expect(trimOrchestra({ a: [0, 0], b: [1, 0, 0] })).toEqual({ b: [1] });
+    // a level brush paints its level; the step brush steps the first cell on (Shift: back), round
+    expect(strokeLevel({ strings: [0, 1] }, "strings", 1, 2)).toBe(2);
+    expect(strokeLevel({ strings: [0, 2] }, "strings", 1, ORCH_STEP)).toBe(3);
+    expect(strokeLevel({ strings: [0, 3] }, "strings", 1, ORCH_STEP)).toBe(0);
+    expect(strokeLevel({}, "strings", 4, ORCH_STEP)).toBe(1);
+    expect(strokeLevel({ strings: [0, 2] }, "strings", 1, ORCH_STEP, true)).toBe(1);
+    expect(strokeLevel({}, "brass", 0, ORCH_STEP, true)).toBe(3);
   });
 
   it("keeps its rows, renames a family in its place and refuses a name taken", () => {
@@ -553,8 +560,12 @@ describe("the cue window", () => {
     expect(q(".h3-cue-orow")).toHaveLength(ORCH_FAMILIES.length);
     const plan = res().plan!;
     const barPx = plan.bar * 4;
-    // strings, bars 1 to 3, with the brush's present
+    // strings, bars 1 to 3, with the present brush (key 3; the window opens on step)
     const grid = q(".h3-cue-orch")[0];
+    const brushOn = () => q(".h3-cue-tools .h3-seg .h3-on")[0].textContent!.trim();
+    expect(brushOn()).toBe("step");
+    await act(async () => grid.dispatchEvent(new KeyboardEvent("keydown", { key: "3", bubbles: true })));
+    expect(brushOn()).toBe("present");
     await act(async () => grid.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 76 + 1, clientY: 1 })));
     await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 76 + 2 * barPx + 1, clientY: 2 })));
     await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
@@ -563,6 +574,18 @@ describe("the cue window", () => {
     expect(res().plan!.sections[0].words).toContain("strings present");
     expect(res().plan!.prompt.prompt).toContain("strings present");
     expect(q(".h3-cue-cell.h3-lv-2")).toHaveLength(3);
+    // step (key 5): a click on bar 2 moves it up to lead, a Shift-click back down to present
+    await act(async () => grid.dispatchEvent(new KeyboardEvent("keydown", { key: "5", bubbles: true })));
+    expect(brushOn()).toBe("step");
+    const click = async (shiftKey: boolean) => {
+      await act(async () => grid.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, shiftKey, clientX: 76 + barPx + 1, clientY: 1 })));
+      await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+      await settle();
+    };
+    await click(false);
+    expect(res().spec.orchestra).toEqual({ strings: [2, 3, 2] });
+    await click(true);
+    expect(res().spec.orchestra).toEqual({ strings: [2, 2, 2] });
     // removing the painted row clears it from the spec
     await act(async () => q(".h3-cue-orow .h3-snd-btn")[0].click());
     await settle();

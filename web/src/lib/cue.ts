@@ -600,6 +600,20 @@ export function paintOrchestra(o: Orchestra | undefined, fams: string[], a: numb
   return trimOrchestra(out);
 }
 
+/** The brush that steps a cell instead of painting a level (the grid's default). */
+export const ORCH_STEP = ORCH_LEVELS.length;
+
+/**
+ * The level a stroke paints: a level brush's own; the step brush's, the first
+ * cell's level stepped on (off, under, present, lead, off), or back with `down`
+ * (Shift), and that level over the whole stroke.
+ */
+export function strokeLevel(o: Orchestra | undefined, fam: string, bar: number, brush: number, down = false): number {
+  if (brush !== ORCH_STEP) return brush;
+  const n = ORCH_LEVELS.length;
+  return ((o?.[fam]?.[bar] ?? 0) + (down ? n - 1 : 1)) % n;
+}
+
 /** A family's name as the server keeps it (whitespace collapsed, 40 characters). */
 export const familyName = (s: string) => s.split(/\s+/).join(" ").trim().slice(0, 40);
 
