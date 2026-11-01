@@ -391,6 +391,16 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [ ] shots that don't sing (the band, b-roll) get their window with no lips to sync
    - [ ] cutting to the song's beats: phase 5's snaps, on the recording instead of a cue
    - [ ] a guide: Making a music video
+   Tried 2026-11-01 on a 2:07 pop song (CupsMV, local, H3 Ref2VA proxy, 33 shots, 11:45 a
+   pass on the 5090): the vocal stem split by torchaudio's Hybrid Demucs
+   (`HDEMUCS_HIGH_MUSDB_PLUS`, in ComfyUI's own Python, nothing installed); the stem
+   transcribed (faster-whisper large-v3; align's own transcriber, fixed for PyAV 19) and the
+   script's lines taken from it, a singing shot at most 6 s cut at the phrase's widest gap;
+   align run on each episode with `--words` from the stem. Two episodes, the same windows and
+   seeds: ep01 dubbed with the full song (`--audio master` under the cut), ep02 with the stem
+   (the song on the Music track at 0 dB, no ducking, Dialogue muted; it lands to the sample).
+   The user's verdict: ep02's lip sync spot on. A shot with no lines renders in `generate`
+   mode, its own sound, so the song must come from the master or the mix, never the clips.
 
 ## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
 
