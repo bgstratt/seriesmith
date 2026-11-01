@@ -146,11 +146,22 @@ def read(path: str) -> str:
         return fh.read()
 
 
+def outside_repo(text: str) -> str:
+    """The skill is read away from the repo, where the docs' relative links point at
+    nothing: name each document by its path in the repo instead (`docs/FINISHING.md`,
+    `INSTALL.md`), and AUTHORING, which the skill is, as SKILL.md."""
+    def path(name: str) -> str:
+        return name if name == "INSTALL.md" else f"docs/{name}"
+    text = re.sub(r"\[[^\]]+\]\((?:\.\./)?([A-Z_]+\.md)\)", lambda m: f"`{path(m.group(1))}`", text)
+    text = re.sub(r"`([A-Z_]+\.md)`", lambda m: f"`{path(m.group(1))}`", text)
+    return re.sub(r"\bAUTHORING(?:\.md)?", "SKILL.md", text)
+
+
 def body() -> str:
     text = read(SOURCE)
     # drop the document's own title and lede; the wrappers supply their own
     parts = text.split("\n## ", 1)
-    return "## " + parts[1] if len(parts) == 2 else text
+    return outside_repo("## " + parts[1] if len(parts) == 2 else text)
 
 
 def write(path: str, content: str) -> None:
@@ -196,7 +207,7 @@ def bundle_breakdown() -> str:
     return (f"{title}\n\n"
             "A worked example for SKILL.md. The input is ordinary spec-format script pages;\n"
             "the output is the shot list. The interesting part is not the syntax, it's where\n"
-            f"the cuts land and why.\n\n{rest}")
+            f"the cuts land and why.\n\n{outside_repo(rest)}")
 
 
 def bundle_structures() -> str:
@@ -205,7 +216,7 @@ def bundle_structures() -> str:
     title, _lede, rest = read(STRUCTURES).split("\n\n", 2)
     return (f"{title}\n\n"
             "A reference for SKILL.md: the major story structures, for outlining an episode\n"
-            f"written from scratch.\n\n{rest}")
+            f"written from scratch.\n\n{outside_repo(rest)}")
 
 
 def bundle(text: str, out: str | None = None) -> str:

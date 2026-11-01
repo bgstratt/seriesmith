@@ -73,6 +73,19 @@ class TestScriptSkill(unittest.TestCase):
                                      f"prompts/{P.NAME}.zip is out of date -- run "
                                      "`python tools/make_prompts.py` and commit the result")
 
+    def test_no_links_into_the_repo(self):
+        """The skill is read away from the repo: a relative link to a doc, or AUTHORING by
+        name, points at nothing there."""
+        import re
+        text = P.body()
+        for name, got in (("SKILL.md", P.bundle_skill(text)),
+                          ("script_conversion.md", P.bundle_breakdown()),
+                          ("story_structures.md", P.bundle_structures())):
+            with self.subTest(file=name):
+                self.assertEqual(re.findall(r"\]\((?!https?:|#)[^)]*\)", got), [])
+                self.assertNotIn("AUTHORING", got)
+                self.assertEqual(re.findall(r"`[A-Z_]+\.md`", got.replace("`INSTALL.md`", "")), [])
+
 
 class TestSiteDocs(unittest.TestCase):
     """The docs site's pages are the user docs."""

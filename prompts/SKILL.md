@@ -127,7 +127,7 @@ sound: rustling raincoat, dripping water, distant birds
 ```
 
 Build it with `seriesmith check Shows\ep01` and then `seriesmith build
-Shows\ep01`; [INSTALL.md](../INSTALL.md) has the rest of the commands, and
+Shows\ep01`; `INSTALL.md` has the rest of the commands, and
 `docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
 shots if you are starting from one (the script-writing skill bundles it as
 `references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
@@ -299,7 +299,7 @@ any other.
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
   each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
-  and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the default: the model
+  and shots dub to it; see `docs/RECORDED_DIALOGUE.md`) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
   `audio.default_policy` forces one policy for every dialogue shot, and `audio.retention`
@@ -351,7 +351,7 @@ grid. The four setups, and the master each delivers:
   the proxy is the model's own (512×288 on H3), so write one.
 - Changing the size later changes only the takes rendered after it; never change an
   existing series' size unasked.
-- Why each setup, its timings, and the upscale methods are in [FINISHING.md](FINISHING.md).
+- Why each setup, its timings, and the upscale methods are in `docs/FINISHING.md`.
 
 ```json
 "series": { "id": "porchlight", "title": "Porchlight", "fps": 24, "width": 960, "height": 544 },
@@ -489,7 +489,7 @@ Most specific first:
 
 So leave `target:` out of a script and `series.target` out of a config unless the choice is
 the film's: the episode then follows whatever the person renders on. Which models are
-installed, and what each still needs, is `seriesmith targets` ([FULL_SETUP.md](FULL_SETUP.md)).
+installed, and what each still needs, is `seriesmith targets` (`docs/FULL_SETUP.md`).
 
 ### Reference images and voices: the `refs` block
 
@@ -502,7 +502,7 @@ voices), or name others:
 "refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "voice_target": "ltx2_voice"}
 ```
 
-The picture models, and what each needs installed, are in [FULL_SETUP.md](FULL_SETUP.md)
+The picture models, and what each needs installed, are in `docs/FULL_SETUP.md`
 (**Pictures**). Two things matter when writing:
 
 - A **variant**'s pictures (a subject with `of:`) are edits of its original's, on a model
