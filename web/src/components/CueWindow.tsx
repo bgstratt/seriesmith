@@ -329,19 +329,16 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
         {tab === "arc" && <ArcTools g={g} plan={plan} spec={spec} arc={arc} mode={mode} setMode={setMode} />}
         {tab === "orch" && (
           <div className="h3-cue-bar h3-cue-tools">
-            <span className="h3-small h3-muted">Brush</span>
-            <span className="h3-seg">
-              {ORCH_LEVELS.map((name, k) => (
-                <button key={k} className={brush === k ? "h3-on" : ""} onClick={() => setBrush(k)}
-                  title={`Paint ${name}: click a cell, or drag across bars and rows (key ${k + 1})`}>
-                  <i className={`h3-cue-swatch h3-lv-${k}`} /> {name}
-                </button>
-              ))}
-              <button className={brush === ORCH_STEP ? "h3-on" : ""} onClick={() => setBrush(ORCH_STEP)}
-                title={`Step: a click moves a cell up a level (off, under, present, lead, off), Shift-click down; a drag gives every cell the first one's new level (key ${ORCH_STEP + 1})`}>
-                <i className="pi pi-sort-alt" /> step
-              </button>
-            </span>
+            <label className="h3-row h3-small" style={{ gap: 4 }}
+              title={brush === ORCH_STEP
+                ? "Step: a click moves a cell up a level (off, under, present, lead, off), Shift-click down; a drag gives every cell the first one's new level. Keys 1-5 pick the brush."
+                : `Paint ${ORCH_LEVELS[brush]}: click a cell, or drag across bars and rows. Keys 1-5 pick the brush.`}>
+              <span className="h3-muted">Brush</span>
+              {brush === ORCH_STEP ? <i className="pi pi-sort-alt" /> : <i className={`h3-cue-swatch h3-lv-${brush}`} />}
+              <select className="h3-in" aria-label="Brush" value={String(brush)} onChange={(e) => setBrush(Number(e.target.value))} style={{ width: "auto" }}>
+                {[...ORCH_LEVELS, "step"].map((name, k) => <option key={k} value={String(k)}>{k + 1} {name}</option>)}
+              </select>
+            </label>
             <button className="h3-btn" title="Add a row for another family (rename it in its label)" onClick={() => {
               let n = rows.length + 1;
               while (rows.includes(`family ${n}`)) n++;
