@@ -719,6 +719,11 @@ any take, its sidecar's `comp` `{base, from, bars}` saying what it was made of. 
 `{"take"}`; 409 for a take that isn't finished or bars outside the cue (or past the end of
 either take).
 
+A spec's `meter` is beats/unit text ("4/4" the default, "3/4", "6/8", "7/8", "12/8": 1 to 16
+beats of a 2, 4, 8 or 16; a bare number is that many beats in 4). The tempo counts its beats, so
+a bar is beats x 60 / bpm. Stable Audio 3 hears it as written; ACE-Step's time signature input
+takes 2, 3, 4 or 6 beats, so it gets the nearest, and the meter as written in its tags.
+
 A spec's `arc` points, when it has any, are the intent: each section's `from` / `to` (and so the
 energy words the model hears) are the arc's at its first and last bar, whatever the section
 says.

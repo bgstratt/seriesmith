@@ -56,7 +56,7 @@ class SpecTest(unittest.TestCase):
 
     def test_refusals(self):
         for bad in (self.spec(model="krea2"), self.spec(model="nope"), self.spec(bpm=400),
-                    self.spec(meter=5), self.spec(sections=[{"name": "a", "from": 9}]),
+                    self.spec(meter="7/3"), self.spec(meter=17), self.spec(meter="swing"), self.spec(sections=[{"name": "a", "from": 9}]),
                     self.spec(arc=[{"at": anchor("sh010"), "level": 0}]), self.spec(takes=40),
                     self.spec(colour=1), {"id": "x y", "in": anchor("a"), "out": anchor("b")}):
             with self.subTest(bad=bad), self.assertRaises(CU.CueError):
@@ -73,6 +73,12 @@ class SpecTest(unittest.TestCase):
         self.assertEqual(CU.model_for(CU.check_spec(self.spec(kind="song")), {}), "ace_step15")
         self.assertEqual(CU.model_for(CU.check_spec(self.spec()), {"sound": {"music_model": "ace_step15"}}),
                          "ace_step15")
+
+    def test_meters(self):
+        self.assertNotIn("meter", CU.check_spec(self.spec(meter=4)))           # 4/4: the default
+        self.assertEqual(CU.check_spec(self.spec(meter=3))["meter"], "3/4")   # a bare number of beats
+        self.assertEqual(CU.check_spec(self.spec(meter=" 7 / 8 "))["meter"], "7/8")
+        self.assertEqual(CU.parse_meter("12/8"), (12, 8))
 
     def test_model_must_be_music(self):
         self.assertEqual(CU.check_spec(self.spec(model="ace_step15"))["model"], "ace_step15")
@@ -199,6 +205,14 @@ class PlanTest(unittest.TestCase):
         self.assertLess(p["sections"][0]["from"], 2)
         self.assertGreater(p["sections"][1]["to"], 4)
         self.assertNotEqual(p["prompt"]["prompt"], p0["prompt"]["prompt"])   # the words follow
+
+    def test_an_odd_meter(self):
+        p = CU.plan(self.root, "final", self.spec(meter="7/8"), {})
+        self.assertAlmostEqual(p["bar"], 7 * 60 / p["fit"]["bpm"], places=3)   # seven beats a bar
+        self.assertIn("7/8", p["prompt"]["prompt"])                            # Stable Audio hears it
+        pa = CU.plan(self.root, "final", self.spec(meter="7/8", model="ace_step15"), {})
+        self.assertEqual(pa["prompt"]["values"]["timesignature"], "6")        # ACE-Step's nearest
+        self.assertIn("7/8", pa["prompt"]["prompt"])                           # and in its tags
 
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):

@@ -9,7 +9,8 @@ A cue lives in `<ep>/sound/<cue id>/`:
                  "model": null (the kind's: model_for) | "stable_audio3",
                  "in": {"shot", "frame"}, "out": {"shot", "frame"},
                  "style": "romantic, solo horn for Edmund", "bpm": 92, "fixed_tempo": false,
-                 "meter": 4, "key": "D minor", "tail": 2.0,
+                 "meter": "4/4" (beats/unit: "7/8", "12/8"...; a bare 3 is 3/4),
+                 "key": "D minor", "tail": 2.0,
                  "sections": [{"name": "intro", "bars": 4, "words": "solo french horn",
                                "from": 1, "to": 1, "lyrics": ""}, ...],
                  "arc": [{"at": {"shot", "frame"}, "level": 1-5}, ...],
@@ -148,11 +149,12 @@ def check_spec(raw) -> dict:
         out["bpm"] = round(float(b), 3)
     if raw.get("fixed_tempo"):
         out["fixed_tempo"] = True
-    m = raw.get("meter", 4)
-    if m not in (2, 3, 4, 6):
-        raise CueError(f"cue {cid}'s meter is 2, 3, 4 or 6 beats to the bar, not {m!r}")
-    if m != 4:
-        out["meter"] = m
+    try:
+        beats, unit = parse_meter(raw.get("meter", 4))
+    except ValueError as e:
+        raise CueError(f"cue {cid}'s {e}") from None
+    if (beats, unit) != (4, 4):
+        out["meter"] = f"{beats}/{unit}"
     tail = raw.get("tail", 2.0)
     if isinstance(tail, bool) or not isinstance(tail, (int, float)) or not 0 <= tail <= 30:
         raise CueError(f"cue {cid}'s tail is 0 to 30 seconds, not {tail!r}")
@@ -216,6 +218,26 @@ def check_spec(raw) -> dict:
                 raise CueError(f"cue {cid}'s {k} is a whole number up to {hi}")
             out[k] = v
     return out
+
+
+def parse_meter(m) -> tuple[int, int]:
+    """(beats to the bar, the note a beat is) from a meter: "7/8", "6/8", "5/4", or a bare
+    number of beats in 4 (the stored form before meters were text). The tempo counts the
+    beats, so a bar is `beats` x 60 / bpm whatever the unit; the unit only tells the model the
+    feel. ValueError for one that isn't a meter (1 to 16 beats of a 2, 4, 8 or 16)."""
+    if isinstance(m, int) and not isinstance(m, bool):
+        beats, unit = m, 4
+    elif isinstance(m, str) and re.fullmatch(r"\s*\d{1,2}\s*/\s*\d{1,2}\s*", m):
+        beats, unit = (int(x) for x in m.split("/"))
+    else:
+        raise ValueError(f"meter is beats/unit, e.g. 4/4, 6/8 or 7/8, not {m!r}")
+    if not 1 <= beats <= 16 or unit not in (2, 4, 8, 16):
+        raise ValueError(f"meter is 1 to 16 beats of a 2, 4, 8 or 16, not {m!r}")
+    return beats, unit
+
+
+def meter_beats(spec: dict) -> int:
+    return parse_meter(spec.get("meter", 4))[0]
 
 
 def cue_dir(root: str, cid: str) -> str:
@@ -436,7 +458,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
         if hit["kind"] == "drop" and f >= b - 2:
             hit["ends"] = True
         hits.append(hit)
-    meter = spec.get("meter", 4)
+    meter = meter_beats(spec)
     asked = spec.get("bpm") or DEFAULT_BPM
     fitted = [h for h in hits if not h.get("ends")]
     fit = SC.fit_tempo([(h["t"], h["must"], h["kind"] == "accent") for h in fitted], asked, fps, meter,
@@ -483,7 +505,8 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     kind = spec.get("kind", "score")
     cue = {"kind": kind, "style": style or ("cinematic orchestral film score" if kind == "score" else "song"),
            "bpm": fit.ask_bpm,
-           "meter": meter, "key": spec.get("key", ""), "seconds": round(seconds * fit.stretch, 3),
+           "meter": "{}/{}".format(*parse_meter(spec.get("meter", 4))), "key": spec.get("key", ""),
+           "seconds": round(seconds * fit.stretch, 3),
            "sections": sections, "notes": [n["music"] for n in notes]}
     brief = target.cue_prompt(cue)
     return {"spec": spec, "target": target.id, "fps": fps, "start_frame": a, "end_frame": b,
@@ -658,7 +681,7 @@ def measure(raw_file: str, wav: str, p: dict) -> dict:
     stretch_file(raw_file, wav, factor)
     buf = MX.decode(wav)
     env = B.onsets(buf)
-    meter = p["spec"].get("meter", 4)
+    meter = meter_beats(p["spec"])
     first, down = B.grid(env, fit["bpm"], buf, meter)
     # the first bar line the music has: a downbeat a bar or more in is the same grid earlier
     down = down - bar_s * math.floor(down / bar_s + 1e-9) if down >= bar_s else down

@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from seriesmith.targets.music import common as C
 
+# the beats to a bar TextEncodeAceStepAudio1.5's time signature offers
+TIMESIGS = (2, 3, 4, 6)
+
 # the keys TextEncodeAceStepAudio1.5 offers (its `keyscale` combo): a note and major/minor
 NOTES = ("C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#",
          "Bb", "B")
@@ -40,9 +43,13 @@ def lyrics(cue: dict) -> str:
 
 
 def cue_prompt(target, cue: dict) -> dict:
+    meter = str(cue.get("meter") or "4/4")
+    beats = int(meter.split("/")[0])
+    # its time signature input takes 2, 3, 4 or 6 beats: another meter goes as the nearest, and
+    # in its tags as written (head), where it may still be heard
     values = {"lyrics": lyrics(cue), "bpm": int(cue.get("bpm") or 120),
               "seconds": round(float(cue["seconds"]), 3),
-              "timesignature": str(int(cue.get("meter") or 4))}
+              "timesignature": str(min(TIMESIGS, key=lambda t: (abs(t - beats), t)))}
     k = keyscale(cue.get("key") or "")
     if k:
         values["keyscale"] = k

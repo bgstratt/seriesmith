@@ -9,7 +9,7 @@ A music target's prompt.py has one function, the cue's brief:
 
     {"kind": "score" | "song",                       a song has vocals; score is instrumental
      "style": "romantic orchestral, period strings",  the series' direction and the cue's
-     "bpm": 92 (whole), "meter": 4, "key": "D minor" | "", "seconds": 52.17,
+     "bpm": 92 (whole), "meter": "4/4" | "7/8"..., "key": "D minor" | "", "seconds": 52.17,
      "sections": [{"name": "intro", "bars": 4, "words": "solo french horn",
                    "from": 1, "to": 1}, ...],       energy 1-5 at its start and end
      "notes": ["tension rises as he kneels", ...]}  the script's music: notes it plays over
@@ -55,7 +55,7 @@ def head(cue: dict, bpm_in_text: bool) -> str:
     if bpm_in_text and cue.get("bpm"):
         bits.append(f"{int(cue['bpm'])} BPM")
     if cue.get("meter"):
-        bits.append(f"{int(cue['meter'])}/4")
+        bits.append(str(cue["meter"]) if "/" in str(cue["meter"]) else f"{int(cue['meter'])}/4")
     if cue.get("key"):
         bits.append(cue["key"])
     if cue.get("kind", "score") == "score":
