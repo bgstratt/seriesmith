@@ -268,6 +268,17 @@ Foley (video -> sound):
 | **MMAudio** | **installed 2026-11-01**: kijai/ComfyUI-MMAudio; the large 44k v2 model, its synchformer, VAE and CLIP (fp16) in models/mmaudio | MIT weights; BigVGAN fetched on first use |
 | ControlFoley | official nodes | CC BY-NC: not offered |
 
+Measured 2026-11-01 (local, RTX 5090): three LAST LIGHT takes (sh040 a steel door slamming,
+sh060 boots splashing, sh140 an explosion; 2.3-3 s each), each prompted with its script
+`sound:` line, through MMAudio (large 44k v2, 25 steps, cfg 4.5), HunyuanVideo-Foley (XXL and
+XL, 50 steps, cfg 4.5), the LTX-2.3 Foley LoRA on LTX-2.3 dev (the saved workflow: distilled
+LoRA 0.4, 30 steps, audio cfg 6) and the same LoRA on LTX-2.5 dev. Every one rendered: MMAudio
+35-65 s a shot, Hunyuan 48-87 s, Hunyuan XL 68-125 s (not faster here), LTX 60-120 s (first
+loads included). The saved LTX workflow's **STG fails on ComfyUI 0.43** (ComfyUI-LTXVideo's
+stg.py: "'AttentionTensorContainer' object has no attribute 'shape'"); with `stg` 0, no
+perturbed attention and no skip blocks it runs. Which sounds best is the user's to judge by
+ear (scratch files, one mp4 per shot and model).
+
 Paid music models (MiniMax Music 3 on Comfy Cloud, Sonilo video-to-music, ByteDance Seed
 Audio) are left out for now; they fit as targets of the same kinds.
 
