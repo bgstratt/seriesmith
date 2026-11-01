@@ -271,6 +271,12 @@ Foley (video -> sound):
 Paid music models (MiniMax Music 3 on Comfy Cloud, Sonilo video-to-music, ByteDance Seed
 Audio) are left out for now; they fit as targets of the same kinds.
 
+Licences (read 2026-11-01): **MiniMax Music 3**'s community licence is free for commercial use
+under $20M yearly revenue, the outputs the user's; it lists the US, EU, UK and South Korea as
+regions with restrictions or a License Request Form by default, which is to be confirmed for a
+US user (Comfy resells commercial licences). **HunyuanVideo-Foley** is under Tencent's
+community licence, which claims no rights in the outputs. ACE-Step and MMAudio are MIT.
+
 ## Phases
 
 Each phase is tested live on local ComfyUI before the next starts.
@@ -302,6 +308,11 @@ Each phase is tested live on local ComfyUI before the next starts.
    its effects.
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
+6. **Tracks of your own.** Dialogue, effects, ambience and music become the default tracks
+   rather than the only ones: add, rename and delete tracks (a second music track for a song
+   under the score, a walla track), each with its kind (what it ducks under, which stem it
+   joins: M&E or dialogue) and its own stem and XML pair. mix.py's fixed `TRACKS` becomes the
+   mix's own list.
 
 ## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
 
@@ -327,6 +338,19 @@ tracker beside it):
   may time sections by their lines, as it does lyrics); **a cue per section**, each its own
   length and tempo, joined at bar lines; and ranking many seeds by shape error. The volume
   breakpoints remain the sure way to shape a level.
+- **It times sections by their lines** (the second probe, the same 20 bars, three seeds each):
+
+  | Asked as | Loudest bar (asked 13-16) | Climax over intro | Drop (bars 17-18) | Shape error |
+  |---|---|---|---|---|
+  | **its own tags, one `(instrumental)` line per bar**: `[Intro]` + 4 lines, `[Build]` + 8 ... | **16, 13, 14** | +6.5, +6.1, +1.8 dB | **-8.7, -16.7, -4.8 dB** | **0.37, 0.37, 0.46** |
+  | the same, the dynamics in the tag: `[Build - strings enter, crescendo]` | 7, 9, 9 | -0.4, +3.3, +17.4 | -4.2, -10.0, -6.1 | 0.47, 0.42, 0.37 |
+  | a render per section, joined at bar lines | 15, 7, 9 | +0.1, +6.2, +1.9 | **+10.8, +8.5, +8.1** | 0.57, 0.53, 0.55 |
+
+  So a section is timed by **its tag and as many lines as it has bars**; words inside the tag
+  break that. A render per section is the worst: each comes out at the same level, so a quiet
+  drop is as loud as the climax. The prompt writer writes plain tags with a line per bar, and
+  the next thing to measure is where a section's words go so they don't spoil its timing:
+  as the lines themselves (`(solo horn, quiet)` per bar), or in the cue's tags alone.
 
 ## Open questions
 

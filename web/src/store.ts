@@ -430,8 +430,6 @@ export interface AppState {
   promote: { shot: string | null } | null;
   /** Phase 9b: Play all's sound (the recording needs the episode's `track`) */
   cutAudio: CutAudio;
-  /** Phase 9b: the waveform lane under the timeline's clips is shown */
-  waves: boolean;
   /** Phase 13: the viewer and Play all show each take's fresh upscale (2x) where it has one */
   upscaled: boolean;
   /** the timeline's sound lanes (hits, dialogue, effects, ambience, music) are unfolded */
@@ -605,9 +603,9 @@ export function initialState(prefs: Prefs = {}): AppState {
     featuresOpen: false,
     featuresFocus: null,
     soundAsk: null,
-    waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
-    sound: prefs.sound ?? false,
+    // the clips' waveform lane was its own toggle before the sound lanes: one who had it on gets them
+    sound: prefs.sound ?? prefs.waves ?? false,
     mix: {},
     mixError: {},
     cutUndo: {},
@@ -682,7 +680,7 @@ export interface Prefs {
   ep?: string | null;
   pass?: Pass;
   zoom?: number;
-  /** Phase 9b: the waveform lane */
+  /** the old waveform lane's toggle, read only to open the sound lanes in its place */
   waves?: boolean;
   /** Phase 13: play upscales (the viewer's and Play all's 2x) */
   upscaled?: boolean;
@@ -718,9 +716,9 @@ export function loadPrefs(storage: KV | null = defaultStorage()): Prefs {
   }
 }
 
-export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: boolean; upscaled?: boolean; sound?: boolean }, storage: KV | null = defaultStorage()) {
+export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { upscaled?: boolean; sound?: boolean }, storage: KV | null = defaultStorage()) {
   try {
-    storage?.setItem(PREFS_KEY, JSON.stringify({ ep: s.ep, pass: s.pass, zoom: s.zoom, ...(s.waves != null ? { waves: s.waves } : {}),
+    storage?.setItem(PREFS_KEY, JSON.stringify({ ep: s.ep, pass: s.pass, zoom: s.zoom,
                                                ...(s.upscaled != null ? { upscaled: s.upscaled } : {}),
                                                ...(s.sound != null ? { sound: s.sound } : {}) }));
   } catch {
@@ -730,12 +728,12 @@ export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: 
 
 /** Save prefs whenever they change. Returns the unsubscribe. */
 export function persistPrefs(st: Store<AppState>, storage: KV | null = defaultStorage()): () => void {
-  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, waves: st.get().waves, upscaled: st.get().upscaled, sound: st.get().sound };
+  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, upscaled: st.get().upscaled, sound: st.get().sound };
   return st.subscribe(() => {
     const s = st.get();
-    if (s.ep !== last.ep || s.pass !== last.pass || s.zoom !== last.zoom || s.waves !== last.waves
+    if (s.ep !== last.ep || s.pass !== last.pass || s.zoom !== last.zoom
         || s.upscaled !== last.upscaled || s.sound !== last.sound) {
-      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, waves: s.waves, upscaled: s.upscaled, sound: s.sound };
+      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, upscaled: s.upscaled, sound: s.sound };
       savePrefs(last, storage);
     }
   });

@@ -1181,8 +1181,8 @@ The cut as an editable track, along the bottom of the page.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
-- **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
-  with a recording attached.
+- **Sound** unfolds the waveforms under the cut: each clip's own sound on the dialogue lane (the
+  recording's, with Play all on it), and the mix's lanes (below).
 - **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
   **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
   says what's running (Assembling…, Adding titles…, Writing the XML…).
@@ -1212,7 +1212,7 @@ The cut as an editable track, along the bottom of the page.
   **Play all** watches the cut straight from the takes without assembling anything.
 - **Cut** (the menu in the header): undo / redo, **Reset order**, **Clear trims**, copy the
   order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the
-  cut…**, **Check colour** and the waveforms. The header also counts the clips flagged (click:
+  cut…**, **Check colour** and the sound lanes. The header also counts the clips flagged (click:
   the next one), moved out of script order, and missing refs (click: the Refs tab).
 
 ### Takes from outside
@@ -1252,8 +1252,8 @@ next shot starts where this one ended.
 
 ### Sound: the episode's mix
 
-**Sound** in the timeline's header unfolds the lanes under the clips (remembered, like the
-waveforms): a thin **hits** lane, then **Dialogue**, **Effects**, **Ambience** and **Music**.
+**Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
+where the waveforms are): a thin **hits** lane, then **Dialogue**, **Effects**, **Ambience** and **Music**.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
 +12; double-click: 0), **M** (mute) and **S** (solo: hear only the soloed lanes). Dialogue shows
 each clip's own sound; the other lanes start empty. The mix is the pass's own (`mix.json`

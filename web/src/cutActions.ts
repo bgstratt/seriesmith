@@ -623,10 +623,6 @@ export function setCutAudio(cutAudio: CutAudio) {
   set({ cutAudio });
 }
 
-export function toggleWaves(on?: boolean) {
-  set((s) => ({ waves: on ?? !s.waves }));
-}
-
 // ---------------------------------------------------------------------------
 // keys (the timeline and the Play all window share them)
 // ---------------------------------------------------------------------------

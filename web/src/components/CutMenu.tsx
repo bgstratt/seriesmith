@@ -4,7 +4,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { postCut, upscaleCut } from "../actions";
-import { checkColour, copyCut, redoCut, resetCut, toggleWaves, undoCut } from "../cutActions";
+import { checkColour, copyCut, redoCut, resetCut, undoCut } from "../cutActions";
+import { toggleSound } from "../mixActions";
 import { clipsWithAudio } from "../lib/audioSource";
 import { statusKey, store, useApp } from "../store";
 
@@ -59,7 +60,7 @@ export function CutMenu() {
   const menu = useApp((s) => s.cutMenu);
   const pass = useApp((s) => s.pass);
   const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
-  const waves = useApp((s) => s.waves);
+  const sound = useApp((s) => s.sound);
   const st = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
 
   if (!menu) return null;
@@ -120,8 +121,8 @@ export function CutMenu() {
         <i className="pi pi-palette" /> Check colour
       </button>
       <div className="h3-menu-sep" />
-      <button onClick={run(() => toggleWaves())}>
-        <i className="pi pi-wave-pulse" /> {waves ? "Hide waveforms" : "Show waveforms"}
+      <button onClick={run(() => toggleSound())}>
+        <i className="pi pi-wave-pulse" /> {sound ? "Hide the sound lanes" : "Show the sound lanes (waveforms, the mix)"}
       </button>
     </OverlayMenu>
   );
