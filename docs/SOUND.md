@@ -251,7 +251,7 @@ Music:
 | **MiniMax Music 3** (core nodes) | **downloaded 2026-11-01**: the template's files (`minimax_music3_dit_fp16`, the pruned int8 text encoder, `minimax_music3_dav`); its licence still to read | songs and score, a second opinion to ACE-Step |
 | **YuE2** (core nodes: `YuE2GenerateMusic` style, lyrics, ABC, up to 900 s; `YuE2GenerateABC`) | installed: `yue2_3b_int8_convrot`; templates `audio_yue2_text2music`, `audio_yue2_music_cover` | songs; a melody carried from cue to cue |
 | **SheetSage2** (`SheetSage2AudioToABC`) | installed | a recording's melody as ABC, for YuE2 |
-| Stable Audio 3 Medium (core template `audio_stable_audio_3_medium`) | not downloaded; licence unchecked | short cues, stingers; strong on sound design, so also an ambience candidate |
+| **Stable Audio 3 Medium** (core template `audio_stable_audio_3_medium`) | **downloaded 2026-11-01**: `stable_audio_3_medium`, `t5gemma_b_b_ul2` (and `qwen3.5_2b_bf16` for the template's optional reprompt) | **the score default candidate** (measured below: follows an arc told as a story); also stingers and an ambience candidate |
 | HeartMuLa, DiffRhythm 2, SongBloom | no ComfyUI core nodes | not now |
 
 Ambience: Stable Audio 3 Medium; LTX-2.5 audio-only (the `ltx2_voice` graph prompted for a
@@ -359,6 +359,32 @@ tracker beside it):
   Over every seed so far, plain tags landed the climax 4 times in 14, words per line 5 in 11.
   The words make the climax louder (a median +10 dB over the intro, against +5), so the prompt
   writer writes them on every line, but the arc is not the prompt's to keep.
+
+## Measured: Stable Audio 3 Medium (2026-11-01, local)
+
+The same 20-bar arc, eight seeds each (`stable_audio_3_medium` with T5Gemma, 8 steps, lcm, cfg
+1, as ComfyUI's template, without its Qwen reprompt). It takes text and a length only: no
+bpm, sections or lyrics inputs, so the arc is written in prose.
+
+| Asked as | Climax in bars 13-16 | Drop of 4 dB or more | Climax over intro (median) | Shape error median (best) |
+|---|---|---|---|---|
+| **the arc as a story**: "opens with a quiet solo horn, then strings and timpani build in a long crescendo to a fortissimo climax, then a sudden drop to a very quiet solo piano, ending with soft strings" | **6 / 8** | 3 / 8 | **+17.9 dB** | **0.36 (0.23)** |
+| the arc with timestamps: "0:00-0:10 intro: ...; 0:10-0:31 build: ..." | 2 / 8 | 5 / 8 | +9.7 dB | 0.42 (0.22) |
+| *ACE-Step XL Turbo, its best (words per line)* | *3 / 8* | *2 / 8* | *+10.1 dB* | *0.43 (0.31)* |
+
+- **It follows an arc told as a story far better than ACE-Step follows sections**: the climax
+  in place six times in eight, the climax 18 dB over the intro, the shape error a median of 0.36
+  and a best of 0.23. The drop is still unsure (three in eight), which gain breakpoints fix.
+- **It holds a tempo written in the text** when the music has a pulse: "72 BPM" played 72.16 and
+  72.02, "120 BPM" 120.49 and 119.97; "92 BPM" 99.0 and 87.9 (7 % and 4 % off). So the tempo
+  is measured on every take and fitted by stretch, as for ACE-Step.
+- **Fast**: about 2 s a 52 s cue on this machine once loaded (6 s the first).
+- Instrumental only (no vocals), up to about 6:20. The Stability AI Community License (free
+  under a revenue threshold, to read); its T5Gemma encoder brings Gemma's terms.
+
+So for score (underscore, a cue with an arc), **Stable Audio 3 Medium is the default
+candidate** and the arc is written as a story; ACE-Step stays for songs (YuE2 too) and for a cue
+that must sit on a bpm, where its integer `bpm` input is the surer tempo.
 
 **What follows for phase 2.** The arc is kept by three things, in this order, not by the words:
 
