@@ -28,7 +28,8 @@ export const MUSIC_TARGETS: Target[] = [
   },
 ];
 
-const FIELDS = ["id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "tail", "sections", "arc", "hits", "takes", "seed"];
+const FIELDS = ["id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "orchestra", "tail", "sections", "arc", "hits", "takes", "seed"];
+const ORCHESTRA_LEVELS = ["", "under", "present", "lead"];
 const LEVEL_WORDS = ["", "sparse", "quiet", "moderate", "full", "full orchestra fortissimo"];
 
 function level(v: unknown, what: string): number {
@@ -80,6 +81,21 @@ export function checkCue(raw: CueSpec): CueSpec {
   if (secs.length) out.sections = secs;
   const arc = (raw.arc ?? []).map((p, i) => ({ at: { ...p.at }, level: level(p.level, `cue ${raw.id}'s arc point ${i + 1}`) }));
   if (arc.length) out.arc = arc;
+  if (raw.orchestra && Object.keys(raw.orchestra).length) {
+    if (typeof raw.orchestra !== "object" || Array.isArray(raw.orchestra)) throw new CueError(`cue ${raw.id}'s orchestra is {family: [level per bar]}`);
+    const clean: Record<string, number[]> = {};
+    for (const [fam, levels] of Object.entries(raw.orchestra)) {
+      const name = fam.trim().split(/\s+/).join(" ").slice(0, 40);
+      if (!name) throw new CueError(`cue ${raw.id}'s orchestra has a family with no name`);
+      if (!Array.isArray(levels) || levels.length > 256 || !levels.every((x) => Number.isInteger(x) && x >= 0 && x <= 3)) {
+        throw new CueError(`cue ${raw.id}'s orchestra ${name}: a level per bar, 0 (off) to 3 (lead)`);
+      }
+      const l = levels.slice();
+      while (l.length && !l[l.length - 1]) l.pop();
+      if (l.length) clean[name] = l;
+    }
+    if (Object.keys(clean).length) out.orchestra = clean;
+  }
   if (raw.hits != null) out.hits = [...raw.hits];
   if (raw.takes != null) {
     if (!Number.isInteger(raw.takes) || raw.takes < 1 || raw.takes > 16) throw new CueError(`cue ${raw.id}'s takes is a whole number up to 16`);
@@ -145,6 +161,23 @@ function perBar(points: [number, number][], bars: number, bar: number, start: nu
   return out;
 }
 
+/** Sections with the orchestration grid in their words: each family's strongest level over the section's bars, strongest first, after its own words (cue.orchestrate). */
+export function orchestrate<S extends CueSection & { bars: number }>(sections: S[], orchestra: Record<string, number[]>): S[] {
+  let b0 = 0;
+  return sections.map((s) => {
+    const who: [number, string][] = [];
+    for (const [fam, levels] of Object.entries(orchestra)) {
+      const lv = Math.max(0, ...levels.slice(b0, b0 + s.bars));
+      if (lv) who.push([lv, fam]);
+    }
+    b0 += s.bars;
+    who.sort((x, y) => y[0] - x[0]);
+    const words = who.map(([lv, fam]) => `${fam} ${ORCHESTRA_LEVELS[lv]}`).join(", ");
+    const own = (s.words ?? "").trim().replace(/^[\s,.]+|[\s,.]+$/g, "");
+    return words ? { ...s, words: [own, words].filter(Boolean).join(", ") } : { ...s };
+  });
+}
+
 /** What a cue is asked against the cut (cue.plan, simplified). Throws a CueError when its anchors aren't in it. */
 export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}): CuePlan {
   const a = anchorTime(items, spec.in, fps);
@@ -196,7 +229,8 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
   const tail = spec.tail ?? 2;
   const bars = Math.max(1, Math.ceil((preroll + span + tail) / bar - 1e-6));
   const seconds = Math.round(bars * bar * 1000) / 1000;
-  const sections = spec.sections?.length ? fill(spec.sections, bars) : fromHits(bars, hits, preroll, bar);
+  let sections = spec.sections?.length ? fill(spec.sections, bars) : fromHits(bars, hits, preroll, bar);
+  if (spec.orchestra) sections = orchestrate(sections, spec.orchestra);
   let pts: [number, number][] = [];
   if (spec.arc?.length) {
     for (const p of spec.arc) {
@@ -254,6 +288,22 @@ export function measureCue(plan: CuePlan, seed: number): CueMeasured {
     bpm_heard: heard, tempo_heard: Math.abs(heard - plan.fit.ask_bpm) / plan.fit.ask_bpm <= 0.03,
     stretch: plan.fit.stretch, downbeat, offset: Math.round((downbeat + plan.preroll) * 10000) / 10000,
     hit_errors: errs, worst_must: worst, levels, shape_error: shape,
+    score: Math.round((worst / Math.max(1, plan.fps / 8) + shape) * 10000) / 10000,
+  };
+}
+
+/** A comp's measurements (cue.comp measures the spliced file): the base take's outside bars [a, b), the other's inside. */
+export function compMeasured(plan: CuePlan, base: CueMeasured, other: CueMeasured, bars: [number, number]): CueMeasured {
+  const [a, b] = bars;
+  const inside = (bar: number) => bar >= a && bar < b;
+  const levels = base.levels.map((x, k) => (inside(k) ? other.levels[k] ?? x : x));
+  const hitErrors = plan.hits.map((h, i) => (inside(Math.floor((h.t + plan.preroll) / plan.bar)) ? other.hit_errors[i] : base.hit_errors[i]) ?? null);
+  const musts = hitErrors.filter((_, i) => plan.hits[i]?.must).map((e) => (e == null ? plan.bar / 8 * plan.fps : Math.abs(e)));
+  const worst = Math.round(Math.max(0, ...musts) * 100) / 100;
+  const n = Math.max(1, levels.length);
+  const shape = Math.round((((base.shape_error ?? 0.4) * (n - (b - a))) + (other.shape_error ?? 0.4) * (b - a)) / n * 1000) / 1000;
+  return {
+    ...base, hit_errors: hitErrors, worst_must: worst, levels, shape_error: shape,
     score: Math.round((worst / Math.max(1, plan.fps / 8) + shape) * 10000) / 10000,
   };
 }

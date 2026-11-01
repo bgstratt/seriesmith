@@ -27,7 +27,7 @@ import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindo
 import { AlignError, createMockAlign } from "./mockTrack";
 import { MIX_DEFAULTS } from "../api";
 import { MixError, checkMix, speechCurve } from "./mockMix";
-import { CueError, MUSIC_TARGETS, checkCue, measureCue, planCue } from "./mockCue";
+import { CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
 import type { CueSpec, CueTake } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
@@ -1335,6 +1335,32 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       t.placed = req.pass;
       emit("seriesmith.episode", { ep: EP });
       return { mix: clone(mixes[req.pass]) };
+    },
+    async compCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      const list = cueTakes.get(req.cue) ?? [];
+      const [base, src] = [req.take, req.from].map((n) => list.find((x) => x.take === n));
+      for (const [n, t] of [[req.take, base], [req.from, src]] as const) {
+        if (!t || t.status !== "ok" || !t.measured) throw new MockError(`cue ${req.cue} has no finished take ${n}`, 409);
+      }
+      const p = cuePlan(spec, req.pass);
+      const [a, b] = req.bars;
+      if (!(Number.isInteger(a) && Number.isInteger(b) && 0 <= a && a < b && b <= p.bars)) throw new MockError(`bars ${a}-${b} aren't inside cue ${req.cue}'s ${p.bars}`, 409);
+      const take = Math.max(0, ...list.map((t) => t.take)) + 1;
+      const t: CueTake = {
+        take, status: "ok", target: base!.target, pass: req.pass, comp: { base: req.take, from: req.from, bars: [a, b] },
+        measured: compMeasured(p, base!.measured!, src!.measured!, [a, b]), file: cueFile(req.cue, take),
+        created: new Date().toISOString(), finished: new Date().toISOString(), stale: [],
+      };
+      list.push(t);
+      cueTakes.set(req.cue, list);
+      clipFiles.set(t.file!, makeVoice(`cue|${req.cue}|${take}`, p.seconds + t.measured!.downbeat));
+      emit("seriesmith.cue", { ep: EP, cue: req.cue, take, status: "ok" });
+      emit("seriesmith.episode", { ep: EP });
+      return { take: clone(t) };
     },
     async cutReset(ep, pass, what) {
       await wait();

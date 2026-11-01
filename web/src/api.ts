@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  DubSources, ShotSound, Mix, MixResult, CueResult, CueSpec, CueSummary,
+  DubSources, ShotSound, Mix, MixResult, CueResult, CueSpec, CueSummary, CueTake,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -178,6 +178,8 @@ export interface Api {
   renderCue(req: { ep: string; pass: Pass; cue: string; takes?: number; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number }[] }>;
   /** POST /seriesmith/cue/pick: a take as the cue's item on the music track (gain: fit its level to the arc). */
   pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
+  /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
+  compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
   /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
@@ -619,6 +621,7 @@ export function createHttpApi(t: Transport): Api {
     putCue: (ep, cue) => call("PUT", "/seriesmith/cue", { ep, cue }),
     renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
     pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
+    compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {

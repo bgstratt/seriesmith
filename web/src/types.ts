@@ -2566,6 +2566,9 @@ export interface CueSpec {
   tail?: number;
   sections?: CueSection[];
   arc?: CueArcPoint[];
+  /** the orchestration grid: {family: [level per bar]}, 0 off, 1 under, 2 present, 3 lead
+   * (trailing offs and a family off throughout dropped); folded into each section's words */
+  orchestra?: Record<string, number[]>;
   /** the mix's hits it lands (absent: every hit in its span) */
   hits?: string[] | null;
   /** takes a render makes (absent: its model's preset's) */
@@ -2589,6 +2592,8 @@ export interface CueHit {
   kind: HitKind;
   must: boolean;
   t: number;
+  /** a drop on its out point: the music's end, neither fitted to a bar line nor measured */
+  ends?: boolean;
 }
 
 /** What a cue would be asked now, against the pass's cut. */
@@ -2652,6 +2657,8 @@ export interface CueTake {
   placed?: Pass;
   /** what has moved in the cut since it was rendered ([] or absent: nothing) */
   stale?: string[];
+  /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
+  comp?: { base: number; from: number; bars: [number, number] };
   finished?: string;
   created?: string;
 }

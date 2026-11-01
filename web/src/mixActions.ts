@@ -9,7 +9,7 @@ import { currentPlaylist, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
-  TRACK_LABEL, addHit, addItem, addPoint, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  TRACK_LABEL, addHit, addItem, addPoint, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
@@ -202,6 +202,16 @@ export function deleteMixPoint(id: string, i: number): Promise<boolean> {
 
 export function clearMixPoints(id: string): Promise<boolean> {
   return editMix(`Clear ${id}'s volume points`, (m) => patchItem(m, id, { points: [] }));
+}
+
+/**
+ * An item lowered `db` from `t0` to `t1` (the cut's clock) with volume points
+ * (the cue window's "Lower bars with breakpoints"), ramped over `ramp` seconds
+ * at each end: one undoable edit, drawn on the timeline's lane.
+ */
+export function lowerMixItem(id: string, t0: number, t1: number, db: number, ramp: number, what = ""): Promise<boolean> {
+  return editMix(`${db < 0 ? "Lower" : "Raise"} ${id}${what ? ` ${what}` : ""} ${Math.abs(db)} dB`,
+    (m) => lowerStretch(m, id, t0, t1, db, ramp, currentPlaylist(), fps()));
 }
 
 /**

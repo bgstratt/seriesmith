@@ -8,7 +8,7 @@
 import { errText } from "./api";
 import { currentPlaylist, onCueEvent, report } from "./actions";
 import { api, host } from "./host";
-import { newCueId, newCueSpan } from "./lib/cue";
+import { barsLabel, newCueId, newCueSpan } from "./lib/cue";
 import { loadMix } from "./mixActions";
 import { statusKey, store, type AppState } from "./store";
 import type { Anchor, CuePlan, CueResult, CueSpec, Pass } from "./types";
@@ -186,4 +186,26 @@ export async function pickCueTake(take: number): Promise<boolean> {
   host().toast("success", `${o.cue}: t${String(take).padStart(2, "0")} in the mix`, "On the music track from the cue's in point, its level fitted to the arc.");
   await Promise.all([loadMix(o.ep, o.pass), loadCue(o.ep, o.pass, o.cue), loadCues(o.ep)]);
   return true;
+}
+
+/**
+ * A comp: take `take` with the cue's bars [a, b) from take `from`, spliced on
+ * bar lines into a new take, measured and ranked (POST /seriesmith/cue/comp).
+ * Returns its number (null: refused).
+ */
+export async function compCueTake(take: number, from: number, bars: [number, number]): Promise<number | null> {
+  const o = openCueRef();
+  if (!o) return null;
+  await cueSettled();
+  const tn = (n: number) => `t${String(n).padStart(2, "0")}`;
+  let made: number;
+  try {
+    made = (await api().compCue({ ep: o.ep, pass: o.pass, cue: o.cue, take, from, bars })).take.take;
+  } catch (e) {
+    report(`Couldn't comp ${o.cue} ${tn(take)} with ${tn(from)}`, e);
+    return null;
+  }
+  host().toast("success", `${o.cue}: ${tn(made)}, ${tn(take)} with ${barsLabel(bars)} from ${tn(from)}`, "Spliced on the bar lines, measured and ranked with the others.");
+  await Promise.all([loadCue(o.ep, o.pass, o.cue), loadCues(o.ep)]);
+  return made;
 }

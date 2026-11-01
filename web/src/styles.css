@@ -789,6 +789,35 @@
   margin: 2px 0 0; padding: 6px; font-size: 10.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
   background: var(--h3-bg2); border: 1px solid var(--h3-border); border-radius: 4px; max-height: 220px; overflow: auto;
 }
+/* the Arc tab: the lane large, drawn freehand or by points, what the model hears beside it */
+.h3-cue-draw .h3-cue-lane { cursor: crosshair; }
+.h3-cue-pt.h3-passive { pointer-events: none; }
+.h3-cue-stroke { fill: none; stroke: var(--h3-arc); stroke-width: 1.5; opacity: 0.85; }
+.h3-cue-lvtext { font-size: 9px; fill: var(--h3-muted); pointer-events: none; }
+.h3-cue-sect.h3-ro { cursor: default; }
+.h3-cue-read { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid var(--h3-border); }
+.h3-cue-flag { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; color: var(--h3-stale); }
+/* the orchestration grid: a cell's level in one colour, stronger as it's louder; a cell the
+   model won't hear as painted (a change inside a section) hatched */
+.h3-root { --h3-orch: #5b9bd5; }
+.h3-cue-orch .h3-cue-lane { cursor: cell; }
+.h3-cue-orow .h3-cue-lab input.h3-in { min-width: 0; width: 100%; height: 16px; padding: 0 3px; font-size: 10px; }
+.h3-cue-cell { position: absolute; top: 2px; bottom: 2px; box-sizing: border-box; border-right: 1px solid var(--h3-bg); pointer-events: none; }
+.h3-lv-0 { background-color: transparent; }
+.h3-lv-1 { background-color: color-mix(in srgb, var(--h3-orch) 30%, transparent); }
+.h3-lv-2 { background-color: color-mix(in srgb, var(--h3-orch) 62%, transparent); }
+.h3-lv-3 { background-color: var(--h3-orch); }
+.h3-held { background-image: repeating-linear-gradient(135deg, var(--h3-stale) 0 1.5px, transparent 1.5px 5px); }
+.h3-cue-cell.h3-held { box-shadow: inset 0 0 0 1px var(--h3-stale); }
+.h3-cue-swatch { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--h3-border); border-radius: 2px; vertical-align: -1px; }
+/* a take's bars selected, and what can be done to them */
+.h3-cue-selectable .h3-cue-lane { cursor: text; }
+.h3-cue-range {
+  position: absolute; top: 0; bottom: 0; z-index: 2; box-sizing: border-box; pointer-events: none;
+  background: color-mix(in srgb, var(--h3-accent) 22%, transparent); border: 1px solid var(--h3-accent);
+}
+.h3-cue-fixes { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px 6px; border-top: 1px dashed var(--h3-border); }
+.h3-cue-comp { color: var(--h3-accent); }
 .h3-b-locked, .h3-b-trimmed { color: var(--h3-muted); }
 .h3-b-drift { color: var(--h3-stale); border-color: var(--h3-stale); cursor: help; }
 .h3-cut-strip {

@@ -1345,8 +1345,53 @@ none selected, the **cue** (label, model, tempo and whether it's fixed, meter, k
 tail, takes a render makes) and the **fit**: the tempo asked and fitted, the stretch, and the
 worst must-hit's error, or why it can't be planned. Below either is **exactly what the
 model is told**, and the script's `music:` notes it took in. Each change is saved and the
-cue planned again (typing saves when you pause). The **Arc** and **Orchestration & takes**
-tabs are coming.
+cue planned again (typing saves when you pause).
+
+The **Arc** tab is the intensity lane large, on the same bar grid, with the picture, the hits
+and the sections above it for reference (edit the sections in Score). Draw the arc first:
+
+- **Draw**: drag across the lane; the stroke is put on beats and simplified into points, and
+  replaces the points it spans. **Points**: as in Score (drag one, double-click adds one,
+  right-click removes one). **Smooth** eases each point toward its neighbours.
+- **Shapes** replace the points over the cue's span (its in point to its out point; beyond
+  them the arc holds): **slow burn**, **build and release**, **sting**, **pulse**, and **from
+  the script** when the shots it plays over have `music:` notes (a gentle default shape: the
+  notes reach the model as words, not as a curve).
+- **Snap peaks to hits** moves each peak of the arc to the nearest **arrive** (or turn) hit
+  and each low to the nearest **drop** (or turn), within a bar, so the climax lands on the
+  reveal.
+- **Sections from the arc** cuts the sections where the arc turns (its peaks and lows, on the
+  nearest bar line), each its energy from and to from the arc. It asks before replacing
+  sections you've set (their names and words go).
+
+Beside it, **What the model hears**: each section's words and its energy as the model is told
+them ("rising from quiet to fortissimo, building"), then the prompt as it stands. Sections are
+the finest a model follows, so it flags what it can't: a **peak or dip inside a section**
+(**Split at bar N** makes it an edge) and, once the arc has points of its own, a section whose
+words don't say what the arc does there (Sections from the arc follows it). The arc is kept by
+ranking the takes against it and fitting the picked one's gain to it, not by the words alone
+([SOUND.md](SOUND.md)).
+
+The **Orchestration & takes** tab has the **orchestration grid**: a row per family of
+instruments (strings, solo horn, brass, woodwinds, timpani/percussion, piano, harp, choir to
+start with; **+ Family** adds one, type in its label to rename it, **×** removes it) and a
+column per bar, under the ruler and the sections. Pick a **brush** (off, under, present, lead)
+and click a cell, or drag across bars and rows to paint them; each stroke is one save. Each
+section is told who plays in it, strongest first, after its own words ("strings present,
+brass lead"); a change inside a section can't be followed, so the strongest level there wins,
+and the cells that won't be heard as painted are hatched.
+
+Below the grid are the **takes**, as in Score. **Drag across bars of a take** to select them,
+then:
+
+- **Comp bars a-b from…** another finished take (pick it in the list): a new take, this one
+  with those bars from the other, spliced on the bar lines (both are at the cue's tempo),
+  measured and ranked with the rest, labelled "comp of t03 + t01 bars 5-8".
+- **Lower bars a-b with breakpoints…** by the dB you set, for the take that's in the mix:
+  volume points on the cue's block on the Music lane (a short ramp at each end, the level
+  either side kept), one step of the timeline's undo, which you can drag there afterwards.
+- **Repaint** is shown but not offered yet: the models' repainting of part of a take isn't
+  measured.
 
 ### Finishing: upscale, post, master
 

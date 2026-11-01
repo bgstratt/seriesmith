@@ -325,6 +325,33 @@ export function removePoint(mix: Mix, id: string, i: number): Mix | null {
   return patchItem(mix, id, { points: it.points.filter((_, k) => k !== i) });
 }
 
+/**
+ * An item lowered `db` from `t0` to `t1` (the cut's clock) with volume points:
+ * a point at each end at the line's level there, ramped over `ramp` seconds to
+ * the line `db` lower, the points between lowered with it (those in a ramp
+ * replaced), the line outside kept. Null when nothing changes.
+ */
+export function lowerStretch(mix: Mix, id: string, t0: number, t1: number, db: number, ramp: number, items: PlayItem[], fps: number): Mix | null {
+  const it = mix.items?.find((x) => x.id === id);
+  if (!it || !(t1 > t0) || !db) return null;
+  const r = Math.max(0, Math.min(ramp, (t1 - t0) / 4));
+  const timed = timedPoints(items, it, fps);
+  const line = (t: number) => pointsDb(timed, t);
+  const when = new Map(timed.map((p) => [p.i, p.t]));
+  const kept: MixPoint[] = [];
+  (it.points ?? []).forEach((p, i) => {
+    const t = when.get(i);
+    if (t == null || t < t0 - 1e-6 || t > t1 + 1e-6) kept.push(p);
+    else if (t > t0 + r + 1e-6 && t < t1 - r - 1e-6) kept.push({ at: p.at, db: p.db + db });
+  });
+  const ends: MixPoint[] = [];
+  for (const [t, d] of [[t0, line(t0)], [t0 + r, line(t0 + r) + db], [t1 - r, line(t1 - r) + db], [t1, line(t1)]]) {
+    const at = timeAnchor(items, t, fps);
+    if (at && !ends.some((p) => sameAnchor(p.at, at))) ends.push({ at, db: d });
+  }
+  return setPoints(mix, id, [...kept.filter((p) => !ends.some((e) => sameAnchor(e.at, p.at))), ...ends], items, fps);
+}
+
 // ---------------------------------------------------------------------------
 // ducking: the server's speech curve (GET /seriesmith/mix/duck) times each
 // track's duck_db, a region's depth where it says one, and the dialogue

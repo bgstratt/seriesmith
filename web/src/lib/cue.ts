@@ -264,3 +264,357 @@ export function withSpec(spec: CueSpec, patch: Partial<CueSpec>): CueSpec {
   }
   return o as unknown as CueSpec;
 }
+
+// ---------------------------------------------------------------------------
+// the Arc tab: shapes, drawing, smoothing, peaks onto hits, sections from the arc
+// ---------------------------------------------------------------------------
+
+/** The level the points give at `tau`: linear between them, the first held before and the last after (cue.py's _arc_per_bar). */
+export function levelAt(points: ArcPt[], tau: number): number {
+  if (!points.length) return 3;
+  if (tau <= points[0].tau) return points[0].level;
+  for (let k = 1; k < points.length; k++) {
+    const b = points[k];
+    if (tau > b.tau) continue;
+    const a = points[k - 1];
+    return b.tau === a.tau ? b.level : a.level + ((tau - a.tau) / (b.tau - a.tau)) * (b.level - a.level);
+  }
+  return points[points.length - 1].level;
+}
+
+/** Points in time order, one a beat (the last given wins), levels to half a level. */
+function onBeats(points: ArcPt[], g: Grid): ArcPt[] {
+  const by = new Map<number, ArcPt>();
+  for (const p of points) {
+    const t = snapBeat(g, p.tau);
+    by.set(Math.round((t + g.preroll) / g.beat), { tau: t, level: clampLevel(p.level) });
+  }
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]);
+}
+
+/** The preset shapes, each with what it does to the cue. */
+export type ArcShape = "slow burn" | "build and release" | "sting" | "pulse" | "from the script";
+export const ARC_SHAPES: { id: ArcShape; title: string }[] = [
+  { id: "slow burn", title: "Slow burn: quiet for long, rising late to a peak at the out point" },
+  { id: "build and release", title: "Build and release: rising to a peak two thirds in, then falling away" },
+  { id: "sting", title: "Sting: loud at once, then falling away" },
+  { id: "pulse", title: "Pulse: swelling on each bar line, easing between" },
+  { id: "from the script", title: "From the script: a gentle default shape, a little rise that settles. The script's music: notes reach the model as words, not as a curve" },
+];
+// each shape as (fraction of the span, level)
+const SHAPES: Record<Exclude<ArcShape, "pulse">, [number, number][]> = {
+  "slow burn": [[0, 1], [0.5, 2], [0.85, 3.5], [1, 5]],
+  "build and release": [[0, 2], [0.7, 5], [1, 1.5]],
+  sting: [[0, 5], [0.2, 2], [1, 1.5]],
+  "from the script": [[0, 2], [0.5, 3], [0.85, 3.5], [1, 2.5]],
+};
+
+/** The first and last beats inside the cue's span (its in point to its out point), cue time. */
+function spanBeats(g: Grid, span: number): [number, number] {
+  const first = Math.ceil(g.preroll / g.beat - 1e-6);
+  const last = Math.min(g.bars * g.meter, Math.floor((span + g.preroll) / g.beat + 1e-6));
+  return last > first ? [first * g.beat - g.preroll, last * g.beat - g.preroll] : [snapBeat(g, 0), snapBeat(g, span)];
+}
+
+/** A preset shape over the cue's span (its in point to its out point), on beats; beyond them the arc holds. */
+export function presetPoints(shape: ArcShape, g: Grid, span: number): ArcPt[] {
+  const [lo, hi] = spanBeats(g, span);
+  if (shape === "pulse") {
+    const out: ArcPt[] = [];
+    for (let b = 0; b <= g.bars; b++) {
+      const t = b * g.bar - g.preroll;
+      if (t >= lo - 1e-6 && t <= hi + 1e-6) out.push({ tau: t, level: 4 });
+      const mid = t + g.bar / 2;
+      if (mid > lo + 1e-6 && mid < hi - 1e-6) out.push({ tau: mid, level: 2.5 });
+    }
+    return onBeats(out.length ? out : [{ tau: lo, level: 3 }], g);
+  }
+  return onBeats(SHAPES[shape].map(([f, level]) => ({ tau: lo + f * (hi - lo), level })), g);
+}
+
+/**
+ * A freehand stroke as points: each sample snapped to a beat (the last on a
+ * beat wins), then simplified (Douglas-Peucker: a point is kept when the line
+ * without it would be `tol` levels or more off it).
+ */
+export function drawnPoints(samples: ArcPt[], g: Grid, tol = 0.4): ArcPt[] {
+  const pts = onBeats(samples, g);
+  if (pts.length <= 2) return pts;
+  const keep = new Set([0, pts.length - 1]);
+  const walk = (a: number, b: number) => {
+    let worst = -1;
+    let far = 0;
+    for (let k = a + 1; k < b; k++) {
+      const d = Math.abs(pts[k].level - levelAt([pts[a], pts[b]], pts[k].tau));
+      if (d > far) [far, worst] = [d, k];
+    }
+    if (worst >= 0 && far >= tol) {
+      keep.add(worst);
+      walk(a, worst);
+      walk(worst, b);
+    }
+  };
+  walk(0, pts.length - 1);
+  return pts.filter((_, k) => keep.has(k));
+}
+
+/** A stroke drawn over the points: those it spans replaced by it, the rest kept. */
+export function mergeStroke(points: ArcPt[], stroke: ArcPt[]): ArcPt[] {
+  if (!stroke.length) return points;
+  const a = stroke[0].tau;
+  const b = stroke[stroke.length - 1].tau;
+  return [...points.filter((p) => p.tau < a - 1e-6 || p.tau > b + 1e-6), ...stroke].sort((x, y) => x.tau - y.tau);
+}
+
+/** Each point between two others moved toward them ((a + 2b + c) / 4, to half a level), then those on a straight line between their neighbours dropped. */
+export function smoothPoints(points: ArcPt[]): ArcPt[] {
+  if (points.length < 3) return points;
+  const soft = points.map((p, k) => (k === 0 || k === points.length - 1 ? p
+    : { tau: p.tau, level: clampLevel((points[k - 1].level + 2 * p.level + points[k + 1].level) / 4) }));
+  return soft.filter((p, k) => k === 0 || k === soft.length - 1 || Math.abs(levelAt([soft[k - 1], soft[k + 1]], p.tau) - p.level) > 1e-6);
+}
+
+/**
+ * Where the arc turns: each point where its direction changes (the arc held
+ * flat before the first and after the last), a peak (or a high plateau's edge)
+ * or a low.
+ */
+export function turningPoints(points: ArcPt[]): { i: number; kind: "peak" | "low" }[] {
+  const out: { i: number; kind: "peak" | "low" }[] = [];
+  const dir = (a: number, b: number) => Math.sign(Math.round((b - a) * 100));
+  points.forEach((p, i) => {
+    const before = i > 0 ? dir(points[i - 1].level, p.level) : 0;
+    const after = i < points.length - 1 ? dir(p.level, points[i + 1].level) : 0;
+    if (before !== after) out.push({ i, kind: before > 0 || after < 0 ? "peak" : "low" });
+  });
+  return out;
+}
+
+/** Which hits a turn of the arc goes to: a peak where the music arrives, a low where it drops, either on a turn. */
+const SNAP_KINDS: Record<"peak" | "low", string[]> = { peak: ["arrive", "turn"], low: ["drop", "turn"] };
+
+/**
+ * Each peak and low of the arc moved onto the nearest hit within a bar (a peak
+ * onto an arrive or a turn, a low onto a drop or a turn), kept between its
+ * neighbours. `moved`: how many went.
+ */
+export function snapToHits(points: ArcPt[], hits: { t: number; kind: string }[], g: Grid): { points: ArcPt[]; moved: number } {
+  const out = points.map((p) => ({ ...p }));
+  let moved = 0;
+  for (const { i, kind } of turningPoints(points)) {
+    const lo = i > 0 ? out[i - 1].tau : -g.preroll - 1e-6;
+    const hi = i < out.length - 1 ? out[i + 1].tau : g.seconds - g.preroll + 1e-6;
+    let best: number | null = null;
+    for (const h of hits) {
+      if (!SNAP_KINDS[kind].includes(h.kind) || Math.abs(h.t - out[i].tau) > g.bar + 1e-6 || h.t <= lo || h.t >= hi) continue;
+      if (best == null || Math.abs(h.t - out[i].tau) < Math.abs(best - out[i].tau)) best = h.t;
+    }
+    if (best != null && Math.abs(best - out[i].tau) > 1e-6) {
+      out[i].tau = best;
+      moved++;
+    }
+  }
+  return { points: out, moved };
+}
+
+/** A section's direction as a name: build (rising), release (falling), hold. */
+const shapeName = (from: number, to: number) => (to > from ? "build" : to < from ? "release" : "hold");
+
+/**
+ * Sections cut where the arc turns (its peaks and lows, on the nearest bar
+ * line), each its energy from and to as the arc has them at its edges.
+ */
+export function sectionsFromArc(points: ArcPt[], g: Grid): (CueSection & { bars: number; from: number; to: number })[] {
+  const cuts = [...new Set(turningPoints(points).map(({ i }) => Math.round((points[i].tau + g.preroll) / g.bar)))]
+    .filter((b) => b > 0 && b < g.bars).sort((a, b) => a - b);
+  const edges = [0, ...cuts, g.bars];
+  return edges.slice(0, -1).map((e, k) => {
+    const from = clampLevel(levelAt(points, e * g.bar - g.preroll));
+    const to = clampLevel(levelAt(points, edges[k + 1] * g.bar - g.preroll));
+    return { name: shapeName(from, to), bars: edges[k + 1] - e, from, to };
+  });
+}
+
+/**
+ * Detail inside a section the model can't follow: a bar inside it (not its
+ * first or last) half a level or more above both its ends (a peak) or below
+ * both (a dip), the furthest of each, from the plan's energy per bar.
+ */
+export function arcFlags(arc: number[], sections: { bars: number }[]): { section: number; bar: number; kind: "peak" | "dip" }[] {
+  const out: { section: number; bar: number; kind: "peak" | "dip" }[] = [];
+  const edges = sectionEdges(sections);
+  sections.forEach((_, i) => {
+    const a = edges[i];
+    const b = Math.min(edges[i + 1], arc.length) - 1;
+    if (b - a < 2) return;
+    const hi = Math.max(arc[a], arc[b]);
+    const lo = Math.min(arc[a], arc[b]);
+    let peak = -1;
+    let dip = -1;
+    for (let k = a + 1; k < b; k++) {
+      if (arc[k] >= hi + 0.5 && (peak < 0 || arc[k] > arc[peak])) peak = k;
+      if (arc[k] <= lo - 0.5 && (dip < 0 || arc[k] < arc[dip])) dip = k;
+    }
+    if (peak >= 0) out.push({ section: i, bar: peak, kind: "peak" });
+    if (dip >= 0) out.push({ section: i, bar: dip, kind: "dip" });
+  });
+  return out.sort((x, y) => x.bar - y.bar);
+}
+
+/**
+ * The sections whose words don't say what the arc does there: their energy a
+ * level or more from the arc's on average, or going another way (rising,
+ * steady, falling: by three quarters of a level or more, over two bars or more).
+ */
+export function wordsOffArc(arc: number[], sections: { bars: number; from: number; to: number }[]): number[] {
+  const out: number[] = [];
+  const edges = sectionEdges(sections);
+  const dir = (d: number) => (Math.abs(d) < 0.75 ? 0 : Math.sign(d));
+  sections.forEach((s, i) => {
+    const bars = arc.slice(edges[i], edges[i + 1]);
+    if (!bars.length) return;
+    const mean = bars.reduce((n, x) => n + x, 0) / bars.length;
+    const way = bars.length >= 2 && dir(bars[bars.length - 1] - bars[0]) !== dir(s.to - s.from);
+    if (Math.abs(mean - (s.from + s.to) / 2) >= 1 || way) out.push(i);
+  });
+  return out;
+}
+
+/**
+ * Section `i` split at bar `bar` (from the first bar line), so a peak or a
+ * dip inside it becomes an edge the model follows: the first part going to the
+ * arc's level there, the second from it. Null when `bar` isn't inside it.
+ */
+export function splitSection(sections: CueSection[], i: number, bar: number, arc: number[]): CueSection[] | null {
+  const edges = sectionEdges(sections.map((s) => ({ bars: s.bars ?? 1 })));
+  if (!sections[i] || bar <= edges[i] || bar >= edges[i + 1]) return null;
+  const s = sections[i];
+  const at = clampLevel(arc[bar] ?? s.to ?? 3);
+  const first = asSpec({ ...s, bars: bar - edges[i], to: at });
+  const second = asSpec({ ...s, name: `${s.name} 2`.slice(0, 40), bars: edges[i + 1] - bar, from: at });
+  return [...sections.slice(0, i), first, second, ...sections.slice(i + 1)];
+}
+
+// what the model hears of a section's energy (targets/music/common.py's dynamics)
+const HEARD = ["", "very quiet", "quiet", "moderate", "strong", "fortissimo"];
+const HEARD_FULL = ["", "very quiet, sparse", "quiet", "moderate", "strong, full", "fortissimo, full orchestra"];
+const wholeLevel = (x: number | undefined) => Math.max(1, Math.min(5, Math.round(x ?? 3)));
+
+/** A section's energy as the prompt writer words it: "rising from quiet to strong, building". */
+export function dynamics(sec: { from?: number; to?: number }): string {
+  const a = wholeLevel(sec.from);
+  const b = wholeLevel(sec.to ?? sec.from);
+  if (b > a) return `rising from ${HEARD[a]} to ${HEARD[b]}, building`;
+  if (b < a) return `falling from ${HEARD[a]} to ${HEARD[b]}, receding`;
+  return `${HEARD_FULL[a]}, sustained`;
+}
+
+/** What plays in a section and how loud, as the model is told it (common.py's section_words). */
+export function sectionWords(sec: { words?: string; from?: number; to?: number }): string {
+  const words = (sec.words ?? "").split(/\s+/).join(" ").replace(/^[\s,.]+|[\s,.]+$/g, "");
+  return [words, dynamics(sec)].filter(Boolean).join(", ");
+}
+
+// ---------------------------------------------------------------------------
+// the orchestration grid: {family: [level per bar]}, 0 off, 1 under, 2 present, 3 lead
+// ---------------------------------------------------------------------------
+
+export type Orchestra = Record<string, number[]>;
+export const ORCH_LEVELS = ["off", "under", "present", "lead"];
+/** the rows a cue starts with (a family off throughout isn't stored, so the rows are kept by the window) */
+export const ORCH_FAMILIES = ["strings", "solo horn", "brass", "woodwinds", "timpani/percussion", "piano", "harp", "choir"];
+
+/** As the server stores it: trailing offs trimmed, a family off throughout dropped. */
+export function trimOrchestra(o: Orchestra | undefined): Orchestra {
+  const out: Orchestra = {};
+  for (const [fam, levels] of Object.entries(o ?? {})) {
+    const l = levels.slice();
+    while (l.length && !l[l.length - 1]) l.pop();
+    if (l.length) out[fam] = l;
+  }
+  return out;
+}
+
+/** The families `fams`, bars `a` to `b` (both included, either order), painted `level`. */
+export function paintOrchestra(o: Orchestra | undefined, fams: string[], a: number, b: number, level: number): Orchestra {
+  const out: Orchestra = { ...(o ?? {}) };
+  const [lo, hi] = a <= b ? [a, b] : [b, a];
+  for (const fam of fams) {
+    const l = (out[fam] ?? []).slice();
+    while (l.length <= hi) l.push(0);
+    for (let k = Math.max(0, lo); k <= hi; k++) l[k] = level;
+    out[fam] = l;
+  }
+  return trimOrchestra(out);
+}
+
+/** A family's name as the server keeps it (whitespace collapsed, 40 characters). */
+export const familyName = (s: string) => s.split(/\s+/).join(" ").trim().slice(0, 40);
+
+/** A family renamed, its place kept (null: the name is empty or taken). */
+export function renameFamily(o: Orchestra | undefined, from: string, to: string): Orchestra | null {
+  const name = familyName(to);
+  if (!name || (name !== from && o && name in o)) return null;
+  const out: Orchestra = {};
+  for (const [fam, l] of Object.entries(o ?? {})) out[fam === from ? name : fam] = l;
+  return out;
+}
+
+export function removeFamily(o: Orchestra | undefined, fam: string): Orchestra {
+  const out = { ...(o ?? {}) };
+  delete out[fam];
+  return out;
+}
+
+/** The grid's rows: those kept for the cue (else the families it has, then the starting ones), and any family it has that they lack. */
+export function orchestraRows(kept: string[] | undefined, o: Orchestra | undefined): string[] {
+  const has = Object.keys(o ?? {});
+  const rows = kept ? kept.slice() : [...has, ...ORCH_FAMILIES.filter((f) => !has.includes(f))];
+  for (const f of has) if (!rows.includes(f)) rows.push(f);
+  return rows;
+}
+
+/**
+ * The cells the model won't hear as painted: in a section where a family
+ * changes, each of its bars below its strongest there (the section is told
+ * the strongest). Keys "family|bar".
+ */
+export function heldCells(o: Orchestra | undefined, sections: { bars: number }[]): Set<string> {
+  const out = new Set<string>();
+  const edges = sectionEdges(sections);
+  for (const [fam, l] of Object.entries(o ?? {})) {
+    sections.forEach((_, i) => {
+      let top = 0;
+      for (let k = edges[i]; k < edges[i + 1]; k++) top = Math.max(top, l[k] ?? 0);
+      if (!top) return;
+      for (let k = edges[i]; k < edges[i + 1]; k++) if ((l[k] ?? 0) < top) out.add(`${fam}|${k}`);
+    });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// a take's bars: selected by dragging, comped, lowered
+// ---------------------------------------------------------------------------
+
+/** The bars `[a, b)` a drag from x0 to x1 (pixels from the first bar line) covers: one at least. */
+export function barSpan(g: Grid, x0: number, x1: number, pps: number): [number, number] {
+  const w = g.bar * pps;
+  const a = Math.min(g.bars - 1, Math.max(0, Math.floor(Math.min(x0, x1) / w)));
+  const b = Math.max(a + 1, Math.min(g.bars, Math.ceil(Math.max(x0, x1) / w - 1e-6)));
+  return [a, b];
+}
+
+/** Bars `[a, b)` as the ruler numbers them: "bar 3", "bars 3-6". */
+export const barsLabel = ([a, b]: [number, number]) => (b - a === 1 ? `bar ${a + 1}` : `bars ${a + 1}-${b}`);
+
+/** A comp's label: "comp of t03 + t01 bars 5-8". */
+export const compLabel = (c: { base: number; from: number; bars: [number, number] }) =>
+  `comp of t${String(c.base).padStart(2, "0")} + t${String(c.from).padStart(2, "0")} ${barsLabel(c.bars)}`;
+
+/** Bars `[a, b)` in cue time, kept inside the cue's span (its mix item runs from its in point to its out point); null when none of them is. */
+export function barsInSpan(g: Grid, bars: [number, number], span: number): [number, number] | null {
+  const a = Math.max(0, bars[0] * g.bar - g.preroll);
+  const b = Math.min(span, bars[1] * g.bar - g.preroll);
+  return b > a ? [a, b] : null;
+}

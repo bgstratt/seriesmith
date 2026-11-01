@@ -2,17 +2,23 @@
 //
 // The cue window (docs/SOUND.md "The cue window"): the bar grid's arithmetic,
 // a section edge dragged to whole bars, an arc point dragged to an anchor and
-// a level, how the takes read; then the window on the mock's cue (its hits,
-// sections, arc and ranked takes), an edit, a pick, and a new cue.
+// a level, how the takes read; the Arc tab's shapes, drawing, smoothing, peaks
+// snapped to hits and sections cut from the arc; the orchestration grid painted
+// into the spec's lists; a take's bars selected and lowered; then the window on
+// the mock's cue (its hits, sections, arc and ranked takes), an edit, a pick, a
+// new cue, and the Arc and Orchestration & takes tabs.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  addPoint, arcPoints, arcSpec, barBeat, clipsOver, editableSections, gridOf, hitChip, impliedPoints, levelY, levelsAsEnergy, moveEdge,
-  movePoint, newCueId, newCueSpan, patchSection, ranks, removePoint, snapBeat, tauX, withSpec, xTau, yLevel,
+  ORCH_FAMILIES, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
+  editableSections, gridOf, heldCells, hitChip, impliedPoints, levelY, levelsAsEnergy, mergeStroke, moveEdge, movePoint, newCueId, newCueSpan,
+  orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
+  snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
 } from "../src/lib/cue";
+import { lowerStretch } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
-import type { CuePlan, CueSpec, CueTake } from "../src/types";
+import type { CuePlan, CueSpec, CueTake, Mix } from "../src/types";
 
 /** A clip on the cut's clock at 24 fps. */
 function clip(shot: string, start: number, dur: number, trimIn = 0): PlayItem {
@@ -177,6 +183,141 @@ describe("a new cue", () => {
   });
 });
 
+describe("the Arc tab", () => {
+  const g = gridOf(PLAN, {});
+  // the cue's span: its in point (cue 0 s) to its out point (cue 10 s)
+  const SPAN = 10;
+  const pairs = (pts: { tau: number; level: number }[]) => pts.map((p) => [p.tau, p.level]);
+
+  it("a preset shape lays points on beats over the cue's span", () => {
+    expect(pairs(presetPoints("slow burn", g, SPAN))).toEqual([[0, 1], [5, 2], [8.5, 3.5], [10, 5]]);
+    expect(pairs(presetPoints("build and release", g, SPAN))).toEqual([[0, 2], [7, 5], [10, 1.5]]);
+    expect(pairs(presetPoints("sting", g, SPAN))).toEqual([[0, 5], [2, 2], [10, 1.5]]);
+    expect(pairs(presetPoints("from the script", g, SPAN))).toEqual([[0, 2], [5, 3], [8.5, 3.5], [10, 2.5]]);
+    // a swell on each bar line inside the span, easing at each half bar
+    expect(pairs(presetPoints("pulse", g, SPAN))).toEqual([
+      [0.5, 2.5], [1.5, 4], [2.5, 2.5], [3.5, 4], [4.5, 2.5], [5.5, 4], [6.5, 2.5], [7.5, 4], [8.5, 2.5], [9.5, 4],
+    ]);
+  });
+
+  it("a freehand stroke is put on beats and simplified", () => {
+    const stroke = [[0, 1], [0.26, 1.2], [0.5, 1.4], [1, 2], [1.5, 2.5], [2, 5], [2.5, 3], [3, 3.5], [4, 4]].map(([tau, level]) => ({ tau, level }));
+    // 0.26 and 0.5 fall on one beat (the later wins); what a straight line between its neighbours draws is dropped
+    expect(pairs(drawnPoints(stroke, g))).toEqual([[0, 1], [1.5, 2.5], [2, 5], [2.5, 3], [4, 4]]);
+    // drawn over the points, it replaces those it spans
+    const pts = [[0, 1], [2, 2], [5, 3], [8, 4]].map(([tau, level]) => ({ tau, level }));
+    expect(pairs(mergeStroke(pts, [{ tau: 1, level: 5 }, { tau: 6, level: 5 }]))).toEqual([[0, 1], [1, 5], [6, 5], [8, 4]]);
+  });
+
+  it("smoothing eases each point toward its neighbours", () => {
+    const zig = [[0, 1], [1, 5], [2, 1], [3, 5], [4, 1]].map(([tau, level]) => ({ tau, level }));
+    expect(pairs(smoothPoints(zig))).toEqual([[0, 1], [1, 3], [3, 3], [4, 1]]);
+  });
+
+  it("snaps each peak to an arrive (or turn) and each low to a drop (or turn), within a bar", () => {
+    const pts = presetPoints("build and release", g, SPAN);
+    const hits = [
+      { t: 0.4, kind: "turn" }, { t: 4, kind: "arrive" }, { t: 7.1, kind: "accent" }, { t: 7.8, kind: "arrive" }, { t: 9.9, kind: "drop" },
+    ];
+    const r = snapToHits(pts, hits, g);
+    expect(r.moved).toBe(3);
+    // the peak at 7 goes to the arrive at 7.8 (the one at 4 is more than a bar off; an accent isn't a peak's)
+    expect(pairs(r.points)).toEqual([[0.4, 2], [7.8, 5], [9.9, 1.5]]);
+    expect(snapToHits(pts, [{ t: 3, kind: "arrive" }], g).moved).toBe(0);
+  });
+
+  it("sections are cut at the arc's peaks and lows, on bar lines, their energies the arc's", () => {
+    // up to a plateau from bar 4 to bar 5, then down
+    const pts = [[-0.5, 1], [5.5, 5], [7.5, 5], [11.5, 2]].map(([tau, level]) => ({ tau, level }));
+    expect(sectionsFromArc(pts, g)).toEqual([
+      { name: "build", bars: 3, from: 1, to: 5 }, { name: "hold", bars: 1, from: 5, to: 5 }, { name: "release", bars: 2, from: 5, to: 2 },
+    ]);
+    // a flat arc: one section
+    expect(sectionsFromArc([{ tau: 0, level: 3 }], g)).toEqual([{ name: "hold", bars: 6, from: 3, to: 3 }]);
+  });
+
+  it("flags a peak or a dip inside a section, and words that don't say what the arc does", () => {
+    const arc = [1, 2, 4, 2, 1, 1];
+    expect(arcFlags(arc, [{ bars: 6 }])).toEqual([{ section: 0, bar: 2, kind: "peak" }]);
+    expect(arcFlags(arc, [{ bars: 3 }, { bars: 3 }])).toEqual([]);
+    expect(arcFlags([4, 4, 1, 4], [{ bars: 4 }])).toEqual([{ section: 0, bar: 2, kind: "dip" }]);
+    // split there, the peak is an edge
+    expect(splitSection([{ name: "a", bars: 6, from: 1, to: 1 }], 0, 2, arc)).toEqual([
+      { name: "a", bars: 2, from: 1, to: 4 }, { name: "a 2", bars: 4, from: 4, to: 1 },
+    ]);
+    expect(splitSection([{ name: "a", bars: 6 }], 0, 6, arc)).toBeNull();
+    expect(wordsOffArc(arc, [{ bars: 3, from: 1, to: 4 }, { bars: 3, from: 2, to: 1 }])).toEqual([]);
+    expect(wordsOffArc(arc, [{ bars: 3, from: 1, to: 4 }, { bars: 3, from: 4, to: 4 }])).toEqual([1]);
+  });
+
+  it("words a section's energy as the prompt writer does", () => {
+    expect(dynamics({ from: 2, to: 4 })).toBe("rising from quiet to strong, building");
+    expect(dynamics({ from: 5, to: 1 })).toBe("falling from fortissimo to very quiet, receding");
+    expect(sectionWords({ words: " strings lead, ", from: 3, to: 3 })).toBe("strings lead, moderate, sustained");
+  });
+});
+
+describe("the orchestration grid", () => {
+  it("painting cells writes each family's level per bar, trailing offs trimmed", () => {
+    expect(paintOrchestra({}, ["strings"], 2, 4, 2)).toEqual({ strings: [0, 0, 2, 2, 2] });
+    expect(paintOrchestra({ strings: [0, 0, 2, 2, 2] }, ["strings"], 3, 4, 0)).toEqual({ strings: [0, 0, 2] });
+    // a family off throughout is dropped
+    expect(paintOrchestra({ strings: [0, 0, 2] }, ["strings"], 2, 2, 0)).toEqual({});
+    // a stroke over two rows, dragged backwards
+    expect(paintOrchestra({ strings: [1] }, ["brass", "harp"], 3, 1, 3)).toEqual({ strings: [1], brass: [0, 3, 3, 3], harp: [0, 3, 3, 3] });
+    expect(trimOrchestra({ a: [0, 0], b: [1, 0, 0] })).toEqual({ b: [1] });
+  });
+
+  it("keeps its rows, renames a family in its place and refuses a name taken", () => {
+    expect(orchestraRows(undefined, { harp: [1] })).toEqual(["harp", ...ORCH_FAMILIES.filter((f) => f !== "harp")]);
+    expect(orchestraRows(["strings"], { harp: [1] })).toEqual(["strings", "harp"]);
+    expect(Object.keys(renameFamily({ strings: [1], brass: [2] }, "strings", " violins  I ")!)).toEqual(["violins I", "brass"]);
+    expect(renameFamily({ strings: [1], brass: [2] }, "strings", "brass")).toBeNull();
+    expect(renameFamily({ strings: [1] }, "strings", "  ")).toBeNull();
+  });
+
+  it("marks the cells a section won't follow: below the family's strongest there", () => {
+    expect([...heldCells({ strings: [1, 3, 3, 0, 2, 2] }, [{ bars: 3 }, { bars: 3 }])].sort()).toEqual(["strings|0", "strings|3"]);
+    expect(heldCells({ strings: [2, 2, 2] }, [{ bars: 3 }]).size).toBe(0);
+  });
+});
+
+describe("a take's bars", () => {
+  const g = gridOf(PLAN, {});
+
+  it("a drag selects whole bars, one at least", () => {
+    // 10 px a second: a bar is 20 px
+    expect(barSpan(g, 5, 5, 10)).toEqual([0, 1]);
+    expect(barSpan(g, 45, 15, 10)).toEqual([0, 3]);
+    expect(barSpan(g, 40, 40, 10)).toEqual([2, 3]);
+    expect(barSpan(g, -10, 500, 10)).toEqual([0, 6]);
+    expect(barsLabel([2, 3])).toBe("bar 3");
+    expect(barsLabel([0, 3])).toBe("bars 1-3");
+    expect(compLabel({ base: 3, from: 1, bars: [4, 8] })).toBe("comp of t03 + t01 bars 5-8");
+  });
+
+  it("bars lowered in the mix stay inside the cue's span", () => {
+    expect(barsInSpan(g, [0, 2], 10)).toEqual([0, 3.5]);
+    expect(barsInSpan(g, [5, 6], 10)).toEqual([9.5, 10]);
+    expect(barsInSpan(g, [3, 6], 3)).toBeNull();
+  });
+
+  it("lowering a stretch adds points at its ends, ramped, and lowers those between", () => {
+    const item = { id: "m01", track: "music" as const, path: "sound/m01/t01.wav", in: { shot: "sh010", frame: 0 } };
+    const at = (frame: number) => ({ shot: "sh010", frame });
+    expect(lowerStretch({ items: [item] }, "m01", 1, 3, -6, 0.25, ITEMS, 24)!.items![0].points).toEqual([
+      { at: at(24), db: 0 }, { at: at(30), db: -6 }, { at: at(66), db: -6 }, { at: at(72), db: 0 },
+    ]);
+    // the line it had: kept outside, lowered inside, the ends at its level there
+    const mix: Mix = { items: [{ ...item, points: [{ at: at(12), db: -3 }, { at: at(48), db: 2 }] }] };
+    expect(lowerStretch(mix, "m01", 1, 3, -6, 0.25, ITEMS, 24)!.items![0].points).toEqual([
+      { at: at(12), db: -3 }, { at: at(24), db: -1.5 }, { at: at(30), db: -6.5 }, { at: at(48), db: -4 }, { at: at(66), db: -4 }, { at: at(72), db: 2 },
+    ]);
+    expect(lowerStretch(mix, "m01", 3, 1, -6, 0.25, ITEMS, 24)).toBeNull();
+    expect(lowerStretch(mix, "nope", 1, 3, -6, 0.25, ITEMS, 24)).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // the window, on the mock
 // ---------------------------------------------------------------------------
@@ -187,7 +328,7 @@ import { cueKey, cueSettled, loadCue, newCue, openCue, pickCueTake } from "../sr
 import { resetCutHistory } from "../src/cutActions";
 import { setApi, setHost, type Host } from "../src/host";
 import { createMockApi } from "../src/mock/mockApi";
-import { currentMix, loadMix } from "../src/mixActions";
+import { currentMix, loadMix, mixSettled } from "../src/mixActions";
 import { initialState, statusKey, store } from "../src/store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -259,9 +400,11 @@ describe("the cue window", () => {
     expect(side.textContent).toContain("The fit");
     expect(side.textContent).toContain("From the script");
     expect(side.querySelector("pre")!.textContent).toBe(res.plan!.prompt.prompt);
-    // the other tabs are coming
-    const tabs = [...side.ownerDocument.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")];
-    expect(tabs.map((b) => [b.textContent, b.disabled])).toEqual([["Score", false], ["Arc", true], ["Orchestration & takes", true]]);
+    // the three tabs, Score open
+    const tabs = [...side.ownerDocument.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")].slice(0, 3);
+    expect(tabs.map((b) => [b.textContent, b.disabled, b.classList.contains("h3-on")])).toEqual([
+      ["Score", false, true], ["Arc", false, false], ["Orchestration & takes", false, false],
+    ]);
   });
 
   it("a section clicked is the inspector's; its energy edited is one PUT, then the plan again", async () => {
@@ -295,6 +438,118 @@ describe("the cue window", () => {
     const item = currentMix()!.mix.items!.find((i) => i.id === "m01")!;
     expect(item).toMatchObject({ track: "music", path: best.file });
     expect(q(".h3-cue-take")[0].textContent).toContain("In the mix");
+  });
+
+  const res = () => store.get().cue[cueKey(EP, "proxy", "m01")]!;
+  const tab = async (name: string) => {
+    const b = q(".h3-cue-win .h3-seg button").find((x) => x.textContent === name)!;
+    await act(async () => b.click());
+  };
+  const button = (text: string | RegExp) => (q(".h3-cue-win button") as HTMLButtonElement[]).find((b) => (typeof text === "string" ? b.textContent?.trim() === text : text.test(b.textContent?.trim() ?? "")));
+  const settle = async () => {
+    await act(async () => {
+      await cueSettled();
+      await mixSettled();
+    });
+  };
+
+  it("the Arc tab: the lane large, a shape, sections cut from it, a stroke drawn, and what the model hears", async () => {
+    await open();
+    await tab("Arc");
+    const plan = res().plan!;
+    // the lane large, the hits and sections above it for reference, no takes
+    expect(q(".h3-cue-arc svg")[0].getAttribute("height")).toBe("220");
+    expect(q(".h3-cue-hit")).toHaveLength(3);
+    expect(q(".h3-cue-sect.h3-ro")).toHaveLength(plan.sections.length);
+    expect(q(".h3-cue-take")).toHaveLength(0);
+    // beside it: each section's words, and the prompt as it is
+    const side = q(".h3-cue-readout")[0];
+    expect(side.textContent).toContain("What the model hears");
+    expect(q(".h3-cue-read")).toHaveLength(plan.sections.length);
+    expect(side.querySelector("pre")!.textContent).toBe(plan.prompt.prompt);
+    // the script has music: notes here, so its shape is offered; no points yet, so no sections from them
+    expect(button("from the script")!.title).toContain("gentle default shape");
+    expect(button("Sections from the arc")!.disabled).toBe(true);
+    await act(async () => button("build and release")!.click());
+    await settle();
+    expect(res().spec.arc!.map((p) => p.level)).toEqual([2, 5, 1.5]);
+    // the sections from it: up to the peak, then down
+    expect(button("Sections from the arc")!.disabled).toBe(false);
+    await act(async () => button("Sections from the arc")!.click());
+    await settle();
+    expect(res().spec.sections!.map((s) => s.name)).toEqual(expect.arrayContaining(["build", "release"]));
+    // a stroke drawn freehand (4 px a second): its points replace those it spans
+    const lane = q(".h3-cue-arc .h3-cue-lane")[0];
+    await act(async () => lane.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 4, clientY: 200 })));
+    for (const [cx, cy] of [[10, 150], [16, 10], [22, 120], [30, 180]]) {
+      await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: cx, clientY: cy })));
+    }
+    expect(q(".h3-cue-stroke")).toHaveLength(1);
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await settle();
+    const levels = res().spec.arc!.map((p) => p.level);
+    expect(levels).toContain(5);
+    expect(levels.length).toBeGreaterThan(3);
+  });
+
+  it("Orchestration & takes: a stroke painted is the spec's orchestra and the sections' words; bars of a take comped and lowered", async () => {
+    await open();
+    await tab("Orchestration & takes");
+    expect(q(".h3-cue-orow")).toHaveLength(ORCH_FAMILIES.length);
+    const plan = res().plan!;
+    const barPx = plan.bar * 4;
+    // strings, bars 1 to 3, with the brush's present
+    const grid = q(".h3-cue-orch")[0];
+    await act(async () => grid.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 76 + 1, clientY: 1 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 76 + 2 * barPx + 1, clientY: 2 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await settle();
+    expect(res().spec.orchestra).toEqual({ strings: [2, 2, 2] });
+    expect(res().plan!.sections[0].words).toContain("strings present");
+    expect(res().plan!.prompt.prompt).toContain("strings present");
+    expect(q(".h3-cue-cell.h3-lv-2")).toHaveLength(3);
+    // removing the painted row clears it from the spec
+    await act(async () => q(".h3-cue-orow .h3-snd-btn")[0].click());
+    await settle();
+    expect(res().spec.orchestra).toBeUndefined();
+    expect(q(".h3-cue-orow")).toHaveLength(ORCH_FAMILIES.length - 1);
+
+    // bars 1 to 3 of the best take, dragged across
+    const best = res().takes[0];
+    const wave = () => q(".h3-cue-take .h3-cue-lane")[0];
+    const select = async () => {
+      await act(async () => wave().dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 1 })));
+      await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 2 * barPx + 1 })));
+      await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    };
+    await select();
+    const fixes = q(".h3-cue-fixes")[0];
+    expect(fixes.textContent).toContain("Bars 1-3");
+    // not in the mix yet: no breakpoints; repaint isn't measured
+    expect(button(/^Lower bars 1-3/)!.disabled).toBe(true);
+    expect(button(/^Repaint/)!.disabled).toBe(true);
+    expect(button(/^Repaint/)!.title).toBe("not measured yet (docs/SOUND.md 'Fixing part of a take')");
+    const src = Number(fixes.querySelector<HTMLSelectElement>("[aria-label='Comp from take']")!.value);
+    await act(async () => button(/^Comp bars 1-3/)!.click());
+    await settle();
+    const comp = res().takes.find((t) => t.comp)!;
+    expect(comp.comp).toEqual({ base: best.take, from: src, bars: [0, 3] });
+    expect(q(".h3-cue-take")).toHaveLength(5);
+    expect(q(".h3-cue-comp")[0].textContent).toBe(`comp of t${String(best.take).padStart(2, "0")} + t${String(src).padStart(2, "0")} bars 1-3`);
+    expect(q(".h3-cue-fixes")).toHaveLength(0);
+
+    // picked, its bars lowered with the mix's points
+    await act(async () => {
+      await pickCueTake(res().takes[0].take);
+    });
+    await select();
+    expect((q(".h3-cue-fixes input[aria-label='Lower by dB']")[0] as HTMLInputElement).value).toBe("-6");
+    expect(button(/^Lower bars 1-3/)!.disabled).toBe(false);
+    await act(async () => button(/^Lower bars 1-3/)!.click());
+    await settle();
+    const item = currentMix()!.mix.items!.find((i) => i.id === "m01")!;
+    expect(item.points!.length).toBeGreaterThanOrEqual(3);
+    expect(Math.min(...item.points!.map((p) => p.db))).toBe(-6);
   });
 
   it("a new cue from the music lane takes the next id and opens", async () => {
