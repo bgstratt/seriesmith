@@ -80,7 +80,10 @@ The **Score** tab is the cue on one bar grid, top to bottom:
   (frames). A drop on the cue's out point is its **end**: the music is cut there, so it isn't
   fitted.
 - **Bars**, then **Sections**: blocks of whole bars. Drag an edge to move it; click one to edit
-  it in the inspector: its **name**, **words** (what plays: "strings enter, timpani roll"), and
+  it in the inspector: its **name** (a score's: intro, build, climax, release, drop, turn,
+  sting, transition, outro; a song's: verse, pre-chorus, chorus, bridge, break, instrumental,
+  solo; or **Other…**, your own; ACE-Step hears it as the section's tag, Stable Audio doesn't
+  hear names), **words** (what plays: "strings enter, timpani roll"), and
   its energy **from** and **to** (1 sparse … 5 fortissimo). With no sections given, they're worked
   out from the hits (a build into an arrive, quiet after a drop).
 - **Intensity**: the arc, the energy you want bar by bar (green). Drag its points, double-click

@@ -24,7 +24,7 @@ import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
   cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
   meterText, moveEdge,
-  movePoint, orchestraRows, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
+  movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
   sectionsFromArc, smoothPoints, snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
 } from "../lib/cue";
@@ -1042,6 +1042,32 @@ function MeterPicker({ spec, target, edit }: { spec: CueSpec; target: Target | u
 }
 
 /** The key: none (the model's choice), a major or minor key, or Other… (its own text: a mode). */
+/** A section's name: a score's or a song's (the cue's kind first), or Other… (its own text). */
+function SectionNamePicker({ name, song, onChange }: { name: string; song: boolean; onChange: (name: string) => void }) {
+  const choice = sectionChoice(name);
+  const [other, setOther] = useState(choice == null);
+  useEffect(() => {
+    if (choice == null) setOther(true);
+  }, [choice]);
+  const group = (label: string, names: string[]) => (
+    <optgroup label={label}>{names.map((n) => <option key={`${label}-${n}`} value={n}>{n}</option>)}</optgroup>
+  );
+  const groups = [group("Score", SCORE_SECTIONS), group("Song", SONG_SECTIONS.filter((n) => !SCORE_SECTIONS.includes(n)))];
+  return (
+    <span className="h3-col" style={{ gap: 4 }}>
+      <select className="h3-in" aria-label="Section name" value={other ? "other" : choice ?? ""} onChange={(e) => {
+        const n = e.target.value;
+        setOther(n === "other");
+        if (n !== "other") onChange(n);
+      }}>
+        {song ? [groups[1], groups[0]] : groups}
+        <option value="other">Other…</option>
+      </select>
+      {other && <Draft label="Section name (other)" value={name} placeholder="the waltz" onCommit={onChange} />}
+    </span>
+  );
+}
+
 function KeyPicker({ spec, edit }: { spec: CueSpec; edit: (patch: Partial<CueSpec>) => void }) {
   const choice = keyChoice(spec.key);
   const [other, setOther] = useState(choice == null);
@@ -1108,7 +1134,8 @@ function CueInspector({ res, target, targets, sel, sections, setSel }: {
           <span className="h3-grow" />
           <button className="h3-btn h3-icon" title="The cue (Esc)" onClick={() => setSel(null)}><i className="pi pi-times" /></button>
         </div>
-        {field("Name", <Draft label="Section name" value={s.name} onCommit={(name) => set({ name: name || `section ${sel + 1}` })} />)}
+        {field("Name", <SectionNamePicker key={sel} name={s.name} song={spec.kind === "song"} onChange={(name) => set({ name: name || `section ${sel + 1}` })} />,
+          "ACE-Step hears it as the section's tag ([Chorus]); Stable Audio doesn't hear names")}
         {field("Words", <Draft label="Section words" multiline value={s.words ?? ""} placeholder="instruments, texture, direction: solo french horn, strings enter…" onCommit={(words) => set({ words })} />,
           "What plays and how: told to the model for this stretch")}
         {field("From", <LevelSelect label="Energy at its start" value={p?.from ?? s.from ?? 3} onChange={(from) => set({ from })} />, "Energy at its start, 1 (sparse) to 5 (fortissimo)")}

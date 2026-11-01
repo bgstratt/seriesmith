@@ -12,7 +12,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  KEYS, ORCH_FAMILIES, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
+  KEYS, ORCH_FAMILIES, SCORE_SECTIONS, SONG_SECTIONS, sectionChoice, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
   editableSections, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
@@ -76,6 +76,15 @@ describe("a cue's meter and key", () => {
     expect(keyChoice("c#  MAJOR")).toBe("C# major");
     expect(keyChoice("D dorian")).toBeNull();
     expect(keyChoice("Db major")).toBeNull();
+  });
+
+  it("the section name picker offers a score's and a song's names; another name is Other", () => {
+    expect(SCORE_SECTIONS).toContain("climax");
+    expect(SONG_SECTIONS).toContain("chorus");
+    expect(sectionChoice("build")).toBe("build");
+    expect(sectionChoice(" Pre-Chorus ")).toBe("pre-chorus");
+    expect(sectionChoice("the waltz")).toBeNull();
+    expect(sectionChoice("section 2")).toBeNull();
   });
 
   it("the mock stores a meter as the server does", async () => {

@@ -75,6 +75,20 @@ export const aceBeats = (beats: number) => [2, 3, 4, 6].reduce((a, b) => (Math.a
 export const KEY_NOTES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 export const KEYS = [...KEY_NOTES.map((n) => `${n} major`), ...KEY_NOTES.map((n) => `${n} minor`)];
 
+/**
+ * The section names the inspector offers, a score's and a song's: the ones
+ * ACE-Step knows as structure tags ([Chorus]; its prompt writer title-cases
+ * them). Stable Audio doesn't hear a name, only the words and energies.
+ */
+export const SCORE_SECTIONS = ["intro", "build", "climax", "release", "drop", "turn", "sting", "transition", "outro"];
+export const SONG_SECTIONS = ["intro", "verse", "pre-chorus", "chorus", "bridge", "break", "instrumental", "solo", "outro"];
+
+/** A section's name as the picker shows it: one it offers (any case or spacing), or null (Other: its own text). */
+export function sectionChoice(name: string | undefined): string | null {
+  const n = (name ?? "").trim().split(/\s+/).join(" ").toLowerCase();
+  return [...SCORE_SECTIONS, ...SONG_SECTIONS].includes(n) ? n : null;
+}
+
 /** A spec's key as the picker shows it: "" (the model's choice), one of KEYS, or null (Other: its own text). */
 export function keyChoice(key: string | undefined): string | null {
   const parts = (key ?? "").trim().split(/\s+/).filter(Boolean);
