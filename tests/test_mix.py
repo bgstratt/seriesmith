@@ -51,13 +51,24 @@ class CheckTest(unittest.TestCase):
         self.assertFalse(MX.active({}))
 
     def test_defaults_dropped(self):
-        got = MX.check({"tracks": {"music": {"gain_db": 0, "duck_db": -9}},
-                        "items": [self.item(gain_db=0, offset=0, fade_in=0, loop=False)],
+        got = MX.check({"items": [self.item(gain_db=0, offset=0, fade_in=0, loop=False)],
                         "duck": {"threshold_db": -45}, "loudness": {"target_lufs": -16}})
         self.assertEqual(got, {"items": [{"id": "m01", "track": "music",
                                           "path": "sound/m01.wav",
                                           "in": {"shot": "sh010", "frame": 0}}]})
         self.assertTrue(MX.active(got))
+
+    def test_track_values_kept_as_given(self):
+        # a 0 dB fader or an unmute overrides the series config's value
+        got = MX.check({"tracks": {"music": {"gain_db": 0, "mute": False, "duck_db": -9}}})
+        self.assertEqual(got["tracks"]["music"], {"gain_db": 0, "mute": False, "duck_db": -9})
+        self.assertFalse(MX.active(got))
+        with tempfile.TemporaryDirectory() as root:
+            MX.save(root, {"final": got})
+            eff = MX.for_pass(root, "final", {"sound": {"tracks": {"music": {"gain_db": -2,
+                                                                            "mute": True}}}})
+            self.assertEqual(eff["tracks"]["music"]["gain_db"], 0)
+            self.assertFalse(eff["tracks"]["music"]["mute"])
 
     def test_a_track_level_alone_is_a_mix(self):
         self.assertTrue(MX.active(MX.check({"tracks": {"dialogue": {"gain_db": -3}}})))
@@ -321,9 +332,11 @@ class RouteTest(ApiTest):
         self.assertEqual(got["defaults"]["loudness"], MX.LOUDNESS)
 
     def test_put_round_trip_and_history(self):
-        got = self.put({"items": [self.item(gain_db=-3)], "tracks": {"music": {"gain_db": 0}}})
+        got = self.put({"items": [self.item(gain_db=-3, fade_in=0)]})
         self.assertEqual(got["items"][0]["gain_db"], -3)
-        self.assertNotIn("tracks", got)                         # defaults dropped
+        self.assertNotIn("fade_in", got["items"][0])            # defaults dropped
+        files = self.ok(A.get_mix(self.ctx, {"ep": self.ep, "pass": "final"}))["files"]
+        self.assertGreater(files["audio/score.wav"], 0)          # its length, for the lane
         self.assertEqual(MX.load(self.ep)["final"], got)
         self.assertEqual(MX.load(self.ep)["proxy"], {})
         self.put({"items": [self.item(gain_db=-6)]})

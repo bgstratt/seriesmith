@@ -2534,7 +2534,8 @@ def put_cut(ctx: Context, body):
 
 @handler
 def get_mix(ctx: Context, query: dict):
-    """A pass's mix (mix.py, docs/SOUND.md): `mix` as mix.json holds it, `series` the
+    """A pass's mix (mix.py, docs/SOUND.md): `mix` as mix.json holds it, `files` each item
+    file's length in seconds (None: not there or no sound), `series` the
     series config's `sound` defaults under it, and `defaults` what a track, the ducking
     and the loudness are when neither says (the editor draws the lanes from these)."""
     ep = check_ep(ctx, query.get("ep"))
@@ -2544,7 +2545,14 @@ def get_mix(ctx: Context, query: dict):
     except ValueError as e:
         raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
     snd = (J.series_config(ep) or {}).get("sound") or {}
-    return 200, {"mix": mix, "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
+    # each item's file: its length in seconds (None: not there, or no sound)
+    files = {}
+    for it in mix.get("items") or []:
+        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        info = PK.media_info(full) if os.path.isfile(full) else {}
+        files[it["path"]] = info.get("duration") if info.get("audio") else None
+    return 200, {"mix": mix, "files": files,
+                 "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
                  "defaults": {"tracks": list(MX.TRACKS), "duck_db": MX.DUCK_DEFAULT,
                               "duck": MX.DUCK, "loudness": MX.LOUDNESS}}
 

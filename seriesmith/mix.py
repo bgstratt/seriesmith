@@ -177,8 +177,9 @@ def check_item(raw) -> dict:
 
 
 def check(raw) -> dict:
-    """A pass's mix in its stored form (defaults dropped, so an empty mix is {}).
-    ValueError for anything that isn't one."""
+    """A pass's mix in its stored form (defaults dropped, so an empty mix is {}; a track's
+    values are kept as given, to override the series config's). ValueError for anything
+    that isn't one."""
     if raw is None:
         return {}
     if not isinstance(raw, dict):
@@ -196,17 +197,18 @@ def check(raw) -> dict:
             raise ValueError(f"track {name} takes {', '.join(TRACK_FIELDS)}")
         if name == "dialogue" and t.get("duck_db") is not None:
             raise ValueError("the dialogue track doesn't duck")
+        # a track's values are kept when given, defaults or not: a 0 dB fader or an
+        # unmute here overrides the series config's `sound.tracks`
         o: dict = {}
-        g = _num(t.get("gain_db"), f"track {name}'s gain_db", GAIN_MIN, GAIN_MAX, 0.0)
-        if g:
-            o["gain_db"] = g
+        if t.get("gain_db") is not None:
+            o["gain_db"] = _num(t["gain_db"], f"track {name}'s gain_db", GAIN_MIN, GAIN_MAX)
         for k in ("mute", "solo"):
-            if t.get(k):
-                o[k] = True
+            if t.get(k) is not None:
+                if not isinstance(t[k], bool):
+                    raise ValueError(f"track {name}'s {k} is true or false")
+                o[k] = t[k]
         if name != "dialogue" and t.get("duck_db") is not None:
-            d = _num(t["duck_db"], f"track {name}'s duck_db", -40.0, 0.0)
-            if d != DUCK_DEFAULT[name]:
-                o["duck_db"] = d
+            o["duck_db"] = _num(t["duck_db"], f"track {name}'s duck_db", -40.0, 0.0)
         if o:
             tracks[name] = o
     if tracks:

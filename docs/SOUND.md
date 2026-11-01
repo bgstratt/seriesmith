@@ -303,6 +303,31 @@ Each phase is tested live on local ComfyUI before the next starts.
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
 
+## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
+
+Twelve renders, then six more (scratch script; `seriesmith/beats.py` measuring, librosa's beat
+tracker beside it):
+
+- **Fast**: about 4 s for a 30-50 s cue once loaded (32 s for the first, loading). Eight seeds
+  of a cue cost half a minute, so **picking the best of many takes** is cheap.
+- **It holds a tempo** when the music has a pulse: asked 72 / 92 / 120 with "steady snare and
+  timpani on every beat", it played 72.05, 72.05 / 92.19, 90.16 / 119.97, 119.90 (five of six
+  within 0.3 %, one 2 % slow). Soft orchestral cues (legato strings, horn) defeat both beat
+  trackers (librosa answered 123 for every file, whatever was asked), so a take's tempo is
+  measured with confidence only where it has onsets; the window says when it can't tell.
+- **The music doesn't start on 0**: the first beat came 0.03-3.1 s in. A take is **slipped to
+  its measured downbeat** (the pre-roll moved) before its hits are checked.
+- **Sections don't follow bar counts, and energy words don't move the level** (n = 3 each):
+  `[intro 4 bars, ...] [build 8 bars, ...] [climax 4 bars, ...] [drop 2 bars ...]` at 92 bpm put
+  the loudest bar at 9-11 (asked 13-16), the drop rarely at bar 17 (its dip -13 to +5 dB), and
+  a fade from bar ~18; the shape error was 0.40-0.44 with energy words (quiet, fortissimo,
+  building) and 0.40-0.45 without. So the arc can't be trusted to the prompt alone. What to try
+  next, before building the Arc tab around words: ACE-Step's own section tags (`[Intro]`,
+  `[Verse]`, `[Chorus]`, `[Bridge]`, `[Outro]`) with one descriptive line per bar or two (it
+  may time sections by their lines, as it does lyrics); **a cue per section**, each its own
+  length and tempo, joined at bar lines; and ranking many seeds by shape error. The volume
+  breakpoints remain the sure way to shape a level.
+
 ## Open questions
 
 - Ducking defaults (-9 / -6 dB) are guesses: tune on a real episode in phase 1.
