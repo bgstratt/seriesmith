@@ -614,6 +614,30 @@ Body:
 ### `DELETE /seriesmith/override?ep=…&shot=…[&pass=…]`
 Removes the shot's override: one pass's fields if `pass` is given, else everything.
 
+## The mix (2026-11-01)
+
+The episode's sound beyond each clip's own: effects, ambience and music items, track
+faders, ducking, hit points and the loudness target (docs/SOUND.md; the shape is
+`seriesmith/mix.py`'s docstring). Assemble (Export, the 2x export, Master) renders it when the
+pass has one: the clips' joined sound is the dialogue track, the mix replaces the cut's sound,
+and the stems go to `<cut>_stems/` beside it; the XML export carries the items on their own
+tracks.
+
+### `GET /seriesmith/mix?ep=…&pass=…`
+`{"mix", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for none,
+defaults dropped), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
+`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], duck_db, duck, loudness}`
+(what a track dips under speech, the detector and the loudness target when nothing says).
+409 when `mix.json` is there but doesn't read.
+
+### `PUT /seriesmith/mix`
+Body `{"ep", "pass", "mix"}`: replaces that pass's mix and answers `{"mix"}` as stored. 400 for
+one that doesn't check (an unknown field, a track or anchor that isn't one, a level, fade or
+loudness out of range, two items or hits with one id), or an item whose `path` leaves the
+episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
+`audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
+Emits `seriesmith.episode`.
+
 ## Assemble
 
 ### `POST /seriesmith/assemble`

@@ -17,12 +17,18 @@ assemble counts it; its file carries its own rate and the editor conforms it).
                         first frame sits, from the clip's first used frame),
                         "gain"} | None}]
     recording: {"path", "channels", "frames", "at" (from the cut's start)} | None
+    sound: {"effects" | "ambience" | "music": [{"label", "path", "channels", "frames",
+             "start", "end" (the cut's frames), "in" (the file's frame at start),
+             "gain_db", "points": [(cut frame, dB)], "fade_in", "fade_out"}]}
+    hits: [{"name", "at" (the cut's frame)}]
 
 A dissolve of n frames on a clip is a centred Cross Dissolve on its join: the
 edit at the clip before's frame used - n + n//2, the frames either side its
 handles, the frames assemble's xfade uses. A fade is a Cross Dissolve from or to
 black at the clip's own head or tail. Clip sound is on A1/A2 (a mono file A1
-alone), the recording on A3/A4.
+alone), the recording on the next pair, then the mix's effects, ambience and music
+(mix.py), a pair each, their levels as Audio Levels keyframes (`when` counted in the
+clip's source frames, as FCP7 writes them). The hits are sequence markers.
 """
 
 from __future__ import annotations
@@ -127,7 +133,7 @@ def _transition(track: ET.Element, fps: float, start: int, end: int, align: str,
         _sub(fx, "reverse", False)
 
 
-def _gain(item: ET.Element, gain: float) -> None:
+def _gain(item: ET.Element, gain: float, keys: list[tuple[int, float]] | None = None) -> None:
     fx = _sub(_sub(item, "filter"), "effect")
     _sub(fx, "name", "Audio Levels")
     _sub(fx, "effectid", "audiolevels")
@@ -140,6 +146,15 @@ def _gain(item: ET.Element, gain: float) -> None:
     _sub(p, "valuemin", 0)
     _sub(p, "valuemax", "3.98109")
     _sub(p, "value", f"{gain:g}")
+    for when, value in keys or []:
+        k = _sub(p, "keyframe")
+        _sub(k, "when", when)
+        _sub(k, "value", f"{value:g}")
+
+
+def _lin(db: float) -> float:
+    """A level in dB as the linear gain Audio Levels takes, within its 0..3.98 (+12 dB)."""
+    return round(min(3.98109, 10.0 ** (db / 20.0)), 5)
 
 
 def lay(clips: list[dict]) -> list[dict]:
@@ -160,7 +175,8 @@ def lay(clips: list[dict]) -> list[dict]:
 
 
 def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict],
-          recording: dict | None = None) -> str:
+          recording: dict | None = None, sound: dict | None = None,
+          hits: list[dict] | None = None) -> str:
     """The xmeml document for a cut, as text."""
     spots = lay(clips)
     total = spots[-1]["end"] if spots else 0
@@ -195,7 +211,9 @@ def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict]
     asc = _sub(_sub(audio, "format"), "samplecharacteristics")
     _sub(asc, "depth", 16)
     _sub(asc, "samplerate", SAMPLE_RATE)
-    a_tracks = [_sub(audio, "track") for _ in range(4 if recording else 2)]
+    lanes = [k for k in ("effects", "ambience", "music") if (sound or {}).get(k)]
+    a_tracks = [_sub(audio, "track")
+                for _ in range(2 + (2 if recording else 0) + 2 * len(lanes))]
 
     def item(track: ET.Element, label: str, path: str, frames: int, file_fps: float,
              fsize, channels: int, start: int, end: int, in_: int, out: int,
@@ -298,6 +316,36 @@ def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict]
             for ch in range(min(2, recording["channels"])):
                 item(a_tracks[2 + ch], label, recording["path"], recording["frames"], fps,
                      None, recording["channels"], s, e, s - zero, e - zero, "audio", ch + 1)
+
+    first = 4 if recording else 2
+    for k, lane in enumerate(lanes):
+        pair = a_tracks[first + 2 * k: first + 2 * k + 2]
+        for it in sound[lane]:
+            # the file's own frame for a cut frame
+            src = it["in"] - it["start"]
+            keys = [(f + src, _lin(it["gain_db"] + d)) for f, d in it["points"]]
+            for ch in range(min(2, it["channels"])):
+                ai = item(pair[ch], it["label"], it["path"], it["frames"], fps, None,
+                          it["channels"], it["start"], it["end"], it["in"],
+                          it["in"] + it["end"] - it["start"], "audio", ch + 1)
+                if abs(it["gain_db"]) > 1e-6 or keys:
+                    _gain(ai, _lin(it["gain_db"]), keys)
+            for n, align, at in ((it["fade_in"], "start-black", it["start"]),
+                                 (it["fade_out"], "end-black", it["end"] - it["fade_out"])):
+                if n:
+                    for t in pair[:min(2, it["channels"])]:
+                        _transition(t, fps, at, at + n, align, True)
+        for t in pair:
+            kids = list(t)
+            kids.sort(key=lambda e: (int(e.findtext("start")), e.tag != "transitionitem"))
+            t[:] = kids
+    for h in hits or []:
+        if 0 <= h["at"] <= total:
+            m = _sub(seq, "marker")
+            _sub(m, "name", h["name"])
+            _sub(m, "comment", "hit")
+            _sub(m, "in", h["at"])
+            _sub(m, "out", -1)
 
     ET.indent(root, "  ")
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n'

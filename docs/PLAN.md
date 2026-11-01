@@ -1602,6 +1602,23 @@ its batch (`api.py`, `cut_at_start=True`) and is right.
       starts from sh020's take in the cut.
 - [ ] **Docs:** COMMANDS.md (`render` and continuous chains).
 
+## The episode's sound: dialogue, effects, ambience, music (designing; 2026-11-01)
+
+Four tracks under the picture, each optional with its own level: Dialogue (the take's own
+sound, unsplit), Effects (foley from the picked take), Ambience (a place's bed across cuts),
+Music (cues and songs as their own assets, anchored to shots and frames, written to land
+named hit points on bar lines). The mix is the episode's (`mix.json` per pass), not the
+script's: faders, item gain, fades, volume breakpoints, ducking under dialogue with "score
+forward" regions, loudness to -16 LUFS; stems and the FCP7 export's eight tracks. The design,
+the models found on this machine and the phases are docs/SOUND.md. ACE-Step 1.5 XL (Turbo
+for the proxy pass, SFT for the final) downloaded as the default score model; YuE2 for songs.
+
+- [ ] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
+- [ ] Phase 2: music (`music` kind, `ace_step15`, `yue2`, cue form, hits -> tempo, refit)
+- [ ] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
+- [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
+- [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

@@ -28,6 +28,7 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
 from seriesmith import issues as IS  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
+from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import promote as P  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
@@ -2531,6 +2532,41 @@ def put_cut(ctx: Context, body):
     return 200, {"cut": cut}
 
 
+@handler
+def get_mix(ctx: Context, query: dict):
+    """A pass's mix (mix.py, docs/SOUND.md): `mix` as mix.json holds it, `series` the
+    series config's `sound` defaults under it, and `defaults` what a track, the ducking
+    and the loudness are when neither says (the editor draws the lanes from these)."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    snd = (J.series_config(ep) or {}).get("sound") or {}
+    return 200, {"mix": mix, "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
+                 "defaults": {"tracks": list(MX.TRACKS), "duck_db": MX.DUCK_DEFAULT,
+                              "duck": MX.DUCK, "loudness": MX.LOUDNESS}}
+
+
+@handler
+def put_mix(ctx: Context, body):
+    """Replace a pass's mix: `{ep, pass, mix}`. 400 for one that doesn't check (an
+    unknown field, a track or anchor that isn't one, a level out of range). Items name
+    files in the episode (POST /seriesmith/audio/import puts one there)."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    try:
+        for it in MX.check(body.get("mix")).get("items") or []:
+            ep_file(ctx, ep, it["path"], escape_status=400)   # there, inside the episode
+        mix = MX.write(ep, pass_, body.get("mix"))
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
+
+
 def _cut_what(v) -> str:
     if v not in E.CUT_WHAT:
         raise ApiError(400, f"what must be one of {', '.join(E.CUT_WHAT)}, not {v!r}")
@@ -4890,6 +4926,8 @@ ROUTES = [
     ("DELETE", "/seriesmith/post", delete_post, "query"),
     ("PUT", "/seriesmith/pick", put_pick, "body"),
     ("PUT", "/seriesmith/cut", put_cut, "body"),
+    ("GET", "/seriesmith/mix", get_mix, "query"),
+    ("PUT", "/seriesmith/mix", put_mix, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),
