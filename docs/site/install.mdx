@@ -739,6 +739,43 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 |---|---|---|---|---|
 | `qwen_3_4b.safetensors` | `models/text_encoders/` | required | `z_image_turbo` | [Comfy-Org/z_image_turbo](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) |
 
+**ace-step-1.5** (`ace-step-1.5`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `acestep_v1.5_xl_sft_bf16.safetensors` | `models/diffusion_models/` | required | `ace_step15` | [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_xl_sft_bf16.safetensors) |
+| `acestep_v1.5_xl_turbo_bf16.safetensors` | `models/diffusion_models/` | required | `ace_step15` | [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_xl_turbo_bf16.safetensors) |
+
+**ace-step-1.5-qwen-small** (`ace-step-1.5-qwen-small`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `qwen_0.6b_ace15.safetensors` | `models/text_encoders/` | required | `ace_step15` | [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_0.6b_ace15.safetensors) |
+
+**ace-step-1.5-qwen-large** (`ace-step-1.5-qwen-large`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `qwen_4b_ace15.safetensors` | `models/text_encoders/` | required | `ace_step15` | [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_4b_ace15.safetensors) |
+
+**ace-step-1.5-vae** (`ace-step-1.5-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ace_1.5_vae.safetensors` | `models/vae/` | required | `ace_step15` | [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/vae/ace_1.5_vae.safetensors) |
+
+**stable-audio-3** (`stable-audio-3`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `stable_audio_3_medium.safetensors` | `models/checkpoints/` | required | `stable_audio3` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_medium.safetensors) |
+
+**t5gemma** (`t5gemma`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `t5gemma_b_b_ul2.safetensors` | `models/text_encoders/` | required | `stable_audio3` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors) |
+
 ### For upscaling (optional)
 
 Only to upscale takes (`seriesmith upscale`), never to render. H3's MinimaxH3LatentUpscaler3D comes from the Comfyui_Minimax_h3_latent_Upscaler pack (LBH-123-AI) — not its "Plus" fork, which has the same node without temporal chunking; LTX's LTXVLatentUpsampler is ComfyUI's own. `seriesmith targets` says whether this ComfyUI can upscale.

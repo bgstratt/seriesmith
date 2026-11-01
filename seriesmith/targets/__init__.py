@@ -6,8 +6,8 @@ targets — everything model-specific, one folder per model.
     targets/<kind>/<id>/workflow.json the ComfyUI graph the binding patches
 
 `kind` is "video" (a shot model: story IR -> shotlist entries), "image" (a
-reference model: a ref request -> a picture) or "audio" (a voice model: a
-voice ref -> a wav). The core (core, build,
+reference model: a ref request -> a picture), "audio" (a voice model: a
+voice ref -> a wav) or "music" (a score model: a cue -> a wav; docs/SOUND.md). The core (core, build,
 jobs, refs, the routes) only talks to a target through this module:
 
     load_target(id)            -> Target            (cached; TargetError if unknown)
@@ -47,6 +47,10 @@ and, for a video target, the code behind it:
 or, for an image target:
 
     ref_prompt(request, series_cfg)                 -> the wording of one ref
+
+or, for a music target (targets/music/common.py):
+
+    cue_prompt(cue)                                 -> {"prompt", "negative", "values"}
 
 or, for an audio target:
 
@@ -88,13 +92,14 @@ from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
-KINDS = ("video", "image", "audio")
+KINDS = ("video", "image", "audio", "music")
 TIERS = ("required", "accelerator", "optional")
 DEFAULT_VIDEO_TARGET = "minimax_h3_ref2va"
 DEFAULT_IMAGE_TARGET = "krea2"
 DEFAULT_AUDIO_TARGET = "ltx2_voice"
+DEFAULT_MUSIC_TARGET = "stable_audio3"
 DEFAULT_TARGETS = {"video": DEFAULT_VIDEO_TARGET, "image": DEFAULT_IMAGE_TARGET,
-                   "audio": DEFAULT_AUDIO_TARGET}
+                   "audio": DEFAULT_AUDIO_TARGET, "music": DEFAULT_MUSIC_TARGET}
 PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
@@ -751,6 +756,17 @@ class Target:
             return {**common, "mode": caps.get("mode") or "t2i",
                     "max_refs": int(caps.get("max_refs") or 0),
                     "negative_prompt": bool(self.binding.specs("negative"))}
+        if self.kind == "music":
+            caps = self.spec.get("capabilities") or {}
+            default, hi, lo = self.seconds_range()
+            # how it takes a tempo ("bpm": an input; "text": in the words), its
+            # sections ("sections": its own tags; "story": told in prose), lyrics
+            return {**common, "mode": caps.get("mode") or "t2m",
+                    "tempo": caps.get("tempo") or "text",
+                    "structure": caps.get("structure") or "story",
+                    "lyrics": bool(caps.get("lyrics")),
+                    "max_seconds": float(caps.get("max_seconds") or hi),
+                    "min_seconds": lo, "default_seconds": default}
         if self.kind == "audio":
             caps = self.spec.get("capabilities") or {}
             default, hi, lo = self.seconds_range()
@@ -799,6 +815,12 @@ class Target:
     # image
     def ref_prompt(self, req: RefRequest, series_cfg: dict) -> str:
         return self._need("ref_prompt")(self, req, series_cfg)
+
+    # music
+    def cue_prompt(self, cue: dict) -> dict:
+        """A cue's brief on this model: {"prompt", "negative", "values"}
+        (targets/music/common.py)."""
+        return self._need("cue_prompt")(self, cue)
 
     # audio
     def voice_prompt(self, name: str, voice: str = "", design: str = "",

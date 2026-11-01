@@ -1,0 +1,72 @@
+{
+  "id": "stable_audio3",
+  "kind": "music",
+  "label": "Stable Audio 3 Medium",
+  "short": "Stable Audio 3",
+  "default_rank": 1,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Text and a length only: no bpm, section or lyrics input, so a cue's arc is told as a story (prompt.py) and its tempo is written in the text. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: Stable Audio 3 Medium'): an arc told as a story put the climax in place 6 of 8 seeds, the climax 18 dB over the intro, shape error median 0.36; a tempo in the text held within 0.5 % at 72 and 120 bpm, 4-7 % off at 92 (with a pulse). About 2 s a 52 s cue on an RTX 5090. Instrumental only.",
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "story",
+    "lyrics": false,
+    "max_seconds": 380
+  },
+
+  "template": {
+    "_note": "Seconds, as EmptyLatentAudio takes them (up to 6:20).",
+    "default_seconds": 30.0,
+    "min_seconds": 2.0,
+    "max_seconds": 380.0
+  },
+
+  "binding": {
+    "_note": "ComfyUI's audio_stable_audio_3_medium template without its optional Qwen reprompt (seriesmith writes the prompt): CheckpointLoaderSimple (model and VAE), the T5Gemma text encoder through CLIPLoader type stable_audio, EmptyLatentAudio in seconds, KSampler at 8 steps, cfg 1, lcm / simple, VAEDecodeAudio, SaveAudio (flac; the take is converted to wav when it comes back).",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_stable_audio3.json",
+    "env": "SERIESMITH_STABLE_AUDIO3_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "CheckpointLoaderSimple", "field": "ckpt_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "title": "Positive prompt"},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "title": "Negative prompt"},
+      "seconds": {"class_type": "EmptyLatentAudio", "field": "seconds"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "sampler": {"class_type": "KSampler", "field": "sampler_name"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "stable-audio-3", "patterns": ["*stable*audio*3*"], "tier": "required", "exclude": ["*small*"]},
+    "text_encoder": {"family": "t5gemma", "patterns": ["*t5gemma*"], "tier": "required"}
+  },
+
+  "presets": {
+    "final": {
+      "model": "stable_audio_3_medium.safetensors",
+      "text_encoder": "t5gemma_b_b_ul2.safetensors",
+      "steps": 8, "cfg": 1.0, "sampler": "lcm",
+      "negative": "vocals, singing, speech, dialogue, low quality, distorted, clipping, noise",
+      "takes": 8
+    },
+    "proxy": {
+      "model": "stable_audio_3_medium.safetensors",
+      "text_encoder": "t5gemma_b_b_ul2.safetensors",
+      "steps": 8, "cfg": 1.0, "sampler": "lcm",
+      "negative": "vocals, singing, speech, dialogue, low quality, distorted, clipping, noise",
+      "takes": 4
+    }
+  },
+
+  "downloads": {
+    "_note": "The files ComfyUI's audio_stable_audio_3_medium template names (properties.models).",
+    "stable_audio_3_medium.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_medium.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"},
+    "t5gemma_b_b_ul2.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"}
+  }
+}
