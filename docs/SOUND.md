@@ -370,6 +370,19 @@ Each phase is tested live on local ComfyUI before the next starts.
    under the score, a walla track), each with its kind (what it ducks under, which stem it
    joins: M&E or dialogue) and its own stem and XML pair. mix.py's fixed `TRACKS` becomes the
    mix's own list.
+7. **Song-first (a music video).** The picture is cut to a finished song, not the music to
+   the picture. The song arrives mastered, so nothing of the mix applies: it's the
+   episode's recording, as a recorded dub is (docs/RECORDED_DIALOGUE.md): `audio.mode:
+   source_track`, each shot an `audio: in-out` window of it, `retention: fully_copy` so a
+   singer's lips follow their window, and `assemble --audio master` for the song unbroken
+   under the cut. Most of it exists; what's left to find out on one real song:
+   - [ ] align with the lyrics as the script's lines (faster-whisper on a sung vocal; the
+         vocal stem from Demucs, as RECORDED_DIALOGUE says for a recording with music)
+   - [ ] whether a singing shot lip-syncs better to the vocal stem than to the full song
+         (the window sent the model could be the stem's, the episode's sound the song's)
+   - [ ] shots that don't sing (the band, b-roll) get their window with no lips to sync
+   - [ ] cutting to the song's beats: phase 5's snaps, on the recording instead of a cue
+   - [ ] a guide: Making a music video
 
 ## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
 

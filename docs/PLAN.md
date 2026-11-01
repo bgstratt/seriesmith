@@ -1621,6 +1621,9 @@ for the proxy pass, SFT for the final) downloaded as the default score model; Yu
 - [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
 - [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
 - [ ] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
+- [ ] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
+      recorded dub is (`audio.mode: source_track`, each shot its window); mostly there, so a
+      guide and one real song tried before anything is built (docs/SOUND.md)
 
 ## To fix: the voice model is two lists (noted 2026-11-01)
 
