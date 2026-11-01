@@ -38,11 +38,11 @@ def asked() -> dict | None:
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
 LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
-          "tour": 3600}
+          "tour": 3600, "cue": 1800}
 
 # The least free disk a job needs where its files land (GB): a take is a few
 # hundred MB with its latent and frames, a 4K upscale or post a few GB.
-ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0}
+ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2}
 
 
 def room(folder: str, kind: str) -> None:
@@ -550,6 +550,67 @@ class Runner:
         self._submit(qjob)
         return n, qjob.id
 
+    def enqueue_cue(self, root: str, cid: str, n: int, graph: dict, p: dict,
+                    backend_name: str) -> str:
+        """A music cue's take (cue.py: its sidecar reserved, its graph, the cue's plan)
+        queued: the audio that comes back is kept, stretched to the cue's tempo and
+        measured (cue.finish_take). Returns the queue's job id."""
+        import os
+        import tempfile
+
+        from seriesmith import cue as CU
+
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, root, "cue")
+        sidecar = CU.take_paths(root, cid, n)["sidecar"]
+
+        def event(status: str) -> None:
+            self._emit("seriesmith.cue", {"ep": root, "cue": cid, "take": n, "status": status})
+            self._emit("seriesmith.episode", {"ep": root})
+
+        def work(qjob: QJob, report) -> str:
+            progress = progress_to(report)
+            try:
+                run = backend.submit(graph)
+                self.started(qjob, run, backend, report)
+                CU.update(root, cid, n, backend_job=run.id)
+                status = run.watch(on_progress=progress)
+                if status != "succeeded":
+                    raise RuntimeError(run.error or f"the job ended {status}")
+                outs = [o for o in run.outputs() if o.type == "audio"]
+                if not outs:
+                    raise RuntimeError("the job finished but returned no audio")
+                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".flac")
+                os.close(fd)
+                try:
+                    outs[0].save(tmp)
+                    sc = CU.finish_take(root, cid, n, tmp, p)
+                finally:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                m = sc.get("measured") or {}
+                report(line=f"take ok: shape {m.get('shape_error')}, worst hit {m.get('worst_must')} fr")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the take fails
+                qjob.error = str(e)[:800]
+                CU.update(root, cid, n, status="failed", finished=T.now(),
+                          error=stopped(qjob) if qjob.cancel_asked else str(e)[:800])
+                result = "canceled" if qjob.cancel_asked else "failed"
+            event("ok" if result == "succeeded" else "failed")
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            CU.update(root, cid, n, status="failed", finished=T.now(), error="canceled before it ran")
+            event("failed")
+
+        qjob = QJob(kind="cue", lane=backend.name, title=f"{_ep_name(root)} {cid} t{n:02d}",
+                    work=work, info={"ep": root, "cue": cid, "take": n, "backend": backend.name},
+                    on_cancel=cancelled, limit=LIMITS["cue"], record=sidecar,
+                    resume={"kind": "cue", "ep": root, "cue": cid, "take": n, "asked": asked()})
+        CU.update(root, cid, n, backend=backend.name, queue_id=qjob.id, queue=self.queue.name)
+        self._submit(qjob)
+        return qjob.id
+
     def _submit(self, qjob: QJob) -> None:
         """Queue `qjob` with the shows whose own targets are in force here
         (targets.thread_roots, set by the request or the CLI) in force on the
@@ -803,7 +864,8 @@ AGAIN = {"render": "Generate missing (Shots tab) queues it again",
          "ref": "Generate missing (Refs tab) queues it again",
          "upscale": "Master (or Upscale) runs it again",
          "post": "Master (or Post-process) runs it again",
-         "tour": "start the tour again"}
+         "tour": "start the tour again",
+         "cue": "render the cue again (its window)"}
 
 
 def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:

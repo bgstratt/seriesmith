@@ -295,8 +295,18 @@ Each phase is tested live on local ComfyUI before the next starts.
 2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
    the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape
    checking; refit and stale. Then the windows, in this order:
-   - [ ] measure first: whether energy words move ACE-Step's loudness and density (the shape
-         check on a few cues), and how well it holds a tempo and a section's length
+   - [x] measure first: whether energy words move ACE-Step's loudness and density (the shape
+         check on a few cues), and how well it holds a tempo and a section's length (below:
+         they don't; Stable Audio 3 follows an arc better and is the score default)
+   - [x] the engine (2026-11-01): the `music` target kind with `stable_audio3` and
+         `ace_step15`; `seriesmith/cue.py` (the spec, the plan against the cut, takes on the
+         queue, each stretched and measured, ranked, the picked one placed in the mix with
+         its gain fit); `beats.py`, `core/score.py`; the cue routes (docs/API.md "Music
+         cues"). Live on local ComfyUI: eight Stable Audio 3 takes of a four-shot cue in about
+         20 s, ranked, the best placed and exported with the mix. Hits that one tempo can't
+         put on bar lines (two 4.5 s apart near 92 bpm) are fitted as near as it can, and the
+         fit may go to the edge of its 8 % to land them
+   - [ ] the script's `music:` notes in a cue's prompt (the shotlist doesn't carry them)
    - [ ] the cue window's Score tab (sections, the arc lane, takes with hit and shape errors)
    - [ ] the spotting sheet (the music map, hits table, tempo fit)
    - [ ] the Arc tab's drawing tools and presets

@@ -355,6 +355,24 @@ def place(anchor: dict, origins: dict) -> int | None:
     return None if o is None else o["origin"] + anchor["frame"]
 
 
+def anchor_at(frame: int, origins: dict) -> dict | None:
+    """The anchor for a frame of the cut: the shot playing there (the later one where a
+    dissolve overlaps two) and the frame of its take. A frame before the first shot is
+    the first shot's, after the last the last's (its take's frames past its end); None
+    for a cut with no shots."""
+    if not origins:
+        return None
+    best = None
+    for shot, o in origins.items():
+        start = o["origin"] + o["first"]
+        if start <= frame and (best is None or start >= best[1]):
+            best = (shot, start)
+    if best is None:                                  # before the first shot
+        best = min(((s, o["origin"] + o["first"]) for s, o in origins.items()),
+                   key=lambda x: x[1])
+    return {"shot": best[0], "frame": max(0, frame - origins[best[0]]["origin"])}
+
+
 def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
            length=None) -> tuple[dict[str, list[dict]], list[str]]:
     """Each track's items laid on the cut, for a timeline that plays files (the FCP7

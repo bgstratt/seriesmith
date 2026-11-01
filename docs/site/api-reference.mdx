@@ -640,6 +640,51 @@ episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import`
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
 Emits `seriesmith.episode`.
 
+## Music cues (2026-11-01)
+
+A cue is a piece of score written to the cut (seriesmith/cue.py; docs/SOUND.md): its spec in
+`<ep>/sound/<cue>/spec.json` (the shape is cue.py's docstring), its takes beside it, and the
+picked one as its item on the music track of the pass's mix. A cue is planned against the
+pass's cut each time it's asked: its anchors become seconds, the mix's hits in its span are
+fitted (the tempo within 8 % of the asked one and the pre-roll that put the must-hits on bar
+lines, an accent on a beat), it runs in whole bars from the pre-roll through its out point and
+tail, its sections fill them (given, else from the hits), and its music target writes the
+prompt.
+
+### `GET /seriesmith/cues?ep=…`
+`{"cues": [{"spec", "takes", "ok", "placed"}]}`: each cue's spec, how many takes it has, how
+many finished, and the passes whose mix it's in.
+
+### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
+`{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
+`fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t}]`, seconds from its in point),
+`fit` (`{bpm, ask_bpm, stretch, errors, worst_must}`: the cue's exact tempo, the whole bpm the
+model is asked, the stretch between them, each hit's distance to its line in frames), `bars`,
+`bar` (seconds), `preroll`, `seconds`, `ask_seconds`, `sections`, `arc` (an energy per bar) and
+`prompt` (`{prompt, negative, values}` as the target writes it); null with `plan_error` when
+its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,
+`target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch, downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels (dB per bar), shape_error, score}`. 404 for no such cue.
+
+### `PUT /seriesmith/cue`
+Body `{"ep", "cue"}`: writes the spec; 400 for one that doesn't check (an unknown field, a
+model that isn't a music target, a bpm, meter, tail, level or take count out of range).
+
+### `POST /seriesmith/cue/render`
+Body `{"ep", "pass", "cue", "takes"?, "backend"?}`: plans the cue and queues `takes` takes
+(default: its model's preset's, 8 on the final pass), each its own seed, on seriesmith's queue.
+When each comes back it is kept as `tNN_raw`, stretched to the cue's tempo (by what its
+measured tempo says when that is within 3 % of the asked, else by the plan's stretch) into
+`tNN.wav`, and measured; `seriesmith.cue` `{ep, cue, take, status}` as each lands. Answers
+`{"queued": [{take, job, seed}], "plan"}`. 400 when its anchors aren't in the cut; 409 without
+the queue.
+
+### `POST /seriesmith/cue/pick`
+Body `{"ep", "pass", "cue", "take", "gain"?}`: the take becomes the cue's item (id: the cue's)
+on the music track of the pass's mix, from its in point (played from where its pre-roll ends)
+to its out point with a one-bar fade, and with `gain` (default true) a breakpoint at each bar
+fitting its level to the arc, at most 6 dB either way. Answers `{"mix"}`; 409 for a take that
+isn't finished.
+
 ## Assemble
 
 ### `POST /seriesmith/assemble`

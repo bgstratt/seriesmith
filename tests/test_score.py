@@ -41,6 +41,15 @@ class FitTempoTest(unittest.TestCase):
         self.assertEqual(len(f.errors), 3)
         self.assertEqual(f.worst_must, max(abs(e) for e in f.errors))
 
+    def test_accents_land_on_beats(self):
+        # two bar-line hits and an accent half a bar between them: the accent needs a beat
+        bar = 60 / 92 * 4
+        hits = [(2 * bar, True, False), (2.5 * bar + 0.0, True, True), (5 * bar, True, False)]
+        f = S.fit_tempo([(t - 0.4, m, b) for t, m, b in hits], 92, FPS)
+        self.assertLess(f.worst_must, 0.1)
+        as_bars = S.fit_tempo([(t - 0.4, m) for t, m, _ in hits], 92, FPS, spread=0.0)
+        self.assertGreater(as_bars.worst_must, 5)                 # on a bar line it can't
+
     def test_beat_level(self):
         beat = 60 / 100
         f = S.fit_tempo([(5 * beat, True), (9 * beat, True)], 100, FPS, beat_level=True)

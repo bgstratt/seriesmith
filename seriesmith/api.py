@@ -24,6 +24,7 @@ import threading
 # the pipeline
 # ---------------------------------------------------------------------------
 
+from seriesmith import cue as CU  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
 from seriesmith import issues as IS  # noqa: E402
@@ -2575,6 +2576,125 @@ def put_mix(ctx: Context, body):
     return 200, {"mix": mix}
 
 
+def _plan_summary(p: dict) -> dict:
+    """What a cue's plan says, for the window (cue.plan, without the spec it came from)."""
+    return {k: p[k] for k in ("target", "fps", "span", "hits", "fit", "bars", "bar", "preroll",
+                              "seconds", "ask_seconds", "sections", "arc", "prompt")}
+
+
+def _cue_spec(ep: str, cid) -> dict:
+    if not isinstance(cid, str) or not cid:
+        raise ApiError(400, "cue is the cue's id")
+    try:
+        return CU.load_spec(ep, cid)
+    except FileNotFoundError:
+        raise ApiError(404, f"no cue {cid}")
+    except CU.CueError as e:
+        raise ApiError(409, f"cue {cid}'s spec.json doesn't read: {e}")
+
+
+@handler
+def get_cues(ctx: Context, query: dict):
+    """The episode's music cues (cue.py): each its spec and how many takes it has,
+    finished and picked."""
+    ep = check_ep(ctx, query.get("ep"))
+    out = []
+    for spec in CU.list_cues(ep):
+        takes = CU.list_takes(ep, spec["id"])
+        out.append({"spec": spec, "takes": len(takes),
+                    "ok": sum(1 for t in takes if t.get("status") == "ok"),
+                    "placed": sorted({t["placed"] for t in takes if t.get("placed")})})
+    return 200, {"cues": out}
+
+
+@handler
+def get_cue(ctx: Context, query: dict):
+    """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
+    seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
+    `plan_error` when its anchors aren't in the cut) and `takes`, best first."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    spec = _cue_spec(ep, query.get("cue"))
+    try:
+        p, why = _plan_summary(CU.plan(ep, pass_, spec)), None
+    except CU.CueError as e:
+        p, why = None, str(e)
+    return 200, {"spec": spec, "plan": p, "plan_error": why,
+                 "takes": CU.ranked(CU.list_takes(ep, spec["id"]))}
+
+
+@handler
+def put_cue(ctx: Context, body):
+    """Write a cue's spec (`{ep, cue}`); 400 for one that doesn't check."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        spec = CU.save_spec(ep, body.get("cue"))
+    except CU.CueError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"spec": spec}
+
+
+@handler
+def post_cue_render(ctx: Context, body):
+    """Render a cue's takes on seriesmith's queue: `{ep, pass, cue, takes?, backend?}`
+    (takes: how many, default the model's preset's). Each is planned against the pass's
+    cut, gets its own seed, and is stretched to the cue's tempo and measured when it
+    comes back (`seriesmith.cue` as each lands). Returns {"queued": [{take, job, seed}],
+    "plan"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    if ctx.runner is None:
+        raise ApiError(409, "rendering a cue needs seriesmith's queue (the server)")
+    try:
+        p = CU.plan(ep, pass_, spec)
+    except CU.CueError as e:
+        raise ApiError(400, str(e))
+    target = TG.load_target(p["target"])
+    n = body.get("takes")
+    if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
+        raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
+    count = n or CU.takes_wanted(target, pass_, spec)
+    backend = finish_backend(ctx, body)
+    queued = []
+    for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
+        g = CU.graph(target, p, seed, pass_)
+        k = CU.reserve(ep, spec["id"], {"pass": pass_, "target": target.id, "seed": seed,
+                                        "prompt": p["prompt"], "plan": {
+                                            k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
+                                                                 "seconds", "ask_seconds")}})
+        job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
+        queued.append({"take": k, "job": job, "seed": seed})
+    episode_event(ctx, ep)
+    return 200, {"queued": queued, "plan": _plan_summary(p)}
+
+
+@handler
+def post_cue_pick(ctx: Context, body):
+    """A cue's take into the pass's mix as its music item: `{ep, pass, cue, take,
+    gain?}` (gain, default true: breakpoints fitting its level to the arc). Returns
+    {"mix"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    n = body.get("take")
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ApiError(400, "take is a take number")
+    gain = body.get("gain", True)
+    if not isinstance(gain, bool):
+        raise ApiError(400, "gain is true or false")
+    try:
+        mix = CU.place(ep, pass_, spec["id"], n, gain)
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
+
+
 def _cut_what(v) -> str:
     if v not in E.CUT_WHAT:
         raise ApiError(400, f"what must be one of {', '.join(E.CUT_WHAT)}, not {v!r}")
@@ -4936,6 +5056,11 @@ ROUTES = [
     ("PUT", "/seriesmith/cut", put_cut, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
+    ("GET", "/seriesmith/cues", get_cues, "query"),
+    ("GET", "/seriesmith/cue", get_cue, "query"),
+    ("PUT", "/seriesmith/cue", put_cue, "body"),
+    ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
+    ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),

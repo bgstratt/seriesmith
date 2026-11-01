@@ -144,6 +144,19 @@ def bar_levels(buf, bpm: float, start: float, beats_per_bar: int, bars: int,
     return out
 
 
+def onset_near(env, t: float, radius: float, rate: int = RATE) -> tuple[float | None, float]:
+    """(the time of the strongest onset within `radius` seconds of `t`, its strength
+    against the take's strongest, 0..1); (None, 0) when the window is outside the take."""
+    np = _np()
+    dt = hop_s(rate)
+    a = max(0, int((t - LATENCY - radius) / dt))
+    b = min(len(env), int((t - LATENCY + radius) / dt) + 1)
+    if b <= a or not len(env) or env.max() <= 0:
+        return None, 0.0
+    i = a + int(np.argmax(env[a:b]))
+    return i * dt + LATENCY, float(env[i] / env.max())
+
+
 def hit_errors(hits: list[float], bpm: float, start: float, fps: float) -> list[float]:
     """For each hit (seconds into the take), how far it is from the nearest beat of the
     grid, in frames at `fps` (negative: the beat comes before the hit)."""
