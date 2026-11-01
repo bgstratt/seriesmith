@@ -2,6 +2,7 @@
 // dropped; a MixError for what the route answers 400 for), enough for the dev
 // page and the tests to round-trip a mix.
 
+import type { PlayItem } from "../lib/playlist";
 import type { Anchor, Mix, MixHit, MixItem, MixRegion, MixTrack, MixTrackSettings } from "../types";
 
 export class MixError extends Error {
@@ -66,7 +67,8 @@ export function checkMix(raw: Mix | null | undefined): Mix {
   for (const [name, t] of Object.entries(raw.tracks ?? {}) as [MixTrack, MixTrackSettings][]) {
     if (!TRACKS.includes(name)) throw new MixError(`unknown track ${name}`);
     const o: MixTrackSettings = {};
-    if (t.gain_db) o.gain_db = num(t.gain_db, `track ${name}'s gain_db`, -60, 12);
+    // a fader is kept as given, 0 too: it overrides the series config's and the default (music -12)
+    if (t.gain_db != null) o.gain_db = num(t.gain_db, `track ${name}'s gain_db`, -60, 12);
     if (t.mute) o.mute = true;
     if (t.solo) o.solo = true;
     if (t.duck_db != null) {
@@ -104,4 +106,26 @@ export function checkMix(raw: Mix | null | undefined): Mix {
   if (raw.duck && Object.keys(raw.duck).length) out.duck = { ...raw.duck };
   if (raw.loudness && Object.keys(raw.loudness).length) out.loudness = { ...raw.loudness };
   return out;
+}
+
+/**
+ * GET /seriesmith/mix/duck in the mock: someone speaks over the middle half of
+ * every other clip, eased in and out by mix.py's attack and release, a value
+ * per 0.05 s of the cut.
+ */
+export function speechCurve(items: PlayItem[]): { step: number; curve: number[] } {
+  const step = 0.05;
+  const total = items.reduce((t, it) => Math.max(t, it.start + it.dur), 0);
+  const up = 1 - Math.exp(-step * 1000 / 60);
+  const down = 1 - Math.exp(-step * 1000 / 450);
+  const curve: number[] = [];
+  let level = 0;
+  for (let i = 0; i * step < total; i++) {
+    const t = i * step;
+    const it = items.find((x) => t >= x.start && t < x.start + x.dur);
+    const on = it && it.index % 2 === 0 && t >= it.start + it.dur * 0.25 && t < it.start + it.dur * 0.75 ? 1 : 0;
+    level += (on - level) * (on > level ? up : down);
+    curve.push(Math.round(level * 1000) / 1000);
+  }
+  return { step, curve };
 }

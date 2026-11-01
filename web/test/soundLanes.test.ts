@@ -15,6 +15,7 @@ import { currentMix, loadMix, mixSettled } from "../src/mixActions";
 import { initialState, loadPrefs, savePrefs, statusKey, store } from "../src/store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const RECT = HTMLElement.prototype.getBoundingClientRect;
 
 describe("the sound lanes", () => {
   let root: Root;
@@ -42,6 +43,7 @@ describe("the sound lanes", () => {
     root = createRoot(el);
   });
   afterEach(() => {
+    HTMLElement.prototype.getBoundingClientRect = RECT;
     act(() => root.unmount());
     el.remove();
     store.set(initialState());
@@ -66,6 +68,83 @@ describe("the sound lanes", () => {
     await mixSettled();
     expect(currentMix()!.mix.tracks).toEqual({ music: { mute: true } });
     expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Mute music");
+  });
+
+  it("the music fader shows its -12 dB default", async () => {
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    const faders = [...el.querySelectorAll<HTMLInputElement>(".h3-snd-fader")];
+    expect(faders.map((f) => f.value)).toEqual(["0", "0", "0", "-12"]);
+    expect(faders[3].title).toContain("-12 dB (the default)");
+    expect(el.querySelectorAll(".h3-snd-db")[3].textContent).toBe("-12");
+  });
+
+  it("a block draws its volume points: a right-click deletes one, a double-click on the line adds one, a drag moves one, the menu clears them", async () => {
+    const shots = store.get().status[statusKey(EP, "proxy")]!.shots;
+    const pts = [{ at: { shot: shots[0].shot, frame: 6 }, db: -6 }, { at: { shot: shots[1].shot, frame: 4 }, db: 3 }];
+    await api.putMix(EP, "proxy", {
+      items: [{ id: "amb01", track: "ambience", path: "audio/room_tone.wav", in: { shot: shots[0].shot, frame: 0 }, out: { shot: shots[1].shot, frame: 10 }, loop: true, points: pts }],
+    });
+    await loadMix(EP, "proxy");
+    store.set({ sound: true });
+    // happy-dom lays nothing out: each clip's column 100 px wide, side by side (until afterEach)
+    const order = shots.map((s) => s.shot);
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const i = this.dataset.shot ? order.indexOf(this.dataset.shot) : -1;
+      return (i < 0 ? RECT.call(this) : { left: i * 100, width: 100, top: 0, height: 40, right: i * 100 + 100, bottom: 40, x: i * 100, y: 0 }) as DOMRect;
+    };
+    await act(async () => root.render(createElement(Timeline)));
+    // measured again (a browser's ResizeObserver does it on mount)
+    await act(async () => store.set((s) => ({ zoom: s.zoom + 1 })));
+    const block = el.querySelector<HTMLElement>(".h3-snd-item.h3-snd-ambience")!;
+    expect(block.style.width).not.toBe("4px");
+    expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(2);
+    expect(block.querySelector(".h3-snd-gainline")).not.toBeNull();
+    expect(block.querySelector(".h3-snd-zero")).not.toBeNull();
+
+    // right-click the second point: one edit, and only the item's menu stays shut
+    const hits = block.querySelectorAll(".h3-snd-pt-hit");
+    await act(async () => hits[1].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+    await mixSettled();
+    expect(currentMix()!.mix.items![0].points).toEqual([pts[0]]);
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Delete a volume point of amb01");
+    expect(document.querySelector(".h3-snd-pop")).toBeNull();
+    expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(1);
+
+    // a double-click on the line (held at -6 dB: y 8 of 16, the block's border 1 above) adds one there
+    await act(async () => block.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 150, clientY: 9 })));
+    await mixSettled();
+    expect(currentMix()!.mix.items![0].points!.map((p) => p.db)).toEqual([-6, -6]);
+    expect(currentMix()!.mix.items![0].points![1].at.shot).toBe(shots[1].shot);
+    expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(2);
+    // off the line: nothing
+    await act(async () => block.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 120, clientY: 16 })));
+    await mixSettled();
+    expect(currentMix()!.mix.items![0].points).toHaveLength(2);
+
+    // drag the first point up 10 px: +5 dB, one edit; Esc cancels another
+    const drag = async (dy: number, shown: string, end: () => void) => {
+      const h = block.querySelector(".h3-snd-pt-hit")!;
+      await act(async () => h.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 6, clientY: 9 })));
+      await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 6, clientY: 9 + dy })));
+      expect(document.querySelector(".h3-trim-tip")?.textContent).toContain(`amb01 volume point ${shown} dB · ${shots[0].shot} frame 6`);
+      await act(async () => end());
+      await mixSettled();
+    };
+    await drag(-10, "-1", () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    expect(currentMix()!.mix.items![0].points![0]).toEqual({ at: { shot: shots[0].shot, frame: 6 }, db: -1 });
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Move a volume point of amb01");
+    await drag(-4, "+1", () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(currentMix()!.mix.items![0].points![0].db).toBe(-1);
+    expect(document.querySelector(".h3-trim-tip")).toBeNull();
+
+    // the item's menu: Clear the volume points
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+    const clear = [...document.querySelectorAll<HTMLButtonElement>(".h3-snd-pop button")].find((b) => b.textContent?.includes("Clear the volume points"))!;
+    await act(async () => clear.click());
+    await mixSettled();
+    expect(currentMix()!.mix.items![0].points).toBeUndefined();
+    expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(0);
   });
 
   it("every lane has a menu, kept on screen", async () => {

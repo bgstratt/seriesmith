@@ -686,6 +686,14 @@
 }
 .h3-snd-label .pi { font-size: 8px; }
 .h3-snd-fade { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+/* an item's gain line (its volume points, dB): its own colour, apart from the cue window's arc */
+.h3-root { --h3-gain: #ff8fb1; }
+.h3-snd-gain { position: absolute; left: 0; top: 1px; overflow: visible; pointer-events: none; z-index: 3; }
+.h3-snd-zero { stroke: var(--h3-gain); stroke-width: 1; opacity: 0.25; }
+.h3-snd-gainline { fill: none; stroke: var(--h3-gain); stroke-width: 1.5; stroke-linejoin: round; }
+.h3-snd-pt { fill: var(--h3-gain); stroke: var(--h3-bg); stroke-width: 1; }
+.h3-snd-pt-hit { fill: transparent; pointer-events: all; cursor: move; }
+.h3-snd-pt-hit:hover { fill: color-mix(in srgb, var(--h3-gain) 30%, transparent); }
 .h3-snd-fade.h3-l { left: 0; background: linear-gradient(to top right, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
 .h3-snd-fade.h3-r { right: 0; background: linear-gradient(to top left, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
 /* hits: a flag on the hits lane and a line down the lanes, coloured by kind */

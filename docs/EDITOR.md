@@ -1262,7 +1262,10 @@ next shot starts where this one ended.
 **Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
 where the waveforms are): a thin **hits** lane, then **Dialogue**, **Effects**, **Ambience** and **Music**.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
-+12; double-click: 0), **M** (mute) and **S** (solo: hear only the soloed lanes). Dialogue shows
++12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
+default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level
+you set is the mix's own, 0 dB on Music too; a **double-click** drops it, back to the series
+config's level or the default. Dialogue shows
 each clip's own sound; the other lanes start empty. The mix is the pass's own (`mix.json`
 beside `cut.json`), and assemble renders it into the export,
 with stems beside it.
@@ -1276,7 +1279,15 @@ with stems beside it.
   copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
 - **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head
   keeps the sound where it was, as a clip's trim does); **Esc** cancels. **Right-click** it
-  for its gain (dB), fades in and out (frames), loop, label, or Delete.
+  for its gain (dB), fades in and out (frames), loop, label, **Clear the volume points**, or Delete.
+- **Volume points** shape a block's level: the pink line across it (dB on its gain; a faint line
+  marks 0 dB; drawn -24 to +12). **Double-click on the line** for a point there, at the line's
+  level; **drag a point** up or down for its dB (0.5 dB a step, half a dB per pixel moved) and
+  along to move it to the shot and frame under it, with a tip saying both (**Esc** cancels);
+  **right-click a point** to delete it. Between points the level slides, before the first and
+  after the last it holds, as the export plays it. A cue take picked with its gain fitted brings
+  its points with it. The cue window's arc is green: that's what was asked of the music, this
+  is its level in the mix.
 - **Hits** are the moments a cue lands on ("the door bursts"). **+** adds one at the Play all
   playhead, a **double-click** on the hits lane adds one there; drag it to move it,
   right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the
@@ -1287,10 +1298,13 @@ with stems beside it.
   of the mix (said so on export).
 - Each change is saved at once and is one step of the timeline's undo (`Ctrl+Z` undoes cut
   and mix edits in the order you made them).
-- **Play all plays the mix**: every item at its gain and fades, each lane at its fader, mute
-  and solo; the dialogue fader turns the clips' own sound down (not up: a video plays at
-  most at its own level). The preview doesn't duck the music and ambience under speech, and
-  doesn't follow an item's volume points; the export does both.
+- **Play all plays the mix**: every item at its gain, fades and volume points, each lane at its
+  fader, mute and solo, and the music and ambience **ducked under speech as the export ducks
+  them**: the server works out where someone is speaking from the clips' own sound (fetched with
+  the mix, again when the cut or a take changes) and each lane dips by its duck depth there
+  (music -9 dB, ambience -6 dB by default; a region of the mix changes it for a stretch). The
+  dialogue fader turns the clips' own sound down (not up: a video plays at most at its own
+  level), as does a region that lowers the dialogue.
 
 ### The cue window: a piece of score
 

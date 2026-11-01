@@ -19,7 +19,7 @@ import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
-import { trackGains } from "../lib/mix";
+import { dialogueDbAt, trackGains } from "../lib/mix";
 import { currentMix } from "../mixActions";
 import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
@@ -534,8 +534,14 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   recStart.current = sync.start;
   // the episode's mix under the cut (effects, ambience, music), on its clock
   useMixAudio(ep, items, fps);
-  // the dialogue fader, mute and solo on the clips' own sound and the recording
-  const dialogue = useApp((s) => Math.min(1, trackGains(currentMix(s)).dialogue));
+  // the dialogue fader, mute and solo on the clips' own sound and the recording, and a
+  // region's dialogue_db under the playhead (a video plays at most at its own level)
+  const dialogue = useApp((s) => {
+    const res = currentMix(s);
+    const g = trackGains(res).dialogue;
+    const r = res?.mix.regions?.length ? dialogueDbAt(items, res.mix, fps, s.cutPlay.pos) : 0;
+    return Math.min(1, r ? g * 10 ** (r / 20) : g);
+  });
   useEffect(() => {
     for (const el of [v0.current, v1.current, au.current]) if (el) el.volume = dialogue;
   }, [dialogue, track]);

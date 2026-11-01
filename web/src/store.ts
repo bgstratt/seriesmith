@@ -440,6 +440,8 @@ export interface AppState {
   /** GET /seriesmith/mix of the pass open, by statusKey (fetched with its status) */
   mix: Record<string, MixResult>;
   mixError: Record<string, string>;
+  /** GET /seriesmith/mix/duck of the pass open, by statusKey (fetched with the mix): Play all ducks with it */
+  mixDuck: Record<string, { step: number; curve: number[] }>;
   /** GET /seriesmith/cues, by episode (fetched with the mix while the lanes are unfolded, and on opening a cue) */
   cues: Record<string, CueSummary[]>;
   /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
@@ -616,6 +618,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     sound: prefs.sound ?? prefs.waves ?? false,
     mix: {},
     mixError: {},
+    mixDuck: {},
     cues: {},
     cue: {},
     cueError: {},

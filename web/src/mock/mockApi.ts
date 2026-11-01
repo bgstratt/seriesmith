@@ -26,7 +26,7 @@ import { FsError, browse as fsBrowse, fsExists, fsFileExists } from "./mockFs";
 import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindow } from "./mockAudio";
 import { AlignError, createMockAlign } from "./mockTrack";
 import { MIX_DEFAULTS } from "../api";
-import { MixError, checkMix } from "./mockMix";
+import { MixError, checkMix, speechCurve } from "./mockMix";
 import { CueError, MUSIC_TARGETS, checkCue, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
 import type { CueSpec, CueTake } from "../types";
@@ -462,6 +462,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         { id: "h02", name: "the reveal", at: { shot: shots[2].shot, frame: 20 }, kind: "arrive" },
         { id: "h03", name: "silence", at: { shot: shots[3].shot, frame: 12 }, kind: "drop", must: false },
       ],
+      // a bed under the first shots, brought up and down by its volume points (the gain line)
+      items: [{
+        id: "amb01", track: "ambience", path: "audio/room_tone.wav", in: { shot: shots[0].shot, frame: 0 }, out: { shot: shots[2].shot, frame: 40 }, loop: true,
+        points: [{ at: { shot: shots[0].shot, frame: 30 }, db: -9 }, { at: { shot: shots[1].shot, frame: 20 }, db: 3 }, { at: { shot: shots[2].shot, frame: 10 }, db: -4 }],
+      }],
     };
     cueSpecs.set("m01", {
       id: "m01", label: "1M1 The Reveal", in: { shot: shots[0].shot, frame: 24 }, out: { shot: shots[3].shot, frame: 60 },
@@ -1237,6 +1242,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       mixes[pass] = checked;
       if (changed) emit("seriesmith.episode", { ep: EP });
       return { mix: clone(checked) };
+    },
+    async getMixDuck(ep, pass) {
+      await wait();
+      need(ep);
+      return speechCurve(cuePlaylist(pass));
     },
     async cues(ep) {
       await wait();

@@ -166,6 +166,8 @@ export interface Api {
   getMix(ep: string, pass: Pass): Promise<MixResult>;
   /** PUT /seriesmith/mix: replace the pass's mix; answers it as stored (defaults dropped). */
   putMix(ep: string, pass: Pass, mix: Mix): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/mix/duck: how much someone is speaking, 0..1 per `step` seconds of the cut (Play all ducks with it). */
+  getMixDuck(ep: string, pass: Pass): Promise<{ step: number; curve: number[] }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts. */
   cues(ep: string): Promise<{ cues: CueSummary[] }>;
   /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
@@ -385,6 +387,7 @@ export interface RefDefaultFields {
 /** mix.py's defaults, for a server that answers without them. */
 export const MIX_DEFAULTS: MixResult["defaults"] = {
   tracks: ["dialogue", "effects", "ambience", "music"],
+  gain_db: { dialogue: 0, effects: 0, ambience: 0, music: -12 },
   duck_db: { effects: 0, ambience: -6, music: -9 },
   duck: { threshold_db: -45, attack_ms: 60, release_ms: 450 },
   loudness: { target_lufs: -16, true_peak_db: -1 },
@@ -601,6 +604,10 @@ export function createHttpApi(t: Transport): Api {
       return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) } };
     },
     putMix: (ep, pass, mix) => call("PUT", "/seriesmith/mix", { ep, pass, mix }),
+    getMixDuck: async (ep, pass) => {
+      const r = await get<Partial<{ step: number; curve: number[] }>>(`/seriesmith/mix/duck?${qs({ ep, pass })}`);
+      return { step: typeof r?.step === "number" && r.step > 0 ? r.step : 0.05, curve: Array.isArray(r?.curve) ? r.curve : [] };
+    },
     cues: async (ep) => {
       const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs({ ep })}`);
       return { cues: Array.isArray(r?.cues) ? r.cues : [] };

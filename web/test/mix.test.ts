@@ -2,8 +2,9 @@
 // timeline, the edits as new mixes, and the actions' save / undo round trip.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  addHit, addItem, anchorTime, cleanHit, entryEnd, entryLevel, itemSpan, layout, moveItem, newId, patchHit, patchItem, playPlan,
-  removeHit, removeItem, setTrack, shiftAnchor, timeAnchor, timeX, trackGains, trimItem, xAnchor, xTime, type ClipBox,
+  addHit, addItem, addPoint, anchorTime, cleanHit, dbToGain, dialogueDbAt, duckDbAt, duckDepth, duckTracks, entryEnd, entryLevel, entryMarks,
+  itemSpan, layout, moveItem, movePoint, newId, patchHit, patchItem, playPlan, pointsDb, regionSpans, removeHit, removeItem, removePoint,
+  setTrack, shiftAnchor, timeAnchor, timeX, trackGains, trackState, trimItem, xAnchor, xTime, type ClipBox,
 } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
 import type { Mix, MixItem } from "../src/types";
@@ -164,12 +165,27 @@ describe("hits", () => {
 });
 
 describe("tracks and playback", () => {
-  it("a track's settings drop their defaults", () => {
+  it("a track's fader is kept as given, 0 too; null drops it", () => {
     let m = setTrack({}, "music", { gain_db: -3 });
     expect(m).toEqual({ tracks: { music: { gain_db: -3 } } });
+    // 0 on music overrides its -12 default
     m = setTrack(m, "music", { gain_db: 0 });
-    expect(m).toEqual({});
+    expect(m).toEqual({ tracks: { music: { gain_db: 0 } } });
+    expect(trackState({ mix: m, series: {} }, "music").gain_db).toBe(0);
+    expect(setTrack(m, "music", { gain_db: null })).toEqual({});
+    expect(setTrack(m, "music", { mute: false })).toEqual(m);
     expect(setTrack({}, "effects", { gain_db: 40 }).tracks!.effects!.gain_db).toBe(12);
+  });
+
+  it("a fader nothing sets is the default: music -12 dB", () => {
+    expect(trackState(undefined, "music").gain_db).toBe(-12);
+    expect(trackState({ mix: {}, series: {} }, "dialogue").gain_db).toBe(0);
+    // the server's defaults over the built-in ones, the series config's over both
+    const defaults = { gain_db: { dialogue: 0, effects: -3, ambience: 0, music: -10 } };
+    expect(trackState({ mix: {}, series: {}, defaults }, "music").gain_db).toBe(-10);
+    expect(trackState({ mix: {}, series: { tracks: { music: { gain_db: -6 } } }, defaults }, "music").gain_db).toBe(-6);
+    expect(trackGains({ mix: {}, series: {} }).music).toBeCloseTo(dbToGain(-12));
+    expect(trackGains({ mix: {}, series: {} }).effects).toBe(1);
   });
 
   it("faders sit on the series config's, and mute and solo silence", () => {
@@ -192,6 +208,105 @@ describe("tracks and playback", () => {
     expect(plan[1]).toMatchObject({ start: 1.5, end: null, loop: true });
     expect(entryEnd(plan[1], 2, 6)).toBe(3.5);
     expect(entryEnd(plan[1], 60, 6)).toBe(6);
+  });
+});
+
+describe("volume points", () => {
+  // m01 from sh010 frame 24 (1 s) to sh020 frame 60 (4 s); points at sh010 frame 36 (1.5 s, -6 dB)
+  // and sh020 frame 48 (3.5 s, +3 dB), stored out of order
+  const P: MixItem = {
+    ...ITEM, out: { shot: "sh020", frame: 60 },
+    points: [{ at: { shot: "sh020", frame: 48 }, db: 3 }, { at: { shot: "sh010", frame: 36 }, db: -6 }],
+  };
+
+  it("held before the first and after the last, linear between (np.interp, as render_item)", () => {
+    const [e] = playPlan(ITEMS, { items: [P] }, 24);
+    expect(e.points.map((p) => [p.t, p.db, p.i])).toEqual([[1.5, -6, 1], [3.5, 3, 0]]);
+    expect(pointsDb(e.points, 0)).toBe(-6);
+    expect(pointsDb(e.points, 1.5)).toBe(-6);
+    expect(pointsDb(e.points, 2.5)).toBeCloseTo(-1.5);
+    expect(pointsDb(e.points, 3.5)).toBe(3);
+    expect(pointsDb(e.points, 9)).toBe(3);
+    expect(pointsDb([], 1)).toBe(0);
+    // the level: the item's gain_db plus the points' dB
+    expect(entryLevel(e, 1.2, 4)).toBeCloseTo(10 ** (-6 / 20), 6);
+    expect(entryLevel(e, 2.5, 4)).toBeCloseTo(10 ** (-1.5 / 20), 6);
+    expect(entryLevel({ ...e, gain: dbToGain(-3) }, 3.8, 4)).toBeCloseTo(1, 6);
+    // a point whose shot isn't in the cut is left out, as mix.py does
+    const [g] = playPlan(ITEMS, { items: [{ ...P, points: [...P.points!, { at: { shot: "gone", frame: 0 }, db: -40 }] }] }, 24);
+    expect(g.points).toHaveLength(2);
+  });
+
+  it("are ramped through: the points, and steps along a slope", () => {
+    const [e] = playPlan(ITEMS, { items: [P] }, 24);
+    const m = entryMarks(e, 1, 4);
+    expect(m[0]).toBe(1.5);
+    expect(m).toContain(3.5);
+    expect(m[m.length - 1]).toBe(4);
+    // every 0.1 s up the slope; nothing after the last point (held)
+    expect(m.filter((t) => t > 1.5 && t < 3.5)).toHaveLength(19);
+    expect(m.filter((t) => t > 3.5 && t < 4)).toHaveLength(0);
+    // a ramp linear in gain between marks stays within a few hundredths of a dB of the line
+    for (let k = 0; k + 1 < m.length; k++) {
+      const mid = (m[k] + m[k + 1]) / 2;
+      const ramp = (entryLevel(e, m[k], 4) + entryLevel(e, m[k + 1], 4)) / 2;
+      expect(Math.abs(20 * Math.log10(ramp / entryLevel(e, mid, 4)))).toBeLessThan(0.05);
+    }
+  });
+
+  it("are added at the line's level, moved (snapped, kept in time order) and taken out", () => {
+    const mix: Mix = { items: [P] };
+    // sh020 frame 24 is 2.5 s: halfway up the slope
+    const added = addPoint(mix, "m01", { shot: "sh020", frame: 24 }, ITEMS, 24)!;
+    expect(added.items![0].points!.map((p) => p.db)).toEqual([-6, -1.5, 3]);
+    expect(addPoint(added, "m01", { shot: "sh020", frame: 24 }, ITEMS, 24)).toBeNull();
+    const moved = movePoint(added, "m01", 0, { shot: "sh010", frame: 30 }, -8.26, ITEMS, 24)!;
+    expect(moved.items![0].points).toEqual([
+      { at: { shot: "sh010", frame: 30 }, db: -8.5 }, { at: { shot: "sh020", frame: 24 }, db: -1.5 }, { at: { shot: "sh020", frame: 48 }, db: 3 },
+    ]);
+    expect(removePoint(moved, "m01", 1)!.items![0].points).toHaveLength(2);
+    expect(removePoint({ items: [{ ...ITEM, points: [{ at: ITEM.in, db: 2 }] }] }, "m01", 0)!.items![0].points).toBeUndefined();
+  });
+});
+
+describe("ducking", () => {
+  const res = (mix: Mix) => ({ mix, series: {}, defaults: { duck_db: { effects: 0, ambience: -6, music: -9 } } });
+
+  it("each track dips by its duck_db times the speech curve (the dialogue never)", () => {
+    expect(duckDepth(res({}), "music")).toBe(-9);
+    expect(duckDepth(res({ tracks: { music: { duck_db: -12 } } }), "music")).toBe(-12);
+    expect(duckDepth({ mix: {}, series: { tracks: { ambience: { duck_db: -3 } } } }, "ambience")).toBe(-3);
+    expect(duckDepth(res({}), "dialogue")).toBe(0);
+    const d = duckTracks(res({}), ITEMS, 24, { step: 0.5, curve: [0, 0.5, 1, 1, 0.2] }, 6);
+    expect(d.step).toBe(0.5);
+    expect(d.db.music).toHaveLength(13);
+    expect(d.db.music!.slice(0, 6)).toEqual([0, -4.5, -9, -9, -9 * 0.2, 0]);
+    expect(d.db.ambience!.slice(0, 3)).toEqual([0, -3, -6]);
+    // effects don't dip by default, the dialogue has no region: nothing to lay
+    expect(d.db.effects).toBeNull();
+    expect(d.db.dialogue).toBeNull();
+    // no curve: nothing dips
+    expect(duckTracks(res({}), ITEMS, 24, undefined, 6).db.music).toBeNull();
+  });
+
+  it("a region replaces the depth there (0: score forward) and lowers the dialogue", () => {
+    // sh010 frame 24 (1 s) to sh020 frame 36 (3 s)
+    const mix: Mix = { regions: [{ from: { shot: "sh010", frame: 24 }, to: { shot: "sh020", frame: 36 }, music_duck_db: 0, dialogue_db: -4 }] };
+    const spans = regionSpans(ITEMS, mix, 24);
+    expect(spans).toEqual([{ start: 1, end: 3, music: 0, dialogue: -4 }]);
+    expect(duckDbAt("music", -9, spans, 1, 0.5)).toBe(-9);
+    expect(duckDbAt("music", -9, spans, 1, 2)).toBe(0);
+    expect(duckDbAt("ambience", -6, spans, 0.5, 2)).toBe(-3);
+    expect(duckDbAt("dialogue", 0, spans, 1, 2)).toBe(-4);
+    expect(duckDbAt("dialogue", 0, spans, 1, 3)).toBe(0);
+    expect(dialogueDbAt(ITEMS, mix, 24, 1.5)).toBe(-4);
+    const d = duckTracks(res(mix), ITEMS, 24, { step: 1, curve: [1, 1, 1, 1, 1, 1] }, 5);
+    expect(d.db.music).toEqual([-9, 0, 0, -9, -9, -9]);
+    expect(d.db.dialogue).toEqual([0, -4, -4, 0, 0, 0]);
+    // the later of two regions wins; one whose shot isn't in the cut is left out
+    const two = regionSpans(ITEMS, { regions: [...mix.regions!, { from: { shot: "sh010", frame: 0 }, to: { shot: "sh030", frame: 0 }, music_duck_db: -20 }, { from: { shot: "x", frame: 0 }, to: { shot: "sh030", frame: 0 } }] }, 24);
+    expect(two).toHaveLength(2);
+    expect(duckDbAt("music", -9, two, 1, 2)).toBe(-20);
   });
 });
 
@@ -225,9 +340,30 @@ describe("the mix in the editor", () => {
   });
   afterEach(() => store.set(initialState()));
 
-  it("is fetched with the pass's status", () => {
+  it("is fetched with the pass's status, its speech curve with it", async () => {
     expect(store.get().mix[statusKey(EP, "proxy")]?.mix).toEqual({});
     expect(store.get().mix[statusKey(EP, "proxy")]?.defaults.tracks).toEqual(["dialogue", "effects", "ambience", "music"]);
+    expect(store.get().mix[statusKey(EP, "proxy")]?.defaults.gain_db.music).toBe(-12);
+    await new Promise((r) => setTimeout(r, 0));
+    const duck = store.get().mixDuck[statusKey(EP, "proxy")]!;
+    expect(duck.step).toBe(0.05);
+    expect(duck.curve.length).toBeGreaterThan(10);
+    expect(Math.max(...duck.curve)).toBeGreaterThan(0.5);
+    // the same curve fetched again keeps its object (Play all doesn't lay it again)
+    await loadMix(EP, "proxy");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(store.get().mixDuck[statusKey(EP, "proxy")]).toBe(duck);
+  });
+
+  it("music at 0 dB is stored as an override; a double-click's null drops it", async () => {
+    expect(trackState(currentMix(), "music").gain_db).toBe(-12);
+    expect(await setTrackMix("music", { gain_db: 0 })).toBe(true);
+    expect((await api.getMix(EP, "proxy")).mix.tracks).toEqual({ music: { gain_db: 0 } });
+    expect(trackState(currentMix(), "music").gain_db).toBe(0);
+    expect(await setTrackMix("music", { gain_db: null })).toBe(true);
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Music fader to its default");
+    expect(trackState(currentMix(), "music").gain_db).toBe(-12);
+    expect(await setTrackMix("music", { gain_db: null })).toBe(false);
   });
 
   it("a dropped file is imported and laid where it was dropped, then moved, undone and redone", async () => {

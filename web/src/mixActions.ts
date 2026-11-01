@@ -9,12 +9,12 @@ import { currentPlaylist, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
-  TRACK_LABEL, addHit, addItem, moveItem, newItemId, patchHit, patchItem, removeHit, removeItem, sameMix, setTrack, timeAnchor,
-  trimItem,
+  TRACK_LABEL, addHit, addItem, addPoint, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { statusKey, store, type AppState } from "./store";
-import type { Anchor, Mix, MixHit, MixItem, MixResult, MixTrack, MixTrackSettings, Pass } from "./types";
+import type { Anchor, Mix, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -38,6 +38,7 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
   if (!ep) return undefined;
   const key = statusKey(ep, pass);
   const started = ++clock;
+  void loadDuck(ep, pass);
   try {
     const r = await api().getMix(ep, pass);
     if (inFlight.get(key) || (savedAt.get(key) ?? 0) > started) return currentMix();
@@ -54,6 +55,29 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
     set((s) => ({ mixError: { ...s.mixError, [key]: errText(e) } }));
     return undefined;
   }
+}
+
+/** The pass's speech curve (Play all ducks with it), fetched with the mix; one the server can't
+ * make is no ducking in the preview. The same curve keeps its object. */
+async function loadDuck(ep: string, pass: Pass): Promise<void> {
+  const key = statusKey(ep, pass);
+  let r: { step: number; curve: number[] } | null = null;
+  try {
+    r = (await api().getMixDuck?.(ep, pass)) ?? null;
+  } catch (e) {
+    console.warn("seriesmith mix: no speech curve", e);
+  }
+  set((s) => {
+    const was = s.mixDuck[key];
+    if (!r) {
+      if (!was) return {};
+      const mixDuck = { ...s.mixDuck };
+      delete mixDuck[key];
+      return { mixDuck };
+    }
+    const same = was && was.step === r.step && was.curve.length === r.curve.length && was.curve.every((v, i) => v === r!.curve[i]);
+    return same ? {} : { mixDuck: { ...s.mixDuck, [key]: r } };
+  });
 }
 
 onStatusLoaded((ep, pass) => {
@@ -137,9 +161,10 @@ const fps = () => {
   return (s.ep ? s.status[statusKey(s.ep, s.pass)]?.fps : 0) || 24;
 };
 
-export function setTrackMix(track: MixTrack, patch: Partial<MixTrackSettings>, label?: string): Promise<boolean> {
+export function setTrackMix(track: MixTrack, patch: TrackPatch, label?: string): Promise<boolean> {
   const name = TRACK_LABEL[track];
-  const text = label ?? (patch.gain_db != null ? `${name} fader ${patch.gain_db > 0 ? "+" : ""}${patch.gain_db} dB`
+  const text = label ?? (patch.gain_db === null ? `${name} fader to its default`
+    : patch.gain_db != null ? `${name} fader ${patch.gain_db > 0 ? "+" : ""}${patch.gain_db} dB`
     : patch.mute != null ? `${patch.mute ? "Mute" : "Unmute"} ${name.toLowerCase()}`
       : patch.solo != null ? `${patch.solo ? "Solo" : "Unsolo"} ${name.toLowerCase()}` : `${name} track`);
   return editMix(text, (m) => setTrack(m, track, patch));
@@ -159,6 +184,24 @@ export function setMixItem(id: string, patch: Partial<MixItem>, label = `Change 
 
 export function deleteMixItem(id: string): Promise<boolean> {
   return editMix(`Delete ${id}`, (m) => removeItem(m, id));
+}
+
+/** A volume point on an item at `at`, at the level its line has there. */
+export function addMixPoint(id: string, at: Anchor): Promise<boolean> {
+  return editMix(`Add a volume point to ${id}`, (m) => addPoint(m, id, at, currentPlaylist(), fps()));
+}
+
+/** Point `i` of an item moved (a finished drag: one edit). */
+export function moveMixPoint(id: string, i: number, at: Anchor, db: number): Promise<boolean> {
+  return editMix(`Move a volume point of ${id}`, (m) => movePoint(m, id, i, at, db, currentPlaylist(), fps()));
+}
+
+export function deleteMixPoint(id: string, i: number): Promise<boolean> {
+  return editMix(`Delete a volume point of ${id}`, (m) => removePoint(m, id, i));
+}
+
+export function clearMixPoints(id: string): Promise<boolean> {
+  return editMix(`Clear ${id}'s volume points`, (m) => patchItem(m, id, { points: [] }));
 }
 
 /**

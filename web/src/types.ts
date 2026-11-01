@@ -2515,6 +2515,8 @@ export interface MixResult {
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
   defaults: {
     tracks: MixTrack[];
+    /** each track's fader when neither the mix nor the series config sets it (music -12) */
+    gain_db: Record<MixTrack, number>;
     duck_db: Partial<Record<MixTrack, number>>;
     duck: { threshold_db: number; attack_ms: number; release_ms: number };
     loudness: { target_lufs: number; true_peak_db: number };

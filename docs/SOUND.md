@@ -314,9 +314,12 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [x] `seriesmith/mix.py`, assemble's mix and stems (`--no-mix`), the XML's tracks,
          `GET` / `PUT /seriesmith/mix` (2026-11-01; tests/test_mix.py)
    - [x] the editor's lanes, faders and items; Play all hearing the mix (2026-11-01;
-         `web/src/lib/mix.ts`, `components/SoundLanes.tsx`, `MixAudio.ts`; the preview
-         doesn't duck yet, nor follow `points`; points and regions aren't drawn yet, and
-         are kept as they are)
+         `web/src/lib/mix.ts`, `components/SoundLanes.tsx`, `MixAudio.ts`)
+   - [x] Play all ducks as the export does and follows the volume points; the points drawn
+         and edited on the blocks; faders default to GAIN_DEFAULT (music -12 dB)
+         (2026-11-01; `GET /seriesmith/mix/duck`, `lib/mix.ts` duckTracks / pointsDb,
+         `web/test/mixAudio.test.ts`). Regions are applied but not drawn or edited yet
+         (kept as they are)
    - [ ] docs/API.md, COMMANDS.md and the user docs
 2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
    the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape
@@ -465,9 +468,9 @@ her question). What it taught:
   tempo is still within 8 % of what they were played at.
 - **Levels**: at a 0 dB (then -4 dB) music fader the score was louder than the dialogue under
   Charming's line even with the -9 dB dip; at **-12 dB** it sits 5-10 dB under the lines and level
-  with the dialogue on the swell. So a music track's default should be about -12 dB, and Play all
-  should duck as the export does (the preview doesn't yet), or the editor plays it louder than
-  the export.
+  with the dialogue on the swell. So a music track's default is -12 dB (GAIN_DEFAULT), and Play
+  all ducks as the export does (the server's speech curve, 2026-11-01), so the editor no longer
+  plays it louder than the export.
 
 ## Open questions
 

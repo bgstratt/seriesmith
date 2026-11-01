@@ -7,7 +7,7 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixHit, MixItem, MixTrack, MixTrackSettings, MixResult } from "../types";
+import type { Anchor, HitKind, Mix, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
 export const TRACKS: MixTrack[] = ["dialogue", "effects", "ambience", "music"];
@@ -19,6 +19,10 @@ export const HIT_KIND_TITLE: Record<HitKind, string> = {
   drop: "the music cuts out or thins",
   turn: "a change of key or mood",
 };
+/** each track's fader when nothing sets it (mix.py's GAIN_DEFAULT; the server's `defaults.gain_db`) */
+export const GAIN_DEFAULT: Record<MixTrack, number> = { dialogue: 0, effects: 0, ambience: 0, music: -12 };
+/** how far each track dips under speech when nothing sets it (mix.py's DUCK_DEFAULT) */
+export const DUCK_DEFAULT: Partial<Record<MixTrack, number>> = { effects: 0, ambience: -6, music: -9 };
 export const GAIN_MIN = -60;
 export const GAIN_MAX = 12;
 export const FADE_MAX = 2400;
@@ -174,13 +178,15 @@ export interface PlayEntry {
   /** seconds into the file at `start` */
   offset: number;
   gain: number;
+  /** its volume points on the cut's clock (dB on its gain), in time order */
+  points: TimedPoint[];
   /** seconds */
   fadeIn: number;
   fadeOut: number;
   loop: boolean;
 }
 
-/** The mix's items as Play all plays them (points are left out: the preview holds each item's gain). */
+/** The mix's items as Play all plays them. */
 export function playPlan(items: PlayItem[], mix: Mix, fps: number): PlayEntry[] {
   const f = fps || 24;
   const total = totalDuration(items);
@@ -195,7 +201,7 @@ export function playPlan(items: PlayItem[], mix: Mix, fps: number): PlayEntry[] 
     if (end != null && end <= start) continue;
     out.push({
       id: it.id, track: it.track, path: it.path, start, end, offset: (it.offset ?? 0) + (start - s),
-      gain: dbToGain(it.gain_db ?? 0), fadeIn: (it.fade_in ?? 0) / f, fadeOut: (it.fade_out ?? 0) / f, loop: !!it.loop,
+      gain: dbToGain(it.gain_db ?? 0), points: timedPoints(items, it, f), fadeIn: (it.fade_in ?? 0) / f, fadeOut: (it.fade_out ?? 0) / f, loop: !!it.loop,
     });
   }
   return out;
@@ -206,12 +212,204 @@ export function entryEnd(e: PlayEntry, fileSecs: number, total: number): number 
   return Math.min(total, e.end ?? e.start + Math.max(0, fileSecs - e.offset));
 }
 
-/** An entry's level (its gain and fades) `t` cut seconds in, `end` its end. */
+/** An entry's level (its gain, points and fades) `t` cut seconds in, `end` its end. */
 export function entryLevel(e: PlayEntry, t: number, end: number): number {
   let v = 1;
   if (e.fadeIn > 0) v = Math.min(v, (t - e.start) / e.fadeIn);
   if (e.fadeOut > 0) v = Math.min(v, (end - t) / e.fadeOut);
-  return e.gain * Math.max(0, Math.min(1, v));
+  const p = e.points?.length ? 10 ** (pointsDb(e.points, t) / 20) : 1;
+  return e.gain * p * Math.max(0, Math.min(1, v));
+}
+
+/** seconds between the marks a slope between two points is ramped through (it's linear in dB, a ramp in gain) */
+const SLOPE_STEP = 0.1;
+
+/**
+ * The cut times after `at` (to `end`) an entry's level is ramped to: its
+ * fades' corners, its points, and steps along a slope between two points.
+ */
+export function entryMarks(e: PlayEntry, at: number, end: number): number[] {
+  const marks = [e.start + e.fadeIn, end - e.fadeOut, end];
+  const pts = e.points ?? [];
+  for (let k = 0; k < pts.length; k++) {
+    marks.push(pts[k].t);
+    const n = pts[k + 1];
+    if (!n || n.db === pts[k].db) continue;
+    for (let j = 1; pts[k].t + j * SLOPE_STEP < n.t - 1e-6; j++) marks.push(pts[k].t + j * SLOPE_STEP);
+  }
+  return [...new Set(marks.filter((t) => t > at && t <= end))].sort((a, b) => a - b);
+}
+
+// ---------------------------------------------------------------------------
+// volume points: dB at anchors on an item's gain, linear between, held beyond
+// the first and last (mix.py's render_item)
+// ---------------------------------------------------------------------------
+
+/** A point on the cut's clock; `i` its index in the item's `points`. */
+export interface TimedPoint {
+  t: number;
+  db: number;
+  i: number;
+}
+
+/** An item's points on the cut's clock, in time order (one whose shot isn't in the cut left out, as mix.py does). */
+export function timedPoints(items: PlayItem[], it: MixItem, fps: number): TimedPoint[] {
+  const out: TimedPoint[] = [];
+  (it.points ?? []).forEach((p, i) => {
+    const t = anchorTime(items, p.at, fps);
+    if (t != null) out.push({ t, db: p.db, i });
+  });
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/** The points' dB at `t`, as np.interp: the first held before it, the last after (none: 0). */
+export function pointsDb(pts: { t: number; db: number }[], t: number): number {
+  if (!pts.length) return 0;
+  if (t <= pts[0].t) return pts[0].db;
+  for (let k = 1; k < pts.length; k++) {
+    const b = pts[k];
+    if (t > b.t) continue;
+    const a = pts[k - 1];
+    return b.t === a.t ? b.db : a.db + ((t - a.t) / (b.t - a.t)) * (b.db - a.db);
+  }
+  return pts[pts.length - 1].db;
+}
+
+/** the range a block's gain line is drawn over, dB */
+export const POINT_DB_LO = -24;
+export const POINT_DB_HI = 12;
+
+/** y of `db` in a block `h` high (beyond the drawn range: its edge). */
+export function dbY(db: number, h: number): number {
+  const d = Math.min(POINT_DB_HI, Math.max(POINT_DB_LO, db));
+  return ((POINT_DB_HI - d) / (POINT_DB_HI - POINT_DB_LO)) * h;
+}
+
+/** dB at y in a block `h` high. */
+export const yDb = (y: number, h: number) => POINT_DB_HI - (y / Math.max(1, h)) * (POINT_DB_HI - POINT_DB_LO);
+
+/** dB snapped to 0.5, in the fader's range. */
+export const snapDb = (db: number) => Math.round(Math.min(GAIN_MAX, Math.max(GAIN_MIN, Number.isFinite(db) ? db : 0)) * 2) / 2;
+
+/** An item's points replaced, in time order (null: nothing changes). */
+export function setPoints(mix: Mix, id: string, points: MixPoint[], items: PlayItem[], fps: number): Mix | null {
+  const it = mix.items?.find((x) => x.id === id);
+  if (!it) return null;
+  const t = (p: MixPoint) => anchorTime(items, p.at, fps) ?? Infinity;
+  const next = points.map((p) => ({ at: p.at, db: snapDb(p.db) })).sort((a, b) => t(a) - t(b));
+  if (JSON.stringify(next) === JSON.stringify(it.points ?? [])) return null;
+  return patchItem(mix, id, { points: next });
+}
+
+/** A point added at `at`: at `db`, else at the line's level there (so nothing sounds different yet). */
+export function addPoint(mix: Mix, id: string, at: Anchor, items: PlayItem[], fps: number, db?: number): Mix | null {
+  const it = mix.items?.find((x) => x.id === id);
+  const t = anchorTime(items, at, fps);
+  if (!it || t == null || (it.points ?? []).some((p) => sameAnchor(p.at, at))) return null;
+  return setPoints(mix, id, [...(it.points ?? []), { at, db: db ?? pointsDb(timedPoints(items, it, fps), t) }], items, fps);
+}
+
+/** Point `i` moved to `at` and `db`. */
+export function movePoint(mix: Mix, id: string, i: number, at: Anchor, db: number, items: PlayItem[], fps: number): Mix | null {
+  const it = mix.items?.find((x) => x.id === id);
+  if (!it?.points?.[i]) return null;
+  const next = it.points.slice();
+  next[i] = { at, db };
+  return setPoints(mix, id, next, items, fps);
+}
+
+/** Point `i` taken out (the last one leaves the item without points). */
+export function removePoint(mix: Mix, id: string, i: number): Mix | null {
+  const it = mix.items?.find((x) => x.id === id);
+  if (!it?.points?.[i]) return null;
+  return patchItem(mix, id, { points: it.points.filter((_, k) => k !== i) });
+}
+
+// ---------------------------------------------------------------------------
+// ducking: the server's speech curve (GET /seriesmith/mix/duck) times each
+// track's duck_db, a region's depth where it says one, and the dialogue
+// lowered under a region (mix.py's render)
+// ---------------------------------------------------------------------------
+
+/** GET /seriesmith/mix/duck: how much someone is speaking, 0..1 per `step` seconds of the cut. */
+export interface DuckCurve {
+  step: number;
+  curve: number[];
+}
+
+/** A region on the cut's clock: the depths it puts in place, the dialogue's dB under it. */
+export interface RegionSpan {
+  start: number;
+  end: number;
+  music?: number;
+  ambience?: number;
+  dialogue?: number;
+}
+
+/** The mix's regions on the cut's clock (one whose shots aren't in it, or that ends before it starts, left out). */
+export function regionSpans(items: PlayItem[], mix: Mix, fps: number): RegionSpan[] {
+  const out: RegionSpan[] = [];
+  for (const r of mix.regions ?? []) {
+    const a = anchorTime(items, r.from, fps);
+    const b = anchorTime(items, r.to, fps);
+    if (a == null || b == null || b <= a) continue;
+    const s: RegionSpan = { start: a, end: b };
+    if (r.music_duck_db != null) s.music = r.music_duck_db;
+    if (r.ambience_duck_db != null) s.ambience = r.ambience_duck_db;
+    if (r.dialogue_db) s.dialogue = r.dialogue_db;
+    out.push(s);
+  }
+  return out;
+}
+
+const regionDepth = (r: RegionSpan, name: MixTrack) => (name === "music" ? r.music : name === "ambience" ? r.ambience : undefined);
+
+/** How far a track dips under speech: the mix's, the series config's, else the default (the dialogue: 0). */
+export function duckDepth(res: TrackSource | undefined, name: MixTrack): number {
+  if (name === "dialogue") return 0;
+  return res?.mix?.tracks?.[name]?.duck_db ?? res?.series?.tracks?.[name]?.duck_db ?? res?.defaults?.duck_db?.[name] ?? DUCK_DEFAULT[name] ?? 0;
+}
+
+/**
+ * A track's dip at cut time `t` in dB, `speech` the curve there: its depth
+ * (a region's, the later one winning) times the curve; for the dialogue, the
+ * regions' dialogue_db added up.
+ */
+export function duckDbAt(name: MixTrack, depth: number, spans: RegionSpan[], speech: number, t: number): number {
+  let d = name === "dialogue" ? 0 : depth;
+  for (const r of spans) {
+    if (t < r.start || t >= r.end) continue;
+    if (name === "dialogue") d += r.dialogue ?? 0;
+    else d = regionDepth(r, name) ?? d;
+  }
+  // (no dip is 0, not -0)
+  return (name === "dialogue" ? d : d * speech) || 0;
+}
+
+/** The dialogue's dB at cut time `t` from the regions over it (0: none). */
+export function dialogueDbAt(items: PlayItem[], mix: Mix, fps: number, t: number): number {
+  return mix.regions?.length ? duckDbAt("dialogue", 0, regionSpans(items, mix, fps), 0, t) : 0;
+}
+
+/** Each track's dip in dB, a value per `step` seconds from 0 through `total` (null: it never dips). */
+export function duckTracks(res: TrackSource | undefined, items: PlayItem[], fps: number, duck: DuckCurve | undefined, total: number):
+  { step: number; db: Record<MixTrack, number[] | null> } {
+  const step = duck && duck.step > 0 ? duck.step : 0.05;
+  const spans = regionSpans(items, res?.mix ?? {}, fps || 24);
+  const n = Math.max(0, Math.ceil(total / step)) + 1;
+  const curve = duck?.curve ?? [];
+  const db = {} as Record<MixTrack, number[] | null>;
+  for (const name of TRACKS) {
+    const depth = duckDepth(res, name);
+    const out: number[] = new Array(n);
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      out[i] = duckDbAt(name, depth, spans, curve[i] ?? 0, i * step);
+      if (out[i]) any = true;
+    }
+    db[name] = any ? out : null;
+  }
+  return { step, db };
 }
 
 // ---------------------------------------------------------------------------
@@ -224,14 +422,22 @@ export interface TrackState {
   solo: boolean;
 }
 
-export function trackState(res: Pick<MixResult, "mix" | "series"> | undefined, name: MixTrack): TrackState {
+/** What a track's settings come from: the mix, over the series config's, over the defaults. */
+export type TrackSource = Pick<MixResult, "mix" | "series"> & { defaults?: Partial<MixResult["defaults"]> };
+
+/** A track's fader when neither the mix nor the series config sets it (music: -12 dB). */
+export function defaultGain(res: TrackSource | undefined, name: MixTrack): number {
+  return res?.defaults?.gain_db?.[name] ?? GAIN_DEFAULT[name];
+}
+
+export function trackState(res: TrackSource | undefined, name: MixTrack): TrackState {
   const s = res?.series?.tracks?.[name] ?? {};
   const m = res?.mix?.tracks?.[name] ?? {};
-  return { gain_db: m.gain_db ?? s.gain_db ?? 0, mute: !!(m.mute ?? s.mute), solo: !!(m.solo ?? s.solo) };
+  return { gain_db: m.gain_db ?? s.gain_db ?? defaultGain(res, name), mute: !!(m.mute ?? s.mute), solo: !!(m.solo ?? s.solo) };
 }
 
 /** What each track sounds at: its fader, silenced when muted or another is soloed. */
-export function trackGains(res: Pick<MixResult, "mix" | "series"> | undefined): Record<MixTrack, number> {
+export function trackGains(res: TrackSource | undefined): Record<MixTrack, number> {
   const st = Object.fromEntries(TRACKS.map((t) => [t, trackState(res, t)])) as Record<MixTrack, TrackState>;
   const soloed = TRACKS.some((t) => st[t].solo);
   return Object.fromEntries(TRACKS.map((t) => {
@@ -240,16 +446,23 @@ export function trackGains(res: Pick<MixResult, "mix" | "series"> | undefined): 
   })) as Record<MixTrack, number>;
 }
 
-/** A track's settings changed, defaults dropped (as mix.json keeps them). */
-export function setTrack(mix: Mix, name: MixTrack, patch: Partial<MixTrackSettings>): Mix {
-  const t: MixTrackSettings = { ...(mix.tracks?.[name] ?? {}), ...patch };
-  if (!t.gain_db) delete t.gain_db;
+/** A track's settings, a fader of null meaning "none of the mix's own". */
+export type TrackPatch = Omit<Partial<MixTrackSettings>, "gain_db"> & { gain_db?: number | null };
+
+/**
+ * A track's settings changed. A fader is kept as given, 0 too (it overrides
+ * the series config's and the default: music's is -12); null drops it, for the
+ * one under it. Mute, solo and duck_db drop their defaults (as mix.json keeps them).
+ */
+export function setTrack(mix: Mix, name: MixTrack, patch: TrackPatch): Mix {
+  const t: TrackPatch = { ...(mix.tracks?.[name] ?? {}), ...patch };
+  if (t.gain_db == null) delete t.gain_db;
   else t.gain_db = clampDb(t.gain_db);
   if (!t.mute) delete t.mute;
   if (!t.solo) delete t.solo;
   if (t.duck_db == null) delete t.duck_db;
   const tracks = { ...(mix.tracks ?? {}) };
-  if (Object.keys(t).length) tracks[name] = t;
+  if (Object.keys(t).length) tracks[name] = t as MixTrackSettings;
   else delete tracks[name];
   const out: Mix = { ...mix, tracks };
   if (!Object.keys(tracks).length) delete out.tracks;
