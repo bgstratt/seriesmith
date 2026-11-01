@@ -25,7 +25,8 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
      "proxy": {}}
 
 - **Tracks**: dialogue (the cut's own sound, each clip's take as assemble joins it, plus
-  any items put on it), effects, ambience, music. Each has a fader (`gain_db`), `mute`,
+  any items put on it), effects, ambience, music. Each has a fader (`gain_db`; GAIN_DEFAULT
+  when nothing sets it: music -12 dB), `mute`,
   `solo`, and (all but dialogue) `duck_db`, how far it dips while someone speaks.
 - **An anchor** is a shot and a frame of it: a frame of the shot's take at the cut's rate,
   counted from the take's first frame, before any trim. A trim or a reorder moves it with its
@@ -70,6 +71,10 @@ RATE = 48000
 
 # how far each track dips while someone speaks, dB; the dialogue never ducks
 DUCK_DEFAULT = {"effects": 0.0, "ambience": -6.0, "music": -9.0}
+# each track's fader when nothing sets it: score sits well under the lines (Ballroom ep03: at
+# 0 dB the music was louder than the dialogue under a line, even dipped; at -12 dB it sat 5-10 dB
+# under the lines and level with them on a swell)
+GAIN_DEFAULT = {"dialogue": 0.0, "effects": 0.0, "ambience": 0.0, "music": -12.0}
 DUCK = {"threshold_db": -45.0, "attack_ms": 60.0, "release_ms": 450.0}
 LOUDNESS = {"target_lufs": -16.0, "true_peak_db": -1.0}
 
@@ -325,6 +330,12 @@ def for_pass(root: str, pass_: str, series: dict | None = None) -> dict:
     return out
 
 
+def fader(tracks: dict, name: str) -> float:
+    """A track's fader in dB: the mix's (or the series config's), else GAIN_DEFAULT."""
+    v = (tracks.get(name) or {}).get("gain_db")
+    return float(GAIN_DEFAULT[name] if v is None else v)
+
+
 def active(mix: dict) -> bool:
     """Whether a mix changes anything: an item, or a track's level or mute."""
     return bool(mix.get("items") or any(
@@ -403,7 +414,7 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
         if e <= s:
             dropped.append(f"{item['id']}: nothing of it falls in the cut")
             continue
-        gain = item.get("gain_db", 0.0) + (tracks.get(item["track"]) or {}).get("gain_db", 0.0)
+        gain = item.get("gain_db", 0.0) + fader(tracks, item["track"])
         pts = sorted((f, p["db"]) for p in item.get("points") or []
                      for f in [place(p["at"], origins)] if f is not None)
         at, src_in, k = s, first, 0
@@ -433,8 +444,9 @@ def _np():
     return np
 
 
-def decode(path: str, start: float = 0.0, seconds: float | None = None):
-    """A file's first audio stream as float32 stereo at RATE, (n, 2); empty when it has
+def decode(path: str, start: float = 0.0, seconds: float | None = None,
+           rate: int = RATE, channels: int = 2):
+    """A file's first audio stream as float32 at `rate`, (n, channels); empty when it has
     none or can't be read."""
     np = _np()
     cmd = [*FF.tool("ffmpeg"), "-v", "error"]
@@ -443,11 +455,11 @@ def decode(path: str, start: float = 0.0, seconds: float | None = None):
     cmd += ["-i", path]
     if seconds is not None:
         cmd += ["-t", f"{max(0.0, seconds):.6f}"]
-    cmd += ["-vn", "-map", "0:a:0?", "-f", "f32le", "-ac", "2", "-ar", str(RATE), "-"]
+    cmd += ["-vn", "-map", "0:a:0?", "-f", "f32le", "-ac", str(channels), "-ar", str(rate), "-"]
     r = subprocess.run(cmd, capture_output=True, timeout=1800)
     if r.returncode != 0 or not r.stdout:
-        return np.zeros((0, 2), dtype=np.float32)
-    return np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, 2).copy()
+        return np.zeros((0, channels), dtype=np.float32)
+    return np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, channels).copy()
 
 
 def write_wav(path: str, buf) -> None:
@@ -537,17 +549,21 @@ def render_item(item: dict, origins: dict, total: int, fps: float, root: str):
     return s0, buf
 
 
-def speech_curve(dialogue, duck: dict):
+def speech_curve(dialogue, duck: dict, rate: int = RATE):
     """How much someone is speaking in each WINDOW_S window, 0..1: the dialogue's level
-    against the threshold, eased in over the attack and out over the release."""
+    against the threshold, eased in over the attack and out over the release. `dialogue`
+    is stereo (n, 2) or mono at `rate`."""
     np = _np()
-    w = int(WINDOW_S * RATE)
+    if dialogue.ndim == 1:
+        dialogue = dialogue[:, None]
+    ch = dialogue.shape[1]
+    w = int(WINDOW_S * rate)
     n = len(dialogue) // w + (1 if len(dialogue) % w else 0)
     if n == 0:
         return np.zeros(0, dtype=np.float32)
-    padded = np.zeros((n * w, 2), dtype=np.float32)
+    padded = np.zeros((n * w, ch), dtype=np.float32)
     padded[: len(dialogue)] = dialogue
-    rms = np.sqrt(np.mean(padded.reshape(n, w * 2) ** 2, axis=1) + 1e-12)
+    rms = np.sqrt(np.mean(padded.reshape(n, w * ch) ** 2, axis=1) + 1e-12)
     on = (20 * np.log10(rms) > duck["threshold_db"]).astype(np.float32)
     up = 1 - math.exp(-WINDOW_S * 1000 / duck["attack_ms"])
     down = 1 - math.exp(-WINDOW_S * 1000 / duck["release_ms"])
@@ -557,6 +573,36 @@ def speech_curve(dialogue, duck: dict):
         level += (on[i] - level) * (up if on[i] > level else down)
         out[i] = level
     return out
+
+
+SPEECH_RATE = 8000                     # enough to tell speech from silence
+SPEECH_STEP = 0.05                     # seconds a step of the curve the editor plays
+
+
+def speech_of(layout: list[dict], fps: float, duck: dict | None = None) -> list[float]:
+    """The cut's "someone is speaking" curve, as the render computes it from the dialogue
+    (speech_curve), one value 0..1 per SPEECH_STEP seconds of the cut: each clip's own
+    sound (layout's `sound`, from `sound_start` seconds into it) laid where the cut plays
+    it, decoded small. The editor's Play all ducks with it as the export does."""
+    np = _np()
+    duck = {**DUCK, **(duck or {})}
+    origins = shot_origins(layout)
+    total = sum(x["used"] - x.get("dissolve_in", 0) for x in layout)
+    n = round(total / fps * SPEECH_RATE)
+    buf = np.zeros(n, dtype=np.float32)
+    for x in layout:
+        if not x.get("sound"):
+            continue
+        at = round((origins[x["id"]]["origin"] + x["trim_in"]) / fps * SPEECH_RATE)
+        got = decode(x["sound"], max(0.0, x.get("sound_start", 0.0)), x["used"] / fps,
+                     SPEECH_RATE, 1)[:, 0]
+        a, b = max(0, at), min(n, at + len(got))
+        if b > a:
+            buf[a:b] += got[a - at: b - at]
+    curve = speech_curve(buf, duck, rate=SPEECH_RATE)
+    k = max(1, round(SPEECH_STEP / WINDOW_S))
+    steps = len(curve) // k + (1 if len(curve) % k else 0)
+    return [round(float(curve[i * k:(i + 1) * k].max()), 3) for i in range(steps)]
 
 
 def _per_sample(curve, n: int):
@@ -612,7 +658,7 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
             bufs[item["track"]][s0:end] += got[: end - s0]
 
     # ducking and regions, from the dialogue as its fader leaves it
-    dial_gain = _db((tracks.get("dialogue") or {}).get("gain_db", 0.0))
+    dial_gain = _db(fader(tracks, "dialogue"))
     speech = _per_sample(speech_curve(bufs["dialogue"] * dial_gain, duck), n)
     region_db = {k: np.full(n, np.nan, dtype=np.float32) for k in ("music", "ambience")}
     dial_db = np.zeros(n, dtype=np.float32)
@@ -631,7 +677,7 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
 
     for name in TRACKS:
         t = tracks.get(name) or {}
-        g = np.full(n, t.get("gain_db", 0.0), dtype=np.float32)
+        g = np.full(n, fader(tracks, name), dtype=np.float32)
         if name == "dialogue":
             g += dial_db
         else:

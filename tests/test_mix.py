@@ -260,7 +260,7 @@ class AssembleMixTest(unittest.TestCase):
         self.assemble()
         music = self.stem("music")
         self.assertLess(self.level(music, 0.1, 0.9), -80)
-        self.assertGreater(self.level(music, 1.1, 1.9), -40)
+        self.assertGreater(self.level(music, 1.1, 1.9), -55)
 
     def test_muted_track_and_missing_shot(self):
         MX.save(self.root, {"final": {
@@ -304,6 +304,26 @@ class AssembleMixTest(unittest.TestCase):
         names = [m.findtext("name") for m in doc.findall("./sequence/marker")]
         self.assertIn("the door", names)
 
+    def test_music_fader_defaults_to_minus_12(self):
+        MX.save(self.root, {"final": {"items": [self.music()], "tracks": {"music": {"gain_db": 0}}}})
+        # against the dialogue: the stems carry the mix's loudness gain, which moves with it
+        rel = lambda: self.level(self.stem("dialogue"), 1.1, 1.9) - self.level(self.stem("music"), 0.1, 0.9)  # noqa: E731
+        self.assemble()
+        at0 = rel()
+        MX.save(self.root, {"final": {"items": [self.music()]}})
+        self.assemble()
+        self.assertAlmostEqual(rel() - at0, 12.0, delta=0.5)
+
+    def test_speech_curve_of_the_cut(self):
+        from seriesmith import cue as CU
+        layout, fps = CU.cut_layout(self.root, "final")
+        self.assertEqual([x["sound"] is not None for x in layout], [False, True])   # sh010 is mute
+        curve = MX.speech_of(layout, fps)
+        self.assertEqual(len(curve), round(2.0 / MX.SPEECH_STEP))
+        half = len(curve) // 2
+        self.assertLess(max(curve[: half - 2]), 0.05)            # nobody speaks over sh010
+        self.assertGreater(min(curve[half + 4: -2]), 0.9)        # the tone, eased in
+
     def test_no_mix_flag(self):
         MX.save(self.root, {"final": {"items": [self.music()]}})
         out = self.assemble("--no-mix")
@@ -325,8 +345,14 @@ class RouteTest(ApiTest):
         return {"id": "m01", "track": "music", "path": self.score(), "in": anchor("sh010"),
                 **kw}
 
+    def test_duck_curve(self):
+        got = self.ok(A.get_mix_duck(self.ctx, {"ep": self.ep, "pass": "final"}))
+        self.assertEqual(got["step"], MX.SPEECH_STEP)
+        self.assertIsInstance(got["curve"], list)
+
     def test_get_empty_with_defaults(self):
         got = self.ok(A.get_mix(self.ctx, {"ep": self.ep, "pass": "final"}))
+        self.assertEqual(got["defaults"]["gain_db"]["music"], -12.0)
         self.assertEqual(got["mix"], {})
         self.assertEqual(got["defaults"]["tracks"], list(MX.TRACKS))
         self.assertEqual(got["defaults"]["loudness"], MX.LOUDNESS)

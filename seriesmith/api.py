@@ -2554,8 +2554,41 @@ def get_mix(ctx: Context, query: dict):
         files[it["path"]] = info.get("duration") if info.get("audio") else None
     return 200, {"mix": mix, "files": files,
                  "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
-                 "defaults": {"tracks": list(MX.TRACKS), "duck_db": MX.DUCK_DEFAULT,
+                 "defaults": {"tracks": list(MX.TRACKS), "gain_db": MX.GAIN_DEFAULT,
+                              "duck_db": MX.DUCK_DEFAULT,
                               "duck": MX.DUCK, "loudness": MX.LOUDNESS}}
+
+
+_DUCK_CACHE: dict = {}
+
+
+@handler
+def get_mix_duck(ctx: Context, query: dict):
+    """The pass's "someone is speaking" curve (mix.speech_of): `{"step", "curve"}`, one
+    value 0..1 per `step` seconds of the cut, computed from each clip's own sound as the
+    export computes it, so Play all dips the music and ambience in the same places. Kept
+    until the cut, a take or the mix's ducking changes."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    layout, fps = CU.cut_layout(ep, pass_)
+    try:
+        duck = MX.for_pass(ep, pass_, J.series_config(ep)).get("duck")
+    except ValueError:
+        duck = None
+
+    def stamp(path):
+        try:
+            return os.path.getmtime(path) if path else None
+        except OSError:
+            return None
+    key = json.dumps([ep, pass_, fps, duck, [(x["id"], x["trim_in"], x["used"], x["dissolve_in"],
+                                              x["sound"], x["sound_start"], stamp(x["sound"]))
+                                             for x in layout]], sort_keys=True)
+    if key not in _DUCK_CACHE:
+        if len(_DUCK_CACHE) > 16:
+            _DUCK_CACHE.clear()
+        _DUCK_CACHE[key] = MX.speech_of(layout, fps, duck)
+    return 200, {"step": MX.SPEECH_STEP, "curve": _DUCK_CACHE[key]}
 
 
 @handler
@@ -5061,6 +5094,7 @@ ROUTES = [
     ("PUT", "/seriesmith/cut", put_cut, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
+    ("GET", "/seriesmith/mix/duck", get_mix_duck, "query"),
     ("GET", "/seriesmith/cues", get_cues, "query"),
     ("GET", "/seriesmith/cue", get_cue, "query"),
     ("PUT", "/seriesmith/cue", put_cue, "body"),

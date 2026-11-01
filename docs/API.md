@@ -637,9 +637,17 @@ tracks.
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
-`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], duck_db, duck, loudness}`
+`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], gain_db, duck_db, duck,
+loudness}` (`gain_db`: each track's fader when nothing sets it, music -12 dB)
 (what a track dips under speech, the detector and the loudness target when nothing says).
 409 when `mix.json` is there but doesn't read.
+
+### `GET /seriesmith/mix/duck?ep=…&pass=…`
+`{"step", "curve"}`: the pass's "someone is speaking" curve, one value 0..1 per `step` seconds
+(0.05) of the cut, computed from each clip's own sound (or its cut entry's audio source) laid
+as the cut plays it, by the detector the export ducks with (mix.speech_of, the mix's `duck`
+settings). Play all dips music and ambience by it as the export does. Kept until the cut, a
+take's file or the ducking changes.
 
 ### `PUT /seriesmith/mix`
 Body `{"ep", "pass", "mix"}`: replaces that pass's mix and answers `{"mix"}` as stored. 400 for

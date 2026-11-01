@@ -57,6 +57,7 @@ from seriesmith import edit as E
 from seriesmith import ff as FF
 from seriesmith import jobs as J
 from seriesmith import mix as MX
+from seriesmith import peaks as PK
 from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
@@ -230,7 +231,9 @@ def list_cues(root: str) -> list[dict]:
 
 def cut_layout(root: str, pass_: str) -> tuple[list[dict], float]:
     """The pass's cut as assemble lays it, without probing a file: [{"id", "trim_in",
-    "used", "dissolve_in"}] in cut order (orphans, shots left out and shots with no
+    "used", "dissolve_in", "sound", "sound_start"}] in cut order (`sound`: the file its
+    sound plays from, the take's or its cut entry's audio source, None for silence;
+    `sound_start`: seconds into it where the clip starts) (orphans, shots left out and shots with no
     usable take skipped), and the cut's frame rate. A take's length is its sidecar's;
     a shot with a dialogue window keeps the window; a dissolve that doesn't fit beside
     its neighbours is left out, as assemble leaves it."""
@@ -253,7 +256,15 @@ def cut_layout(root: str, pass_: str) -> tuple[list[dict], float]:
         if used < 1:
             continue
         d = e.dissolve if out and e.dissolve * 2 <= min(used, out[-1]["used"]) else 0
-        out.append({"id": e.shot, "trim_in": max(0, e.trim_in), "used": used, "dissolve_in": d})
+        if e.audio:
+            sound = T.audio_source_file(root, e.audio, pass_)
+            start = float(e.audio.get("start") or 0.0) - float(e.audio.get("offset") or 0.0)
+        else:
+            sound = PK.clip_audio(chosen.paths.mp4, chosen.paths.h3_wav if
+                                  os.path.isfile(chosen.paths.h3_wav) else None)
+            start = max(0, e.trim_in) / fps
+        out.append({"id": e.shot, "trim_in": max(0, e.trim_in), "used": used, "dissolve_in": d,
+                    "sound": sound, "sound_start": round(start, 4)})
     return out, fps
 
 
