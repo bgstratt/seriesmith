@@ -289,6 +289,20 @@ class RouteTest(unittest.TestCase):
         self.assertIn("no finished take", self.call(
             A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1}, 409)["error"])
 
+    def test_stale_when_the_cut_moves(self):
+        MX.save(self.ep, {"final": {"hits": [{"id": "h1", "name": "door", "at": anchor("sh020", 12)}]}})
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60), "bpm": 92}})
+        self.call(A.post_cue_render, {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 1})
+        got = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})
+        self.assertEqual(got["takes"][0]["stale"], [])
+        # sh010 trimmed by 24 frames at its tail: the span shorter, the door a second earlier
+        T.save_cut(self.ep, {"final": [{"shot": "sh010", "trim_out": 24}, {"shot": "sh020"},
+                                       {"shot": "sh030"}], "proxy": []})
+        why = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"][0]["stale"]
+        self.assertIn("door moved -24 frames", why)
+        self.assertTrue(any("1.0 s shorter" in w for w in why), why)
+
 
 if __name__ == "__main__":
     unittest.main()

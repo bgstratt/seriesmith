@@ -35,6 +35,9 @@ the strongest onset within half a beat and its distance in frames (whether the m
 something there); its level per bar against the arc (shape error); and a score that ranks
 the takes (the worst must-hit error, then the shape).
 
+A take is stale (`stale`) when the cut has moved under it since it was rendered: its span,
+a hit, the tempo; each said in words.
+
 Picking (`place`): the take becomes the cue's item on the music track of the pass's mix
 (mix.py): anchored at the cue's in point, played from where its pre-roll ends, to its out
 point with a one-bar fade, and (`fit_gain`) breakpoints at each bar that pull its level
@@ -399,6 +402,43 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # takes
 # ---------------------------------------------------------------------------
+
+def fingerprint(p: dict) -> dict:
+    """What a take was rendered for, kept in its sidecar so a later cut can be told apart:
+    the span in frames, each hit's place, the tempo and the bars."""
+    return {"span_frames": p["end_frame"] - p["start_frame"], "fps": p["fps"],
+            "hits": {h["id"]: h["t"] for h in p["hits"]}, "bpm": p["fit"]["bpm"],
+            "bars": p["bars"]}
+
+
+def stale(sc: dict, p: dict) -> list[str]:
+    """What has changed since a take was rendered (its sidecar's `rendered_for` against
+    the plan now), in words; [] when nothing has, or when the take doesn't say. A shorter
+    span is said too, though the take still ends on the out point with its fade."""
+    was = sc.get("rendered_for")
+    if not isinstance(was, dict):
+        return []
+    now = fingerprint(p)
+    fps = now["fps"] or 24
+    out = []
+    d = now["span_frames"] - int(was.get("span_frames") or 0)
+    if d > 1:
+        out.append(f"the cue is {d / fps:.1f} s longer: the take runs out before its out point")
+    elif d < -1:
+        out.append(f"the cue is {-d / fps:.1f} s shorter: the take ends on its out point, faded")
+    hits = was.get("hits") or {}
+    for h in p["hits"]:
+        if h["id"] not in hits:
+            out.append(f"{h['name']} is a new hit")
+        elif abs(h["t"] - hits[h["id"]]) * fps > 1:
+            out.append(f"{h['name']} moved {(h['t'] - hits[h['id']]) * fps:+.0f} frames")
+    for hid in hits:
+        if hid not in now["hits"]:
+            out.append(f"hit {hid} is gone")
+    if abs(float(was.get("bpm") or 0) - now["bpm"]) > 0.05:
+        out.append(f"the tempo is {now['bpm']:g}, not {float(was.get('bpm') or 0):g}")
+    return out
+
 
 def take_paths(root: str, cid: str, n: int) -> dict:
     d = cue_dir(root, cid)

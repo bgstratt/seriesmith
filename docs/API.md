@@ -674,7 +674,9 @@ model is asked, the stretch between them, each hit's distance to its line in fra
 its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,
 `target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch,
 downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels
-(dB per bar), shape_error, score}`. 404 for no such cue.
+(dB per bar), shape_error, score}`, and `stale`: what has moved in the cut since it was
+rendered (its sidecar's `rendered_for`: the span, each hit, the tempo), in words, `[]` when
+nothing has. 404 for no such cue.
 
 ### `PUT /seriesmith/cue`
 Body `{"ep", "cue"}`: writes the spec; 400 for one that doesn't check (an unknown field, a

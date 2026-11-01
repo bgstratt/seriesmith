@@ -2611,16 +2611,20 @@ def get_cues(ctx: Context, query: dict):
 def get_cue(ctx: Context, query: dict):
     """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
     seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
-    `plan_error` when its anchors aren't in the cut) and `takes`, best first."""
+    `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
+    `stale`: what has moved in the cut since it was rendered, in words."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     spec = _cue_spec(ep, query.get("cue"))
     try:
-        p, why = _plan_summary(CU.plan(ep, pass_, spec)), None
+        full, why = CU.plan(ep, pass_, spec), None
     except CU.CueError as e:
-        p, why = None, str(e)
-    return 200, {"spec": spec, "plan": p, "plan_error": why,
-                 "takes": CU.ranked(CU.list_takes(ep, spec["id"]))}
+        full, why = None, str(e)
+    takes = CU.ranked(CU.list_takes(ep, spec["id"]))
+    for t in takes:
+        t["stale"] = CU.stale(t, full) if full else []
+    return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
+                 "plan_error": why, "takes": takes}
 
 
 @handler
@@ -2663,7 +2667,8 @@ def post_cue_render(ctx: Context, body):
     for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
         g = CU.graph(target, p, seed, pass_)
         k = CU.reserve(ep, spec["id"], {"pass": pass_, "target": target.id, "seed": seed,
-                                        "prompt": p["prompt"], "plan": {
+                                        "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
+                                        "plan": {
                                             k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
                                                                  "seconds", "ask_seconds")}})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
