@@ -710,6 +710,20 @@ to its out point with a one-bar fade, and with `gain` (default true) a breakpoin
 fitting its level to the arc, at most 6 dB either way. Answers `{"mix"}`; 409 for a take that
 isn't finished.
 
+### `POST /seriesmith/cue/comp`
+Body `{"ep", "pass", "cue", "take", "from", "bars": [a, b]}`: a new take, take `take` with the
+cue's bars `a` to `b` (counted from 0, the pre-roll's first; `b` not included) from take `from`,
+spliced on bar lines where each take's measured downbeat puts them (both are at the cue's
+tempo), with 20 ms equal-power crossfades; kept, measured (not stretched again) and ranked like
+any take, its sidecar's `comp` `{base, from, bars}` saying what it was made of. Answers
+`{"take"}`; 409 for a take that isn't finished or bars outside the cue (or past the end of
+either take).
+
+A spec's `orchestra` is the Orchestration grid: `{family: [level per bar]}`, 0 off, 1 under,
+2 present, 3 lead (a family off throughout is dropped). The plan folds each section's bars into
+its words, strongest first ("strings lead, solo horn present, timpani under"), after the
+section's own; a change inside a section can't be followed, so the strongest level there wins.
+
 ## Assemble
 
 ### `POST /seriesmith/assemble`

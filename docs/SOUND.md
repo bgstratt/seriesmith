@@ -349,6 +349,8 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [ ] the spotting sheet (the music map, hits table, tempo fit)
    - [ ] the Arc tab's drawing tools and presets
    - [ ] Orchestration & takes: the grid; comp at bar lines; Repaint once it's measured
+         (the backend: the spec's `orchestra` folded into the sections' words, and
+         `cue.comp` / `POST /seriesmith/cue/comp`, done 2026-11-01)
 3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
    looped; the three candidates compared.
 4. **Effects.** The `foley` kind; H3 FL2VA at 256x160 the default (the take's frames

@@ -178,6 +178,17 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(p["fit"]["errors"][2])
         self.assertEqual(len(p["fit"]["errors"]), 3)
 
+    def test_orchestra_in_the_words(self):
+        spec = self.spec(sections=[{"name": "intro", "bars": 2, "words": "quiet"}, {"name": "rest"}],
+                         orchestra={"strings": [1, 1, 3, 3, 3, 3, 3, 3, 3], "solo horn": [2, 2],
+                                    "timpani": [0, 0, 0, 1], "choir": [0, 0]})
+        self.assertNotIn("choir", spec["orchestra"])                  # off throughout: dropped
+        p = CU.plan(self.root, "final", spec, {})
+        self.assertEqual(p["sections"][0]["words"], "quiet, solo horn present, strings under")
+        self.assertEqual(p["sections"][1]["words"], "strings lead, timpani under")
+        with self.assertRaises(CU.CueError):
+            CU.check_spec(self.spec(orchestra={"brass": [4]}))
+
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):
             CU.plan(self.root, "final", CU.check_spec(
@@ -260,6 +271,19 @@ class TakeTest(PlanTest):
         again = CU.remeasure(self.root, "m01", n, p)["measured"]
         self.assertEqual(again["offset"], m["offset"])
         self.assertEqual(again["levels"], m["levels"])
+
+        # a comp: take 1 with bars 3-5 from a second take, louder there (its clicks are)
+        p2 = dict(p, arc=[5.0] * p["bars"])
+        n2 = CU.reserve(self.root, "m01", {"pass": "final"})
+        CU.finish_take(self.root, "m01", n2, self.make_take(p2, lead=0.3), p)
+        sc = CU.comp(self.root, "final", "m01", n, n2, (3, 5))
+        self.assertEqual(sc["comp"], {"base": n, "from": n2, "bars": [3, 5]})
+        self.assertEqual(sc["status"], "ok")
+        lv, base_lv, src_lv = sc["measured"]["levels"], m["levels"], CU.list_takes(self.root, "m01")[1]["measured"]["levels"]
+        self.assertAlmostEqual(lv[1], base_lv[1], delta=1.0)               # its own bars kept
+        self.assertAlmostEqual(lv[4], src_lv[4], delta=1.0)                # bars 3-5 the other's
+        with self.assertRaises(CU.CueError):
+            CU.comp(self.root, "final", "m01", n, n2, (0, p["bars"] + 3))
 
         mix = CU.place(self.root, "final", "m01", n)
         item = next(i for i in mix["items"] if i["id"] == "m01")

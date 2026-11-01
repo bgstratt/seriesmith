@@ -2733,6 +2733,30 @@ def post_cue_pick(ctx: Context, body):
     return 200, {"mix": mix}
 
 
+@handler
+def post_cue_comp(ctx: Context, body):
+    """A new take spliced from two (cue.comp): `{ep, pass, cue, take, from, bars: [a, b]}`,
+    take `take` with bars a to b (the cue's bars from 0, b not included) from take `from`,
+    on bar lines, crossfaded; measured and ranked like any take. Returns {"take": its sidecar}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    base, src, bars = body.get("take"), body.get("from"), body.get("bars")
+    for name, v in (("take", base), ("from", src)):
+        if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+            raise ApiError(400, f"{name} is a take number")
+    if (not isinstance(bars, list) or len(bars) != 2
+            or not all(isinstance(x, int) and not isinstance(x, bool) for x in bars)):
+        raise ApiError(400, "bars is [first, last + 1], the cue's bars counted from 0")
+    try:
+        sc = CU.comp(ep, pass_, spec["id"], base, src, (bars[0], bars[1]))
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"take": sc}
+
+
 def _cut_what(v) -> str:
     if v not in E.CUT_WHAT:
         raise ApiError(400, f"what must be one of {', '.join(E.CUT_WHAT)}, not {v!r}")
@@ -5100,6 +5124,7 @@ ROUTES = [
     ("PUT", "/seriesmith/cue", put_cue, "body"),
     ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
+    ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),

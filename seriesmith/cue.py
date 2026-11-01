@@ -67,8 +67,12 @@ from seriesmith.core.ir import stable_seed
 SOUND_DIR = "sound"
 SPEC = "spec.json"
 SPEC_FIELDS = ("id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key",
+               "orchestra",
                "tail", "sections", "arc", "hits", "takes", "seed")
 SECTION_FIELDS = ("name", "bars", "words", "from", "to", "lyrics")
+# the orchestration grid's levels: who plays in a bar, and how much
+ORCHESTRA_LEVELS = ("", "under", "present", "lead")
+COMP_XFADE = 0.02                      # seconds of equal-power crossfade at each splice
 DEFAULT_BPM = 100.0
 # what a cue is: score (underscore composed to the picture; the default) or a song (sung, its
 # sections' lyrics); each kind's default model, unless the series config's `sound` names one
@@ -183,6 +187,24 @@ def check_spec(raw) -> dict:
         arc.append({"at": at, "level": _level(p.get("level"), f"cue {cid}'s arc point {i + 1}")})
     if arc:
         out["arc"] = arc
+    if raw.get("orchestra"):
+        orch = raw["orchestra"]
+        if not isinstance(orch, dict):
+            raise CueError(f"cue {cid}'s orchestra is {{family: [level per bar]}}")
+        clean = {}
+        for fam, levels in orch.items():
+            name = " ".join(str(fam).split())[:40]
+            if not name:
+                raise CueError(f"cue {cid}'s orchestra has a family with no name")
+            if not isinstance(levels, list) or len(levels) > 256 or not all(
+                    isinstance(x, int) and not isinstance(x, bool) and 0 <= x <= 3 for x in levels):
+                raise CueError(f"cue {cid}'s orchestra {name}: a level per bar, 0 (off) to 3 (lead)")
+            while levels and levels[-1] == 0:
+                levels = levels[:-1]
+            if levels:
+                clean[name] = levels
+        if clean:
+            out["orchestra"] = clean
     if raw.get("hits") is not None:
         if not isinstance(raw["hits"], list) or not all(isinstance(h, str) for h in raw["hits"]):
             raise CueError(f"cue {cid}'s hits are the ids of the mix's hits it lands")
@@ -360,6 +382,28 @@ def model_for(spec: dict, series: dict) -> str:
     return ((series.get("sound") or {}).get(key)) or default or TG.DEFAULT_MUSIC_TARGET
 
 
+def orchestrate(sections: list[dict], orchestra: dict) -> list[dict]:
+    """Sections with the orchestration grid in their words: each family's strongest level
+    over the section's bars, strongest first ("strings lead, solo horn present, timpani
+    under"), after the section's own words. A family off throughout a section isn't named;
+    a change inside a section can't be followed (a section is the finest the models follow),
+    so the strongest wins."""
+    out, b0 = [], 0
+    for s in sections:
+        n = s["bars"]
+        who = []
+        for fam, levels in orchestra.items():
+            lv = max(levels[b0:b0 + n] or [0])
+            if lv:
+                who.append((lv, fam))
+        who.sort(key=lambda x: -x[0])
+        words = ", ".join(f"{fam} {ORCHESTRA_LEVELS[lv]}" for lv, fam in who)
+        own = (s.get("words") or "").strip(" ,.")
+        out.append({**s, "words": ", ".join(x for x in (own, words) if x)} if words else dict(s))
+        b0 += n
+    return out
+
+
 def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
@@ -409,6 +453,8 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
         sections = _fill_bars(spec["sections"], bars)
     else:
         sections = _sections_from_hits(bars, hits, preroll, bar)
+    if spec.get("orchestra"):
+        sections = orchestrate(sections, spec["orchestra"])
     if spec.get("arc"):
         pts = [((MX.place(p["at"], origins) - a) / fps, p["level"]) for p in spec["arc"]
                if MX.place(p["at"], origins) is not None]
@@ -600,6 +646,8 @@ def measure(raw_file: str, wav: str, p: dict) -> dict:
     believed = heard is not None and abs(heard - fit["ask_bpm"]) / fit["ask_bpm"] <= TEMPO_TRUST
     factor = (fit["bpm"] / heard) if believed else fit["stretch"]
     factor = max(1 - STRETCH_MAX, min(1 + STRETCH_MAX, factor))
+    if p.get("at_tempo"):
+        factor = 1.0                     # already at the cue's tempo (a comp of two takes)
     stretch_file(raw_file, wav, factor)
     buf = MX.decode(wav)
     env = B.onsets(buf)
@@ -647,6 +695,60 @@ def remeasure(root: str, cid: str, n: int, p: dict) -> dict:
     q = dict(p, fit=dict(p["fit"], ask_bpm=asked, stretch=round(p["fit"]["bpm"] / asked, 5)))
     m = measure(raw, take_paths(root, cid, n)["wav"], q)
     return update(root, cid, n, measured=m, rendered_for=fingerprint(p), remeasured=T.now())
+
+
+def comp(root: str, pass_: str, cid: str, base: int, src: int, bars: tuple[int, int]) -> dict:
+    """A new take: take `base` with bars [a, b) (the cue's bars, 0 the pre-roll's first)
+    from take `src`, spliced on bar lines where each take's measured downbeat puts them (both
+    are at the cue's tempo), with COMP_XFADE equal-power crossfades; kept, measured and ranked
+    like any take, its sidecar saying what it was made of. CueError when either take isn't
+    finished, or the bars aren't inside the cue."""
+    np = MX._np()
+    spec = load_spec(root, cid)
+    p = plan(root, pass_, spec)
+    takes = {t["take"]: t for t in list_takes(root, cid)}
+    for n in (base, src):
+        if (takes.get(n) or {}).get("status") != "ok":
+            raise CueError(f"cue {cid} has no finished take {n}")
+    a, b = bars
+    if not 0 <= a < b <= p["bars"]:
+        raise CueError(f"bars {a}-{b} aren't inside cue {cid}'s {p['bars']}")
+    bar = p["bar"]
+
+    def load(n):
+        t = takes[n]
+        return MX.decode(take_paths(root, cid, n)["wav"]), t["measured"]["downbeat"]
+    buf, d1 = load(base)
+    other, d2 = load(src)
+    # where `other` lines up with `buf`: its sample i + shift is buf's sample i
+    shift = int(round((d2 - d1) * MX.RATE))
+    s1, e1 = int((d1 + a * bar) * MX.RATE), int((d1 + b * bar) * MX.RATE)
+    e1 = min(e1, len(buf), len(other) - shift)
+    x = int(COMP_XFADE * MX.RATE)
+    if s1 - x < 0 or s1 + shift - x < 0 or e1 - s1 < 2 * x:
+        raise CueError(f"take {src} doesn't reach bars {a}-{b} of take {base}")
+    out = buf.copy()
+    out[s1:e1] = other[s1 + shift:e1 + shift]
+    up = np.sin(np.linspace(0, np.pi / 2, x, dtype=np.float32))[:, None]
+
+    def blend(at: int, into_other: bool) -> None:
+        """x samples centred on `at`: one take fading out as the other fades in."""
+        lo = at - x // 2
+        mine, theirs = buf[lo:lo + x], other[lo + shift:lo + shift + x]
+        if len(mine) == x and len(theirs) == x:
+            out[lo:lo + x] = mine * up[::-1] + theirs * up if into_other else theirs * up[::-1] + mine * up
+    blend(s1, True)
+    blend(e1, False)
+    n = reserve(root, cid, {"pass": pass_, "target": takes[base].get("target"), "seed": None,
+                            "comp": {"base": base, "from": src, "bars": [a, b]},
+                            "prompt": takes[base].get("prompt"), "rendered_for": fingerprint(p),
+                            "plan": {"fit": dict(p["fit"], ask_bpm=p["fit"]["bpm"], stretch=1.0)}})
+    raw = os.path.join(cue_dir(root, cid), f"t{n:02d}_raw.wav")
+    MX.write_wav(raw, out)
+    q = dict(p, at_tempo=True, fit=dict(p["fit"], ask_bpm=p["fit"]["bpm"], stretch=1.0))
+    m = measure(raw, take_paths(root, cid, n)["wav"], q)
+    return update(root, cid, n, status="ok", finished=T.now(), file=take_paths(root, cid, n)["rel"],
+                  raw=os.path.relpath(raw, root).replace(os.sep, "/"), measured=m)
 
 
 def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict) -> dict:
