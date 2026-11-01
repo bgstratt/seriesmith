@@ -10,7 +10,8 @@ A music target's prompt.py has one function, the cue's brief:
     {"style": "romantic orchestral, period strings",  the series' direction and the cue's
      "bpm": 92 (whole), "meter": 4, "key": "D minor" | "", "seconds": 52.17,
      "sections": [{"name": "intro", "bars": 4, "words": "solo french horn",
-                   "from": 1, "to": 1}, ...]}       energy 1-5 at its start and end
+                   "from": 1, "to": 1}, ...],       energy 1-5 at its start and end
+     "notes": ["tension rises as he kneels", ...]}  the script's music: notes it plays over
 
 `values` are the binding's params beyond the prompt (bpm, key, the lyrics...), set on the
 graph as they are. The words for a level and for a section's direction are here, so the
@@ -58,6 +59,12 @@ def head(cue: dict, bpm_in_text: bool) -> str:
         bits.append(cue["key"])
     bits.append("instrumental")
     return ", ".join(bits) + "."
+
+
+def notes(cue: dict) -> str:
+    """The script's music: notes of the shots a cue plays over, as one phrase ("" for
+    none): "tension rises as he kneels; swells, full, on her face"."""
+    return "; ".join(n.strip(" .;") for n in cue.get("notes") or [] if n and n.strip(" .;"))
 
 
 def story(cue: dict) -> str:

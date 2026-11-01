@@ -1,8 +1,8 @@
 """
 ace_step15: ACE-Step 1.5 XL (target.json beside this file). Its tags are the cue's head
-without the tempo (the bpm is its own input); its lyrics are the sections as its own tags,
-each followed by one line per bar carrying the section's words, which timed sections best
-and made the climax loudest (docs/SOUND.md "Measured: ACE-Step 1.5 XL Turbo"); a song's
+without the tempo (the bpm is its own input) and the script's music: notes; its lyrics are
+the sections as its own tags, each followed by one line per bar carrying the section's
+words, which timed sections best and made the climax loudest (docs/SOUND.md "Measured: ACE-Step 1.5 XL Turbo"); a song's
 lyrics, when a section has them, are its lines instead.
 
 Stdlib only.
@@ -46,4 +46,5 @@ def cue_prompt(target, cue: dict) -> dict:
     k = keyscale(cue.get("key") or "")
     if k:
         values["keyscale"] = k
-    return {"prompt": C.head(cue, bpm_in_text=False).rstrip("."), "negative": None, "values": values}
+    tags = ", ".join(x for x in (C.head(cue, bpm_in_text=False).rstrip("."), C.notes(cue)) if x)
+    return {"prompt": tags, "negative": None, "values": values}

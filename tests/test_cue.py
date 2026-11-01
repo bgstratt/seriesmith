@@ -21,6 +21,7 @@ from seriesmith import mix as MX  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
+from seriesmith.core import fileio as F  # noqa: E402
 
 HAVE_FF = bool(FF.have("ffmpeg") and FF.have("ffprobe"))
 FPS = 24
@@ -132,6 +133,21 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(v["bpm"], 92)
         self.assertEqual(v["keyscale"], "D minor")
         self.assertEqual(v["lyrics"].count("(solo horn"), 2)        # a line per bar
+
+    def test_script_notes_in_the_prompt(self):
+        from seriesmith.core import ir
+        story = ir.Episode(id="ep01", sequences=[ir.Sequence(id="sq01", location="hall", shots=[
+            ir.Shot(id="sh010", music="tension rises as he kneels"),
+            ir.Shot(id="sh020"),
+            ir.Shot(id="sh030", music="swells, full, on her face"),
+            ir.Shot(id="sh040", music="not under the cue")])])
+        F.write_text(os.path.join(self.root, "shotlist", "shots.json"), story.dumps())
+        p = CU.plan(self.root, "final", self.spec(), {})
+        self.assertEqual([n["shot"] for n in p["notes"]], ["sh010", "sh030"])
+        self.assertIn("Mood: tension rises as he kneels; swells, full, on her face.",
+                      p["prompt"]["prompt"])
+        pa = CU.plan(self.root, "final", self.spec(model="ace_step15"), {})
+        self.assertTrue(pa["prompt"]["prompt"].endswith("tension rises as he kneels; swells, full, on her face"))
 
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):

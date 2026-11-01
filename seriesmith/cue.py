@@ -23,7 +23,7 @@ become seconds; the hits in its span are fitted (core/score.fit_tempo: the tempo
 of the asked one, and the pre-roll, that put the must-hits on bar lines); the cue runs from
 the bar line before its in point through its out point and `tail`, in whole bars; its
 sections fill those bars (given, else from the hits: a section ends where the music arrives,
-drops or turns); its arc is one energy per bar (the spec's points, else its sections');
+drops or turns); the script's `music:` notes of the shots it plays over go to the prompt; its arc is one energy per bar (the spec's points, else its sections');
 the model's prompt is its target's (cue_prompt). A model takes a whole bpm, so a take is
 asked for `ask_bpm` and `seconds x stretch`, then stretched to the exact tempo.
 
@@ -310,6 +310,19 @@ def _fill_bars(sections: list[dict], bars: int) -> list[dict]:
     return secs
 
 
+def script_notes(root: str, shots: list[str]) -> list[dict]:
+    """The script's `music:` notes of these shots, in their order: [{"shot", "music"}]
+    (none when the episode's story IR, shotlist/shots.json, can't be read)."""
+    from seriesmith.core import ir
+    try:
+        with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
+            story = ir.Episode.loads(fh.read())
+    except (OSError, ValueError, KeyError):
+        return []
+    by = {s.id: s.music for s in story.shots() if s.music}
+    return [{"shot": sid, "music": " ".join(by[sid].split())} for sid in shots if sid in by]
+
+
 def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
@@ -364,12 +377,18 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
                             or TG.DEFAULT_MUSIC_TARGET)
     direction = ((series.get("sound") or {}).get("score") or "").strip()
     style = ", ".join(x for x in (direction.rstrip("."), spec.get("style", "")) if x)
+    # the script's music: notes of the shots the cue plays over (each shot whose clip
+    # overlaps its span), in cut order
+    over = [x["id"] for x in layout
+            if origins[x["id"]]["origin"] + x["trim_in"] < b
+            and origins[x["id"]]["origin"] + x["trim_in"] + x["used"] > a]
+    notes = script_notes(root, over)
     cue = {"style": style or "cinematic orchestral film score", "bpm": fit.ask_bpm,
            "meter": meter, "key": spec.get("key", ""), "seconds": round(seconds * fit.stretch, 3),
-           "sections": sections}
+           "sections": sections, "notes": [n["music"] for n in notes]}
     brief = target.cue_prompt(cue)
     return {"spec": spec, "target": target.id, "fps": fps, "start_frame": a, "end_frame": b,
-            "span": round(span, 3), "hits": hits,
+            "span": round(span, 3), "hits": hits, "notes": notes,
             "fit": {"bpm": fit.bpm, "ask_bpm": fit.ask_bpm, "stretch": fit.stretch,
                     "errors": fit.errors, "worst_must": fit.worst_must},
             "bars": bars, "bar": round(bar, 5), "preroll": preroll, "seconds": seconds,

@@ -306,7 +306,9 @@ Each phase is tested live on local ComfyUI before the next starts.
          20 s, ranked, the best placed and exported with the mix. Hits that one tempo can't
          put on bar lines (two 4.5 s apart near 92 bpm) are fitted as near as it can, and the
          fit may go to the edge of its 8 % to land them
-   - [ ] the script's `music:` notes in a cue's prompt (the shotlist doesn't carry them)
+   - [x] the script's `music:` notes in a cue's prompt: each shot's the cue plays over, from
+         the story IR (`shotlist/shots.json`); Stable Audio 3 hears them as its mood, ACE-Step in
+         its tags
    - [ ] the cue window's Score tab (sections, the arc lane, takes with hit and shape errors)
    - [ ] the spotting sheet (the music map, hits table, tempo fit)
    - [ ] the Arc tab's drawing tools and presets
