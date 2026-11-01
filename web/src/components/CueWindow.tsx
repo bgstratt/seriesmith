@@ -336,7 +336,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
               <span className="h3-muted">Brush</span>
               {brush === ORCH_STEP ? <i className="pi pi-sort-alt" /> : <i className={`h3-cue-swatch h3-lv-${brush}`} />}
               <select className="h3-in" aria-label="Brush" value={String(brush)} onChange={(e) => setBrush(Number(e.target.value))} style={{ width: "auto" }}>
-                {[...ORCH_LEVELS, "step"].map((name, k) => <option key={k} value={String(k)}>{k + 1} {name}</option>)}
+                {[...ORCH_LEVELS, "step"].map((name, k) => <option key={k} value={String(k)}>{k + 1} - {name}</option>)}
               </select>
             </label>
             <button className="h3-btn" title="Add a row for another family (rename it in its label)" onClick={() => {

@@ -563,9 +563,9 @@ describe("the cue window", () => {
     // strings, bars 1 to 3, with the present brush (key 3; the window opens on step)
     const grid = q(".h3-cue-orch")[0];
     const brushOn = () => { const s = q(".h3-cue-tools select")[0] as HTMLSelectElement; return s.options[s.selectedIndex].text; };
-    expect(brushOn()).toBe("5 step");
+    expect(brushOn()).toBe("5 - step");
     await act(async () => grid.dispatchEvent(new KeyboardEvent("keydown", { key: "3", bubbles: true })));
-    expect(brushOn()).toBe("3 present");
+    expect(brushOn()).toBe("3 - present");
     await act(async () => grid.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 76 + 1, clientY: 1 })));
     await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 76 + 2 * barPx + 1, clientY: 2 })));
     await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
@@ -576,7 +576,7 @@ describe("the cue window", () => {
     expect(q(".h3-cue-cell.h3-lv-2")).toHaveLength(3);
     // step (key 5): a click on bar 2 moves it up to lead, a Shift-click back down to present
     await act(async () => grid.dispatchEvent(new KeyboardEvent("keydown", { key: "5", bubbles: true })));
-    expect(brushOn()).toBe("5 step");
+    expect(brushOn()).toBe("5 - step");
     const click = async (shiftKey: boolean) => {
       await act(async () => grid.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, shiftKey, clientX: 76 + barPx + 1, clientY: 1 })));
       await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
