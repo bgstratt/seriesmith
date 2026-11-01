@@ -290,7 +290,9 @@ and the 2.5 variant is dropped.
 its sound effects only: <sound:>. No dialogue, no voices, no singing, no music.", 20 steps
 res_multistep, only the sound decoded (`VAEDecodeAudio`; the picture never goes through the
 VAE). Fast: 8-10 s a shot at 256x160, 16-22 s at 512x288, once loaded (LTX-2.3: 60-120 s).
-How it sounds against LTX-2.3 is to be heard.
+Heard (the user): **H3 at 256x160 is about as good as LTX-2.3** ("I couldn't say which is
+better"), so with H3 the default video model elsewhere, **H3 FL2VA at 256x160 is the effects
+default**, LTX-2.3 Foley and Hunyuan XL the choices beside it (phase 4).
 
 Paid music models (MiniMax Music 3 on Comfy Cloud, Sonilo video-to-music, ByteDance Seed
 Audio) are left out for now; they fit as targets of the same kinds.
@@ -349,8 +351,8 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [ ] Orchestration & takes: the grid; comp at bar lines; Repaint once it's measured
 3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
    looped; the three candidates compared.
-4. **Effects.** The `foley` kind; LTX-2.3 Foley (2.3 files back, or on 2.5 if it holds), H3
-   tried; effects stale when the pick changes; optionally Demucs to split a take's voice from
+4. **Effects.** The `foley` kind; H3 FL2VA at 256x160 the default (the take's frames
+   anchored, only the sound decoded), LTX-2.3 Foley and Hunyuan XL beside it; effects stale when the pick changes; optionally Demucs to split a take's voice from
    its effects.
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
@@ -443,6 +445,27 @@ that must sit on a bpm, where its integer `bpm` input is the surer tempo.
    part: it makes a drop drop.
 3. **A better model or more steps**, measured the same way before any is the default: XL SFT
    at 50 steps, MiniMax Music 3 (installed), and ACE-Step's timbre reference.
+
+## Scored: Ballroom ep03 "Choice" (2026-11-01)
+
+The first episode scored end to end (57 s, deadpan comedy played straight, wall-to-wall
+dialogue): three cues, eight Stable Audio 3 takes each on local ComfyUI, ranked, the best placed.
+1M1 The Selection (sh010 to "Oh.", a romantic swell arriving on "I choose you", cut dead on
+"Oh."), silence under the family's moves, 1M2 The Departure (a pompous processional under the
+exit, cut dead on the door's thud, found from the take's own sound at sh100 frame 111), silence
+for "We should make preparations.", 1M3 Chosen (music box and pizzicato with the clock, a turn on
+her question). What it taught:
+
+- **A drop on a cue's out point is its end**: the music is cut there, so it's neither fitted to a
+  bar line (two hits 2.3 s apart can't both be) nor measured in the takes; `cue.plan` marks it
+  `ends`.
+- **Takes can be measured again** against a new plan without rendering (`cue.remeasure`), when the
+  tempo is still within 8 % of what they were played at.
+- **Levels**: at a 0 dB (then -4 dB) music fader the score was louder than the dialogue under
+  Charming's line even with the -9 dB dip; at **-12 dB** it sits 5-10 dB under the lines and level
+  with the dialogue on the swell. So a music track's default should be about -12 dB, and Play all
+  should duck as the export does (the preview doesn't yet), or the editor plays it louder than
+  the export.
 
 ## Open questions
 

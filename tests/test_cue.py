@@ -170,6 +170,14 @@ class PlanTest(unittest.TestCase):
         self.assertIn("[Verse]\nUnder the rain\nwe run", p["prompt"]["values"]["lyrics"])
         self.assertIn("instrumental", CU.plan(self.root, "final", self.spec(), {})["prompt"]["prompt"])
 
+    def test_a_drop_on_the_out_point_is_the_end(self):
+        # the drop (sh030 frame 84) is where the cue stops: not fitted, nothing to measure
+        p = CU.plan(self.root, "final", self.spec(out=anchor("sh030", 84)), {})
+        ends = [h for h in p["hits"] if h.get("ends")]
+        self.assertEqual([h["id"] for h in ends], ["h3"])
+        self.assertIsNone(p["fit"]["errors"][2])
+        self.assertEqual(len(p["fit"]["errors"]), 3)
+
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):
             CU.plan(self.root, "final", CU.check_spec(
@@ -247,6 +255,11 @@ class TakeTest(PlanTest):
         self.assertTrue(os.path.isfile(os.path.join(self.root, "sound", "m01", "t01.wav")))
         self.assertTrue(os.path.isfile(os.path.join(self.root, "sound", "m01", "t01_raw.wav")))
         self.assertEqual(CU.ranked(CU.list_takes(self.root, "m01"))[0]["take"], 1)
+
+        # measured again against the same plan: the same numbers, no render
+        again = CU.remeasure(self.root, "m01", n, p)["measured"]
+        self.assertEqual(again["offset"], m["offset"])
+        self.assertEqual(again["levels"], m["levels"])
 
         mix = CU.place(self.root, "final", "m01", n)
         item = next(i for i in mix["items"] if i["id"] == "m01")

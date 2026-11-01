@@ -374,13 +374,21 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             continue
         if want is None and not a <= f <= b:
             continue
-        hits.append({"id": h["id"], "name": h.get("name") or h["id"],
-                     "kind": h.get("kind", "accent"), "must": h.get("must", True),
-                     "t": round((f - a) / fps, 4)})
+        hit = {"id": h["id"], "name": h.get("name") or h["id"], "kind": h.get("kind", "accent"),
+               "must": h.get("must", True), "t": round((f - a) / fps, 4)}
+        # a drop on the cue's out point is its end: the music is cut there, whatever the bar,
+        # so it isn't fitted to a bar line and there is nothing in the music to measure
+        if hit["kind"] == "drop" and f >= b - 2:
+            hit["ends"] = True
+        hits.append(hit)
     meter = spec.get("meter", 4)
     asked = spec.get("bpm") or DEFAULT_BPM
-    fit = SC.fit_tempo([(h["t"], h["must"], h["kind"] == "accent") for h in hits], asked, fps, meter,
+    fitted = [h for h in hits if not h.get("ends")]
+    fit = SC.fit_tempo([(h["t"], h["must"], h["kind"] == "accent") for h in fitted], asked, fps, meter,
                        spread=0.0 if spec.get("fixed_tempo") else 0.08)
+    # the fit's errors for every hit, in order: an end has none (None)
+    errs = iter(fit.errors)
+    fit_errors = [None if h.get("ends") else next(errs) for h in hits]
     bar = fit.bar
     preroll = fit.preroll
     tail = spec.get("tail", 2.0)
@@ -417,7 +425,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     return {"spec": spec, "target": target.id, "fps": fps, "start_frame": a, "end_frame": b,
             "span": round(span, 3), "hits": hits, "notes": notes,
             "fit": {"bpm": fit.bpm, "ask_bpm": fit.ask_bpm, "stretch": fit.stretch,
-                    "errors": fit.errors, "worst_must": fit.worst_must},
+                    "errors": fit_errors, "worst_must": fit.worst_must},
             "bars": bars, "bar": round(bar, 5), "preroll": preroll, "seconds": seconds,
             "ask_seconds": cue["seconds"], "sections": sections, "arc": arc, "cue": cue,
             "prompt": brief}
@@ -595,11 +603,14 @@ def measure(raw_file: str, wav: str, p: dict) -> dict:
     beat_s = bar_s / meter
     errs = []
     for h in p["hits"]:
+        if h.get("ends"):
+            errs.append(None)                  # the cue's end: cut there, nothing to hear
+            continue
         f = offset + h["t"]
         at, strength = B.onset_near(env, f, beat_s / 2)
         errs.append(round((at - f) * fps, 2) if at is not None and strength >= ONSET_MIN else None)
     musts = [abs(e) if e is not None else beat_s / 2 * fps
-             for e, h in zip(errs, p["hits"]) if h["must"]]
+             for e, h in zip(errs, p["hits"]) if h["must"] and not h.get("ends")]
     worst = max(musts) if musts else 0.0
     levels = B.bar_levels(buf, fit["bpm"], down, meter, p["bars"])
     shape = B.shape_error(levels, p["arc"])
@@ -608,6 +619,23 @@ def measure(raw_file: str, wav: str, p: dict) -> dict:
             "stretch": round(factor, 5), "downbeat": round(down, 4), "offset": round(offset, 4),
             "hit_errors": errs, "worst_must": round(worst, 2), "levels": levels,
             "shape_error": shape, "score": score}
+
+
+def remeasure(root: str, cid: str, n: int, p: dict) -> dict:
+    """A finished take measured again against the plan `p` (the cut or the cue changed, or
+    the measuring did): stretched again from its raw file to the plan's tempo, its sidecar's
+    `measured` and `rendered_for` replaced, without rendering it again. A take the plan's
+    tempo is more than STRETCH_MAX from (another bpm asked) can't be: it stays as it was."""
+    sc = next((t for t in list_takes(root, cid) if t["take"] == n), None)
+    if sc is None or sc.get("status") != "ok" or not sc.get("raw"):
+        raise CueError(f"cue {cid} has no finished take {n} to measure again")
+    asked = ((sc.get("plan") or {}).get("fit") or {}).get("ask_bpm") or p["fit"]["ask_bpm"]
+    if abs(asked - p["fit"]["bpm"]) / p["fit"]["bpm"] > STRETCH_MAX:
+        raise CueError(f"cue {cid} t{n:02d} was played at {asked} bpm, too far from {p['fit']['bpm']}")
+    raw = os.path.join(root, *sc["raw"].split("/"))
+    q = dict(p, fit=dict(p["fit"], ask_bpm=asked, stretch=round(p["fit"]["bpm"] / asked, 5)))
+    m = measure(raw, take_paths(root, cid, n)["wav"], q)
+    return update(root, cid, n, measured=m, rendered_for=fingerprint(p), remeasured=T.now())
 
 
 def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict) -> dict:
