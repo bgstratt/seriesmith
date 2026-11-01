@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { loadCues, openCue } from "../cueActions";
+import { cueTitle } from "../lib/cue";
 import { currentMix, deleteMixItem, loadMix, toggleSound } from "../mixActions";
 import { useApp } from "../store";
 import type { MixItem } from "../types";
@@ -81,7 +82,7 @@ export function SoundRefsSections({ ep }: { ep: string }) {
             <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={() => openCue(c.spec.id)}
               title="Open it in the cue window: its sections, arc and takes">
               <i className="pi pi-volume-up" />
-              <b>{c.spec.label || c.spec.id}</b>
+              <b>{cueTitle(c.spec)}</b>
               <span className="h3-muted">{c.spec.in.shot} → {c.spec.out.shot}</span>
               <span className="h3-grow" />
               <span className={c.ok ? "" : "h3-muted"}>{c.ok}/{c.takes} take{c.takes === 1 ? "" : "s"}</span>

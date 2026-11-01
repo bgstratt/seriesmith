@@ -28,7 +28,7 @@ export const MUSIC_TARGETS: Target[] = [
   },
 ];
 
-const FIELDS = ["id", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "tail", "sections", "arc", "hits", "takes", "seed"];
+const FIELDS = ["id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "tail", "sections", "arc", "hits", "takes", "seed"];
 const LEVEL_WORDS = ["", "sparse", "quiet", "moderate", "full", "full orchestra fortissimo"];
 
 function level(v: unknown, what: string): number {
@@ -47,6 +47,8 @@ export function checkCue(raw: CueSpec): CueSpec {
     if (!a || typeof a.shot !== "string" || !Number.isInteger(a.frame) || a.frame < 0) throw new CueError(`cue ${raw.id}'s ${k} needs its shot and frame`);
   }
   const out: CueSpec = { id: raw.id, in: { ...raw.in }, out: { ...raw.out } };
+  if (raw.kind != null && raw.kind !== "score" && raw.kind !== "song") throw new CueError(`cue ${raw.id}'s kind is score or song, not ${JSON.stringify(raw.kind)}`);
+  if (raw.kind === "song") out.kind = "song";
   for (const k of ["label", "style", "key"] as const) if (typeof raw[k] === "string" && raw[k]!.trim()) out[k] = raw[k]!.trim().split(/\s+/).join(" ");
   if (raw.model) {
     if (!MUSIC_TARGETS.some((t) => t.id === raw.model)) throw new CueError(`cue ${raw.id}'s model ${JSON.stringify(raw.model)} isn't a music target`);

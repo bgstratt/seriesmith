@@ -16,7 +16,7 @@ import { cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions"
 import { isTyping } from "../cutActions";
 import { api } from "../host";
 import {
-  LEVEL_WORDS, addPoint, arcPoints, arcSpec, barBeat, clipsOver, cueStart, editableSections, gridOf, hitChip,
+  LEVEL_WORDS, addPoint, arcPoints, arcSpec, barBeat, clipsOver, cueStart, cueTitle, editableSections, gridOf, hitChip,
   impliedPoints, levelY, levelsAsEnergy, moveEdge, movePoint, patchSection, ranks, removePoint, sectionEdges, tauX, withSpec, xTau, yLevel,
   type ArcPt, type Grid,
 } from "../lib/cue";
@@ -106,7 +106,7 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
     <>
       <i className="pi pi-volume-up" style={{ color: "var(--h3-arc)" }} />
       <b>{id}</b>
-      <span className="h3-muted h3-small">{res?.spec.label ?? ""} · {v.pass}</span>
+      <span className="h3-muted h3-small">{res ? cueTitle(res.spec) : ""} · {v.pass}</span>
       <span className="h3-seg" title="The cue window's views">
         {tab("Score", true)}
         {tab("Arc", false, "coming: the intensity lane large, presets, snap peaks to hits")}
@@ -594,11 +594,23 @@ function CueInspector({ res, target, targets, sel, sections, setSel }: {
   return (
     <div className="h3-cue-side">
       <div className="h3-row" style={{ gap: 6 }}><b>Cue {spec.id}</b><span className="h3-muted h3-small">click a section to edit it</span></div>
+      {field("Kind", (
+        <select className="h3-in" aria-label="Cue kind" value={spec.kind ?? "score"}
+          onChange={(e) => {
+            const kind = e.target.value === "song" ? "song" as const : undefined;
+            // a song needs a model that sings: one that doesn't goes back to the kind's default
+            const sings = !!targets.find((t) => t.id === spec.model)?.capabilities?.lyrics;
+            edit({ kind, ...(kind === "song" && spec.model && !sings ? { model: undefined } : {}) });
+          }}>
+          <option value="score">Score (instrumental, under the picture)</option>
+          <option value="song">Song (sung: its sections' lyrics)</option>
+        </select>
+      ), "Score is composed to the picture, instrumental; a song is sung, each section's lyrics its lines. Each has its own default model")}
       {field("Label", <Draft label="Cue label" value={spec.label ?? ""} placeholder="1M3 The Proposal" onCommit={(label) => edit({ label })} />)}
       {field("Model", (
         <select className="h3-in" aria-label="Music model" value={spec.model ?? ""} onChange={(e) => edit({ model: e.target.value || undefined })}>
           <option value="">the default{plan && !spec.model ? ` (${targets.find((t) => t.id === plan.target)?.short ?? plan.target})` : ""}</option>
-          {targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          {targets.filter((t) => spec.kind !== "song" || t.capabilities?.lyrics).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
       ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text" : target ? "It takes sections as tags and a bpm of its own" : undefined)}
       {field("Tempo", (

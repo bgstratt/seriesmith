@@ -31,8 +31,9 @@ import {
 import { host } from "../host";
 import { openSound } from "../actions";
 import { loadCues, newCue, openCue } from "../cueActions";
+import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
-import type { Anchor, EpisodeStatus, HitKind, Mix, MixHit, MixItem, MixTrack } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, HitKind, Mix, MixHit, MixItem, MixTrack } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -69,7 +70,7 @@ type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
 /** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
 type LaneMenu = { x: number; y: number; track: MixTrack | null; at: Anchor | null };
 
-const NO_CUES: string[] = [];
+const NO_CUES: [string, string][] = [];
 
 export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, innerRef, fps, zoom, measureKey }: {
   ep: string; st: EpisodeStatus; other: EpisodeStatus | undefined; items: PlayItem[];
@@ -86,8 +87,8 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [laneMenu, setLaneMenu] = useState<LaneMenu | null>(null);
   const suppress = useRef(false);
   // the episode's cues: which music blocks open the cue window (fetched again with the mix)
-  const cueIds = useApp((s) => s.cues[ep]?.map((c) => c.spec.id).join(" ") ?? "");
-  const cues = cueIds ? cueIds.split(" ") : NO_CUES;
+  const cueIds = useApp((s) => s.cues[ep]?.map((c) => `${c.spec.id}:${c.spec.kind ?? "score"}`).join(" ") ?? "");
+  const cueKinds = new Map(cueIds ? cueIds.split(" ").map((x) => x.split(":") as [string, string]) : NO_CUES);
   useEffect(() => {
     void loadCues(ep);
   }, [ep, res?.mix]);
@@ -281,7 +282,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               );
             })}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
-              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" && cues.includes(it.id)}
+              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && drag.what !== "hit" && drag.id === it.id}
                 onDown={onItemDown}
                 onMenu={(e) => setPop({ kind: "item", id: it.id, x: e.clientX, y: e.clientY })} />
@@ -351,8 +352,8 @@ function LaneHead({ track, gain, mute, solo, ready }: { track: MixTrack; gain: n
 /** An item: a block from its in to its out (or its file's end), with its waveform. */
 const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDown, onMenu }: {
   ep: string; it: MixItem; lay: Lay[]; items: PlayItem[]; fps: number; dragging: boolean;
-  /** a music cue's: a double-click opens its window */
-  cue: boolean;
+  /** a music cue's kind (null: not a cue): a double-click opens its window */
+  cue: CueKind | null;
   onDown: (e: RPointerEvent<HTMLElement>, it: MixItem, what: "move" | "in" | "out", fileSecs: number | null) => void;
   onMenu: (e: RMouseEvent<HTMLElement>) => void;
 }) {
@@ -400,7 +401,7 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
       {q && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={Math.max(1, (Math.min(fileEnd, offset + secs) - offset) / Math.max(0.01, secs) * width)} height={LANE_H - 6} />}
       {fadeW(it.fade_in) > 0 && <div className="h3-snd-fade h3-l" style={{ width: fadeW(it.fade_in) }} />}
       {fadeW(it.fade_out) > 0 && <div className="h3-snd-fade h3-r" style={{ width: fadeW(it.fade_out) }} />}
-      {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />}{cue && <i className="pi pi-volume-up" />} {label}</span>}
+      {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />}{cue && <i className="pi pi-volume-up" />} {cue ? cueTitle({ id: it.id, kind: cue, label: it.label }) : label}</span>}
       <div className="h3-trim-h h3-l" title="Drag: where it starts (the sound stays where it was)" onPointerDown={(e) => onDown(e, it, "in", fileSecs)} />
       <div className="h3-trim-h h3-r" title="Drag: where it stops" onPointerDown={(e) => onDown(e, it, "out", fileSecs)} />
     </div>

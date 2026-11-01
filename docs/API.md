@@ -653,7 +653,11 @@ Emits `seriesmith.episode`.
 
 A cue is a piece of score written to the cut (seriesmith/cue.py; docs/SOUND.md): its spec in
 `<ep>/sound/<cue>/spec.json` (the shape is cue.py's docstring), its takes beside it, and the
-picked one as its item on the music track of the pass's mix. A cue is planned against the
+picked one as its item on the music track of the pass's mix. A cue's `kind` is `score` (the
+default: instrumental, under the picture) or `song` (sung: its sections' lyrics); with no
+`model`, a song is made on one that sings (the series config's `sound.song_model`, else
+`ace_step15`) and score on `sound.music_model`, else `stable_audio3`. A song on a model that
+can't sing is 400. A cue is planned against the
 pass's cut each time it's asked: its anchors become seconds, the mix's hits in its span are
 fitted (the tempo within 8 % of the asked one and the pre-roll that put the must-hits on bar
 lines, an accent on a beat), it runs in whole bars from the pre-roll through its out point and

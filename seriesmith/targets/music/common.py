@@ -7,7 +7,8 @@ A music target's prompt.py has one function, the cue's brief:
 
 `cue` is what cue.plan worked out (docs/SOUND.md "From an arc to words"):
 
-    {"style": "romantic orchestral, period strings",  the series' direction and the cue's
+    {"kind": "score" | "song",                       a song has vocals; score is instrumental
+     "style": "romantic orchestral, period strings",  the series' direction and the cue's
      "bpm": 92 (whole), "meter": 4, "key": "D minor" | "", "seconds": 52.17,
      "sections": [{"name": "intro", "bars": 4, "words": "solo french horn",
                    "from": 1, "to": 1}, ...],       energy 1-5 at its start and end
@@ -49,7 +50,7 @@ def section_words(sec: dict) -> str:
 
 
 def head(cue: dict, bpm_in_text: bool) -> str:
-    """The cue's opening line: style, tempo, meter, key, instrumental."""
+    """The cue's opening line: style, tempo, meter, key, and instrumental for score."""
     bits = [" ".join((cue.get("style") or "cinematic film score").split()).strip(" ,.")]
     if bpm_in_text and cue.get("bpm"):
         bits.append(f"{int(cue['bpm'])} BPM")
@@ -57,7 +58,8 @@ def head(cue: dict, bpm_in_text: bool) -> str:
         bits.append(f"{int(cue['meter'])}/4")
     if cue.get("key"):
         bits.append(cue["key"])
-    bits.append("instrumental")
+    if cue.get("kind", "score") == "score":
+        bits.append("instrumental")
     return ", ".join(bits) + "."
 
 

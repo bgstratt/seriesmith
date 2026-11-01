@@ -2543,8 +2543,12 @@ export interface CueArcPoint {
 }
 
 /** A cue's spec (`<ep>/sound/<cue>/spec.json`), defaults left out. */
+export type CueKind = "score" | "song";
+
 export interface CueSpec {
   id: string;
+  /** score (underscore, instrumental; the default) or a song (sung: its sections' lyrics) */
+  kind?: CueKind;
   label?: string;
   /** a music target (absent: the series' or the default) */
   model?: string;

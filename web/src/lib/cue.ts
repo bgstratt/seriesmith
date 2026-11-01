@@ -252,6 +252,11 @@ export function clipsOver(items: PlayItem[], t0: number, g: Grid): { it: PlayIte
 }
 
 /** A spec with a change, what's emptied left out (as spec.json keeps it). */
+/** What a cue is called where it's listed: "Score · 1M3 The Proposal", "Song · m02". */
+export function cueTitle(spec: Pick<CueSpec, "id" | "kind" | "label">): string {
+  return `${spec.kind === "song" ? "Song" : "Score"} · ${spec.label || spec.id}`;
+}
+
 export function withSpec(spec: CueSpec, patch: Partial<CueSpec>): CueSpec {
   const o = { ...spec, ...patch } as Record<string, unknown>;
   for (const [k, v] of Object.entries(o)) {

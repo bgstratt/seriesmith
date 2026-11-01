@@ -5,7 +5,8 @@ cue.py — a music cue: what it is asked, its takes, and the one in the mix (doc
 A cue lives in `<ep>/sound/<cue id>/`:
 
     spec.json   what it is asked (check_spec):
-                {"id": "m01", "label": "1M3 The Proposal", "model": "stable_audio3",
+                {"id": "m01", "kind": "score" | "song", "label": "1M3 The Proposal",
+                 "model": null (the kind's: model_for) | "stable_audio3",
                  "in": {"shot", "frame"}, "out": {"shot", "frame"},
                  "style": "romantic, solo horn for Edmund", "bpm": 92, "fixed_tempo": false,
                  "meter": 4, "key": "D minor", "tail": 2.0,
@@ -64,10 +65,14 @@ from seriesmith.core.ir import stable_seed
 
 SOUND_DIR = "sound"
 SPEC = "spec.json"
-SPEC_FIELDS = ("id", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key",
+SPEC_FIELDS = ("id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key",
                "tail", "sections", "arc", "hits", "takes", "seed")
 SECTION_FIELDS = ("name", "bars", "words", "from", "to", "lyrics")
 DEFAULT_BPM = 100.0
+# what a cue is: score (underscore composed to the picture; the default) or a song (sung, its
+# sections' lyrics); each kind's default model, unless the series config's `sound` names one
+KINDS = ("score", "song")
+KIND_MODEL = {"score": ("music_model", None), "song": ("song_model", "ace_step15")}
 TAKES_MAX = 16
 STRETCH_MAX = 0.08                     # how far a take is stretched to its tempo, either way
 # a tempo heard this close to the asked one is the model's drift, and believed; further off
@@ -104,6 +109,11 @@ def check_spec(raw) -> dict:
     if not isinstance(cid, str) or not MX._ID.match(cid):
         raise CueError(f"a cue's id is 1-40 letters, digits, _ or -, not {cid!r}")
     out: dict = {"id": cid}
+    kind = raw.get("kind") or "score"
+    if kind not in KINDS:
+        raise CueError(f"cue {cid}'s kind is score or song, not {kind!r}")
+    if kind != "score":
+        out["kind"] = kind
     try:
         out["in"] = MX.check_anchor(raw.get("in"), f"cue {cid}'s in")
         out["out"] = MX.check_anchor(raw.get("out"), f"cue {cid}'s out")
@@ -122,6 +132,9 @@ def check_spec(raw) -> dict:
             raise CueError(f"cue {cid}'s model {raw['model']!r} isn't a target") from None
         if t.kind != "music":
             raise CueError(f"cue {cid}'s model {raw['model']!r} is a {t.kind} target, not music")
+        if kind == "song" and not t.capabilities().get("lyrics"):
+            raise CueError(f"cue {cid} is a song, and {t.label} sings no lyrics (instrumental only): "
+                           f"pick a model that does, or make it score")
         out["model"] = t.id
     if raw.get("bpm") is not None:
         b = raw["bpm"]
@@ -326,6 +339,16 @@ def script_notes(root: str, shots: list[str]) -> list[dict]:
     return [{"shot": sid, "music": " ".join(by[sid].split())} for sid in shots if sid in by]
 
 
+def model_for(spec: dict, series: dict) -> str:
+    """The cue's music target: its own, else its kind's in the series config's `sound`
+    (`music_model` for score, `song_model` for a song), else the kind's default (Stable Audio
+    3 for score; ACE-Step for a song, the model here that sings lyrics)."""
+    if spec.get("model"):
+        return spec["model"]
+    key, default = KIND_MODEL[spec.get("kind", "score")]
+    return ((series.get("sound") or {}).get(key)) or default or TG.DEFAULT_MUSIC_TARGET
+
+
 def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
@@ -376,8 +399,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             pts += [(t + 0.01, s["from"]), (t + s["bars"] * bar - 0.01, s["to"])]
             t += s["bars"] * bar
     arc = _arc_per_bar(pts, bars, bar, -preroll) if pts else [3.0] * bars
-    target = TG.load_target(spec.get("model") or ((series.get("sound") or {}).get("music_model"))
-                            or TG.DEFAULT_MUSIC_TARGET)
+    target = TG.load_target(model_for(spec, series))
     direction = ((series.get("sound") or {}).get("score") or "").strip()
     style = ", ".join(x for x in (direction.rstrip("."), spec.get("style", "")) if x)
     # the script's music: notes of the shots the cue plays over (each shot whose clip
@@ -386,7 +408,9 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             if origins[x["id"]]["origin"] + x["trim_in"] < b
             and origins[x["id"]]["origin"] + x["trim_in"] + x["used"] > a]
     notes = script_notes(root, over)
-    cue = {"style": style or "cinematic orchestral film score", "bpm": fit.ask_bpm,
+    kind = spec.get("kind", "score")
+    cue = {"kind": kind, "style": style or ("cinematic orchestral film score" if kind == "score" else "song"),
+           "bpm": fit.ask_bpm,
            "meter": meter, "key": spec.get("key", ""), "seconds": round(seconds * fit.stretch, 3),
            "sections": sections, "notes": [n["music"] for n in notes]}
     brief = target.cue_prompt(cue)

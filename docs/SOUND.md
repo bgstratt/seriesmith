@@ -276,8 +276,21 @@ LoRA 0.4, 30 steps, audio cfg 6) and the same LoRA on LTX-2.5 dev. Every one ren
 35-65 s a shot, Hunyuan 48-87 s, Hunyuan XL 68-125 s (not faster here), LTX 60-120 s (first
 loads included). The saved LTX workflow's **STG fails on ComfyUI 0.43** (ComfyUI-LTXVideo's
 stg.py: "'AttentionTensorContainer' object has no attribute 'shape'"); with `stg` 0, no
-perturbed attention and no skip blocks it runs. Which sounds best is the user's to judge by
-ear (scratch files, one mp4 per shot and model).
+perturbed attention and no skip blocks it runs.
+
+**Heard (the user, 2026-11-01), best first: LTX-2.3 Foley** ("best by a long shot"),
+**HunyuanVideo-Foley XL** (hit the marks; a close second), HunyuanVideo-Foley (slightly off
+key), MMAudio (hit the marks, the sounds not as good), and last the LTX-2.3 LoRA on LTX-2.5
+(it added vocals that made no sense and few effects: the LoRA is 2.3's). So the effects
+default is LTX-2.3 Foley (its files are needed: about 36 GB), Hunyuan XL the second choice,
+and the 2.5 variant is dropped.
+
+**H3 as video-to-audio** (tried after): H3 FL2VA with the take's frames anchored from frame 0
+(`MiniMaxH3AddGuide`, an image batch), a small size, the prompt "The exact video given, with
+its sound effects only: <sound:>. No dialogue, no voices, no singing, no music.", 20 steps
+res_multistep, only the sound decoded (`VAEDecodeAudio`; the picture never goes through the
+VAE). Fast: 8-10 s a shot at 256x160, 16-22 s at 512x288, once loaded (LTX-2.3: 60-120 s).
+How it sounds against LTX-2.3 is to be heard.
 
 Paid music models (MiniMax Music 3 on Comfy Cloud, Sonilo video-to-music, ByteDance Seed
 Audio) are left out for now; they fit as targets of the same kinds.
@@ -317,6 +330,11 @@ Each phase is tested live on local ComfyUI before the next starts.
          20 s, ranked, the best placed and exported with the mix. Hits that one tempo can't
          put on bar lines (two 4.5 s apart near 92 bpm) are fitted as near as it can, and the
          fit may go to the edge of its 8 % to land them
+   - [x] score / song (2026-11-01): a cue's `kind`, score by default; a song's default model
+         is one that sings (ACE-Step until YuE2 is a target; the series config's
+         `sound.song_model`, as `sound.music_model` for score); a song on a model that can't
+         sing is refused; the prompt says instrumental only for score. The track, its stem and
+         the XML stay Music: a song, a licensed track and source music sit there too
    - [x] the script's `music:` notes in a cue's prompt: each shot's the cue plays over, from
          the story IR (`shotlist/shots.json`); Stable Audio 3 hears them as its mood, ACE-Step in
          its tags

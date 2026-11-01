@@ -28,6 +28,14 @@ const ITEMS: PlayItem[] = [clip("sh010", 0, 4), clip("sh020", 4, 4, 12), clip("s
 // 120 bpm in 4/4: a bar is 2 s, a beat 0.5 s; the first bar starts 0.5 s before the in point
 const PLAN = { bar: 2, bars: 6, preroll: 0.5 };
 
+describe("a cue's kind", () => {
+  it("names it score or song where it's listed", async () => {
+    const { cueTitle } = await import("../src/lib/cue");
+    expect(cueTitle({ id: "m01", label: "1M3 The Proposal" })).toBe("Score · 1M3 The Proposal");
+    expect(cueTitle({ id: "m02", kind: "song" })).toBe("Song · m02");
+  });
+});
+
 describe("the cue's grid", () => {
   const g = gridOf(PLAN, {});
 

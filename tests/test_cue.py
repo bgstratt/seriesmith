@@ -62,6 +62,18 @@ class SpecTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(CU.CueError):
                 CU.check_spec(bad)
 
+    def test_kind(self):
+        self.assertNotIn("kind", CU.check_spec(self.spec(kind="score")))       # the default
+        self.assertEqual(CU.check_spec(self.spec(kind="song"))["kind"], "song")
+        with self.assertRaises(CU.CueError):
+            CU.check_spec(self.spec(kind="jingle"))
+        with self.assertRaisesRegex(CU.CueError, "sings no lyrics"):
+            CU.check_spec(self.spec(kind="song", model="stable_audio3"))
+        self.assertEqual(CU.model_for(CU.check_spec(self.spec()), {}), "stable_audio3")
+        self.assertEqual(CU.model_for(CU.check_spec(self.spec(kind="song")), {}), "ace_step15")
+        self.assertEqual(CU.model_for(CU.check_spec(self.spec()), {"sound": {"music_model": "ace_step15"}}),
+                         "ace_step15")
+
     def test_model_must_be_music(self):
         self.assertEqual(CU.check_spec(self.spec(model="ace_step15"))["model"], "ace_step15")
 
@@ -148,6 +160,15 @@ class PlanTest(unittest.TestCase):
                       p["prompt"]["prompt"])
         pa = CU.plan(self.root, "final", self.spec(model="ace_step15"), {})
         self.assertTrue(pa["prompt"]["prompt"].endswith("tension rises as he kneels; swells, full, on her face"))
+
+    def test_a_song_sings(self):
+        p = CU.plan(self.root, "final", self.spec(kind="song", sections=[
+            {"name": "verse", "bars": 4, "lyrics": "Under the rain\nwe run"},
+            {"name": "chorus", "words": "full band"}]), {})
+        self.assertEqual(p["target"], "ace_step15")
+        self.assertNotIn("instrumental", p["prompt"]["prompt"])
+        self.assertIn("[Verse]\nUnder the rain\nwe run", p["prompt"]["values"]["lyrics"])
+        self.assertIn("instrumental", CU.plan(self.root, "final", self.spec(), {})["prompt"]["prompt"])
 
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):
