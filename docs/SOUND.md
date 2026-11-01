@@ -346,11 +346,31 @@ tracker beside it):
   | the same, the dynamics in the tag: `[Build - strings enter, crescendo]` | 7, 9, 9 | -0.4, +3.3, +17.4 | -4.2, -10.0, -6.1 | 0.47, 0.42, 0.37 |
   | a render per section, joined at bar lines | 15, 7, 9 | +0.1, +6.2, +1.9 | **+10.8, +8.5, +8.1** | 0.57, 0.53, 0.55 |
 
-  So a section is timed by **its tag and as many lines as it has bars**; words inside the tag
-  break that. A render per section is the worst: each comes out at the same level, so a quiet
-  drop is as loud as the climax. The prompt writer writes plain tags with a line per bar, and
-  the next thing to measure is where a section's words go so they don't spoil its timing:
-  as the lines themselves (`(solo horn, quiet)` per bar), or in the cue's tags alone.
+  A render per section is the worst: each comes out at the same level, so a quiet drop is as
+  loud as the climax. **Three seeds misled**: on eight more (seeds 11-18), plain tags put the
+  climax in bars 13-16 once, so the first probe's three of three was luck.
+- **Nothing tried makes it follow the arc reliably** (eight seeds each, seeds 11-18):
+
+  | Asked as | Climax in bars 13-16 | Drop of 4 dB or more | Climax over intro (median) | Shape error median (best) |
+  |---|---|---|---|---|
+  | its own tags, `(instrumental)` per bar | 1 / 8 | 4 / 8 | +4.9 dB | 0.44 (0.34) |
+  | its own tags, the section's words on every line: `(solo piano, very quiet, sudden)` | 3 / 8 | 2 / 8 | +10.1 dB | 0.43 (0.31) |
+
+  Over every seed so far, plain tags landed the climax 4 times in 14, words per line 5 in 11.
+  The words make the climax louder (a median +10 dB over the intro, against +5), so the prompt
+  writer writes them on every line, but the arc is not the prompt's to keep.
+
+**What follows for phase 2.** The arc is kept by three things, in this order, not by the words:
+
+1. **Many takes, ranked.** A take costs about 4 s on Turbo, so a cue renders eight by default
+   (about 30 s) and they are ranked by hit error and shape error; the best of eight sat at
+   0.31-0.34 against a median of 0.43-0.44. The window shows them ranked.
+2. **The arc fitted by gain.** From the picked take's level per bar and the arc, breakpoints
+   that pull it toward the arc (bounded, ±6 dB by default, moved to bar lines), written into
+   `mix.json` as the item's points, where they can be seen and changed. This is the dependable
+   part: it makes a drop drop.
+3. **A better model or more steps**, measured the same way before any is the default: XL SFT
+   at 50 steps, MiniMax Music 3 (installed), and ACE-Step's timbre reference.
 
 ## Open questions
 
