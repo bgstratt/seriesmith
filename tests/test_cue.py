@@ -279,6 +279,7 @@ class RouteTest(unittest.TestCase):
         self.assertEqual(got["spec"]["bpm"], 92)
         self.assertIsNone(got["plan_error"])
         self.assertIn("prompt", got["plan"])
+        self.assertEqual(got["plan"]["notes"], [])                 # the script's music: notes
         r = self.call(A.post_cue_render, {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 3})
         self.assertEqual([q["take"] for q in r["queued"]], [1, 2, 3])
         self.assertEqual(len(self.ctx.runner.asked), 3)

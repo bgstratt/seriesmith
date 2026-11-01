@@ -2578,7 +2578,7 @@ def put_mix(ctx: Context, body):
 
 def _plan_summary(p: dict) -> dict:
     """What a cue's plan says, for the window (cue.plan, without the spec it came from)."""
-    return {k: p[k] for k in ("target", "fps", "span", "hits", "fit", "bars", "bar", "preroll",
+    return {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "bars", "bar", "preroll",
                               "seconds", "ask_seconds", "sections", "arc", "prompt")}
 
 
