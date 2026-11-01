@@ -360,6 +360,11 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [x] sections added and removed on the Score tab (2026-11-01; `CueWindow.tsx`, `lib/cue.ts`:
          a double-click on the Sections lane splits the section there at the nearest bar line;
          its menu splits, merges with a neighbour, edits, or resets them from the hits)
+   - [x] presets (2026-11-01; `seriesmith/presets/cue.json`, served by `GET
+         /seriesmith/presets?kind=cue`; the cue inspector's Preset, `lib/cue.ts` applyPreset):
+         a worked example of a score's or a song's fields, its sections as shares of the cue
+         fitted to its bars at the preset's tempo, with who plays in each; it asks before
+         replacing the cue's own sections, style or orchestration
    - [ ] Repaint, once it's measured (Fixing part of a take)
 3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
    looped; the three candidates compared.

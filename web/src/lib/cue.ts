@@ -6,7 +6,7 @@
 // reference). The arc is energy 1-5; the timeline's gain breakpoints (dB) are
 // another curve, kept apart.
 
-import type { Anchor, CuePlan, CueSection, CueSpec, CueTake } from "../types";
+import type { Anchor, CueKind, CuePlan, CuePreset, CueSection, CueSpec, CueTake } from "../types";
 import { anchorTime, newId, timeAnchor } from "./mix";
 import type { PlayItem } from "./playlist";
 
@@ -378,6 +378,79 @@ export function withSpec(spec: CueSpec, patch: Partial<CueSpec>): CueSpec {
     if (v == null || v === "" || v === false || (Array.isArray(v) && !v.length && k !== "hits")) delete o[k];
   }
   return o as unknown as CueSpec;
+}
+
+// ---------------------------------------------------------------------------
+// presets (seriesmith/presets/cue.json): a worked example filling the cue's fields
+// ---------------------------------------------------------------------------
+
+/** Whole bars from shares, one at least each, summing to `bars` (the largest remainders get the bars left). Needs a bar a share. */
+export function presetBars(shares: number[], bars: number): number[] {
+  const total = shares.reduce((n, x) => n + x, 0) || 1;
+  const raw = shares.map((x) => (x / total) * bars);
+  const out = raw.map((x) => Math.max(1, Math.floor(x)));
+  const order = raw.map((_, i) => i).sort((a, b) => (raw[b] - Math.floor(raw[b])) - (raw[a] - Math.floor(raw[a])) || a - b);
+  const sum = () => out.reduce((n, x) => n + x, 0);
+  for (let k = 0; sum() < bars; k++) out[order[k % order.length]]++;
+  while (sum() > bars) {
+    const big = out.indexOf(Math.max(...out));
+    if (out[big] <= 1) break;
+    out[big]--;
+  }
+  return out;
+}
+
+/** The cue's fields a preset sets: kind, style, tempo, meter, key; its sections, orchestra and arc cleared (presetShape fills them). A song on a model that doesn't sing goes to the kind's default model, as the Kind select does. */
+export function presetBase(spec: CueSpec, p: CuePreset, modelSings: boolean): CueSpec {
+  const f = p.fields;
+  const song = f.kind === "song";
+  const meter = meterText(f.meter);
+  return withSpec(spec, {
+    kind: song ? "song" : undefined,
+    ...(song && spec.model && !modelSings ? { model: undefined } : {}),
+    style: f.style, bpm: f.bpm, meter: meter && meter !== "4/4" ? meter : undefined, key: f.key || undefined,
+    sections: undefined, orchestra: undefined, arc: undefined,
+  });
+}
+
+/**
+ * A preset's sections over `bars` bars (null: the plan's not known, so no
+ * counts: the server shares them out), the tail merged when the cue has fewer
+ * bars than it has sections, and who plays in each bar from each section's levels.
+ */
+export function presetShape(p: CuePreset, bars: number | null): { sections: CueSection[]; orchestra?: Orchestra } {
+  const shape = p.fields.shape.map((s) => ({ ...s, orchestra: { ...(s.orchestra ?? {}) } }));
+  while (bars != null && shape.length > Math.max(1, bars)) {
+    const b = shape.pop()!;
+    const a = shape[shape.length - 1];
+    for (const [fam, lv] of Object.entries(b.orchestra)) a.orchestra[fam] = Math.max(a.orchestra[fam] ?? 0, lv);
+    shape[shape.length - 1] = { ...a, share: a.share + b.share, to: b.to };
+  }
+  const counts = bars != null ? presetBars(shape.map((s) => s.share), bars) : null;
+  const sections = shape.map((s, i) => asSpec({ name: s.name, bars: counts?.[i], words: s.words, from: s.from, to: s.to } as CueSection));
+  if (!counts) return { sections };
+  let o: Orchestra = {};
+  const edges = sectionEdges(counts.map((n) => ({ bars: n })));
+  shape.forEach((s, i) => {
+    for (const [fam, lv] of Object.entries(s.orchestra)) o = paintOrchestra(o, [fam], edges[i], edges[i + 1] - 1, lv);
+  });
+  return Object.keys(o).length ? { sections, orchestra: o } : { sections };
+}
+
+/** A cue with a preset's fields, its sections fitted to `bars` bars; its label, span, model, hits, takes, tail and fixed tempo kept. */
+export function applyPreset(spec: CueSpec, p: CuePreset, bars: number | null, modelSings: boolean): CueSpec {
+  return withSpec(presetBase(spec, p, modelSings), presetShape(p, bars));
+}
+
+/** Whether a preset would replace something of the cue's own (its sections, style or orchestration): ask first. */
+export const presetReplaces = (spec: CueSpec) => !!(spec.sections?.length || spec.style || Object.keys(spec.orchestra ?? {}).length);
+
+/** The presets in the select's groups, the cue's kind's first. */
+export function presetGroups(presets: CuePreset[], kind: CueKind | undefined): { group: string; presets: CuePreset[] }[] {
+  const groups = [...new Set(presets.map((p) => p.group))];
+  const mine = kind === "song" ? "Song" : "Score";
+  groups.sort((a, b) => Number(b === mine) - Number(a === mine));
+  return groups.map((group) => ({ group, presets: presets.filter((p) => p.group === group) }));
 }
 
 // ---------------------------------------------------------------------------

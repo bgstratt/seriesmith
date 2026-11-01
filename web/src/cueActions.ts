@@ -8,10 +8,10 @@
 import { errText } from "./api";
 import { currentPlaylist, onCueEvent, report } from "./actions";
 import { api, host } from "./host";
-import { barsLabel, newCueId, newCueSpan } from "./lib/cue";
+import { applyPreset, barsLabel, meterText, newCueId, newCueSpan, presetBase } from "./lib/cue";
 import { loadMix } from "./mixActions";
 import { statusKey, store, type AppState } from "./store";
-import type { Anchor, CuePlan, CueResult, CueSpec, Pass } from "./types";
+import type { Anchor, CuePlan, CuePreset, CueResult, CueSpec, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -208,4 +208,22 @@ export async function compCueTake(take: number, from: number, bars: [number, num
   host().toast("success", `${o.cue}: ${tn(made)}, ${tn(take)} with ${barsLabel(bars)} from ${tn(from)}`, "Spliced on the bar lines, measured and ranked with the others.");
   await Promise.all([loadCue(o.ep, o.pass, o.cue), loadCues(o.ep)]);
   return made;
+}
+
+/**
+ * A preset's fields on the open cue (lib/cue.ts applyPreset). Its sections are
+ * whole bars of the cue, and the bars follow the tempo and meter: when those
+ * change, they're saved first and the sections fitted to the plan that comes back.
+ */
+export async function applyCuePreset(preset: CuePreset, modelSings: boolean): Promise<boolean> {
+  const o = openCueRef();
+  const r = o ? get().cue[o.key] : undefined;
+  if (!o || !r) return false;
+  const base = presetBase(r.spec, preset, modelSings);
+  let plan = r.plan;
+  if (!plan || (r.spec.bpm ?? 100) !== (base.bpm ?? 100) || meterText(r.spec.meter) !== meterText(base.meter)) {
+    if (!(await saveCue(base))) return false;
+    plan = get().cue[o.key]?.plan ?? null;
+  }
+  return saveCue(applyPreset(base, preset, plan?.bars ?? null, modelSings));
 }

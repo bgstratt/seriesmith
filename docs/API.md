@@ -4285,7 +4285,7 @@ What the editor offers to pick from, each preset filling a text that stays edita
 (`seriesmith/presets/`: `relight.json`, `look.json`, and their sample pictures under `img/`,
 made by `tools/make_preset_samples.py`).
 
-### `GET /seriesmith/presets[?kind=relight|look|framing|camera|look_builder]`
+### `GET /seriesmith/presets[?kind=relight|look|framing|camera|look_builder|cue]`
 ```json
 {"relight": [{"id": "rain", "label": "Rain", "group": "weather", "for": ["place", "subject"],
               "texts": {"place": "Change only the weather: it is raining steadily, …",
@@ -4311,6 +4311,14 @@ made by `tools/make_preset_samples.py`).
 - `camera` (the shot form's): `{"id": "push_in", "label": "Push in", "group": "dolly", "move":
   "pushes in", "image": "camera/push_in.mp4"}`; `move` is how the `camera:` line starts, and
   the sample is a short silent clip.
+- `cue` (the cue window's Preset; `cue.json`, no pictures): `{"id": "lullaby_waltz", "label":
+  "Lullaby waltz", "group": "Score" | "Song", "hint": "when to use it", "fields": {"kind":
+  "score" | "song", "style", "bpm", "meter"?: "3/4", "key"?: "G major", "shape": [{"name",
+  "share", "words", "from", "to", "orchestra"?: {"music box": 3}}]}}`. The shares are the
+  sections' fractions of the cue (summing to 1), `from` / `to` their energies (1-5), and
+  `orchestra` each family's level in the section (0 off to 3 lead). The editor turns it into the
+  cue's spec (`lib/cue.ts` applyPreset): whole bars from the shares over the cue's bars at the
+  preset's tempo, the orchestra per bar, the arc cleared, then one `PUT /seriesmith/cue`.
 - `images` / `image` name a sample picture only once it is made. `group` is for grouping the
   tiles. `kind` answers with that list alone; another kind is 400.
 - Your own looks and relights follow the shipped ones, in the group `yours` with `"own":

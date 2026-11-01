@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  DubSources, ShotSound, Mix, MixResult, CueResult, CueSpec, CueSummary, CueTake,
+  DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -225,6 +225,8 @@ export interface Api {
   refFileUrl(ep: string, path: string, version?: string | null): string;
   /** GET /seriesmith/presets: the relight and look presets the editor offers as pictures. */
   presets(): Promise<PresetList>;
+  /** GET /seriesmith/presets?kind=cue: the cue window's presets ([] from a server without them). */
+  cuePresets(): Promise<CuePreset[]>;
   /** A preset's sample picture (GET /seriesmith/presets/image), by the name presets gave. */
   presetImageUrl(name: string): string;
   /** POST /seriesmith/presets/own: keep one of your own looks or relights */
@@ -678,6 +680,10 @@ export function createHttpApi(t: Transport): Api {
       const list = <T,>(v: T[] | undefined) => (Array.isArray(v) ? v : []);
       return { relight: list(r?.relight), look: list(r?.look), framing: list(r?.framing), camera: list(r?.camera),
         look_builder: list(r?.look_builder) };
+    },
+    cuePresets: async () => {
+      const r = await get<{ cue?: CuePreset[] }>("/seriesmith/presets?kind=cue");
+      return Array.isArray(r?.cue) ? r.cue : [];
     },
     presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
     presetSaveOwn: (req) => call("POST", "/seriesmith/presets/own", req),

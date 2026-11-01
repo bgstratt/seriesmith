@@ -1,0 +1,264 @@
+{
+  "presets": [
+    {
+      "id": "romantic_swell", "label": "Romantic swell", "group": "Score",
+      "hint": "Love scenes and reunions: a slow build into one big arrival (put an arrive hit on the moment)",
+      "fields": {
+        "kind": "score", "style": "romantic film score, lush strings and solo french horn, late-romantic harmony, no drums", "bpm": 72, "key": "D major",
+        "shape": [
+          {"name": "intro", "share": 0.25, "from": 1.5, "to": 2,
+           "words": "solo cello melody over sustained divisi violas, harp arpeggios, no percussion",
+           "orchestra": {"strings": 1, "harp": 2}},
+          {"name": "build", "share": 0.4, "from": 2, "to": 4,
+           "words": "violins take the melody an octave up, horns sustain underneath, a suspended cymbal roll into the arrival",
+           "orchestra": {"strings": 3, "solo horn": 1, "harp": 1, "timpani/percussion": 1}},
+          {"name": "climax", "share": 0.2, "from": 5, "to": 5,
+           "words": "the full string section in octaves on the melody, solo horn countermelody, timpani on the downbeat",
+           "orchestra": {"strings": 3, "solo horn": 2, "brass": 2, "woodwinds": 2, "timpani/percussion": 2, "harp": 1}},
+          {"name": "release", "share": 0.15, "from": 4, "to": 2,
+           "words": "strings thin to one sustained chord, a harp glissando settles, the horn alone on the last phrase",
+           "orchestra": {"strings": 1, "solo horn": 3, "harp": 2}}
+        ]
+      }
+    },
+    {
+      "id": "tension_underscore", "label": "Tension underscore", "group": "Score",
+      "hint": "Suspense under dialogue: sits low and creeps up, never resolves (good under a scene that ends on a question)",
+      "fields": {
+        "kind": "score", "style": "dark suspense underscore, low strings and pulses, minimal, unresolved", "bpm": 90, "key": "C minor",
+        "shape": [
+          {"name": "intro", "share": 0.3, "from": 1, "to": 1.5,
+           "words": "cellos and basses pulse repeated eighth notes on one low pitch, sul tasto, a soft low piano note every bar",
+           "orchestra": {"strings": 2, "piano": 1}},
+          {"name": "build", "share": 0.5, "from": 1.5, "to": 3.5,
+           "words": "the ostinato climbs a semitone at a time, violins enter on a high held tremolo, muted brass swell and fall away, a bass drum heartbeat",
+           "orchestra": {"strings": 3, "brass": 1, "timpani/percussion": 1, "piano": 1}},
+          {"name": "transition", "share": 0.2, "from": 3.5, "to": 3,
+           "words": "the ostinato stops, everything held on an unresolved cluster chord, no resolution",
+           "orchestra": {"strings": 2, "brass": 1}}
+        ]
+      }
+    },
+    {
+      "id": "light_comedy", "label": "Light comedy", "group": "Score",
+      "hint": "Playful scenes and capers: short phrases with gaps, so the music can stop dead for a joke (drop hits)",
+      "fields": {
+        "kind": "score", "style": "light comedic orchestral score, pizzicato and woodwinds, bouncy, transparent", "bpm": 112, "key": "F major",
+        "shape": [
+          {"name": "intro", "share": 0.2, "from": 2, "to": 2,
+           "words": "pizzicato strings and staccato bassoon on a bouncing two-note figure, a woodblock on the off-beats",
+           "orchestra": {"strings": 2, "woodwinds": 2, "timpani/percussion": 1}},
+          {"name": "build", "share": 0.45, "from": 2, "to": 3,
+           "words": "clarinet and piccolo trade the tune in short phrases with rests between, pizzicato basses walk, light brushed snare",
+           "orchestra": {"strings": 2, "woodwinds": 3, "timpani/percussion": 1}},
+          {"name": "climax", "share": 0.15, "from": 3.5, "to": 4,
+           "words": "all the woodwinds and the strings pizzicato together, a glockenspiel and a cymbal tap on the button",
+           "orchestra": {"strings": 3, "woodwinds": 3, "timpani/percussion": 2, "brass": 1}},
+          {"name": "outro", "share": 0.2, "from": 2, "to": 1,
+           "words": "the bassoon alone on the figure, slowing, one last pizzicato pluck",
+           "orchestra": {"woodwinds": 2, "strings": 1}}
+        ]
+      }
+    },
+    {
+      "id": "action_chase", "label": "Action chase", "group": "Score",
+      "hint": "Chases and fights: relentless drive, accents for cuts and impacts (accent hits)",
+      "fields": {
+        "kind": "score", "style": "driving action score, string ostinato, brass and taiko drums, relentless", "bpm": 140, "key": "E minor",
+        "shape": [
+          {"name": "intro", "share": 0.15, "from": 3, "to": 3.5,
+           "words": "a driving sixteenth-note ostinato in the low strings, low toms in a syncopated pattern",
+           "orchestra": {"strings": 2, "timpani/percussion": 2}},
+          {"name": "build", "share": 0.35, "from": 3.5, "to": 4.5,
+           "words": "the ostinato rises an octave, brass stabs on the off-beats, taiko drums and snare join",
+           "orchestra": {"strings": 3, "brass": 2, "timpani/percussion": 3}},
+          {"name": "climax", "share": 0.3, "from": 5, "to": 5,
+           "words": "horns and trombones in unison on the theme over the ostinato, crash cymbals on each phrase, taiko hits",
+           "orchestra": {"strings": 2, "brass": 3, "solo horn": 2, "timpani/percussion": 3}},
+          {"name": "outro", "share": 0.2, "from": 4, "to": 2,
+           "words": "a brass stab and a timpani hit, then the ostinato alone thinning out",
+           "orchestra": {"strings": 2, "brass": 1, "timpani/percussion": 1}}
+        ]
+      }
+    },
+    {
+      "id": "sad_tender", "label": "Sad and tender", "group": "Score",
+      "hint": "Loss, goodbyes, a quiet realisation: sparse and close, the cello as a voice",
+      "fields": {
+        "kind": "score", "style": "intimate sad score, solo piano and cello, sparse, a lot of space", "bpm": 64, "key": "A minor",
+        "shape": [
+          {"name": "intro", "share": 0.3, "from": 1, "to": 1.5,
+           "words": "solo piano, a slow broken-chord figure in the middle register, long rests, sustain pedal",
+           "orchestra": {"piano": 3}},
+          {"name": "build", "share": 0.4, "from": 1.5, "to": 3,
+           "words": "a solo cello takes the melody over the piano, soft sustained violas enter beneath",
+           "orchestra": {"piano": 2, "solo cello": 3, "strings": 1}},
+          {"name": "release", "share": 0.3, "from": 3, "to": 1,
+           "words": "cello and piano alone again, the melody's last phrase left unresolved, a final low piano note",
+           "orchestra": {"piano": 2, "solo cello": 2}}
+        ]
+      }
+    },
+    {
+      "id": "wonder_awe", "label": "Wonder and awe", "group": "Score",
+      "hint": "A first sight of something vast or magical: shimmer, then a slow rise to an open, bright chord",
+      "fields": {
+        "kind": "score", "style": "magical wonder score, celesta, harp and choir, bright open harmony", "bpm": 76, "key": "E major",
+        "shape": [
+          {"name": "intro", "share": 0.25, "from": 1, "to": 2,
+           "words": "celesta and harp arpeggios, high violin harmonics shimmering, no bass",
+           "orchestra": {"celesta": 3, "harp": 2, "strings": 1}},
+          {"name": "build", "share": 0.45, "from": 2, "to": 4,
+           "words": "a wordless choir swells in on long chords, horns on a rising fifth, the strings in a long crescendo",
+           "orchestra": {"celesta": 1, "harp": 2, "choir": 2, "solo horn": 2, "strings": 2}},
+          {"name": "climax", "share": 0.2, "from": 5, "to": 5,
+           "words": "full choir and orchestra on a bright open major chord, a timpani roll, cymbal swell",
+           "orchestra": {"choir": 3, "strings": 3, "brass": 2, "timpani/percussion": 2, "harp": 1}},
+          {"name": "outro", "share": 0.1, "from": 3, "to": 2,
+           "words": "the celesta alone over the held choir chord",
+           "orchestra": {"celesta": 3, "choir": 1}}
+        ]
+      }
+    },
+    {
+      "id": "heist_jazz", "label": "Heist jazz", "group": "Score",
+      "hint": "Plans, sneaking, cool characters at work: a walking bass groove that can carry a montage",
+      "fields": {
+        "kind": "score", "style": "cool 1960s heist jazz, upright bass, brushed drums, muted trumpet, vibraphone", "bpm": 118, "key": "F minor",
+        "shape": [
+          {"name": "intro", "share": 0.2, "from": 2, "to": 2,
+           "words": "upright bass alone walking a minor riff, finger snaps on two and four",
+           "orchestra": {"upright bass": 3}},
+          {"name": "build", "share": 0.45, "from": 2.5, "to": 3.5,
+           "words": "brushed drums enter, a muted trumpet takes the melody, vibraphone comping chords",
+           "orchestra": {"upright bass": 2, "drums": 2, "muted trumpet": 3, "vibraphone": 1}},
+          {"name": "climax", "share": 0.2, "from": 4, "to": 4.5,
+           "words": "saxophones and trombones hit the riff in unison, ride cymbal, the trumpet open",
+           "orchestra": {"upright bass": 2, "drums": 3, "muted trumpet": 2, "saxophones": 3, "brass": 2}},
+          {"name": "outro", "share": 0.15, "from": 3, "to": 1.5,
+           "words": "bass and brushes alone, a last muted trumpet note, a soft cymbal",
+           "orchestra": {"upright bass": 2, "drums": 1, "muted trumpet": 1}}
+        ]
+      }
+    },
+    {
+      "id": "horror_drone", "label": "Horror drone", "group": "Score",
+      "hint": "Dread before a scare: a low drone and texture, one stinger (put an accent hit on the scare)",
+      "fields": {
+        "kind": "score", "style": "horror score, low drones, extended string techniques, dissonant, no melody", "bpm": 60,
+        "shape": [
+          {"name": "intro", "share": 0.35, "from": 1, "to": 1.5,
+           "words": "a very low drone in the contrabasses and a sub synth, distant scrapes of bowed metal",
+           "orchestra": {"strings": 2, "synth drone": 3}},
+          {"name": "build", "share": 0.4, "from": 1.5, "to": 3.5,
+           "words": "col legno taps in irregular clusters, string glissandi creeping upward, a slow bass drum heartbeat",
+           "orchestra": {"strings": 3, "synth drone": 2, "timpani/percussion": 1}},
+          {"name": "sting", "share": 0.1, "from": 5, "to": 5,
+           "words": "a sudden fortissimo stinger: a brass cluster, a piano slammed in the low register, a cymbal crash",
+           "orchestra": {"brass": 3, "piano": 2, "strings": 3, "timpani/percussion": 3}},
+          {"name": "outro", "share": 0.15, "from": 2, "to": 1,
+           "words": "back to the drone, a single high violin harmonic",
+           "orchestra": {"synth drone": 2, "strings": 1}}
+        ]
+      }
+    },
+    {
+      "id": "triumphant_finale", "label": "Triumphant finale", "group": "Score",
+      "hint": "Victory, the end credits, the team walking out together: everything plays",
+      "fields": {
+        "kind": "score", "style": "triumphant orchestral finale, brass fanfare, full orchestra and choir", "bpm": 104, "key": "C major",
+        "shape": [
+          {"name": "intro", "share": 0.15, "from": 2, "to": 3,
+           "words": "a snare roll and timpani building, low strings on a pedal note",
+           "orchestra": {"timpani/percussion": 2, "strings": 1}},
+          {"name": "build", "share": 0.25, "from": 3, "to": 4,
+           "words": "the horns call the main theme, strings drive in sixteenths beneath",
+           "orchestra": {"solo horn": 3, "strings": 2, "timpani/percussion": 2}},
+          {"name": "climax", "share": 0.45, "from": 5, "to": 5,
+           "words": "full orchestra: trumpets and horns on the fanfare, cymbals, the choir on the last phrase, timpani on every downbeat",
+           "orchestra": {"brass": 3, "solo horn": 2, "strings": 3, "woodwinds": 2, "choir": 2, "timpani/percussion": 3}},
+          {"name": "outro", "share": 0.15, "from": 5, "to": 4,
+           "words": "a final held major chord, a timpani roll and a cymbal crash",
+           "orchestra": {"brass": 2, "strings": 2, "choir": 1, "timpani/percussion": 3}}
+        ]
+      }
+    },
+    {
+      "id": "lullaby_waltz", "label": "Lullaby waltz", "group": "Score",
+      "hint": "Childhood, memory, a gentle bedtime scene: a music box in three",
+      "fields": {
+        "kind": "score", "style": "gentle lullaby waltz, music box, soft strings, harp, nostalgic", "bpm": 84, "meter": "3/4", "key": "G major",
+        "shape": [
+          {"name": "intro", "share": 0.2, "from": 1, "to": 1.5,
+           "words": "a music box alone on a simple high melody",
+           "orchestra": {"music box": 3}},
+          {"name": "build", "share": 0.5, "from": 1.5, "to": 2.5,
+           "words": "strings enter on a gentle waltz accompaniment, bass on one and chords on two and three, harp doubling the melody",
+           "orchestra": {"music box": 2, "strings": 2, "harp": 2}},
+          {"name": "release", "share": 0.3, "from": 2, "to": 1,
+           "words": "the music box slows, the strings fade out, one last celesta note",
+           "orchestra": {"music box": 2, "strings": 1, "celesta": 1}}
+        ]
+      }
+    },
+    {
+      "id": "pop_ballad", "label": "Pop ballad", "group": "Song",
+      "hint": "A piano-led love song, verse to chorus twice with a bridge: add each section's lyrics in the inspector",
+      "fields": {
+        "kind": "song", "style": "piano pop ballad, emotional vocal, warm piano, strings in the chorus", "bpm": 72, "key": "Eb major",
+        "shape": [
+          {"name": "intro", "share": 0.08, "from": 1, "to": 1.5,
+           "words": "solo piano chords", "orchestra": {"piano": 3}},
+          {"name": "verse", "share": 0.2, "from": 2, "to": 2.5,
+           "words": "piano and close lead vocal, soft bass, no drums",
+           "orchestra": {"piano": 2, "lead vocal": 3, "bass": 1}},
+          {"name": "pre-chorus", "share": 0.08, "from": 2.5, "to": 3.5,
+           "words": "a string pad comes in, a building tom fill",
+           "orchestra": {"piano": 2, "lead vocal": 3, "bass": 1, "strings": 1, "drums": 1}},
+          {"name": "chorus", "share": 0.2, "from": 4, "to": 4.5,
+           "words": "full band: drums, bass, piano, string pad, backing harmonies",
+           "orchestra": {"piano": 2, "lead vocal": 3, "bass": 2, "strings": 2, "drums": 2, "backing vocals": 2}},
+          {"name": "bridge", "share": 0.14, "from": 2, "to": 4,
+           "words": "down to piano and voice, then building back with the strings",
+           "orchestra": {"piano": 2, "lead vocal": 3, "strings": 1}},
+          {"name": "chorus", "share": 0.2, "from": 4.5, "to": 5,
+           "words": "the last chorus bigger: full drums, strings soaring, stacked harmonies",
+           "orchestra": {"piano": 2, "lead vocal": 3, "bass": 2, "strings": 3, "drums": 3, "backing vocals": 3}},
+          {"name": "outro", "share": 0.1, "from": 3, "to": 1,
+           "words": "piano alone, slowing, the last chord held",
+           "orchestra": {"piano": 3, "lead vocal": 1}}
+        ]
+      }
+    },
+    {
+      "id": "upbeat_pop", "label": "Upbeat pop", "group": "Song",
+      "hint": "A bright dance-pop song: verse, pre-chorus, chorus, bridge; add each section's lyrics in the inspector",
+      "fields": {
+        "kind": "song", "style": "upbeat dance pop, four-on-the-floor, bright synths, catchy vocal hook", "bpm": 120, "key": "A major",
+        "shape": [
+          {"name": "intro", "share": 0.08, "from": 3, "to": 3,
+           "words": "a synth arpeggio and a four-on-the-floor kick",
+           "orchestra": {"synths": 3, "drums": 2}},
+          {"name": "verse", "share": 0.2, "from": 3, "to": 3,
+           "words": "kick and bass, muted clean guitar, sparse; the lead vocal up front",
+           "orchestra": {"drums": 2, "bass": 2, "guitar": 1, "lead vocal": 3}},
+          {"name": "pre-chorus", "share": 0.1, "from": 3, "to": 4,
+           "words": "a snare build, claps and a white-noise riser",
+           "orchestra": {"drums": 3, "bass": 2, "synths": 1, "lead vocal": 3}},
+          {"name": "chorus", "share": 0.22, "from": 5, "to": 5,
+           "words": "everything: full drums, driving bass, bright synth chords, stacked vocals on the hook",
+           "orchestra": {"drums": 3, "bass": 3, "synths": 3, "guitar": 1, "lead vocal": 3, "backing vocals": 2}},
+          {"name": "bridge", "share": 0.12, "from": 2.5, "to": 3.5,
+           "words": "half-time drums, the synths filtered down, then opening up",
+           "orchestra": {"drums": 1, "synths": 2, "lead vocal": 3}},
+          {"name": "chorus", "share": 0.2, "from": 5, "to": 5,
+           "words": "the hook again, an extra vocal ad-lib over it",
+           "orchestra": {"drums": 3, "bass": 3, "synths": 3, "guitar": 1, "lead vocal": 3, "backing vocals": 3}},
+          {"name": "outro", "share": 0.08, "from": 3, "to": 2,
+           "words": "the drums drop out, the synth arpeggio alone to the end",
+           "orchestra": {"synths": 3}}
+        ]
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 import { meterBeats, meterText } from "../lib/cue";
 import { anchorTime } from "../lib/mix";
 import type { PlayItem } from "../lib/playlist";
-import type { CueHit, CueMeasured, CuePlan, CueSection, CueSpec, Mix, Target } from "../types";
+import type { CueHit, CueMeasured, CuePlan, CuePreset, CueSection, CueSpec, Mix, Target } from "../types";
 
 export class CueError extends Error {
   constructor(message: string, public status = 400) {
@@ -26,6 +26,42 @@ export const MUSIC_TARGETS: Target[] = [
     id: "ace_step15", kind: "music", label: "ACE-Step 1.5 XL", short: "ACE-Step 1.5",
     capabilities: { mode: "t2m", tempo: "bpm", structure: "sections", lyrics: true, max_seconds: 600 },
     presets: { final: { takes: 8 }, proxy: { takes: 8 } },
+  },
+];
+
+/** A few of seriesmith/presets/cue.json's, for the dev page and the tests. */
+export const CUE_PRESETS: CuePreset[] = [
+  {
+    id: "romantic_swell", label: "Romantic swell", group: "Score", hint: "Love scenes and reunions: a slow build into one big arrival",
+    fields: {
+      kind: "score", style: "romantic film score, lush strings and solo french horn, no drums", bpm: 72, key: "D major",
+      shape: [
+        { name: "intro", share: 0.25, from: 1.5, to: 2, words: "solo cello over sustained violas, harp arpeggios", orchestra: { strings: 1, harp: 2 } },
+        { name: "build", share: 0.4, from: 2, to: 4, words: "violins take the melody, horns sustain underneath", orchestra: { strings: 3, "solo horn": 1 } },
+        { name: "climax", share: 0.2, from: 5, to: 5, words: "full strings in octaves, horn countermelody, timpani", orchestra: { strings: 3, "solo horn": 2, "timpani/percussion": 2 } },
+        { name: "release", share: 0.15, from: 4, to: 2, words: "strings thin to one chord, the horn alone", orchestra: { strings: 1, "solo horn": 3 } },
+      ],
+    },
+  },
+  {
+    id: "lullaby_waltz", label: "Lullaby waltz", group: "Score", hint: "Childhood, memory: a music box in three",
+    fields: {
+      kind: "score", style: "gentle lullaby waltz, music box, soft strings", bpm: 84, meter: "3/4", key: "G major",
+      shape: [
+        { name: "intro", share: 0.3, from: 1, to: 1.5, words: "a music box alone", orchestra: { "music box": 3 } },
+        { name: "build", share: 0.7, from: 1.5, to: 2.5, words: "strings enter on a waltz accompaniment", orchestra: { "music box": 2, strings: 2 } },
+      ],
+    },
+  },
+  {
+    id: "pop_ballad", label: "Pop ballad", group: "Song", hint: "A piano-led love song: add each section's lyrics in the inspector",
+    fields: {
+      kind: "song", style: "piano pop ballad, emotional vocal", bpm: 72, key: "Eb major",
+      shape: [
+        { name: "verse", share: 0.5, from: 2, to: 2.5, words: "piano and voice", orchestra: { piano: 2, "lead vocal": 3 } },
+        { name: "chorus", share: 0.5, from: 4, to: 4.5, words: "full band", orchestra: { piano: 2, "lead vocal": 3, drums: 2 } },
+      ],
+    },
   },
 ];
 

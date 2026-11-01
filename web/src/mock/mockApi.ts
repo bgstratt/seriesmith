@@ -27,7 +27,7 @@ import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindo
 import { AlignError, createMockAlign } from "./mockTrack";
 import { MIX_DEFAULTS } from "../api";
 import { MixError, checkMix, speechCurve } from "./mockMix";
-import { CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
+import { CUE_PRESETS, CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
 import type { CueSpec, CueTake } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
@@ -1919,6 +1919,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async presets() {
       await wait();
       return { relight: [], look: [], framing: [], camera: [], look_builder: [] };
+    },
+    async cuePresets() {
+      await wait();
+      return clone(CUE_PRESETS);
     },
     presetImageUrl(name) {
       return media + name.split("/").pop();

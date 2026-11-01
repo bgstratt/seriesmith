@@ -6,7 +6,7 @@
 // reset from the hits), the intensity lane (the arc: drag a point,
 // double-click adds one, right-click removes it) and the takes, best first,
 // each its waveform and its loudness per bar over the arc; the inspector on the
-// right edits the section selected, or the cue. Arc: the intensity lane large,
+// right edits the section selected, or the cue (a preset fills its fields). Arc: the intensity lane large,
 // drawn freehand or by points, smoothed, a preset shape, its peaks and lows
 // snapped to hits, sections cut from it, and beside it what the model will
 // hear. Orchestration & takes: who plays in each bar, painted off / under /
@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
-import { compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
+import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
@@ -26,7 +26,7 @@ import {
   cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
   meterText, mergeSections, moveEdge,
   movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
-  sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
+  presetGroups, presetReplaces, sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
 } from "../lib/cue";
 import { fmtClock } from "../lib/format";
@@ -34,7 +34,7 @@ import { HIT_KIND_TITLE } from "../lib/mix";
 import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import { useApp, statusKey, type ViewerState } from "../store";
-import type { CuePlan, CueResult, CueSection, CueSpec, CueTake, Target } from "../types";
+import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Target } from "../types";
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { trackPointer, useSize } from "./hooks";
 import { mediaStyle } from "./Thumb";
@@ -78,7 +78,7 @@ const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
     steps: [
       "Mark the hits first: double-click the timeline's Hits lane where the music must answer (accent, arrive, drop or turn); Must land fits the tempo to put it on its line.",
       "Shape the sections: drag an edge (whole bars), double-click to split one, right-click to merge (or reset them from the hits); click one for its words and energy from and to. Drag the green energy line's points.",
-      "Render 8 takes: each is measured against the hits and the arc as it lands, best first.",
+      "No idea where to start? Pick a Preset in the inspector (romantic swell, chase, pop ballad…): it fills the style, tempo, sections and orchestration; then adjust. Render 8 takes: each is measured against the hits and the arc, best first.",
       "Listen to the top few (the playhead runs over the grid), then Pick one: it goes on the Music lane, its level fitted to the arc.",
     ],
   },
@@ -131,6 +131,7 @@ function HelpStrip({ tab, onClose }: { tab: CueTab; onClose: () => void }) {
 }
 
 let musicTargets: Promise<Target[]> | null = null;
+let cuePresets: Promise<CuePreset[]> | null = null;
 /** The orchestration grid's rows by episode and cue, either pass (a family off throughout isn't stored, so the window keeps the rows) */
 const keptRows = new Map<string, string[]>();
 
@@ -144,6 +145,23 @@ function useMusicTargets(): Target[] {
       return [];
     });
     void musicTargets.then((t) => live && setList(t));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return list;
+}
+
+/** The cue presets (GET /seriesmith/presets?kind=cue), asked once a page load. */
+function useCuePresets(): CuePreset[] {
+  const [list, setList] = useState<CuePreset[]>([]);
+  useEffect(() => {
+    let live = true;
+    cuePresets ??= api().cuePresets().then((r) => r, () => {
+      cuePresets = null;
+      return [];
+    });
+    void cuePresets.then((p) => live && setList(p));
     return () => {
       live = false;
     };
@@ -253,6 +271,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   const items = useApp((s) => currentPlaylist(s));
   const fps = useApp((s) => s.status[statusKey(ep, v.pass)]?.fps) || plan?.fps || 24;
   const targets = useMusicTargets();
+  const presets = useCuePresets();
   const target = targets.find((t) => t.id === (plan?.target ?? spec.model));
   const [scrollRef, size] = useSize<HTMLDivElement>();
   const [zoom, setZoom] = useState<number | null>(null);
@@ -266,7 +285,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   const selected = sel != null && sel < sections.length ? sel : null;
 
   const inspector = (
-    <CueInspector res={res} target={target} targets={targets} sel={selected} sections={sections} setSel={setSel} />
+    <CueInspector res={res} target={target} targets={targets} presets={presets} sel={selected} sections={sections} setSel={setSel} />
   );
   if (!plan) {
     return (
@@ -1204,8 +1223,28 @@ function KeyPicker({ spec, edit }: { spec: CueSpec; edit: (patch: Partial<CueSpe
   );
 }
 
-function CueInspector({ res, target, targets, sel, sections, setSel }: {
-  res: CueResult; target: Target | undefined; targets: Target[]; sel: number | null; sections: CueSection[]; setSel: (i: number | null) => void;
+/** Start from a preset: picking one fills the cue's kind, style, tempo, meter, key, sections and orchestration (asking first when it has its own). */
+function PresetSelect({ spec, presets, targets }: { spec: CueSpec; presets: CuePreset[]; targets: Target[] }) {
+  const pick = (id: string) => {
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    if (presetReplaces(spec) && !confirm(`Replace this cue's style, sections and orchestration with ${p.label}?`)) return;
+    void applyCuePreset(p, !!targets.find((t) => t.id === spec.model)?.capabilities?.lyrics);
+  };
+  return (
+    <select className="h3-in" aria-label="Preset" value="" onChange={(e) => pick(e.target.value)}>
+      <option value="">Start from a preset…</option>
+      {presetGroups(presets, spec.kind).map(({ group, presets: ps }) => (
+        <optgroup key={group} label={group}>
+          {ps.map((p) => <option key={p.id} value={p.id} title={p.hint}>{p.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+function CueInspector({ res, target, targets, presets, sel, sections, setSel }: {
+  res: CueResult; target: Target | undefined; targets: Target[]; presets: CuePreset[]; sel: number | null; sections: CueSection[]; setSel: (i: number | null) => void;
 }) {
   const { spec, plan } = res;
   const edit = (patch: Partial<CueSpec>) => void saveCue(withSpec(spec, patch));
@@ -1257,6 +1296,8 @@ function CueInspector({ res, target, targets, sel, sections, setSel }: {
   return (
     <div className="h3-cue-side">
       <div className="h3-row" style={{ gap: 6 }}><b>Cue {spec.id}</b><span className="h3-muted h3-small">click a section to edit it</span></div>
+      {presets.length > 0 && field("Preset", <PresetSelect spec={spec} presets={presets} targets={targets} />,
+        "A worked example to start from: it fills the kind, style, tempo, meter, key, the sections (names, words, energies) and who plays, fitted to the cue's bars. Then adjust them")}
       {field("Kind", (
         <select className="h3-in" aria-label="Cue kind" value={spec.kind ?? "score"}
           onChange={(e) => {

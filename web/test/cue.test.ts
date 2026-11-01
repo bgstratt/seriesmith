@@ -7,19 +7,20 @@
 // into the spec's lists; a take's bars selected and lowered; then the window on
 // the mock's cue (its hits, sections, arc and ranked takes), an edit, a pick, a
 // new cue, and the Arc and Orchestration & takes tabs; the meter (beats/unit) and
-// key pickers, and each tab's help strip.
+// key pickers, and each tab's help strip; sections split and merged on the
+// Score tab; a preset fitted to the cue's bars.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   KEYS, ORCH_FAMILIES, SCORE_SECTIONS, SONG_SECTIONS, sectionChoice, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
-  editableSections, gridOf, mergeSections, nextSectionName, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
+  applyPreset, editableSections, gridOf, mergeSections, nextSectionName, presetBars, presetGroups, presetReplaces, presetShape, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
 } from "../src/lib/cue";
 import { lowerStretch } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
-import type { CuePlan, CueSpec, CueTake, Mix } from "../src/types";
+import type { CuePlan, CuePreset, CueSpec, CueTake, Mix } from "../src/types";
 
 /** A clip on the cut's clock at 24 fps. */
 function clip(shot: string, start: number, dur: number, trimIn = 0): PlayItem {
@@ -259,6 +260,73 @@ describe("takes", () => {
   it("a take's loudness per bar lies on the arc's scale", () => {
     expect(levelsAsEnergy([-30, -20, -10, -80])).toEqual([1, 3, 5, 1]);
     expect(levelsAsEnergy([-80])).toEqual([1]);
+  });
+});
+
+describe("a cue preset", () => {
+  const P: CuePreset = {
+    id: "p", label: "Waltz", group: "Score", hint: "",
+    fields: {
+      kind: "score", style: "waltz", bpm: 84, meter: "3/4", key: "G major",
+      shape: [
+        { name: "intro", share: 0.25, from: 1, to: 2, words: "music box", orchestra: { "music box": 3 } },
+        { name: "build", share: 0.5, from: 2, to: 4, words: "strings", orchestra: { "music box": 1, strings: 2 } },
+        { name: "outro", share: 0.25, from: 3, to: 1, orchestra: { strings: 1, celesta: 2 } },
+      ],
+    },
+  };
+  const SPEC: CueSpec = {
+    id: "m01", label: "1M1", model: "stable_audio3", in: { shot: "a", frame: 0 }, out: { shot: "b", frame: 9 }, hits: ["h1"], takes: 4, tail: 3, fixed_tempo: true,
+    style: "old", sections: [{ name: "x", words: "y" }], arc: [{ at: { shot: "a", frame: 0 }, level: 2 }], orchestra: { harp: [1] },
+  };
+
+  it("its shares become whole bars, one at least each, summing to the cue's", () => {
+    expect(presetBars([0.25, 0.5, 0.25], 8)).toEqual([2, 4, 2]);
+    expect(presetBars([0.25, 0.4, 0.2, 0.15], 10)).toEqual([3, 4, 2, 1]);
+    expect(presetBars([0.1, 0.8, 0.1], 3)).toEqual([1, 1, 1]);
+    for (const n of [3, 7, 13, 50]) expect(presetBars([0.08, 0.2, 0.1, 0.22, 0.12, 0.2, 0.08].slice(0, Math.min(7, n)), n).reduce((a, b) => a + b, 0)).toBe(n);
+  });
+
+  it("fills the cue's fields, its sections and who plays per bar; the arc cleared, the rest kept", () => {
+    const got = applyPreset(SPEC, P, 8, false);
+    expect(got).toEqual({
+      id: "m01", label: "1M1", model: "stable_audio3", in: SPEC.in, out: SPEC.out, hits: ["h1"], takes: 4, tail: 3, fixed_tempo: true,
+      style: "waltz", bpm: 84, meter: "3/4", key: "G major",
+      sections: [
+        { name: "intro", bars: 2, words: "music box", from: 1, to: 2 },
+        { name: "build", bars: 4, words: "strings", from: 2, to: 4 },
+        { name: "outro", bars: 2, from: 3, to: 1 },
+      ],
+      orchestra: { "music box": [3, 3, 1, 1, 1, 1], strings: [0, 0, 2, 2, 2, 2, 1, 1], celesta: [0, 0, 0, 0, 0, 0, 2, 2] },
+    });
+    // 4/4 and no key: left out
+    const plain = applyPreset(SPEC, { ...P, fields: { ...P.fields, meter: undefined, key: undefined } }, 8, false);
+    expect(plain.meter).toBeUndefined();
+    expect(plain.key).toBeUndefined();
+  });
+
+  it("a cue with fewer bars than sections merges the tail; with no plan the server shares the bars out", () => {
+    const two = presetShape(P, 2);
+    expect(two.sections).toEqual([{ name: "intro", bars: 1, words: "music box", from: 1, to: 2 }, { name: "build", bars: 1, words: "strings", from: 2, to: 1 }]);
+    expect(two.orchestra).toEqual({ "music box": [3, 1], strings: [0, 2], celesta: [0, 2] });
+    expect(presetShape(P, null)).toEqual({ sections: [{ name: "intro", words: "music box", from: 1, to: 2 }, { name: "build", words: "strings", from: 2, to: 4 }, { name: "outro", from: 3, to: 1 }] });
+  });
+
+  it("a song on a model that can't sing goes to the song default, as the Kind select does", () => {
+    const song: CuePreset = { ...P, group: "Song", fields: { ...P.fields, kind: "song" } };
+    expect(applyPreset(SPEC, song, 8, false)).toMatchObject({ kind: "song" });
+    expect(applyPreset(SPEC, song, 8, false).model).toBeUndefined();
+    expect(applyPreset({ ...SPEC, model: "ace_step15" }, song, 8, true).model).toBe("ace_step15");
+    expect(applyPreset({ ...SPEC, kind: "song" }, P, 8, true).kind).toBeUndefined();
+  });
+
+  it("asks first over the cue's own sections, style or orchestra; lists the cue's kind's group first", () => {
+    expect(presetReplaces({ id: "m", in: SPEC.in, out: SPEC.out })).toBe(false);
+    expect(presetReplaces({ id: "m", in: SPEC.in, out: SPEC.out, style: "x" })).toBe(true);
+    expect(presetReplaces({ id: "m", in: SPEC.in, out: SPEC.out, orchestra: { harp: [1] } })).toBe(true);
+    const ps = [P, { ...P, id: "s", group: "Song" }];
+    expect(presetGroups(ps, undefined).map((g) => g.group)).toEqual(["Score", "Song"]);
+    expect(presetGroups(ps, "song").map((g) => g.group)).toEqual(["Song", "Score"]);
   });
 });
 
@@ -809,6 +877,39 @@ describe("the cue window", () => {
     await choose(field<HTMLSelectElement>("Meter")!, "4/4");
     expect(res().spec.meter).toBeUndefined();
     expect(side().textContent).not.toContain("ACE-Step's time signature");
+  });
+
+  it("a preset fills the cue's fields, fitted to its bars at the preset's tempo, asking first over its own", async () => {
+    await open();
+    const preset = () => field<HTMLSelectElement>("Preset")!;
+    // the cue's kind's group first, each option its hint
+    expect([...preset().querySelectorAll("optgroup")].map((g) => g.label)).toEqual(["Score", "Song"]);
+    expect(preset().value).toBe("");
+    expect(preset().querySelector<HTMLOptionElement>("option[value='lullaby_waltz']")!.title).toMatch(/music box/);
+    // the demo cue has a style of its own: refused, nothing changes
+    const was = res().spec;
+    const ask = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    vi.stubGlobal("confirm", ask);
+    try {
+      await choose(preset(), "lullaby_waltz");
+      expect(ask.mock.calls[0][0]).toBe("Replace this cue's style, sections and orchestration with Lullaby waltz?");
+      expect(res().spec).toEqual(was);
+      await choose(preset(), "lullaby_waltz");
+      // the tempo and meter first, then the sections fitted to the plan that comes back
+      await settle();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const { spec, plan } = res();
+    expect(spec).toMatchObject({ style: "gentle lullaby waltz, music box, soft strings", bpm: 84, meter: "3/4", key: "G major", label: was.label, in: was.in, out: was.out });
+    expect(spec.arc).toBeUndefined();
+    // the sections over the bars the plan has at 84 bpm in 3/4, who plays per bar
+    expect(spec.sections!.map((s) => s.name)).toEqual(["intro", "build"]);
+    expect(spec.sections!.reduce((n, s) => n + (s.bars ?? 0), 0)).toBe(plan!.bars);
+    expect(plan!.sections.map((s) => s.bars)).toEqual(spec.sections!.map((s) => s.bars));
+    expect(spec.orchestra!["music box"][0]).toBe(3);
+    expect(spec.orchestra!.strings.length).toBe(plan!.bars);
+    expect(preset().value).toBe("");
   });
 
   it("the key: none, one of the 24, or Other (a mode) kept as its text", async () => {

@@ -2576,6 +2576,27 @@ export interface CueSpec {
   seed?: number | null;
 }
 
+/** A section of a cue preset: its share of the cue's bars, its words and energies, who plays ({family: 0-3}). */
+export interface CuePresetSection {
+  name: string;
+  share: number;
+  words?: string;
+  from: number;
+  to: number;
+  orchestra?: Record<string, number>;
+}
+
+/** GET /seriesmith/presets?kind=cue: a worked example of a cue's fields (seriesmith/presets/cue.json). */
+export interface CuePreset {
+  id: string;
+  label: string;
+  /** "Score" or "Song" */
+  group: string;
+  /** when to use it */
+  hint: string;
+  fields: { kind: CueKind; style: string; bpm: number; meter?: string; key?: string; shape: CuePresetSection[] };
+}
+
 /** GET /seriesmith/cues: one cue. */
 export interface CueSummary {
   spec: CueSpec;

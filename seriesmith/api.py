@@ -3753,7 +3753,8 @@ def get_presets(ctx: Context, query: dict):
     """The pictures the editor offers to pick from (seriesmith/presets): the
     relight presets of the edit window, the series form's looks, the shot
     form's framings and camera moves, each with its sample's name for GET
-    /seriesmith/presets/image when made. `kind` answers with that one alone."""
+    /seriesmith/presets/image when made, and the cue window's presets (no
+    picture). `kind` answers with that one alone."""
     from seriesmith import preset_pictures as PP
     from seriesmith import presets as PR
     kinds = [query["kind"]] if query.get("kind") else list(PR.KINDS)
