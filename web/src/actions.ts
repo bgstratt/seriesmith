@@ -670,6 +670,14 @@ export function onStatusLoaded(fn: (ep: string, pass: Pass) => void): () => void
   return () => void statusLoaded.delete(fn);
 }
 
+/** A music cue's take landed (seriesmith.cue): cueActions listens. */
+const cueEvents = new Set<(d: { ep?: string; cue?: string; take?: number; status?: string }) => void>();
+
+export function onCueEvent(fn: (d: { ep?: string; cue?: string; take?: number; status?: string }) => void): () => void {
+  cueEvents.add(fn);
+  return () => void cueEvents.delete(fn);
+}
+
 export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<EpisodeStatus | undefined> {
   if (!ep) return Promise.resolve(undefined);
   const key = statusKey(ep, pass);
@@ -2023,6 +2031,11 @@ export function wireEvents() {
     if (!sameEp(ep, get().ep)) return;
     scheduleRefresh();
     if (get().ep && get().refs[get().ep!]) scheduleRefsRefresh();
+  });
+  h.on("seriesmith.cue", (d) => {
+    const c = (d ?? {}) as { ep?: string; cue?: string; take?: number; status?: string };
+    if (!sameEp(c.ep, get().ep)) return;
+    cueEvents.forEach((f) => f(c));
   });
   h.on("seriesmith.master", (d) => {
     const j = (d ?? null) as MasterJob | null;

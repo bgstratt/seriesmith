@@ -1876,7 +1876,8 @@ export interface RefEvent {
 // targets (API.md "Targets (Phase 7)", "Phase 8 additions")
 // ---------------------------------------------------------------------------
 
-export type TargetKind = "video" | "image" | "audio";
+/** music: a score cue (docs/SOUND.md; GET /seriesmith/targets?kind=music) */
+export type TargetKind = "video" | "image" | "audio" | "music";
 
 /** One binding entry: a graph widget (`class_type` + `field`, or for LoRAs
  * `name`/`strength`/`input`/`chain`), or `{"via": "loader"}`. */
@@ -1935,6 +1936,12 @@ export interface Target {
     reference_audio?: boolean;
     /** Phase 9c-B, audio targets: the longest sample it generates, seconds */
     max_seconds?: number;
+    /** music targets: the tempo is asked in words ("text") or as its own input ("bpm") */
+    tempo?: "text" | "bpm";
+    /** music targets: an arc told as a story, or sections as tags */
+    structure?: "story" | "sections";
+    /** music targets: it sings a section's lyrics */
+    lyrics?: boolean;
     [key: string]: unknown;
   };
   template?: TargetTemplate;
@@ -2512,4 +2519,142 @@ export interface MixResult {
     duck: { threshold_db: number; attack_ms: number; release_ms: number };
     loudness: { target_lufs: number; true_peak_db: number };
   };
+}
+
+// ---------------------------------------------------------------------------
+// music cues (docs/SOUND.md "The cue window"; seriesmith/cue.py's docstring has the shape)
+// ---------------------------------------------------------------------------
+
+/** A stretch of a cue: its bars (omitted: the plan fills them), its words, its
+ * energy 1-5 at its start and end, a song's lyrics. */
+export interface CueSection {
+  name: string;
+  bars?: number;
+  words?: string;
+  from?: number;
+  to?: number;
+  lyrics?: string;
+}
+
+/** A point of a cue's arc: an energy (1-5) at an anchor. */
+export interface CueArcPoint {
+  at: Anchor;
+  level: number;
+}
+
+/** A cue's spec (`<ep>/sound/<cue>/spec.json`), defaults left out. */
+export interface CueSpec {
+  id: string;
+  label?: string;
+  /** a music target (absent: the series' or the default) */
+  model?: string;
+  in: Anchor;
+  out: Anchor;
+  style?: string;
+  bpm?: number;
+  fixed_tempo?: boolean;
+  /** beats to the bar (absent: 4) */
+  meter?: number;
+  key?: string;
+  /** seconds after its out point (absent: 2) */
+  tail?: number;
+  sections?: CueSection[];
+  arc?: CueArcPoint[];
+  /** the mix's hits it lands (absent: every hit in its span) */
+  hits?: string[] | null;
+  /** takes a render makes (absent: its model's preset's) */
+  takes?: number | null;
+  seed?: number | null;
+}
+
+/** GET /seriesmith/cues: one cue. */
+export interface CueSummary {
+  spec: CueSpec;
+  takes: number;
+  ok: number;
+  /** the passes whose mix it's in */
+  placed: Pass[];
+}
+
+/** A hit of the cue's plan: seconds from its in point. */
+export interface CueHit {
+  id: string;
+  name: string;
+  kind: HitKind;
+  must: boolean;
+  t: number;
+}
+
+/** What a cue would be asked now, against the pass's cut. */
+export interface CuePlan {
+  target: string;
+  fps: number;
+  /** seconds from its in point to its out point */
+  span: number;
+  hits: CueHit[];
+  /** the cue's exact tempo, the whole bpm the model is asked, the stretch
+   * between them, each hit's distance to its line (frames), the worst must-hit's */
+  fit: { bpm: number; ask_bpm: number; stretch: number; errors: number[]; worst_must: number };
+  bars: number;
+  /** seconds a bar */
+  bar: number;
+  /** seconds before the in point where the first bar starts */
+  preroll: number;
+  seconds: number;
+  ask_seconds: number;
+  /** every section with its bars and levels filled */
+  sections: (CueSection & { bars: number; from: number; to: number })[];
+  /** an energy per bar */
+  arc: number[];
+  prompt: { prompt: string; negative: string | null; values: Record<string, unknown> };
+  /** the script's music: notes of the shots it plays over (folded into the prompt) */
+  notes?: { shot: string; music: string }[];
+}
+
+/** A take, once back, measured against the plan. */
+export interface CueMeasured {
+  bpm_heard: number | null;
+  /** the heard tempo was believed (else the plan's stretch was used) */
+  tempo_heard: boolean;
+  stretch: number;
+  /** seconds into the wav of its first bar line */
+  downbeat: number;
+  /** seconds into the wav of the cue's in point */
+  offset: number;
+  /** frames, one per hit of the plan (null: nothing in the music there) */
+  hit_errors: (number | null)[];
+  worst_must: number;
+  /** dB per bar */
+  levels: number[];
+  shape_error: number | null;
+  /** lower is better */
+  score: number;
+}
+
+/** A take's sidecar (tNN.json) with its number. */
+export interface CueTake {
+  take: number;
+  status: "queued" | "ok" | "failed" | (string & {});
+  seed?: number;
+  target?: string;
+  pass?: Pass;
+  /** relative to the episode: tNN.wav */
+  file?: string;
+  error?: string;
+  measured?: CueMeasured;
+  /** the pass whose mix it's in, once picked */
+  placed?: Pass;
+  /** what has moved in the cut since it was rendered ([] or absent: nothing) */
+  stale?: string[];
+  finished?: string;
+  created?: string;
+}
+
+/** GET /seriesmith/cue */
+export interface CueResult {
+  spec: CueSpec;
+  plan: CuePlan | null;
+  plan_error: string | null;
+  /** best first */
+  takes: CueTake[];
 }

@@ -1280,6 +1280,48 @@ with stems beside it.
   most at its own level). The preview doesn't duck the music and ambience under speech, and
   doesn't follow an item's volume points; the export does both.
 
+### The cue window: a piece of score
+
+A **cue** is music written to the cut: its tempo is fitted so its hits fall on bar lines,
+and it is rendered as several takes, measured and ranked ([SOUND.md](SOUND.md)). To make
+one, select the shots it plays over and **right-click the Music lane (or the hits lane) →
+New cue over the shots selected…**, or right-click where it should start for **New cue
+here**, which runs to the end of that shot. A cue's block on the Music lane shows a note
+icon; **double-click it** to open the cue. The window takes the viewer's place; **Timeline**
+or **Esc** goes back, and the pass toggle switches it with the rest of the editor.
+
+The **Score** tab lays everything on one bar grid at the cue's tempo, from its pre-roll (the
+bars before its in point, hatched) through its tail, scrolling together:
+
+- **Picture**: the shots it plays over. **Hits**: each hit in its span, coloured by kind, with
+  the bar and beat it lands on and how far off its line the tempo fit leaves it (frames;
+  a dashed hit may miss). The **ruler**: bar numbers, beats as ticks.
+- **Sections**: the cue's stretches in whole bars, worked out from the hits until you change
+  them. **Click** one to edit it on the right; **drag an edge** to move it (whole bars).
+- **Intensity**: the arc, energy 1 (sparse) to 5 (fortissimo), the line the model is told
+  and the takes are ranked against. With no points of its own it is the line the sections
+  imply (hollow points); **drag** a point (to a beat, half a level) and they become the
+  cue's own; **double-click** adds one, **right-click** removes one, the **×** by the lane's
+  name goes back to the sections'. It is drawn in green: the timeline's gain is another
+  curve (dB, the mix), and a crescendo drawn there isn't one the music plays.
+- **Takes**, best first: each its waveform from its first bar line, its loudness per bar
+  (white, dashed) over the arc, then each hit's error in frames (orange past two; **—**:
+  nothing in the music there), its shape error (how far it is from the arc), its score
+  (what ranks it), the tempo heard, and **stale** when the cut has moved since it was made
+  (hover for what). **▶** plays it with a playhead over the grid; **Pick** puts it on the
+  Music track of the pass's mix, from the cue's in point, its level fitted to the arc with
+  breakpoints (at most 6 dB a bar).
+- **Render N takes** queues that many, each its own seed; they fill in as they land.
+
+The panel on the right edits the **section** selected (its name; its words: instruments,
+texture, direction; its energy from and to; its lyrics, for a model that sings) or, with
+none selected, the **cue** (label, model, tempo and whether it's fixed, meter, key, style,
+tail, takes a render makes) and the **fit**: the tempo asked and fitted, the stretch, and the
+worst must-hit's error, or why it can't be planned. Below either is **exactly what the
+model is told**, and the script's `music:` notes it took in. Each change is saved and the
+cue planned again (typing saves when you pause). The **Arc** and **Orchestration & takes**
+tabs are coming.
+
 ### Finishing: upscale, post, master
 
 A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the

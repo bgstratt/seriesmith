@@ -9,7 +9,7 @@ import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
-  Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
+  CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
   TargetList, PresetList } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -65,9 +65,10 @@ export type CompareMode = "single" | "side" | "wipe";
  * The floating viewer shows one of:
  *  - `takes`: one shot's takes, A/B compare (the take viewer);
  *  - `cut`: Play all, the cut in order from its takes;
- *  - `image`: a ref's candidates (stills), A/B side by side or wipe.
+ *  - `image`: a ref's candidates (stills), A/B side by side or wipe;
+ *  - `cue`: a music cue's window (its bars, sections, arc and takes).
  */
-export type ViewerKind = "takes" | "cut" | "image";
+export type ViewerKind = "takes" | "cut" | "image" | "cue";
 
 export interface ViewerState {
   kind: ViewerKind;
@@ -88,6 +89,8 @@ export interface ViewerState {
    * of the four picked views -- so it has no take number to compare by.
    */
   file?: string | null;
+  /** cue mode: the cue's id */
+  cue?: string;
 }
 
 /** The gallery: its scope, and where it is in it. */
@@ -437,6 +440,11 @@ export interface AppState {
   /** GET /seriesmith/mix of the pass open, by statusKey (fetched with its status) */
   mix: Record<string, MixResult>;
   mixError: Record<string, string>;
+  /** GET /seriesmith/cues, by episode (fetched with the mix while the lanes are unfolded, and on opening a cue) */
+  cues: Record<string, CueSummary[]>;
+  /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
+  cue: Record<string, CueResult>;
+  cueError: Record<string, string>;
   /** Phase 9b: what Ctrl+Z / Ctrl+Shift+Z would undo / redo, by statusKey */
   cutUndo: Record<string, { undo: string | null; redo: string | null }>;
   /** Phase 9b: the timeline's Cut menu, open at (x, y) */
@@ -608,6 +616,9 @@ export function initialState(prefs: Prefs = {}): AppState {
     sound: prefs.sound ?? prefs.waves ?? false,
     mix: {},
     mixError: {},
+    cues: {},
+    cue: {},
+    cueError: {},
     cutUndo: {},
     cutMenu: null,
     exportMenu: null,

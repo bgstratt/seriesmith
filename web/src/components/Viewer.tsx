@@ -1,7 +1,8 @@
-// The floating viewer. One window, three kinds (store `viewer.kind`):
+// The floating viewer. One window, four kinds (store `viewer.kind`):
 //  - takes: one shot's takes with A/B compare (side by side or wipe);
 //  - cut:   Play all, the cut in order from the takes themselves (CutPlayer);
-//  - image: a ref's candidates (stills), with the same A/B compare.
+//  - image: a ref's candidates (stills), with the same A/B compare;
+//  - cue:   a music cue's window (CueWindow.tsx).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import {
@@ -31,6 +32,7 @@ import { aspectOf, useShotStatus, useStatus } from "./hooks";
 import { useTargets } from "./Targets";
 import { ColorDefs, useClipFilter } from "./ColorDefs";
 import { Thumb } from "./Thumb";
+import { CueWindow } from "./CueWindow";
 
 // v2: round 2 moved the default place so the viewer and the inspector sit side by side
 export const VIEWER_RECT_KEY = "seriesmith.viewer.rect.v2";
@@ -233,6 +235,7 @@ export function Viewer() {
   const ep = useApp((s) => s.ep);
   if (!v || !ep) return null;
   if (v.kind === "image") return <StillsView ep={ep} v={v} />;
+  if (v.kind === "cue") return <CueWindow ep={ep} v={v} />;
   return (
     <>
       <ColorDefs prefix="v" />

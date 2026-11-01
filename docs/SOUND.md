@@ -309,7 +309,12 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [x] the script's `music:` notes in a cue's prompt: each shot's the cue plays over, from
          the story IR (`shotlist/shots.json`); Stable Audio 3 hears them as its mood, ACE-Step in
          its tags
-   - [ ] the cue window's Score tab (sections, the arc lane, takes with hit and shape errors)
+   - [x] the cue window's Score tab (sections, the arc lane, takes with hit and shape errors)
+         (2026-11-01; `web/src/components/CueWindow.tsx`, `lib/cue.ts`, `cueActions.ts`: in the
+         viewer's place from a cue's block or the Music lane's New cue; one bar grid of the
+         picture, hits, ruler, sections, the arc and the takes ranked, an inspector for a
+         section or the cue with the model's prompt; every edit a PUT then the plan again.
+         Playing a take against the picture is left for the spotting sheet)
    - [ ] the spotting sheet (the music map, hits table, tempo fit)
    - [ ] the Arc tab's drawing tools and presets
    - [ ] Orchestration & takes: the grid; comp at bar lines; Repaint once it's measured

@@ -10,6 +10,7 @@ import { mountOverlay, mountSurface } from "./surfaces";
 import * as actions from "./actions";
 import * as cut from "./cutActions";
 import * as mix from "./mixActions";
+import * as cue from "./cueActions";
 import { store } from "./store";
 
 const listeners = new Map<HostEvent, Set<(d: unknown) => void>>();
@@ -39,7 +40,7 @@ const devHost: Host = {
 
 const params = new URLSearchParams(location.search);
 setHost(devHost);
-const mock = createMockApi(emit, { firstRun: params.has("firstrun") });
+const mock = createMockApi(emit, { firstRun: params.has("firstrun"), cueDemo: true });
 setApi(mock);
 
 for (const s of ["shots", "refs", "timeline"] as Surface[]) {
@@ -64,6 +65,18 @@ void start();
 (window as unknown as { h3mockUnalign: typeof mock.unalign }).h3mockUnalign = mock.unalign;
 
 // Phase 9b: the store and the cut's (and the mix's) actions, for poking at the timeline from the console (and headless checks)
-(window as unknown as { h3dev: unknown }).h3dev = { store, cut, actions, mix };
+(window as unknown as { h3dev: unknown }).h3dev = { store, cut, actions, mix, cue };
+
+// the mock's music cue, open on load: dev.html?cue=m01 (headless checks of the cue window)
+const openCueParam = params.get("cue");
+if (openCueParam) {
+  const once = store.subscribe(() => {
+    const s = store.get();
+    if (!s.ep || !s.status[`${s.ep}|${s.pass}`]) return;
+    once();
+    store.set({ sound: true });
+    cue.openCue(openCueParam);
+  });
+}
 
 document.getElementById("theme")?.addEventListener("click", () => document.documentElement.classList.toggle("light"));

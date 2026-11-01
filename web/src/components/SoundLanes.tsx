@@ -6,7 +6,9 @@
 // their file's waveform. Drag a block to move it, an edge to trim it, Esc
 // cancels; right-click for its gain, fades, loop, label. A sound file dropped
 // on a lane is imported and laid where it fell. Every edit is one PUT of the
-// pass's mix (mixActions), undone with the cut's Ctrl+Z.
+// pass's mix (mixActions), undone with the cut's Ctrl+Z. A music cue's block
+// opens the cue window on a double-click; right-click the music or hits lane
+// for a new cue there (cueActions).
 
 import {
   memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
@@ -26,7 +28,8 @@ import {
   addMixHit, currentMix, deleteMixHit, deleteMixItem, dropOnLane, moveMixHit, moveMixItem, setMixHit, setMixItem, setTrackMix, trimMixItem,
 } from "../mixActions";
 import { host } from "../host";
-import { statusKey, useApp } from "../store";
+import { loadCues, newCue, openCue } from "../cueActions";
+import { statusKey, store, useApp } from "../store";
 import type { Anchor, EpisodeStatus, HitKind, Mix, MixHit, MixItem, MixTrack } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
@@ -60,6 +63,11 @@ interface Drag {
 /** The item or hit menu, at the pointer. */
 type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
 
+/** The lane menu (a new cue), at the pointer: `at` where it was asked. */
+type LaneMenu = { x: number; y: number; at: Anchor | null };
+
+const NO_CUES: string[] = [];
+
 export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, innerRef, fps, zoom, measureKey }: {
   ep: string; st: EpisodeStatus; other: EpisodeStatus | undefined; items: PlayItem[];
   innerRef: RefObject<HTMLDivElement>; fps: number; zoom: number;
@@ -72,7 +80,14 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [drag, setDrag] = useState<Drag | null>(null);
   const [pop, setPop] = useState<Pop | null>(null);
   const [over, setOver] = useState<MixTrack | null>(null);
+  const [laneMenu, setLaneMenu] = useState<LaneMenu | null>(null);
   const suppress = useRef(false);
+  // the episode's cues: which music blocks open the cue window (fetched again with the mix)
+  const cueIds = useApp((s) => s.cues[ep]?.map((c) => c.spec.id).join(" ") ?? "");
+  const cues = cueIds ? cueIds.split(" ") : NO_CUES;
+  useEffect(() => {
+    void loadCues(ep);
+  }, [ep, res?.mix]);
 
   // the clips' boxes, in the track's coordinates
   const measure = useCallback(() => {
@@ -162,6 +177,11 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     if (suppress.current || !lay.length) return;
     seekCutAt(xTime(lay, xOf(e.clientX)));
   };
+  const onLaneMenu = (e: RMouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setLaneMenu({ x: e.clientX, y: e.clientY, at: lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null });
+  };
   const onHitsDouble = async (e: RMouseEvent<HTMLElement>) => {
     const at = lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null;
     const x = e.clientX;
@@ -204,7 +224,8 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   return (
     <div className="h3-snd" style={{ height: LANES_H }}>
       <div className="h3-snd-lane h3-snd-hits" style={{ height: HITS_H }} onClick={onLaneClick} onDoubleClick={(e) => void onHitsDouble(e)}
-        title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete">
+        onContextMenu={onLaneMenu}
+        title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete · right-click the lane: a new cue">
         <div className="h3-snd-head" style={{ width: HEAD_W }}>
           <span>Hits</span>
           {err && <i className="pi pi-exclamation-triangle h3-err" title={`The mix didn't load: ${err}`} />}
@@ -244,7 +265,8 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             onDragOver={(e) => onDragOver(e, track)}
             onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
             onDrop={(e) => onDrop(e, track)}
-            title={`${TRACK_LABEL[track]}: drop a sound file here to lay it from where it falls · click: seek`}>
+            onContextMenu={track === "music" ? onLaneMenu : undefined}
+            title={`${TRACK_LABEL[track]}: drop a sound file here to lay it from where it falls · click: seek${track === "music" ? " · right-click: a new cue here" : ""}`}>
             <LaneHead track={track} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res} />
             {track === "dialogue" && lay.map((l) => {
               const s = st.shots.find((x) => x.shot === l.shot);
@@ -256,7 +278,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               );
             })}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
-              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps}
+              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" && cues.includes(it.id)}
                 dragging={!!drag && drag.what !== "hit" && drag.id === it.id}
                 onDown={onItemDown}
                 onMenu={(e) => setPop({ kind: "item", id: it.id, x: e.clientX, y: e.clientY })} />
@@ -279,6 +301,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
         </div>
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
+      {laneMenu && <NewCueMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
     </div>
   );
 });
@@ -323,8 +346,10 @@ function LaneHead({ track, gain, mute, solo, ready }: { track: MixTrack; gain: n
 }
 
 /** An item: a block from its in to its out (or its file's end), with its waveform. */
-const Block = memo(function Block({ ep, it, lay, items, fps, dragging, onDown, onMenu }: {
+const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDown, onMenu }: {
   ep: string; it: MixItem; lay: Lay[]; items: PlayItem[]; fps: number; dragging: boolean;
+  /** a music cue's: a double-click opens its window */
+  cue: boolean;
   onDown: (e: RPointerEvent<HTMLElement>, it: MixItem, what: "move" | "in" | "out", fileSecs: number | null) => void;
   onMenu: (e: RMouseEvent<HTMLElement>) => void;
 }) {
@@ -354,12 +379,16 @@ const Block = memo(function Block({ ep, it, lay, items, fps, dragging, onDown, o
     [it.gain_db ? `${it.gain_db > 0 ? "+" : ""}${it.gain_db} dB` : "", it.fade_in ? `fade in ${framesLabel(it.fade_in, fps)}` : "",
      it.fade_out ? `fade out ${framesLabel(it.fade_out, fps)}` : "", it.loop ? "loops" : "", it.points?.length ? `${it.points.length} level points` : ""].filter(Boolean).join(" · "),
     info && !info.ok ? `can't read it: ${info.error}` : "",
-    "drag: move (it stays on the shot it starts in) · drag an edge: trim · right-click: gain, fades, loop, label, delete",
+    `${cue ? `music cue ${it.id}: double-click opens it (its sections, arc and takes) · ` : ""}drag: move (it stays on the shot it starts in) · drag an edge: trim · right-click: gain, fades, loop, label, delete`,
   ].filter(Boolean).join("\n");
   return (
     <div ref={box} className={`h3-snd-item h3-snd-${it.track}${dragging ? " h3-on" : ""}`} style={{ left: start, width }} title={title}
       onPointerDown={(e) => onDown(e, it, "move", fileSecs)}
       onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (cue) openCue(it.id);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -368,7 +397,7 @@ const Block = memo(function Block({ ep, it, lay, items, fps, dragging, onDown, o
       {q && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={Math.max(1, (Math.min(fileEnd, offset + secs) - offset) / Math.max(0.01, secs) * width)} height={LANE_H - 6} />}
       {fadeW(it.fade_in) > 0 && <div className="h3-snd-fade h3-l" style={{ width: fadeW(it.fade_in) }} />}
       {fadeW(it.fade_out) > 0 && <div className="h3-snd-fade h3-r" style={{ width: fadeW(it.fade_out) }} />}
-      {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />} {label}</span>}
+      {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />}{cue && <i className="pi pi-volume-up" />} {label}</span>}
       <div className="h3-trim-h h3-l" title="Drag: where it starts (the sound stays where it was)" onPointerDown={(e) => onDown(e, it, "in", fileSecs)} />
       <div className="h3-trim-h h3-r" title="Drag: where it stops" onPointerDown={(e) => onDown(e, it, "out", fileSecs)} />
     </div>
@@ -460,6 +489,39 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
           onClose();
         }}><i className="pi pi-trash" /> Delete</button>
       </div>
+    </div>
+  );
+}
+
+/** The music and hits lanes' menu: a new cue over the shots selected, else from where it was asked to its shot's end. */
+function NewCueMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const multi = useApp((s) => s.multi);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const over = multi.length > 1;
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      <div className="h3-menu-head">Music · {store.get().pass}</div>
+      <button disabled={!over && !menu.at} title="A cue: its sections, arc and takes in the cue window, written to the hits in its span"
+        onClick={() => {
+          onClose();
+          void newCue(menu.at);
+        }}>
+        <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${menu.at?.shot ?? "the shot"})…`}
+      </button>
     </div>
   );
 }

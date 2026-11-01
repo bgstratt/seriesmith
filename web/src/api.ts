@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  DubSources, ShotSound, Mix, MixResult,
+  DubSources, ShotSound, Mix, MixResult, CueResult, CueSpec, CueSummary,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -166,6 +166,16 @@ export interface Api {
   getMix(ep: string, pass: Pass): Promise<MixResult>;
   /** PUT /seriesmith/mix: replace the pass's mix; answers it as stored (defaults dropped). */
   putMix(ep: string, pass: Pass, mix: Mix): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts. */
+  cues(ep: string): Promise<{ cues: CueSummary[] }>;
+  /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
+  getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
+  /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
+  putCue(ep: string, cue: CueSpec): Promise<{ spec: CueSpec }>;
+  /** POST /seriesmith/cue/render: queue `takes` takes (absent: its model's preset's). */
+  renderCue(req: { ep: string; pass: Pass; cue: string; takes?: number; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number }[] }>;
+  /** POST /seriesmith/cue/pick: a take as the cue's item on the music track (gain: fit its level to the arc). */
+  pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
   /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
@@ -591,6 +601,17 @@ export function createHttpApi(t: Transport): Api {
       return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) } };
     },
     putMix: (ep, pass, mix) => call("PUT", "/seriesmith/mix", { ep, pass, mix }),
+    cues: async (ep) => {
+      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs({ ep })}`);
+      return { cues: Array.isArray(r?.cues) ? r.cues : [] };
+    },
+    getCue: async (ep, pass, cue) => {
+      const r = await get<Partial<CueResult> & { spec: CueSpec }>(`/seriesmith/cue?${qs({ ep, pass, cue })}`);
+      return { spec: r.spec, plan: r.plan ?? null, plan_error: r.plan_error ?? null, takes: Array.isArray(r.takes) ? r.takes : [] };
+    },
+    putCue: (ep, cue) => call("PUT", "/seriesmith/cue", { ep, cue }),
+    renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
+    pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {
