@@ -1620,6 +1620,17 @@ for the proxy pass, SFT for the final) downloaded as the default score model; Yu
 - [ ] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
 - [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
 - [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
+- [ ] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
+
+## To fix: the voice model is two lists (noted 2026-11-01)
+
+The series settings' **voice model** (`voice_target`, refs.py / SeriesForm) offers only audio
+targets, so LTX-2.5 audio-only is the one choice, while a **dub track** (the Sound dialog's
+"Generate a dub track", `VOICE_TARGETS` in the editor) is made on video models: H3 Ref2VA and
+FastH3 Omni, and could be on H3 FL2VA, H3 Singularity or any H3-compatible model. One list of
+what can voice a line (audio targets and the video targets that render a dub track), the same
+in Settings and the Sound dialog, read from the targets (a capability, not a list in the
+editor), with the series' choice as the Sound dialog's default.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
