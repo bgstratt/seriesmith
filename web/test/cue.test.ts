@@ -13,7 +13,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   KEYS, ORCH_FAMILIES, SCORE_SECTIONS, SONG_SECTIONS, sectionChoice, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
-  editableSections, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
+  editableSections, gridOf, mergeSections, nextSectionName, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
 } from "../src/lib/cue";
@@ -144,6 +144,45 @@ describe("sections", () => {
     // where it was, or the last edge (the cue's end): nothing
     expect(moveEdge(secs, 0, 2)).toBeNull();
     expect(moveEdge(secs, 2, 4)).toBeNull();
+  });
+
+  it("a double-click splits at the nearest bar line inside a section, never on an edge or the ends", () => {
+    // 10 px a bar: edges at bars 0, 2, 5, 6
+    expect(splitPoint(secs, 31, 10)).toEqual({ i: 1, bar: 3 });
+    expect(splitPoint(secs, 9, 10)).toEqual({ i: 0, bar: 1 });
+    expect(splitPoint(secs, 22, 10)).toBeNull();
+    expect(splitPoint(secs, 2, 10)).toBeNull();
+    expect(splitPoint(secs, 58, 10)).toBeNull();
+    expect(sectionAt(secs, 0)).toBe(0);
+    expect(sectionAt(secs, 4.9)).toBe(1);
+    expect(sectionAt(secs, 5)).toBe(2);
+    expect(sectionAt(secs, 99)).toBe(2);
+  });
+
+  it("a split names its second half with the next numeral free", () => {
+    expect(nextSectionName(secs, "build")).toBe("build 2");
+    expect(nextSectionName([...secs, { name: "build 2" }], "build 2")).toBe("build 3");
+    const two = splitSection([{ name: "build", bars: 4, words: "strings", from: 2, to: 4 }], 0, 2, [2, 3, 3.5, 4])!;
+    expect(two).toEqual([{ name: "build", bars: 2, words: "strings", from: 2, to: 3.5 }, { name: "build 2", bars: 2, words: "strings", from: 3.5, to: 4 }]);
+    expect(splitSection(two, 1, 3, [2, 3, 3.5, 4])![2].name).toBe("build 3");
+  });
+
+  it("two sections merged: the first's name and words, bars summed, energy first's start to second's end, lyrics joined", () => {
+    const s = [
+      { name: "verse", bars: 4, words: "piano", from: 2, to: 3, lyrics: "one" },
+      { name: "chorus", bars: 4, words: "full band", from: 4, to: 5, lyrics: "two" },
+      { name: "outro", bars: 2, from: 3, to: 1 },
+    ];
+    expect(mergeSections(s, 0)).toEqual([
+      { name: "verse", bars: 8, words: "piano", from: 2, to: 5, lyrics: "one\ntwo" },
+      { name: "outro", bars: 2, from: 3, to: 1 },
+    ]);
+    expect(mergeSections(s, 1)![1]).toEqual({ name: "chorus", bars: 6, words: "full band", from: 4, to: 1, lyrics: "two" });
+    expect(mergeSections(s, 2)).toBeNull();
+    expect(mergeSections([s[0]], 0)).toBeNull();
+    // the plan's energies where the spec gives none
+    expect(withEnergies([{ name: "a", bars: 2 }, { name: "b", bars: 2, from: 4 }], [{ from: 2, to: 3 }, { from: 3, to: 5 }]))
+      .toEqual([{ name: "a", bars: 2, from: 2, to: 3 }, { name: "b", bars: 2, from: 4, to: 5 }]);
   });
 
   it("are the spec's to edit, with the plan's bars; else the plan's", () => {
@@ -498,6 +537,75 @@ describe("the cue window", () => {
     expect(res.spec.sections![0].to).toBe(4.5);
     expect(res.plan!.sections[0].to).toBe(4.5);
     expect((await api.getCue(EP, "proxy", "m01")).spec.sections![0].to).toBe(4.5);
+  });
+
+  it("the Sections lane: a double-click splits a new cue's one section; the menu merges them and resets from the hits", async () => {
+    const shots = store.get().status[statusKey(EP, "proxy")]!.shots;
+    let id: string | null = null;
+    await act(async () => {
+      id = await newCue({ shot: shots[4].shot, frame: 0 });
+      root.render(createElement(Viewer));
+    });
+    const key = cueKey(EP, "proxy", id!);
+    await act(async () => {
+      await loadCue(EP, "proxy", id!);
+    });
+    const cur = () => store.get().cue[key]!;
+    expect(cur().plan!.sections).toHaveLength(1);
+    const bars = cur().plan!.bars;
+    expect(bars).toBeGreaterThan(2);
+    // 4 px a second (the window has no width here): bar line 2
+    const barPx = cur().plan!.bar * 4;
+    const lane = () => q(".h3-cue-sect")[0].parentElement!;
+    await act(async () => lane().dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 2 * barPx + 1 })));
+    await act(async () => {
+      await cueSettled();
+    });
+    expect(cur().spec.sections!.map((s) => [s.name, s.bars])).toEqual([[cur().plan!.sections[0].name, 2], [`${cur().plan!.sections[0].name} 2`, bars - 2]]);
+    expect(q(".h3-cue-sect")).toHaveLength(2);
+    // on an edge: nothing
+    await act(async () => lane().dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 2 * barPx })));
+    await act(async () => {
+      await cueSettled();
+    });
+    expect(cur().spec.sections).toHaveLength(2);
+    // the first's menu: no previous, merge with next
+    const menu = async (x: number) => {
+      await act(async () => lane().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: 10 })));
+      return [...document.querySelectorAll<HTMLButtonElement>(".h3-cue-sectmenu button")];
+    };
+    let items = await menu(barPx / 2 + 1);
+    expect(items.map((b) => [b.textContent!.trim(), b.disabled])).toEqual([
+      ["Split at bar 2", false], ["Merge with previous", true], ["Merge with next", false], ["Edit", false], ["Reset sections from the hits", false],
+    ]);
+    await act(async () => items[2].click());
+    await act(async () => {
+      await cueSettled();
+    });
+    expect(q(".h3-cue-sectmenu")).toHaveLength(0);
+    expect(cur().spec.sections!.map((s) => s.bars)).toEqual([bars]);
+    // one section: neither merge
+    items = await menu(barPx / 2 + 1);
+    expect(items.filter((b) => b.textContent!.includes("Merge")).every((b) => b.disabled)).toBe(true);
+    // reset asks first
+    const ask = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true);
+    vi.stubGlobal("confirm", ask);
+    try {
+      await act(async () => items[4].click());
+      await act(async () => {
+        await cueSettled();
+      });
+      expect(cur().spec.sections).toHaveLength(1);
+      items = await menu(barPx / 2 + 1);
+      await act(async () => items[4].click());
+      await act(async () => {
+        await cueSettled();
+      });
+      expect(ask).toHaveBeenCalledTimes(2);
+      expect(cur().spec.sections).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("Pick puts the take on the music track and marks it", async () => {

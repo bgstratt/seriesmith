@@ -2,7 +2,8 @@
 // cue, in the viewer's place, three tabs on one bar grid at the plan's tempo,
 // from the pre-roll through the tail. Score: the picture, the hits (each at the
 // bar and beat it lands on, and the fit's error), the bar ruler, the sections
-// (drag an edge: whole bars), the intensity lane (the arc: drag a point,
+// (drag an edge: whole bars; double-click splits one, right-click: split, merge,
+// reset from the hits), the intensity lane (the arc: drag a point,
 // double-click adds one, right-click removes it) and the takes, best first,
 // each its waveform and its loudness per bar over the arc; the inspector on the
 // right edits the section selected, or the cue. Arc: the intensity lane large,
@@ -15,7 +16,7 @@
 // server's. The arc is energy 1-5, drawn in its own colour: the timeline's gain
 // breakpoints (dB) are another curve.
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
 import { compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
@@ -23,9 +24,9 @@ import { api, host } from "../host";
 import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
   cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
-  meterText, moveEdge,
-  movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
-  sectionsFromArc, smoothPoints, snapToHits, splitSection, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
+  meterText, mergeSections, moveEdge,
+  movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
+  sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
 } from "../lib/cue";
 import { fmtClock } from "../lib/format";
@@ -37,6 +38,7 @@ import type { CuePlan, CueResult, CueSection, CueSpec, CueTake, Target } from ".
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { trackPointer, useSize } from "./hooks";
 import { mediaStyle } from "./Thumb";
+import { onScreen } from "./SoundLanes";
 import { FullscreenButton } from "./Viewer";
 import { PeaksCanvas, usePeaks } from "./Waveform";
 
@@ -75,7 +77,7 @@ const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
     anchor: "3-shape-it-the-score-tab",
     steps: [
       "Mark the hits first: double-click the timeline's Hits lane where the music must answer (accent, arrive, drop or turn); Must land fits the tempo to put it on its line.",
-      "Shape the sections: drag an edge (whole bars), click one to give it words and an energy from and to; drag the green energy line's points (double-click adds one).",
+      "Shape the sections: drag an edge (whole bars), double-click to split one, right-click to merge (or reset them from the hits); click one for its words and energy from and to. Drag the green energy line's points.",
       "Render 8 takes: each is measured against the hits and the arc as it lands, best first.",
       "Listen to the top few (the playhead runs over the grid), then Pick one: it goes on the Music lane, its level fitted to the arc.",
     ],
@@ -385,6 +387,8 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
   const st = useApp((s) => s.status[statusKey(ep, v.pass)]);
   const other = useApp((s) => s.status[statusKey(ep, v.pass === "proxy" ? "final" : "proxy")]);
   const [edge, setEdge] = useState<{ i: number; sections: CueSection[] } | null>(null);
+  const [sectMenu, setSectMenu] = useState<SectMenu | null>(null);
+  const sectRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState<{ take: number; tau: number } | null>(null);
   const [range, setRange] = useState<{ take: number; bars: [number, number] } | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -414,6 +418,35 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
       void saveCue(withSpec(spec, { sections: moved }),
         { sections: plan.sections.map((s, k) => ({ ...s, bars: moved[k]?.bars ?? s.bars })) });
     });
+  };
+
+  // ---- sections: double-click splits one at the nearest bar line; right-click: split, merge, reset ----
+  const barPx = g.bar * pps;
+  const laneX = (e: { clientX: number }) => e.clientX - (sectRef.current?.getBoundingClientRect().left ?? 0);
+  const saveSections = (next: CueSection[] | null) => {
+    if (next) void saveCue(withSpec(spec, { sections: next }));
+  };
+  const split = (i: number, bar: number) => saveSections(splitSection(withEnergies(sections, plan.sections), i, bar, plan.arc));
+  const merge = (i: number) => {
+    setSel(null);
+    saveSections(mergeSections(withEnergies(sections, plan.sections), i));
+  };
+  const onSectDouble = (e: RMouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    const at = splitPoint(sections, laneX(e), barPx);
+    if (at) split(at.i, at.bar);
+  };
+  const onSectMenu = (e: RMouseEvent<HTMLDivElement>) => {
+    if (!editable) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x = laneX(e);
+    setSectMenu({ x: e.clientX, y: e.clientY, i: sectionAt(sections, x / barPx), split: splitPoint(sections, x, barPx) });
+  };
+  const resetSections = () => {
+    if (!confirm(`Work ${spec.id}'s sections out from the hits again? Their names, words, energies and lyrics go.`)) return;
+    setSel(null);
+    void saveCue(withSpec(spec, { sections: undefined }));
   };
 
   // ---- a take played: the playhead on the grid ----
@@ -512,8 +545,10 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
     </Lane>
   );
   const sectionLane = (
-    <Lane label="Sections" h={SECT_H} W={W}
-      title={editable ? "The cue's sections, in whole bars: click one to edit it (the inspector), drag an edge to move it" : "The cue's sections, for reference (edit them in the Score tab)"}>
+    <Lane label="Sections" h={SECT_H} W={W} laneRef={sectRef} onDoubleClick={onSectDouble} onContextMenu={onSectMenu}
+      title={editable
+        ? "The cue's sections, in whole bars: click one to edit it (the inspector), drag an edge to move it, double-click to split one at that bar line; right-click: split, merge, reset from the hits"
+        : "The cue's sections, for reference (edit them in the Score tab)"}>
       {shown.map((s, i) => (
         <div key={i} className={`h3-cue-sect${editable && sel === i ? " h3-on" : ""}${editable ? "" : " h3-ro"}`} style={{ left: edges[i] * g.bar * pps, width: (edges[i + 1] - edges[i]) * g.bar * pps }}
           title={`${s.name}: ${s.bars} bar${s.bars === 1 ? "" : "s"}${s.words ? ` · ${s.words}` : ""} · energy ${plan.sections[i]?.from ?? "?"} to ${plan.sections[i]?.to ?? "?"}`}
@@ -527,6 +562,10 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
         </div>
       ))}
       {edge && <div className="h3-cue-tip" style={{ left: edges[edge.i + 1] * g.bar * pps + 6 }}>bar {edges[edge.i + 1] + 1}</div>}
+      {sectMenu && (
+        <SectionMenu menu={sectMenu} sections={sections} own={!!spec.sections?.length} onClose={() => setSectMenu(null)}
+          split={split} merge={merge} edit={(i) => setSel(i)} reset={resetSections} />
+      )}
     </Lane>
   );
 
@@ -561,6 +600,75 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
           </span>
         </Lane>
       )}
+    </div>
+  );
+}
+
+/** A section's menu: where it was asked, the section there and the split it would make (null: on an edge). */
+interface SectMenu {
+  x: number;
+  y: number;
+  i: number;
+  split: { i: number; bar: number } | null;
+}
+
+/** The Sections lane's menu at the pointer: split there, merge with a neighbour, edit, the sections from the hits again. */
+function SectionMenu({ menu, sections, own, onClose, split, merge, edit, reset }: {
+  menu: SectMenu; sections: CueSection[]; own: boolean; onClose: () => void;
+  split: (i: number, bar: number) => void; merge: (i: number) => void; edit: (i: number) => void; reset: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: menu.x, top: menu.y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(menu.x, menu.y, r));
+  }, [menu]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const run = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+  const { i, split: at } = menu;
+  const s = sections[i];
+  const prev = sections[i - 1];
+  const next = sections[i + 1];
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop h3-cue-sectmenu" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()} onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}>
+      <div className="h3-menu-head">{s?.name ?? "section"} · section {i + 1} of {sections.length}</div>
+      <button disabled={!at}
+        title={at ? `Two sections: ${sections[at.i]?.name} to bar ${at.bar}, the rest from bar ${at.bar + 1} (both keep its words and energies)` : "On an edge or the cue's end: right-click inside a section, away from its edges"}
+        onClick={run(() => at && split(at.i, at.bar))}>
+        <i className="pi pi-arrows-h" /> {at ? `Split at bar ${at.bar + 1}` : "Split here"}
+      </button>
+      <button disabled={!prev} title={prev ? `One section: ${prev.name}'s name and words, the bars of both` : "It's the first section"} onClick={run(() => merge(i - 1))}>
+        <i className="pi pi-angle-double-left" /> Merge with previous
+      </button>
+      <button disabled={!next} title={next ? `One section: ${s?.name}'s name and words, the bars of both` : "It's the last section"} onClick={run(() => merge(i))}>
+        <i className="pi pi-angle-double-right" /> Merge with next
+      </button>
+      <button title="Its name, words and energies in the inspector" onClick={run(() => edit(i))}>
+        <i className="pi pi-pencil" /> Edit
+      </button>
+      <button disabled={!own} title={own ? "Clear the cue's sections: they're worked out from the hits again (asks first)" : "They're the hits' already"} onClick={run(reset)}>
+        <i className="pi pi-refresh" /> Reset sections from the hits
+      </button>
     </div>
   );
 }
@@ -703,7 +811,7 @@ function ArcReadout({ res, plan, sections, target }: { res: CueResult; plan: Cue
   const off = spec.arc?.length ? wordsOffArc(plan.arc, plan.sections) : [];
   const half = (x: number | undefined) => (x == null ? "?" : String(Math.round(x * 2) / 2));
   const split = (i: number, bar: number) => {
-    const next = splitSection(sections, i, bar, plan.arc);
+    const next = splitSection(withEnergies(sections, plan.sections), i, bar, plan.arc);
     if (next) void saveCue(withSpec(spec, { sections: next }));
   };
   return (

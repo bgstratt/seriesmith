@@ -167,6 +167,55 @@ export function moveEdge(sections: CueSection[], i: number, bar: number): CueSec
   return out;
 }
 
+/** The sections with the plan's energies where they give none (the server's: 3, or the arc's), so a split or a merge keeps what plays. */
+export function withEnergies(sections: CueSection[], planned: { from?: number; to?: number }[]): CueSection[] {
+  return sections.map((s, i) => ({ ...s, from: s.from ?? planned[i]?.from, to: s.to ?? planned[i]?.to }));
+}
+
+/** The section bar `bar` (0-based) is in, the last for one past the end. */
+export function sectionAt(sections: { bars?: number }[], bar: number): number {
+  const edges = sectionEdges(sections.map((s) => ({ bars: s.bars ?? 1 })));
+  const b = Math.max(0, Math.floor(bar));
+  const i = edges.findIndex((e, k) => k > 0 && b < e);
+  return i < 0 ? sections.length - 1 : i - 1;
+}
+
+/**
+ * Where a double-click `x` px from the first bar line splits: the bar line
+ * nearest it and the section it's inside. Null on an edge or the cue's ends.
+ */
+export function splitPoint(sections: { bars?: number }[], x: number, barPx: number): { i: number; bar: number } | null {
+  const edges = sectionEdges(sections.map((s) => ({ bars: s.bars ?? 1 })));
+  const bar = Math.round(x / Math.max(1e-6, barPx));
+  if (edges.includes(bar) || bar <= 0 || bar >= edges[edges.length - 1]) return null;
+  return { i: sectionAt(sections, bar), bar };
+}
+
+/** A name for a section split off `name`: its stem and the first numeral none of the sections has ("build 2", then "build 3"). */
+export function nextSectionName(sections: { name?: string }[], name: string): string {
+  const stem = (name.replace(/\s+\d+$/, "") || name).slice(0, 36);
+  const taken = new Set(sections.map((s) => s.name));
+  let n = 2;
+  while (taken.has(`${stem} ${n}`)) n++;
+  return `${stem} ${n}`;
+}
+
+/**
+ * Sections `i` and `i + 1` as one: the first's name and words (the second's
+ * words when it has none), their bars summed, energy from the first's start to
+ * the second's end, lyrics one after the other. Null when there's no next.
+ */
+export function mergeSections(sections: CueSection[], i: number): CueSection[] | null {
+  const a = sections[i];
+  const b = sections[i + 1];
+  if (!a || !b) return null;
+  const lyrics = [a.lyrics, b.lyrics].filter((x) => x && x.trim()).join("\n");
+  const one = asSpec({
+    ...a, bars: (a.bars ?? 1) + (b.bars ?? 1), words: a.words || b.words, from: a.from, to: b.to ?? a.to, lyrics,
+  } as CueSection);
+  return [...sections.slice(0, i), one, ...sections.slice(i + 2)];
+}
+
 /** One section changed (fields set to "" or null are dropped). */
 export function patchSection(sections: CueSection[], i: number, patch: Partial<CueSection>): CueSection[] {
   return sections.map((s, k) => (k === i ? asSpec({ ...s, ...patch } as CueSection) : s));
@@ -557,7 +606,7 @@ export function splitSection(sections: CueSection[], i: number, bar: number, arc
   const s = sections[i];
   const at = clampLevel(arc[bar] ?? s.to ?? 3);
   const first = asSpec({ ...s, bars: bar - edges[i], to: at });
-  const second = asSpec({ ...s, name: `${s.name} 2`.slice(0, 40), bars: edges[i + 1] - bar, from: at });
+  const second = asSpec({ ...s, name: nextSectionName(sections, s.name), bars: edges[i + 1] - bar, from: at });
   return [...sections.slice(0, i), first, second, ...sections.slice(i + 1)];
 }
 

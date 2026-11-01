@@ -357,6 +357,9 @@ Each phase is tested live on local ComfyUI before the next starts.
          (2026-11-01; the backend: the spec's `orchestra` folded into the sections' words, and
          `cue.comp` / `POST /seriesmith/cue/comp`; the editor: the grid painted into
          `orchestra`, bars of a take selected, comped, or lowered on the cue's mix item)
+   - [x] sections added and removed on the Score tab (2026-11-01; `CueWindow.tsx`, `lib/cue.ts`:
+         a double-click on the Sections lane splits the section there at the nearest bar line;
+         its menu splits, merges with a neighbour, edits, or resets them from the hits)
    - [ ] Repaint, once it's measured (Fixing part of a take)
 3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
    looped; the three candidates compared.

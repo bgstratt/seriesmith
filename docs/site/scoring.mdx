@@ -90,7 +90,16 @@ The **Score** tab is the cue on one bar grid, top to bottom:
   solo; or **Other…**, your own; ACE-Step hears it as the section's tag, Stable Audio doesn't
   hear names), **words** (what plays: "strings enter, timpani roll"), and
   its energy **from** and **to** (1 sparse … 5 fortissimo). With no sections given, they're worked
-  out from the hits (a build into an arrive, quiet after a drop).
+  out from the hits (a build into an arrive, quiet after a drop); a cue with no arrive, drop or
+  turn hit starts as one section over all its bars.
+  - **Add one**: **double-click** the lane where it should start. The section there splits at
+    the nearest bar line, both halves keeping its words and energies, the second named after it
+    ("build 2"); rename it in the inspector.
+  - **Remove one**: **right-click** it, **Merge with previous** or **Merge with next**. The
+    earlier one's name and words stay, with the bars of both.
+  - The right-click menu also has **Split at bar N** (where you clicked), **Edit**, and **Reset
+    sections from the hits**, which clears your sections (it asks first: their names and words
+    go) so they're worked out from the hits again.
 - **Intensity**: the arc, the energy you want bar by bar (green). Drag its points, double-click
   to add one, right-click to remove one. A drawn arc **sets the sections' energies**, so what the
   model is told follows it.
@@ -191,6 +200,9 @@ tempo still fits).
 | Music to stop for a joke | a drop hit, and end the cue there |
 | A swell | an arc rising to 5 into an arrive hit |
 | A different feel bar by bar | Orchestration's grid, or sections with their own words |
+| Another section | double-click the Sections lane where it starts |
+| One section fewer | right-click it: Merge with previous / next |
+| The sections from the hits again | right-click a section: Reset sections from the hits |
 | It's too loud | the Music fader (it starts at -12), or volume points |
 | Most of a take is right | Comp the bad bars from another take |
 | A song | Kind: Song; lyrics on its sections |
