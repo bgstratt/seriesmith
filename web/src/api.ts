@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  DubSources, ShotSound,
+  DubSources, ShotSound, Mix, MixResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -162,6 +162,10 @@ export interface Api {
   discard(take: TakeRef): Promise<DiscardResult>;
   pick(req: PickRequest): Promise<{ cut: CutFile }>;
   putCut(ep: string, pass: Pass, entries: CutEntry[]): Promise<{ cut: CutFile }>;
+  /** GET /seriesmith/mix: the pass's mix, the series config's sound defaults under it, and the defaults. */
+  getMix(ep: string, pass: Pass): Promise<MixResult>;
+  /** PUT /seriesmith/mix: replace the pass's mix; answers it as stored (defaults dropped). */
+  putMix(ep: string, pass: Pass, mix: Mix): Promise<{ mix: Mix }>;
   /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
@@ -367,6 +371,14 @@ export interface RefDefaultFields {
   keyframe_target?: string | null;
   voice_target?: string | null;
 }
+
+/** mix.py's defaults, for a server that answers without them. */
+export const MIX_DEFAULTS: MixResult["defaults"] = {
+  tracks: ["dialogue", "effects", "ambience", "music"],
+  duck_db: { effects: 0, ambience: -6, music: -9 },
+  duck: { threshold_db: -45, attack_ms: 60, release_ms: 450 },
+  loudness: { target_lufs: -16, true_peak_db: -1 },
+};
 
 /** Phase 9d: POST /seriesmith/audio/import as multipart/form-data. */
 export interface ClipAudioUploadRequest {
@@ -574,6 +586,11 @@ export function createHttpApi(t: Transport): Api {
     discard: ({ ep, pass, shot, take }) => call("POST", "/seriesmith/discard", { ep, shot, take, pass }),
     pick: (req) => call("PUT", "/seriesmith/pick", req),
     putCut: (ep, pass, entries) => call("PUT", "/seriesmith/cut", { ep, pass, entries }),
+    getMix: async (ep, pass) => {
+      const r = await get<Partial<MixResult>>(`/seriesmith/mix?${qs({ ep, pass })}`);
+      return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) } };
+    },
+    putMix: (ep, pass, mix) => call("PUT", "/seriesmith/mix", { ep, pass, mix }),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {

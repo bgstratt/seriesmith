@@ -3,7 +3,7 @@
 // snapshot of the whole list, so undoing it later doesn't also undo a pick or a
 // render that happened since. Undo and redo are each one PUT /seriesmith/cut.
 
-import type { CutEntry } from "../types";
+import type { CutEntry, Mix } from "../types";
 import { sameAudio } from "./audioSource";
 import { sameColor } from "./color";
 import { JOIN_KEYS, applyOrder, fieldsOf, withFields, type CutFields } from "./cutEdit";
@@ -14,6 +14,9 @@ export interface CutEdit {
   order: { before: string[]; after: string[] } | null;
   /** the shots whose trims / lock / audio source / out / flag it changed */
   fields: Record<string, { before: CutFields; after: CutFields }>;
+  /** a mix edit (the sound lanes) on the same stack, so Ctrl+Z undoes either in
+   * the order they were made: the pass's whole mix before and after */
+  mix?: { before: Mix; after: Mix };
 }
 
 const sameFields = (a: CutFields, b: CutFields) =>

@@ -2420,3 +2420,96 @@ export interface PromoteResult {
   hashes: PromoteHashes;
   build: BuildResult | null;
 }
+
+// ---------------------------------------------------------------------------
+// the episode's mix (docs/SOUND.md; seriesmith/mix.py's docstring has the shape)
+// ---------------------------------------------------------------------------
+
+export type MixTrack = "dialogue" | "effects" | "ambience" | "music";
+
+/** A shot and a frame of its take at the cut's rate, counted from the take's
+ * first frame before any trim: a trim or a reorder moves it with its shot. */
+export interface Anchor {
+  shot: string;
+  frame: number;
+}
+
+/** A track's fader (dB), mute, solo, and how far it dips under speech (not dialogue). */
+export interface MixTrackSettings {
+  gain_db?: number;
+  mute?: boolean;
+  solo?: boolean;
+  duck_db?: number;
+}
+
+/** A volume breakpoint: dB at an anchor (linear between, held beyond the ends). */
+export interface MixPoint {
+  at: Anchor;
+  db: number;
+}
+
+/** A file on a track: plays `path` from `offset` seconds into it, from `in` to
+ * `out` (none: until the file ends). Defaults are left out, as mix.json keeps it. */
+export interface MixItem {
+  id: string;
+  track: MixTrack;
+  /** relative to the episode, "/" separators */
+  path: string;
+  in: Anchor;
+  out?: Anchor | null;
+  offset?: number;
+  gain_db?: number;
+  /** frames */
+  fade_in?: number;
+  fade_out?: number;
+  points?: MixPoint[];
+  loop?: boolean;
+  label?: string;
+}
+
+/** What a hit asks of the music: a sting or downbeat on the frame (accent, the
+ * default), the peak arriving there, the music cutting out or thinning, a turn. */
+export type HitKind = "accent" | "arrive" | "drop" | "turn";
+
+/** A named anchor ("the door bursts") a cue can land on. */
+export interface MixHit {
+  id: string;
+  name?: string;
+  at: Anchor;
+  /** absent: accent */
+  kind?: HitKind;
+  /** only false is stored: it may miss when one tempo can't land every hit */
+  must?: boolean;
+}
+
+/** A stretch that changes the ducking (score forward, a deeper dip). */
+export interface MixRegion {
+  from: Anchor;
+  to: Anchor;
+  music_duck_db?: number;
+  ambience_duck_db?: number;
+  dialogue_db?: number;
+}
+
+/** One pass's mix, as mix.json holds it ({} for none). */
+export interface Mix {
+  tracks?: Partial<Record<MixTrack, MixTrackSettings>>;
+  items?: MixItem[];
+  hits?: MixHit[];
+  regions?: MixRegion[];
+  duck?: { threshold_db?: number; attack_ms?: number; release_ms?: number };
+  loudness?: { target_lufs?: number; true_peak_db?: number };
+}
+
+/** GET /seriesmith/mix */
+export interface MixResult {
+  mix: Mix;
+  /** the series config's `sound` defaults the mix sits on */
+  series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
+  defaults: {
+    tracks: MixTrack[];
+    duck_db: Partial<Record<MixTrack, number>>;
+    duck: { threshold_db: number; attack_ms: number; release_ms: number };
+    loudness: { target_lufs: number; true_peak_db: number };
+  };
+}

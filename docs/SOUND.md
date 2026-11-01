@@ -281,7 +281,10 @@ Each phase is tested live on local ComfyUI before the next starts.
    any model: a music file, a recorded room tone.
    - [x] `seriesmith/mix.py`, assemble's mix and stems (`--no-mix`), the XML's tracks,
          `GET` / `PUT /seriesmith/mix` (2026-11-01; tests/test_mix.py)
-   - [ ] the editor's lanes, faders and items; Play all hearing the mix
+   - [x] the editor's lanes, faders and items; Play all hearing the mix (2026-11-01;
+         `web/src/lib/mix.ts`, `components/SoundLanes.tsx`, `MixAudio.ts`; the preview
+         doesn't duck yet, nor follow `points`; points and regions aren't drawn yet, and
+         are kept as they are)
    - [ ] docs/API.md, COMMANDS.md and the user docs
 2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
    the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape

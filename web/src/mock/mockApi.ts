@@ -25,6 +25,8 @@ import fixturesRaw from "./fixtures.json?raw";
 import { FsError, browse as fsBrowse, fsExists, fsFileExists } from "./mockFs";
 import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindow } from "./mockAudio";
 import { AlignError, createMockAlign } from "./mockTrack";
+import { MIX_DEFAULTS } from "../api";
+import { MixError, checkMix } from "./mockMix";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
 import { RefError, createMockRefs } from "./mockRefs";
 import { svgImage, type KeyframeNeedSpec } from "./mockRefs";
@@ -99,6 +101,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   const status: Partial<Record<Pass, EpisodeStatus>> = clone(fx.status);
   const detail: Partial<Record<Pass, Record<string, ShotDetail>>> = clone(fx.detail);
   const cut: Record<Pass, CutEntry[]> = { final: [], proxy: [] };
+  /** mix.json: one mix per pass */
+  const mixes: Record<Pass, import("../types").Mix> = { final: {}, proxy: {} };
   const media = opts.mediaBase ?? "/mock/media/";
   /** a simulated take's files -> the real file it borrows */
   const alias = new Map<string, string>();
@@ -1164,6 +1168,25 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       recut(pass);
       emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
+    },
+    async getMix(ep, pass) {
+      await wait();
+      need(ep);
+      return { mix: clone(mixes[pass] ?? {}), series: {}, defaults: clone(MIX_DEFAULTS) };
+    },
+    async putMix(ep, pass, mix) {
+      await wait();
+      need(ep);
+      if (pass !== "final" && pass !== "proxy") throw new MockError(`pass must be final or proxy`, 400);
+      const checked = checkMix(mix);
+      for (const it of checked.items ?? []) {
+        if (/^([\\/]|[a-zA-Z]:)/.test(it.path) || it.path.split("/").includes("..")) throw new MockError(`${it.path} is outside the episode`, 400);
+        if (mediaSeconds(it.path) == null) throw new MockError(`No such file: ${it.path}`, 404);
+      }
+      const changed = JSON.stringify(checked) !== JSON.stringify(mixes[pass]);
+      mixes[pass] = checked;
+      if (changed) emit("seriesmith.episode", { ep: EP });
+      return { mix: clone(checked) };
     },
     async cutReset(ep, pass, what) {
       await wait();
@@ -2242,7 +2265,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         if (e instanceof MockError) throw new ApiError(e.message, e.status, `/mock/${k}`, e.data);
         // an align 409 carries what is missing, as the route does
         if (e instanceof AlignError) throw new ApiError(e.message, e.status, `/mock/${k}`, e.data ? { error: e.message, ...(e.data as object) } : undefined);
-        if (e instanceof FsError || e instanceof RefError || e instanceof CutError) throw new ApiError(e.message, e.status, `/mock/${k}`);
+        if (e instanceof FsError || e instanceof RefError || e instanceof CutError || e instanceof MixError) throw new ApiError(e.message, e.status, `/mock/${k}`);
         throw e;
       }
     };

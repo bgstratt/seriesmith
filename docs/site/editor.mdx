@@ -1252,6 +1252,36 @@ Setting a shot's keyframe from its neighbour is how you make a cut continuous: u
 menu's **Use this frame as the next shot's first frame** on the take you like, and the
 next shot starts where this one ended.
 
+### Sound: the episode's mix
+
+**Sound** in the timeline's header unfolds the lanes under the clips (remembered, like the
+waveforms): a thin **hits** lane, then **Dialogue**, **Effects**, **Ambience** and **Music**.
+They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
++12; double-click: 0), **M** (mute) and **S** (solo: hear only the soloed lanes). Dialogue shows
+each clip's own sound; the other lanes start empty. The mix is the pass's own (`mix.json`
+beside `cut.json`), and assemble renders it into the export,
+with stems beside it.
+
+- **Drop a sound file** (wav, mp3, flac, ogg, m4a…) from your computer onto a lane: it's
+  copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
+- **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head
+  keeps the sound where it was, as a clip's trim does); **Esc** cancels. **Right-click** it
+  for its gain (dB), fades in and out (frames), loop, label, or Delete.
+- **Hits** are the moments a cue lands on ("the door bursts"). **+** adds one at the Play all
+  playhead, a **double-click** on the hits lane adds one there; drag it to move it,
+  right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the
+  marker's colour) and whether it must land.
+- Everything on the lanes is anchored to **a shot and a frame of its take**, not to a time: a
+  trim or a reorder carries it with its shot, so a hit stays on its action. Moving a block
+  re-anchors it to the shot it now starts in. An item whose shot leaves the cut drops out
+  of the mix (said so on export).
+- Each change is saved at once and is one step of the timeline's undo (`Ctrl+Z` undoes cut
+  and mix edits in the order you made them).
+- **Play all plays the mix**: every item at its gain and fades, each lane at its fader, mute
+  and solo; the dialogue fader turns the clips' own sound down (not up: a video plays at
+  most at its own level). The preview doesn't duck the music and ambience under speech, and
+  doesn't follow an item's volume points; the export does both.
+
 ### Finishing: upscale, post, master
 
 A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the
@@ -1280,7 +1310,7 @@ These work while the timeline or Play all has focus, and never while you are typ
 | `M` | Flag or unflag the clip to come back to (the one on screen in Play all) |
 | `Shift+M` | Go to the next flagged clip |
 | `Alt+←` `Alt+→` | Move the selected clip in the cut |
-| `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut |
+| `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut (and the mix) |
 | `Ctrl + wheel` | Zoom the track |
 | `←` `→` | Step candidates, in the Viewer |
 | `,` `.` | Step a frame back / forward, in the Viewer |

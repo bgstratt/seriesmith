@@ -18,6 +18,9 @@ import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
+import { trackGains } from "../lib/mix";
+import { currentMix } from "../mixActions";
+import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
 import { HoldUseBar } from "./TourSection";
 import { shotTarget, takeTargetBadge, targetLabel } from "../lib/targets";
@@ -526,6 +529,13 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const sync = useMemo(() => masterSync(items, fps, baseIn(st), anyOutOfOrder(st)), [items, fps, st]);
   const recStart = useRef(sync.start);
   recStart.current = sync.start;
+  // the episode's mix under the cut (effects, ambience, music), on its clock
+  useMixAudio(ep, items, fps);
+  // the dialogue fader, mute and solo on the clips' own sound and the recording
+  const dialogue = useApp((s) => Math.min(1, trackGains(currentMix(s)).dialogue));
+  useEffect(() => {
+    for (const el of [v0.current, v1.current, au.current]) if (el) el.volume = dialogue;
+  }, [dialogue, track]);
 
   const els = (): [HTMLVideoElement | null, HTMLVideoElement | null] => [v0.current, v1.current];
   /** forwards at 1x, 2x or 4x (the <video> plays); backwards is stepped here */

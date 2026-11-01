@@ -9,6 +9,7 @@ import { mockPipInstall, mockPipRemove } from "./mock/mockTrack";
 import { mountOverlay, mountSurface } from "./surfaces";
 import * as actions from "./actions";
 import * as cut from "./cutActions";
+import * as mix from "./mixActions";
 import { store } from "./store";
 
 const listeners = new Map<HostEvent, Set<(d: unknown) => void>>();
@@ -62,7 +63,7 @@ void start();
 (window as unknown as { h3mockPipRemove: typeof mockPipRemove }).h3mockPipRemove = mockPipRemove;
 (window as unknown as { h3mockUnalign: typeof mock.unalign }).h3mockUnalign = mock.unalign;
 
-// Phase 9b: the store and the cut's actions, for poking at the timeline from the console (and headless checks)
-(window as unknown as { h3dev: unknown }).h3dev = { store, cut, actions };
+// Phase 9b: the store and the cut's (and the mix's) actions, for poking at the timeline from the console (and headless checks)
+(window as unknown as { h3dev: unknown }).h3dev = { store, cut, actions, mix };
 
 document.getElementById("theme")?.addEventListener("click", () => document.documentElement.classList.toggle("light"));

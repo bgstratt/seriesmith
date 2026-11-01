@@ -9,7 +9,7 @@ import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
-  Issue, MasterJob, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
+  Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
   TargetList, PresetList } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -434,6 +434,11 @@ export interface AppState {
   waves: boolean;
   /** Phase 13: the viewer and Play all show each take's fresh upscale (2x) where it has one */
   upscaled: boolean;
+  /** the timeline's sound lanes (hits, dialogue, effects, ambience, music) are unfolded */
+  sound: boolean;
+  /** GET /seriesmith/mix of the pass open, by statusKey (fetched with its status) */
+  mix: Record<string, MixResult>;
+  mixError: Record<string, string>;
   /** Phase 9b: what Ctrl+Z / Ctrl+Shift+Z would undo / redo, by statusKey */
   cutUndo: Record<string, { undo: string | null; redo: string | null }>;
   /** Phase 9b: the timeline's Cut menu, open at (x, y) */
@@ -602,6 +607,9 @@ export function initialState(prefs: Prefs = {}): AppState {
     soundAsk: null,
     waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
+    sound: prefs.sound ?? false,
+    mix: {},
+    mixError: {},
     cutUndo: {},
     cutMenu: null,
     exportMenu: null,
@@ -678,6 +686,8 @@ export interface Prefs {
   waves?: boolean;
   /** Phase 13: play upscales (the viewer's and Play all's 2x) */
   upscaled?: boolean;
+  /** the timeline's sound lanes unfolded */
+  sound?: boolean;
 }
 
 type KV = Pick<Storage, "getItem" | "setItem">;
@@ -701,16 +711,18 @@ export function loadPrefs(storage: KV | null = defaultStorage()): Prefs {
       zoom: typeof p.zoom === "number" ? p.zoom : undefined,
       waves: typeof p.waves === "boolean" ? p.waves : undefined,
       upscaled: typeof p.upscaled === "boolean" ? p.upscaled : undefined,
+      sound: typeof p.sound === "boolean" ? p.sound : undefined,
     };
   } catch {
     return {};
   }
 }
 
-export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: boolean; upscaled?: boolean }, storage: KV | null = defaultStorage()) {
+export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: boolean; upscaled?: boolean; sound?: boolean }, storage: KV | null = defaultStorage()) {
   try {
     storage?.setItem(PREFS_KEY, JSON.stringify({ ep: s.ep, pass: s.pass, zoom: s.zoom, ...(s.waves != null ? { waves: s.waves } : {}),
-                                               ...(s.upscaled != null ? { upscaled: s.upscaled } : {}) }));
+                                               ...(s.upscaled != null ? { upscaled: s.upscaled } : {}),
+                                               ...(s.sound != null ? { sound: s.sound } : {}) }));
   } catch {
     /* private window or blocked storage: not remembering is fine */
   }
@@ -718,12 +730,12 @@ export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: 
 
 /** Save prefs whenever they change. Returns the unsubscribe. */
 export function persistPrefs(st: Store<AppState>, storage: KV | null = defaultStorage()): () => void {
-  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, waves: st.get().waves, upscaled: st.get().upscaled };
+  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, waves: st.get().waves, upscaled: st.get().upscaled, sound: st.get().sound };
   return st.subscribe(() => {
     const s = st.get();
     if (s.ep !== last.ep || s.pass !== last.pass || s.zoom !== last.zoom || s.waves !== last.waves
-        || s.upscaled !== last.upscaled) {
-      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, waves: s.waves, upscaled: s.upscaled };
+        || s.upscaled !== last.upscaled || s.sound !== last.sound) {
+      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, waves: s.waves, upscaled: s.upscaled, sound: s.sound };
       savePrefs(last, storage);
     }
   });

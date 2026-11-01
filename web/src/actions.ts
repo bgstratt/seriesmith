@@ -662,6 +662,14 @@ export function setStatusHook(h: StatusHook | null) {
   statusHook = h;
 }
 
+/** Called after each status a refresh brings (the mix is fetched with its pass's status). */
+const statusLoaded = new Set<(ep: string, pass: Pass) => void>();
+
+export function onStatusLoaded(fn: (ep: string, pass: Pass) => void): () => void {
+  statusLoaded.add(fn);
+  return () => void statusLoaded.delete(fn);
+}
+
 export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<EpisodeStatus | undefined> {
   if (!ep) return Promise.resolve(undefined);
   const key = statusKey(ep, pass);
@@ -695,6 +703,7 @@ export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<Episod
       else shownPicks.delete(key);
       for (const p of picks) layPick(key, pass, p.shot, p.take);
       void afterStatus(ep, pass, st);
+      statusLoaded.forEach((f) => f(ep, pass));
       return st;
     } catch (e) {
       set((s) => ({ statusError: { ...s.statusError, [key]: errText(e) } }));
