@@ -464,6 +464,13 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             pts += [(t + 0.01, s["from"]), (t + s["bars"] * bar - 0.01, s["to"])]
             t += s["bars"] * bar
     arc = _arc_per_bar(pts, bars, bar, -preroll) if pts else [3.0] * bars
+    if spec.get("arc"):
+        # a drawn arc is the intent: each section's energies (and so its words) are the arc's
+        # at its first and last bar, whatever the section says
+        b0 = 0
+        for sec in sections:
+            sec["from"], sec["to"] = round(arc[b0] * 2) / 2, round(arc[b0 + sec["bars"] - 1] * 2) / 2
+            b0 += sec["bars"]
     target = TG.load_target(model_for(spec, series))
     direction = ((series.get("sound") or {}).get("score") or "").strip()
     style = ", ".join(x for x in (direction.rstrip("."), spec.get("style", "")) if x)

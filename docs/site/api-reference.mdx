@@ -707,6 +707,10 @@ any take, its sidecar's `comp` `{base, from, bars}` saying what it was made of. 
 `{"take"}`; 409 for a take that isn't finished or bars outside the cue (or past the end of
 either take).
 
+A spec's `arc` points, when it has any, are the intent: each section's `from` / `to` (and so the
+energy words the model hears) are the arc's at its first and last bar, whatever the section
+says.
+
 A spec's `orchestra` is the Orchestration grid: `{family: [level per bar]}`, 0 off, 1 under,
 2 present, 3 lead (a family off throughout is dropped). The plan folds each section's bars into
 its words, strongest first ("strings lead, solo horn present, timpani under"), after the

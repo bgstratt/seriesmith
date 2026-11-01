@@ -189,6 +189,17 @@ class PlanTest(unittest.TestCase):
         with self.assertRaises(CU.CueError):
             CU.check_spec(self.spec(orchestra={"brass": [4]}))
 
+    def test_a_drawn_arc_sets_the_sections_energies(self):
+        # the sections say 3 throughout; the arc rises from 1 to 5 over the cue
+        p0 = CU.plan(self.root, "final", self.spec(sections=[{"name": "a", "bars": 2, "from": 3},
+                                                             {"name": "b", "from": 3}]), {})
+        spec = self.spec(sections=[{"name": "a", "bars": 2, "from": 3}, {"name": "b", "from": 3}],
+                         arc=[{"at": anchor("sh010"), "level": 1}, {"at": anchor("sh030", 120), "level": 5}])
+        p = CU.plan(self.root, "final", spec, {})
+        self.assertLess(p["sections"][0]["from"], 2)
+        self.assertGreater(p["sections"][1]["to"], 4)
+        self.assertNotEqual(p["prompt"]["prompt"], p0["prompt"]["prompt"])   # the words follow
+
     def test_anchor_not_in_the_cut(self):
         with self.assertRaises(CU.CueError):
             CU.plan(self.root, "final", CU.check_spec(
