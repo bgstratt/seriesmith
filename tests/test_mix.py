@@ -77,11 +77,22 @@ class CheckTest(unittest.TestCase):
             {"regions": [{"from": anchor("sh010"), "to": anchor("sh020"), "music_duck_db": 3}]},
             {"loudness": {"target_lufs": -60}},
             {"hits": [{"id": "has space", "at": anchor("sh010")}]},
+            {"hits": [{"id": "h1", "at": anchor("sh010"), "kind": "swell"}]},
+            {"hits": [{"id": "h1", "at": anchor("sh010"), "must": "yes"}]},
             {"sidechain": True},
         ]
         for raw in bad:
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 MX.check(raw)
+
+    def test_hit_kinds(self):
+        got = MX.check({"hits": [
+            {"id": "h1", "at": anchor("sh010"), "kind": "accent", "must": True},
+            {"id": "h2", "at": anchor("sh020", 4), "kind": "drop", "must": False, "name": "silence"}]})
+        self.assertEqual(got["hits"], [
+            {"id": "h1", "at": {"shot": "sh010", "frame": 0}},
+            {"id": "h2", "at": {"shot": "sh020", "frame": 4}, "name": "silence", "kind": "drop",
+             "must": False}])
 
     def test_paths_use_slashes(self):
         got = MX.check({"items": [self.item(path="sound\\m01\\t01.wav")]})

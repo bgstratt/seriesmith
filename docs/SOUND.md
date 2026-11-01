@@ -89,6 +89,105 @@ chosen so the hits fall on bar lines.
   shifted so the main hit lands. Either way it is marked stale, with what was done; a change
   too big to fit is stale and plays as it was.
 
+## The cue window: what happens inside a cue
+
+The timeline decides where a cue sits against the picture; the cue window decides what
+happens inside it, as the timeline and a shot's form split a shot. A cue has enough inner
+structure (bars, sections, an arc, who plays) that it needs a time-based view, not a stacked
+form. It opens in the main pane (where a take plays) on a double-click of a cue's block, with
+the episode picker as everywhere else, and has three tabs on one bar grid:
+
+- **Score** (the main view): a picture strip (the cue's span, its pre-roll and tail), the hits
+  lane (each hit's bar and beat), the bar ruler at the cue's tempo and meter, the **sections**
+  as blocks whose edges snap to bars, the **intensity** lane (the arc), the orchestra rows,
+  and the takes. An inspector on the right edits the selected section: energy from and to
+  (1-5), its shape (rising, steady, falling, swell), its instruments, direction text
+  (prefilled from the series' score direction and the script's `music:` notes in the span),
+  and the exact line ACE-Step will get for it, editable.
+- **Arc**: the intensity lane large, to draw first: preset shapes (slow burn, build and
+  release, sting, pulse, the script's `music:` notes), draw / points / smooth, **snap peaks to
+  hits**. The sections are worked out from it: each peak or low becomes a section boundary at
+  the nearest bar, so "the climax lands on the reveal" is structure, not a hope. A readout
+  says what the model will hear, and flags detail it can't follow (a dip inside a section:
+  split the section to keep it).
+- **Orchestration & takes**: a grid of instrument families by bar, painted off / under /
+  present / lead, which become each section's instrument tags; then the takes stacked, each
+  its waveform, its measured loudness per bar over the arc drawn, each hit's error in frames
+  (orange when it misses), its tempo. Selecting bars of a take offers the fixes: **repaint**
+  those bars, **comp** them from another take (spliced at bar lines: same tempo and grid), or
+  **lower them with breakpoints** (a mix fix, in `mix.json`).
+
+**The spotting sheet** is one level up: the episode's view, where cues are placed before they
+are shaped (the way a composer spots a film). A large viewer with frame stepping and jump to
+hit; the episode's **music map**, every cue, song, bed and hit across the sequences (Music /
+Ambience / Effects); **+ Hit at playhead**; and for the selected cue a table of its hits:
+kind, anchor, cut timecode, the bar and beat it lands on, must, and each take's error in
+frames; the script's `music:` notes, the series' direction and its leitmotif reference
+(a cue or theme from the gallery, as ACE-Step's timbre reference and YuE2's melody), and how
+the tempo was fitted, with the nearest alternatives. Render stale cues from there.
+
+**The timeline** stays the simple view: each lane's waveform and fader, the items, the hit
+markers coloured by kind, and the cue's arc drawn faintly over its block, for reference.
+
+### Hit kinds
+
+A hit's `kind` tells the section builder and the prompt writer what to do (mix.py stores it):
+**accent** (a sting or downbeat on the frame; the default), **arrive** (the peak lands here, so
+the section before it builds), **drop** (the music cuts out or thins: often the strongest cue,
+silence before a reveal), **turn** (a change of key or mood: a new section, new instruments).
+`must: false` lets a hit miss when one tempo can't land them all.
+
+### From an arc to words
+
+ACE-Step takes tags, structure tags with text, a bpm and a length; it can't follow a curve. The
+turning of the arc into words is shown, not hidden:
+
+- The arc's peaks and lows (and the hits that `arrive`, `drop` or `turn`) become section
+  boundaries, snapped to bars.
+- Each section's stretch of the arc becomes a **level** (1-5: sparse, quiet, moderate, full,
+  full orchestra fortissimo) and a **direction** (rising, steady, falling: building,
+  sustained, receding): `[build 6 bars, strings enter, french horn, timpani roll, rising from
+  quiet to strong, building]`.
+- The tags line: the series' direction, the cue's own, tempo, meter, key and length.
+- Detail finer than a section is not honoured; the window says so where it sees it.
+
+### Two curves, kept apart
+
+| | The arc (intent) | Gain breakpoints |
+|---|---|---|
+| Lives in | the cue window | the timeline lane |
+| Stored in | the cue's spec, `sound/<cue>/` | `mix.json` |
+| Changes | the prompt: a re-render | the level: at once |
+| Unit | energy 1-5 | dB |
+
+Drawn in different colours, so a crescendo drawn with gain (the strings never enter) isn't
+mistaken for one composed.
+
+### A cue's files
+
+`<ep>/sound/<cue id>/spec.json`: the model, tempo (auto from the hits, or fixed), meter, key,
+seed, pre-roll and tail, the arc's points (each anchored to a shot and frame, like everything
+else, with its level), section overrides (edges, text, instruments), the orchestration grid,
+the hits it lands. Sections in bars are derived from the arc and the hits when the prompt is
+written, so a trim inside the span makes the cue stale rather than leaving a section in the
+wrong place. Its takes are `tNN.wav` with a sidecar each: the tempo and downbeats measured,
+each hit's error, the loudness per bar and the shape error against the arc, what it was asked.
+
+### Checking a take against the arc
+
+Beside the beats (an onset envelope), a take's **loudness per bar** (short-term LUFS) is
+measured and laid over the arc: its **shape error** sits beside its hit error, so a take is
+picked for landing the hits and following the arc. That comparison is the strongest reason the
+window exists; on a folded timeline lane it can't be read.
+
+### Fixing part of a take
+
+ComfyUI's ACE-Step 1.5 nodes have no repaint or extend (checked 2026-11-01, ComfyUI 0.43). It
+can likely be done as `targets/held_audio.py` holds sound for LTX: the take encoded
+(`VAEEncodeAudio`), the bars to keep masked out (`SetLatentNoiseMask`), the rest sampled
+again. Measure it before the window offers Repaint; comping from another take at bar lines
+works without it.
+
 ## Mixing: rules, not a console
 
 - **Faders** per track (dB) and mute / solo; **gain** per item (dB); **fades** in and out;
@@ -131,11 +230,9 @@ chosen so the hits fall on bar lines.
   and trim, their breakpoints as points on a line. The hit lane sits above them. Playback mixes
   the lanes live (Web Audio: a gain node per track and item, the duck curve as gain
   automation).
-- **A form per item**, as a shot has one: for a cue, the model, the style (prefilled from the
-  series' score direction), lyrics (songs), tempo (auto from the hits, or fixed), key, time
-  signature, the sections (from the hits, editable), the hits it lands, length, seed; its takes
-  with waveforms, each hit's error, pick; Fit to cut. An ambience bed's form is its location's
-  ambience; an effects item's is on the shot's Sound card ("Effects: from the take").
+- **A cue opens in the cue window** (above), not a form. A song is a cue with lyrics on its
+  sections (YuE2). An ambience bed's form is its location's ambience; an effects item's is on
+  the shot's Sound card ("Effects: from the take").
 - **Import a file** onto any lane (your own music, a recorded room tone), and a cue or bed from
   the gallery.
 
@@ -186,8 +283,15 @@ Each phase is tested live on local ComfyUI before the next starts.
          `GET` / `PUT /seriesmith/mix` (2026-11-01; tests/test_mix.py)
    - [ ] the editor's lanes, faders and items; Play all hearing the mix
    - [ ] docs/API.md, COMMANDS.md and the user docs
-2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; the cue form,
-   takes, hits -> tempo and sections, beat checking, refit and stale.
+2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
+   the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape
+   checking; refit and stale. Then the windows, in this order:
+   - [ ] measure first: whether energy words move ACE-Step's loudness and density (the shape
+         check on a few cues), and how well it holds a tempo and a section's length
+   - [ ] the cue window's Score tab (sections, the arc lane, takes with hit and shape errors)
+   - [ ] the spotting sheet (the music map, hits table, tempo fit)
+   - [ ] the Arc tab's drawing tools and presets
+   - [ ] Orchestration & takes: the grid; comp at bar lines; Repaint once it's measured
 3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
    looped; the three candidates compared.
 4. **Effects.** The `foley` kind; LTX-2.3 Foley (2.3 files back, or on 2.5 if it holds), H3
@@ -202,4 +306,7 @@ Each phase is tested live on local ComfyUI before the next starts.
 - How well ACE-Step holds a tempo and a section's length: measure in phase 2 before the refit
   limits are fixed.
 - Whether a cue should render longer than its span by default (more room to fit) or exact.
+- Whether energy words (sparse ... full orchestra fortissimo) move ACE-Step's loudness and
+  density reliably: measure with the shape check before building much window around them.
+- Whether a masked latent repaints bars of an ACE-Step take cleanly (Fixing part of a take).
 - LTX-2.3 Foley on 2.5: if it holds, no 2.3 files are needed.

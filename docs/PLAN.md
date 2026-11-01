@@ -1614,7 +1614,9 @@ the models found on this machine and the phases are docs/SOUND.md. ACE-Step 1.5 
 for the proxy pass, SFT for the final) downloaded as the default score model; YuE2 for songs.
 
 - [ ] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
-- [ ] Phase 2: music (`music` kind, `ace_step15`, `yue2`, cue form, hits -> tempo, refit)
+- [ ] Phase 2: music (`music` kind, `ace_step15`, `yue2`, hits -> tempo, the arc -> sections
+      -> words, refit); the cue window (Score, Arc, Orchestration & takes tabs) and the
+      episode's spotting sheet
 - [ ] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
 - [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
 - [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export

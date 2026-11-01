@@ -14,7 +14,10 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
                  {"id": "a01", "track": "ambience", "path": "sound/beds/harbour.wav",
                   "in": {"shot": "sh010", "frame": 0}, "out": {"shot": "sh030", "frame": 96},
                   "loop": true}],
-       "hits": [{"id": "h1", "name": "the door bursts", "at": {"shot": "sh030", "frame": 17}}],
+       "hits": [{"id": "h1", "name": "the door bursts", "at": {"shot": "sh030", "frame": 17},
+                 "kind": "accent"},
+                {"id": "h2", "name": "reveal", "at": {"shot": "sh060", "frame": 4},
+                 "kind": "arrive", "must": false}],
        "regions": [{"from": {"shot": "sh050", "frame": 0}, "to": {"shot": "sh060", "frame": 48},
                     "music_duck_db": 0, "dialogue_db": -4}],
        "duck": {"threshold_db": -45, "attack_ms": 60, "release_ms": 450},
@@ -28,6 +31,10 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
   counted from the take's first frame, before any trim. A trim or a reorder moves it with its
   shot, and a hit stays on the action it marks. One whose shot isn't in the cut is dropped
   with its item (and said so).
+- **A hit** is a named anchor a cue is written to land: its `kind` (accent, the default;
+  arrive, the peak lands here; drop, the music cuts out or thins; turn, a change of key or
+  mood) and whether it `must` land (the default) or may miss when one tempo can't land them
+  all.
 - **An item** plays `path` (relative to the episode) from `offset` seconds into it, from its
   `in` anchor to its `out` (none: until the file ends), at `gain_db`, faded in and out over
   `fade_in` / `fade_out` frames, its level shaped by `points` (dB at anchors, linear between,
@@ -75,6 +82,11 @@ ITEM_FIELDS = ("id", "track", "path", "in", "out", "offset", "gain_db", "fade_in
                "points", "loop", "label")
 TRACK_FIELDS = ("gain_db", "mute", "solo", "duck_db")
 REGION_FIELDS = ("from", "to", "music_duck_db", "ambience_duck_db", "dialogue_db")
+HIT_FIELDS = ("id", "name", "at", "kind", "must")
+# what a hit asks of the music (docs/SOUND.md "The cue window"): a sting or downbeat on
+# the frame, the peak arriving there, the music cutting out or thinning, a change of key
+# or mood; accent is the default
+HIT_KINDS = ("accent", "arrive", "drop", "turn")
 MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness")
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
@@ -210,8 +222,8 @@ def check(raw) -> dict:
         out["items"] = items
     hits, seen = [], set()
     for h in raw.get("hits") or []:
-        if not isinstance(h, dict) or set(h) - {"id", "name", "at"}:
-            raise ValueError("a hit is {\"id\", \"name\", \"at\"}")
+        if not isinstance(h, dict) or set(h) - set(HIT_FIELDS):
+            raise ValueError(f"a hit takes {', '.join(HIT_FIELDS)}")
         hid = _id(h.get("id"), "a hit's")
         if hid in seen:
             raise ValueError(f"two hits are called {hid}")
@@ -219,6 +231,16 @@ def check(raw) -> dict:
         hit = {"id": hid, "at": check_anchor(h.get("at"), f"hit {hid}")}
         if isinstance(h.get("name"), str) and h["name"].strip():
             hit["name"] = h["name"].strip()[:120]
+        kind = h.get("kind") or HIT_KINDS[0]
+        if kind not in HIT_KINDS:
+            raise ValueError(f"hit {hid}'s kind must be one of {', '.join(HIT_KINDS)}, "
+                             f"not {kind!r}")
+        if kind != HIT_KINDS[0]:
+            hit["kind"] = kind
+        if h.get("must") is not None and not isinstance(h["must"], bool):
+            raise ValueError(f"hit {hid}'s must is true or false")
+        if h.get("must") is False:
+            hit["must"] = False
         hits.append(hit)
     if hits:
         out["hits"] = hits
