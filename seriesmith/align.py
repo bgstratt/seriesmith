@@ -128,7 +128,9 @@ def transcribe(path: str, model: str, device: str, language: str, prompt: str) -
             try:
                 print(f"  transcribing with faster-whisper {model} on {dev} ...", flush=True)
                 wm = WhisperModel(model, device=dev, compute_type=ct)
-                segs, _ = wm.transcribe(path, language=language, word_timestamps=True,
+                # decoded here (16 kHz mono, as it wants): its own decoder opens the file
+                # with an argument PyAV 15+ dropped (faster-whisper 1.2 on PyAV 19 fails)
+                segs, _ = wm.transcribe(load_pcm(path), language=language, word_timestamps=True,
                                         initial_prompt=prompt or None, vad_filter=False,
                                         condition_on_previous_text=False)
                 words = []
