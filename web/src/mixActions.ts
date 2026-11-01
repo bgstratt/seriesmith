@@ -187,6 +187,21 @@ export async function dropOnLane(track: MixTrack, file: File, at: Anchor): Promi
   return ok;
 }
 
+/** A sound file picked from this computer onto a lane at `at` (a menu's "Add a sound file"):
+ * the file dialog, then as dropOnLane. The sound lanes are opened to show it. */
+export function pickSoundFile(track: MixTrack, at: Anchor): void {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "audio/*,.wav,.mp3,.flac,.ogg,.m4a,.aac";
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    toggleSound(true);
+    void dropOnLane(track, file, at);
+  };
+  input.click();
+}
+
 /** The anchor under the Play all playhead (null: Play all isn't open). */
 export function playheadAnchor(): Anchor | null {
   const s = get();

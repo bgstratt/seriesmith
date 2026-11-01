@@ -790,6 +790,13 @@ script call for is listed here.
   **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
   another voice model), or **Sound…** for its whole Sound card. A shot's first dub track
   comes from its Sound card or **Generate dub tracks** with shots selected.
+- **Music, Effects, Ambience** (after the dub tracks; voices and dub tracks are the dialogue's):
+  **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
+  mix; a row opens the cue window. **Effects** and **Ambience** list the files on those lanes
+  of the pass's mix, where each starts (it moves with its shot) and its level, with a button
+  to show the lanes and one to take it out of the mix (the file stays). Making effects from a
+  take and a location's ambience bed are coming; a file goes on from a shot's menu (Sound ▸
+  Add an effect / ambience from a file) or by dropping it on the lane.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
@@ -1260,6 +1267,11 @@ each clip's own sound; the other lanes start empty. The mix is the pass's own (`
 beside `cut.json`), and assemble renders it into the export,
 with stems beside it.
 
+- **Right-click a lane** for its menu (it opens above the click near the window's foot): every
+  lane can **Add a sound file here…**; Music and the hits lane make a **New cue**; Dialogue opens
+  the shot's own sound (its Sound card, Replace audio); Effects and Ambience show what will make
+  them (coming). A clip's own menu has the same under **Sound**: **New music cue…** over it (or
+  the shots selected) and **Add music / an effect / ambience from a file…** at its first frame.
 - **Drop a sound file** (wav, mp3, flac, ogg, m4a…) from your computer onto a lane: it's
   copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
 - **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head

@@ -7,6 +7,8 @@ import {
   generateDubTracks, openSound, setSound,
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
+import { newCue } from "../cueActions";
+import { pickSoundFile, toggleSound } from "../mixActions";
 import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -198,6 +200,8 @@ export function ContextMenu() {
     </Sub>
   );
 
+  // where the shot starts in the cut, as the mix anchors it: its take's first frame played
+  const clipStart = { shot: menu.shot, frame: cutShot?.cut.trim_in ?? 0 };
   const soundGroup = (
     <Sub icon="pi-volume-up" label="Sound" note={clipAudio ? "replaced" : sound ? (sound.mode === "dub" ? "dub" : sound.mode) : undefined}>
       <button disabled={!!shot?.orphan} title="How the shot's sound is made: generate, clone, or dub a track" onClick={run(() => openSound([menu.shot]))}>
@@ -236,6 +240,22 @@ export function ContextMenu() {
           <i className="pi pi-undo" /> Back to its own audio
         </button>
       )}
+      <div className="h3-menu-sep" />
+      {/* the episode's mix (docs/SOUND.md): music, effects and ambience laid over the cut from here */}
+      <button disabled={!cutShot || !!cutShot.cut.out}
+        title={multi.length > 1 && multi.includes(menu.shot)
+          ? `A cue over the ${multi.length} shots selected, in the cue window: its sections, arc and takes`
+          : `A cue over ${menu.shot}, in the cue window (select several shots for a longer one)`}
+        onClick={run(() => { toggleSound(true); void newCue(clipStart); })}>
+        <i className="pi pi-volume-up" /> New music cue{multi.length > 1 && multi.includes(menu.shot) ? ` over ${multi.length} shots` : ""}…
+      </button>
+      {(["music", "effects", "ambience"] as const).map((t) => (
+        <button key={t} disabled={!cutShot || !!cutShot.cut.out}
+          title={`A wav, mp3, flac, ogg or m4a from this computer, on the ${t} lane from ${menu.shot}'s first frame in the cut (it moves with the shot)`}
+          onClick={run(() => pickSoundFile(t, clipStart))}>
+          <i className="pi pi-upload" /> Add {t === "music" ? "music" : t === "effects" ? "an effect" : "ambience"} from a file…
+        </button>
+      ))}
     </Sub>
   );
 

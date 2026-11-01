@@ -68,6 +68,35 @@ describe("the sound lanes", () => {
     expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Mute music");
   });
 
+  it("every lane has a menu, kept on screen", async () => {
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    const lanes = [...el.querySelectorAll<HTMLElement>(".h3-snd-lane")];
+    const menuOf = async (lane: HTMLElement) => {
+      await act(async () => lane.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 790 })));
+      const m = document.querySelector<HTMLElement>(".h3-snd-pop");
+      const texts = [...(m?.querySelectorAll("button") ?? [])].map((b) => b.textContent ?? "");
+      await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+      return texts;
+    };
+    // hits, then dialogue, effects, ambience, music (happy-dom lays nothing out, so no shot
+    // is under the click: the dialogue lane's own-sound entries, which need one, aren't there)
+    expect((await menuOf(lanes[0])).some((t) => t.includes("New cue"))).toBe(true);
+    expect((await menuOf(lanes[1])).some((t) => t.includes("Add a sound file"))).toBe(true);
+    expect((await menuOf(lanes[2])).some((t) => t.includes("Add a sound file"))).toBe(true);
+    expect((await menuOf(lanes[3])).some((t) => t.includes("ambience bed"))).toBe(true);
+    const music = await menuOf(lanes[4]);
+    expect(music.some((t) => t.includes("New cue")) && music.some((t) => t.includes("Add a sound file"))).toBe(true);
+  });
+
+  it("a menu near the window's foot opens above the click", async () => {
+    const { onScreen } = await import("../src/components/SoundLanes");
+    const H = window.innerHeight;
+    expect(onScreen(100, H - 10, { width: 200, height: 150 }).top).toBe(H - 10 - 150);
+    expect(onScreen(100, 50, { width: 200, height: 150 }).top).toBe(50);
+    expect(onScreen(window.innerWidth - 20, 50, { width: 200, height: 150 }).left).toBe(window.innerWidth - 204);
+  });
+
   it("remembers whether the lanes are unfolded", () => {
     const m = new Map<string, string>();
     const kv = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };

@@ -25,9 +25,11 @@ import {
 import { binsFor } from "../lib/peaks";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import {
-  addMixHit, currentMix, deleteMixHit, deleteMixItem, dropOnLane, moveMixHit, moveMixItem, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  addMixHit, currentMix, deleteMixHit, deleteMixItem, dropOnLane, moveMixHit, moveMixItem, pickSoundFile, setMixHit, setMixItem, setTrackMix,
+  trimMixItem,
 } from "../mixActions";
 import { host } from "../host";
+import { openSound } from "../actions";
 import { loadCues, newCue, openCue } from "../cueActions";
 import { statusKey, store, useApp } from "../store";
 import type { Anchor, EpisodeStatus, HitKind, Mix, MixHit, MixItem, MixTrack } from "../types";
@@ -64,7 +66,8 @@ interface Drag {
 type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
 
 /** The lane menu (a new cue), at the pointer: `at` where it was asked. */
-type LaneMenu = { x: number; y: number; at: Anchor | null };
+/** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
+type LaneMenu = { x: number; y: number; track: MixTrack | null; at: Anchor | null };
 
 const NO_CUES: string[] = [];
 
@@ -177,10 +180,10 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     if (suppress.current || !lay.length) return;
     seekCutAt(xTime(lay, xOf(e.clientX)));
   };
-  const onLaneMenu = (e: RMouseEvent<HTMLElement>) => {
+  const onLaneMenu = (e: RMouseEvent<HTMLElement>, track: MixTrack | null) => {
     e.preventDefault();
     e.stopPropagation();
-    setLaneMenu({ x: e.clientX, y: e.clientY, at: lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null });
+    setLaneMenu({ x: e.clientX, y: e.clientY, track, at: lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null });
   };
   const onHitsDouble = async (e: RMouseEvent<HTMLElement>) => {
     const at = lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null;
@@ -224,7 +227,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   return (
     <div className="h3-snd" style={{ height: LANES_H }}>
       <div className="h3-snd-lane h3-snd-hits" style={{ height: HITS_H }} onClick={onLaneClick} onDoubleClick={(e) => void onHitsDouble(e)}
-        onContextMenu={onLaneMenu}
+        onContextMenu={(e) => onLaneMenu(e, null)}
         title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete · right-click the lane: a new cue">
         <div className="h3-snd-head" style={{ width: HEAD_W }}>
           <span>Hits</span>
@@ -265,8 +268,8 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             onDragOver={(e) => onDragOver(e, track)}
             onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
             onDrop={(e) => onDrop(e, track)}
-            onContextMenu={track === "music" ? onLaneMenu : undefined}
-            title={`${TRACK_LABEL[track]}: drop a sound file here to lay it from where it falls · click: seek${track === "music" ? " · right-click: a new cue here" : ""}`}>
+            onContextMenu={(e) => onLaneMenu(e, track)}
+            title={`${TRACK_LABEL[track]}: drop a sound file here to lay it from where it falls · click: seek · right-click: ${track === "music" ? "a new cue here, a sound file" : track === "dialogue" ? "the shot's sound, a sound file" : "a sound file"}`}>
             <LaneHead track={track} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res} />
             {track === "dialogue" && lay.map((l) => {
               const s = st.shots.find((x) => x.shot === l.shot);
@@ -301,7 +304,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
         </div>
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
-      {laneMenu && <NewCueMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
+      {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
     </div>
   );
 });
@@ -421,7 +424,7 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
   const [pos, setPos] = useState({ left: pop.x, top: pop.y });
   useLayoutEffect(() => {
     const r = ref.current?.getBoundingClientRect();
-    if (r) setPos({ left: Math.max(4, Math.min(pop.x, window.innerWidth - r.width - 4)), top: Math.max(4, Math.min(pop.y, window.innerHeight - r.height - 4)) });
+    if (r) setPos(onScreen(pop.x, pop.y, r));
   }, [pop]);
   useEffect(() => {
     const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
@@ -493,10 +496,17 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
   );
 }
 
-/** The music and hits lanes' menu: a new cue over the shots selected, else from where it was asked to its shot's end. */
-function NewCueMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
+/** A lane's menu at the pointer (kept on screen: the lanes sit at the window's foot): a sound
+ * file from this computer onto it; on music and hits, a new cue; on dialogue, the shot's own
+ * sound (its Sound card, Replace audio); on effects and ambience, what will make them. */
+function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const multi = useApp((s) => s.multi);
+  const [pos, setPos] = useState({ left: menu.x, top: menu.y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(menu.x, menu.y, r));
+  }, [menu]);
   useEffect(() => {
     const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
     const key = (e: KeyboardEvent) => {
@@ -512,16 +522,56 @@ function NewCueMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) 
     };
   }, [onClose]);
   const over = multi.length > 1;
+  const at = menu.at;
+  const track = menu.track;
+  const run = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
   return (
-    <div ref={ref} className="h3-menu h3-snd-pop" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-      <div className="h3-menu-head">Music · {store.get().pass}</div>
-      <button disabled={!over && !menu.at} title="A cue: its sections, arc and takes in the cue window, written to the hits in its span"
-        onClick={() => {
-          onClose();
-          void newCue(menu.at);
-        }}>
-        <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${menu.at?.shot ?? "the shot"})…`}
-      </button>
+    <div ref={ref} className="h3-menu h3-snd-pop" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      <div className="h3-menu-head">{track ? TRACK_LABEL[track] : "Hits"} · {at ? `${at.shot} frame ${at.frame}` : "outside the cut"} · {store.get().pass}</div>
+      {(track === "music" || !track) && (
+        <button disabled={!over && !at} title="A cue: its sections, arc and takes in the cue window, written to the hits in its span"
+          onClick={run(() => void newCue(at))}>
+          <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${at?.shot ?? "the shot"})…`}
+        </button>
+      )}
+      {track === "dialogue" && at && (
+        <>
+          <button title={`How ${at.shot}'s sound is made: generate, clone, or dub a track (its voices and dub tracks)`} onClick={run(() => openSound([at.shot]))}>
+            <i className="pi pi-microphone" /> {at.shot}'s sound…
+          </button>
+          <button title={`${at.shot}'s picture with another take's (or a file's) sound under it`} onClick={run(() => openSound([at.shot], "cut"))}>
+            <i className="pi pi-volume-up" /> Replace {at.shot}'s audio…
+          </button>
+        </>
+      )}
+      {track === "effects" && (
+        <button disabled title="Coming (docs/SOUND.md phase 4): the shot's effects made from its take by a foley model">
+          <i className="pi pi-bolt" /> Effects from {at?.shot ?? "the shot"}'s take…
+        </button>
+      )}
+      {track === "ambience" && (
+        <button disabled title="Coming (docs/SOUND.md phase 3): the location's room tone or air, made once and looped under its shots">
+          <i className="pi pi-cloud" /> The location's ambience bed…
+        </button>
+      )}
+      {track && (
+        <button disabled={!at} title={`A wav, mp3, flac, ogg or m4a from this computer, laid on ${TRACK_LABEL[track].toLowerCase()} from here (or drop one on the lane)`}
+          onClick={run(() => at && pickSoundFile(track, at))}>
+          <i className="pi pi-upload" /> Add a sound file here…
+        </button>
+      )}
     </div>
   );
+}
+
+/** Where a menu of `r`'s size goes for a click at (x, y): there, moved in from the window's
+ * right and bottom edges (above the click when there's no room below). */
+export function onScreen(x: number, y: number, r: { width: number; height: number }): { left: number; top: number } {
+  const W = window.innerWidth || 1280;
+  const H = window.innerHeight || 800;
+  const top = y + r.height > H - 4 ? Math.max(4, y - r.height) : y;
+  return { left: Math.max(4, Math.min(x, W - r.width - 4)), top };
 }
