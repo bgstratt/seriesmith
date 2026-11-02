@@ -15,9 +15,9 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
-import { cueKey } from "../cueActions";
+import { cueKey, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
-import { hitChip, cueTitle } from "../lib/cue";
+import { hitChip, cueTitle, withSpec } from "../lib/cue";
 import { HIT_KIND_TITLE } from "../lib/mix";
 import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
@@ -31,7 +31,8 @@ import { statusKey, store, useApp, type ViewerState } from "../store";
 import type { CueResult, CueSummary, Pass } from "../types";
 import { FloatingWindow } from "./FloatingWindow";
 import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
-import { SCORING_URL } from "./CueWindow";
+import { SCORING_URL, useMusicTargets } from "./CueWindow";
+import { SongLine, ThemeField } from "./CueTheme";
 import { CutStage, FullscreenButton, useCutEngine } from "./Viewer";
 
 /** its help strip, open or closed, kept in this browser */
@@ -284,11 +285,13 @@ function CuePanel({ ep, pass, cue, block }: { ep: string; pass: Pass; cue: strin
     return <div className="h3-muted h3-small">Click a cue on the map to see its hits, its tempo and its takes here; double-click to shape it in the cue window.</div>;
   }
   if (!res) return <div className="h3-small">{err ? <span className="h3-err">{cue}: {err}</span> : <><i className="pi pi-spin pi-spinner" /> {cue}…</>}</div>;
-  return <CueDetail res={res} block={block} />;
+  return <CueDetail ep={ep} pass={pass} res={res} block={block} />;
 }
 
-function CueDetail({ res, block }: { res: CueResult; block: CueBlock | undefined }) {
+function CueDetail({ ep, pass, res, block }: { ep: string; pass: Pass; res: CueResult; block: CueBlock | undefined }) {
   const { spec, plan, takes } = res;
+  const targets = useMusicTargets();
+  const target = targets.find((t) => t.id === (plan?.target ?? spec.model));
   const items = useApp((s) => currentPlaylist(s));
   const fps = plan?.fps || 24;
   const pos = useApp((s) => s.cutPlay.pos);
@@ -365,6 +368,7 @@ function CueDetail({ res, block }: { res: CueResult; block: CueBlock | undefined
                   {t.take === inMix && <span className="h3-badge" title="the take in the mix">in mix</span>}
                   {t.status !== "ok" && <span className="h3-muted">{t.status}{t.error ? `: ${t.error}` : ""}</span>}
                   {t.measured && <span className="h3-muted">worst {t.measured.worst_must} f · shape {t.measured.shape_error ?? "—"}</span>}
+                  {t.song && <SongLine song={t.song} />}
                   {!!t.stale?.length && <span className="h3-badge h3-b-stale" title={t.stale.join("\n")}>stale</span>}
                 </div>
               );
@@ -375,6 +379,10 @@ function CueDetail({ res, block }: { res: CueResult; block: CueBlock | undefined
               setBusy(true);
               void renderCues([spec.id]).finally(() => setBusy(false));
             }}><i className="pi pi-play" /> Render {spec.id}'s takes</button>
+          <div className="h3-cue-h" title="A theme carried from cue to cue (the leitmotif): another cue's take, or a sound file">Theme</div>
+          <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets}
+            save={(patch) => void saveCueAt({ ep, pass, cue: spec.id, key: cueKey(ep, pass, spec.id) }, withSpec(spec, patch))} />
+          {plan.blocked && <div className="h3-err h3-small">{plan.blocked}</div>}
           {(plan.direction || plan.notes?.length) ? <div className="h3-cue-h">Direction</div> : null}
           {plan.direction && <div className="h3-small" title="the series config's score direction (sound.score), before every cue's style"><b>Series</b> {plan.direction}</div>}
           {plan.notes?.map((n) => <div key={n.shot} className="h3-small" title="the script's music: note for this shot"><b>{n.shot}</b> {n.music}</div>)}

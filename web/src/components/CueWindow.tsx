@@ -34,7 +34,8 @@ import { HIT_KIND_TITLE } from "../lib/mix";
 import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import { useApp, statusKey, type ViewerState } from "../store";
-import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Target } from "../types";
+import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Pass, Target } from "../types";
+import { SongLine, SongStrip, ThemeField } from "./CueTheme";
 import { FloatingWindow } from "./FloatingWindow";
 import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect, type CueTab } from "./ScoringTabs";
 import { trackPointer, useSize } from "./hooks";
@@ -136,7 +137,7 @@ let cuePresets: Promise<CuePreset[]> | null = null;
 const keptRows = new Map<string, string[]>();
 
 /** The music targets (GET /seriesmith/targets?kind=music), asked once. */
-function useMusicTargets(): Target[] {
+export function useMusicTargets(): Target[] {
   const [list, setList] = useState<Target[]>([]);
   useEffect(() => {
     let live = true;
@@ -282,7 +283,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   const selected = sel != null && sel < sections.length ? sel : null;
 
   const inspector = (
-    <CueInspector res={res} target={target} targets={targets} presets={presets} sel={selected} sections={sections} setSel={setSel} />
+    <CueInspector ep={ep} pass={v.pass} res={res} target={target} targets={targets} presets={presets} sel={selected} sections={sections} setSel={setSel} />
   );
   if (!plan) {
     return (
@@ -1000,6 +1001,7 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
           </svg>
         )}
         {range && <div className="h3-cue-range" style={{ left: range[0] * g.bar * pps, width: (range[1] - range[0]) * g.bar * pps }} />}
+        {ok && t.song && <div className="h3-cue-songrow"><SongStrip song={t.song} g={g} pps={pps} /></div>}
         {t.status === "queued" && <span className="h3-muted h3-small" style={{ padding: 8 }}><i className="pi pi-spin pi-spinner" /> queued</span>}
         {t.status === "failed" && <span className="h3-err h3-small" style={{ padding: 8 }}>{t.error ?? "failed"}</span>}
       </Lane>
@@ -1010,6 +1012,8 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
               <i className={`pi ${playing ? "pi-pause" : "pi-play"}`} />
             </button>
             {t.comp && <span className="h3-small h3-cue-comp" title="spliced on bar lines from two takes (both at the cue's tempo)">{compLabel(t.comp)}</span>}
+            {t.song && <SongLine song={t.song} />}
+            {t.theme && <span className="h3-small h3-muted" title="the theme it was rendered with, and how its model heard it">theme {t.theme.label}{t.theme.use ? ` (${t.theme.use})` : " (left out)"}</span>}
             <span className="h3-small h3-muted">hits</span>
             {m!.hit_errors.map((e, i) => {
               const c = hitChip(e);
@@ -1240,8 +1244,8 @@ function PresetSelect({ spec, presets, targets }: { spec: CueSpec; presets: CueP
   );
 }
 
-function CueInspector({ res, target, targets, presets, sel, sections, setSel }: {
-  res: CueResult; target: Target | undefined; targets: Target[]; presets: CuePreset[]; sel: number | null; sections: CueSection[]; setSel: (i: number | null) => void;
+function CueInspector({ ep, pass, res, target, targets, presets, sel, sections, setSel }: {
+  ep: string; pass: Pass; res: CueResult; target: Target | undefined; targets: Target[]; presets: CuePreset[]; sel: number | null; sections: CueSection[]; setSel: (i: number | null) => void;
 }) {
   const { spec, plan } = res;
   const edit = (patch: Partial<CueSpec>) => void saveCue(withSpec(spec, patch));
@@ -1313,7 +1317,11 @@ function CueInspector({ res, target, targets, presets, sel, sections, setSel }: 
           <option value="">the default{plan && !spec.model ? ` (${targets.find((t) => t.id === plan.target)?.short ?? plan.target})` : ""}</option>
           {targets.filter((t) => spec.kind !== "song" || t.capabilities?.lyrics).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
-      ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text" : target ? "It takes sections as tags and a bpm of its own" : undefined)}
+      ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text"
+        : target?.capabilities?.structure === "plan" ? "It plans the song itself (sections and bars, as ABC), its tempo set to the cue's; then sings the lyrics to that plan"
+        : target ? "It takes sections as tags and a bpm of its own" : undefined)}
+      {field("Theme", <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} save={edit} />,
+        "A theme carried from cue to cue (the leitmotif): another cue's take, or a sound file. YuE2 sings its melody; ACE-Step hears it as its timbre; Stable Audio 3 takes none")}
       {field("Tempo", (
         <span className="h3-row" style={{ gap: 6 }}>
           <Draft label="Cue bpm" value={spec.bpm != null ? String(spec.bpm) : ""} placeholder="100" onCommit={(b) => edit({ bpm: num(b) })} />
@@ -1327,6 +1335,9 @@ function CueInspector({ res, target, targets, presets, sel, sections, setSel }: 
       {field("Takes", <Draft label="Takes per render" value={spec.takes != null ? String(spec.takes) : ""} placeholder={String(TAKES_DEFAULT)} onCommit={(t) => edit({ takes: num(t) })} />, "how many takes a render makes (the model's preset's when empty)")}
       <div className="h3-cue-h">The fit</div>
       {res.plan_error && <div className="h3-err h3-small">{res.plan_error}</div>}
+      {plan?.blocked && <div className="h3-err h3-small">{plan.blocked}</div>}
+      {plan?.warnings?.filter((w) => w !== plan.theme?.warning).map((w) => <div key={w} className="h3-small h3-cue-offtext">{w}</div>)}
+      {plan?.song && <div className="h3-small h3-muted" title="the theme's plan, at this cue's tempo, against its in point">The theme's plan: {plan.song.bars} bars of {plan.song.meter}: {plan.song.sections.map((x) => `${x.name} at ${x.at.toFixed(1)} s`).join(", ")}</div>}
       {plan && (
         <div className="h3-small h3-col" style={{ gap: 2 }}>
           <span>asked {spec.bpm ?? 100} bpm, fitted <b className="h3-mono">{plan.fit.bpm}</b> {plan.fit.bpm !== (spec.bpm ?? 100) ? `(${((plan.fit.bpm / (spec.bpm ?? 100) - 1) * 100).toFixed(1)} %)` : ""}</span>

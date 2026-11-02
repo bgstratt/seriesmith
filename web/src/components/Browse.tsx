@@ -182,7 +182,7 @@ function BrowseBody({ b }: { b: BrowseState }) {
           ) : importing ? (
             <>
               <span className="h3-muted h3-small h3-grow h3-ell">
-                {selFile ? selFile.path : forKey ? (b.files === "video" ? "Pick a video" : "Pick a picture") : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
+                {selFile ? selFile.path : forKey ? (b.files === "video" ? "Pick a video" : b.files === "audio" ? "Pick a sound file" : "Pick a picture") : forTrack ? "Pick a recording" : forClip ? `Pick a file inside ${ep ?? "the episode"}` : "Pick a file"}
               </span>
               <button className="h3-btn" onClick={closeBrowse}>Cancel</button>
               <button

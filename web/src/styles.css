@@ -1336,3 +1336,11 @@
 .h3-spot-take.h3-on { color: var(--h3-ok); }
 .h3-spot-stalelist { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--h3-border); }
 .h3-root button.h3-linkbtn { font: inherit; padding: 0 2px; margin: 0; color: var(--h3-accent); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+/* a song take's planned sections (YuE2's plan) along the bottom of its waveform */
+.h3-cue-songrow { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none; }
+.h3-cue-songsec {
+  box-sizing: border-box; overflow: hidden; white-space: nowrap; padding: 0 3px; line-height: 12px; font-size: 9px;
+  border-left: 1px solid var(--h3-accent); color: var(--h3-fg); pointer-events: auto;
+}
+.h3-cue-songsec-0 { background: color-mix(in srgb, var(--h3-accent) 28%, transparent); }
+.h3-cue-songsec-1 { background: color-mix(in srgb, var(--h3-accent) 14%, transparent); }

@@ -6,7 +6,7 @@
 // reference). The arc is energy 1-5; the timeline's gain breakpoints (dB) are
 // another curve, kept apart.
 
-import type { Anchor, CueKind, CuePlan, CuePreset, CueSection, CueSpec, CueTake } from "../types";
+import type { Anchor, CueKind, CuePlan, CuePlanTheme, CuePreset, CueSection, CueSong, CueSpec, CueTake, CueTheme, Target } from "../types";
 import { anchorTime, newId, timeAnchor } from "./mix";
 import type { PlayItem } from "./playlist";
 
@@ -364,6 +364,54 @@ export function clipsOver(items: PlayItem[], t0: number, g: Grid): { it: PlayIte
     out.push({ it, a: Math.max(lo, a), b: Math.min(hi, b) });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// a song's plan, and a cue's theme (the leitmotif)
+// ---------------------------------------------------------------------------
+
+const tnum = (n: number) => `t${String(n).padStart(2, "0")}`;
+
+/** A theme as the server says it: "m01 t02", or the file's path. */
+export function themeLabel(th: CueTheme | null | undefined): string {
+  if (!th) return "";
+  return "cue" in th ? `${th.cue} ${tnum(th.take)}` : th.file;
+}
+
+/** How the plan's model hears the theme, in words ("" when it doesn't: the plan's warning says why). */
+export function themeUseText(t: Pick<CuePlanTheme, "use">, model: string): string {
+  switch (t.use) {
+    case "plan": return `${model} sings its melody (the take's own plan), at this cue's tempo`;
+    case "transcribe": return `${model} sings its melody (SheetSage2 transcribes it first, in the same job)`;
+    case "timbre": return `${model} hears its sound as the timbre reference`;
+    default: return "";
+  }
+}
+
+/** The model that hears a theme, for a cue on one that doesn't: YuE2 for a song (sung), ACE-Step for score (its timbre). Null when the cue's model takes one, or the one to switch to isn't offered. */
+export function themeModel(kind: CueKind | undefined, target: Target | undefined, targets: Target[]): Target | null {
+  if (!target || target.capabilities?.theme) return null;
+  const want = kind === "song" ? "melody" : "timbre";
+  return targets.find((t) => t.capabilities?.theme === want && (kind !== "song" || t.capabilities?.lyrics))
+    ?? targets.find((t) => !!t.capabilities?.theme && (kind !== "song" || t.capabilities?.lyrics)) ?? null;
+}
+
+/** A take a theme can be: a finished one of another cue. */
+export const themeTakes = (takes: CueTake[]) => takes.filter((t) => t.status === "ok").map((t) => t.take).sort((a, b) => a - b);
+
+/** A song take's plan in a line: "Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short". */
+export function songSummary(s: CueSong): string {
+  const names = s.sections.map((x) => x.name).join(", ");
+  const short = s.short == null ? "" : Math.abs(s.short) < 0.05 ? " · its length as planned" : s.short > 0 ? ` · ${s.short.toFixed(1)} s short of it` : ` · ${(-s.short).toFixed(1)} s over it`;
+  return `Plan: ${s.bars} bars of ${s.meter}${names ? `, ${names}` : ""}${short}`;
+}
+
+/** Where a song's planned sections fall in the cue window (cue time τ: seconds from its in point), clipped to the grid: {name, a, b} in τ. */
+export function songBlocks(sections: CueSong["sections"], g: Pick<Grid, "preroll" | "seconds">): { name: string; a: number; b: number; i: number }[] {
+  const lo = -g.preroll;
+  const hi = g.seconds - g.preroll;
+  return sections.map((s, i) => ({ name: s.name, a: Math.max(lo, s.at), b: Math.min(hi, s.at + s.seconds), i }))
+    .filter((x) => x.b > x.a);
 }
 
 /** A spec with a change, what's emptied left out (as spec.json keeps it). */

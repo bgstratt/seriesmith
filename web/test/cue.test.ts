@@ -17,7 +17,9 @@ import {
   applyPreset, editableSections, gridOf, mergeSections, nextSectionName, presetBars, presetGroups, presetReplaces, presetShape, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
+  songBlocks, songSummary, themeLabel, themeModel, themeTakes, themeUseText,
 } from "../src/lib/cue";
+import { MUSIC_TARGETS } from "../src/mock/mockCue";
 import { lowerStretch } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
 import type { CuePlan, CuePreset, CueSpec, CueTake, Mix } from "../src/types";
@@ -511,6 +513,40 @@ import { initialState, statusKey, store } from "../src/store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+describe("a song's plan and a cue's theme", () => {
+  const song = {
+    file: "sound/m02/t01.abc", source: "planned" as const, tempo_written: 94, tempo: 96, meter: "2/4", key: "F", bars: 44,
+    plan_seconds: 55, raw_seconds: 54.36, short: 0.64, first_note: 16.25,
+    sections: [
+      { name: "intro", start: 0, seconds: 16.25, at: -1, bars: 13, beats: 26, cue_bars: 6.5 },
+      { name: "verse", start: 16.25, seconds: 20, at: 15.25, bars: 16, beats: 32, cue_bars: 8 },
+      { name: "chorus", start: 36.25, seconds: 18.75, at: 35.25, bars: 15, beats: 30, cue_bars: 7.5 },
+    ],
+  };
+  it("a song take's plan in a line, and its sections on the grid, clipped to it", () => {
+    expect(songSummary(song)).toBe("Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short of it");
+    expect(songSummary({ ...song, short: -1.25 })).toContain("1.3 s over it");
+    expect(songSummary({ ...song, short: null })).toBe("Plan: 44 bars of 2/4, intro, verse, chorus");
+    // a 20 s grid starting 0.5 s before the in point: the intro clipped at its start, the chorus gone
+    const blocks = songBlocks(song.sections, { preroll: 0.5, seconds: 20 });
+    expect(blocks).toEqual([{ name: "intro", a: -0.5, b: 15.25, i: 0 }, { name: "verse", a: 15.25, b: 19.5, i: 1 }]);
+  });
+  it("names a theme and says how each model hears it, and which model to switch to", () => {
+    expect(themeLabel({ cue: "m01", take: 2 })).toBe("m01 t02");
+    expect(themeLabel({ file: "audio/hum.wav" })).toBe("audio/hum.wav");
+    expect(themeLabel(null)).toBe("");
+    expect(themeUseText({ use: "plan" }, "YuE2")).toContain("the take's own plan");
+    expect(themeUseText({ use: "timbre" }, "ACE-Step")).toContain("timbre");
+    expect(themeUseText({ use: null }, "Stable Audio 3")).toBe("");
+    const [sa3, ace, yue] = ["stable_audio3", "ace_step15", "yue2"].map((id) => MUSIC_TARGETS.find((t) => t.id === id)!);
+    expect(themeModel(undefined, sa3, MUSIC_TARGETS)?.id).toBe("ace_step15");
+    expect(themeModel("song", sa3, MUSIC_TARGETS)?.id).toBe("yue2");
+    expect(themeModel("song", ace, MUSIC_TARGETS)).toBeNull();
+    expect(themeModel("song", yue, MUSIC_TARGETS)).toBeNull();
+    expect(themeTakes([{ take: 3, status: "ok" }, { take: 1, status: "ok" }, { take: 2, status: "failed" }])).toEqual([1, 3]);
+  });
+});
+
 describe("the cue window", () => {
   let root: Root;
   let el: HTMLDivElement;
@@ -993,5 +1029,40 @@ describe("the cue window", () => {
     const link = q(".h3-cue-win a").find((a) => a.textContent === "Read Scoring an episode")!;
     expect(link.getAttribute("href")).toBe("https://docs.seriesmith.com/scoring");
     localStorage.clear();
+  });
+  it("the Theme field: a file set on the cue, Stable Audio 3 warned, ACE-Step offered", async () => {
+    await open();
+    const side = () => q(".h3-cue-side")[0];
+    const mode = side().querySelector<HTMLSelectElement>("[aria-label='Theme']")!;
+    expect(mode.value).toBe("none");
+    await act(async () => {
+      mode.value = "file";
+      mode.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const input = side().querySelector<HTMLInputElement>("[aria-label='Theme file']")!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "audio/hum.wav");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    await act(async () => {
+      await cueSettled();
+    });
+    const res = store.get().cue[cueKey(EP, "proxy", "m01")]!;
+    expect(res.spec.theme).toEqual({ file: "audio/hum.wav" });
+    expect(res.plan!.theme!.use).toBeNull();
+    expect(side().textContent).toContain("takes no theme");
+    const swap = [...side().querySelectorAll("button")].find((b) => b.textContent === "Use ACE-Step 1.5 for the theme")!;
+    await act(async () => swap.click());
+    await act(async () => {
+      await cueSettled();
+    });
+    const now = store.get().cue[cueKey(EP, "proxy", "m01")]!;
+    expect(now.spec.model).toBe("ace_step15");
+    expect(now.plan!.theme!.use).toBe("timbre");
+    expect(side().textContent).toContain("hears its sound as the timbre reference");
   });
 });

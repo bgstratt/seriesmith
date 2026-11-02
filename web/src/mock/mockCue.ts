@@ -24,8 +24,13 @@ export const MUSIC_TARGETS: Target[] = [
   },
   {
     id: "ace_step15", kind: "music", label: "ACE-Step 1.5 XL", short: "ACE-Step 1.5",
-    capabilities: { mode: "t2m", tempo: "bpm", structure: "sections", lyrics: true, max_seconds: 600 },
+    capabilities: { mode: "t2m", tempo: "bpm", structure: "sections", lyrics: true, theme: "timbre", max_seconds: 600 },
     presets: { final: { takes: 8 }, proxy: { takes: 8 } },
+  },
+  {
+    id: "yue2", kind: "music", label: "YuE2 (songs; non-commercial licence)", short: "YuE2",
+    capabilities: { mode: "t2m", tempo: "abc", structure: "plan", lyrics: true, needs_lyrics: true, theme: "melody", max_seconds: 900 },
+    presets: { final: { takes: 4 }, proxy: { takes: 2 } },
   },
 ];
 
@@ -65,7 +70,7 @@ export const CUE_PRESETS: CuePreset[] = [
   },
 ];
 
-const FIELDS = ["id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "orchestra", "tail", "sections", "arc", "hits", "takes", "seed"];
+const FIELDS = ["id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key", "orchestra", "tail", "sections", "arc", "hits", "theme", "takes", "seed"];
 const ORCHESTRA_LEVELS = ["", "under", "present", "lead"];
 const LEVEL_WORDS = ["", "sparse", "quiet", "moderate", "full", "full orchestra fortissimo"];
 
@@ -134,6 +139,15 @@ export function checkCue(raw: CueSpec): CueSpec {
     if (Object.keys(clean).length) out.orchestra = clean;
   }
   if (raw.hits != null) out.hits = [...raw.hits];
+  if (raw.theme) {
+    const th = raw.theme as Record<string, unknown>;
+    if (typeof th.cue === "string" && Number.isInteger(th.take)) {
+      if (th.cue === raw.id) throw new CueError(`cue ${raw.id}'s theme can't be one of its own takes`);
+      out.theme = { cue: th.cue, take: th.take as number };
+    } else if (typeof th.file === "string" && th.file.trim() && !/^([A-Za-z]:|\/)/.test(th.file.trim())) {
+      out.theme = { file: th.file.trim().replace(/\\/g, "/") };
+    } else throw new CueError(`cue ${raw.id}'s theme is {"cue", "take"} (another cue's take) or {"file"}`);
+  }
   if (raw.takes != null) {
     if (!Number.isInteger(raw.takes) || raw.takes < 1 || raw.takes > 16) throw new CueError(`cue ${raw.id}'s takes is a whole number up to 16`);
     out.takes = raw.takes;
@@ -216,6 +230,13 @@ export function orchestrate<S extends CueSection & { bars: number }>(sections: S
 }
 
 /** What a cue is asked against the cut (cue.plan, simplified). Throws a CueError when its anchors aren't in it. */
+/** How a model hears a theme, as cue.theme_for says it (the mock has no files: a take theme is there, a file isn't checked). */
+function themeMock(spec: NonNullable<CueSpec["theme"]>, how: "melody" | "timbre" | null, label: string): NonNullable<CuePlan["theme"]> {
+  const name = "cue" in spec ? `${spec.cue} t${String(spec.take).padStart(2, "0")}` : spec.file;
+  const use = how === "melody" ? "transcribe" as const : how === "timbre" ? "timbre" as const : null;
+  return { spec, label: name, use, warning: use ? null : `${label} takes no theme: rendered without it (ACE-Step hears a theme as its timbre, YuE2 sings its melody)` };
+}
+
 export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}, direction = ""): CuePlan {
   const a = anchorTime(items, spec.in, fps);
   const b = anchorTime(items, spec.out, fps);
@@ -301,7 +322,7 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
     }
   }
   const arc = pts.length ? perBar(pts, bars, bar, -preroll) : Array(bars).fill(3);
-  const target = spec.model ?? "stable_audio3";
+  const target = spec.model ?? (spec.kind === "song" ? "yue2" : "stable_audio3");
   const ask = Math.round(bpm);
   const stretch = Math.round((bpm / ask) * 100000) / 100000;
   const shotNotes = items.filter((it) => it.start < b && it.start + it.dur > a && notes[it.shot]).map((it) => ({ shot: it.shot, music: notes[it.shot] }));
@@ -310,7 +331,15 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
   const story = sections.map((s, i) => `${i === 0 ? "Opens with" : i === sections.length - 1 ? "ending with" : "then"} ${s.words || s.name}, ${LEVEL_WORDS[Math.round(s.from)]}${s.to !== s.from ? ` to ${LEVEL_WORDS[Math.round(s.to)]}` : ""}`).join(", ") + ".";
   const values: Record<string, unknown> = { seconds: Math.round(seconds * stretch * 1000) / 1000 };
   if (target === "ace_step15") values.lyrics = sections.map((s) => `[${s.name}]\n${s.lyrics || Array(s.bars).fill(`(${s.words || "instrumental"})`).join("\n")}`).join("\n\n");
+  if (target === "yue2") values.lyrics = sections.filter((s) => s.lyrics).map((s) => `[${s.name[0].toUpperCase()}${s.name.slice(1)}]\n${s.lyrics}`).join("\n\n");
+  const caps = MUSIC_TARGETS.find((t) => t.id === target)?.capabilities;
+  const th = spec.theme ? themeMock(spec.theme, caps?.theme ?? null, MUSIC_TARGETS.find((t) => t.id === target)?.label ?? target) : undefined;
+  const extra: Partial<CuePlan> = {};
+  if (th) extra.theme = th;
+  if (th?.warning) extra.warnings = [th.warning];
+  if (spec.kind === "song" && caps?.needs_lyrics && !values.lyrics) extra.blocked = "YuE2 sings words: give the song's sections their lyrics (a section's Lyrics in the cue window)";
   return {
+    ...extra,
     target, fps, span: Math.round(span * 1000) / 1000, hits,
     fit: { bpm, ask_bpm: ask, stretch, errors, worst_must: worst },
     alternatives,

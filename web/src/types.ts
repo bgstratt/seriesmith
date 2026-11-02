@@ -1936,12 +1936,16 @@ export interface Target {
     reference_audio?: boolean;
     /** Phase 9c-B, audio targets: the longest sample it generates, seconds */
     max_seconds?: number;
-    /** music targets: the tempo is asked in words ("text") or as its own input ("bpm") */
-    tempo?: "text" | "bpm";
-    /** music targets: an arc told as a story, or sections as tags */
-    structure?: "story" | "sections";
+    /** music targets: the tempo is asked in words ("text"), as its own input ("bpm"), or in its plan's Q: line ("abc": YuE2) */
+    tempo?: "text" | "bpm" | "abc";
+    /** music targets: an arc told as a story, sections as tags, or its own plan (YuE2) */
+    structure?: "story" | "sections" | "plan";
     /** music targets: it sings a section's lyrics */
     lyrics?: boolean;
+    /** music targets: a song on it must have lyrics (YuE2 sings words) */
+    needs_lyrics?: boolean;
+    /** music targets: how it hears a cue's theme: sung as its melody (YuE2), as its timbre (ACE-Step), or not at all */
+    theme?: "melody" | "timbre" | null;
     [key: string]: unknown;
   };
   template?: TargetTemplate;
@@ -2677,6 +2681,54 @@ export interface CueArcPoint {
 /** A cue's spec (`<ep>/sound/<cue>/spec.json`), defaults left out. */
 export type CueKind = "score" | "song";
 
+/** A cue's theme: another cue's take in the episode, or a file relative to it (a gallery item, a recording). */
+export type CueTheme = { cue: string; take: number } | { file: string };
+
+/** How the plan's model hears the cue's theme (cue.theme_for): "plan" (YuE2 sings a YuE2 take's own
+ * plan), "transcribe" (YuE2 sings SheetSage2's transcription), "timbre" (ACE-Step), or null and a
+ * warning (it isn't there, or the model takes none: rendered without it). */
+export interface CuePlanTheme {
+  spec: CueTheme;
+  label: string;
+  use: "plan" | "transcribe" | "timbre" | null;
+  warning: string | null;
+}
+
+/** A section of a song's plan (YuE2's ABC, read by core/abc.py) where a take puts it. */
+export interface CueSongSection {
+  name: string;
+  /** seconds into the take (at the cue's tempo) */
+  start: number;
+  seconds: number;
+  /** seconds from the cue's in point (negative: before it) */
+  at: number;
+  /** the plan's own bars (its meter's) and beats */
+  bars: number;
+  beats: number;
+  /** its length in the cue's bars */
+  cue_bars: number;
+}
+
+/** A song take's plan (tNN.abc) read against what came back. */
+export interface CueSong {
+  /** tNN.abc, relative to the episode */
+  file: string;
+  source: "planned" | "theme plan" | "theme transcribed";
+  /** the plan's own tempo, before the cue's was set (null: it had none) */
+  tempo_written: number | null;
+  tempo: number | null;
+  meter: string;
+  key: string;
+  bars: number;
+  /** its bars at the tempo asked, against the take as it came */
+  plan_seconds: number;
+  raw_seconds: number | null;
+  short: number | null;
+  /** the plan's first sung note, seconds into the take */
+  first_note: number | null;
+  sections: CueSongSection[];
+}
+
 export interface CueSpec {
   id: string;
   /** score (underscore, instrumental; the default) or a song (sung: its sections' lyrics) */
@@ -2701,6 +2753,8 @@ export interface CueSpec {
   orchestra?: Record<string, number[]>;
   /** the mix's hits it lands (absent: every hit in its span) */
   hits?: string[] | null;
+  /** its theme (the leitmotif): another cue's take, or a sound file relative to the episode */
+  theme?: CueTheme | null;
   /** takes a render makes (absent: its model's preset's) */
   takes?: number | null;
   seed?: number | null;
@@ -2797,6 +2851,14 @@ export interface CuePlan {
   prompt: { prompt: string; negative: string | null; values: Record<string, unknown> };
   /** the script's music: notes of the shots it plays over (folded into the prompt) */
   notes?: { shot: string; music: string }[];
+  /** how its model hears the cue's theme (absent: it has none) */
+  theme?: CuePlanTheme;
+  /** what it will render without, in words (a theme it can't take, or that isn't there) */
+  warnings?: string[];
+  /** why it can't render (a YuE2 song with no lyrics) */
+  blocked?: string;
+  /** a theme's plan, known before it renders (YuE2 singing a YuE2 take's plan) */
+  song?: { source: string; bars: number; meter: string; sections: CueSongSection[] };
 }
 
 /** A take, once back, measured against the plan. */
@@ -2836,6 +2898,10 @@ export interface CueTake {
   stale?: string[];
   /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
   comp?: { base: number; from: number; bars: [number, number] };
+  /** a song's plan (YuE2): its sections against the cue, its length against the take's */
+  song?: CueSong;
+  /** the theme it was rendered with, and how its model heard it */
+  theme?: { label: string; use: CuePlanTheme["use"] };
   finished?: string;
   created?: string;
 }

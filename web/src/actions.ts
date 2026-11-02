@@ -3566,6 +3566,11 @@ export function usePictureFile(chosen: string): boolean {
   const absolute = /^([a-zA-Z]:|[\\/])/.test(chosen);
   const rel = absolute ? epRelative(chosen, s.ep) : chosen.replace(/\\/g, "/");
   if (!rel) {
+    if (s.browse?.files === "audio") {
+      host().toast("warn", "That file is outside the episode",
+        `A sound is named relative to the episode, so it has to live inside ${s.ep} (or in the show's folder beside it). Copy it in first.`);
+      return false;
+    }
     host().toast("warn", "That picture is outside the episode",
       `A picture is named relative to the episode, so it has to live inside ${s.ep} (or in the show's refs folder beside it). Copy it in first, or import it on the Refs tab.`);
     return false;
