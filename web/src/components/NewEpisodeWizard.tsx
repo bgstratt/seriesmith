@@ -2,7 +2,8 @@
 // — where it goes, the series (a new one only), who and where it's about, and
 // its first shot — written in one POST /seriesmith/episode/new (lib/wizard.ts).
 // A next episode starts from its newest neighbour's series config, so the cast,
-// look and settings carry over and only what's new is added.
+// look and settings carry over and only what's new is added. A new series can
+// instead start "From an edit (FCP7 XML)": XmlImportPanel.
 
 import { useEffect, useMemo, useState } from "react";
 import { build, loadEpisodes, loadTargets, openEpisodeAt, openShotForm, openWizard } from "../actions";
@@ -25,6 +26,7 @@ import { LengthPicker } from "./LengthPicker";
 import { FieldRow, SizeField } from "./SeriesForm";
 import { Hover, Thumb, type Named } from "./Picture";
 import { CameraField, Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
+import { XmlImportPanel } from "./XmlImportPanel";
 
 const RECT_KEY = "seriesmith.wizard.rect";
 const STEPS = ["Where", "Series", "Cast and places", "First shot"] as const;
@@ -64,6 +66,9 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const [placeText, setPlaceText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a new series: written here, or an edit made elsewhere imported (XmlImportPanel)
+  const [from, setFrom] = useState<"write" | "xml">("write");
+  const fromXml = startNew && from === "xml";
 
   useEffect(() => {
     void loadTargets();
@@ -177,9 +182,9 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const head = (
     <>
       <i className="pi pi-file-plus" />
-      <span className="h3-grow">{startNew && isNewSeries ? "New series" : "New episode"}</span>
+      <span className="h3-grow">{fromXml ? "New series from an edit" : startNew && isNewSeries ? "New series" : "New episode"}</span>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
-        if ((title || cast.length || shot.action) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
+        if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
         openWizard(null);
       }}><i className="pi pi-times" /></button>
     </>
@@ -198,6 +203,18 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={420} minH={360}>
+      {startNew && (
+        <div id="sm-wizard-from" className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
+          <span className="h3-small h3-muted">Start from</span>
+          <button className={`h3-btn${from === "write" ? " h3-on" : ""}`} onClick={() => setFrom("write")}>A first shot I write</button>
+          <button id="sm-wizard-xml" className={`h3-btn${from === "xml" ? " h3-on" : ""}`} onClick={() => setFrom("xml")}>From an edit (FCP7 XML)…</button>
+        </div>
+      )}
+      {fromXml ? (
+        <div className="h3-col" style={{ padding: 10, overflow: "auto", flex: 1, minHeight: 0 }}>
+          <XmlImportPanel parent={parent} />
+        </div>
+      ) : (<>
       <div className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
         {steps.map(({ s, i }, n) => (
           <button key={s} className={`h3-btn${i === step ? " h3-on" : ""}`} disabled={n > at && !!blockers[step]}
@@ -366,6 +383,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
           </button>
         )}
       </div>
+      </>)}
     </FloatingWindow>
   );
 }
