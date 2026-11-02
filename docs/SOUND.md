@@ -366,8 +366,37 @@ Each phase is tested live on local ComfyUI before the next starts.
          fitted to its bars at the preset's tempo, with who plays in each; it asks before
          replacing the cue's own sections, style or orchestration
    - [ ] Repaint, once it's measured (Fixing part of a take)
-3. **Ambience.** The `ambience` kind; a location's `ambience` as a ref; beds per sequence,
-   looped; the three candidates compared.
+3. **Ambience.** A place's bed under every sequence set there, from the cut, looping across
+   its cuts. Decided 2026-11-01 (Measured: ambience beds):
+   - **A place, by `of`.** A location's place is its root: follow `of` (a relit or reverse
+     variant, the bokeh behind a close-up) to the location with none. The place's
+     `ambience` (words: what's heard there) and bed (`ambience_bed`, a path like `plate`,
+     default `../refs/_amb/<place>.wav`) serve every variant; a variant's own `ambience`
+     gives it its own bed (a golden-hour hall with evening birds).
+   - **A ref.** The bed is made like a plate: refs_todo lists a place with words and no bed,
+     `seriesmith refs` and the Refs tab's Ambience make it, takes kept, one picked. The
+     `ambience` target kind: `mmaudio_ambience` the default (text only, 10 s, 25 steps, cfg
+     4.5, the negative "music, melody, singing, speech, talking, voices"), `sa3_sfx_ambience`
+     beside it (Stable Audio 3 Small SFX, 30 s, 8 steps LCM); the prompt is the words and
+     "No music, no voices, no speech." A take is finished as it lands: 1.5 s off each end,
+     brought to the bed level (BED_LUFS, -32: room tone sits well under the lines at the
+     fader's 0 dB), written as the bed.
+   - **Laid from the cut, not placed.** The mix's ambience is worked out from the cut and the
+     series config when the mix is read, never stored as items: each run of shots whose
+     sequence is set in one place gets that place's bed, looped (equal power), the runs
+     crossfaded 0.5 s into each other; a shot moved, trimmed or cut changes it with nothing to
+     refit. The mix keeps only what you change: `beds: {place: {gain_db, mute}}`, the
+     Ambience fader and its ducking (-6 dB under speech). An item you put on the Ambience
+     track yourself (a recorded room tone) plays over the beds; `beds: {place: {mute}}`
+     silences a place's.
+   - **Shown on the lane** as blocks (the place's name), read-only but for a menu: its level,
+     mute, open its ref.
+   - [ ] series config: a location's `ambience`, `ambience_bed`; the place by `of`
+   - [ ] the `ambience` kind: `mmaudio_ambience`, `sa3_sfx_ambience`; the bed finished as it lands
+   - [ ] refs: refs_todo's beds, `seriesmith refs` makes them, the Refs tab's Ambience
+   - [ ] the mix: beds from the cut (render, Play all, stems, XML), `beds` in mix.json
+   - [ ] the editor: the beds on the Ambience lane; a location's ambience in its form
+   - [ ] docs: AUTHORING (a location's ambience), API, EDITOR, the guide
 4. **Effects.** The `foley` kind; H3 FL2VA at 256x160 the default (the take's frames
    anchored, only the sound decoded), LTX-2.3 Foley and Hunyuan XL beside it; effects stale when the pick changes; optionally Demucs to split a take's voice from
    its effects.
@@ -514,7 +543,13 @@ looped to 60 s.
   A bed belongs to the place, so variants share one; how a variant names its place is the
   design's open question.
 
-Listening, the user's verdict: (to come).
+Stable Audio 3 Small SFX (2.3 GB, sound effects only; 30 s in ~2 s) and H3 FL2VA (the
+location's plate as the first frame of a locked-off empty shot, 256x160, ~10 s in 8-16 s, only
+the sound decoded) were added to the test; Small SFX came out quiet (-24 to -49 LUFS).
+Listened loudness-matched (-23 LUFS, 60 s loops), the user's ranking: **MMAudio** (the clear
+winner: the diner's refrigerator hum far better), then Stable Audio 3 Small SFX, then Stable
+Audio 3 Medium, then H3. Other open models looked at: Sony's Woosh (non-commercial weights,
+and reportedly outputs), TangoFlux (research only), AudioX and AudioGen (non-commercial).
 
 ## Scored: Ballroom ep03 "Choice" (2026-11-01)
 
