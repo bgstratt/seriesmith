@@ -386,9 +386,9 @@ Each phase is tested live on local ComfyUI before the next starts.
    under the cut. Most of it exists; what's left to find out on one real song:
    - [ ] align with the lyrics as the script's lines (faster-whisper on a sung vocal; the
          vocal stem from Demucs, as RECORDED_DIALOGUE says for a recording with music)
-   - [ ] whether a singing shot lip-syncs better to the vocal stem than to the full song
+   - [x] whether a singing shot lip-syncs better to the vocal stem than to the full song
          (the window sent the model could be the stem's, the episode's sound the song's)
-   - [ ] shots that don't sing (the band, b-roll) get their window with no lips to sync
+   - [x] shots that don't sing (the band, b-roll) get their window with no lips to sync
    - [ ] cutting to the song's beats: phase 5's snaps, on the recording instead of a cue
    - [ ] a guide: Making a music video
    Tried 2026-11-01 on a 2:07 pop song (CupsMV, local, H3 Ref2VA proxy, 33 shots, 11:45 a
@@ -399,7 +399,8 @@ Each phase is tested live on local ComfyUI before the next starts.
    align run on each episode with `--words` from the stem. Two episodes, the same windows and
    seeds: ep01 dubbed with the full song (`--audio master` under the cut), ep02 with the stem
    (the song on the Music track at 0 dB, no ducking, Dialogue muted; it lands to the sample).
-   The user's verdict: ep02's lip sync spot on. A shot with no lines renders in `generate`
+   The user's verdict: both spot on and hard to tell apart at proxy size (unlikely to differ
+   much in full HD), so both ways are offered; the stem is the cleaner input. A shot with no lines renders in `generate`
    mode, its own sound, so the song must come from the master or the mix, never the clips.
 
 ## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
