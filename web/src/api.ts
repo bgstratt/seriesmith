@@ -634,9 +634,11 @@ export function createHttpApi(t: Transport): Api {
     putCut: (ep, pass, entries) => call("PUT", "/seriesmith/cut", { ep, pass, entries }),
     getMix: async (ep, pass) => {
       const r = await get<Partial<MixResult>>(`/seriesmith/mix?${qs({ ep, pass })}`);
-      return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) },
+      // everything the server sends (places, track_list, files...), the parts the editor leans on made safe
+      const { voices, ...rest } = r ?? {};
+      return { ...rest, mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) },
                beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [],
-               ...(r?.voices && Array.isArray(r.voices.shots) ? { voices: r.voices } : {}) };
+               ...(voices && Array.isArray(voices.shots) ? { voices } : {}) };
     },
     fxTakes: (ep, pass, shot) => get(`/seriesmith/fx?${qs({ ep, pass, shot })}`),
     fxShots: (ep, pass) => get(`/seriesmith/fx/shots?${qs({ ep, pass })}`),

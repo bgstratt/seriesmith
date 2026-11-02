@@ -77,6 +77,20 @@ function fake(routes: Record<string, (init?: RequestInit) => Response | Promise<
 const json = (body: string, status = 200) => new Response(body, { status, headers: { "Content-Type": "application/json" } });
 
 describe("createHttpApi", () => {
+  it("keeps every field of the mix the server sends (places, track_list), not only the ones it fills in", async () => {
+    const { api } = fake({
+      "GET /seriesmith/mix": () => json(JSON.stringify({
+        mix: { items: [] }, beds: [], fx: [],
+        places: { sh010: { place: "park_table", name: "park_table", bed: false } },
+        track_list: [{ id: "dialogue", kind: "dialogue", label: "Dialogue" }, { id: "song", kind: "music", label: "Song" }],
+      })),
+    });
+    const r = await api.getMix("C:\\ep02", "final");
+    expect(r.places).toEqual({ sh010: { place: "park_table", name: "park_table", bed: false } });
+    expect(r.track_list?.map((t) => t.id)).toEqual(["dialogue", "song"]);
+    expect(r.series).toEqual({});
+  });
+
   it("returns seeds as exact strings even if the server sent numbers", async () => {
     const { api } = fake({
       "GET /seriesmith/episode": () => json(`{"episode":"ep05","pass":"proxy","shots":[{"shot":"sh020","takes":[{"take":1,"seed":${BIG}}]}]}`),
