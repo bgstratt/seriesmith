@@ -2630,9 +2630,17 @@ def put_mix(ctx: Context, body):
 
 
 def _plan_summary(p: dict) -> dict:
-    """What a cue's plan says, for the window (cue.plan, without the spec it came from)."""
-    return {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "direction", "bars", "bar", "preroll",
-                              "seconds", "ask_seconds", "sections", "arc", "prompt")}
+    """What a cue's plan says, for the window (cue.plan, without the spec it came from): and
+    `theme` (how its model hears the cue's theme: {spec, label, use, warning}), `warnings`,
+    `blocked` (why it can't render) and `song` (a theme's plan's sections) when it has them."""
+    out = {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "direction", "bars", "bar", "preroll",
+                             "seconds", "ask_seconds", "sections", "arc", "prompt")}
+    if p.get("theme"):
+        out["theme"] = {k: p["theme"][k] for k in ("spec", "label", "use", "warning")}
+    for k in ("warnings", "blocked", "song"):
+        if p.get(k):
+            out[k] = p[k]
+    return out
 
 
 def _cue_spec(ep: str, cid) -> dict:
@@ -2742,6 +2750,8 @@ def post_cue_render(ctx: Context, body):
         p = CU.plan(ep, pass_, spec)
     except CU.CueError as e:
         raise ApiError(400, str(e))
+    if p.get("blocked"):
+        raise ApiError(400, f"cue {spec['id']}: {p['blocked']}")
     target = TG.load_target(p["target"])
     n = body.get("takes")
     if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
@@ -2755,7 +2765,9 @@ def post_cue_render(ctx: Context, body):
                                         "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
                                         "plan": {
                                             k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
-                                                                 "seconds", "ask_seconds")}})
+                                                                 "seconds", "ask_seconds")},
+                                        **({"theme": {"label": p["theme"]["label"], "use": p["theme"]["use"]}}
+                                           if p.get("theme") else {})})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
         queued.append({"take": k, "job": job, "seed": seed})
     episode_event(ctx, ep)

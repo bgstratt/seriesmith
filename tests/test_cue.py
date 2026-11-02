@@ -70,7 +70,7 @@ class SpecTest(unittest.TestCase):
         with self.assertRaisesRegex(CU.CueError, "sings no lyrics"):
             CU.check_spec(self.spec(kind="song", model="stable_audio3"))
         self.assertEqual(CU.model_for(CU.check_spec(self.spec()), {}), "stable_audio3")
-        self.assertEqual(CU.model_for(CU.check_spec(self.spec(kind="song")), {}), "ace_step15")
+        self.assertEqual(CU.model_for(CU.check_spec(self.spec(kind="song")), {}), "yue2")
         self.assertEqual(CU.model_for(CU.check_spec(self.spec()), {"sound": {"music_model": "ace_step15"}}),
                          "ace_step15")
 
@@ -188,8 +188,13 @@ class PlanTest(unittest.TestCase):
         p = CU.plan(self.root, "final", self.spec(kind="song", sections=[
             {"name": "verse", "bars": 4, "lyrics": "Under the rain\nwe run"},
             {"name": "chorus", "words": "full band"}]), {})
-        self.assertEqual(p["target"], "ace_step15")
+        self.assertEqual(p["target"], "yue2")                       # a song's default sings
         self.assertNotIn("instrumental", p["prompt"]["prompt"])
+        # YuE2: the sections with lyrics, each under its tag
+        self.assertEqual(p["prompt"]["values"]["lyrics"], "[Verse]\nUnder the rain\nwe run")
+        p = CU.plan(self.root, "final", self.spec(kind="song", model="ace_step15", sections=[
+            {"name": "verse", "bars": 4, "lyrics": "Under the rain\nwe run"},
+            {"name": "chorus", "words": "full band"}]), {})
         self.assertIn("[Verse]\nUnder the rain\nwe run", p["prompt"]["values"]["lyrics"])
         self.assertIn("instrumental", CU.plan(self.root, "final", self.spec(), {})["prompt"]["prompt"])
 

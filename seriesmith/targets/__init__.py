@@ -53,6 +53,9 @@ or, for an image target:
 or, for a music target (targets/music/common.py):
 
     cue_prompt(cue)                                 -> {"prompt", "negative", "values"}
+    cue_graph(graph, plan, values, audio)           (optional) graph surgery for a
+                                                    cue's theme (YuE2: the planner
+                                                    replaced; ACE-Step: its timbre)
 
 or, for an ambience target (targets/ambience/common.py):
 
@@ -772,12 +775,16 @@ class Target:
         if self.kind == "music":
             caps = self.spec.get("capabilities") or {}
             default, hi, lo = self.seconds_range()
-            # how it takes a tempo ("bpm": an input; "text": in the words), its
-            # sections ("sections": its own tags; "story": told in prose), lyrics
+            # how it takes a tempo ("bpm": an input; "text": in the words; "abc": in
+            # its plan's Q: line), its sections ("sections": its own tags; "story": told
+            # in prose; "plan": its own plan), lyrics (and whether a song must have
+            # them), and a cue's theme ("melody": sung; "timbre": its sound; None)
             return {**common, "mode": caps.get("mode") or "t2m",
                     "tempo": caps.get("tempo") or "text",
                     "structure": caps.get("structure") or "story",
                     "lyrics": bool(caps.get("lyrics")),
+                    "needs_lyrics": bool(caps.get("needs_lyrics")),
+                    "theme": caps.get("theme") or None,
                     "max_seconds": float(caps.get("max_seconds") or hi),
                     "min_seconds": lo, "default_seconds": default}
         if self.kind == "ambience":
@@ -1796,6 +1803,7 @@ MODEL_FOLDERS: dict[tuple, str] = {
     ("UNETLoader", "unet_name"): "diffusion_models",
     ("UnetLoaderGGUF", "unet_name"): "diffusion_models",
     ("CheckpointLoaderSimple", "ckpt_name"): "checkpoints",
+    ("AudioEncoderLoader", "audio_encoder_name"): "audio_encoders",
     ("LTXVAudioVAELoader", "ckpt_name"): "checkpoints",
     ("LTXAVTextEncoderLoader", "ckpt_name"): "checkpoints",
     ("LTXAVTextEncoderLoader", "text_encoder"): "text_encoders",

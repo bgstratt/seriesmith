@@ -582,11 +582,25 @@ class Runner:
                 outs = [o for o in run.outputs() if o.type == "audio"]
                 if not outs:
                     raise RuntimeError("the job finished but returned no audio")
+                # a song's plan, saved beside it as text (YuE2: as written, and as sung)
+                roles = CU.plan_outputs(graph)
+                plans = {}
+                for o in run.outputs():
+                    if o.node in roles and o.type in ("file", "text"):
+                        fd, txt = tempfile.mkstemp(suffix=".txt")
+                        os.close(fd)
+                        try:
+                            o.save(txt)
+                            with open(txt, encoding="utf-8") as fh:
+                                plans[roles[o.node]] = fh.read()
+                        finally:
+                            if os.path.exists(txt):
+                                os.remove(txt)
                 fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".flac")
                 os.close(fd)
                 try:
                     outs[0].save(tmp)
-                    sc = CU.finish_take(root, cid, n, tmp, p)
+                    sc = CU.finish_take(root, cid, n, tmp, p, plans)
                 finally:
                     if os.path.exists(tmp):
                         os.remove(tmp)

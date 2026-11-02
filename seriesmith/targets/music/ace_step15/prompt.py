@@ -3,7 +3,8 @@ ace_step15: ACE-Step 1.5 XL (target.json beside this file). Its tags are the cue
 without the tempo (the bpm is its own input) and the script's music: notes; its lyrics are
 the sections as its own tags, each followed by one line per bar carrying the section's
 words, which timed sections best and made the climax loudest (docs/SOUND.md "Measured: ACE-Step 1.5 XL Turbo"); a song's
-lyrics, when a section has them, are its lines instead.
+lyrics, when a section has them, are its lines instead. A cue's theme is its timbre
+reference (cue_graph).
 
 Stdlib only.
 """
@@ -55,3 +56,25 @@ def cue_prompt(target, cue: dict) -> dict:
         values["keyscale"] = k
     tags = ", ".join(x for x in (C.head(cue, bpm_in_text=False).rstrip("."), C.notes(cue)) if x)
     return {"prompt": tags, "negative": None, "values": values}
+
+
+def cue_graph(target, g: dict, plan: dict, values: dict, audio) -> None:
+    """A theme as the timbre reference (plan["theme"]["use"] "timbre"; `audio` its sound, as
+    the backend uploads it): LoadAudio -> VAEEncodeAudio (the ACE VAE) -> ReferenceTimbreAudio
+    on the prompt's conditioning, which the sampler's positive and the zeroed negative both
+    take. ReferenceTimbreAudio is wired as its inputs say (no ComfyUI template uses it yet)."""
+    if (plan.get("theme") or {}).get("use") != "timbre" or audio is None:
+        return
+    enc = [k for k, v in g.items() if v["class_type"] == "TextEncodeAceStepAudio1.5"]
+    vae = [k for k, v in g.items() if v["class_type"] == "VAELoader"]
+    if len(enc) != 1 or len(vae) != 1:
+        return
+    feeds = [(nid, k) for nid, node in g.items() for k, v in node["inputs"].items()
+             if isinstance(v, list) and len(v) == 2 and v[0] == enc[0]]
+    g["r1"] = {"class_type": "LoadAudio", "inputs": {"audio": audio}, "_meta": {"title": "Theme"}}
+    g["r2"] = {"class_type": "VAEEncodeAudio", "inputs": {"audio": ["r1", 0], "vae": [vae[0], 0]},
+               "_meta": {"title": "Theme encoded"}}
+    g["r3"] = {"class_type": "ReferenceTimbreAudio", "inputs": {"conditioning": [enc[0], 0], "latent": ["r2", 0]},
+               "_meta": {"title": "Theme as timbre"}}
+    for nid, k in feeds:
+        g[nid]["inputs"][k] = ["r3", 0]

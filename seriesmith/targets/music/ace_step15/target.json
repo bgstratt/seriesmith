@@ -12,6 +12,7 @@
     "tempo": "bpm",
     "structure": "sections",
     "lyrics": true,
+    "theme": "timbre",
     "max_seconds": 600
   },
 
@@ -53,6 +54,13 @@
     "text_encoder": {"family": "ace-step-1.5-qwen-small", "patterns": ["*qwen*0.6b*ace15*"], "tier": "required"},
     "text_encoder_2": {"family": "ace-step-1.5-qwen-large", "patterns": ["*qwen*4b*ace15*", "*qwen*1.7b*ace15*"], "tier": "required"},
     "vae": {"family": "ace-step-1.5-vae", "patterns": ["*ace*1.5*vae*"], "tier": "required"}
+  },
+
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: what a cue's theme adds (prompt.py cue_graph): its sound loaded, encoded by the ACE VAE and set as the conditioning's timbre reference (ReferenceTimbreAudio), all ComfyUI core. No ComfyUI template wires ReferenceTimbreAudio; it is wired as its inputs say (a CONDITIONING and an optional LATENT), on the positive conditioning before the negative is zeroed from it. Optional: without them a theme is left out.",
+    "LoadAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"},
+    "VAEEncodeAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"},
+    "ReferenceTimbreAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"}
   },
 
   "presets": {

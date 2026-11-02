@@ -15,10 +15,13 @@ A cue lives in `<ep>/sound/<cue id>/`:
                                "from": 1, "to": 1, "lyrics": ""}, ...],
                  "arc": [{"at": {"shot", "frame"}, "level": 1-5}, ...],
                  "hits": null (every hit of the mix in its span) | ["h1", ...],
+                 "theme": null | {"cue": "m01", "take": 2} | {"file": "audio/theme.wav"},
                  "takes": null (the model's preset) | 8, "seed": null (from the ids)}
     tNN.wav     a take, stretched to the cue's exact tempo (tNN_raw.<ext> as it came)
+    tNN.abc     a song's plan as it was sung (YuE2: its sections and bars, the cue's tempo)
     tNN.json    its sidecar: what it was asked (prompt, values, seed, model, the plan's
-                tempo), its status, and what was measured (measure)
+                tempo, the theme), its status, what was measured (measure), and a song's
+                plan read (`song`: its sections against the cue)
 
 Planning (`plan`): the cut is laid out as assemble lays it (cut_layout) so the cue's anchors
 become seconds; the hits in its span are fitted (core/score.fit_tempo: the tempo within 8 %
@@ -38,7 +41,13 @@ something there); its level per bar against the arc (shape error); and a score t
 the takes (the worst must-hit error, then the shape).
 
 A take is stale (`stale`) when the cut has moved under it since it was rendered: its span,
-a hit, the tempo; each said in words.
+a hit, the tempo, the theme; each said in words.
+
+A theme (the leitmotif: `theme`, docs/SOUND.md phase 2) is another cue's take or a file, and
+each model hears it its own way (`theme_for`): YuE2 sings its melody (the take's own plan when
+it is a YuE2 take, else SheetSage2's transcription of its sound, in the same job), ACE-Step
+takes its sound as its timbre reference, Stable Audio 3 takes none (the plan warns, and it
+renders without it).
 
 Picking (`place`): the take becomes the cue's item on the music track of the pass's mix
 (mix.py): anchored at the cue's in point, played from where its pre-roll ends, to its out
@@ -61,6 +70,7 @@ from seriesmith import mix as MX
 from seriesmith import peaks as PK
 from seriesmith import takes as T
 from seriesmith import targets as TG
+from seriesmith.core import abc as ABC
 from seriesmith.core import fileio as F
 from seriesmith.core import score as SC
 from seriesmith.core.ir import stable_seed
@@ -69,7 +79,7 @@ SOUND_DIR = "sound"
 SPEC = "spec.json"
 SPEC_FIELDS = ("id", "kind", "label", "model", "in", "out", "style", "bpm", "fixed_tempo", "meter", "key",
                "orchestra",
-               "tail", "sections", "arc", "hits", "takes", "seed")
+               "tail", "sections", "arc", "hits", "theme", "takes", "seed")
 SECTION_FIELDS = ("name", "bars", "words", "from", "to", "lyrics")
 # the orchestration grid's levels: who plays in a bar, and how much
 ORCHESTRA_LEVELS = ("", "under", "present", "lead")
@@ -78,7 +88,9 @@ DEFAULT_BPM = 100.0
 # what a cue is: score (underscore composed to the picture; the default) or a song (sung, its
 # sections' lyrics); each kind's default model, unless the series config's `sound` names one
 KINDS = ("score", "song")
-KIND_MODEL = {"score": ("music_model", None), "song": ("song_model", "ace_step15")}
+KIND_MODEL = {"score": ("music_model", None), "song": ("song_model", "yue2")}
+# what a theme may be: a file of these (a recording, a gallery item, a take's video)
+THEME_EXTS = (".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac", ".opus", ".mp4", ".mov", ".webm", ".mkv")
 TAKES_MAX = 16
 STRETCH_MAX = 0.08                     # how far a take is stretched to its tempo, either way
 FIT_SPREAD = 0.08                      # how far the fit moves the asked tempo, either way
@@ -209,6 +221,8 @@ def check_spec(raw) -> dict:
                 clean[name] = levels
         if clean:
             out["orchestra"] = clean
+    if raw.get("theme") is not None:
+        out["theme"] = check_theme(raw["theme"], cid)
     if raw.get("hits") is not None:
         if not isinstance(raw["hits"], list) or not all(isinstance(h, str) for h in raw["hits"]):
             raise CueError(f"cue {cid}'s hits are the ids of the mix's hits it lands")
@@ -220,6 +234,39 @@ def check_spec(raw) -> dict:
                 raise CueError(f"cue {cid}'s {k} is a whole number up to {hi}")
             out[k] = v
     return out
+
+
+def check_theme(th, cid: str) -> dict:
+    """A cue's theme in its stored form: {"cue": id, "take": n} (another cue's take in the
+    episode) or {"file": a path relative to the episode}. Whether it is there is the plan's
+    to say (save_spec checks the cue)."""
+    if isinstance(th, dict) and set(th) == {"cue", "take"}:
+        if not isinstance(th["cue"], str) or not MX._ID.match(th["cue"]):
+            raise CueError(f"cue {cid}'s theme names a cue by its id, not {th['cue']!r}")
+        if th["cue"] == cid:
+            raise CueError(f"cue {cid}'s theme can't be one of its own takes")
+        n = th["take"]
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 999:
+            raise CueError(f"cue {cid}'s theme take is a take number, not {n!r}")
+        return {"cue": th["cue"], "take": n}
+    if isinstance(th, dict) and set(th) == {"file"}:
+        f = th["file"]
+        if not isinstance(f, str) or not f.strip():
+            raise CueError(f"cue {cid}'s theme file is a path relative to the episode")
+        f = f.strip().replace("\\", "/")
+        if re.match(r"^([A-Za-z]:|/)", f) or len(f) > 500:
+            raise CueError(f"cue {cid}'s theme file is a path relative to the episode, not {f!r}")
+        if os.path.splitext(f)[1].lower() not in THEME_EXTS:
+            raise CueError(f"cue {cid}'s theme is a sound file ({', '.join(THEME_EXTS)}), not {f!r}")
+        return {"file": f}
+    raise CueError("cue " + cid + "'s theme is {\"cue\", \"take\"} (another cue's take) or {\"file\"}")
+
+
+def theme_text(th: dict | None) -> str | None:
+    """A theme in words, for a take's fingerprint and the window: "m01 t02", "audio/x.wav"."""
+    if not th:
+        return None
+    return f"{th['cue']} t{th['take']:02d}" if th.get("cue") else th.get("file")
 
 
 def parse_meter(m) -> tuple[int, int]:
@@ -255,6 +302,9 @@ def load_spec(root: str, cid: str) -> dict:
 
 def save_spec(root: str, raw) -> dict:
     spec = check_spec(raw)
+    th = spec.get("theme") or {}
+    if th.get("cue") and not os.path.isfile(os.path.join(cue_dir(root, th["cue"]), SPEC)):
+        raise CueError(f"cue {spec['id']}'s theme: there is no cue {th['cue']} in the episode")
     F.write_json(os.path.join(cue_dir(root, spec["id"]), SPEC), spec)
     return spec
 
@@ -406,6 +456,59 @@ def model_for(spec: dict, series: dict) -> str:
     return ((series.get("sound") or {}).get(key)) or default or TG.DEFAULT_MUSIC_TARGET
 
 
+def theme_for(root: str, spec: dict, target) -> dict | None:
+    """How the cue's theme reaches its model (None without one): {"spec", "label", "use",
+    "audio", "abc", "warning"}. `use`: "plan" (YuE2 sings the theme take's own plan, `abc`:
+    its melody), "transcribe" (YuE2 sings SheetSage2's transcription of `audio`), "timbre"
+    (ACE-Step's timbre reference, `audio`), or None with `warning` saying why it is left out
+    (the take or file isn't there, or the model takes no theme)."""
+    th = spec.get("theme")
+    if not th:
+        return None
+    out = {"spec": th, "label": theme_text(th), "use": None, "audio": None, "abc": None, "warning": None}
+    plan_file = None
+    if th.get("cue"):
+        sc = next((t for t in list_takes(root, th["cue"]) if t["take"] == th["take"]), None)
+        wav = take_paths(root, th["cue"], th["take"])["wav"]
+        if sc is None:
+            out["warning"] = f"the theme {out['label']} isn't there (no such take): rendered without it"
+        elif sc.get("status") != "ok" or not os.path.isfile(wav):
+            out["warning"] = f"the theme {out['label']} isn't finished: rendered without it"
+        else:
+            out["audio"] = wav
+            f = os.path.join(cue_dir(root, th["cue"]), f"t{th['take']:02d}.abc")
+            plan_file = f if os.path.isfile(f) else None
+    else:
+        f = os.path.normpath(os.path.join(root, *th["file"].split("/")))
+        if os.path.isfile(f):
+            out["audio"] = f
+        else:
+            out["warning"] = f"the theme file {th['file']} isn't there: rendered without it"
+    if out["warning"]:
+        return out
+    how = target.capabilities().get("theme")
+    if how == "melody" and plan_file:
+        with open(plan_file, encoding="utf-8") as fh:
+            out.update(use="plan", abc=ABC.melody(fh.read()))
+    elif how == "melody":
+        out["use"] = "transcribe"
+    elif how == "timbre":
+        out["use"] = "timbre"
+    else:
+        out["warning"] = (f"{target.label} takes no theme: rendered without it (ACE-Step hears a "
+                          f"theme as its timbre, YuE2 sings its melody)")
+    return out
+
+
+def song_sections(info: dict, bpm: float, offset: float, bar: float) -> list[dict]:
+    """A song plan's sections (core/abc.read) where a take at `bpm` puts them: {"name",
+    "start" and "seconds" (in the take), "at" (seconds from the cue's in point: `offset` is
+    where the in point falls in the take), "bars" and "beats" (the plan's), "cue_bars" (its
+    length in the cue's bars)}."""
+    return [{**t, "at": round(t["start"] - offset, 3), "cue_bars": round(t["seconds"] / bar, 2)}
+            for t in ABC.times(info, bpm)]
+
+
 def orchestrate(sections: list[dict], orchestra: dict) -> list[dict]:
     """Sections with the orchestration grid in their words: each family's strongest level
     over the section's bars, strongest first ("strings lead, solo horn present, timpani
@@ -509,14 +612,29 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             if origins[x["id"]]["origin"] + x["trim_in"] < b
             and origins[x["id"]]["origin"] + x["trim_in"] + x["used"] > a]
     notes = script_notes(root, over)
+    theme = theme_for(root, spec, target)
     kind = spec.get("kind", "score")
     cue = {"kind": kind, "style": style or ("cinematic orchestral film score" if kind == "score" else "song"),
            "bpm": fit.ask_bpm,
            "meter": "{}/{}".format(*parse_meter(spec.get("meter", 4))), "key": spec.get("key", ""),
            "seconds": round(seconds * fit.stretch, 3),
            "sections": sections, "notes": [n["music"] for n in notes]}
+    if theme and theme["use"]:
+        cue["theme"] = theme["use"]
     brief = target.cue_prompt(cue)
-    return {"spec": spec, "target": target.id, "fps": fps, "start_frame": a, "end_frame": b,
+    caps = target.capabilities()
+    warnings = [theme["warning"]] if theme and theme["warning"] else []
+    blocked = None
+    if kind == "song" and caps.get("needs_lyrics") and not (brief.get("values") or {}).get("lyrics"):
+        blocked = (f"{target.short or target.label} sings words: give the song's sections their lyrics "
+                   f"(a section's Lyrics in the cue window)")
+    song = None
+    if theme and theme["use"] == "plan":
+        unit = parse_meter(spec.get("meter", 4))[1]
+        info = ABC.read(ABC.set_tempo(theme["abc"], fit.ask_bpm, f"1/{unit}"))
+        song = {"source": "theme plan", "bars": info["bars"], "meter": info["meter"],
+                "sections": song_sections(info, fit.bpm, preroll, bar)}
+    out = {"spec": spec, "target": target.id, "fps": fps, "start_frame": a, "end_frame": b,
             "span": round(span, 3), "hits": hits, "notes": notes,
             "fit": {"bpm": fit.bpm, "ask_bpm": fit.ask_bpm, "stretch": fit.stretch,
                     "errors": fit_errors, "worst_must": fit.worst_must},
@@ -525,6 +643,15 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             "bars": bars, "bar": round(bar, 5), "preroll": preroll, "seconds": seconds,
             "ask_seconds": cue["seconds"], "sections": sections, "arc": arc, "cue": cue,
             "prompt": brief}
+    if theme:
+        out["theme"] = theme
+    if warnings:
+        out["warnings"] = warnings
+    if blocked:
+        out["blocked"] = blocked
+    if song:
+        out["song"] = song
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -533,10 +660,14 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
 
 def fingerprint(p: dict) -> dict:
     """What a take was rendered for, kept in its sidecar so a later cut can be told apart:
-    the span in frames, each hit's place, the tempo and the bars."""
-    return {"span_frames": p["end_frame"] - p["start_frame"], "fps": p["fps"],
-            "hits": {h["id"]: h["t"] for h in p["hits"]}, "bpm": p["fit"]["bpm"],
-            "bars": p["bars"]}
+    the span in frames, each hit's place, the tempo and the bars, and the theme when it has
+    one."""
+    out = {"span_frames": p["end_frame"] - p["start_frame"], "fps": p["fps"],
+           "hits": {h["id"]: h["t"] for h in p["hits"]}, "bpm": p["fit"]["bpm"],
+           "bars": p["bars"]}
+    if p.get("theme"):
+        out["theme"] = p["theme"]["label"]
+    return out
 
 
 def stale(sc: dict, p: dict) -> list[str]:
@@ -565,6 +696,11 @@ def stale(sc: dict, p: dict) -> list[str]:
             out.append(f"hit {hid} is gone")
     if abs(float(was.get("bpm") or 0) - now["bpm"]) > 0.05:
         out.append(f"the tempo is {now['bpm']:g}, not {float(was.get('bpm') or 0):g}")
+    if was.get("theme") != now.get("theme"):
+        if now.get("theme"):
+            out.append(f"the theme is {now['theme']}" + (f", not {was['theme']}" if was.get("theme") else ""))
+        else:
+            out.append(f"the theme {was['theme']} is gone")
     return out
 
 
@@ -634,10 +770,36 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
     for name, v in vals.items():
         if v is not None and b.specs(name):
             J.patch_param(g, b, name, v)
+    if target.supports("cue_graph"):
+        # a theme's graph surgery (YuE2: the planner replaced; ACE-Step: the timbre reference)
+        th = p.get("theme") or {}
+        audio = None
+        if th.get("audio") and th.get("use") in ("transcribe", "timbre"):
+            from seriesmith.backends import File
+            audio = File(th["audio"])
+        target.module.cue_graph(target, g, p, vals, audio)
     saver = J.node_of(g, b.saver_class or "SaveAudio")
     if b.prune:
-        J.prune(g, saver)
+        # the saver and what it needs, and a song's plan saved beside it (SaveText)
+        need: set = set()
+        for k in [saver] + [k for k, v in g.items() if v["class_type"] == "SaveText"]:
+            part = dict(g)
+            J.prune(part, k)
+            need |= set(part)
+        for k in [k for k in g if k not in need]:
+            del g[k]
     return g
+
+
+def plan_outputs(g: dict) -> dict:
+    """{node id: "written" | "sung"} for the graph's SaveText nodes: a song's plan as its
+    model wrote it, and as it was sung (its tempo set). The queue's job reads them when the
+    take comes back."""
+    out = {}
+    for k, v in g.items():
+        if v["class_type"] == "SaveText":
+            out[k] = "sung" if str(v["inputs"].get("filename_prefix", "")).endswith("cue_plan") else "written"
+    return out
 
 
 def seeds(root: str, spec: dict, count: int, already: int) -> list[int]:
@@ -790,15 +952,51 @@ def comp(root: str, pass_: str, cid: str, base: int, src: int, bars: tuple[int, 
                   raw=os.path.relpath(raw, root).replace(os.sep, "/"), measured=m)
 
 
-def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict) -> dict:
+def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict, plans: dict | None = None) -> dict:
     """A take's file is back: kept as tNN_raw, stretched and measured into tNN.wav, its
-    sidecar closed."""
+    sidecar closed. A song's plan (`plans`: {"written", "sung"}, the ABC the graph saved) is
+    kept as tNN.abc (as sung) and read into the sidecar's `song` (song_record)."""
     paths = take_paths(root, cid, n)
     keep = os.path.join(cue_dir(root, cid), f"t{n:02d}_raw{os.path.splitext(raw_path)[1] or '.flac'}")
     F.replace(raw_path, keep)
     m = measure(keep, paths["wav"], p)
+    extra = {}
+    plans = plans or {}
+    if plans.get("sung"):
+        abc_path = os.path.join(cue_dir(root, cid), f"t{n:02d}.abc")
+        F.write_text(abc_path, plans["sung"])
+        th = p.get("theme") or {}
+        written = plans.get("written") or (th.get("abc") if th.get("use") == "plan" else None)
+        extra["song"] = song_record(plans["sung"], written, keep, m, p,
+                                    os.path.relpath(abc_path, root).replace(os.sep, "/"))
     return update(root, cid, n, status="ok", finished=T.now(), file=paths["rel"],
-                  raw=os.path.relpath(keep, root).replace(os.sep, "/"), measured=m)
+                  raw=os.path.relpath(keep, root).replace(os.sep, "/"), measured=m, **extra)
+
+
+def song_record(sung: str, written: str | None, raw: str, m: dict, p: dict, rel: str) -> dict:
+    """What a song take's plan says against what came back: {"file" (tNN.abc), "source"
+    ("planned", "theme plan", "theme transcribed"), "tempo_written" (the plan's own Q:,
+    before it was set), "tempo" (as sung), "meter", "key", "bars", "plan_seconds" (its beats
+    at the tempo asked), "raw_seconds" (the take as it came), "short" (how much shorter it
+    came than its plan), "first_note" (the plan's first sung note, seconds into the take as
+    stretched), "sections" (song_sections: at the cue's tempo, against its in point)}."""
+    info = ABC.read(sung)
+    before = ABC.read(written) if written else None
+    use = (p.get("theme") or {}).get("use")
+    try:
+        raw_s = round(len(MX.decode(raw)) / MX.RATE, 3)
+    except Exception:                                      # noqa: BLE001  recorded without it
+        raw_s = None
+    plan_s = round(info["beats"] * 60.0 / p["fit"]["ask_bpm"], 3)
+    bpm = p["fit"]["bpm"]
+    return {"file": rel,
+            "source": {"plan": "theme plan", "transcribe": "theme transcribed"}.get(use, "planned"),
+            "tempo_written": before["tempo"] if before else None, "tempo": info["tempo"],
+            "meter": info["meter"], "key": info["key"], "bars": info["bars"],
+            "plan_seconds": plan_s, "raw_seconds": raw_s,
+            "short": round(plan_s - raw_s, 3) if raw_s is not None else None,
+            "first_note": round(info["first_note"] * 60.0 / bpm, 3) if info["first_note"] is not None else None,
+            "sections": song_sections(info, bpm, m["offset"], p["bar"])}
 
 
 # ---------------------------------------------------------------------------

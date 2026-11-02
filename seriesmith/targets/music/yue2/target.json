@@ -1,0 +1,86 @@
+{
+  "id": "yue2",
+  "kind": "music",
+  "label": "YuE2 (songs; non-commercial licence)",
+  "short": "YuE2",
+  "default_rank": 3,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Songs: style words and lyrics by section ([Verse], [Chorus]...), sung. A take is two stages in one graph: YuE2GenerateABC plans the song as ABC (its sections and bars), the plan's Q: line is set to the cue's tempo (two RegexReplace nodes), then YuE2GenerateMusic sings that plan. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: YuE2'): the Q: line holds the tempo exactly (96.0-96.1 heard of 96 asked), the length follows the plan's bars (~2 % short), a 2-2.5 minute song in 18-22 s on an RTX 5090, the plan included. A theme (a cue's leitmotif) is sung as its melody: another YuE2 take's plan, or SheetSage2's transcription of any recording, in `melody` mode. Licence: the YuE2-3B and SheetSage2 weights are CC BY-NC 4.0 (non-commercial; the m-a-p model cards, and Comfy-Org/YuE2's repackaging), so a song made with it is for non-commercial use.",
+    "mode": "t2m",
+    "tempo": "abc",
+    "structure": "plan",
+    "lyrics": true,
+    "needs_lyrics": true,
+    "theme": "melody",
+    "max_seconds": 900
+  },
+
+  "template": {
+    "_note": "A song's length is its plan's (its bars at the cue's tempo), not the cue's: YuE2GenerateMusic's max_duration caps it (360 s, as the templates), and the cue plays its span of it.",
+    "default_seconds": 120.0,
+    "min_seconds": 10.0,
+    "max_seconds": 900.0
+  },
+
+  "binding": {
+    "_note": "ComfyUI's audio_yue2_text2music template (CheckpointLoaderSimple -> YuE2GenerateABC -> YuE2GenerateMusic -> EmptyYuE2LatentAudio from its seconds -> KSampler 32 steps dpm_2 sgm_uniform cfg 1 -> VAEDecodeAudio -> SaveAudio), with the plan's tempo set between the two stages by two core RegexReplace nodes (every Q: line out, one before K:) and the plan saved twice by SaveText (as written, and as sung: tNN.abc beside the take). A theme replaces YuE2GenerateABC (prompt.py cue_graph): a plan given as text, or LoadAudio -> SheetSage2AudioToABC (audio_yue2_music_cover's), and both stages go to `melody` mode. The seed goes to the plan, the song and the sampler.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_yue2.json",
+    "env": "SERIESMITH_YUE2_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "CheckpointLoaderSimple", "field": "ckpt_name"},
+      "prompt": [{"class_type": "YuE2GenerateABC", "field": "style"},
+                 {"class_type": "YuE2GenerateMusic", "field": "style"}],
+      "lyrics": [{"class_type": "YuE2GenerateABC", "field": "lyrics"},
+                 {"class_type": "YuE2GenerateMusic", "field": "lyrics"}],
+      "mode": [{"class_type": "YuE2GenerateABC", "field": "mode"},
+               {"class_type": "YuE2GenerateMusic", "field": "mode"}],
+      "tempo": {"class_type": "RegexReplace", "field": "replace", "title": "Plan at the cue's tempo"},
+      "max_seconds": {"class_type": "YuE2GenerateMusic", "field": "max_duration"},
+      "seed": [{"class_type": "YuE2GenerateABC", "field": "seed"},
+               {"class_type": "YuE2GenerateMusic", "field": "seed"},
+               {"class_type": "KSampler", "field": "seed"}],
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "yue2", "patterns": ["*yue2*"], "tier": "required"},
+    "sheetsage": {"family": "sheetsage2", "patterns": ["*sheetsage*"], "tier": "optional", "folder": "audio_encoders",
+                  "feature": "a theme transcribed from a recording (SheetSage2)"}
+  },
+
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: what a theme transcribed from a recording adds (prompt.py cue_graph), all ComfyUI core; the SheetSage2 weights (sheetsage2_bf16.safetensors, models/audio_encoders) with them. Optional: without them a theme that isn't another YuE2 take's plan can't be sung.",
+    "LoadAudio": {"tier": "optional", "feature": "a theme transcribed from a recording (SheetSage2)"},
+    "AudioEncoderLoader": {"tier": "optional", "feature": "a theme transcribed from a recording (SheetSage2)"},
+    "SheetSage2AudioToABC": {"tier": "optional", "feature": "a theme transcribed from a recording (SheetSage2)"}
+  },
+
+  "presets": {
+    "final": {
+      "_note": "The int8 checkpoint at the templates' settings (32 steps, cfg 1); `sheetsage` is the transcriber a theme from a recording uses.",
+      "model": "yue2_3b_int8_convrot.safetensors",
+      "sheetsage": "sheetsage2_bf16.safetensors",
+      "steps": 32, "cfg": 1.0, "max_seconds": 360.0,
+      "takes": 4
+    },
+    "proxy": {
+      "model": "yue2_3b_int8_convrot.safetensors",
+      "sheetsage": "sheetsage2_bf16.safetensors",
+      "steps": 32, "cfg": 1.0, "max_seconds": 360.0,
+      "takes": 2
+    }
+  },
+
+  "downloads": {
+    "_note": "The files ComfyUI's audio_yue2_text2music / audio_yue2_music_cover templates name (their notes' model links); checked on the Hugging Face repo Comfy-Org/YuE2 2026-11-01 (also yue2_3b_bf16, 7.8 GB, not used). CC BY-NC 4.0.",
+    "yue2_3b_int8_convrot.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Comfy-Org/YuE2/resolve/main/checkpoints/yue2_3b_int8_convrot.safetensors", "source": "ComfyUI template audio_yue2_music_cover.json (its note's model links); the Hugging Face repo Comfy-Org/YuE2 (3960938800 bytes)"},
+    "sheetsage2_bf16.safetensors": {"folder": "audio_encoders", "url": "https://huggingface.co/Comfy-Org/YuE2/resolve/main/audio_encoders/sheetsage2_bf16.safetensors", "source": "ComfyUI template audio_yue2_music_cover.json (its note's model links); the Hugging Face repo Comfy-Org/YuE2 (1386868122 bytes)"}
+  }
+}

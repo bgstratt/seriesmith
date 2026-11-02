@@ -1,0 +1,14 @@
+{
+ "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "yue2_3b_int8_convrot.safetensors"}, "_meta": {"title": "Model"}},
+ "2": {"class_type": "YuE2GenerateABC", "inputs": {"clip": ["1", 1], "style": "", "lyrics": "", "seed": 0, "mode": "full", "max_abc_tokens": 8192, "temperature": 0.7, "top_p": 0.9, "top_k": 30, "repetition_penalty": 1.005, "penalty_window": 100}, "_meta": {"title": "Plan"}},
+ "3": {"class_type": "RegexReplace", "inputs": {"string": ["2", 0], "regex_pattern": "^Q:.*\n?", "replace": "", "case_insensitive": false, "multiline": true, "dotall": false, "count": 0}, "_meta": {"title": "Plan without its tempo"}},
+ "4": {"class_type": "RegexReplace", "inputs": {"string": ["3", 0], "regex_pattern": "^K:", "replace": "Q:1/4=120\nK:", "case_insensitive": false, "multiline": true, "dotall": false, "count": 1}, "_meta": {"title": "Plan at the cue's tempo"}},
+ "5": {"class_type": "SaveText", "inputs": {"text": ["2", 0], "filename_prefix": "seriesmith/cue_plan_written", "format": "txt"}, "_meta": {"title": "Save the plan as written"}},
+ "6": {"class_type": "SaveText", "inputs": {"text": ["4", 0], "filename_prefix": "seriesmith/cue_plan", "format": "txt"}, "_meta": {"title": "Save the plan as sung"}},
+ "7": {"class_type": "YuE2GenerateMusic", "inputs": {"clip": ["1", 1], "style": "", "lyrics": "", "abc": ["4", 0], "seed": 0, "mode": "full", "max_duration": 360.0, "temperature": 1.0, "top_p": 0.95, "top_k": 100, "repetition_penalty": 1.2}, "_meta": {"title": "Song"}},
+ "8": {"class_type": "EmptyYuE2LatentAudio", "inputs": {"seconds": ["7", 1], "batch_size": 1}, "_meta": {"title": "Length"}},
+ "9": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["7", 0]}, "_meta": {"title": "Negative"}},
+ "10": {"class_type": "KSampler", "inputs": {"model": ["1", 0], "positive": ["7", 0], "negative": ["9", 0], "latent_image": ["8", 0], "seed": 0, "steps": 32, "cfg": 1.0, "sampler_name": "dpm_2", "scheduler": "sgm_uniform", "denoise": 1.0}, "_meta": {"title": "Sampler"}},
+ "11": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["10", 0], "vae": ["1", 2]}, "_meta": {"title": "Decode"}},
+ "12": {"class_type": "SaveAudio", "inputs": {"audio": ["11", 0], "filename_prefix": "seriesmith/cue"}, "_meta": {"title": "Save"}}
+}
