@@ -28,10 +28,39 @@ with them, and tells you when the change means it should be made again.
   re-rendering its cues.
 - **Open the sound lanes**: **Sound** in the timeline's header. Under the clips you get a
   **Hits** lane and four tracks: Dialogue (each clip's own sound), Effects, Ambience, Music.
+  **Spotting**, beside it, is the whole episode's music on one sheet (below).
 - **Decide where the music goes before what it is.** Watch the scene with the sound on and note
   where music would help and where silence is stronger. A comedy played straight, like ep03, wants
   the music to be sincere and to **stop dead** on the deflating beats, so the jokes land in
   silence.
+
+## The spotting sheet
+
+**Spotting** in the timeline's head opens the episode's view of its music: a large picture of
+the cut playing with its mix, and under it the **music map**, a row per sequence with its cues,
+ambience, effects and hits. It's where you do the first two steps below, and come back to
+between cues:
+
+- **Watch and decide.** Play the cut and note where music would help and where silence is
+  stronger. Stop on the frame (`,` and `.` step one) and **+ Hit at playhead** marks a moment
+  the music must answer; **◀ Hit** / **Hit ▶** (`[` `]`) jump between them. Name a hit and set
+  its kind on the timeline's Hits lane (step 1).
+- **See the whole score at once.** Each cue on the map says whether it's placed (the take in
+  the mix) or stale; click one to see it on the right, double-click it to shape it in the cue
+  window (its **← Spotting** comes back).
+- **Check a cue against its hits.** The right side's table has each hit's bar and beat, how far
+  the tempo fit leaves it off its line, and how far each take's music is from it (frames,
+  orange past 2). Click a row to see the frame. Under it, **the tempo**: what was asked, what
+  it was fitted to, the worst must-hit, and the **nearest other tempos** that land the hits; a
+  click holds the cue at one (fixed), and its takes need rendering again.
+- **Hear a take against the picture.** ▶ beside any take plays it under the picture from the
+  cue's in point, in the cue's place, without changing the mix; **Back to the mix** ends it.
+  It's the way to choose between the top two or three.
+- **Render what's stale.** When the cut has moved under a cue's take, the foot of the sheet
+  lists it: **Render** it, or **Render all stale**.
+
+In ep03: the map lays *1M1*, *1M2* and *1M3* over their shots with the four hits on them in
+their colours, and the gaps between the cues are the silences the comedy wants.
 
 ## 1. Mark the hits
 
@@ -224,3 +253,7 @@ tempo still fits).
 | Most of a take is right | Comp the bad bars from another take |
 | A song | Kind: Song; lyrics on its sections |
 | A place to start | the inspector's Preset, then adjust |
+| The whole episode's music at a glance | **Spotting**: the music map |
+| To hear a take under the picture | the spotting sheet: ▶ beside the take |
+| Another tempo that lands the hits | the spotting sheet: a tempo under **The tempo** |
+| The cues the cut has moved under | the spotting sheet's **Stale cues** |

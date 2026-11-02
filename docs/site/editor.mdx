@@ -1346,6 +1346,37 @@ with stems beside it.
   dialogue fader turns the clips' own sound down (not up: a video plays at most at its own
   level), as does a region that lowers the dialogue.
 
+### The spotting sheet: the episode's music
+
+**Spotting** in the timeline's head (or the Music lane's menu, **Spotting sheet…**) opens the
+episode's view of its music, one level above the cue window: where cues go before they're
+shaped ([SCORING.md](/scoring), "The spotting sheet"). It is Play all's player in a larger
+window of its own (it remembers its place; `Esc` closes it), so the mix plays under the
+picture as Play all plays it, and every Play all key works in it.
+
+- **The picture and its transport**: play / pause, a frame back or on (`,` `.`), **◀ Hit** /
+  **Hit ▶** (or `[` `]`) to the hit before or the next, **+ Hit at playhead** (the same as the
+  Hits lane's **+**: name it and set its kind on the lane), the playhead's timecode and the
+  hit it's on.
+- **The music map**: the whole episode, a row per sequence in cut order (a sequence the cut
+  splits is two rows), each with its shots, the **hits** coloured by kind (as on the Hits
+  lane), **Music** (the cues: label, score or song, the take in the mix or *not placed*,
+  *stale* when the cut has moved under it), **Ambience** (the places' beds) and **Effects**
+  (the shots', stale ones marked). Click a cue to select it, double-click it for the cue
+  window (its **← Spotting** comes back); click a hit, or anywhere on a row, to go there.
+- **The selected cue** (on the right): its **hits table** (name, kind, must, anchor, the cut's
+  timecode, the bar and beat it lands on, how far the fit leaves it off its line, and each
+  measured take's error in frames, best take first, the one in the mix marked ●; orange past
+  2 frames); a click on a row takes the picture there. **The tempo**: asked, fitted, the
+  stretch, the worst must-hit, and **the nearest other tempos** that land the hits (each with
+  its worst must-hit error): a click holds the cue at that tempo (its bpm set, **fixed**), and
+  its takes go stale. **Takes**: ▶ plays one under the picture from the cue's in point, in the
+  cue's place, without changing the mix (**Back to the mix** stops it); **Render** makes new
+  takes. **Direction**: the series' score direction and the script's `music:` notes.
+- **Stale cues** at the foot: every cue whose take in the mix the cut has moved under (or, with
+  none picked, all of whose takes it has), with **Render** each, or **Render all stale**.
+- The **?** in its head shows how to use it.
+
 ### The cue window: a piece of score
 
 A **cue** is music written to the cut: its tempo is fitted so its hits fall on bar lines,
@@ -1475,7 +1506,8 @@ These work while the timeline or Play all has focus, and never while you are typ
 | `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut (and the mix) |
 | `Ctrl + wheel` | Zoom the track |
 | `←` `→` | Step candidates, in the Viewer |
-| `,` `.` | Step a frame back / forward, in the Viewer |
+| `,` `.` | Step a frame back / forward, in the Viewer, Play all and the spotting sheet |
+| `[` `]` | The hit before / the next, in the spotting sheet |
 | `Escape` | Close a menu, or cancel a drag |
 | `Ctrl+S` | Save, in the Script and Series config windows |
 

@@ -767,15 +767,27 @@ lines, an accent on a beat), it runs in whole bars from the pre-roll through its
 tail, its sections fill them (given, else from the hits), and its music target writes the
 prompt.
 
-### `GET /seriesmith/cues?ep=…`
+### `GET /seriesmith/cues?ep=…[&pass=…]`
 `{"cues": [{"spec", "takes", "ok", "placed"}]}`: each cue's spec, how many takes it has, how
-many finished, and the passes whose mix it's in.
+many finished, and the passes whose mix it's in. With `pass` (the spotting sheet's list), each
+is also planned against that pass's cut: `bpm` (the fitted tempo), `in_mix` (the take its item
+in the pass's mix plays, null: none), `stale` (what has moved under that take since it was
+rendered, in words; `[]` when nothing has or none is in the mix), `stale_takes` (the finished
+takes something has moved under) and `plan_error` (null, or why its anchors aren't in the
+cut; `bpm` is then null). 400 for a pass that isn't one.
 
 ### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
 `{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
-`fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t}]`, seconds from its in point),
+`fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t, at, ends?}]`, `t` seconds from
+its in point, `at` the mix's anchor; `ends`: a drop on its out point, the music's end, neither
+fitted nor measured),
 `fit` (`{bpm, ask_bpm, stretch, errors, worst_must}`: the cue's exact tempo, the whole bpm the
-model is asked, the stretch between them, each hit's distance to its line in frames), `bars`,
+model is asked, the stretch between them, each hit's distance to its line in frames, null for
+an end), `alternatives` (`[{bpm, preroll, worst_must, total}]`: the best few tempos within 8 %
+of the asked one for its hits, at least a bpm apart, best first, the fit's first unless the
+tempo is fixed; `worst_must` and `total` in frames; `[]` with no hits to fit:
+core/score.alternatives), `direction` (the series config's score direction, `sound.score`,
+put before the cue's style in the prompt; `""` when none), `bars`,
 `bar` (seconds), `preroll`, `seconds`, `ask_seconds`, `sections`, `arc` (an energy per bar) and
 `prompt` (`{prompt, negative, values}` as the target writes it); null with `plan_error` when
 its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,

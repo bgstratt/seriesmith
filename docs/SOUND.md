@@ -124,7 +124,10 @@ Ambience / Effects); **+ Hit at playhead**; and for the selected cue a table of 
 kind, anchor, cut timecode, the bar and beat it lands on, must, and each take's error in
 frames; the script's `music:` notes, the series' direction and its leitmotif reference
 (a cue or theme from the gallery, as ACE-Step's timbre reference and YuE2's melody), and how
-the tempo was fitted, with the nearest alternatives. Render stale cues from there.
+the tempo was fitted, with the nearest alternatives. Render stale cues from there. Built
+2026-11-01 without the leitmotif reference, which waits for a music target that takes a
+timbre or melody reference; and with any take, not only the picked one, playable under the
+picture from its cue's in point (in the preview only).
 
 **The timeline** stays the simple view: each lane's waveform and fader, the items, the hit
 markers coloured by kind, and the cue's arc drawn faintly over its block, for reference.
@@ -348,8 +351,16 @@ Each phase is tested live on local ComfyUI before the next starts.
          viewer's place from a cue's block or the Music lane's New cue; one bar grid of the
          picture, hits, ruler, sections, the arc and the takes ranked, an inspector for a
          section or the cue with the model's prompt; every edit a PUT then the plan again.
-         Playing a take against the picture is left for the spotting sheet)
-   - [ ] the spotting sheet (the music map, hits table, tempo fit)
+         Playing a take against the picture is the spotting sheet's: below)
+   - [x] the spotting sheet (the music map, hits table, tempo fit) (2026-11-01;
+         `web/src/components/SpottingSheet.tsx`, `lib/spotting.ts`, `spotActions.ts`: Play all's
+         player (its engine shared: Viewer.tsx useCutEngine / CutStage) with frame stepping,
+         jump to hit and + Hit; the music map by sequence; the selected cue's hits table with
+         each take's error, the fit and `core/score.alternatives` (the plan's `alternatives`; a
+         click holds the cue at one, fixed); a take auditioned under the picture in its cue's
+         place, the preview's mix only (store `audition`, MixAudio); the stale cues from `GET
+         /seriesmith/cues?pass=`, rendered from there. The leitmotif reference is left for
+         later: it needs a timbre / melody reference the music targets don't take yet)
    - [x] the Arc tab's drawing tools and presets (2026-11-01; `CueWindow.tsx`, `lib/cue.ts`:
          draw / points / smooth, the preset shapes, snap peaks to hits, sections from the
          arc, and beside it what the model hears with the detail it can't follow)
