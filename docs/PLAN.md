@@ -1630,9 +1630,10 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       2026-11-02 (the snapping still to be looked at in a browser)
 - [x] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
       2026-11-02 (mix.json's `track_list`; not yet looked at in a browser)
-- [ ] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
-      recorded dub is (`audio.mode: source_track`, each shot its window); mostly there, so a
-      guide and one real song tried before anything is built (docs/SOUND.md)
+- [x] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
+      recorded dub is (`audio.mode: source_track`, each shot its window); one real song tried
+      (CupsMV), the vocal stem offered (optional, off by default: H3 lip-synced as well to the
+      whole song) and the guide written (docs/MUSIC_VIDEO.md) 2026-11-02
 
 ## To fix: the voice model is two lists (noted 2026-11-01)
 

@@ -666,7 +666,9 @@ Each phase is tested live on local ComfyUI before the next starts.
          (2026-11-02: the song on the Music track is measured as any file is; with no music
          on the lane, the recording's beats when it has a steady one (CupsMV ep01: the song as
          the recording, 130.00 bpm); not yet tried by hand in the editor)
-   - [ ] a guide: Making a music video
+   - [x] a guide: Making a music video (2026-11-02; docs/MUSIC_VIDEO.md, on the site after
+         Scoring): the song as the recording, the lyrics as lines, align, render, cutting to
+         the beat, the two exports, the vocal stem; CupsMV the example
    Tried 2026-11-01 on a 2:07 pop song (CupsMV, local, H3 Ref2VA proxy, 33 shots, 11:45 a
    pass on the 5090): the vocal stem split by torchaudio's Hybrid Demucs
    (`HDEMUCS_HIGH_MUSDB_PLUS`, in ComfyUI's own Python, nothing installed); the stem

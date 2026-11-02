@@ -75,7 +75,7 @@ A song, or lines with music under them, can be split into its **vocal stem** (th
 - **Align from the stem.** `seriesmith align <ep> --vocals`, or **from the vocal stem** in the editor's Recording window. Whisper hears the voice without the band, and the cuts land in the pauses of the singing. The series config still points at the recording.
 - **Dub shots hear the stem.** `"audio": {"dub_from": "vocals"}` in the series config, or **dub shots hear the vocal stem** in the Recording window. Each dub shot's window is cut from the stem instead of the recording. The episode's own sound (the mix, `assemble --audio master`) is still the recording.
 
-Both are off by default: on the pop song they were tried on, H3 Ref2VA lip-synced as well to the whole song as to the stem. Try the stem when a model mouths the band, or when align misses lines under loud music. The ComfyUI must have loaded seriesmith's node pack since the Vocal Stem node was added: restart it once after updating seriesmith. **Make the vocal stem** in the Recording window makes it on its own. Making a music video from a song is in [MUSIC_VIDEO.md](https://github.com/bgstratt/seriesmith/blob/main/docs/MUSIC_VIDEO.md).
+Both are off by default: on the pop song they were tried on, H3 Ref2VA lip-synced as well to the whole song as to the stem. Try the stem when a model mouths the band, or when align misses lines under loud music. The ComfyUI must have loaded seriesmith's node pack since the Vocal Stem node was added: restart it once after updating seriesmith. **Make the vocal stem** in the Recording window makes it on its own. Making a music video from a song is in [MUSIC_VIDEO.md](/music-video).
 
 ## Conform
 
