@@ -9,12 +9,13 @@ import { currentPlaylist, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
-  TRACK_LABEL, addHit, addItem, addPoint, setBed, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  TRACK_LABEL, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { statusKey, store, type AppState } from "./store";
-import type { Anchor, Mix, MixBedSettings, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
+import { tn } from "./lib/format";
+import type { Anchor, Mix, MixBedSettings, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -48,7 +49,8 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
       const was = s.mix[key];
       // the same mix keeps its object, so nothing redraws
       const same = was && sameMix(was.mix, r.mix) && JSON.stringify(was.series) === JSON.stringify(r.series)
-        && JSON.stringify(was.beds ?? []) === JSON.stringify(r.beds ?? []);
+        && JSON.stringify(was.beds ?? []) === JSON.stringify(r.beds ?? [])
+        && JSON.stringify(was.fx ?? []) === JSON.stringify(r.fx ?? []);
       return same ? { mixError } : { mix: { ...s.mix, [key]: r }, mixError };
     });
     return r;
@@ -174,6 +176,41 @@ export function setTrackMix(track: MixTrack, patch: TrackPatch, label?: string):
 /** A place's ambience bed: its level (dB, 0 the bed's own) or mute, the mix's `beds`. */
 export function setMixBed(place: string, patch: MixBedSettings, label = `Change ${place}'s ambience`): Promise<boolean> {
   return editMix(label, (m) => setBed(m, place, patch));
+}
+
+/** A shot's effects: its level (dB), mute or keep_stale, the mix's `fx`. */
+export function setMixFx(shot: string, patch: Partial<Omit<MixFxSettings, "take">>, label = `Change ${shot}'s effects`): Promise<boolean> {
+  return editMix(label, (m) => setFx(m, shot, patch));
+}
+
+/** A shot's effects take into the pass's mix (null: its effects out); undoable like any mix edit. */
+export function pickMixFx(shot: string, take: number | null): Promise<boolean> {
+  return editMix(take == null ? `Effects off ${shot}` : `${shot}'s effects ${tn(take)}`, (m) => pickFxTake(m, shot, take));
+}
+
+/**
+ * Make effects for `shots` from the takes the pass's cut plays (POST /seriesmith/fx/render),
+ * on `target` (null: the series' or this machine's default, h3_foley). Nothing automatic:
+ * only the shots asked for. Says what was queued and what couldn't be.
+ */
+export async function makeEffects(shots: string[], target: string | null = null): Promise<void> {
+  const s = get();
+  if (!s.ep || !shots.length) return;
+  const fn = api().renderFx;
+  if (!fn) {
+    host().toast("warn", "This server can't make effects", "Update seriesmith.");
+    return;
+  }
+  try {
+    const r = await fn({ ep: s.ep, pass: s.pass, shots, ...(target ? { target } : {}) });
+    const n = r.queued.length;
+    const on = r.queued[0]?.target ?? target ?? "";
+    host().toast("info", `Effects queued for ${n} shot${n === 1 ? "" : "s"}${on ? ` on ${on}` : ""}`,
+      [r.skipped.length ? `Not made: ${r.skipped.map((x) => `${x.shot} (${x.why})`).join("; ")}.` : "",
+       "Each is made from the take the cut plays; pick it on the Effects lane when it lands."].filter(Boolean).join(" "));
+  } catch (e) {
+    host().toast("error", "No effects were queued", errText(e));
+  }
 }
 
 /** The Refs tab's Ambience section on a place's bed, its row open (its takes, render again). */

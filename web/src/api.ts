@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  AmbienceBed, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
+  AmbienceBed, FxShot, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -172,6 +172,13 @@ export interface Api {
   ambience?(ep: string): Promise<{ beds: AmbienceBed[]; target: string | null }>;
   /** GET /seriesmith/refs/one: one ref with its takes (an ambience bed's row, when it opens). */
   refsOne?(ep: string, ref: string): Promise<Ref>;
+  /** GET /seriesmith/fx: one shot's effects takes with stale state (fetched when its menu opens). */
+  fxTakes?(ep: string, pass: Pass, shot: string): Promise<FxShot>;
+  /** POST /seriesmith/fx/render: effects for those shots from the cut's takes, on the queue. */
+  renderFx?(req: { ep: string; pass: Pass; shots: string[]; target?: string | null; n?: number }): Promise<{
+    queued: { shot: string; take: number; job: string; seed: number; target: string }[]; skipped: { shot: string; why: string }[] }>;
+  /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
+  pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts. */
   cues(ep: string): Promise<{ cues: CueSummary[] }>;
   /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
@@ -610,8 +617,11 @@ export function createHttpApi(t: Transport): Api {
     getMix: async (ep, pass) => {
       const r = await get<Partial<MixResult>>(`/seriesmith/mix?${qs({ ep, pass })}`);
       return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) },
-               beds: Array.isArray(r?.beds) ? r.beds : [] };
+               beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [] };
     },
+    fxTakes: (ep, pass, shot) => get(`/seriesmith/fx?${qs({ ep, pass, shot })}`),
+    renderFx: (req) => call("POST", "/seriesmith/fx/render", req),
+    pickFx: (req) => call("POST", "/seriesmith/fx/pick", req),
     ambience: async (ep) => {
       const r = await get<Partial<{ beds: AmbienceBed[]; target: string | null }>>(`/seriesmith/ambience?${qs({ ep })}`);
       return { beds: Array.isArray(r?.beds) ? r.beds : [], target: r?.target ?? null };

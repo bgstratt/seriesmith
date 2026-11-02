@@ -12,7 +12,11 @@
 // opens the cue window on a double-click; right-click the music or hits lane
 // for a new cue there (cueActions). The Ambience lane also shows the places'
 // ambience beds the server lays from the cut (GET /seriesmith/mix `beds`):
-// read-only blocks, each with a menu for its level, mute and its ref.
+// read-only blocks, each with a menu for its level, mute and its ref. The
+// Effects lane shows each shot's picked effects at its clip (`fx`): read-only
+// blocks (the shot, the model, a stale mark) whose menu sets the level, mute,
+// keeps a stale one, plays and picks its takes (fetched when the menu opens),
+// and makes them again.
 
 import {
   memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
@@ -23,21 +27,24 @@ import { framesLabel } from "../lib/cutEdit";
 import { fmtClock } from "../lib/format";
 import { dragHasFiles } from "../lib/lookback";
 import {
-  GAIN_MAX, GAIN_MIN, HIT_KINDS, bedSettings, bedSpan, HIT_KIND_TITLE, TRACKS, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName, itemSpan, layout,
+  GAIN_MAX, GAIN_MIN, HIT_KINDS, bedSettings, bedSpan, fxHeard, fxSettings, fxSpan, HIT_KIND_TITLE, TRACKS, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName, itemSpan, layout,
   moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackState, trimItem, xAnchor, xTime, type ClipBox, type Lay,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import {
   addMixHit, addMixPoint, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, dropOnLane, moveMixHit, moveMixItem,
-  moveMixPoint, openBedRef, pickSoundFile, setMixBed, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
 } from "../mixActions";
-import { host } from "../host";
+import { onFxEvent } from "../actions";
+import { tn } from "../lib/format";
+import { useTargets } from "./Targets";
+import { api, host } from "../host";
 import { openSound } from "../actions";
 import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
-import type { Anchor, CueKind, EpisodeStatus, HitKind, Mix, MixBed, MixHit, MixItem, MixTrack } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -80,6 +87,8 @@ interface Drag {
 type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
 /** A bed's menu, at the pointer. */
 type BedPop = { bed: MixBed; x: number; y: number };
+/** A shot's effects menu, at the pointer. */
+type FxPop = { fx: MixFx; x: number; y: number };
 
 /** The lane menu (a new cue), at the pointer: `at` where it was asked. */
 /** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
@@ -101,6 +110,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [over, setOver] = useState<MixTrack | null>(null);
   const [laneMenu, setLaneMenu] = useState<LaneMenu | null>(null);
   const [bedPop, setBedPop] = useState<BedPop | null>(null);
+  const [fxPop, setFxPop] = useState<FxPop | null>(null);
   const suppress = useRef(false);
   // the episode's cues: which music blocks open the cue window (fetched again with the mix)
   const cueIds = useApp((s) => s.cues[ep]?.map((c) => `${c.spec.id}:${c.spec.kind ?? "score"}`).join(" ") ?? "");
@@ -340,6 +350,10 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               <BedBlock key={`${b.place}:${i}`} ep={ep} bed={b} mix={mix} lay={lay} items={items} fps={fps}
                 onMenu={(e) => setBedPop({ bed: b, x: e.clientX, y: e.clientY })} />
             ))}
+            {track === "effects" && (res?.fx ?? []).map((f) => (
+              <FxBlock key={f.shot} ep={ep} fx={f} mix={mix} lay={lay} items={items} fps={fps}
+                onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })} />
+            ))}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
               <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && drag.what !== "hit" && drag.what !== "point" && drag.id === it.id}
@@ -368,6 +382,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
       {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
+      {fxPop && <FxMenu ep={ep} pop={fxPop} mix={res?.mix ?? {}} onClose={() => setFxPop(null)} />}
     </div>
   );
 });
@@ -627,6 +642,204 @@ function BedMenu({ pop, mix, onClose }: { pop: BedPop; mix: Mix; onClose: () => 
         }}>
         <i className="pi pi-cloud" /> Open its ref…
       </button>
+      <div className="h3-row" style={{ gap: 6, padding: "4px 8px" }}>
+        <button className="h3-btn h3-primary" style={{ width: "auto" }} onClick={apply}>Apply</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A shot's picked effects at its clip: laid by the server from the cut and the mix's `fx`,
+ * so it can't be dragged (it follows the clip and its trims); its waveform from the clip's
+ * first frame of the take, the shot and the model, a stale mark when the cut's picture has
+ * changed under it (left out of the mix unless kept). Right-click: level, mute, keep, its
+ * takes, make again.
+ */
+const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu }: {
+  ep: string; fx: MixFx; mix: Mix; lay: Lay[]; items: PlayItem[]; fps: number;
+  onMenu: (e: RMouseEvent<HTMLElement>) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const seen = useSeen(box);
+  const { start: t0, end: t1 } = fxSpan(items, fx, fps);
+  const left = timeX(lay, t0);
+  const width = Math.max(4, timeX(lay, t1) - left);
+  const pps = width / Math.max(0.01, t1 - t0);
+  const from = fx.in.frame / (fps || 24);
+  const q = fx.exists ? { ep, path: fx.path, bins: binsFor(t1 - t0, pps), start: from, end: from + (t1 - t0) } : null;
+  const peaks = usePeaks(q, seen);
+  const own = fxSettings(mix, fx.shot);
+  const heard = fxHeard(mix, fx);
+  const stale = !!fx.stale;
+  const title = [
+    `${fx.shot}'s effects · ${tn(fx.take)} on ${fx.model || "?"} · ${fx.path}${fx.exists ? "" : " (not there)"}`,
+    stale ? `stale: ${fx.stale}. ${own?.keep_stale ? "Kept as it is: it plays." : "Left out of the mix until made again, or kept as it is."}` : "",
+    [own?.gain_db ? `${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : "", own?.mute ? "muted" : ""].filter(Boolean).join(" · "),
+    "made from the take the cut plays; laid at its clip, trimmed with it · right-click: level, mute, its takes, make again",
+  ].filter(Boolean).join("\n");
+  return (
+    <div ref={box} className={`h3-snd-item h3-snd-effects h3-snd-fx${heard ? "" : " h3-snd-silent"}${stale ? " h3-snd-fx-stale" : ""}`}
+      style={{ left, width }} title={title}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onMenu(e);
+      }}>
+      {q && peaks?.ok && <PeaksCanvas peaks={peaks.data.peaks} width={width} height={LANE_H - 6} />}
+      {width > 30 && (
+        <span className="h3-snd-label">
+          {stale && <i className="pi pi-exclamation-triangle" />} {fx.shot} · {fx.model.replace(/_foley$/, "")}{own?.gain_db ? ` ${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : ""}
+        </span>
+      )}
+    </div>
+  );
+});
+
+/** A shot's effects menu: its level (Apply or Enter), mute, keep as it is when stale, its takes
+ * (fetched when it opens: play, pick) and make again on a model. */
+function FxMenu({ ep, pop, mix, onClose }: { ep: string; pop: FxPop; mix: Mix; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const shot = pop.fx.shot;
+  const own = fxSettings(mix, shot);
+  const [gain, setGain] = useState(String(own?.gain_db ?? 0));
+  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
+  const [info, setInfo] = useState<FxShot | null>(null);
+  const [why, setWhy] = useState<string | null>(null);
+  const [model, setModel] = useState<string>(pop.fx.model || "");
+  const [playing, setPlaying] = useState<number | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const pass = useApp((s) => s.pass);
+  const { list } = useTargets();
+  const models = (list?.targets ?? []).filter((t) => t.kind === "foley");
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(pop.x, pop.y, r));
+  }, [pop, info]);
+  // the shot's takes, fetched when the menu opens and again as one lands
+  useEffect(() => {
+    let live = true;
+    const load = () => {
+      const fn = api().fxTakes;
+      if (!fn) return;
+      void fn(ep, pass, shot).then((r) => live && setInfo(r)).catch((e) => live && setWhy(String((e as Error)?.message ?? e)));
+    };
+    load();
+    const off = onFxEvent((d) => d.shot === shot && load());
+    return () => {
+      live = false;
+      off();
+      audio.current?.pause();
+    };
+  }, [ep, pass, shot]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const apply = () => {
+    void setMixFx(shot, { gain_db: clampDb(Number(gain)) }, `Change ${shot}'s effects level`);
+    onClose();
+  };
+  const play = (t: FxTake) => {
+    const a = audio.current ?? (audio.current = new Audio());
+    if (playing === t.take) {
+      a.pause();
+      setPlaying(null);
+      return;
+    }
+    a.src = api().fileUrl(ep, t.path);
+    a.onended = () => setPlaying(null);
+    void a.play().catch(() => setPlaying(null));
+    setPlaying(t.take);
+  };
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop h3-snd-fxmenu" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") apply();
+      }}>
+      <div className="h3-menu-head">{shot} · effects · {tn(pop.fx.take)} on {pop.fx.model || "?"}</div>
+      {pop.fx.stale && (
+        <div className="h3-muted" style={{ padding: "2px 8px", maxWidth: 320 }}>
+          <i className="pi pi-exclamation-triangle" /> Stale: {pop.fx.stale}. {own?.keep_stale ? "Kept as it is." : "Left out of the mix."}
+        </div>
+      )}
+      <label className="h3-snd-field" title="The shot's effects level in this pass's mix, on the Effects fader">
+        <span>Level dB</span>
+        <input className="h3-in" autoFocus type="number" step={0.5} min={GAIN_MIN} max={GAIN_MAX} value={gain} onChange={(e) => setGain(e.target.value)} />
+      </label>
+      <button title={own?.mute ? "Hear the shot's effects again" : "Silence the shot's effects in this pass's mix"}
+        onClick={() => {
+          void setMixFx(shot, { mute: !own?.mute }, `${own?.mute ? "Unmute" : "Mute"} ${shot}'s effects`);
+          onClose();
+        }}>
+        <i className={own?.mute ? "pi pi-volume-up" : "pi pi-volume-off"} /> {own?.mute ? "Unmute" : "Mute"}
+      </button>
+      {pop.fx.stale && (
+        <button title={own?.keep_stale ? "Leave them out of the mix while they don't match the picture" : "Play them though the picture changed under them"}
+          onClick={() => {
+            void setMixFx(shot, { keep_stale: !own?.keep_stale }, own?.keep_stale ? `Leave ${shot}'s stale effects out` : `Keep ${shot}'s effects as they are`);
+            onClose();
+          }}>
+          <i className={own?.keep_stale ? "pi pi-times" : "pi pi-check"} /> {own?.keep_stale ? "Leave out while stale" : "Keep as it is"}
+        </button>
+      )}
+      <button title="Take the shot's effects out of this pass's mix (its takes are kept)"
+        onClick={() => {
+          void pickMixFx(shot, null);
+          onClose();
+        }}>
+        <i className="pi pi-times" /> No effects for {shot}
+      </button>
+      <div className="h3-menu-sep" />
+      <div className="h3-menu-head">Its takes{info ? ` · the cut plays ${info.cut_take ? tn(info.cut_take.take) : "nothing"}` : ""}</div>
+      {!info && !why && <div className="h3-muted" style={{ padding: "2px 8px" }}>…</div>}
+      {why && <div className="h3-muted" style={{ padding: "2px 8px" }}>{why}</div>}
+      {info?.takes.map((t) => (
+        <div key={t.take} className="h3-row h3-snd-fxtake" style={{ gap: 4, padding: "1px 8px" }}
+          title={[t.prompt ?? "", t.stale ? `stale: ${t.stale}` : "", t.error ?? ""].filter(Boolean).join("\n")}>
+          <button style={{ width: "auto" }} disabled={t.status !== "ok"} onClick={() => play(t)} title="Hear it alone">
+            <i className={`pi ${playing === t.take ? "pi-pause" : "pi-play"}`} />
+          </button>
+          <span className="h3-mono">{tn(t.take)}</span>
+          <span className="h3-muted">{t.target.replace(/_foley$/, "")}</span>
+          {t.status !== "ok" && <span className="h3-muted">{t.status}</span>}
+          {t.stale && <i className="pi pi-exclamation-triangle" title={`stale: ${t.stale}`} />}
+          <span style={{ flex: 1 }} />
+          {t.picked ? <span className="h3-muted">in the mix</span> : (
+            <button style={{ width: "auto" }} disabled={t.status !== "ok"} title="Play this take in the mix"
+              onClick={() => {
+                void pickMixFx(shot, t.take);
+                onClose();
+              }}>Pick</button>
+          )}
+        </div>
+      ))}
+      <div className="h3-menu-sep" />
+      <div className="h3-row" style={{ gap: 6, padding: "4px 8px" }}>
+        <select className="h3-in" value={model} onChange={(e) => setModel(e.target.value)} title="The model the effects are made on">
+          {models.length === 0 && <option value={model}>{model || "the default"}</option>}
+          {models.map((t) => <option key={t.id} value={t.id}>{t.short ?? t.label}</option>)}
+        </select>
+        <button className="h3-btn" style={{ width: "auto" }} title="A new take from the frames of the take the cut plays now"
+          onClick={() => {
+            void makeEffects([shot], model || null);
+            onClose();
+          }}>
+          <i className="pi pi-refresh" /> Make again
+        </button>
+      </div>
       <div className="h3-row" style={{ gap: 6, padding: "4px 8px" }}>
         <button className="h3-btn h3-primary" style={{ width: "auto" }} onClick={apply}>Apply</button>
       </div>

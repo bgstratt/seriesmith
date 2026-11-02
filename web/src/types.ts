@@ -1877,7 +1877,7 @@ export interface RefEvent {
 // ---------------------------------------------------------------------------
 
 /** music: a score cue (docs/SOUND.md; GET /seriesmith/targets?kind=music) */
-export type TargetKind = "video" | "image" | "audio" | "music" | "ambience";
+export type TargetKind = "video" | "image" | "audio" | "music" | "ambience" | "foley";
 
 /** One binding entry: a graph widget (`class_type` + `field`, or for LoRAs
  * `name`/`strength`/`input`/`chain`), or `{"via": "loader"}`. */
@@ -2508,6 +2508,72 @@ export interface Mix {
   loudness?: { target_lufs?: number; true_peak_db?: number };
   /** what you changed of a place's ambience bed (docs/SOUND.md phase 3): its level, mute */
   beds?: Record<string, MixBedSettings>;
+  /** a shot's picked effects take (docs/SOUND.md phase 4), its level, mute, kept though stale */
+  fx?: Record<string, MixFxSettings>;
+}
+
+export interface MixFxSettings {
+  take: number;
+  gain_db?: number;
+  mute?: boolean;
+  /** play it though the cut's picture changed under it */
+  keep_stale?: boolean;
+}
+
+/** A shot's picked effects laid at its clip (GET /seriesmith/mix `fx`: worked out from the
+ * cut and the mix's `fx`, never stored as an item; fx.laid). */
+export interface MixFx {
+  shot: string;
+  take: number;
+  /** the foley target it was made on */
+  model: string;
+  /** its wav, relative to the episode */
+  path: string;
+  exists: boolean;
+  /** the clip's first frame of the take, and the frame after its last */
+  in: Anchor;
+  out: Anchor;
+  /** cut seconds, as the server laid it */
+  start: number;
+  end: number;
+  /** seconds into the file at `start` (the clip's trim) */
+  offset: number;
+  gain_db: number;
+  mute: boolean;
+  keep_stale: boolean;
+  /** why it no longer matches the cut's picture (null: it does) */
+  stale: string | null;
+  heard: boolean;
+}
+
+/** One effects take's sidecar (GET /seriesmith/fx). */
+export interface FxTake {
+  take: number;
+  status: "queued" | "ok" | "failed";
+  target: string;
+  seed?: number;
+  prompt?: string;
+  text?: string;
+  error?: string;
+  path: string;
+  picked: boolean;
+  stale: string | null;
+  source?: { pass: Pass; take: number };
+  measured?: { seconds: number; peak_db: number | null; rms_db: number | null };
+  created?: string;
+}
+
+/** GET /seriesmith/fx: one shot's effects takes, newest first. */
+export interface FxShot {
+  shot: string;
+  pass: Pass;
+  cut_take: { pass: Pass; take: number } | null;
+  picked: number | null;
+  settings: Partial<MixFxSettings>;
+  /** the words a new take is made from: the shot's sound: line, else its action */
+  text: string;
+  text_from: "sound" | "action" | "";
+  takes: FxTake[];
 }
 
 export interface MixBedSettings {
@@ -2562,6 +2628,8 @@ export interface MixResult {
   mix: Mix;
   /** the places' ambience beds under the cut (none: the server has none to lay) */
   beds?: MixBed[];
+  /** the shots' picked effects at their clips */
+  fx?: MixFx[];
   /** the series config's `sound` defaults the mix sits on */
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
   defaults: {

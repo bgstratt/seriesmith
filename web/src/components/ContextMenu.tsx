@@ -8,7 +8,7 @@ import {
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
 import { newCue } from "../cueActions";
-import { pickSoundFile, toggleSound } from "../mixActions";
+import { makeEffects, pickSoundFile, toggleSound } from "../mixActions";
 import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -202,6 +202,13 @@ export function ContextMenu() {
 
   // where the shot starts in the cut, as the mix anchors it: its take's first frame played
   const clipStart = { shot: menu.shot, frame: cutShot?.cut.trim_in ?? 0 };
+  // effects: the selection when the clip right-clicked is one of several, else the clip;
+  // the foley models this server has, the default first
+  const fxShots = multi.length > 1 && multi.includes(menu.shot)
+    ? multi.filter((x) => cutSt?.shots.some((c) => c.shot === x && !c.orphan && !c.cut.out))
+    : [menu.shot];
+  const fxModels = (targets?.targets ?? []).filter((t) => t.kind === "foley")
+    .map((t) => ({ ...t, default: t.id === (targets?.default?.foley ?? "h3_foley") }));
   const soundGroup = (
     <Sub icon="pi-volume-up" label="Sound" note={clipAudio ? "replaced" : sound ? (sound.mode === "dub" ? "dub" : sound.mode) : undefined}>
       <button disabled={!!shot?.orphan} title="How the shot's sound is made: generate, clone, or dub a track" onClick={run(() => openSound([menu.shot]))}>
@@ -240,6 +247,20 @@ export function ContextMenu() {
           <i className="pi pi-undo" /> Back to its own audio
         </button>
       )}
+      <div className="h3-menu-sep" />
+      {/* a shot's effects (docs/SOUND.md phase 4): made from the take the cut plays, only for the shots asked */}
+      <button disabled={!cutShot || !!cutShot.cut.out}
+        title={`Sync sound (footsteps, a door, the cups) made from the frames of the take the cut plays for ${fxShots.length > 1 ? `each of the ${fxShots.length} shots selected` : menu.shot}, on the Effects lane at its clip${fxModels.length ? ` (${fxModels.find((t) => t.default)?.short ?? fxModels[0].short ?? fxModels[0].label})` : ""}`}
+        onClick={run(() => { toggleSound(true); void makeEffects(fxShots); })}>
+        <i className="pi pi-bolt" /> Make effects{fxShots.length > 1 ? ` for ${fxShots.length} shots` : ""}
+      </button>
+      {fxModels.filter((t) => !t.default).map((t) => (
+        <button key={t.id} disabled={!cutShot || !!cutShot.cut.out}
+          title={`The same on ${t.label}`}
+          onClick={run(() => { toggleSound(true); void makeEffects(fxShots, t.id); })}>
+          <i className="pi pi-bolt" /> Make effects on {t.short ?? t.label}{fxShots.length > 1 ? ` (${fxShots.length})` : ""}
+        </button>
+      ))}
       <div className="h3-menu-sep" />
       {/* the episode's mix (docs/SOUND.md): music, effects and ambience laid over the cut from here */}
       <button disabled={!cutShot || !!cutShot.cut.out}

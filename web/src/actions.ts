@@ -678,6 +678,15 @@ export function onCueEvent(fn: (d: { ep?: string; cue?: string; take?: number; s
   return () => void cueEvents.delete(fn);
 }
 
+/** A shot's effects take landed (seriesmith.fx): an open effects menu listens. */
+export type FxEvent = { ep?: string; pass?: string; shot?: string; take?: number; status?: string };
+const fxEvents = new Set<(d: FxEvent) => void>();
+
+export function onFxEvent(fn: (d: FxEvent) => void): () => void {
+  fxEvents.add(fn);
+  return () => void fxEvents.delete(fn);
+}
+
 export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<EpisodeStatus | undefined> {
   if (!ep) return Promise.resolve(undefined);
   const key = statusKey(ep, pass);
@@ -2036,6 +2045,14 @@ export function wireEvents() {
     const c = (d ?? {}) as { ep?: string; cue?: string; take?: number; status?: string };
     if (!sameEp(c.ep, get().ep)) return;
     cueEvents.forEach((f) => f(c));
+  });
+  h.on("seriesmith.fx", (d) => {
+    const f = (d ?? {}) as FxEvent;
+    if (!sameEp(f.ep, get().ep)) return;
+    const t = f.take != null ? ` ${tn(f.take)}` : "";
+    if (f.status === "ok") host().toast("success", `${f.shot}'s effects${t} made`, "Right-click its block on the Effects lane to hear and pick it.");
+    if (f.status === "failed") host().toast("error", `${f.shot}'s effects${t} failed`, "Its block's menu on the Effects lane says why.");
+    fxEvents.forEach((fn) => fn(f));
   });
   h.on("seriesmith.master", (d) => {
     const j = (d ?? null) as MasterJob | null;

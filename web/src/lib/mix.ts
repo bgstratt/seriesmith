@@ -7,7 +7,7 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
+import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
 export const TRACKS: MixTrack[] = ["dialogue", "effects", "ambience", "music"];
@@ -698,5 +698,73 @@ export function bedPlan(items: PlayItem[], beds: MixBed[] | undefined, mix: Mix,
       gain: dbToGain(own.gain_db), points: [], fadeIn: head ? BED_XFADE : 0, fadeOut: tail ? BED_XFADE : 0, loop: true,
     });
   });
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// effects (docs/SOUND.md phase 4): a shot's picked effects take, laid by the server at
+// its clip from the cut (GET /seriesmith/mix `fx`), never an item; the mix keeps which
+// take, its level, mute and whether to keep it though stale (`fx`), so a change shows
+// at once
+// ---------------------------------------------------------------------------
+
+/** A shot's settings in the mix (null: no effects picked). */
+export function fxSettings(mix: Mix, shot: string): { take: number; gain_db: number; mute: boolean; keep_stale: boolean } | null {
+  const f = mix.fx?.[shot];
+  return f ? { take: f.take, gain_db: f.gain_db ?? 0, mute: !!f.mute, keep_stale: !!f.keep_stale } : null;
+}
+
+/** A shot's level, mute or keep_stale changed (its take kept); defaults dropped, as mix.json keeps them. */
+export function setFx(mix: Mix, shot: string, patch: Partial<Omit<MixFxSettings, "take">>): Mix {
+  const was = mix.fx?.[shot];
+  if (!was) return mix;
+  const f: MixFxSettings = { ...was, ...patch };
+  if (!f.gain_db) delete f.gain_db;
+  else f.gain_db = clampDb(f.gain_db);
+  if (!f.mute) delete f.mute;
+  if (!f.keep_stale) delete f.keep_stale;
+  return { ...mix, fx: { ...(mix.fx ?? {}), [shot]: f } };
+}
+
+/** A shot's effects take picked (its level and mute kept, a keep_stale dropped: a new pick is
+ * judged afresh), or taken out (null). */
+export function pickFxTake(mix: Mix, shot: string, take: number | null): Mix {
+  const fx = { ...(mix.fx ?? {}) };
+  if (take == null) delete fx[shot];
+  else {
+    const was = fx[shot];
+    fx[shot] = { take, ...(was?.gain_db ? { gain_db: was.gain_db } : {}), ...(was?.mute ? { mute: true } : {}) };
+  }
+  const out: Mix = { ...mix, fx };
+  if (!Object.keys(fx).length) delete out.fx;
+  return out;
+}
+
+/** Whether a laid shot's effects play, with the mix as it is now (a mute or keep shows at once). */
+export function fxHeard(mix: Mix, f: MixFx): boolean {
+  const own = fxSettings(mix, f.shot);
+  if (!own || own.take !== f.take) return false;
+  return f.exists && !own.mute && (!f.stale || own.keep_stale);
+}
+
+/** A shot's effects on the cut's clock: from its anchors (a trim shows at once), else as laid. */
+export function fxSpan(items: PlayItem[], f: MixFx, fps: number): { start: number; end: number } {
+  const s = anchorTime(items, f.in, fps);
+  const e = anchorTime(items, f.out, fps);
+  return { start: Math.max(0, s ?? f.start), end: e ?? f.end };
+}
+
+/** The effects Play all plays: each heard one at its clip, from the clip's first frame of the take. */
+export function fxPlan(items: PlayItem[], fx: MixFx[] | undefined, mix: Mix, fps: number): PlayEntry[] {
+  const out: PlayEntry[] = [];
+  for (const f of fx ?? []) {
+    if (!fxHeard(mix, f)) continue;
+    const { start, end } = fxSpan(items, f, fps);
+    if (!(end > start)) continue;
+    out.push({
+      id: `fx:${f.shot}`, track: "effects", path: f.path, start, end, offset: f.in.frame / (fps || 24),
+      gain: dbToGain(fxSettings(mix, f.shot)?.gain_db ?? 0), points: [], fadeIn: 0, fadeOut: 0, loop: false,
+    });
+  }
   return out;
 }

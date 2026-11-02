@@ -114,6 +114,17 @@ export function checkMix(raw: Mix | null | undefined): Mix {
     if (Object.keys(o).length) beds[place] = o;
   }
   if (Object.keys(beds).length) out.beds = beds;
+  // a shot's effects: its take, level, mute, kept though stale; defaults dropped
+  const fx: NonNullable<Mix["fx"]> = {};
+  for (const [shot, f] of Object.entries(raw.fx ?? {})) {
+    if (!f || !Number.isInteger(f.take) || f.take < 1) throw new MixError(`effects ${shot}'s take is a take number`);
+    const o: NonNullable<Mix["fx"]>[string] = { take: f.take };
+    if (f.gain_db) o.gain_db = num(f.gain_db, `effects ${shot}'s gain_db`, -60, 12);
+    if (f.mute) o.mute = true;
+    if (f.keep_stale) o.keep_stale = true;
+    fx[shot] = o;
+  }
+  if (Object.keys(fx).length) out.fx = fx;
   return out;
 }
 

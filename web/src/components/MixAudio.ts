@@ -11,7 +11,7 @@
 // region's dialogue_db: a video only goes down).
 
 import { useEffect, useRef } from "react";
-import { bedPlan, duckTracks, entryEnd, entryLevel, entryMarks, playPlan, trackGains, TRACKS, type PlayEntry } from "../lib/mix";
+import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, TRACKS, type PlayEntry } from "../lib/mix";
 import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
@@ -210,6 +210,7 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
     let total = 0;
     let mixSeen: unknown = null;
     let bedsSeen: unknown = null;
+    let fxSeen: unknown = null;
     let duckSeen: unknown = null;
     let itemsSeen: PlayItem[] | null = null;
     let seekN: number | undefined;
@@ -223,15 +224,18 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
       const open = s.viewer?.kind === "cut";
       let relay = false;
       const duck = s.mixDuck[statusKey(ep, s.pass)];
-      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || its !== itemsSeen || duck !== duckSeen) {
+      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || its !== itemsSeen || duck !== duckSeen) {
         mixSeen = res?.mix;
         bedsSeen = res?.beds;
+        fxSeen = res?.fx;
         duckSeen = duck;
         itemsSeen = its;
         // the faders apply at once; changed items (or a changed cut) are laid again
         e.setGains(trackGains(res));
         // the items, and the places' ambience beds under them (looped, crossfaded at their runs' cuts)
-        plan = [...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...playPlan(its, res?.mix ?? {}, fps)];
+        // and the shots' picked effects at their clips
+        plan = [...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
+                ...playPlan(its, res?.mix ?? {}, fps)];
         total = totalDuration(its);
         e.setDucking(duckTracks(res, its, fps, duck, total));
         const key = JSON.stringify(plan);

@@ -89,6 +89,30 @@ describe("the sound lanes", () => {
     expect(currentMix()!.mix.beds).toEqual({ diner: { mute: true } });
   });
 
+  it("a shot's effects are a block on the Effects lane, stale marked; its menu keeps them as they are", async () => {
+    const key = statusKey(EP, "proxy");
+    const shot = store.get().status[key]!.shots[0].shot;
+    await api.putMix(EP, "proxy", { ...currentMix()!.mix, fx: { [shot]: { take: 1 } } });
+    await loadMix(EP, "proxy");
+    const fx = { shot, take: 1, model: "h3_foley", path: `sound/fx/proxy/${shot}/t01.wav`, exists: true,
+                 in: { shot, frame: 0 }, out: { shot, frame: 24 }, start: 0, end: 1, offset: 0, gain_db: 0, mute: false,
+                 keep_stale: false, stale: "made from t01; the cut plays t02", heard: false };
+    store.set((s) => ({ mix: { ...s.mix, [key]: { ...s.mix[key]!, fx: [fx] } } }));
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    const block = el.querySelector<HTMLElement>(".h3-snd-fx")!;
+    expect(block).not.toBeNull();
+    expect(block.className).toContain("h3-snd-fx-stale");
+    expect(block.title).toContain(`${shot}'s effects`);
+    expect(block.title).toContain("stale: made from t01; the cut plays t02");
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));
+    const keep = [...document.querySelectorAll<HTMLButtonElement>(".h3-snd-pop button")].find((x) => x.textContent?.includes("Keep as it is"))!;
+    expect(keep).toBeTruthy();
+    await act(async () => keep.click());
+    await mixSettled();
+    expect(currentMix()!.mix.fx).toEqual({ [shot]: { take: 1, keep_stale: true } });
+  });
+
   it("the music fader shows its -12 dB default", async () => {
     store.set({ sound: true });
     await act(async () => root.render(createElement(Timeline)));
