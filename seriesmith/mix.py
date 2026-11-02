@@ -677,8 +677,9 @@ def _per_sample(curve, n: int):
 
 
 def measure(path: str, target: float, peak: float) -> dict | None:
-    """loudnorm's measurement of a file: {"input_i", "input_tp", ...} as floats, or None."""
-    r = subprocess.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-i", path, "-af",
+    """loudnorm's measurement of a file's sound (an export's picture isn't decoded):
+    {"input_i", "input_tp", "input_lra", "input_thresh", ...} as floats, or None."""
+    r = subprocess.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-i", path, "-vn", "-af",
                         f"loudnorm=I={target:g}:TP={peak:g}:LRA=11:print_format=json",
                         "-f", "null", "-"], capture_output=True, timeout=1800)
     text = r.stderr.decode("utf-8", "replace")
@@ -690,6 +691,46 @@ def measure(path: str, target: float, peak: float) -> dict | None:
         return {k: float(v) for k, v in raw.items() if k.startswith(("input_", "target_"))}
     except ValueError:
         return None
+
+
+# the loudness check on an export (docs/SOUND.md phase 5): how far from the target it may
+# be and still be on it (LU), as broadcast specs allow (EBU R128: +-1 LU)
+LOUDNESS_TOLERANCE = 1.0
+LOUDNESS_SUFFIX = "_loudness.json"
+
+
+def loudness_target(mix: dict | None, series: dict | None) -> dict:
+    """The loudness an export is held to: the pass's mix's (with the series config's
+    under it, for_pass), else the series config's `sound.loudness`, else LOUDNESS."""
+    snd = (series or {}).get("sound") or {}
+    return {**LOUDNESS, **(snd.get("loudness") if isinstance(snd.get("loudness"), dict) else {}),
+            **((mix or {}).get("loudness") or {})}
+
+
+def loudness_check(path: str, target: dict, mixed: bool) -> dict | None:
+    """An exported file measured against `target` (loudness_target), never changed:
+    {"integrated_lufs", "range_lu", "true_peak_dbtp", "threshold_lufs", "target_lufs",
+    "true_peak_db" (the ceiling), "off_lu" (integrated minus target), "on_target" (within
+    LOUDNESS_TOLERANCE), "over_peak" (the true peak above the ceiling), "mixed" (the mix
+    brought it to the target: false, the cut's own sound as it came), "verdict" (in
+    words)}; None when it has no sound to measure (or only silence)."""
+    m = measure(path, target["target_lufs"], target["true_peak_db"])
+    if not m or not math.isfinite(m.get("input_i", float("-inf"))) or m["input_i"] <= -70:
+        return None
+    i, tp = round(m["input_i"], 1), round(m.get("input_tp", float("nan")), 1)
+    off = round(i - target["target_lufs"], 1)
+    on = abs(off) <= LOUDNESS_TOLERANCE
+    # loudnorm rounds the true peak to 0.1 dB: over by more than that is over
+    over = math.isfinite(tp) and tp > target["true_peak_db"] + 0.05
+    words = [f"{i:g} LUFS integrated ({'on' if on else f'{abs(off):g} LU ' + ('over' if off > 0 else 'under')}"
+             f" the {target['target_lufs']:g} target)",
+             f"range {round(m.get('input_lra', 0.0), 1):g} LU",
+             f"true peak {tp:g} dBTP ({'over' if over else 'under'} the {target['true_peak_db']:g} ceiling)"]
+    return {"integrated_lufs": i, "range_lu": round(m.get("input_lra", 0.0), 1),
+            "true_peak_dbtp": tp, "threshold_lufs": round(m.get("input_thresh", float("nan")), 1),
+            "target_lufs": target["target_lufs"], "true_peak_db": target["true_peak_db"],
+            "off_lu": off, "on_target": on, "over_peak": over, "mixed": mixed,
+            "verdict": ", ".join(words)}
 
 
 def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue_src: str,

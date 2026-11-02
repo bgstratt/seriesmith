@@ -1397,6 +1397,28 @@ def main(argv: list[str] | None = None) -> int:
                   f"{r.stderr.decode('utf-8', 'replace')[-400:]}\n", file=sys.stderr)
             return 1
 
+    # the loudness check (docs/SOUND.md phase 5): the export measured against the mix's
+    # target and reported, beside it and here; the sound is never changed by it
+    side = os.path.splitext(out_path)[0] + MX.LOUDNESS_SUFFIX
+    if args.audio == "none":
+        if os.path.isfile(side):
+            os.remove(side)
+    else:
+        from seriesmith.core import fileio as FIO
+        say(args.progress, "loudness", text="measuring the loudness")
+        target = MX.loudness_target(sound, J.series_config(root))
+        lc = MX.loudness_check(out_path, target, mixed=sound is not None)
+        if lc is None:
+            print("  loudness: no sound to measure")
+            if os.path.isfile(side):
+                os.remove(side)
+        else:
+            FIO.write_json(side, lc)
+            print(f"  {'' if lc['on_target'] and not lc['over_peak'] else '! '}loudness: "
+                  f"{lc['verdict']}"
+                  + ("" if lc["mixed"] or lc["on_target"] else
+                     "; the cut's own sound, as it came (no mix brings it to the target)"))
+
     # ---- shot boundary list, for finding things in the timeline ----------
     edl = os.path.splitext(out_path)[0] + "_shots.txt"
     with open(edl, "w", encoding="utf-8") as fh:

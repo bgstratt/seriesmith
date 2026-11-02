@@ -4177,7 +4177,7 @@ def post_assemble(ctx: Context, body):
         return 200, res
     pub = E.publish_episode(ep, res["output"])
     return 200, {"ok": pub["ok"], "output": pub["output"] if pub["ok"] else res["output"],
-                 "cut": res["output"], "published": pub["output"],
+                 "cut": res["output"], "published": pub["output"], "loudness": res.get("loudness"),
                  "report": res["report"] + "\n" + pub["report"], "error": pub["error"]}
 
 # ---------------------------------------------------------------------------

@@ -283,6 +283,36 @@ class AssembleMixTest(unittest.TestCase):
         m = MX.measure(mix, -20, -1)
         self.assertAlmostEqual(m["input_i"], -20, delta=1.0)
 
+    def test_loudness_checked_on_the_export(self):
+        """docs/SOUND.md phase 5: the export measured against the target, reported and kept
+        beside it, never changed."""
+        side = os.path.join(self.root, "renders", "ep01_loudness.json")
+        MX.save(self.root, {"final": {"items": [self.music()], "loudness": {"target_lufs": -20}}})
+        out = self.assemble()
+        got = T.read_json(side)
+        self.assertTrue(got["mixed"])
+        self.assertEqual(got["target_lufs"], -20)
+        self.assertAlmostEqual(got["integrated_lufs"], -20, delta=1.0)
+        self.assertTrue(got["on_target"])
+        self.assertIn("loudness: ", out)
+        self.assertIn("LUFS integrated (on the -20 target)", out)
+        # no mix: the cut's own sound, measured as it came, against the default target
+        MX.save(self.root, {"final": {}})
+        out = self.assemble()
+        got = T.read_json(side)
+        self.assertFalse(got["mixed"])
+        self.assertEqual(got["target_lufs"], MX.LOUDNESS["target_lufs"])
+        self.assertEqual(got["off_lu"], round(got["integrated_lufs"] - got["target_lufs"], 1))
+        if not got["on_target"]:
+            self.assertIn("! loudness:", out)
+            self.assertIn("no mix brings it to the target", out)
+        st = os.stat(self.out)
+        self.assertIsNotNone(MX.loudness_check(self.out, MX.LOUDNESS, False))
+        self.assertEqual((os.stat(self.out).st_mtime, os.stat(self.out).st_size), (st.st_mtime, st.st_size))
+        # --audio none: nothing to measure, and no stale report left
+        self.assemble("--audio", "none")
+        self.assertFalse(os.path.isfile(side))
+
     def test_xml_carries_the_tracks(self):
         import xml.etree.ElementTree as ET
         MX.save(self.root, {"final": {

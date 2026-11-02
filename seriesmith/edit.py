@@ -2710,7 +2710,13 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         if line.startswith("-> ") and line.lower().endswith(".xml" if xml else ".mp4"):
             output = rel(root, line[3:].strip())
     ok = rc == 0 and output is not None
-    return {"ok": ok, "output": output, "report": out,
+    # the loudness check assemble wrote beside the cut (mix.loudness_check), for the editor
+    loud = None
+    if ok and not xml:
+        from seriesmith.core import fileio as FIO
+        loud = FIO.read_json_or(os.path.splitext(os.path.join(root, *output.split("/")))[0]
+                                + "_loudness.json", None)
+    return {"ok": ok, "output": output, "report": out, "loudness": loud if isinstance(loud, dict) else None,
             "error": "" if ok else (err.strip() or "assemble wrote no cut")}
 
 
