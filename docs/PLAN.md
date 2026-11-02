@@ -1623,6 +1623,12 @@ its batch (`api.py`, `cut_at_start=True`) and is right.
       starts from sh020's take in the cut. 2026-11-02 (`CommandLineChainTest`: takes as real
       mp4s of a colour each, the first frame matched pixel for pixel)
 - [x] **Docs:** COMMANDS.md (`render` and continuous chains). 2026-11-02
+- [x] **Live** (2026-11-02, local ComfyUI, a scratch copy of Pacing ep01_fl2va, proxy
+      960x544): `--only sh010,sh020,sh030` with no takes rendered all three in 3:55 (before,
+      sh020 and sh030 were held), then `--redo` in 3:51, each printing "first frame cut from
+      <prev> proxy t0N as the render started". Each keyframe matched the previous shot's new
+      take's last frame (mean abs difference 1.0 of 255 at 480x272, against 32-43 for that
+      take's first frame), and each take's own first frame came out 3.2-3.4 from it.
 
 ## The episode's sound: dialogue, effects, ambience, music (designing; 2026-11-01)
 
