@@ -68,9 +68,10 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
   though its picture has changed). They sit on the effects track (its fader applies):
   `effects`, else the first of that kind (fx_track).
 - **Loudness**: the mix is brought to `target_lufs` (default -16) by one gain, measured by
-  ffmpeg's loudnorm, and held under `true_peak_db` (default -1) by a limiter when the gain
-  would push it over. The stems take the same gain, so they sum to the mix but for the
-  limiter.
+  ffmpeg's loudnorm, and held LOSSY_MARGIN_DB under `true_peak_db` (default -1) by a true-peak
+  limiter (oversampled) when the gain would push it past that: the AAC it's muxed as overshoots
+  the wav's peak. The stems take the same gain, as 32-bit float so a loud one doesn't clip:
+  they sum to the mix but for the limiter.
 
 A pass with no items and every track at its defaults is no mix (`active`): assemble then
 leaves the cut's sound as it always was.
@@ -108,6 +109,10 @@ DUCK_DEFAULT = {"effects": 0.0, "ambience": -6.0, "music": -9.0}
 GAIN_DEFAULT = {"dialogue": 0.0, "effects": 0.0, "ambience": 0.0, "music": -12.0}
 DUCK = {"threshold_db": -45.0, "attack_ms": 60.0, "release_ms": 450.0}
 LOUDNESS = {"target_lufs": -16.0, "true_peak_db": -1.0}
+# room under the ceiling for the AAC the mix is muxed as: CupsMV ep01's mix, limited to -1.5 at
+# 48 kHz, measured -0.5 dBTP in the export (docs/SOUND.md phase 5)
+LOSSY_MARGIN_DB = 1.0
+TP_OVERSAMPLE = 4                                 # the limiter's rate, times RATE: inter-sample peaks
 
 GAIN_MIN, GAIN_MAX = -60.0, 12.0
 FADE_MAX = 2400                                   # frames: 100 s at 24 fps
@@ -634,11 +639,11 @@ def decode(path: str, start: float = 0.0, seconds: float | None = None,
     return np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, channels).copy()
 
 
-def write_wav(path: str, buf) -> None:
-    """24-bit PCM at RATE, written beside and moved into place."""
+def write_wav(path: str, buf, codec: str = "pcm_s24le") -> None:
+    """24-bit PCM at RATE (or `codec`: the stems are pcm_f32le), written beside and moved into place."""
     tmp = F.temp_beside(path, ".wav")
     r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "f32le", "-ac", "2",
-                        "-ar", str(RATE), "-i", "-", "-c:a", "pcm_s24le", tmp],
+                        "-ar", str(RATE), "-i", "-", "-c:a", codec, tmp],
                        input=buf.astype("float32").tobytes(), capture_output=True, timeout=1800)
     if r.returncode != 0:
         if os.path.exists(tmp):
@@ -943,19 +948,22 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         gain = loud["target_lufs"] - m["input_i"]
     lin = _db(gain)
     for name in ks:
-        write_wav(os.path.join(stems_dir, f"{name}.wav"), bufs[name] * lin)
+        write_wav(os.path.join(stems_dir, f"{name}.wav"), bufs[name] * lin, "pcm_f32le")
     me = [name for name, k in ks.items() if k != "dialogue"]
     write_wav(os.path.join(stems_dir, "me.wav"),
-              (sum(bufs[name] for name in me) if me else bufs["dialogue"] * 0.0) * lin)
+              (sum(bufs[name] for name in me) if me else bufs["dialogue"] * 0.0) * lin, "pcm_f32le")
     peak = (m["input_tp"] + gain) if m else None
-    if peak is not None and peak > loud["true_peak_db"]:
-        # the gain pushes it over the true peak: limited, a little under the ceiling
+    hold = loud["true_peak_db"] - LOSSY_MARGIN_DB
+    if peak is not None and peak > hold:
+        # the gain pushes it past the ceiling less the AAC's overshoot: limited there, at
+        # TP_OVERSAMPLE times the rate so the peaks between samples are held too
         tmp = F.temp_beside(raw_mix, ".wav")
-        write_wav(tmp, mixed * lin)
-        limit = _db(loud["true_peak_db"] - 0.5)
+        write_wav(tmp, mixed * lin, "pcm_f32le")
+        up = RATE * TP_OVERSAMPLE
         out = F.temp_beside(raw_mix, ".wav")
         r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", tmp, "-af",
-                            f"alimiter=limit={limit:.4f}:level=false:attack=5:release=50",
+                            f"aresample={up},alimiter=limit={_db(hold):.4f}:level=false:attack=5:"
+                            f"release=50,aresample={RATE}",
                             "-c:a", "pcm_s24le", out], capture_output=True, timeout=1800)
         os.remove(tmp)
         if r.returncode != 0:
@@ -963,7 +971,7 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
                                + r.stderr.decode("utf-8", "replace")[-300:])
         F.replace(out, raw_mix)
         log(f"  sound: {gain:+.1f} dB to {loud['target_lufs']:g} LUFS, limited to "
-            f"{loud['true_peak_db']:g} dBTP (it peaked at {peak:+.1f})")
+            f"{hold:g} dBTP for the {loud['true_peak_db']:g} ceiling (it peaked at {peak:+.1f})")
     else:
         write_wav(raw_mix, mixed * lin)
         if m:

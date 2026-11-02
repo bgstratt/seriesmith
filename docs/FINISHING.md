@@ -335,7 +335,8 @@ else the series config's `sound.loudness`, else **-16 LUFS integrated, -1 dBTP**
 target for streaming. The editor's Export toast says it (a warning when it's more than 1 LU off
 the target or over the ceiling), assemble prints it, and it's kept beside the cut as
 `<cut>_loudness.json`. It only reports: a cut with a mix was brought to the target when it was
-mixed; a cut with none plays its clips' own sound (or the recording) as they came, which is
+mixed, its peaks held 1 dB under the ceiling so the AAC in the mp4 stays under it (when that
+takes a lot of limiting, the cut can come out a little under the target: the check says so); a cut with none plays its clips' own sound (or the recording) as they came, which is
 what the check is there to tell you. To bring a cut with no mix to the target, give it one: a
 level on any track of the editor's Sound lanes makes a mix, and the mix is normalised.
 

@@ -215,10 +215,14 @@ take's own codes by default. Comping from another take at bar lines works on any
   placed by its frame, then applies the ducking curves and faders, mixes, normalises and muxes
   once. Today's per-clip audio joins stay for a cut with no `mix.json`, so nothing changes
   until a mix exists.
-- **Stems** in `<cut>_stems/` beside the export (48 kHz, 24-bit): `dialogue.wav`,
+- **Stems** in `<cut>_stems/` beside the export (48 kHz, 32-bit float, so a stem the loudness
+  gain pushes past full scale isn't clipped): `dialogue.wav`,
   `effects.wav`, `ambience.wav`, `music.wav`, `me.wav` (everything but the dialogue: a dubbed
   language version is the M&E plus cloned or recorded lines) and `mix.wav`. The stems take the
-  loudness gain, so they sum to the mix but for its limiter.
+  loudness gain, so they sum to the mix but for its limiter. The limiter is true-peak (run at
+  4x the rate) and holds the mix 1 dB under the ceiling: the AAC it's muxed as overshoots (CupsMV
+  ep01, limited to -1.5 at 48 kHz, measured -0.5 dBTP exported; held to -2 at 4x, an ep01 mix
+  pushed to -10 LUFS that peaked at +3.4 measured -1.8 dBTP exported, 2026-11-02).
 - **FCP7 XML**: A1-A2 the clips' own sound, the recording on the next pair when there is one,
   then effects, ambience and music a pair each, each item a clip of its file with its level
   (the track's fader folded in) and its breakpoints as Audio Levels keyframes, its fades as
