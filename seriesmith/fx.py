@@ -374,17 +374,15 @@ def collect(root: str, pass_: str, shot: str, n: int, run, status: str) -> dict:
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
-    pick_first(root, pass_, shot, n)
+    pick_new(root, pass_, shot, n)
     return sc
 
 
-def pick_first(root: str, pass_: str, shot: str, n: int) -> bool:
-    """Take `n` into the pass's mix when the shot has no effects picked yet, as a place's
-    first bed is picked: made and asked for, it's heard and shown (the lane and the Refs
-    tab list what's picked). A mix that doesn't read is left alone. True when picked."""
+def pick_new(root: str, pass_: str, shot: str, n: int) -> bool:
+    """Take `n`, just made, into the pass's mix (its level and mute kept): made and asked for,
+    it's heard and shown (the lane and the Refs tab list what's picked); an earlier take is a
+    pick away. A mix that doesn't read is left alone. True when picked."""
     try:
-        if picked(MX.check(MX.load(root).get(pass_)), shot):
-            return False
         pick(root, pass_, shot, n)
     except (ValueError, FxError):
         return False

@@ -492,7 +492,7 @@ export function SoundRefsSections({ ep }: { ep: string }) {
       <Section label="Effects" count={(fxShots?.length ?? 0) + on("effects").length}
         title="Each shot's effects, made from its take by a foley model, and the files on the effects lane of this pass's mix"
         add={{ label: "Effects", title: "Make effects for the shots you pick (to start, the cut's shots without any), on a foley model", onClick: () => openSoundAdd({ kind: "fx" }) }}
-        note="Make effects: + Effects, or right-click a shot (Sound ▸ Make effects; on a selection, every selected shot). Its first take is picked; pick another here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
+        note="Make effects: + Effects, or right-click a shot (Sound ▸ Make effects; on a selection, every selected shot). Each new take is picked as it lands; pick an earlier one here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
         {fxShots && !fxShots.length && <div className="h3-muted h3-small h3-pad">No shot has effects made in this pass.</div>}
         {(fxShots ?? []).map((x) => <FxRow key={x.shot} ep={ep} pass={pass} s={x} />)}
         <ItemRows items={on("effects")} empty="No files on the effects lane." />

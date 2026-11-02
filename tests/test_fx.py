@@ -263,17 +263,21 @@ class LaidTest(unittest.TestCase):
         self.assertEqual([t["take"] for t in info["takes"]], [n2, n])
         self.assertEqual((info["cut_take"], info["text_from"]), ({"pass": "final", "take": 1}, "sound"))
 
-    def test_the_first_take_is_picked_and_listed(self):
-        # made and asked for, a shot's first effects are heard and shown; a later take isn't
-        # swapped in over the one you picked
+    def test_a_new_take_is_picked_and_listed(self):
+        # made and asked for, a shot's effects are heard and shown: each new take is picked
+        # (Make again means "this one"), its level and mute kept
         self.assertEqual(FX.shots(self.root, "final"), [])
         n = finished(self.root, "sh010", 2.0)
-        self.assertTrue(FX.pick_first(self.root, "final", "sh010", n))
+        self.assertTrue(FX.pick_new(self.root, "final", "sh010", n))
+        FX.pick(self.root, "final", "sh010", n)
+        mix = MX.load(self.root)["final"]
+        mix["fx"]["sh010"]["gain_db"] = -4.0
+        MX.write(self.root, "final", mix)
         n2 = finished(self.root, "sh010", 2.0)
-        self.assertFalse(FX.pick_first(self.root, "final", "sh010", n2))
-        self.assertEqual(MX.load(self.root)["final"]["fx"], {"sh010": {"take": n}})
+        self.assertTrue(FX.pick_new(self.root, "final", "sh010", n2))
+        self.assertEqual(MX.load(self.root)["final"]["fx"], {"sh010": {"take": n2, "gain_db": -4.0}})
         self.assertEqual(FX.shots(self.root, "final"),
-                         [{"shot": "sh010", "takes": 2, "ok": 2, "queued": 0, "failed": 0, "picked": n}])
+                         [{"shot": "sh010", "takes": 2, "ok": 2, "queued": 0, "failed": 0, "picked": n2}])
 
 
 class _Runner:

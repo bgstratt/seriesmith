@@ -1369,7 +1369,7 @@ with stems beside it.
   `sound:` line, else its action: give a shot a `sound:` line ("cup taps on formica, hands
   clapping") for effects worth having, since an action written for the picture can mislead
   ("…looks up, about to sing" gets a voice). The job shows in the Jobs list, and a toast says
-  when it lands; a shot's first take is picked into the mix, a later one waits to be picked.
+  when it lands; each new take is picked into the mix as it lands (its level and mute kept); an earlier one is a pick away.
 - **A shot's effects** sit on the Effects lane at its clip, named for the shot and the model,
   laid from the cut so they follow its trims and can't be dragged. **Right-click** one for its
   **level** (dB, on the Effects fader), **Mute**, **No effects for** the shot, its **takes**
@@ -1377,7 +1377,7 @@ with stems beside it.
   first) and **Make again** on the model chosen beside it. When the cut plays another take of
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
-  plays them anyway. A new take lands unpicked: pick it from the menu.
+  plays them anyway. A new take (Make again) is picked as it lands; the earlier ones stay in the menu to pick back.
 - **Voices only** (right-click the Dialogue lane, or its head's **⋮**, or the Refs tab's Dialogue): each clip plays its take's **voice stem**,
   its sound with the model's own music and room tone split off (Hybrid Demucs on local
   ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
