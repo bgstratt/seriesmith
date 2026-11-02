@@ -6,7 +6,7 @@
 // instead start "From an edit (FCP7 XML)": XmlImportPanel.
 
 import { useEffect, useMemo, useState } from "react";
-import { build, loadEpisodes, loadTargets, openEpisodeAt, openShotForm, openWizard } from "../actions";
+import { build, loadEpisodes, loadTargets, openBrowse, openEpisodeAt, openShotForm, openWizard } from "../actions";
 import { api, host } from "../host";
 import { nameError } from "../lib/newEpisode";
 import {
@@ -182,7 +182,12 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
 
   const head = (
     <>
-      <i className="pi pi-file-plus" />
+      <button id="sm-wizard-back" className="h3-btn h3-link" title="Back to Project folders (where you were)" onClick={() => {
+        if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Leave the wizard? Nothing has been written yet.")) return;
+        openWizard(null);
+        openBrowse({ purpose: "roots" });
+      }}><i className="pi pi-angle-left" /> Project folders</button>
+      <span className="h3-muted">›</span>
       <span className="h3-grow">{fromXml ? (startNew ? "New series from an edit" : "New episode from an edit") : startNew && isNewSeries ? "New series" : "New episode"}</span>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
