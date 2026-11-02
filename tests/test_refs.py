@@ -269,8 +269,10 @@ class TakesTest(RefsTest):
                                        "queued": "2026-01-01T00:00:00+00:00"})
         R.reserve_take(kitchen, None, {"status": "queued", "comfy_prompt_id": "comfy-own",
                                        "queued": "2026-01-01T00:00:00+00:00"})
-        self.addCleanup(setattr, T, "MANAGED", None)
-        T.MANAGED = lambda: set()
+        # this process's queue, named as the take says (not left to an earlier test to set)
+        self.addCleanup(setattr, T, "MANAGED", T.MANAGED)
+        self.addCleanup(setattr, T, "QUEUE", T.QUEUE)
+        T.MANAGED, T.QUEUE = (lambda: set()), "seriesmith"
         changed = R.sweep(self.s, J.Comfy("http://127.0.0.1:0"))   # nobody there
         self.assertEqual([t.take for t in changed], [1])
         t1, t2 = R.list_takes(kitchen)
