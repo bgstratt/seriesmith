@@ -79,6 +79,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
+| Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
@@ -289,6 +290,15 @@ their own words. The voice comes out close, not identical: listen before you pic
   window names the one it found and prints the exact `pip install` line for it.
 - `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
   `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+
+**Music** cues use ComfyUI's own nodes. Score's default, `stable_audio3`, needs
+`stable_audio_3_medium.safetensors` in `checkpoints` and `t5gemma_b_b_ul2.safetensors` in
+`text_encoders`; a song's, `yue2`, needs `yue2_3b_int8_convrot.safetensors` in `checkpoints`,
+and `sheetsage2_bf16.safetensors` in `audio_encoders` to sing a theme transcribed from a
+recording ([Comfy-Org/YuE2](https://huggingface.co/Comfy-Org/YuE2); YuE2's and SheetSage2's
+weights are CC BY-NC 4.0, non-commercial). `ace_step15` (MIT) takes the four files of
+[Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files)
+(INSTALL.md lists them).
 
 **Ambience beds** are a place's room tone or air, made once from its location's `ambience`
 words and looped under its shots in the mix ([AUTHORING.md](AUTHORING.md), "What a place

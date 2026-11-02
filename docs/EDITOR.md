@@ -1373,7 +1373,8 @@ under the picture as Play all plays it, and every Play all key works in it.
   its worst must-hit error): a click holds the cue at that tempo (its bpm set, **fixed**), and
   its takes go stale. **Takes**: ▶ plays one under the picture from the cue's in point, in the
   cue's place, without changing the mix (**Back to the mix** stops it); **Render** makes new
-  takes. **Direction**: the series' score direction and the script's `music:` notes.
+  takes; a YuE2 take's line says what it planned. **Theme**: the cue's theme, set as in the cue
+  window. **Direction**: the series' score direction and the script's `music:` notes.
 - **Stale cues** at the foot: every cue whose take in the mix the cut has moved under (or, with
   none picked, all of whose takes it has), with **Render** each, or **Render all stale**.
 - The **?** in its head shows how to use it.
@@ -1408,16 +1409,28 @@ bars before its in point, hatched) through its tail, scrolling together:
   (what ranks it), the tempo heard, and **stale** when the cut has moved since it was made
   (hover for what). **▶** plays it with a playhead over the grid; **Pick** puts it on the
   Music track of the pass's mix, from the cue's in point, its level fitted to the arc with
-  breakpoints (at most 6 dB a bar).
+  breakpoints (at most 6 dB a bar). A YuE2 song's take also says what it planned (**Plan: 44
+  bars of 2/4, intro, verse, chorus · 0.6 s short of it**; hover it for the tempo the plan was
+  written at and sung at) and draws its planned sections along the bottom of its waveform; a
+  take made with a theme names it.
 - **Render N takes** queues that many, each its own seed; they fill in as they land.
 
 The panel on the right edits the **section** selected (its name; its words: instruments,
 texture, direction; its energy from and to; its lyrics, for a model that sings) or, with
-none selected, the **cue** (label, model, tempo and whether it's fixed, meter, key, style,
-tail, takes a render makes) and the **fit**: the tempo asked and fitted, the stretch, and the
+none selected, the **cue** (label, model, its **Theme**, tempo and whether it's fixed, meter,
+key, style, tail, takes a render makes) and the **fit**: the tempo asked and fitted, the stretch, and the
 worst must-hit's error, or why it can't be planned. Below either is **exactly what the
 model is told**, and the script's `music:` notes it took in. Each change is saved and the
-cue planned again (typing saves when you pause).
+cue planned again (typing saves when you pause). A YuE2 song with no lyrics says so under the
+fit: it can't render until a section has some.
+
+**Theme** carries another cue's melody into this one (the leitmotif): **none**, **another cue's
+take** (the cue, then one of its finished takes, fetched when you pick the cue) or **a sound
+file** (a path inside the episode or the show's folder, typed or **Browse…**). Under it, how the
+cue's model hears it: YuE2 sings its melody (a YuE2 take's own plan, or a transcription of
+anything else), ACE-Step takes its sound as its timbre; Stable Audio 3 takes none, says so, and
+offers **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song). A changed
+theme makes the takes stale.
 
 **Meter** is a choice of 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8 and 12/8, or **Other…** for your own
 (beats/unit, 1 to 16 beats of a 2, 4, 8 or 16); the grid's beats to the bar are its top number.

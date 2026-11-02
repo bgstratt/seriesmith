@@ -125,9 +125,8 @@ kind, anchor, cut timecode, the bar and beat it lands on, must, and each take's 
 frames; the script's `music:` notes, the series' direction and its leitmotif reference
 (a cue or theme from the gallery, as ACE-Step's timbre reference and YuE2's melody), and how
 the tempo was fitted, with the nearest alternatives. Render stale cues from there. Built
-2026-11-01 without the leitmotif reference, which waits for a music target that takes a
-timbre or melody reference; and with any take, not only the picked one, playable under the
-picture from its cue's in point (in the preview only).
+2026-11-01, the leitmotif reference with the `yue2` target the same day; any take, not only
+the picked one, playable under the picture from its cue's in point (in the preview only).
 
 **The timeline** stays the simple view: each lane's waveform and fader, the items, the hit
 markers coloured by kind, and the cue's arc drawn faintly over its block, for reference.
@@ -252,8 +251,8 @@ Music:
 |---|---|---|
 | **ACE-Step 1.5 XL** (core nodes: `TextEncodeAceStepAudio1.5` takes tags, lyrics, `bpm`, `duration`, time signature, key; `ReferenceTimbreAudio` a timbre reference) | **downloaded 2026-11-01**: XL Turbo (proxy pass, 8 steps) and XL SFT (final), `qwen_0.6b_ace15` + `qwen_4b_ace15`, `ace_1.5_vae` (Comfy-Org/ace_step_1.5_ComfyUI_files; templates `audio_ace_step1_5_xl_turbo` / `_sft`) | **default score model**; MIT |
 | **MiniMax Music 3** (core nodes) | **downloaded 2026-11-01**: the template's files (`minimax_music3_dit_fp16`, the pruned int8 text encoder, `minimax_music3_dav`); its licence still to read | songs and score, a second opinion to ACE-Step |
-| **YuE2** (core nodes: `YuE2GenerateMusic` style, lyrics, ABC, up to 900 s; `YuE2GenerateABC`) | installed: `yue2_3b_int8_convrot`; templates `audio_yue2_text2music`, `audio_yue2_music_cover` | songs; a melody carried from cue to cue |
-| **SheetSage2** (`SheetSage2AudioToABC`) | installed | a recording's melody as ABC, for YuE2 |
+| **YuE2** (core nodes: `YuE2GenerateMusic` style, lyrics, ABC, up to 900 s; `YuE2GenerateABC`) | installed: `yue2_3b_int8_convrot`; templates `audio_yue2_text2music`, `audio_yue2_music_cover` | **default song model** (`yue2`, 2026-11-01); a melody carried from cue to cue; CC BY-NC 4.0 (non-commercial) |
+| **SheetSage2** (`SheetSage2AudioToABC`) | installed | a recording's melody as ABC, for YuE2 (a theme that isn't a YuE2 take); CC BY-NC 4.0 |
 | **Stable Audio 3 Medium** (core template `audio_stable_audio_3_medium`) | **downloaded 2026-11-01**: `stable_audio_3_medium`, `t5gemma_b_b_ul2` (and `qwen3.5_2b_bf16` for the template's optional reprompt) | **the score default candidate** (measured below: follows an arc told as a story); also stingers and an ambience candidate |
 | HeartMuLa, DiffRhythm 2, SongBloom | no ComfyUI core nodes | not now |
 
@@ -339,7 +338,7 @@ Each phase is tested live on local ComfyUI before the next starts.
          put on bar lines (two 4.5 s apart near 92 bpm) are fitted as near as it can, and the
          fit may go to the edge of its 8 % to land them
    - [x] score / song (2026-11-01): a cue's `kind`, score by default; a song's default model
-         is one that sings (ACE-Step until YuE2 is a target; the series config's
+         is one that sings (YuE2 since it is a target, ACE-Step before; the series config's
          `sound.song_model`, as `sound.music_model` for score); a song on a model that can't
          sing is refused; the prompt says instrumental only for score. The track, its stem and
          the XML stay Music: a song, a licensed track and source music sit there too
@@ -377,12 +376,39 @@ Each phase is tested live on local ComfyUI before the next starts.
          fitted to its bars at the preset's tempo, with who plays in each; it asks before
          replacing the cue's own sections, style or orchestration
    - [ ] Repaint, once it's measured (Fixing part of a take)
-   - [ ] `yue2`: YuE2 as a song target beside ACE-Step (lyrics by section, the tempo in its ABC
-         header), measured as ACE-Step and Stable Audio 3 were before it's offered
-   - [ ] the leitmotif reference (after `yue2`): a cue names a theme (another cue's take, or one
+   - [x] `yue2`: YuE2 as a song target beside ACE-Step (lyrics by section, the tempo in its ABC
+         header), measured as ACE-Step and Stable Audio 3 were before it's offered (2026-11-01;
+         `targets/music/yue2/`, the song default; `core/abc.py` reads a plan: its sections in
+         bars and beats, its tempo set where YuE2 writes it. A take is one job: the plan, its
+         `Q:` set by two core RegexReplace nodes, the song; both plans saved (SaveText), the
+         sung one kept as `tNN.abc` and read into the sidecar's `song`. A song with no lyrics is
+         refused. Live on local ComfyUI, CupsMV ep01 sq04 (a 20 s cue over sh280-sh330, 96 bpm
+         asked, verse and chorus of original lyrics, proxy pass): two takes in 24 s, the plans
+         written at 94 and 93, set to 96, heard 95.4 and 94.2, 54.4 and 51.4 s against plans of
+         55.0 and 52.5 s (0.6 and 1.1 s short), planned as intro / verse / chorus (13 / 16 / 15
+         and 9 / 16 / 17 bars of 2/4). The `Q:` line put after the voices, before `K:`, was sung
+         at 88.3 and 88.0 with the same plans and seeds: YuE2 reads it where it writes it, after
+         `L:`. The first vocal sound (a Demucs vocal stem, -20 dB of its loud part) came at 4.45
+         and 0.65 s against planned first notes at 16.25 and 1.25 s: t01 sings in its planned
+         instrumental intro, so the early start isn't a shorter intro, and the plan's sections
+         are where to look, not a frame-true map)
+   - [x] the leitmotif reference (after `yue2`): a cue names a theme (another cue's take, or one
          in the gallery); ACE-Step hears it as its timbre reference (`ReferenceTimbreAudio`),
          YuE2 as its melody (SheetSage2's ABC of it, `melody` mode); Stable Audio 3 takes none,
          so a cue with a theme is on one of those; the spotting sheet shows and sets it
+         (2026-11-01; a spec's `theme`: `{cue, take}` or `{file}`; `cue.theme_for`: a YuE2 take's
+         own plan sung (its chords dropped, `melody` mode), anything else transcribed by
+         SheetSage2 in the same job, ACE-Step's `LoadAudio -> VAEEncodeAudio -> ReferenceTimbreAudio`
+         on the prompt's conditioning (no template wires it; wired as its inputs say), Stable
+         Audio 3 warned and rendered without it; part of a take's fingerprint. The editor's
+         Theme in the cue inspector and the spotting sheet, with the switch to ACE-Step / YuE2.
+         Live, CupsMV ep01: m03 with m02 t01 as its theme: YuE2 from that plan in 10 s (heard
+         94.9, 54.6 s of a 55.0 s plan, the same 13 / 16 / 15 bars); SheetSage2 from m02 t02's
+         sound in the same job (it read 98 bpm of 96, set back to 96: heard 95.4, 52.0 s of
+         52.5, t02's 9 / 16 / 17 bars carried); ACE-Step Turbo with it as its timbre, 20 s in
+         13 s, heard 95.7. Whether ACE-Step's timbre reference is heard is for the ear: with a
+         reference its conditioning drops the LM's audio codes and treats the reference as a
+         cover's source (model_base `is_covers`))
 3. **Ambience.** A place's bed under every sequence set there, from the cut, looping across
    its cuts. Decided 2026-11-01 (Measured: ambience beds):
    - **A place, by `of`.** A location's place is its root: follow `of` (a relit or reverse
@@ -640,6 +666,9 @@ to `1/4=96`. Files in `ComfyProjects\_yue2_test`.
 - **Tempo: C holds it exactly.** Heard 96.0 / 96.1 / 96.0 (A drifted -4 to -20 %: 91.8, 88.1,
   77.0; B played each plan's own tempo: 93.1, 94.1, 94.0 against Q 93, 94, 94). The ABC's `Q:`
   drives it; the style words barely do. A song cue sets the fitted tempo in the plan.
+- **Where the `Q:` line goes matters** (found building the target, CupsMV ep01, the same plans
+  and seeds): set where YuE2 writes it (after `L:`), heard 95.4 and 94.2 of 96; moved after the
+  `V:` lines, before `K:`, heard 88.3 and 88.0, the takes 4 s longer. The target sets it after `L:`.
 - **Length follows the plan's bars**: every take 1.2-3.6 s short of its plan's bars at its
   tempo (~2 %), the shortfall seemingly at the start (the first sung bar early by 1.75 and
   4.1 s; the end of singing measured from the end of the song 0.9 and 3.2 s off). Sections
@@ -649,7 +678,7 @@ to `1/4=96`. Files in `ComfyProjects\_yue2_test`.
 - **Fast**: a 2-2.5 minute song in 18-22 s on the 5090, the plan included.
 - So a `yue2` song cue: the plan first (or one carried over: the leitmotif), its `Q:` set to
   the fitted tempo, its sections' bar counts read to place them on the cue's bars; then the
-  song, measured against the plan. Heard by the user: (to come).
+  song, measured against the plan. Heard by the user: solid: go forward (2026-11-01).
 
 ## Measured: ambience beds (2026-11-01, local)
 

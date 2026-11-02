@@ -95,7 +95,9 @@ take lyrics). Set it top right in the inspector, with:
 
 - **Label**: how it's listed ("1M3 The Proposal": reel 1, music cue 3, a name).
 - **Model**: empty uses the kind's default: **Stable Audio 3** for score (it follows a rise and
-  fall best), **ACE-Step** for a song (it sings) or when a cue must sit exactly on a bpm.
+  fall best), **YuE2** for a song (it plans the song, then sings it); **ACE-Step** sings too, and
+  is the one when a cue must sit exactly on a bpm.
+- **Theme**: a melody carried from cue to cue (below: *Carrying a theme*).
 - **Tempo** in bpm (the fit may move it up to 8 % to land the hits; tick **fixed** to stop that),
   **Meter** (4/4, 3/4, 6/8, 7/8, or your own), **Key** (pick one, or leave it to the model),
   **Style** (the sound: "romantic period strings, solo horn, no percussion"), **Tail** (seconds
@@ -110,6 +112,36 @@ energies) and who plays in each, fitted to the cue's bars at that tempo; it clea
 leaves the label, span, model, hits and takes alone. When the cue already has its own sections,
 style or orchestration it asks before replacing them. Then adjust: the tempo to the scene, the
 section edges to the hits, the words to your instruments; a song's sections need their lyrics.
+
+**Songs.** A song on YuE2 sings each section's **Lyrics** (click a section, type its lines), under
+the section's name as its tag: a verse sings as `[Verse]`, a chorus as `[Chorus]`, a bridge, intro
+or outro as theirs, any other name as a verse; a section with no lyrics isn't sung (YuE2 plays
+its own intro and breaks). A song with no lyrics at all won't render: YuE2 sings words. Each take
+is made in two steps in one job: YuE2 first **plans** the song (its sections and bars, written
+as ABC music notation), the plan's tempo is set to the cue's, and then it sings to that plan, so
+it holds the cue's tempo (within 1-2 %) where the tempo written in the style doesn't. The song is
+as long as its plan (often a minute or two for two sections), not the cue: the cue plays its span
+of it, from the in point. Each take keeps its plan beside it (`tNN.abc`), and the takes list says
+what it planned: **Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short of it**, with its
+sections drawn along the bottom of its waveform on the bar grid, so you see where the verse and
+chorus land against your hits. YuE2's weights are for **non-commercial** use (CC BY-NC 4.0);
+ACE-Step (MIT) is the one for a commercial song.
+
+**Carrying a theme.** A cue can carry another's melody, the way a film's love theme comes back
+in a later scene: the inspector's **Theme** is *none*, *another cue's take* (pick the cue, then
+one of its finished takes) or *a sound file* (inside the episode or the show's folder: a gallery
+item, a recording; type its path or **Browse…**). Each model hears it its own way:
+
+- **YuE2** sings its melody to this cue's lyrics and tempo. A YuE2 take's own plan is used as it
+  is; any other sound is transcribed first (SheetSage2, in the same job; it needs
+  `sheetsage2_bf16.safetensors` in `models/audio_encoders`).
+- **ACE-Step** hears its sound as the **timbre** reference: the instruments and voice, not the
+  tune.
+- **Stable Audio 3** takes none: the inspector says so, renders without it, and offers
+  **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song).
+
+The spotting sheet's selected cue shows and sets its theme too. Changing the theme makes the
+cue's takes stale (hover the badge: "the theme is m02 t01").
 
 In ep03: *1M1 The Selection* (sh010 to sh030, 72 bpm, D major), *1M2 The Departure* (sh080 to the
 door, 96 bpm), *1M3 Chosen* (sh120 to the end, 66 bpm); no music under sh040-sh070 or sh110.
@@ -251,7 +283,11 @@ tempo still fits).
 | The sections from the hits again | right-click a section: Reset sections from the hits |
 | It's too loud | the Music fader (it starts at -12), or volume points |
 | Most of a take is right | Comp the bad bars from another take |
-| A song | Kind: Song; lyrics on its sections |
+| A song | Kind: Song; lyrics on its sections (YuE2 needs them) |
+| Where a song's verse and chorus land | the take's plan: its line and the strip along its waveform |
+| A melody heard again later | the later cue's **Theme**: the first cue's take (YuE2 sings it) |
+| A song in a recording's tune | **Theme**: a sound file, on YuE2 |
+| The same instruments as another cue | **Theme**: its take, on ACE-Step (its timbre) |
 | A place to start | the inspector's Preset, then adjust |
 | The whole episode's music at a glance | **Scoring** ▸ Spotting: the music map |
 | To hear a take under the picture | the spotting sheet: ▶ beside the take |
