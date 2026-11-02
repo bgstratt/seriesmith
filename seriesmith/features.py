@@ -473,7 +473,7 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
 
 
 def pack_for_class(cls: str) -> Item | None:
-    if cls in OWN_PACK.classes:
+    if cls in OWN_PACK.classes or cls.startswith("Seriesmith"):
         return OWN_PACK
     for folder, p in PACKS.items():
         if cls in p["classes"]:

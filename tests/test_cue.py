@@ -346,6 +346,102 @@ class TakeTest(PlanTest):
         self.assertEqual(CU.list_takes(self.root, "m01")[0]["placed"], "final")
 
 
+class RepaintTest(TakeTest):
+    """Bars of a take made again (cue.repaint, docs/SOUND.md "Measured: repaint"): where the
+    bars fall in the take's own file, the graph, and the take's audio spliced back outside
+    them when the job's audio comes back."""
+
+    def ace_take(self, seed: int = 5) -> tuple[dict, int]:
+        spec = CU.save_spec(self.root, self.spec(model="ace_step15"))
+        p = CU.plan(self.root, "final", spec, {})
+        n = CU.reserve(self.root, "m01", {"pass": "final", "target": "ace_step15", "seed": seed,
+                                          "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
+                                          "plan": {"fit": p["fit"]}})
+        CU.finish_take(self.root, "m01", n, self.make_take(p), p)
+        return p, n
+
+    def test_span_codes_and_graph(self):
+        sc = {"measured": {"downbeat": 0.5, "stretch": 1.02}}
+        self.assertEqual(CU.repaint_span(sc, 2.0, (1, 3), 8, 20.0), (round(2.5 * 1.02, 4), round(6.5 * 1.02, 4)))
+        self.assertEqual(CU.repaint_span(sc, 2.0, (6, 8), 8, 20.0)[1], 20.0)     # the last bar: to the end
+        takes = {1: {"seed": 11}, 2: {"seed": None, "comp": {"base": 1, "from": 3}},
+                 3: {"seed": 40, "repaint": {"from": 1, "codes": 11}}, 4: {"seed": None}}
+        self.assertEqual([CU.codes_seed(takes, n) for n in (1, 2, 3, 4, 9)], [11, 11, 11, None, None])
+        pa = CU.plan(self.root, "final", self.spec(model="ace_step15"), {})
+        raw = os.path.join(self.root, "raw.wav")
+        open(raw, "wb").close()
+        g = CU.repaint_graph(CU.graph(TG.load_target("ace_step15"), pa, 9, "proxy"), raw, 30.0, (4.0, 8.0), 77)
+        by = {v["class_type"]: v["inputs"] for v in g.values()}
+        self.assertNotIn("EmptyAceStep1.5LatentAudio", by)                     # sampled from the take
+        self.assertEqual((by["TextEncodeAceStepAudio1.5"]["seed"], by["KSampler"]["seed"]), (9, 77))
+        mask = by[CU.REPAINT_NODE]
+        self.assertEqual((mask["seconds"], mask["start"], mask["end"]), (30.0, 4.0, 8.0))
+        self.assertEqual(g[by["KSampler"]["latent_image"][0]]["class_type"], CU.REPAINT_NODE)
+        self.assertEqual(by["VAEEncodeAudio"]["vae"], by["VAEDecodeAudio"]["vae"])
+        self.assertTrue(CU.can_repaint(TG.load_target("ace_step15")))
+        self.assertFalse(CU.can_repaint(TG.load_target("yue2")))
+        self.assertFalse(CU.can_repaint(TG.load_target("stable_audio3")))
+
+    @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
+    def test_repaint_splices_the_take_back(self):
+        p, n = self.ace_take(seed=5)
+        base = CU.list_takes(self.root, "m01")[0]
+        g, fin, n2 = CU.repaint(self.root, "final", "m01", n, (3, 5))
+        self.assertEqual(n2, 2)
+        by = {v["class_type"]: v["inputs"] for v in g.values()}
+        self.assertEqual(by["TextEncodeAceStepAudio1.5"]["seed"], 5)            # the take's codes
+        self.assertNotEqual(by["KSampler"]["seed"], 5)
+        sc = CU.list_takes(self.root, "m01")[1]
+        self.assertEqual(sc["status"], "queued")
+        self.assertEqual((sc["repaint"]["from"], sc["repaint"]["bars"], sc["repaint"]["codes"]), (1, [3, 5], 5))
+        self.assertEqual(sc["repaint"]["span"], [by[CU.REPAINT_NODE]["start"], by[CU.REPAINT_NODE]["end"]])
+        # the model's audio: the whole take a quarter as loud (as if the round trip changed
+        # it all): outside bars 3-5 the take's own comes back, inside the new
+        raw = os.path.join(self.root, *base["raw"].split("/"))
+        back = os.path.join(self.root, "back.wav")
+        MX.write_wav(back, MX.decode(raw) * 0.25)
+        done = CU.finish_take(self.root, "m01", n2, back, fin)
+        self.assertFalse(os.path.exists(back))
+        m, bm = done["measured"], base["measured"]
+        self.assertEqual(done["status"], "ok")
+        self.assertEqual((m["stretch"], m["downbeat"]), (bm["stretch"], bm["downbeat"]))   # as the take
+        # the file as it came: the take's own samples outside the span (and its crossfades)
+        a_, b_ = (int(t * MX.RATE) for t in sc["repaint"]["span"])
+        mine, was = MX.decode(os.path.join(self.root, *done["raw"].split("/"))), MX.decode(raw)
+        x = int(CU.COMP_XFADE * MX.RATE)
+        self.assertEqual(len(mine), len(was))
+        self.assertLess(float(abs(mine[:a_ - x] - was[:a_ - x]).max()), 1e-4)
+        self.assertLess(float(abs(mine[b_ + x:] - was[b_ + x:]).max()), 1e-4)
+        for b in (0, 1, 6, 7):
+            self.assertAlmostEqual(m["levels"][b], bm["levels"][b], delta=0.05)
+        for b in (3, 4):
+            self.assertAlmostEqual(m["levels"][b], bm["levels"][b] - 12.0, delta=1.0)
+        chk = done["repaint_check"]
+        self.assertGreater(chk["beats"], 4)
+        self.assertEqual(chk["on"], chk["on_before"])                             # the clicks stay put
+        # a take with no seed (a comp) repaints from its base's codes; `fresh` from its own
+        g, _, n3 = CU.repaint(self.root, "final", "m01", n2, (0, 1), seed=123, fresh=True)
+        self.assertEqual(by_class(g, "TextEncodeAceStepAudio1.5")["seed"], 123)
+        CU.update(self.root, "m01", n3, status="failed")
+        g, _, _ = CU.repaint(self.root, "final", "m01", n2, (0, 1), seed=124)
+        self.assertEqual(by_class(g, "TextEncodeAceStepAudio1.5")["seed"], 5)
+
+    @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
+    def test_refusals(self):
+        p, n = self.ace_take()
+        with self.assertRaises(CU.CueError):
+            CU.repaint(self.root, "final", "m01", n, (0, p["bars"] + 1))
+        with self.assertRaises(CU.CueError):
+            CU.repaint(self.root, "final", "m01", 9, (0, 1))
+        CU.update(self.root, "m01", n, target="yue2")
+        with self.assertRaisesRegex(CU.CueError, "can't make bars"):
+            CU.repaint(self.root, "final", "m01", n, (0, 1))
+
+
+def by_class(g: dict, ctype: str) -> dict:
+    return next(v["inputs"] for v in g.values() if v["class_type"] == ctype)
+
+
 class _Runner:
     """seriesmith's queue, stood in for: it remembers what it was asked."""
 
@@ -394,6 +490,33 @@ class RouteTest(unittest.TestCase):
         self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "nope"}, 404)
         self.assertIn("no finished take", self.call(
             A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1}, 409)["error"])
+
+    @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
+    def test_repaint(self):
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60), "bpm": 92,
+                                                     "model": "ace_step15"}})
+        self.call(A.post_cue_render, {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 1})
+        body = {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1, "bars": [1, 3]}
+        self.assertIn("no finished take", self.call(A.post_cue_repaint, body, 409)["error"])
+        p = CU.plan(self.ep, "final", CU.load_spec(self.ep, "m01"))
+        from test_beats import clicks
+        raw = os.path.join(self.ep, "raw.wav")
+        MX.write_wav(raw, clicks(p["fit"]["ask_bpm"], p["bars"], offset=0.4))
+        CU.finish_take(self.ep, "m01", 1, raw, p)
+        self.call(A.post_cue_repaint, {**body, "bars": [1]}, 400)
+        self.call(A.post_cue_repaint, {**body, "fresh": "yes"}, 400)
+        self.call(A.post_cue_repaint, {**body, "bars": [0, p["bars"] + 2]}, 409)
+        r = self.call(A.post_cue_repaint, {**body, "seed": 4})["queued"]
+        self.assertEqual((r["take"], r["job"], r["seed"]), (2, "job2", 4))
+        _, n, g, backend = self.ctx.runner.asked[-1]
+        self.assertEqual((n, backend), (2, "local"))
+        self.assertIn(CU.REPAINT_NODE, {v["class_type"] for v in g.values()})
+        sc = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"]
+        self.assertEqual(next(t for t in sc if t["take"] == 2)["repaint"]["bars"], [1, 3])
+        # a model that can't repaint
+        CU.update(self.ep, "m01", 1, target="stable_audio3")
+        self.assertIn("can't make bars", self.call(A.post_cue_repaint, body, 409)["error"])
 
     def test_stale_when_the_cut_moves(self):
         MX.save(self.ep, {"final": {"hits": [{"id": "h1", "name": "door", "at": anchor("sh020", 12)}]}})

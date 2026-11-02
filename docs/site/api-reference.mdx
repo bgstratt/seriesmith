@@ -811,6 +811,23 @@ any take, its sidecar's `comp` `{base, from, bars}` saying what it was made of. 
 `{"take"}`; 409 for a take that isn't finished or bars outside the cue (or past the end of
 either take).
 
+### `POST /seriesmith/cue/repaint`
+Body `{"ep", "pass", "cue", "take", "bars": [a, b], "seed"?, "fresh"?, "backend"?}`: the cue's
+bars `a` to `b` (counted from 0, as for a comp) of take `take` made again, the rest kept: a new
+take queued on the take's own model, pass and prompt (and its theme, while the cue has it). The
+take's file as it came is encoded, a noise mask laid over those bars (`SeriesmithAudioSpanMask`,
+seriesmith's node pack), and sampled from `seed` (default: the cue's next); the text encoder at
+the seed the take's music was written from, so the same music is played again on the take's
+grid, or with `fresh: true` at the new seed too (new music there; over four bars or more it can
+leave the beat). When it comes back the take's own audio is spliced back outside the bars with
+20 ms equal-power crossfades at the bar lines, it is stretched as the take was, measured and
+ranked; its sidecar's `repaint` `{from, bars, codes, fresh, span}` says what it was made from
+(`span`: the bars in seconds of the take's file) and `repaint_check` `{beats, on, on_before, median_ms}` how the new bars sit on the take's beat (onsets within 40 ms of its beats, against
+the take's own). Answers `{"queued": {take, job, seed}}`; 409 for a take that isn't finished, a
+model that can't repaint (only ACE-Step 1.5 can: docs/SOUND.md "Measured: repaint"; the
+targets' `capabilities.repaint`), bars outside the cue, a theme the cue no longer has, or a
+ComfyUI without the node (restart it after updating seriesmith).
+
 A spec's `meter` is beats/unit text ("4/4" the default, "3/4", "6/8", "7/8", "12/8": 1 to 16
 beats of a 2, 4, 8 or 16; a bare number is that many beats in 4). The tempo counts its beats, so
 a bar is beats x 60 / bpm. Stable Audio 3 hears it as written; ACE-Step's time signature input

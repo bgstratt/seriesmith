@@ -849,11 +849,15 @@ def measure(raw_file: str, wav: str, p: dict) -> dict:
     factor = max(1 - STRETCH_MAX, min(1 + STRETCH_MAX, factor))
     if p.get("at_tempo"):
         factor = 1.0                     # already at the cue's tempo (a comp of two takes)
+    elif p.get("factor"):
+        factor = p["factor"]             # a repaint: stretched as the take it was made from
     stretch_file(raw_file, wav, factor)
     buf = MX.decode(wav)
     env = B.onsets(buf)
     meter = meter_beats(p["spec"])
     first, down = B.grid(env, fit["bpm"], buf, meter)
+    if p.get("downbeat") is not None:
+        down = p["downbeat"]             # a repaint: the take's own grid (its bars kept)
     # the first bar line the music has: a downbeat a bar or more in is the same grid earlier
     down = down - bar_s * math.floor(down / bar_s + 1e-9) if down >= bar_s else down
     offset = down + p["preroll"]
@@ -898,13 +902,33 @@ def remeasure(root: str, cid: str, n: int, p: dict) -> dict:
     return update(root, cid, n, measured=m, rendered_for=fingerprint(p), remeasured=T.now())
 
 
+def splice(buf, other, s1: int, e1: int, shift: int = 0, xfade: float = COMP_XFADE):
+    """`buf` with its samples [s1, e1) from `other` (whose sample i + shift is buf's i), an
+    equal-power crossfade of `xfade` seconds centred on each splice. A crossfade that would
+    run off either buffer is left out (the splice is cut there)."""
+    np = MX._np()
+    x = int(xfade * MX.RATE)
+    out = buf.copy()
+    out[s1:e1] = other[s1 + shift:e1 + shift]
+    up = np.sin(np.linspace(0, np.pi / 2, x, dtype=np.float32))[:, None]
+
+    def blend(at: int, into_other: bool) -> None:
+        """x samples centred on `at`: one take fading out as the other fades in."""
+        lo = at - x // 2
+        mine, theirs = buf[lo:lo + x], other[lo + shift:lo + shift + x]
+        if lo >= 0 and lo + shift >= 0 and len(mine) == x and len(theirs) == x:
+            out[lo:lo + x] = mine * up[::-1] + theirs * up if into_other else theirs * up[::-1] + mine * up
+    blend(s1, True)
+    blend(e1, False)
+    return out
+
+
 def comp(root: str, pass_: str, cid: str, base: int, src: int, bars: tuple[int, int]) -> dict:
     """A new take: take `base` with bars [a, b) (the cue's bars, 0 the pre-roll's first)
     from take `src`, spliced on bar lines where each take's measured downbeat puts them (both
     are at the cue's tempo), with COMP_XFADE equal-power crossfades; kept, measured and ranked
     like any take, its sidecar saying what it was made of. CueError when either take isn't
     finished, or the bars aren't inside the cue."""
-    np = MX._np()
     spec = load_spec(root, cid)
     p = plan(root, pass_, spec)
     takes = {t["take"]: t for t in list_takes(root, cid)}
@@ -928,18 +952,7 @@ def comp(root: str, pass_: str, cid: str, base: int, src: int, bars: tuple[int, 
     x = int(COMP_XFADE * MX.RATE)
     if s1 - x < 0 or s1 + shift - x < 0 or e1 - s1 < 2 * x:
         raise CueError(f"take {src} doesn't reach bars {a}-{b} of take {base}")
-    out = buf.copy()
-    out[s1:e1] = other[s1 + shift:e1 + shift]
-    up = np.sin(np.linspace(0, np.pi / 2, x, dtype=np.float32))[:, None]
-
-    def blend(at: int, into_other: bool) -> None:
-        """x samples centred on `at`: one take fading out as the other fades in."""
-        lo = at - x // 2
-        mine, theirs = buf[lo:lo + x], other[lo + shift:lo + shift + x]
-        if len(mine) == x and len(theirs) == x:
-            out[lo:lo + x] = mine * up[::-1] + theirs * up if into_other else theirs * up[::-1] + mine * up
-    blend(s1, True)
-    blend(e1, False)
+    out = splice(buf, other, s1, e1, shift)
     n = reserve(root, cid, {"pass": pass_, "target": takes[base].get("target"), "seed": None,
                             "comp": {"base": base, "from": src, "bars": [a, b]},
                             "prompt": takes[base].get("prompt"), "rendered_for": fingerprint(p),
@@ -952,15 +965,199 @@ def comp(root: str, pass_: str, cid: str, base: int, src: int, bars: tuple[int, 
                   raw=os.path.relpath(raw, root).replace(os.sep, "/"), measured=m)
 
 
+
+# ---------------------------------------------------------------------------
+# bars of a take made again (docs/SOUND.md "Measured: repaint")
+# ---------------------------------------------------------------------------
+
+REPAINT_NODE = "SeriesmithAudioSpanMask"     # comfy_nodes/audio.py: the span's noise mask
+
+
+def can_repaint(target) -> bool:
+    """Whether the model makes bars of a take again (target.json capabilities.repaint)."""
+    return bool(target.capabilities().get("repaint"))
+
+
+def codes_seed(takes: dict, n: int) -> int | None:
+    """The seed take `n`'s music was written from: its own, a repaint's codes, or (a comp)
+    its base's. ACE-Step's language model writes the same codes from the same seed, so a
+    repaint at that seed plays the same music again on the take's grid."""
+    seen = set()
+    while n in takes and n not in seen:
+        seen.add(n)
+        t = takes[n]
+        if t.get("repaint"):
+            return t["repaint"].get("codes")
+        if t.get("seed") is not None:
+            return t["seed"]
+        n = (t.get("comp") or {}).get("base")
+    return None
+
+
+def repaint_span(sc: dict, bar: float, bars: tuple[int, int], cue_bars: int,
+                 raw_seconds: float) -> tuple[float, float]:
+    """The cue's bars [a, b) of take `sc` in seconds of its raw file (as the model played
+    it, before the stretch): its measured downbeat and the cue's bar, times its stretch.
+    The cue's last bar runs to the end of the file (its ending made again too)."""
+    m = sc["measured"]
+    f = m.get("stretch") or 1.0
+    a, b = bars
+    start = (m["downbeat"] + a * bar) * f
+    end = raw_seconds if b >= cue_bars else min(raw_seconds, (m["downbeat"] + b * bar) * f)
+    return round(start, 4), round(end, 4)
+
+
+def repaint_graph(g: dict, raw: str, seconds: float, span: tuple[float, float], seed: int) -> dict:
+    """A take's graph `g` made to repaint `span` (seconds) of `raw`, its own audio: the
+    sampler's empty latent replaced by `raw` encoded (VAEEncodeAudio, the decode's VAE)
+    under a noise mask over the span (SeriesmithAudioSpanMask), sampled from `seed`."""
+    from seriesmith.backends import File
+    ks = [k for k, v in g.items() if v["class_type"] == "KSampler"]
+    dec = [k for k, v in g.items() if v["class_type"] == "VAEDecodeAudio"]
+    if len(ks) != 1 or len(dec) != 1:
+        raise CueError("a repaint needs a graph with one KSampler and one VAEDecodeAudio")
+    k = g[ks[0]]["inputs"]
+    empty = k["latent_image"][0] if isinstance(k.get("latent_image"), list) else None
+    g["rp_load"] = {"class_type": "LoadAudio", "inputs": {"audio": File(raw)}, "_meta": {"title": "The take"}}
+    g["rp_encode"] = {"class_type": "VAEEncodeAudio",
+                      "inputs": {"audio": ["rp_load", 0], "vae": list(g[dec[0]]["inputs"]["vae"])},
+                      "_meta": {"title": "The take encoded"}}
+    g["rp_mask"] = {"class_type": REPAINT_NODE,
+                    "inputs": {"samples": ["rp_encode", 0], "seconds": round(seconds, 4),
+                               "start": span[0], "end": span[1], "feather": 0.0},
+                    "_meta": {"title": "The bars made again"}}
+    k["latent_image"] = ["rp_mask", 0]
+    k["seed"] = seed
+    k["denoise"] = 1.0
+    if empty and not any(isinstance(v, list) and len(v) == 2 and v[0] == empty
+                         for node in g.values() for v in node["inputs"].values()):
+        del g[empty]
+    return g
+
+
+def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
+            seed: int | None = None, fresh: bool = False) -> tuple[dict, dict, int]:
+    """Bars [a, b) of take `n` (the cue's bars, 0 the pre-roll's first) to be made again:
+    the take's own graph (its model, pass, prompt and theme), its raw file encoded and
+    masked over those bars, sampled from `seed` (else the next of the cue's seeds), the
+    text encoder at the seed the take's music was written from (codes_seed: the same
+    music played again on the take's grid) or, `fresh`, at `seed` too (new music there,
+    the beat checked when it comes back). A new take is reserved, its sidecar saying
+    `repaint`: {"from", "bars", "codes", "fresh", "span" (seconds of the raw file)}.
+    Returns (the graph, the plan to finish it with, its number); the job's audio goes to
+    finish_take, which splices the take's own audio back outside the span. CueError when
+    the take isn't finished, its model can't repaint, or the bars aren't inside the cue.
+    `pass_` is used only when the take records none."""
+    spec = load_spec(root, cid)
+    takes = {t["take"]: t for t in list_takes(root, cid)}
+    sc = takes.get(n)
+    if (sc or {}).get("status") != "ok" or not sc.get("raw") or not sc.get("measured"):
+        raise CueError(f"cue {cid} has no finished take {n}")
+    try:
+        target = TG.load_target(sc.get("target") or "")
+    except Exception:                                    # noqa: BLE001  a model gone
+        raise CueError(f"t{n:02d}'s model {sc.get('target')!r} isn't here")
+    if not can_repaint(target):
+        raise CueError(f"{target.label} can't make bars of a take again (docs/SOUND.md "
+                       f"'Measured: repaint'): comp them from another take instead")
+    take_pass = sc.get("pass") or pass_
+    p = plan(root, take_pass, spec)
+    a, b = bars
+    if not 0 <= a < b <= p["bars"]:
+        raise CueError(f"bars {a}-{b} aren't inside cue {cid}'s {p['bars']}")
+    raw = os.path.join(root, *sc["raw"].split("/"))
+    if not os.path.isfile(raw):
+        raise CueError(f"cue {cid} t{n:02d}'s file as it came ({sc['raw']}) isn't there")
+    seconds = len(MX.decode(raw)) / MX.RATE
+    span = repaint_span(sc, p["bar"], bars, p["bars"], seconds)
+    if span[1] - span[0] < 0.25:
+        raise CueError(f"bars {a}-{b} are past the end of t{n:02d}")
+    codes = codes_seed(takes, n)
+    if seed is None:
+        seed = seeds(root, spec, 1, len(takes))[0]
+    if fresh or codes is None:
+        codes = seed
+    # the take's theme, when the cue still has it (ACE-Step: its timbre reference)
+    theme = None
+    if sc.get("theme"):
+        th = theme_for(root, spec, target)
+        if not th or th.get("label") != sc["theme"].get("label") or not th.get("audio"):
+            raise CueError(f"t{n:02d} was made with the theme {sc['theme'].get('label')}, which the cue "
+                           f"no longer has: render the cue again instead")
+        theme = th
+    g = repaint_graph(graph(target, {"prompt": sc["prompt"], "theme": theme}, codes, take_pass),
+                      raw, seconds, span, seed)
+    fit = (sc.get("plan") or {}).get("fit") or p["fit"]
+    n2 = reserve(root, cid, {"pass": take_pass, "target": target.id, "seed": seed,
+                             "repaint": {"from": n, "bars": [a, b], "codes": codes, "fresh": bool(fresh),
+                                         "span": list(span)},
+                             "prompt": sc["prompt"], "rendered_for": sc.get("rendered_for") or fingerprint(p),
+                             "plan": {**(sc.get("plan") or {}), "fit": fit},
+                             **({"theme": sc["theme"]} if sc.get("theme") else {})})
+    # measured as the take was: stretched by its factor, on its grid, so the kept bars are
+    # its own where they were
+    stretch = sc["measured"].get("stretch") or 1.0
+    finish = dict(p, fit=dict(p["fit"], ask_bpm=fit.get("ask_bpm", p["fit"]["ask_bpm"])), factor=stretch,
+                  downbeat=sc["measured"]["downbeat"],
+                  repaint={"raw": raw, "span": list(span), "downbeat": sc["measured"]["downbeat"],
+                           "stretch": stretch})
+    return g, finish, n2
+
+
+def beats_held(orig, new, span, first: float, beat: float) -> dict:
+    """How bars made again sit on the take's beat: at each of its beats inside `span`
+    (seconds of the raw file; `first` a beat of its grid, `beat` its length there), the
+    strongest onset within a quarter beat, in the take and in the new audio. {"beats",
+    "on" (the new audio's onsets within 40 ms of a beat), "on_before" (the take's),
+    "median_ms" (the new audio's median distance)}. A soft span (few onsets) reads low in
+    both; it's the two against each other that tells."""
+    np = MX._np()
+    e_old, e_new = B.onsets(orig), B.onsets(new)
+    k = math.ceil((span[0] - first) / beat - 1e-9)
+    on = on_before = count = 0
+    dist = []
+    t = first + k * beat
+    while t < span[1] - 0.05:
+        count += 1
+        at, strength = B.onset_near(e_old, t, beat / 4)
+        if at is not None and strength >= 0.1 and abs(at - t) <= 0.04:
+            on_before += 1
+        at, strength = B.onset_near(e_new, t, beat / 4)
+        if at is not None and strength >= 0.1:
+            dist.append(abs(at - t) * 1000)
+            if abs(at - t) <= 0.04:
+                on += 1
+        t += beat
+    return {"beats": count, "on": on, "on_before": on_before,
+            "median_ms": round(float(np.median(dist)), 1) if dist else None}
+
+
 def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict, plans: dict | None = None) -> dict:
     """A take's file is back: kept as tNN_raw, stretched and measured into tNN.wav, its
     sidecar closed. A song's plan (`plans`: {"written", "sung"}, the ABC the graph saved) is
     kept as tNN.abc (as sung) and read into the sidecar's `song` (song_record)."""
     paths = take_paths(root, cid, n)
-    keep = os.path.join(cue_dir(root, cid), f"t{n:02d}_raw{os.path.splitext(raw_path)[1] or '.flac'}")
-    F.replace(raw_path, keep)
-    m = measure(keep, paths["wav"], p)
     extra = {}
+    rp = p.get("repaint")
+    if rp:
+        # bars made again: the take's own audio back outside them (the VAE's round trip
+        # changes them a little), spliced at the bar lines as a comp is
+        np = MX._np()
+        orig, new = MX.decode(rp["raw"]), MX.decode(raw_path)
+        if len(new) < len(orig):
+            new = np.concatenate([new, orig[len(new):]])
+        s1, e1 = int(rp["span"][0] * MX.RATE), min(len(orig), int(rp["span"][1] * MX.RATE))
+        out = splice(orig, new[:len(orig)], s1, e1)
+        keep = os.path.join(cue_dir(root, cid), f"t{n:02d}_raw.wav")
+        MX.write_wav(keep, out)
+        os.remove(raw_path)
+        f = rp["stretch"]
+        extra["repaint_check"] = beats_held(orig, out, rp["span"], rp["downbeat"] * f,
+                                            60.0 / p["fit"]["bpm"] * f)
+    else:
+        keep = os.path.join(cue_dir(root, cid), f"t{n:02d}_raw{os.path.splitext(raw_path)[1] or '.flac'}")
+        F.replace(raw_path, keep)
+    m = measure(keep, paths["wav"], p)
     plans = plans or {}
     if plans.get("sung"):
         abc_path = os.path.join(cue_dir(root, cid), f"t{n:02d}.abc")

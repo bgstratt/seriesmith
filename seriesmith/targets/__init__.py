@@ -778,13 +778,15 @@ class Target:
             # how it takes a tempo ("bpm": an input; "text": in the words; "abc": in
             # its plan's Q: line), its sections ("sections": its own tags; "story": told
             # in prose; "plan": its own plan), lyrics (and whether a song must have
-            # them), and a cue's theme ("melody": sung; "timbre": its sound; None)
+            # them), a cue's theme ("melody": sung; "timbre": its sound; None), and
+            # whether bars of a take can be made again (cue.repaint)
             return {**common, "mode": caps.get("mode") or "t2m",
                     "tempo": caps.get("tempo") or "text",
                     "structure": caps.get("structure") or "story",
                     "lyrics": bool(caps.get("lyrics")),
                     "needs_lyrics": bool(caps.get("needs_lyrics")),
                     "theme": caps.get("theme") or None,
+                    "repaint": bool(caps.get("repaint")),
                     "max_seconds": float(caps.get("max_seconds") or hi),
                     "min_seconds": lo, "default_seconds": default}
         if self.kind == "ambience":

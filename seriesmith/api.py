@@ -2821,6 +2821,52 @@ def post_cue_comp(ctx: Context, body):
     return 200, {"take": sc}
 
 
+@handler
+def post_cue_repaint(ctx: Context, body):
+    """Bars of a take made again, the rest kept (cue.repaint): `{ep, pass, cue, take,
+    bars: [a, b], seed?, fresh?, backend?}`, the cue's bars a to b (from 0, b not
+    included) of take `take`, on its own model, prompt and pass, a new take queued (the
+    take's own audio spliced back outside the bars when it comes back, measured and ranked
+    like any take). `fresh`: new music there (the text encoder at the new seed too) rather
+    than the same music played again; the beat is checked on every repaint
+    (`repaint_check` in its sidecar). 409 when the take isn't finished, its model can't
+    repaint (YuE2, Stable Audio 3), or the backend's ComfyUI lacks seriesmith's
+    SeriesmithAudioSpanMask (restart ComfyUI after updating seriesmith). Returns
+    {"queued": {take, job, seed}}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    n, bars, seed, fresh = body.get("take"), body.get("bars"), body.get("seed"), body.get("fresh", False)
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ApiError(400, "take is a take number")
+    if (not isinstance(bars, list) or len(bars) != 2
+            or not all(isinstance(x, int) and not isinstance(x, bool) for x in bars)):
+        raise ApiError(400, "bars is [first, last + 1], the cue's bars counted from 0")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int) or seed < 0):
+        raise ApiError(400, "seed is a whole number")
+    if not isinstance(fresh, bool):
+        raise ApiError(400, "fresh is true or false")
+    if ctx.runner is None:
+        raise ApiError(409, "repainting a take needs seriesmith's queue (the server)")
+    backend = finish_backend(ctx, body)
+    try:
+        b = ctx.runner.backend_for(backend) if hasattr(ctx.runner, "backend_for") else None
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    if b is not None and hasattr(b, "has_node") and not b.has_node(CU.REPAINT_NODE):
+        raise ApiError(409, f"{backend}'s ComfyUI hasn't seriesmith's {CU.REPAINT_NODE} node: restart "
+                            f"ComfyUI to load it (seriesmith's node pack, updated)")
+    try:
+        g, p, k = CU.repaint(ep, pass_, spec["id"], n, (bars[0], bars[1]), seed, fresh)
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
+    episode_event(ctx, ep)
+    sc = next(t for t in CU.list_takes(ep, spec["id"]) if t["take"] == k)
+    return 200, {"queued": {"take": k, "job": job, "seed": sc["seed"]}}
+
+
 def _fx_shots(v) -> list[str]:
     if not isinstance(v, list) or not v:
         raise ApiError(400, "shots is a list of shot ids")
@@ -5308,6 +5354,7 @@ ROUTES = [
     ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
+    ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),
     ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
     ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
