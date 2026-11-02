@@ -144,7 +144,7 @@ export function PicturePicker({ ep, options, onPick, label, title, none }: {
  * the function that opens the folder browser; the picked path, relative to the
  * episode, comes back through `onPick`. */
 export function usePictureBrowse(key: string, what: string, onPick: (path: string) => void,
-                                 absolute = false, files: "image" | "video" = "image"): () => void {
+                                 absolute = false, files: "image" | "video" | "audio" = "image"): () => void {
   const pick = useApp((s) => s.picturePick);
   useEffect(() => {
     if (!pick || pick.key !== key) return;

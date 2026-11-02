@@ -62,7 +62,7 @@ export function mockAlignReady(): AlignReady {
     install: pip.length ? `"${PYTHON}" -m pip install ${pip.join(" ")}` : "",
     ffmpeg_hint: ffmpeg ? "" : "install ffmpeg and put it on PATH (winget install Gyan.FFmpeg)",
     packages: { ...INSTALLED },
-    models: { default: "medium.en", choices: ["tiny.en", "base.en", "small.en", "medium.en", "large-v3"] },
+    models: { default: "medium.en", choices: ["tiny.en", "base.en", "small.en", "medium.en", "large-v3", "large-v3-turbo"] },
   };
 }
 

@@ -42,7 +42,7 @@ ALIGN_SCRIPT = os.path.join(HERE, "align.py")
 AUDIO_DIR = "audio"
 AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus")
 DEFAULT_MODEL = "medium.en"
-MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v3")
+MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v3", "large-v3-turbo")
 SOURCE_TRACK = "source_track"
 NO_TRACK_MODE = "generate"          # the mode a cleared track falls back to
 ALIGN_TIMEOUT = 3600
@@ -367,6 +367,34 @@ def clear_track(ep: str) -> dict:
     return out
 
 
+def set_dub_from(ep: str, value: str) -> dict:
+    """The series config's `audio.dub_from`: "vocals" (each dub shot's window sent from the
+    recording's vocal stem, vocals.py) or "recording" (the default: the key taken out).
+    Written through the Phase 9a save path. Returns {"hash", "changed", "dub_from"}."""
+    from seriesmith import vocals as VOC
+    if value not in VOC.DUB_FROM:
+        raise TrackError(400, f"dub_from must be one of {', '.join(VOC.DUB_FROM)}")
+    src = H.read_source(ep, "series")
+    try:
+        raw = json.loads(src.text)
+    except ValueError as e:
+        raise TrackError(400, f"series.json is not valid JSON ({e}): fix it first") from None
+    if not isinstance(raw, dict):
+        raise TrackError(400, "series.json must be a JSON object")
+    block = raw.get("audio")
+    audio = dict(block) if isinstance(block, dict) else {}
+    if value == "vocals":
+        audio["dub_from"] = "vocals"
+    else:
+        audio.pop("dub_from", None)
+    if audio:
+        raw["audio"] = audio
+    else:
+        raw.pop("audio", None)
+    new_hash = H.write_source(src, H.dump_series(raw, src.text))
+    return {"hash": new_hash, "changed": new_hash != src.hash, "dub_from": value}
+
+
 # ---------------------------------------------------------------------------
 # running align
 # ---------------------------------------------------------------------------
@@ -424,15 +452,19 @@ def why(log: str, rc: int) -> str:
 
 
 def check_align(ep: str, track: str | None = None, words: str | None = None,
-                python: str | None = None) -> None:
+                python: str | None = None, vocals: bool = False) -> None:
     """TrackError 409 with `missing` when a dependency align needs isn't
     installed (a Whisper isn't one when the recording already has a
-    transcript): asked before an align is queued, so the page hears at once."""
+    transcript): asked before an align is queued, so the page hears at once.
+    With `vocals` the transcript is the vocal stem's (vocals.py)."""
     py = python or align_python()
     ready = align_ready(py)
     # a transcript already beside the recording (or handed over) means no
     # Whisper is needed: align reads the cache
     rec = recording_path(ep, track)
+    if rec and vocals:
+        from seriesmith import vocals as VOC
+        rec = VOC.fresh(rec)
     cached = bool(words) or bool(rec and E.has_words(rec))
     need = [m for m in ready["missing"] if not (cached and m in WHISPER_NAMES)]
     if need:
@@ -446,16 +478,17 @@ def check_align(ep: str, track: str | None = None, words: str | None = None,
 def align(ep: str, track: str | None = None, model: str | None = None, snap: bool = True,
           dry_run: bool = False, words: str | None = None, progress=None,
           timeout: float | None = None, python: str | None = None,
-          check_deps: bool = True, stop=None) -> dict:
+          check_deps: bool = True, stop=None, vocals: bool = False) -> dict:
     """Run align on `ep` in a subprocess and return what it wrote:
     {"ok", "report", "changes", "notes", "script_hash", "series_hash", ...}
     (align --json). `progress(event)` is called per stage; `stop(kill)` is
     handed what kills the run (a queue job's cancel). TrackError 409 from
-    check_align, 500 when align fails."""
+    check_align, 500 when align fails. `vocals`: align --vocals (the vocal
+    stem heard; made by align itself when it isn't beside the recording)."""
     py = python or align_python()
     timeout = ALIGN_TIMEOUT if timeout is None else timeout
     if check_deps:
-        check_align(ep, track, words, py)
+        check_align(ep, track, words, py, vocals)
     with tempfile.TemporaryDirectory(prefix="h3align_") as tmp:
         out = os.path.join(tmp, "align.json")
         args = [ep]
@@ -468,6 +501,8 @@ def align(ep: str, track: str | None = None, model: str | None = None, snap: boo
             args.append("--no-snap")
         if dry_run:
             args.append("--dry-run")
+        if vocals:
+            args.append("--vocals")
         if words:
             args += ["--words", words]
         cmd = E.tool_cmd(ALIGN_SCRIPT, args, py)

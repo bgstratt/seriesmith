@@ -1,0 +1,6 @@
+{
+ "1": {"class_type": "MMAudioModelLoader", "inputs": {"mmaudio_model": "mmaudio_large_44k_v2_fp16.safetensors", "base_precision": "fp16"}, "_meta": {"title": "Model"}},
+ "2": {"class_type": "MMAudioFeatureUtilsLoader", "inputs": {"vae_model": "mmaudio_vae_44k_fp16.safetensors", "synchformer_model": "mmaudio_synchformer_fp16.safetensors", "clip_model": "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors", "mode": "44k", "precision": "fp16"}, "_meta": {"title": "Feature utils"}},
+ "3": {"class_type": "MMAudioSampler", "inputs": {"mmaudio_model": ["1", 0], "feature_utils": ["2", 0], "duration": 10.0, "steps": 25, "cfg": 4.5, "seed": 0, "prompt": "", "negative_prompt": "music, melody, singing, speech, talking, voices", "mask_away_clip": false, "force_offload": true}, "_meta": {"title": "Sampler"}},
+ "4": {"class_type": "SaveAudio", "inputs": {"audio": ["3", 0], "filename_prefix": "seriesmith/bed"}, "_meta": {"title": "Save"}}
+}

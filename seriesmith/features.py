@@ -63,6 +63,12 @@ PACKS: dict[str, dict] = {
     "ComfyUI-LTX2.5-MSR": {
         "repo": "https://github.com/liconstudio/ComfyUI-LTX2.5-MSR",
         "classes": ["ComfyUILTX25MSRICLoRALoader", "ComfyUILTX25MSRMultiReferenceGuide"]},
+    "ComfyUI-MMAudio": {
+        "repo": "https://github.com/kijai/ComfyUI-MMAudio",
+        "classes": ["MMAudioModelLoader", "MMAudioFeatureUtilsLoader", "MMAudioSampler"]},
+    "ComfyUI-HunyuanVideo-Foley": {
+        "repo": "https://github.com/phazei/ComfyUI-HunyuanVideo-Foley",
+        "classes": ["HunyuanModelLoader", "HunyuanDependenciesLoader", "HunyuanFoleySampler"]},
     "ComfyUI-PromptRelay": {
         "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
         "classes": ["PromptRelayEncode"]},
@@ -139,7 +145,7 @@ GROUPS = [
     ("video", "Video models", "What shots render on. seriesmith uses the first one installed."),
     ("pictures", "Picture models", "What draws characters, places, props and keyframes."),
     ("h3", "MiniMax H3 extras", "For H3 at full quality and for the location tours."),
-    ("sound", "Sound", "Generated voices and recorded dialogue."),
+    ("sound", "Sound", "Generated voices, recorded dialogue, ambience beds and effects."),
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
     ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
@@ -200,6 +206,7 @@ def catalog() -> list[Feature]:
     from seriesmith import refs as R
     from seriesmith import upscale as U
     from seriesmith import targets as TG
+    from seriesmith import vocals as V
 
     def target_feature(fid, group, tid, label, about, extra=()):
         items = _target_items(tid)
@@ -262,10 +269,40 @@ def catalog() -> list[Feature]:
                 "A voice per character, that `clone` shots speak in: ComfyUI-LTXVideo and three LTX-2.5 "
                 "files (gated). It also lets LTX-2.5 read reference sheets.",
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
+        Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
+                "A place's room tone or air, made once from its `ambience` words and looped under "
+                "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",
+                [_pack("ComfyUI-MMAudio")] + _target_items("mmaudio_ambience"), restart=True),
+        target_feature("sound.ambience_sfx", "sound", "sa3_sfx_ambience",
+                       "Ambience beds (Stable Audio 3 Small SFX)",
+                       "Livelier beds, second choice to MMAudio: Stable Audio 3's small sound-effects "
+                       "model (Stability AI Community License)."),
+        target_feature("sound.effects", "sound", "h3_foley", "Effects (MiniMax H3)",
+                       "A shot's sync sound made from its take's frames (a clip's Sound menu, "
+                       "seriesmith fx): H3 FL2VA's files, which H3 FL2VA shots use too. The default."),
+        Feature("sound.effects_ltx", "sound", "Effects (LTX-2.3 Foley)",
+                "Effects from Lightricks' LTX-2.3 Foley LoRA on LTX-2.3 dev: as good as H3 by ear, "
+                "slower (a minute or two a shot), about 36 GB of files and ComfyUI-LTXVideo.",
+                [_pack("ComfyUI-LTXVideo")] + _target_items("ltx23_foley"), restart=True),
+        Feature("sound.effects_hunyuan", "sound", "Effects (HunyuanVideo-Foley XL)",
+                "Effects from Tencent's HunyuanVideo-Foley XL: phazei's node pack and three files "
+                "(Tencent's community licence: it doesn't apply in some territories).",
+                [_pack("ComfyUI-HunyuanVideo-Foley")] + _target_items("hunyuan_xl_foley"), restart=True),
         Feature("sound.align", "sound", "Recorded dialogue",
-                "faster-whisper, for align and the Recording window, in the Python align runs on.",
+                "faster-whisper, for align and the Recording window, in the Python align runs on; "
+                "with an NVIDIA card, CUDA 12's cuBLAS too, or it transcribes on the CPU (its "
+                "CTranslate2 is built on CUDA 12 and brings cuDNN, not cuBLAS; ComfyUI's PyTorch "
+                "has CUDA 13's, which it can't use).",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),
-                 Item("pip", "numpy", where="align", module="numpy")]),
+                 Item("pip", "numpy", where="align", module="numpy"),
+                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas")]),
+        Feature("sound.vocals", "sound", "Vocal stem (Hybrid Demucs)",
+                "A song's singing split from the band, for align --vocals and an episode that "
+                "dubs from the stem (optional; off by default): seriesmith's node pack and "
+                "torchaudio's Hybrid Demucs weights (torchaudio downloads them itself if "
+                "they aren't here).",
+                [OWN_PACK, Item("model", V.WEIGHTS_FILE, folder=V.WEIGHTS_FOLDER,
+                                url=V.WEIGHTS_URL)], restart=True),
         Feature("sound.demucs", "sound", "Keep H3's foley under your vocal",
                 "demucs in ComfyUI's Python, for the dub_keep_foley audio policy.",
                 [Item("pip", "demucs", where="comfyui", module="demucs")]),
@@ -448,7 +485,7 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
 
 
 def pack_for_class(cls: str) -> Item | None:
-    if cls in OWN_PACK.classes:
+    if cls in OWN_PACK.classes or cls.startswith("Seriesmith"):
         return OWN_PACK
     for folder, p in PACKS.items():
         if cls in p["classes"]:

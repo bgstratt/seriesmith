@@ -24,6 +24,12 @@ export type HostEvent =
   | "seriesmith.post"
   /** a master being assembled: each step, then done or failed (a MasterJob) */
   | "seriesmith.master"
+  /** a music cue's take landed ({ep, cue, take, status}) */
+  | "seriesmith.cue"
+  /** a shot's effects take landed ({ep, pass, shot, take, status}) */
+  | "seriesmith.fx"
+  /** a recording's vocal stem made or failed ({ep, recording, status, error}) */
+  | "seriesmith.vocals"
   /** seriesmith: a job of its queue changed (standalone page) */
   | "seriesmith.job"
   /** seriesmith: the queue's lanes changed (an order, a pause) */

@@ -111,7 +111,7 @@ export type FieldKind =
   | "long"            // a paragraph
   | "number"
   | "select"          // `choices`; "" leaves the key out (the default)
-  | "video_target" | "first_target" | "image_target" | "audio_target"
+  | "video_target" | "first_target" | "image_target" | "voice_target"
   | "backend"
   | "lora"            // one LoRA (name[:strength] | none), from what the video model loads
   | "model"           // a model file the video model can load
@@ -210,8 +210,8 @@ export const SECTIONS: Section[] = [
         help: "The image model that draws character sheets, props and location plates from their design and description (krea2 by default). Pictures you already have can be supplied instead." },
       { path: ["refs", "keyframe_target"], label: "Keyframes", kind: "image_target",
         help: "The image model for a shot's first and last frames — the pictures a keyframe-driven model (H3 FL2VA, LTX-2, Wan) starts or ends on. An edit model (FLUX.2 Klein edit, the default when installed) draws them from your sheets and plate, so the people and the place match." },
-      { path: ["refs", "voice_target"], label: "Voices", kind: "audio_target",
-        help: "The model that makes a character's voice sample from their voice line (ltx2_voice by default), for clone mode or to keep a voice the same across episodes." },
+      { path: ["refs", "voice_target"], label: "Voices", kind: "voice_target",
+        help: "What voices a line. An audio model (ltx2_voice by default) makes a character's voice sample from their voice line, for clone mode or to keep a voice the same across episodes. A video model that renders a dub track (H3 Ref2VA, FastH3 Omni, LTX-2.5) is what the Sound dialog's “Generate a dub track” starts on; voice samples then stay on the default audio model." },
     ],
   },
   {
@@ -440,8 +440,13 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
       { path: ["of"], label: "Angle of", kind: "select",
         choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
         help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },
+      { path: ["ambience"], label: "Ambience", kind: "long",
+        placeholder: "Room tone of a small roadside diner at night: a refrigerator hum, the buzz of a neon sign, an occasional car passing outside",
+        help: "What's heard there: the room tone or the air, never music or a voice. Its ambience bed is made from it (the Refs tab's Ambience) and looped under every shot set here; an angle or relit version of this place plays this one's bed unless it says its own. Empty: no bed." },
       { path: ["plate"], label: "Picture file", kind: "picture", more: true,
         help: "Where its plate lives. Filled in from the show's layout." },
+      { path: ["ambience_bed"], label: "Ambience file", kind: "text", more: true, placeholder: "../refs/_amb/diner.wav",
+        help: "Where its ambience bed lives (a wav of your own works too). Empty: _amb/<id>.wav beside its plate's refs folder." },
     ];
   }
 }

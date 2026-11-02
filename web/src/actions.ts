@@ -20,7 +20,7 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { VOICE_TARGET, VOICE_TARGETS, cantDub, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
+import { cantDub, dubTrackBlock, dubTrackDefault, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
@@ -29,7 +29,7 @@ import {
   type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
-  AlignEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
+  AlignEvent, VocalsEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
@@ -662,6 +662,31 @@ export function setStatusHook(h: StatusHook | null) {
   statusHook = h;
 }
 
+/** Called after each status a refresh brings (the mix is fetched with its pass's status). */
+const statusLoaded = new Set<(ep: string, pass: Pass) => void>();
+
+export function onStatusLoaded(fn: (ep: string, pass: Pass) => void): () => void {
+  statusLoaded.add(fn);
+  return () => void statusLoaded.delete(fn);
+}
+
+/** A music cue's take landed (seriesmith.cue): cueActions listens. */
+const cueEvents = new Set<(d: { ep?: string; cue?: string; take?: number; status?: string }) => void>();
+
+export function onCueEvent(fn: (d: { ep?: string; cue?: string; take?: number; status?: string }) => void): () => void {
+  cueEvents.add(fn);
+  return () => void cueEvents.delete(fn);
+}
+
+/** A shot's effects take landed (seriesmith.fx): an open effects menu listens. */
+export type FxEvent = { ep?: string; pass?: string; shot?: string; take?: number; status?: string };
+const fxEvents = new Set<(d: FxEvent) => void>();
+
+export function onFxEvent(fn: (d: FxEvent) => void): () => void {
+  fxEvents.add(fn);
+  return () => void fxEvents.delete(fn);
+}
+
 export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<EpisodeStatus | undefined> {
   if (!ep) return Promise.resolve(undefined);
   const key = statusKey(ep, pass);
@@ -695,6 +720,7 @@ export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<Episod
       else shownPicks.delete(key);
       for (const p of picks) layPick(key, pass, p.shot, p.take);
       void afterStatus(ep, pass, st);
+      statusLoaded.forEach((f) => f(ep, pass));
       return st;
     } catch (e) {
       set((s) => ({ statusError: { ...s.statusError, [key]: errText(e) } }));
@@ -830,9 +856,11 @@ export function clearMulti() {
 /** A dub track of each shot: the shot rendered for its sound only on a voice model
  * (H3 Ref2VA at 64x64 unless another is chosen), its voices cloned, kept apart from
  * its takes to dub the shot with (the Sound dialog). */
-export function generateDubTracks(shots: string[], target: string = VOICE_TARGET, thenRender = false) {
+export function generateDubTracks(shots: string[], target: string | null = null, thenRender = false) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  // the series' voice model when it renders dub tracks, else H3 Ref2VA
+  target = target ?? dubTrackDefault(s.refDefaults[s.ep]);
   if (thenRender) {
     // a shot whose own model can't dub a track would make one for nothing
     const st = s.status[statusKey(s.ep, s.pass)];
@@ -847,7 +875,7 @@ export function generateDubTracks(shots: string[], target: string = VOICE_TARGET
   }
   // the voice model isn't installed here: show it in Features, ticked to install
   if (dubTrackBlock(s.targets, target)) {
-    return openFeatures(true, VOICE_TARGETS.find((v) => v.id === target)?.feature ?? null);
+    return openFeatures(true, `target:${target}`);
   }
   if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks${thenRender ? `, each then dubbed and rendered` : ""}?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots, false, target), redo: true, dub_track: true,
@@ -923,7 +951,7 @@ export function updateViewer(patch: Partial<NonNullable<AppState["viewer"]>>) {
 }
 
 export function closeViewer() {
-  set((s) => ({ viewer: null, cutPlay: { ...s.cutPlay, playing: false } }));
+  set((s) => ({ viewer: null, cutPlay: { ...s.cutPlay, playing: false }, audition: null }));
 }
 
 // where focus was when a context menu opened: its keys (space, J/K/L, the
@@ -1682,7 +1710,17 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
     if (r.ok && xml) {
       host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}
 Open it in Premiere (File ▸ Import) or Resolve (File ▸ Import ▸ Timeline).`);
-    } else if (r.ok) host().toast("success", pub ? "Published" : "Assembled", absPath(s.ep, r.output));
+    } else if (r.ok) {
+      // the loudness check and the picture's checks on the export (assemble made them; nothing changed)
+      const lc = r.loudness;
+      const off = lc && (!lc.on_target || lc.over_peak);
+      const ck = r.checks;
+      host().toast(off || (ck && !ck.ok) ? "warn" : "success", pub ? "Published" : "Assembled",
+        absPath(s.ep, r.output) + (lc ? `
+Loudness: ${lc.verdict}${off && !lc.mixed ? " (no mix brings the cut's own sound to the target)" : ""}` : "")
+        + (ck ? `
+Checks: ${ck.verdict}` : ""));
+    }
     else if (pub && r.cut) host().toast("error", "Assembled, but publishing failed", r.error || r.report.slice(-400));
     else host().toast("error", xml ? "The XML failed" : "Assemble failed", r.report.slice(-400));
   } catch (e) {
@@ -2015,6 +2053,26 @@ export function wireEvents() {
     scheduleRefresh();
     if (get().ep && get().refs[get().ep!]) scheduleRefsRefresh();
   });
+  h.on("seriesmith.cue", (d) => {
+    const c = (d ?? {}) as { ep?: string; cue?: string; take?: number; status?: string };
+    if (!sameEp(c.ep, get().ep)) return;
+    cueEvents.forEach((f) => f(c));
+  });
+  h.on("seriesmith.fx", (d) => {
+    const f = (d ?? {}) as FxEvent;
+    if (!sameEp(f.ep, get().ep)) return;
+    const t = f.take != null ? ` ${tn(f.take)}` : "";
+    if (f.status === "ok") host().toast("success", `${f.shot}'s effects${t} made`, "Right-click its block on the Effects lane to hear and pick it.");
+    if (f.status === "failed") host().toast("error", `${f.shot}'s effects${t} failed`, "Its block's menu on the Effects lane says why.");
+    fxEvents.forEach((fn) => fn(f));
+  });
+  h.on("seriesmith.vocals", (d) => {
+    const v = (d ?? {}) as VocalsEvent;
+    if (!v.ep || !sameEp(v.ep, get().ep)) return;
+    if (v.status === "ok") host().toast("success", "The vocal stem is made", `${v.recording.replace(/\\/g, "/").split("/").pop()}.vocals.wav`);
+    if (v.status === "failed") host().toast("error", "The vocal stem wasn't made", v.error || undefined);
+    void refreshEpisode(v.ep, get().pass);
+  });
   h.on("seriesmith.master", (d) => {
     const j = (d ?? null) as MasterJob | null;
     if (!j || !sameEp(j.ep, get().ep)) return;
@@ -2119,7 +2177,9 @@ export function playAll(fromShot?: string | null, only: string[] | null = null) 
   const resume = s.viewer?.kind === "cut" && s.cutPlay.pos < totalDuration(items) - 0.05;
   const t = fromShot ? startOf(items, fromShot) ?? 0 : resume ? s.cutPlay.pos : 0;
   set({
-    viewer: { kind: "cut", shot: fromShot ?? items[0].shot, pass: s.pass, a: null, b: null, mode: "single", target: "a" },
+    // the spotting sheet stays the sheet (it is this player)
+    viewer: { kind: "cut", shot: fromShot ?? items[0].shot, pass: s.pass, a: null, b: null, mode: "single", target: "a",
+              ...(s.viewer?.kind === "cut" && s.viewer.spot ? { spot: true, cue: s.viewer.cue } : {}) },
     menu: null,
     cutPlay: { playing: true, pos: t, seek: nextSeek(t) },
   });
@@ -2134,6 +2194,14 @@ export function seekCut(t: number) {
   const total = totalDuration(currentPlaylist(s));
   const c = Math.min(Math.max(0, t), total);
   set({ cutPlay: { ...s.cutPlay, pos: c, seek: nextSeek(c) } });
+}
+
+/** The playhead `d` frames back or on from the frame it's on, paused there. */
+export function stepFrame(d: number, fps: number) {
+  const s = get();
+  const f = Math.round(s.cutPlay.pos * fps + 1e-6);
+  if (s.cutPlay.playing) set({ cutPlay: { ...s.cutPlay, playing: false, rate: 1 } });
+  seekCut((f + d) / fps);
 }
 
 /** Jump the open cut player to a shot. Returns false when the player isn't open. */
@@ -3315,13 +3383,14 @@ export async function clearTrack(ask = true): Promise<boolean> {
  * as `seriesmith.align` events while it runs; a 409 means a dependency is missing
  * (the panel then says what to install, and into which Python).
  */
-export async function runAlign(opts: { dryRun?: boolean; model?: string | null; snap?: boolean } = {}): Promise<boolean> {
+export async function runAlign(opts: { dryRun?: boolean; model?: string | null; snap?: boolean; vocals?: boolean } = {}): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
   const dryRun = !!opts.dryRun;
   const req: AlignRequest = { ep, pass: get().pass, dry_run: dryRun };
   if (opts.model) req.model = opts.model;
   if (opts.snap === false) req.snap = false;
+  if (opts.vocals) req.vocals = true;
   set({
     alignRun: { ep, busy: true, dryRun, stage: "transcribe", pct: 0, text: dryRun ? "starting (dry run)" : "starting", error: null },
   });
@@ -3353,6 +3422,49 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
     }
     return false;
   }
+}
+
+/** POST /seriesmith/vocals: the recording's vocal stem made on local ComfyUI (optional:
+ * for align from the stem, or an episode that dubs from it). `seriesmith.vocals` says when
+ * it lands. */
+export async function makeVocals(redo = false): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  return withBusy("track", async () => {
+    try {
+      const r = await api().makeVocals(ep, redo);
+      if (r.job) host().toast("info", "Making the vocal stem", "Queued on local ComfyUI (Jobs shows it).");
+      else {
+        host().toast("success", "The vocal stem is there", r.stem ?? undefined);
+        await refreshEpisode(ep, get().pass);
+      }
+      return true;
+    } catch (e) {
+      report("Couldn't make the vocal stem", e);
+      return false;
+    }
+  });
+}
+
+/** POST /seriesmith/track/dub_from: each dub shot's window cut from the recording's vocal
+ * stem ("vocals") or the recording ("recording", the default). The stem is made when it
+ * isn't there yet. */
+export async function setDubFrom(dubFrom: "recording" | "vocals"): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  const st = get().status[statusKey(ep, get().pass)];
+  const ok = await withBusy("track", async () => {
+    try {
+      const r = await api().setDubFrom(ep, dubFrom, get().pass);
+      afterTrack(ep, r, dubFrom === "vocals" ? "Dub shots now hear the vocal stem" : "Dub shots now hear the recording");
+      return true;
+    } catch (e) {
+      report("Couldn't change where the dub shots' windows come from", e);
+      return false;
+    }
+  });
+  if (ok && dubFrom === "vocals" && !st?.track?.vocals) await makeVocals();
+  return ok;
 }
 
 /** The page follows an align on the queue (just asked for, or found running). */
@@ -3517,6 +3629,11 @@ export function usePictureFile(chosen: string): boolean {
   const absolute = /^([a-zA-Z]:|[\\/])/.test(chosen);
   const rel = absolute ? epRelative(chosen, s.ep) : chosen.replace(/\\/g, "/");
   if (!rel) {
+    if (s.browse?.files === "audio") {
+      host().toast("warn", "That file is outside the episode",
+        `A sound is named relative to the episode, so it has to live inside ${s.ep} (or in the show's folder beside it). Copy it in first.`);
+      return false;
+    }
     host().toast("warn", "That picture is outside the episode",
       `A picture is named relative to the episode, so it has to live inside ${s.ep} (or in the show's refs folder beside it). Copy it in first, or import it on the Refs tab.`);
     return false;

@@ -31,6 +31,8 @@ PAGES = [
     ("docs/SCRIPT_CONVERSION.md", "script-conversion", "A spec-format screenplay scene worked all the way through to shots."),
     ("docs/STORY_STRUCTURES.md", "story-structures", "Story structures for outlining an episode from scratch: each one's beats, their share of the runtime, and how beats become shots."),
     ("docs/EDITOR.md", "editor", "The editor page: shots, takes, refs, the cut and the queue, every button and key."),
+    ("docs/SCORING.md", "scoring", "Music made to fit the cut: hits, cues, the cue window's tabs, choosing a take, the levels; an episode scored as the example."),
+    ("docs/MUSIC_VIDEO.md", "music-video", "A music video cut to a finished song: the song as the recording, the lyrics as lines, singing shots lip-synced to their windows, the song unbroken on export."),
     ("docs/COMMANDS.md", "commands", "Every stage as a command, the files each reads and writes, and an episode worked from a terminal."),
     ("docs/FULL_SETUP.md", "full-setup", "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."),
     ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),

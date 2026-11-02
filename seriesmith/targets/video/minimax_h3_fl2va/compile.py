@@ -269,7 +269,8 @@ def required_refs(target, shot_ir: ir.Shot, series_cfg: dict, ctx=None) -> list:
 
 
 def _recording(doc: dict, shot: dict) -> str:
-    return shot.get("audio_file") or doc.get("defaults", {}).get("master_track", "")
+    from seriesmith.targets import held_audio as HA
+    return HA.dub_recording(doc, shot)
 
 
 def ref_slots(target, doc: dict, shot: dict) -> list[dict]:

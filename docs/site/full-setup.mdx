@@ -83,7 +83,11 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Reference pictures and keyframes | | Krea 2's 3 files; FLUX.2 Klein's 3 | |
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
-| Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
+| Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley`; seriesmith's node pack for the vocal stem (optional) |
+| Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
+| Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
+| Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
+| Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; or downloaded once by torchaudio) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
@@ -287,9 +291,57 @@ their own words. The voice comes out close, not identical: listen before you pic
 
 - `pip install faster-whisper numpy` for `seriesmith align` and the editor's Recording
   window. Install them in seriesmith's Python, or in any Python on PATH; the Recording
-  window names the one it found and prints the exact `pip install` line for it.
+  window names the one it found and prints the exact `pip install` line for it. With an NVIDIA
+  card, `pip install nvidia-cublas-cu12` there too: faster-whisper is built on CUDA 12 and
+  doesn't bring its cuBLAS (ComfyUI's PyTorch has CUDA 13's), so without it Whisper runs on
+  the CPU, minutes instead of seconds.
 - `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
   `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+- The **vocal stem** of a song (optional: `align --vocals`, and dub shots that hear the
+  singing alone) is made on your ComfyUI by seriesmith's own node pack with torchaudio,
+  which ComfyUI already has: nothing to install. Its weights (`hdemucs_high_trained.pt`,
+  320 MB) download once the first time; the Features window's **Vocal stem** puts them in
+  `models/demucs/` ahead of time.
+
+**Music** cues use ComfyUI's own nodes. Score's default, `stable_audio3`, needs
+`stable_audio_3_medium.safetensors` in `checkpoints` and `t5gemma_b_b_ul2.safetensors` in
+`text_encoders`; a song's, `yue2`, needs `yue2_3b_int8_convrot.safetensors` in `checkpoints`,
+and `sheetsage2_bf16.safetensors` in `audio_encoders` to sing a theme transcribed from a
+recording ([Comfy-Org/YuE2](https://huggingface.co/Comfy-Org/YuE2); YuE2's and SheetSage2's
+weights are CC BY-NC 4.0, non-commercial). `ace_step15` (MIT) takes the four files of
+[Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files)
+(INSTALL.md lists them).
+
+**Ambience beds** are a place's room tone or air, made once from its location's `ambience`
+words and looped under its shots in the mix ([AUTHORING.md](/authoring), "What a place
+sounds like"). The default, `mmaudio_ambience`, needs
+[ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) (MIT; ComfyUI-Manager installs
+it and its requirements) and four files in `models/mmaudio`, from
+[Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors):
+`mmaudio_large_44k_v2_fp16`, `mmaudio_vae_44k_fp16`, `mmaudio_synchformer_fp16` and
+`apple_DFN5B-CLIP-ViT-H-14-384_fp16` (`.safetensors`). The pack downloads BigVGAN v2 into
+`models/mmaudio/nvidia` the first time. `sa3_sfx_ambience` (Stable Audio 3 Small SFX, ComfyUI's
+own nodes) needs `stable_audio_3_small_sfx.safetensors` in `checkpoints` and
+`t5gemma_b_b_ul2.safetensors` in `text_encoders`
+([Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3)). The Features
+window has both under Sound.
+
+**Effects** are a shot's sync sound made from the frames of the take the cut plays (a clip's
+Sound ▸ Make effects, `seriesmith fx`). With the Dialogue track on **Voices only** the takes'
+own effects go with their music, so a shot's effects are worth making there. The default, `h3_foley`, is MiniMax H3 FL2VA asked for
+the sound of the video it's given: H3 FL2VA's model, its text encoder and its two VAEs, the
+files H3 FL2VA shots use (no turbo LoRA), and ComfyUI's own nodes. `ltx23_foley` is Lightricks'
+LTX-2.3 Foley LoRA on the LTX-2.3 dev model: [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo)
+and seven files, about 36 GB (the dev transformer, the text projection and both VAEs from
+[Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy), the distilled LoRA from
+[Comfy-Org/ltx-2.3](https://huggingface.co/Comfy-Org/ltx-2.3), Gemma 3 12B fp8 from
+[Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2), the foley LoRA from
+[Lightricks/LTX-2.3-22b-LoRA-Foley-V2A](https://huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A)).
+`hunyuan_xl_foley` is Tencent's HunyuanVideo-Foley XL through
+[ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) and three
+files in `models/foley` from [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley)
+(the pack fetches SigLIP2 and CLAP the first time); its licence is Tencent's community licence,
+which doesn't apply in some territories. The Features window has all three under Sound.
 
 ## Upscaling
 

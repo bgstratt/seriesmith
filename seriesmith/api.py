@@ -24,10 +24,12 @@ import threading
 # the pipeline
 # ---------------------------------------------------------------------------
 
+from seriesmith import cue as CU  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
 from seriesmith import issues as IS  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
+from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import promote as P  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
@@ -2078,7 +2080,7 @@ def _master_fraction(job: dict) -> float:
     if job.get("step") == "titles":
         return 0.85 + 0.15 * part if job.get("stage") == "reencode" else 0.85
     return {"probe": 0.1 * part, "clips": 0.1 + 0.7 * part, "join": 0.8, "prores": 0.82,
-            "verify": 0.82}.get(job.get("stage") or "", 0.0)
+            "loudness": 0.82, "checks": 0.82, "verify": 0.82}.get(job.get("stage") or "", 0.0)
 
 
 def _master_task(ctx: Context, params: dict):
@@ -2529,6 +2531,551 @@ def put_cut(ctx: Context, body):
     cut = E.replace_cut(ep, pass_, clean)
     episode_event(ctx, ep)
     return 200, {"cut": cut}
+
+
+@handler
+def get_mix(ctx: Context, query: dict):
+    """A pass's mix (mix.py, docs/SOUND.md): `mix` as mix.json holds it, `files` each item
+    file's length in seconds (None: not there or no sound), `series` the
+    series config's `sound` defaults under it, `defaults` what a track, the ducking
+    and the loudness are when neither says (the editor draws the lanes from these), and
+    `beds` the places' ambience beds laid under the cut (ambience.laid: worked out from
+    the cut and the series config, never stored): [{"place", "label", "path" (relative
+    to the episode), "exists", "words", "shots", "in", "out" (anchors), "start", "end"
+    (seconds of the cut), "gain_db", "mute"}], and `fx` the shots' picked effects laid at
+    their clips (fx.laid: from the cut and the mix's `fx`): [{"shot", "take", "model",
+    "path" (relative to the episode), "exists", "in", "out" (anchors), "start", "end"
+    (seconds of the cut), "offset" (seconds into the file at start), "gain_db", "mute",
+    "keep_stale", "stale" (why, or null), "heard"}], and `voices` the Dialogue track's
+    voices only (voices.summary): {"voices_only" (the track's), "split", "of", "queued" (how
+    many of the cut's shots that can be split are), "shots": [{"shot", "pass", "take", "path"
+    (the take's voice stem, relative to the episode), "state" (ok | missing | stale | queued |
+    failed | sourced | silent), "why", "voices_only" (the shot's, the track's under it),
+    "override" (its own: true, false or null), "plays" (voice | whole | silence), "lines",
+    "measured", "seconds"}]} in cut order, and `places` each cut shot's place (ambience.places:
+    {shot: {"place", "name", "bed"}}, the place whose bed it plays over or would). Nothing is
+    decoded."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    cfg = J.series_config(ep)
+    snd = (cfg or {}).get("sound") or {}
+    # each item's file: its length in seconds (None: not there, or no sound)
+    files = {}
+    for it in mix.get("items") or []:
+        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        info = PK.media_info(full) if os.path.isfile(full) else {}
+        files[it["path"]] = info.get("duration") if info.get("audio") else None
+    from seriesmith import ambience as AMB
+    layout, fps = CU.cut_layout(ep, pass_)
+    beds = [{**{k: b[k] for k in ("place", "label", "exists", "words", "shots", "in", "out",
+                                  "gain_db", "mute")},
+             "path": b["rel"], "start": round(b["start"] / fps, 4), "end": round(b["end"] / fps, 4)}
+            for b in AMB.laid(ep, layout, cfg, mix)]
+    places = AMB.places(ep, layout, cfg)
+    from seriesmith import fx as FXM
+    fx = [{**{k: f[k] for k in ("shot", "take", "model", "exists", "in", "out", "gain_db", "mute",
+                                "keep_stale", "stale", "heard")},
+           "path": f["rel"], "start": round(f["start"] / fps, 4), "end": round(f["end"] / fps, 4),
+           "offset": round((f["start"] - f["origin"]) / fps, 4)}
+          for f in FXM.laid(ep, pass_, layout, mix)]
+    from seriesmith import voices as VO
+    voices = VO.summary(VO.shots(ep, pass_, mix, VO.alive_of(ctx.runner)), mix)
+    return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx, "voices": voices,
+                 "places": places, "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
+                 "track_list": MX.track_list(mix),
+                 "defaults": {"tracks": list(MX.TRACKS), "labels": MX.LABELS, "kinds": list(MX.KINDS),
+                              "gain_db": MX.GAIN_DEFAULT,
+                              "duck_db": MX.DUCK_DEFAULT,
+                              "duck": MX.DUCK, "loudness": MX.LOUDNESS}}
+
+
+_DUCK_CACHE: dict = {}
+
+
+@handler
+def get_mix_duck(ctx: Context, query: dict):
+    """The pass's "someone is speaking" curve (mix.speech_of): `{"step", "curve"}`, one
+    value 0..1 per `step` seconds of the cut, computed from each clip's own sound as the
+    export computes it (with the mix's voices only, from the voice stems), so Play all dips
+    the music and ambience in the same places. Kept until the cut, a take, a stem or the
+    mix's ducking changes."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    layout, fps = CU.cut_layout(ep, pass_)
+    try:
+        sound = MX.for_pass(ep, pass_, J.series_config(ep))
+    except ValueError:
+        sound = {}
+    duck = sound.get("duck")
+    # voices only: the clips that play their voice stem are heard from it (no music or room
+    # tone in the speech), those that are silent not at all
+    from seriesmith import voices as VO
+    layout = VO.on_layout(ep, pass_, layout, sound)
+
+    def stamp(path):
+        try:
+            return os.path.getmtime(path) if path else None
+        except OSError:
+            return None
+    key = json.dumps([ep, pass_, fps, duck, [(x["id"], x["trim_in"], x["used"], x["dissolve_in"],
+                                              x["sound"], x["sound_start"], stamp(x["sound"]))
+                                             for x in layout]], sort_keys=True)
+    if key not in _DUCK_CACHE:
+        if len(_DUCK_CACHE) > 16:
+            _DUCK_CACHE.clear()
+        _DUCK_CACHE[key] = MX.speech_of(layout, fps, duck)
+    return 200, {"step": MX.SPEECH_STEP, "curve": _DUCK_CACHE[key]}
+
+
+@handler
+def get_mix_beats(ctx: Context, query: dict):
+    """The beats to cut to (docs/SOUND.md phase 5): each music item's file's beat grid and
+    the episode's recording's, for the timeline to snap trims to and draw. `items`: [{"id",
+    "path", "grid"}] for the pass's mix's items on the music track; `recording`: {"path",
+    "grid"} or null (no recording, or not there). A grid is {"bpm", "first" (the first beat,
+    seconds into the file), "downbeat" (the first downbeat), "beats_per_bar", "seconds",
+    "steady" (a pulse to snap to: a measured file may have none), "source": "cue" (a cue
+    take's, from its sidecar) | "measured" (any other file's, measured once and kept beside it
+    as `<file>.beats.json`)}, or null when the file has no sound or no tempo. Asked for when
+    the timeline needs them (the mix's music files changed), never polled: measuring a song
+    the first time takes about a second a minute of it."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    grids: dict = {}
+
+    def grid(full: str, rel: str | None):
+        if full not in grids:
+            grids[full] = CU.beat_grid(ep, full, rel) if os.path.isfile(full) else None
+        return grids[full]
+    items = []
+    kinds = MX.kinds(mix)
+    for it in mix.get("items") or []:
+        if kinds.get(it["track"]) != "music":
+            continue
+        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        items.append({"id": it["id"], "path": it["path"], "grid": grid(full, it["path"])})
+    rec = None
+    track = E.episode_track(ep)
+    if track and track.get("exists"):
+        p = track["path"]
+        full = os.path.normpath(p if os.path.isabs(p) else os.path.join(ep, *p.split("/")))
+        rec = {"path": p, "grid": grid(full, None)}
+    return 200, {"items": items, "recording": rec}
+
+
+@handler
+def put_mix(ctx: Context, body):
+    """Replace a pass's mix: `{ep, pass, mix}`. 400 for one that doesn't check (an
+    unknown field, a track or anchor that isn't one, a level out of range). Items name
+    files in the episode (POST /seriesmith/audio/import puts one there)."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    try:
+        for it in MX.check(body.get("mix")).get("items") or []:
+            ep_file(ctx, ep, it["path"], escape_status=400)   # there, inside the episode
+        mix = MX.write(ep, pass_, body.get("mix"))
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
+
+
+def _plan_summary(p: dict) -> dict:
+    """What a cue's plan says, for the window (cue.plan, without the spec it came from): and
+    `theme` (how its model hears the cue's theme: {spec, label, use, warning, from}: `label`
+    names the take a theme that follows another cue's pick is now, `from` "mix" or "best"), `warnings`,
+    `blocked` (why it can't render) and `song` (a theme's plan's sections) when it has them."""
+    out = {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "direction", "bars", "bar", "preroll",
+                             "seconds", "ask_seconds", "sections", "arc", "prompt")}
+    if p.get("theme"):
+        out["theme"] = {k: p["theme"][k] for k in ("spec", "label", "use", "warning", "from")}
+    for k in ("warnings", "blocked", "song"):
+        if p.get(k):
+            out[k] = p[k]
+    return out
+
+
+def _cue_spec(ep: str, cid) -> dict:
+    if not isinstance(cid, str) or not cid:
+        raise ApiError(400, "cue is the cue's id")
+    try:
+        return CU.load_spec(ep, cid)
+    except FileNotFoundError:
+        raise ApiError(404, f"no cue {cid}")
+    except CU.CueError as e:
+        raise ApiError(409, f"cue {cid}'s spec.json doesn't read: {e}")
+
+
+@handler
+def get_cues(ctx: Context, query: dict):
+    """The episode's music cues (cue.py): each its spec and how many takes it has,
+    finished and picked. With `pass`, each is also planned against that pass's cut (the
+    spotting sheet's list): `bpm` (the fitted tempo), `in_mix` (the take its item in the
+    pass's mix plays, or null), `stale` (what has moved under that take since it was
+    rendered, in words; [] when nothing has or none is in the mix), `stale_takes` (the
+    finished takes something has moved under) and `plan_error` (its anchors aren't in
+    the cut: null otherwise)."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query["pass"]) if query.get("pass") is not None else None
+    items = {}
+    if pass_:
+        try:
+            items = {i["id"]: i for i in MX.check(MX.load(ep).get(pass_)).get("items") or []}
+        except ValueError:
+            items = {}
+    out = []
+    for spec in CU.list_cues(ep):
+        takes = CU.list_takes(ep, spec["id"])
+        row = {"spec": spec, "takes": len(takes),
+               "ok": sum(1 for t in takes if t.get("status") == "ok"),
+               "placed": sorted({t["placed"] for t in takes if t.get("placed")})}
+        if pass_:
+            row.update(_cue_state(ep, pass_, spec, takes, items.get(spec["id"])))
+        out.append(row)
+    return 200, {"cues": out}
+
+
+def _cue_state(ep: str, pass_: str, spec: dict, takes: list[dict], item: dict | None) -> dict:
+    """A cue against the pass's cut, for get_cues: its fitted tempo, the take its mix item
+    plays, and what is stale."""
+    in_mix = CU.item_take(item, spec["id"])
+    try:
+        p = CU.plan(ep, pass_, spec)
+    except CU.CueError as e:
+        return {"bpm": None, "in_mix": in_mix, "stale": [], "stale_takes": [], "plan_error": str(e)}
+    done = [t for t in takes if t.get("status") == "ok"]
+    placed = next((t for t in done if t["take"] == in_mix), None)
+    return {"bpm": p["fit"]["bpm"], "in_mix": in_mix, "stale": CU.stale(placed, p) if placed else [],
+            "stale_takes": [t["take"] for t in done if CU.stale(t, p)], "plan_error": None}
+
+
+@handler
+def get_cue(ctx: Context, query: dict):
+    """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
+    seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
+    `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
+    `stale`: what has moved in the cut since it was rendered, in words."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    spec = _cue_spec(ep, query.get("cue"))
+    try:
+        full, why = CU.plan(ep, pass_, spec), None
+    except CU.CueError as e:
+        full, why = None, str(e)
+    takes = CU.ranked(CU.list_takes(ep, spec["id"]))
+    for t in takes:
+        t["stale"] = CU.stale(t, full) if full else []
+    return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
+                 "plan_error": why, "takes": takes}
+
+
+@handler
+def put_cue(ctx: Context, body):
+    """Write a cue's spec (`{ep, cue}`); 400 for one that doesn't check."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        spec = CU.save_spec(ep, body.get("cue"))
+    except CU.CueError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"spec": spec}
+
+
+@handler
+def delete_cue(ctx: Context, query: dict):
+    """Delete a cue: `?ep=…&cue=…`. Its folder (spec, takes) moves whole to
+    `<ep>/_history/cue-<id>.<stamp>/` (put it back by hand: move it to `sound/<id>/`), and
+    its items come out of every pass's mix (each a mix write, the old mix.json to _history).
+    404 for no such cue; 409 while a take of it is queued or running on seriesmith's queue,
+    when another cue takes it as its theme, or a pass's mix doesn't read. Returns {"cue",
+    "moved_to" (relative to the episode), "takes", "mixes" (the passes it was taken out of)}."""
+    ep = check_ep(ctx, query.get("ep"))
+    cid = query.get("cue")
+    _cue_spec(ep, cid)
+    from seriesmith.queue import DONE
+    busy = [j for j in _local_jobs(ctx, "cue", ep) if j.status not in DONE and j.info.get("cue") == cid]
+    if busy:
+        raise ApiError(409, f"{cid} has {len(busy)} take{'' if len(busy) == 1 else 's'} queued or "
+                            f"rendering: cancel {'it' if len(busy) == 1 else 'them'} in Jobs first")
+    try:
+        out = CU.delete(ep, cid)
+    except FileNotFoundError:
+        raise ApiError(404, f"no cue {cid}")
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, out
+
+
+@handler
+def post_cue_render(ctx: Context, body):
+    """Render a cue's takes on seriesmith's queue: `{ep, pass, cue, takes?, backend?}`
+    (takes: how many, default the model's preset's). Each is planned against the pass's
+    cut, gets its own seed, and is stretched to the cue's tempo and measured when it
+    comes back (`seriesmith.cue` as each lands). Returns {"queued": [{take, job, seed}],
+    "plan"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    if ctx.runner is None:
+        raise ApiError(409, "rendering a cue needs seriesmith's queue (the server)")
+    try:
+        p = CU.plan(ep, pass_, spec)
+    except CU.CueError as e:
+        raise ApiError(400, str(e))
+    if p.get("blocked"):
+        raise ApiError(400, f"cue {spec['id']}: {p['blocked']}")
+    target = TG.load_target(p["target"])
+    n = body.get("takes")
+    if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
+        raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
+    count = n or CU.takes_wanted(target, pass_, spec)
+    backend = finish_backend(ctx, body)
+    queued = []
+    for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
+        g = CU.graph(target, p, seed, pass_)
+        k = CU.reserve(ep, spec["id"], {"pass": pass_, "target": target.id, "seed": seed,
+                                        "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
+                                        "plan": {
+                                            k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
+                                                                 "seconds", "ask_seconds")},
+                                        **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
+        job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
+        queued.append({"take": k, "job": job, "seed": seed})
+    episode_event(ctx, ep)
+    return 200, {"queued": queued, "plan": _plan_summary(p)}
+
+
+@handler
+def post_cue_pick(ctx: Context, body):
+    """A cue's take into the pass's mix as its music item: `{ep, pass, cue, take,
+    gain?}` (gain, default true: breakpoints fitting its level to the arc). Returns
+    {"mix"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    n = body.get("take")
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ApiError(400, "take is a take number")
+    gain = body.get("gain", True)
+    if not isinstance(gain, bool):
+        raise ApiError(400, "gain is true or false")
+    try:
+        mix = CU.place(ep, pass_, spec["id"], n, gain)
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
+
+
+@handler
+def post_cue_comp(ctx: Context, body):
+    """A new take spliced from two (cue.comp): `{ep, pass, cue, take, from, bars: [a, b]}`,
+    take `take` with bars a to b (the cue's bars from 0, b not included) from take `from`,
+    on bar lines, crossfaded; measured and ranked like any take. Returns {"take": its sidecar}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    base, src, bars = body.get("take"), body.get("from"), body.get("bars")
+    for name, v in (("take", base), ("from", src)):
+        if isinstance(v, bool) or not isinstance(v, int) or v < 1:
+            raise ApiError(400, f"{name} is a take number")
+    if (not isinstance(bars, list) or len(bars) != 2
+            or not all(isinstance(x, int) and not isinstance(x, bool) for x in bars)):
+        raise ApiError(400, "bars is [first, last + 1], the cue's bars counted from 0")
+    try:
+        sc = CU.comp(ep, pass_, spec["id"], base, src, (bars[0], bars[1]))
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"take": sc}
+
+
+@handler
+def post_cue_repaint(ctx: Context, body):
+    """Bars of a take made again, the rest kept (cue.repaint): `{ep, pass, cue, take,
+    bars: [a, b], seed?, fresh?, backend?}`, the cue's bars a to b (from 0, b not
+    included) of take `take`, on its own model, prompt and pass, a new take queued (the
+    take's own audio spliced back outside the bars when it comes back, measured and ranked
+    like any take). `fresh`: new music there (the text encoder at the new seed too) rather
+    than the same music played again; the beat is checked on every repaint
+    (`repaint_check` in its sidecar). 409 when the take isn't finished, its model can't
+    repaint (YuE2, Stable Audio 3), or the backend's ComfyUI lacks seriesmith's
+    SeriesmithAudioSpanMask (restart ComfyUI after updating seriesmith). Returns
+    {"queued": {take, job, seed}}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    spec = _cue_spec(ep, body.get("cue"))
+    n, bars, seed, fresh = body.get("take"), body.get("bars"), body.get("seed"), body.get("fresh", False)
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ApiError(400, "take is a take number")
+    if (not isinstance(bars, list) or len(bars) != 2
+            or not all(isinstance(x, int) and not isinstance(x, bool) for x in bars)):
+        raise ApiError(400, "bars is [first, last + 1], the cue's bars counted from 0")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int) or seed < 0):
+        raise ApiError(400, "seed is a whole number")
+    if not isinstance(fresh, bool):
+        raise ApiError(400, "fresh is true or false")
+    if ctx.runner is None:
+        raise ApiError(409, "repainting a take needs seriesmith's queue (the server)")
+    backend = finish_backend(ctx, body)
+    try:
+        b = ctx.runner.backend_for(backend) if hasattr(ctx.runner, "backend_for") else None
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    if b is not None and hasattr(b, "has_node") and not b.has_node(CU.REPAINT_NODE):
+        raise ApiError(409, f"{backend}'s ComfyUI hasn't seriesmith's {CU.REPAINT_NODE} node: restart "
+                            f"ComfyUI to load it (seriesmith's node pack, updated)")
+    try:
+        g, p, k = CU.repaint(ep, pass_, spec["id"], n, (bars[0], bars[1]), seed, fresh)
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
+    episode_event(ctx, ep)
+    sc = next(t for t in CU.list_takes(ep, spec["id"]) if t["take"] == k)
+    return 200, {"queued": {"take": k, "job": job, "seed": sc["seed"]}}
+
+
+def _fx_shots(v) -> list[str]:
+    if not isinstance(v, list) or not v:
+        raise ApiError(400, "shots is a list of shot ids")
+    return list(dict.fromkeys(check_shot(x) for x in v))
+
+
+@handler
+def get_fx(ctx: Context, query: dict):
+    """One shot's effects takes (fx.shot_takes; docs/SOUND.md phase 4): `{ep, pass, shot}`
+    -> {"shot", "cut_take" ({pass, take} the cut plays, or null), "picked", "settings" (the
+    mix's for it), "text" (the words a new take is made from) and "text_from" ("sound" or
+    "action"), "takes": newest first, each its sidecar with "stale" (why it no longer
+    matches the cut's picture, or null), "picked" and "path"}. Fetched when a block's
+    menu opens, never for every shot."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    shot = check_shot(query.get("shot"))
+    from seriesmith import fx as FXM
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    return 200, FXM.shot_takes(ep, pass_, shot, mix)
+
+
+@handler
+def get_fx_shots(ctx: Context, query: dict):
+    """The shots with effects takes in a pass (fx.shots): `{ep, pass}` -> {"shots": [{shot,
+    takes, ok, queued, failed, picked}]}, from the takes' sidecars alone; a shot's takes and
+    whether they're stale are GET /seriesmith/fx, when its row opens."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    from seriesmith import fx as FXM
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    return 200, {"shots": FXM.shots(ep, pass_, mix)}
+
+
+@handler
+def post_fx_render(ctx: Context, body):
+    """Make effects for shots on seriesmith's queue: `{ep, pass, shots: [...], target?, n?,
+    backend?}` (target: a foley target, default the series config's `sound.effects_model`,
+    else this machine's, h3_foley; n: takes per shot, default 1). Each is made from the
+    take the pass's cut plays for the shot, all of it (`seriesmith.fx` as each lands).
+    Returns {"queued": [{shot, take, job, seed, target}], "skipped": [{shot, why}]}; 400
+    when none can be made."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shots = _fx_shots(body.get("shots"))
+    if ctx.runner is None:
+        raise ApiError(409, "making effects needs seriesmith's queue (the server)")
+    from seriesmith import fx as FXM
+    target = body.get("target")
+    if target is not None:
+        if not isinstance(target, str):
+            raise ApiError(400, "target is a foley target's id")
+        try:
+            TG.load_target(target, "foley", ep)
+        except TG.TargetError as e:
+            raise ApiError(400, str(e))
+    n = body.get("n", 1)
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= FXM.TAKES_MAX:
+        raise ApiError(400, f"n is 1 to {FXM.TAKES_MAX} takes a shot")
+    backend = finish_backend(ctx, body)
+    try:
+        queued, skipped = FXM.queue(ctx.runner, ep, pass_, shots, target, n, backend)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    if not queued:
+        raise ApiError(400, "; ".join(x["why"] for x in skipped) or "nothing to make")
+    episode_event(ctx, ep)
+    return 200, {"queued": queued, "skipped": skipped}
+
+
+@handler
+def post_voices(ctx: Context, body):
+    """Split the takes the pass's cut plays into their voice stems (voices.py), for the
+    mix's voices only: `{ep, pass, shots?: [...], redo?}` (shots: default every shot in the
+    cut; redo: a fresh stem made again). One queued job a take on the local backend
+    (`seriesmith.voice` as each ends). Returns {"queued": [{shot, take, job}], "skipped":
+    [{shot, why}]}: a stem already made, one queued, a take with no sound are skipped."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shots = body.get("shots")
+    if shots is not None:
+        if not isinstance(shots, list) or not shots:
+            raise ApiError(400, "shots is a list of shot ids (or leave it out: the whole cut)")
+        shots = [check_shot(s) for s in shots]
+    redo = body.get("redo", False)
+    if not isinstance(redo, bool):
+        raise ApiError(400, "redo must be true or false")
+    if ctx.runner is None:
+        raise ApiError(409, "making voice stems needs seriesmith's queue (the server)")
+    from seriesmith import voices as VO
+    try:
+        queued, skipped = VO.queue(ctx.runner, ep, pass_, shots, redo)
+    except ValueError as e:
+        raise ApiError(409, str(e)) from None
+    if queued:
+        episode_event(ctx, ep)
+    return 200, {"queued": queued, "skipped": skipped}
+
+
+@handler
+def post_fx_pick(ctx: Context, body):
+    """A shot's effects take into the pass's mix (`fx`): `{ep, pass, shot, take}` (take
+    null: the shot's effects out of the mix). Its level and mute are kept; keep_stale is
+    dropped. Returns {"mix"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    n = body.get("take")
+    if n is not None and (isinstance(n, bool) or not isinstance(n, int) or n < 1):
+        raise ApiError(400, "take is a take number, or null")
+    from seriesmith import fx as FXM
+    try:
+        mix = FXM.pick(ep, pass_, shot, n)
+    except ValueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
 
 
 def _cut_what(v) -> str:
@@ -3527,7 +4074,8 @@ def get_presets(ctx: Context, query: dict):
     """The pictures the editor offers to pick from (seriesmith/presets): the
     relight presets of the edit window, the series form's looks, the shot
     form's framings and camera moves, each with its sample's name for GET
-    /seriesmith/presets/image when made. `kind` answers with that one alone."""
+    /seriesmith/presets/image when made, and the cue window's presets (no
+    picture). `kind` answers with that one alone."""
     from seriesmith import preset_pictures as PP
     from seriesmith import presets as PR
     kinds = [query["kind"]] if query.get("kind") else list(PR.KINDS)
@@ -3703,7 +4251,8 @@ def post_assemble(ctx: Context, body):
         return 200, res
     pub = E.publish_episode(ep, res["output"])
     return 200, {"ok": pub["ok"], "output": pub["output"] if pub["ok"] else res["output"],
-                 "cut": res["output"], "published": pub["output"],
+                 "cut": res["output"], "published": pub["output"], "loudness": res.get("loudness"),
+                 "checks": res.get("checks"),
                  "report": res["report"] + "\n" + pub["report"], "error": pub["error"]}
 
 # ---------------------------------------------------------------------------
@@ -3815,6 +4364,26 @@ def get_refs_owner_takes(ctx: Context, query: dict):
 
 
 @handler
+def get_refs_one(ctx: Context, query: dict):
+    """One ref as the listing gives it, with its takes (refs.get_ref_json): what a row
+    of the Refs tab's Ambience section fetches when it opens (a place's bed isn't in
+    GET /seriesmith/refs). 404 for no such ref."""
+    ep = check_ep(ctx, query.get("ep"))
+    _series(ep)
+    return 200, seeds_out(R.get_ref_json(ep, query.get("ref")))
+
+
+@handler
+def get_ambience(ctx: Context, query: dict):
+    """Every place's ambience bed (docs/SOUND.md phase 3; refs.ambience_listing): its
+    words, its file, how many takes, which is picked, what it's made on. Each is a ref
+    (`ambience:<place>`): made, picked and discarded through the refs routes."""
+    ep = check_ep(ctx, query.get("ep"))
+    _series(ep)
+    return 200, R.ambience_listing(ep)
+
+
+@handler
 def get_refs_shared_takes(ctx: Context, query: dict):
     """A shared ref's candidates in the other episodes that share it (the
     gallery): `from` names them, comma-separated, as the listing's
@@ -3833,7 +4402,8 @@ def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
     episode.refs_target / episode.keyframe_target / episode.voice_target):
     `target` for series refs, `keyframe_target` for shot keyframes,
-    `voice_target` for voices (an audio target); null clears one, a key left
+    `voice_target` for the voice model (an audio target, or a video target
+    that renders a dub track: TG.voice_targets); null clears one, a key left
     out is kept. Never writes series.json. Returns the defaults as GET
     /seriesmith/refs gives them."""
     body = body_dict(body)
@@ -3845,7 +4415,7 @@ def put_refs_defaults(ctx: Context, body):
         if k in body:
             v = body[k]
             if v is not None and (not isinstance(v, str)):
-                raise ApiError(400, f"{k} must be an {kind} target id or null")
+                raise ApiError(400, f"{k} must be a target id or null")
             fields[k] = v or None
     if not fields:
         raise ApiError(400, "give target, keyframe_target and/or voice_target (a target id "
@@ -3906,8 +4476,8 @@ def post_refs_generate(ctx: Context, body):
     if seconds is not None:
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
             raise ApiError(400, "seconds must be a number of seconds, or null")
-        if kind != "audio":
-            raise ApiError(400, f"seconds is only for a voice ref, not {ref.id}")
+        if kind not in ("audio", "ambience"):
+            raise ApiError(400, f"seconds is only for a voice ref or an ambience bed, not {ref.id}")
     pass_ = check_pass(body.get("pass"), "final")
     # an edit of a picture the ref already has (refs.plan_edit): `prompt` is
     # the instruction, `edit` says which picture and what else comes along
@@ -4692,13 +5262,14 @@ def post_align(ctx: Context, body):
         raise ApiError(400, "model must be a Whisper model name, e.g. medium.en")
     snap = body.get("snap", True)
     dry = body.get("dry_run", False)
-    for name, v in (("snap", snap), ("dry_run", dry)):
+    vocals = body.get("vocals", False)
+    for name, v in (("snap", snap), ("dry_run", dry), ("vocals", vocals)):
         if not isinstance(v, bool):
             raise ApiError(400, f"{name} must be true or false")
 
-    K.check_align(ep, track)
+    K.check_align(ep, track, vocals=vocals)
     params = {"ep": ep, "pass": pass_, "track": track, "model": (model or "").strip() or None,
-              "snap": snap, "dry_run": dry}
+              "snap": snap, "dry_run": dry, "vocals": vocals}
     with _LOCAL_GUARD:
         live = _live(ctx, "align", ep)
         if live is not None:
@@ -4737,8 +5308,11 @@ def _align_task(ctx: Context, params: dict):
         run.update(stage="start", text="starting (dry run)" if dry else "starting")
         tell()
         try:
+            if params.get("vocals"):
+                _vocals_first(ctx, ep, params["track"], progress)
             res = K.align(ep, track=params["track"], model=params["model"], snap=params["snap"],
-                          dry_run=dry, progress=progress, check_deps=False, stop=stop)
+                          dry_run=dry, progress=progress, check_deps=False, stop=stop,
+                          vocals=bool(params.get("vocals")))
         except Exception as e:                           # noqa: BLE001  the job fails
             why = "canceled" if qjob.cancel_asked else str(e)
             run.update(state="failed", error=why, finished=T.now(),
@@ -4760,6 +5334,76 @@ def _align_task(ctx: Context, params: dict):
         return "succeeded"
 
     return title, {"ep": ep, "pass": pass_, "dry_run": dry}, run, work
+
+
+def _vocals_first(ctx: Context, ep: str, track: str | None, progress) -> None:
+    """align --vocals from the editor: the recording's vocal stem made first, as a job on
+    the local backend's lane (so Jobs shows it and it waits its turn behind the renders),
+    when it isn't beside the recording; align then finds it."""
+    from seriesmith import vocals as VOC
+    rec = K.recording_path(ep, track)
+    if not rec or VOC.fresh(rec):
+        return
+    progress({"stage": "vocals", "pct": 2,
+              "text": f"making the vocal stem of {os.path.basename(rec)} on local ComfyUI"})
+    VOC.ensure(rec, runner=ctx.runner, log=None)
+
+
+@handler
+def post_vocals(ctx: Context, body):
+    """Make the episode's recording's vocal stem (vocals.py): queued on the local backend,
+    `seriesmith.vocals` sent as it ends. {"job"} (the queue's id), or {"stem"} when a fresh
+    one is already beside the recording (`redo` makes it again)."""
+    from seriesmith import vocals as VOC
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    redo = body.get("redo", False)
+    if not isinstance(redo, bool):
+        raise ApiError(400, "redo must be true or false")
+    rec = K.recording_path(ep, None)
+    if not rec:
+        raise ApiError(409, "the episode has no recording (attach one first)")
+    if VOC.fresh(rec) and not redo:
+        return 200, {"job": None, "stem": os.path.basename(VOC.stem_path(rec))}
+    if ctx.runner is None:
+        try:
+            if redo:
+                VOC.make(_local_backend(), rec)
+            else:
+                VOC.ensure(rec, log=None)
+        except RuntimeError as e:
+            raise ApiError(502, str(e)) from None
+        return 200, {"job": None, "stem": os.path.basename(VOC.stem_path(rec))}
+    try:
+        job = ctx.runner.enqueue_vocals(rec, "local", ep=ep)
+    except ValueError as e:
+        raise ApiError(409, str(e)) from None
+    return 200, {"job": job, "stem": None}
+
+
+def _local_backend():
+    from seriesmith.backends import available
+    b = available().get("local")
+    if b is None:
+        raise RuntimeError("no local ComfyUI is set up on this machine")
+    return b
+
+
+@handler
+def post_dub_from(ctx: Context, body):
+    """The series config's `audio.dub_from` ("vocals" or "recording"): where each dub
+    shot's window is sent from. Rebuilt, as a change to the series config is."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    value = body.get("dub_from")
+    if not isinstance(value, str):
+        raise ApiError(400, "dub_from must be \"vocals\" or \"recording\"")
+    res = K.set_dub_from(ep, value)
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    return 200, {"track": E.track_info(ep, pass_), "hash": res["hash"], "build": build,
+                 "dub_from": res["dub_from"]}
 
 
 @handler
@@ -4890,6 +5534,23 @@ ROUTES = [
     ("DELETE", "/seriesmith/post", delete_post, "query"),
     ("PUT", "/seriesmith/pick", put_pick, "body"),
     ("PUT", "/seriesmith/cut", put_cut, "body"),
+    ("GET", "/seriesmith/mix", get_mix, "query"),
+    ("PUT", "/seriesmith/mix", put_mix, "body"),
+    ("GET", "/seriesmith/mix/duck", get_mix_duck, "query"),
+    ("GET", "/seriesmith/mix/beats", get_mix_beats, "query"),
+    ("GET", "/seriesmith/cues", get_cues, "query"),
+    ("GET", "/seriesmith/cue", get_cue, "query"),
+    ("PUT", "/seriesmith/cue", put_cue, "body"),
+    ("DELETE", "/seriesmith/cue", delete_cue, "query"),
+    ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
+    ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
+    ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
+    ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
+    ("GET", "/seriesmith/fx", get_fx, "query"),
+    ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
+    ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
+    ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
+    ("POST", "/seriesmith/voices", post_voices, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),
@@ -4914,6 +5575,8 @@ ROUTES = [
     ("GET", "/seriesmith/refs", get_refs, "query"),
     ("GET", "/seriesmith/refs/shared-takes", get_refs_shared_takes, "query"),
     ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
+    ("GET", "/seriesmith/refs/one", get_refs_one, "query"),
+    ("GET", "/seriesmith/ambience", get_ambience, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),
@@ -4947,4 +5610,6 @@ ROUTES = [
     ("POST", "/seriesmith/audio/import", post_audio_import, "form"),
     ("POST", "/seriesmith/align", post_align, "body"),
     ("GET", "/seriesmith/align/job", get_align_job, "query"),
+    ("POST", "/seriesmith/vocals", post_vocals, "body"),
+    ("POST", "/seriesmith/track/dub_from", post_dub_from, "body"),
 ]

@@ -1,0 +1,64 @@
+{
+  "id": "hunyuan_xl_foley",
+  "kind": "foley",
+  "label": "HunyuanVideo-Foley XL (effects from the picture)",
+  "short": "Hunyuan Foley XL",
+  "default_rank": 3,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Video to sound: Tencent's HunyuanVideo-Foley, the XL model, through phazei's ComfyUI-HunyuanVideo-Foley. Measured 2026-11-01 (docs/SOUND.md 'Models', Foley): it hit the marks, a close second to the LTX-2.3 Foley LoRA by ear; 68-125 s a shot (50 steps). Tencent's HunyuanVideo-Foley community licence: it doesn't apply in some territories (read it) and claims no rights in the outputs. The pack fetches SigLIP2 and CLAP into the Hugging Face cache on first use.",
+    "mode": "v2a"
+  },
+
+  "binding": {
+    "_note": "The take goes up as a file (LoadVideo, its frames by GetVideoComponents), made 512 wide at its own frame rate by fx.stage first. HunyuanModelLoader (bf16, quantization auto), HunyuanDependenciesLoader (the DAC VAE and synchformer), HunyuanFoleySampler at 50 steps, cfg 4.5, euler, the take's frame rate and seconds, SaveAudio. Validated on local ComfyUI 0.43, 2026-11-01.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_hunyuan_xl_foley.json",
+    "env": "SERIESMITH_HUNYUAN_XL_FOLEY_WORKFLOW",
+    "saver": {"class_type": "SaveAudio", "replace": {"class_type": "SaveAudio"}},
+    "prune": true,
+    "params": {
+      "video": {"class_type": "LoadVideo", "field": "file"},
+      "model": {"class_type": "HunyuanModelLoader", "field": "model_name"},
+      "vae": {"class_type": "HunyuanDependenciesLoader", "field": "vae_name"},
+      "synchformer": {"class_type": "HunyuanDependenciesLoader", "field": "synchformer_name"},
+      "prompt": {"class_type": "HunyuanFoleySampler", "field": "prompt"},
+      "negative": {"class_type": "HunyuanFoleySampler", "field": "negative_prompt"},
+      "seconds": {"class_type": "HunyuanFoleySampler", "field": "duration"},
+      "fps": {"class_type": "HunyuanFoleySampler", "field": "frame_rate"},
+      "steps": {"class_type": "HunyuanFoleySampler", "field": "steps"},
+      "cfg": {"class_type": "HunyuanFoleySampler", "field": "cfg_scale"},
+      "seed": {"class_type": "HunyuanFoleySampler", "field": "seed"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "hunyuanvideo-foley-xl", "patterns": ["*hunyuanvideo*foley*xl*"], "tier": "required", "folder": "foley"},
+    "vae": {"family": "hunyuanvideo-foley-vae", "patterns": ["*vae*128d*48k*"], "tier": "required", "folder": "foley"},
+    "synchformer": {"family": "hunyuanvideo-foley-synchformer", "patterns": ["*synchformer*"], "tier": "required", "folder": "foley"}
+  },
+
+  "nodes": {
+    "LoadVideo": {"tier": "required"},
+    "GetVideoComponents": {"tier": "required"}
+  },
+
+  "presets": {
+    "_note": "The pack's suggested settings (its README: euler, cfg about 4.5, about 50 steps), as measured; the picture 512 wide, its height kept to its shape (0), at its own frame rate.",
+    "final": {
+      "model": "hunyuanvideo_foley_xl.safetensors",
+      "vae": "vae_128d_48k_fp16.safetensors",
+      "synchformer": "synchformer_state_dict_fp16.safetensors",
+      "steps": 50, "cfg": 4.5, "width": 512, "height": 0,
+      "negative": "music, speech, talking, voices, singing, noisy, harsh"
+    }
+  },
+
+  "downloads": {
+    "_note": "The converted safetensors ComfyUI-HunyuanVideo-Foley's README points to (huggingface.co/phazei/HunyuanVideo-Foley, listed 2026-11-01). Its node pack is https://github.com/phazei/ComfyUI-HunyuanVideo-Foley (features.PACKS).",
+    "hunyuanvideo_foley_xl.safetensors": {"folder": "foley", "url": "https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/hunyuanvideo_foley_xl.safetensors", "source": "the Hugging Face repo phazei/HunyuanVideo-Foley (ComfyUI-HunyuanVideo-Foley's README)"},
+    "vae_128d_48k_fp16.safetensors": {"folder": "foley", "url": "https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/vae_128d_48k_fp16.safetensors", "source": "the Hugging Face repo phazei/HunyuanVideo-Foley (ComfyUI-HunyuanVideo-Foley's README)"},
+    "synchformer_state_dict_fp16.safetensors": {"folder": "foley", "url": "https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/synchformer_state_dict_fp16.safetensors", "source": "the Hugging Face repo phazei/HunyuanVideo-Foley (ComfyUI-HunyuanVideo-Foley's README)"}
+  }
+}

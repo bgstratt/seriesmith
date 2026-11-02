@@ -329,6 +329,65 @@ them).
 
 `fit: crop` unless they'd rather keep the whole frame with bars (`pad`).
 
+## The export's loudness
+
+Every exported mp4 is measured as it's written: its integrated loudness (LUFS), loudness range
+(LU) and true peak (dBTP), against the episode's target: the mix's (`mix.json`'s `loudness`),
+else the series config's `sound.loudness`, else **-16 LUFS integrated, -1 dBTP**, a common
+target for streaming. The editor's Export toast says it (a warning when it's more than 1 LU off
+the target or over the ceiling), assemble prints it, and it's kept beside the cut as
+`<cut>_loudness.json`. It only reports: a cut with a mix was brought to the target when it was
+mixed, its peaks held 1 dB under the ceiling so the AAC in the mp4 stays under it (when that
+takes a lot of limiting, the cut can come out a little under the target: the check says so); a cut with none plays its clips' own sound (or the recording) as they came, which is
+what the check is there to tell you. To bring a cut with no mix to the target, give it one: a
+level on any track of the editor's Sound lanes makes a mix, and the mix is normalised. So does
+the Dialogue track's **Voices only** (each clip's voices without its model's music and room
+tone, [EDITOR.md](/editor) Sound): with the takes' beds gone, the lines are what the loudness
+is measured on, and the mix brings them up to the target (Ballroom ep02: +4.7 dB).
+
+## The export's checks
+
+Beside the loudness, every exported mp4's picture is checked as it's written, and reported; the
+cut is never changed by it. Three things, each with its times in the cut and the shot (or
+shots) playing then:
+
+- **Black runs**: half a second or more where 98 % of the picture is below 10 % luma (ffmpeg's
+  `blackdetect`). A take that came back black, or a gap.
+- **Frozen runs**: two seconds or more where the frames don't change (`freezedetect`, within
+  -60 dB of each other). A take that stalled, or a still where there shouldn't be one. A
+  frozen run that is black is said once, as the black run.
+- **Flashes**: the common photosensitivity guideline (WCAG 2.3.1, after ITU-R BT.1702 and
+  Ofcom's): **no more than three flashes in any one second**, a flash being a pair of opposing
+  changes in relative luminance of **10 % or more** of the maximum where the darker end is
+  **below 0.80**. Read on each frame's average luminance (its mean luma, limited range to 0-1,
+  gamma 2.2), a stretch where more than three fall in a second is reported, with the most it
+  has in one second. It sees the whole frame only: a flash over part of the picture (the
+  guideline counts a quarter of the screen), or a saturated red one, isn't seen. Take it as a
+  reason to look, not as a broadcaster's test (that is a Harding test).
+
+What the cut itself explains is left out, and counted: black or frozen frames inside a clip's
+own **fade in or out** (its cut entry's `fade_in` / `fade_out`, as assemble laid them) or a
+**held shot** (the `hold` target: a card, a title, a freeze frame, still on purpose), with a
+frame's grace either side. A fade to black between scenes is never flagged; a black second in
+the middle of a shot is.
+
+assemble prints it under the loudness line, `!` in front when it found anything, each run on
+its own line:
+
+```
+  ! checks: 1 black run (sh040 00:14.0 1.0 s) (1 black left out: the cut's own fades and held shots)
+    black    00:00:14.000-00:00:15.000  1.00 s  sh040
+```
+
+and keeps it beside the cut as **`<cut>_checks.json`** (beside `<cut>_loudness.json`: the
+loudness is the sound's check, this the picture's): `black`, `frozen` and `flashes` (each run
+`{start, end, seconds, shot, shots}`, a flash run also `flashes`, the most in a second),
+`explained` (`{black, frozen}`: how many the cut's fades and held shots explain), `rules` (the
+thresholds), `ok` and `verdict` (in words). The editor's Export toast adds a **Checks:** line
+(a warning when it found anything). `--no-checks` skips them. They read the cut once, scaled
+down (the averages don't need the size; decoding is most of the cost): about a second a minute of cut at 1080p, 2.5 s at 4K. CupsMV
+ep01's 2-minute proxy (1344x768, 33 shots) took 1.2 s of a 25 s assemble.
+
 ## Post-process: the `post` block
 
 A **post** finishes a shot's upscale, at the same size: a clean-up pass over the whole

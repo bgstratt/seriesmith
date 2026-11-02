@@ -60,3 +60,26 @@ export function useSize<T extends HTMLElement>(): [React.RefObject<T>, { width: 
   }, []);
   return [ref, size];
 }
+
+/** Pointer drags: window listeners until the button comes up, or Esc cancels. */
+export function trackPointer(onMove: (e: PointerEvent) => void, onUp: (cancelled: boolean) => void) {
+  const stop = (cancelled: boolean) => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", cancel);
+    window.removeEventListener("keydown", key, true);
+    onUp(cancelled);
+  };
+  const up = () => stop(false);
+  const cancel = () => stop(true);
+  const key = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    stop(true);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", cancel);
+  window.addEventListener("keydown", key, true);
+}

@@ -1,0 +1,61 @@
+{
+  "id": "sa3_sfx_ambience",
+  "kind": "ambience",
+  "label": "Stable Audio 3 Small SFX (ambience)",
+  "short": "Stable Audio 3 SFX",
+  "default_rank": 2,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Text and a length only. Judged on four places 2026-11-01 (docs/SOUND.md 'Measured: ambience beds'): second to MMAudio by ear, livelier (more events, 2-5 dB second to second), and quiet (-24 to -49 LUFS): a bed is brought to BED_LUFS when it lands (seriesmith/ambience.py). 30 s in about 2 s. Stability AI Community License (free under a revenue threshold); its T5Gemma encoder brings Gemma's terms.",
+    "mode": "t2a",
+    "max_seconds": 60
+  },
+
+  "template": {
+    "_note": "Seconds, as EmptyLatentAudio takes them.",
+    "default_seconds": 30.0,
+    "min_seconds": 4.0,
+    "max_seconds": 60.0
+  },
+
+  "binding": {
+    "_note": "The stable_audio3 music target's graph on the Small SFX checkpoint: CheckpointLoaderSimple (model and VAE), the T5Gemma text encoder through CLIPLoader type stable_audio, EmptyLatentAudio in seconds, KSampler at 8 steps, cfg 1, lcm / simple, VAEDecodeAudio, SaveAudio (flac; converted to wav and finished when it comes back). Validated on local ComfyUI 0.43, 2026-11-01.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_sa3_sfx_ambience.json",
+    "env": "SERIESMITH_SA3_SFX_AMBIENCE_WORKFLOW",
+    "saver": {"class_type": "SaveAudio", "replace": {"class_type": "SaveAudio"}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "CheckpointLoaderSimple", "field": "ckpt_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "title": "Positive prompt"},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "title": "Negative prompt"},
+      "seconds": {"class_type": "EmptyLatentAudio", "field": "seconds"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "sampler": {"class_type": "KSampler", "field": "sampler_name"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "stable-audio-3-sfx", "patterns": ["*stable*audio*3*small*sfx*"], "tier": "required", "exclude": ["*base*"]},
+    "text_encoder": {"family": "t5gemma", "patterns": ["*t5gemma*"], "tier": "required"}
+  },
+
+  "presets": {
+    "final": {
+      "model": "stable_audio_3_small_sfx.safetensors",
+      "text_encoder": "t5gemma_b_b_ul2.safetensors",
+      "steps": 8, "cfg": 1.0, "sampler": "lcm",
+      "negative": ""
+    }
+  },
+
+  "downloads": {
+    "_note": "Comfy-Org's Stable Audio 3 repo (listed 2026-11-01), where the stable_audio3 music target's files come from too.",
+    "stable_audio_3_small_sfx.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_small_sfx.safetensors", "source": "the Hugging Face repo Comfy-Org/stable-audio-3 (checkpoints/)"},
+    "t5gemma_b_b_ul2.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"}
+  }
+}

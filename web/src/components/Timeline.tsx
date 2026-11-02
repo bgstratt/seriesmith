@@ -3,17 +3,18 @@ import {
   type DragEvent, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import {
-  clickShot, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
+  clickShot, closeViewer, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
-import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setJoin, setTrims, toggleWaves, undoCut } from "../cutActions";
+import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
 import { api, host } from "../host";
 import { JOIN_MAX, clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
 import {
   ESTIMATE_TITLE, fmtClock, fmtSeconds, fmtShotSeconds, groupBySequence, lengthEstimated, shotBadges, shotSeconds, tn,
 } from "../lib/format";
 import { missingRefsSummary } from "../lib/missingRefs";
-import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
+import { baseIn, clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
+import { SNAP_DOWN_PX, SNAP_PX, beatLabel, cutBeats, fixedBeats, snapTrim, type Beat } from "../lib/beats";
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
@@ -23,13 +24,16 @@ import { LookBadge } from "./LookBadge";
 import { MultiBar } from "./MultiBar";
 import { ZOOM_MAX, ZOOM_MIN, renderingTakes, statusKey, store, useApp } from "../store";
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary, TargetList } from "../types";
-import { aspectOf, useSize, useStatus } from "./hooks";
+import { aspectOf, trackPointer, useSize, useStatus } from "./hooks";
 import { EpisodeSelect, PassToggle } from "./ShotsTab";
 import { useTargets } from "./Targets";
 import { Badges, Progress, mediaStyle, useScrub } from "./Thumb";
 import { AudioBadge } from "./ClipAudio";
 import { audioBadgeOf } from "../lib/audioSource";
-import { WaveLane } from "./Waveform";
+import { HEAD_W, SoundLanes, lanesH } from "./SoundLanes";
+import { trackList } from "../lib/mix";
+import { currentMix, toggleSound } from "../mixActions";
+import { openSpotting } from "../spotActions";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
 import { HOLD_MAX_SECONDS, dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto, holdLength } from "../takeActions";
@@ -39,8 +43,6 @@ const MIN_CLIP = 26;
 const OUT_CLIP = 16;
 /** the ruler band over each clip */
 const RULER_H = 12;
-/** the waveform lane under each clip */
-export const WAVE_H = 28;
 
 /** A clip being dragged to a new place: the insertion point and where its marker goes. */
 /** Something from outside held over the track: onto a clip, or between two. */
@@ -61,6 +63,10 @@ export interface TrimPreview {
   trimOut: number;
   px: number;
   py: number;
+  /** the beat of the music the cut was snapped to (Alt held: none), and which one in words */
+  beat?: { t: number; down: boolean; label: string } | null;
+  /** there are beats it could snap to (the tip says Alt turns it off) */
+  beats?: boolean;
   /** a held picture: the edge sets its length (frames), not a trim */
   held?: number;
 }
@@ -269,8 +275,8 @@ const Clip = memo(function Clip({
       {progress && <Progress value={progress.value} max={progress.max} />}
       {trimmable && !locked && (
         <>
-          <div className="h3-trim-h h3-l" title="Drag to trim the head (frame by frame)" onPointerDown={(e) => onEdgeDown(e, s, "in")} onClick={(e) => e.stopPropagation()} />
-          <div className="h3-trim-h h3-r" title="Drag to trim the tail (frame by frame)" onPointerDown={(e) => onEdgeDown(e, s, "out")} onClick={(e) => e.stopPropagation()} />
+          <div className="h3-trim-h h3-l" title="Drag to trim the head (frame by frame; the cut at the clip's end snaps to the music's beats, Alt: no snap)" onPointerDown={(e) => onEdgeDown(e, s, "in")} onClick={(e) => e.stopPropagation()} />
+          <div className="h3-trim-h h3-r" title="Drag to trim the tail (frame by frame; the cut snaps to the music's beats, Alt: no snap)" onPointerDown={(e) => onEdgeDown(e, s, "out")} onClick={(e) => e.stopPropagation()} />
         </>
       )}
     </div>
@@ -327,13 +333,17 @@ export function Timeline() {
   const running = useApp((s) => s.running);
   const prompts = useApp((s) => s.prompts);
   const progress = useApp((s) => s.progress);
-  const waves = useApp((s) => s.waves);
+  // the sound lanes (the mix) under the clips: the waveforms, each clip's own sound on the dialogue lane
+  const sound = useApp((s) => s.sound);
+  // the mix's tracks: the lanes' height
+  const LANES_H = lanesH(useApp((s) => trackList(currentMix(s)?.mix).length));
   // Phase 9d: the recording overrides every clip's own audio source
   const recording = useApp((s) => s.cutAudio === "recording");
   const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
   const err = useApp((s) => (s.ep ? s.statusError[statusKey(s.ep, s.pass)] : undefined));
   const playing = useApp((s) => s.viewer?.kind === "cut" && s.cutPlay.playing);
   const playerOpen = useApp((s) => s.viewer?.kind === "cut");
+  const spotting = useApp((s) => s.viewer?.kind === "cut" && !!s.viewer.spot);
   const pos = useApp((s) => (s.viewer?.kind === "cut" ? s.cutPlay.pos : null));
   const items = useApp((s) => currentPlaylist(s));
   const st = useStatus();
@@ -355,8 +365,8 @@ export function Timeline() {
   const nextOf = useMemo(() => new Map(items.slice(0, -1).map((i, k) => [i.shot, items[k + 1].shot])), [items]);
   const { list: targets, seriesDefault } = useTargets();
   const fps = st?.fps || 24;
-  // clip height: the track minus padding, the sequence label, the ruler and the waveform lane
-  const clipH = Math.max(24, (size.height || 150) - 6 - 16 - RULER_H - (waves ? WAVE_H + 2 : 0) - 2);
+  // clip height: the track minus padding, the sequence label, the ruler and the sound lanes
+  const clipH = Math.max(24, (size.height || 150) - 6 - 16 - RULER_H - (sound ? LANES_H + 2 : 0) - 2);
   const aspect = aspectOf(st);
   const total = items.length ? totalDuration(items) : st?.shots.reduce((n, s) => n + (shotSeconds(s, st.fps) ?? 0), 0) ?? 0;
   const prog = useMemo(() => passProgress(st?.shots), [st]);
@@ -412,28 +422,7 @@ export function Timeline() {
 
   const focusSurface = () => surfaceRef.current?.focus({ preventScroll: true });
 
-  /** Pointer drags: window listeners until the button comes up (or Esc). */
-  const track = (onMove: (e: PointerEvent) => void, onUp: (cancelled: boolean) => void) => {
-    const stop = (cancelled: boolean) => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("keydown", key, true);
-      onUp(cancelled);
-    };
-    const up = () => stop(false);
-    const cancel = () => stop(true);
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      stop(true);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("keydown", key, true);
-  };
+  const track = trackPointer;
 
   /** Swallow the click that ends a drag. */
   const endDrag = () => {
@@ -554,11 +543,27 @@ export function Timeline() {
     }
     let a = a0;
     let b = b0;
-    const place = (ev: { clientX: number; clientY: number }) => {
+    // the beats of the music in the mix (or the recording) that stay put while this edge
+    // moves: the cut at the clip's end snaps to them (docs/SOUND.md phase 5); Alt: no snap
+    const key = statusKey(app.ep ?? "", app.pass);
+    const list = currentPlaylist();
+    const all: Beat[] = cutBeats(list, app.mix[key]?.mix ?? {}, app.mixBeats[key]?.beats, f, baseIn(st));
+    const beats = fixedBeats(all, list, s.shot, side);
+    const place = (ev: { clientX: number; clientY: number; altKey?: boolean }) => {
       const d = pxToFrames(ev.clientX - x0, z, f);
       if (side === "in") a = clampTrim("in", a0 + d, total, 0, b0);
       else b = clampTrim("out", b0 - d, total, a0, 0);
-      setTrim({ shot: s.shot, side, trimIn: a, trimOut: b, px: ev.clientX, py: ev.clientY });
+      let beat: TrimPreview["beat"] = null;
+      if (beats.length && !ev.altKey && z > 0) {
+        const r = snapTrim({
+          it, side, total, a0, b0, a, b, beats, fps: f, tol: SNAP_PX / z, downTol: SNAP_DOWN_PX / z,
+          clamp: (sd, want, other) => (sd === "in" ? clampTrim("in", want, total, 0, other) : clampTrim("out", want, total, other, 0)),
+        });
+        a = r.a;
+        b = r.b;
+        if (r.beat) beat = { t: r.beat.t, down: r.beat.down, label: beatLabel(r.beat, all) };
+      }
+      setTrim({ shot: s.shot, side, trimIn: a, trimOut: b, px: ev.clientX, py: ev.clientY, beat, beats: beats.length > 0 });
     };
     place(e);
     track(place, (cancelled) => {
@@ -637,8 +642,13 @@ export function Timeline() {
           >
             <i className={playing ? "pi pi-pause" : "pi pi-play"} /> {playing ? "Pause" : playerOpen ? "Play" : "Play all"}
           </button>
-          <button className={`h3-btn h3-icon${waves ? " h3-on" : ""}`} aria-label="Waveforms" title={waves ? "Hide the waveforms" : "Show each clip's waveform (or the recording's, with Play all's audio on the recording)"} onClick={() => toggleWaves()}>
-            <i className="pi pi-wave-pulse" />
+          <button className={`h3-btn${sound ? " h3-on" : ""}`} title={sound ? "Fold the sound lanes away" : "Sound: the waveforms and the episode's mix under the clips: hits, then dialogue (each clip's own sound, or the recording's with Play all on it), effects, ambience and music, each with its fader, mute and solo. Drop a sound file on a lane to lay it there; Play all plays the mix"} onClick={() => toggleSound()}>
+            <i className="pi pi-volume-up" /> Sound
+          </button>
+          <button className={`h3-btn${spotting ? " h3-on" : ""}`} disabled={!st?.shots.length}
+            title="Scoring, opening on Spotting: the episode's music map (cues, ambience, effects and hits by sequence) under a large picture of the cut with its mix; jump between hits, mark new ones, see each cue's hits, tempo and takes, and play a take against the picture"
+            onClick={() => (spotting ? closeViewer() : openSpotting())}>
+            <i className="pi pi-map" /> Scoring
           </button>
         </span>
         {pos != null && <span className="h3-mono h3-muted">{fmtClock(pos)}</span>}
@@ -686,7 +696,8 @@ export function Timeline() {
         {!ep && <div className="h3-empty-state">Pick an episode in the Shots tab.</div>}
         {ep && err && !st && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
         {ep && st && (
-          <div className={`h3-track${drag ? " h3-track-dragging" : ""}`} ref={innerRef}>
+          <div className={`h3-track${drag ? " h3-track-dragging" : ""}`} ref={innerRef}
+            style={sound ? { paddingLeft: HEAD_W + 6, paddingBottom: LANES_H + 4 } : undefined}>
             {groups.map((g) => (
               <div key={`${g.sequence}@${g.start}`} className="h3-tl-seq">
                 <div className="h3-tl-seq-label" title={`${g.sequence} · ${fmtSeconds(g.seconds)}`}>{g.sequence}</div>
@@ -732,7 +743,6 @@ export function Timeline() {
                         {trim && trim.shot === s.shot && trim.held == null && trimItem && (
                           <TrimGhost ep={ep} take={take} item={trimItem} preview={trim} zoom={zoom} fps={fps} height={clipH} />
                         )}
-                        {waves && <WaveLane ep={ep} s={s} item={it} take={take} st={st} width={width} height={WAVE_H} zoom={zoom} />}
                       </div>
                     );
                   })}
@@ -742,6 +752,10 @@ export function Timeline() {
             {!st.shots.length && <div className="h3-empty-state">No shots.</div>}
             {drag && drag.gap != null && <div className="h3-drop-marker" style={{ left: drag.x }} />}
             {ext?.kind === "between" && <div className="h3-drop-marker h3-drop-new" style={{ left: ext.x }} title="Drop: a new shot here" />}
+            {sound && (
+              <SoundLanes ep={ep} st={st} other={other} items={items} innerRef={innerRef} fps={fps} zoom={zoom}
+                measureKey={`${zoom}|${clipH}|${trim?.shot ?? ""}|${trim?.trimIn ?? ""}|${trim?.trimOut ?? ""}|${size.width}`} />
+            )}
             <Playhead trackRef={innerRef} wrapRef={wrapRef} zoom={zoom} />
             <ColorDefs prefix="t" />
           </div>
@@ -761,10 +775,13 @@ export function Timeline() {
         <div className="h3-trim-tip" style={{ left: trim.px + 14, top: trim.py - 34 }}>
           {trim.held != null ? `${trim.shot} · held ${framesLabel(trim.held, fps)}`
             : `${trim.shot} · ${trim.side === "in" ? "head" : "tail"} trim ${framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}`}
+          {trim.held == null && trim.beat && (
+            <span className={`h3-trim-beat${trim.beat.down ? " h3-down" : ""}`}> · cuts on {trim.beat.down ? "the downbeat" : "the beat"}, {trim.beat.label} ({fmtClock(trim.beat.t)})</span>
+          )}
           <br />
           <span className="h3-muted">
             {trim.held != null ? `a held picture: as long as you drag it (was ${fmtSeconds((trimItem.total ?? 0) / fps)})`
-              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`} · Esc cancels
+              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`}{trim.held == null && trim.beats ? " · snaps to the music's beats (hold Alt: frame by frame)" : ""} · Esc cancels
           </span>
         </div>
       )}

@@ -46,6 +46,8 @@ section and search for the path for its later additions.
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
 | `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
+| `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
+| `GET /seriesmith/fx`, `GET /seriesmith/fx/shots`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -623,14 +625,375 @@ Body:
 ### `DELETE /seriesmith/override?ep=…&shot=…[&pass=…]`
 Removes the shot's override: one pass's fields if `pass` is given, else everything.
 
+## The mix (2026-11-01)
+
+The episode's sound beyond each clip's own: effects, ambience and music items, track
+faders, ducking, hit points and the loudness target (docs/SOUND.md; the shape is
+`seriesmith/mix.py`'s docstring). Assemble (Export, the 2x export, Master) renders it when the
+pass has one: the clips' joined sound is the dialogue track, the mix replaces the cut's sound,
+and the stems go to `<cut>_stems/` beside it; the XML export carries the items on their own
+tracks.
+
+### `GET /seriesmith/mix?ep=…&pass=…`
+`{"mix", "files", "beds", "fx", "voices", "places", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
+the series config), `files` each item file's length in seconds (`null`: not there, or no
+sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
+`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], labels, kinds, gain_db,
+duck_db, duck, loudness}` (`gain_db` and `duck_db` by kind: a track's fader when nothing sets
+it, music -12 dB; `labels` the default tracks' names). `track_list` the mix's tracks in lane
+order, each `{"id", "kind", "label"}`: its own list (mix.json's `track_list`, 2026-11-02, docs/SOUND.md
+phase 6), else the four defaults. A track's `kind` (dialogue, effects, ambience, music) gives
+its default fader and duck depth, what a region's `music_duck_db` / `ambience_duck_db`
+reach, and whether its stem joins the M&E; its id names its stem (`<id>.wav`) and keys
+`tracks` and its items' `track`
+(what a track dips under speech, the detector and the loudness target when nothing says).
+`beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path"
+(relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first
+shot's first frame played, the frame after its last shot's last), "start", "end" (cut
+seconds), "gain_db", "mute"}]`, one per run. `fx` the shots' picked effects laid at their clips
+(below): `[{"shot", "take", "model", "path" (relative to the episode), "exists", "in", "out"
+(anchors: the clip's first frame of the take, the frame after its last), "start", "end" (cut
+seconds: the clip), "offset" (seconds into the file at `start`: the clip's trim), "gain_db",
+"mute", "keep_stale", "stale" (why it no longer matches the cut's picture, or null), "heard"
+(there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick (its own
+trims, fades and points are the mix's `fx`: the block is the clip, what's heard of it the
+clip less its trims). `voices`
+the Dialogue track's voices only (below): `{"voices_only" (the track's), "split", "of", "queued"
+(of the cut's shots that can be split, how many are, and how many are being), "shots": [{"shot",
+"pass", "take", "path" (the take's voice stem, relative to the episode; null without a take),
+"state" (ok | missing | stale | queued | failed | sourced: the cut gives it sound of its own |
+silent: its take has none), "why", "voices_only" (the shot's, the track's under it),
+"override" (its own: true, false or null), "plays" (voice | whole | silence: what the Dialogue
+track plays for it), "lines" (the script gives it one), "measured" ({whole_rms_db,
+voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. `places` each
+cut shot's place, by shot (2026-11-02; shots whose sequence has no location left out):
+`{"place" (its bed's place when it has one, else its location's master, the location it is
+`of`: where `ambience` words would give it one), "name", "bed" (the place has a bed)}`, what
+the editor's "Make <place>'s ambience bed" acts on. Nothing is decoded. 409 when `mix.json` is there but doesn't read.
+
+### Ambience beds (2026-11-01)
+
+A location's place (it, or what it is `of`) may say what is heard there (`ambience`); its bed
+is a ref, `ambience:<place>` (seriesmith/ambience.py, docs/SOUND.md phase 3), made on an
+`ambience` target (`mmaudio_ambience` by default, `sa3_sfx_ambience`; the series config's
+`refs.ambience_target`) through `POST /seriesmith/refs/generate` (`seconds` takes the bed's
+length), picked with `PUT /seriesmith/refs/pick`, imported, overridden and discarded like any
+ref. A take is finished as it lands: 1.5 s off each end (a take of 4.5 s or more), brought to
+-32 LUFS (the sidecar's `bed`: `{seconds, trimmed, measured_lufs, gain_db}`). Beds aren't in
+`GET /seriesmith/refs`.
+
+The mix lays them, never stores them: each run of consecutive shots of the cut whose
+sequence's location has one place's bed gets that bed, looped (equal power) from its start,
+the runs crossfaded 0.5 s into each other at their cuts; a shot whose place has no bed has
+none. They sit on the ambience track (its fader and its ducking apply; items there play over
+them). `mix.json`'s `beds` keeps only what you change of a place: `{"diner": {"gain_db": -3,
+"mute": true}}` (both optional). A bed that's there and not muted makes a mix by itself: the
+export renders it, the ambience stem and the M&E carry it, the XML lays it on the ambience
+pair (its file end to end).
+
+#### `GET /seriesmith/ambience?ep=…`
+`{"beds": [{"ref", "place", "name", "words", "path", "exists", "locations" (whose shots play
+over it), "used_by" (this episode's shots), "takes", "ok", "queued", "picked",
+"can_generate", "why_not", "target"}], "target"}`: every place's bed, without its takes (one
+look at each takes folder).
+
+#### `GET /seriesmith/refs/one?ep=…&ref=…`
+One ref as `GET /seriesmith/refs` lists one, with its takes: what a bed's row fetches when
+it opens. 404 for no such ref.
+
+### `GET /seriesmith/mix/duck?ep=…&pass=…`
+`{"step", "curve"}`: the pass's "someone is speaking" curve, one value 0..1 per `step` seconds
+(0.05) of the cut, computed from each clip's own sound (or its cut entry's audio source) laid
+as the cut plays it, by the detector the export ducks with (mix.speech_of, the mix's `duck`
+settings); with voices only, from each clip's voice stem (a silent clip not at all). Play all
+dips music and ambience by it as the export does. Kept until the cut, a take's file, a stem or
+the ducking changes.
+
+### `GET /seriesmith/mix/beats?ep=…&pass=…`
+`{"items", "recording"}`: the beats to cut to (docs/SOUND.md phase 5). `items` is `[{"id",
+"path", "grid"}]` for each of the pass's mix's items on the music track, `recording` `{"path",
+"grid"}` for the episode's recording (`audio.track`) or null. A grid is `{"bpm", "first"
+(seconds into the file of its first beat), "downbeat" (its first downbeat), "beats_per_bar",
+"seconds" (the file's length; null for a cue take), "steady" (a pulse to snap to), "source"}`:
+`"cue"` for a cue's take (`sound/<cue>/tNN.wav`: the cue's tempo through the take's measured
+downbeat, from its sidecar), `"measured"` for any other file (`strength` beside it: the tempo's
+autocorrelation comb), measured once and kept beside the file as `<file>.beats.json` until the
+file changes. Null for a file with no sound or no tempo. Measuring a song the first time takes
+about a second a minute of it; the editor asks when the mix's music files or the recording
+change, never on a timer. The timeline snaps a clip's trimmed edge to these beats and draws
+them on the Music lane. 409 when `mix.json` doesn't read.
+
+### `PUT /seriesmith/mix`
+Body `{"ep", "pass", "mix"}`: replaces that pass's mix and answers `{"mix"}` as stored. 400 for
+one that doesn't check (an unknown field, a track or anchor that isn't one, a level, fade or
+loudness out of range, two items or hits with one id), or an item whose `path` leaves the
+episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
+`audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
+An item takes `mute` (true or false; stored only when true): silent where it is, in the export,
+its stem, the loudness and Play all, laid disabled in the FCP7 XML. `beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
+(-60 to 12), `mute`, `keep_stale`, `trim_in` and `trim_out` (frames silent from the clip's head
+and tail: it keeps its place and length), `fade_in` and `fade_out` (frames, at the kept span's
+edges; each 0 to 2400, whole) and `points` (an item's form, `[{"at": {"shot", "frame"}, "db"}]`,
+each on the shot itself: 400 for one on another). `track_list` takes the mix's own tracks, `[{"id", "kind",
+"label"}]` in lane order (stored only when it isn't the four defaults as they are; a label
+only when it isn't the default's): 400 for one without `dialogue` (the takes' sound), a
+default id of another kind (`music` is music), an id twice or one a stem can't have (`me`,
+`mix`, a Windows device name), more than 16, or a `tracks` entry or item on a track not in
+it (so a track with items is deleted by moving or deleting them in the same mix). `tracks`
+`dialogue` takes `voices_only` (true or false: 400 on any other track, a dialogue-kind track of
+your own too); `voices` a shot's own, `{"sh010": {"voices_only": false}}` (true or false,
+required). Emits `seriesmith.episode`.
+
+### Voices only (2026-11-02)
+
+H3, Seedance and FastH3 Omni bake their own music and room tone into each take, different at
+every cut. A take's sound split by Hybrid Demucs (seriesmith/voices.py; the vocal stem's job,
+`SeriesmithVocals` on the local ComfyUI) is its **voice stem**, kept beside the take as
+`<shot>_tNN.voice.wav` with `<shot>_tNN.voice.json` (`{status: queued | ok | failed, source:
+{file, size, mtime} (the file split: the mp4, else its `_h3.wav`), queue_id, error, created,
+finished, seconds, measured: {whole_rms_db, voice_rms_db, rest_rms_db}}`); **stale** when the
+take's sound has changed since. With the mix's `tracks.dialogue.voices_only` (or a shot's own
+`voices`), each clip whose stem is there and fresh plays it in place of its whole sound:
+assemble's clips (so the mix, its stems and the M&E), the XML (the clip's A1/A2 item is the
+stem's wav), the speech curve and Play all. A clip whose stem is missing or stale plays its
+whole sound (assemble says so; `plays: "whole"` in `GET /seriesmith/mix`); a shot the script
+gives no lines is silent on the Dialogue track unless its own `voices_only` is true; a clip the
+cut gives sound of its own (`audio`) keeps it.
+
+#### `POST /seriesmith/voices`
+Body `{"ep", "pass", "shots"?: [...], "redo"?}`: split the take the pass's cut plays for each
+shot (default every shot in the cut) on seriesmith's queue, one job a take (kind `vocals`, on
+the local backend, in the Jobs list); `seriesmith.voice` `{ep, pass, shot, take, status,
+error}` and `seriesmith.episode` as each ends. Answers `{"queued": [{shot, take, job}],
+"skipped": [{shot, why}]}`: a stem already made (unless `redo`), one being made, a shot not in
+the cut, a take with no sound. 400 for `shots` that isn't a list of ids or a `redo` that
+isn't true or false; 409 without the queue. A ComfyUI that hasn't loaded seriesmith's node
+pack fails the job, saying to restart it.
+
+## Effects (2026-11-01)
+
+A shot's effects are sync sound made from the frames of the take the cut plays for it
+(seriesmith/fx.py, docs/SOUND.md phase 4), on a `foley` target: `h3_foley` (the default; H3
+FL2VA given the take's frames from frame 0 at 256x160, about 10 s a shot), `ltx23_foley` (the
+LTX-2.3 Foley LoRA) or `hunyuan_xl_foley` (HunyuanVideo-Foley XL); the series config's
+`sound.effects_model` sets the series' own. Made only for the shots asked for. The words are
+the shot's script `sound:` line, else its action, and "No dialogue, no voices, no singing, no
+music."; the length is the take's, all of it; the seed comes from the episode, the shot and the
+take number. The take goes up as a file (core `LoadVideo`), made the model's size and frame
+rate first, so any backend can run it.
+
+A shot's takes are `<ep>/sound/fx/<pass>/<shot>/tNN.wav` (48 kHz, exactly the picture's length:
+sample 0 is the take's frame 0) with `tNN.json`: `{pass, shot, target, seed, text, text_from
+("sound" | "action"), prompt, negative, values, source: {pass, take, size, mtime} (the take it
+was made from, its mp4 as it was), video: {frames, fps, seconds, width, height}, status,
+error, measured: {seconds, came, peak_db, rms_db}}`.
+
+The mix lays them, never stores them as items: each shot in the cut with a pick in the pass's
+`mix.json` `fx` (`{"sh010": {"take": 2, "gain_db": -4, "mute": true, "keep_stale": true,
+"trim_out": 30, "fade_out": 12, "points": [{"at": {"shot": "sh010", "frame": 40}, "db": -6}]}}`)
+gets it on the effects track at its clip, trimmed with the clip. Its own `trim_in` / `trim_out`
+silence that many frames at the clip's head and tail without moving it; `fade_in` / `fade_out`
+fade the kept span's edges and `points` shape its level, as an item's: heard so in the export,
+its stems and loudness and Play all; the XML lays the clip trimmed to the kept span (the rest
+of the file as handles), its fades and points as an item's. **Stale** when the cut plays another
+take of the shot (its number or pass) than the effects were made from, or that take's mp4 has
+been written since (its size or mtime): left out of the mix and said so (assemble's report,
+`stale` in `GET /seriesmith/mix`), unless `keep_stale`. A heard one makes a mix by itself: the
+export renders it, the effects stem and the M&E carry it, the XML lays it on the effects pair.
+
+### `GET /seriesmith/fx?ep=…&pass=…&shot=…`
+`{"shot", "pass", "cut_take" ({pass, take} the cut plays, or null), "picked" (the take the mix
+plays, or null), "settings" (the mix's `fx` for the shot), "text", "text_from", "takes"}`: the
+shot's effects takes, newest first, each its sidecar with `take`, `path` (relative to the
+episode), `picked`, and `stale` (why it no longer matches the cut's picture; null when it does,
+or when it isn't finished). What a block's menu fetches when it opens.
+
+### `GET /seriesmith/fx/shots?ep=…&pass=…`
+`{"shots": [{shot, takes, ok, queued, failed, picked}]}`: the shots with effects takes in the
+pass, in shot order, from their sidecars alone (no audio read). What the Refs tab's Effects
+section lists; a row's takes are `GET /seriesmith/fx` when it opens.
+
+### `POST /seriesmith/fx/render`
+Body `{"ep", "pass", "shots": [...], "target"?, "n"?, "backend"?}`: `n` takes (1-8, default 1)
+of each shot, on seriesmith's queue (job kind `fx`, in the Jobs list); `seriesmith.fx` `{ep,
+pass, shot, take, status}` as each lands. Answers `{"queued": [{shot, take, job, seed,
+target}], "skipped": [{shot, why}]}` (a shot with no take in the cut, or no words to make its
+effects from). 400 for a target that isn't a foley one, or when none can be made; 409 without
+the queue. When a job starts, a take whose picture changed since it was asked fails, saying so.
+A shot's first finished take is picked into the mix when it has none (as a place's first bed
+is); later takes wait to be picked.
+
+### `POST /seriesmith/fx/pick`
+Body `{"ep", "pass", "shot", "take"}`: the take into the pass's mix (`fx`), the shot's level,
+mute, trims, fades and points kept, `keep_stale` dropped; `take: null` takes the shot's effects out. Answers
+`{"mix"}`; 409 for a take that isn't finished.
+
+## Music cues (2026-11-01)
+
+A cue is a piece of score written to the cut (seriesmith/cue.py; docs/SOUND.md): its spec in
+`<ep>/sound/<cue>/spec.json` (the shape is cue.py's docstring), its takes beside it, and the
+picked one as its item on the music track of the pass's mix. A cue's `kind` is `score` (the
+default: instrumental, under the picture) or `song` (sung: its sections' lyrics); with no
+`model`, a song is made on one that sings (the series config's `sound.song_model`, else
+`yue2`) and score on `sound.music_model`, else `stable_audio3`. A song on a model that
+can't sing is 400. A cue's `theme` (the leitmotif) is `{"cue"}` (whichever take of another cue
+in the episode is in the pass's mix, muted or not, else that cue's best finished take: the best
+measured, else the first finished; resolved each time the cue is planned), `{"cue", "take"}`
+(another cue's given take, not its own) or `{"file"}` (a sound file relative to the episode: .wav, .flac, .mp3,
+.ogg, .m4a, .aac, .opus or a video); a cue that isn't in the episode is 400 when the spec is
+written, a take or file that isn't there is the plan's warning. A cue is planned against the
+pass's cut each time it's asked: its anchors become seconds, the mix's hits in its span are
+fitted (the tempo within 8 % of the asked one and the pre-roll that put the must-hits on bar
+lines, an accent on a beat), it runs in whole bars from the pre-roll through its out point and
+tail, its sections fill them (given, else from the hits), and its music target writes the
+prompt.
+
+### `GET /seriesmith/cues?ep=…[&pass=…]`
+`{"cues": [{"spec", "takes", "ok", "placed"}]}`: each cue's spec, how many takes it has, how
+many finished, and the passes whose mix it's in. With `pass` (the spotting sheet's list), each
+is also planned against that pass's cut: `bpm` (the fitted tempo), `in_mix` (the take its item
+in the pass's mix plays, null: none), `stale` (what has moved under that take since it was
+rendered, in words; `[]` when nothing has or none is in the mix), `stale_takes` (the finished
+takes something has moved under) and `plan_error` (null, or why its anchors aren't in the
+cut; `bpm` is then null). 400 for a pass that isn't one.
+
+### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
+`{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
+`fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t, at, ends?}]`, `t` seconds from
+its in point, `at` the mix's anchor; `ends`: a drop on its out point, the music's end, neither
+fitted nor measured),
+`fit` (`{bpm, ask_bpm, stretch, errors, worst_must}`: the cue's exact tempo, the whole bpm the
+model is asked, the stretch between them, each hit's distance to its line in frames, null for
+an end), `alternatives` (`[{bpm, preroll, worst_must, total}]`: the best few tempos within 8 %
+of the asked one for its hits, at least a bpm apart, best first, the fit's first unless the
+tempo is fixed; `worst_must` and `total` in frames; `[]` with no hits to fit:
+core/score.alternatives), `direction` (the series config's score direction, `sound.score`,
+put before the cue's style in the prompt; `""` when none), `bars`,
+`bar` (seconds), `preroll`, `seconds`, `ask_seconds`, `sections`, `arc` (an energy per bar) and
+`prompt` (`{prompt, negative, values}` as the target writes it), and when they apply: `theme`
+(`{spec, label, use, warning, from}`: how its model hears the theme; `label` the take or file
+("m01 t03": for `{"cue"}` the take it resolved to, the cue alone when it has none finished),
+`from` "mix" or "best" for a `{"cue"}` theme (how its take was found), else null; `use` "plan" (YuE2 sings a YuE2
+take's own plan), "transcribe" (YuE2 sings SheetSage2's transcription of it, in the same job),
+"timbre" (ACE-Step's timbre reference) or null with `warning`: it isn't there, or the model
+takes none (Stable Audio 3), and it renders without it), `warnings` (in words), `blocked` (why
+it can't render: a YuE2 song with no lyrics) and `song` (`{source, bars, meter, sections}`: a
+theme's plan, known before it renders, its sections as a take's `song` has them); null with
+`plan_error` when its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,
+`target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch,
+downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels
+(dB per bar), shape_error, score}`, and `stale`: what has moved in the cut since it was
+rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme), in words,
+`[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
+rendered with is stale: "the theme is m01 t03, not m01 t02"). A take rendered with a theme has
+`theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
+take was found; a repaint of it hears the same take, whatever is picked since); a YuE2 take
+has `song`: `{file (its plan as sung, tNN.abc), source ("planned", "theme plan", "theme
+transcribed"), tempo_written (the plan's own Q: tempo, before the cue's was set), tempo, meter,
+key, bars (the plan's, in its meter), plan_seconds (its beats at the tempo asked), raw_seconds
+(the take as it came), short (plan_seconds - raw_seconds), first_note (the plan's first sung
+note, seconds into the take), sections: [{name, start, seconds (in the take, at the cue's
+tempo), at (seconds from the cue's in point), bars, beats, cue_bars}]}`. 404 for no such cue.
+
+### `PUT /seriesmith/cue`
+Body `{"ep", "cue"}`: writes the spec; 400 for one that doesn't check (an unknown field, a
+model that isn't a music target, a bpm, meter, tail, level or take count out of range).
+
+### `DELETE /seriesmith/cue?ep=…&cue=…`
+Deletes a cue: its folder (`sound/<cue>/`: the spec, every take and sidecar) moves whole to
+`<ep>/_history/cue-<cue>.<YYYYmmdd-HHMMSS>/` (to put back by hand: move it to `sound/<cue>/`), and
+its items (id the cue's, or a file of its folder) come out of every pass's mix, each a mix write
+with the old `mix.json` copied to `_history/`. Answers `{"cue", "moved_to"` (relative to the
+episode)`, "takes", "mixes"` (the passes it was taken out of)`}`. 404 for no such cue; 409 while a
+take of it is queued or rendering on seriesmith's queue (cancel it in Jobs), when another cue
+takes it as its theme, or when a pass's `mix.json` doesn't read (nothing is changed). To silence
+a cue but keep it, set its item's `mute` with `PUT /seriesmith/mix` instead.
+
+### `POST /seriesmith/cue/render`
+Body `{"ep", "pass", "cue", "takes"?, "backend"?}`: plans the cue and queues `takes` takes
+(default: its model's preset's, 8 on the final pass), each its own seed, on seriesmith's queue.
+When each comes back it is kept as `tNN_raw`, stretched to the cue's tempo (by what its
+measured tempo says when that is within 3 % of the asked, else by the plan's stretch) into
+`tNN.wav`, and measured; `seriesmith.cue` `{ep, cue, take, status}` as each lands. A YuE2 take
+is one job of two stages: the plan (YuE2GenerateABC, or the theme's plan, or SheetSage2's
+transcription of the theme), its `Q:` line set to the plan's whole `ask_bpm` (of the meter's
+note), then the song sung to it; both plans come back as text files and the sung one is kept as
+`tNN.abc`. Answers `{"queued": [{take, job, seed}], "plan"}`. 400 when its anchors aren't in the
+cut, or when the plan is `blocked`; 409 without the queue.
+
+### `POST /seriesmith/cue/pick`
+Body `{"ep", "pass", "cue", "take", "gain"?}`: the take becomes the cue's item (id: the cue's)
+on the music track of the pass's mix, from its in point (played from where its pre-roll ends)
+to its out point with a one-bar fade, and with `gain` (default true) a breakpoint at each bar
+fitting its level to the arc, at most 6 dB either way. Answers `{"mix"}`; 409 for a take that
+isn't finished.
+
+### `POST /seriesmith/cue/comp`
+Body `{"ep", "pass", "cue", "take", "from", "bars": [a, b]}`: a new take, take `take` with the
+cue's bars `a` to `b` (counted from 0, the pre-roll's first; `b` not included) from take `from`,
+spliced on bar lines where each take's measured downbeat puts them (both are at the cue's
+tempo), with 20 ms equal-power crossfades; kept, measured (not stretched again) and ranked like
+any take, its sidecar's `comp` `{base, from, bars}` saying what it was made of. Answers
+`{"take"}`; 409 for a take that isn't finished or bars outside the cue (or past the end of
+either take).
+
+### `POST /seriesmith/cue/repaint`
+Body `{"ep", "pass", "cue", "take", "bars": [a, b], "seed"?, "fresh"?, "backend"?}`: the cue's
+bars `a` to `b` (counted from 0, as for a comp) of take `take` made again, the rest kept: a new
+take queued on the take's own model, pass and prompt (and its theme, while the cue has it). The
+take's file as it came is encoded, a noise mask laid over those bars (`SeriesmithAudioSpanMask`,
+seriesmith's node pack), and sampled from `seed` (default: the cue's next); the text encoder at
+the seed the take's music was written from, so the same music is played again on the take's
+grid, or with `fresh: true` at the new seed too (new music there; over four bars or more it can
+leave the beat). When it comes back the take's own audio is spliced back outside the bars with
+20 ms equal-power crossfades at the bar lines, it is stretched as the take was, measured and
+ranked; its sidecar's `repaint` `{from, bars, codes, fresh, span}` says what it was made from
+(`span`: the bars in seconds of the take's file) and `repaint_check` `{beats, on, on_before,
+median_ms}` how the new bars sit on the take's beat (onsets within 40 ms of its beats, against
+the take's own). Answers `{"queued": {take, job, seed}}`; 409 for a take that isn't finished, a
+model that can't repaint (only ACE-Step 1.5 can: docs/SOUND.md "Measured: repaint"; the
+targets' `capabilities.repaint`), bars outside the cue, a theme the cue no longer has, or a
+ComfyUI without the node (restart it after updating seriesmith).
+
+A spec's `meter` is beats/unit text ("4/4" the default, "3/4", "6/8", "7/8", "12/8": 1 to 16
+beats of a 2, 4, 8 or 16; a bare number is that many beats in 4). The tempo counts its beats, so
+a bar is beats x 60 / bpm. Stable Audio 3 hears it as written; ACE-Step's time signature input
+takes 2, 3, 4 or 6 beats, so it gets the nearest, and the meter as written in its tags.
+
+A spec's `arc` points, when it has any, are the intent: each section's `from` / `to` (and so the
+energy words the model hears) are the arc's at its first and last bar, whatever the section
+says.
+
+A spec's `orchestra` is the Orchestration grid: `{family: [level per bar]}`, 0 off, 1 under,
+2 present, 3 lead (a family off throughout is dropped). The plan folds each section's bars into
+its words, strongest first ("strings lead, solo horn present, timpani under"), after the
+section's own; a change inside a section can't be followed, so the strongest level there wins.
+
 ## Assemble
 
 ### `POST /seriesmith/assemble`
 Body `{"ep", "pass", "partial": true}`. Runs `assemble` off the loop and returns
 when it's done (can take minutes).
 ```json
-{"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…"}
+{"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…",
+ "loudness": {"integrated_lufs": -16.1, "range_lu": 13.7, "true_peak_dbtp": -4.5,
+              "threshold_lufs": -26.4, "target_lufs": -16, "true_peak_db": -1, "off_lu": -0.1,
+              "on_target": true, "over_peak": false, "mixed": true,
+              "verdict": "-16.1 LUFS integrated (on the -16 target), range 13.7 LU, true peak -4.5 dBTP (under the -1 ceiling)"}}
 ```
+`loudness` is the loudness check assemble made on the mp4 it wrote (2026-11-02, docs/SOUND.md
+phase 5), as it keeps it beside the cut in `<cut>_loudness.json`: integrated loudness, loudness
+range and true peak (EBU R128, loudnorm's measurement) against the target (the pass's mix's,
+else the series config's `sound.loudness`, else -16 LUFS / -1 dBTP). `on_target`: within 1 LU;
+`mixed`: the mix brought it there (false: the cut's own sound, as it came). It never changes
+the sound. Null for the XML, a cut with no sound (`--audio none`), or an older server.
+`checks` is the picture's checks on the same mp4 (2026-11-02, docs/FINISHING.md "The export's
+checks"), as `<cut>_checks.json` keeps it: `{black, frozen, flashes, explained, rules, ok,
+verdict}`, each run `{start, end, seconds, shot, shots}` (seconds in the cut; a flash run also
+`flashes`, the most in any one second), `explained` `{black, frozen}` the runs the cut's own
+fades and held shots explain (left out). It never changes the cut. Null for the XML, when
+skipped, or from an older server. With `"publish": true` both are the assembled cut's.
 Phase 13 adds `"upscaled": true` (either pass): each clip plays its take's
 fresh upscale, the cut is the upscales' size and is written as `<ep>_up.mp4`, and clips
 without one are scaled up (the report names them). `"size": "1920x1080"` sets the cut's
@@ -980,6 +1343,10 @@ progress in ComfyUI's shapes — `execution_start`, `progress` (`{prompt_id, val
   "deleted" from `DELETE /seriesmith/post`.
 - **`seriesmith.ref`**, `{"ep", "ref", "view", "take", "status"}`: a reference take queued,
   finished, picked, cleared or discarded.
+- **`seriesmith.cue`**, `{"ep", "cue", "take", "status"}`: a music cue's take landed ("ok") or
+  failed.
+- **`seriesmith.fx`**, `{"ep", "pass", "shot", "take", "status"}`: a shot's effects take landed
+  ("ok") or failed (Effects).
 - **`seriesmith.queue`**, the lanes (`GET /seriesmith/jobs`' `lanes`) after a move or a
   pause.
 - **`seriesmith.master`**, the whole job as `GET /seriesmith/master/job` has it: once when an
@@ -3038,6 +3405,15 @@ other. Each half writes its own "as built" section.
 - **Defaults:** `PUT /seriesmith/refs/defaults` and `GET /seriesmith/refs`'s `defaults` gain
   `voice_target` / `voice_target_source`; the series config's `refs.voice_target` and a
   per-ref `target` override layer as for images.
+- **[changed 2026-11-02] The voice model is one list** (`targets.voice_targets`): the audio
+  targets and the video targets whose target.json sets `capabilities.dub_track` (H3 Ref2VA,
+  FastH3 Omni, LTX-2.5; `GET /seriesmith/targets` says it as `capabilities.dub_track`).
+  `refs.voice_target` and `PUT /seriesmith/refs/defaults`' `voice_target` take any of them.
+  An audio one is `defaults.voice_target` (what voice samples are made on); a video one is
+  the new `defaults.dub_target` / `dub_target_source` (what a dub track renders on when the
+  request names no target, and the Sound dialog's default), and voice samples then stay on
+  `ltx2_voice` (`voice_target_source: "default"`): a video model makes dub tracks, not
+  samples. Without a video choice `dub_target` is H3 Ref2VA (`"default"`).
 - **CLI:** `kreagen` (and `seriesmith refs`) generate voice refs too, with `--voice-target` and
   `--from-take SHOT:TAKE:START-END`.
 - **UI:** a voice ref row gets Generate (count, prompt, seconds), a candidate list with a
@@ -3155,6 +3531,22 @@ contract named changes shape except where marked [differs].
   runs. Stopped by a restart it is listed failed for Retry; one still waiting is queued
   again. Without a queue (a ComfyUI whose queue didn't start) it runs in the request and
   answers as before.
+- **[added 2026-11-02] `vocals: true`** (default false) runs `align --vocals`: the
+  recording's vocal stem is transcribed and cut instead of the mix. When no fresh stem
+  sits beside the recording, the job first queues one (a `vocals` job on the local
+  backend's lane, below) and waits for it; its progress says `stage: "vocals"`. The 409's
+  "a transcript is already there" reads the stem's (`<recording>.vocals.wav.words.json`).
+- **[added 2026-11-02] The vocal stem** (vocals.py, docs/SOUND.md phase 7; optional, off
+  by default). **`POST /seriesmith/vocals`** `{ep, redo?}` queues the episode recording's
+  stem on the local backend (`kind: "vocals"`: LoadAudio -> `SeriesmithVocals` ->
+  SaveAudio, written as `<recording>.vocals.wav`) and answers `{"job": id, "stem": null}`,
+  or `{"job": null, "stem": name}` when a fresh one is already there and `redo` isn't set;
+  409 without a recording. **`seriesmith.vocals`** `{ep, recording, status: "ok" |
+  "failed", error}` says how it ended. **`POST /seriesmith/track/dub_from`** `{ep,
+  dub_from: "vocals" | "recording", pass?}` writes the series config's `audio.dub_from`
+  (`recording`, the default, takes the key out), rebuilds, and answers as `POST
+  /seriesmith/track`. The `track` object (episode status, these routes) gains `vocals`
+  (a fresh stem is there), `vocals_words` (the stem's transcript) and `dub_from`.
 
 **align itself**
 - **[settled] No more `.bak`.** The script and the series config are written through
@@ -3312,8 +3704,11 @@ its own section.
   editor never unwrites it), so the ref still lists and a later pick puts a file back. A
   voice the series config names no sample for is still 400 (there is nothing to clear).
   Discarding a voice candidate that is the pick clears it, as for images.
-- **[settled] Auto-pick still skips voices.** Picking one can write the series config, so
-  it is never automatic; `GET /seriesmith/refs` leaves voice candidates waiting.
+- **Auto-pick takes a voice with no sample** (changed 2026-11-02; it used to skip voices): a
+  character whose voice has no live sample (none named in the series config, or its file
+  missing) takes its first finished voice when `GET /seriesmith/refs` runs, the series config
+  gaining its `voice_sample` (a `_history` copy kept). A live sample is never replaced, and a
+  cleared one stays cleared; later voices wait to be picked.
 
 **`POST /seriesmith/refs/voice-from-take`** (the no-model path)
 - **[settled]** `{ep, ref, shot, take, pass, start, end, pick?, note?}`. `peaks.clip_audio`
@@ -4175,7 +4570,7 @@ What the editor offers to pick from, each preset filling a text that stays edita
 (`seriesmith/presets/`: `relight.json`, `look.json`, and their sample pictures under `img/`,
 made by `tools/make_preset_samples.py`).
 
-### `GET /seriesmith/presets[?kind=relight|look|framing|camera|look_builder]`
+### `GET /seriesmith/presets[?kind=relight|look|framing|camera|look_builder|cue]`
 ```json
 {"relight": [{"id": "rain", "label": "Rain", "group": "weather", "for": ["place", "subject"],
               "texts": {"place": "Change only the weather: it is raining steadily, …",
@@ -4201,6 +4596,14 @@ made by `tools/make_preset_samples.py`).
 - `camera` (the shot form's): `{"id": "push_in", "label": "Push in", "group": "dolly", "move":
   "pushes in", "image": "camera/push_in.mp4"}`; `move` is how the `camera:` line starts, and
   the sample is a short silent clip.
+- `cue` (the cue window's Preset; `cue.json`, no pictures): `{"id": "lullaby_waltz", "label":
+  "Lullaby waltz", "group": "Score" | "Song", "hint": "when to use it", "fields": {"kind":
+  "score" | "song", "style", "bpm", "meter"?: "3/4", "key"?: "G major", "shape": [{"name",
+  "share", "words", "from", "to", "orchestra"?: {"music box": 3}}]}}`. The shares are the
+  sections' fractions of the cue (summing to 1), `from` / `to` their energies (1-5), and
+  `orchestra` each family's level in the section (0 off to 3 lead). The editor turns it into the
+  cue's spec (`lib/cue.ts` applyPreset): whole bars from the shares over the cue's bars at the
+  preset's tempo, the orchestra per bar, the arc cleared, then one `PUT /seriesmith/cue`.
 - `images` / `image` name a sample picture only once it is made. `group` is for grouping the
   tiles. `kind` answers with that list alone; another kind is 400.
 - Your own looks and relights follow the shipped ones, in the group `yours` with `"own":

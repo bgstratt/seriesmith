@@ -1432,8 +1432,23 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       all dims a fade (`fadeLevel`) and cuts a dissolve at its middle; the clip menu toggles
       each at 12 frames, the inspector sets the frames. Tests: test_assemble's three,
       test_api's `test_cut_fades_and_dissolves`, web/test/joins.test.ts. Not yet live.
-- [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
-      frozen runs, flashes), reported, never changing it.
+- [x] Checks on the exported cut (integrated loudness and true peak, black and frozen runs,
+      flashes), reported, never changing it. The loudness part 2026-11-02 (docs/SOUND.md
+      phase 5: `<cut>_loudness.json`, assemble's report, Export's toast); the picture's the
+      same day (`seriesmith/checks.py`, docs/FINISHING.md "The export's checks"): one ffmpeg
+      pass, scaled to 256 wide, `blackdetect` (0.5 s, 10 % luma, 98 % of the picture),
+      `freezedetect` (2 s, -60 dB) and each frame's mean luma for flashes (WCAG 2.3.1's rule
+      on the whole frame: more than three pairs of opposing 10 % changes in relative
+      luminance, the darker below 0.80, in any second), each run with its shot; black and
+      frozen runs inside a clip's own fade or a held (`hold`) shot left out and counted.
+      Kept as a sibling `<cut>_checks.json` (not inside the loudness file: that one is the
+      sound's and keeps its shape), printed under the loudness line, returned from
+      `POST /seriesmith/assemble` as `checks`, a **Checks:** line in Export's toast;
+      `--no-checks`. Tests: tests/test_export_checks.py (each detector on a synthetic cut,
+      the explained runs, the flash rule's edges, the report's shape), test_assemble's
+      progress steps. Measured on CupsMV ep01's proxy (2 min, 33 shots, a
+      scratch name, deleted after): 25.0 s assembled with the checks, 23.8 s without (the scan
+      1.2 s; 0.8 s a minute at 1080p, 2.4 s at 4K, synthetic); it found nothing there.
 
 ## H3 Singularity, and continuous shots that keep their model (2026-10-29)
 
@@ -1601,6 +1616,70 @@ its batch (`api.py`, `cut_at_start=True`) and is right.
       only the shot with no take renders and opens on its finished neighbour; `--only sh030`
       starts from sh020's take in the cut.
 - [ ] **Docs:** COMMANDS.md (`render` and continuous chains).
+
+## The episode's sound: dialogue, effects, ambience, music (designing; 2026-11-01)
+
+Four tracks under the picture, each optional with its own level: Dialogue (the take's own
+sound, or its voices alone: voices only), Effects (foley from the picked take), Ambience (a place's bed across cuts),
+Music (cues and songs as their own assets, anchored to shots and frames, written to land
+named hit points on bar lines). The mix is the episode's (`mix.json` per pass), not the
+script's: faders, item gain, fades, volume breakpoints, ducking under dialogue with "score
+forward" regions, loudness to -16 LUFS; stems and the FCP7 export's eight tracks. The design,
+the models found on this machine and the phases are docs/SOUND.md. Stable Audio 3 the default
+score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
+
+- [x] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
+      2026-11-01 (its docs checked 2026-11-02)
+- [x] Phase 2: music (`music` kind, `ace_step15`, `yue2`, hits -> tempo, the arc -> sections
+      -> words, refit); the cue window (Score, Arc, Orchestration & takes tabs) and the
+      episode's spotting sheet; the `yue2` song target and the leitmotif reference (a cue's
+      theme: ACE-Step's timbre, YuE2's melody) 2026-11-01; repaint (bars of an ACE-Step take
+      made again, measured first: SOUND.md "Measured: repaint") 2026-11-02
+- [x] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
+      2026-11-01
+- [x] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
+      2026-11-01; the Demucs split built as **voices only** 2026-11-02 (`voices.py`: each take
+      the cut plays split into `<take>.voice.wav`, the Dialogue track playing the voices alone,
+      a shot with no lines silent; live on Ballroom ep02's 11 shots, SOUND.md "Measured: voices
+      only"; not yet heard by the user nor looked at in a browser); a shot's effects trimmed,
+      faded and levelled within its clip 2026-11-02 (mix.json `fx` `trim_in` / `trim_out` /
+      `fade_in` / `fade_out` / `points`: the block stays put, the trimmed ends silent; the XML
+      clip trimmed to what's heard; not yet looked at in a browser)
+- [x] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
+      2026-11-02 (the snapping still to be looked at in a browser)
+- [x] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
+      2026-11-02 (mix.json's `track_list`; not yet looked at in a browser)
+- [x] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
+      recorded dub is (`audio.mode: source_track`, each shot its window); one real song tried
+      (CupsMV), the vocal stem offered (optional, off by default: H3 lip-synced as well to the
+      whole song) and the guide written (docs/MUSIC_VIDEO.md) 2026-11-02
+- [x] Taking a cue out (2026-11-02): an item's `mute` (silent in the export, stems, loudness and
+      Play all, disabled in the XML; "plays in the mix" on the Refs tab's Music row, an item's
+      menu, the spotting map's cue menu) and `DELETE /seriesmith/cue` (its folder to
+      `_history/cue-<id>.<stamp>/`, out of both mixes; "Delete cue…" there and in the cue
+      window's head); not yet looked at in a browser
+
+## Fixed: the voice model is two lists (noted 2026-11-01)
+
+The series settings' **voice model** (`voice_target`, refs.py / SeriesForm) offers only audio
+targets, so LTX-2.5 audio-only is the one choice, while a **dub track** (the Sound dialog's
+"Generate a dub track", `VOICE_TARGETS` in the editor) is made on video models: H3 Ref2VA and
+FastH3 Omni, and could be on H3 FL2VA, H3 Singularity or any H3-compatible model. One list of
+what can voice a line (audio targets and the video targets that render a dub track), the same
+in Settings and the Sound dialog, read from the targets (a capability, not a list in the
+editor), with the series' choice as the Sound dialog's default.
+
+- [x] One list (2026-11-02): `capabilities.dub_track` in target.json (H3 Ref2VA, FastH3 Omni,
+      LTX-2.5: the three the editor listed, each with a clone path a dub track already uses;
+      H3 FL2VA left out, since its clone lines are LTX-2.5 audio-only's, and Singularity,
+      untried), `targets.voice_targets` (the audio targets and those), the series config's
+      `refs.voice_target` and the episode's choice taking any of them, Series settings'
+      **Voices** offering them, the Sound dialog's models read from the targets
+      (`VOICE_TARGETS` gone) and starting on the series' choice. Each consumer keeps its
+      kind: voice samples are made on an audio target (a video choice leaves them on
+      ltx2_voice: `defaults.voice_target`), a dub track on a video one (an audio choice
+      leaves it on H3 Ref2VA: `defaults.dub_target`; jobs.dub_target for a request without
+      a target). Docs: EDITOR, AUTHORING, API
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

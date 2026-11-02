@@ -4,6 +4,10 @@ stays editable: relighting a ref's picture (relight.json: the edit window's
 Relight, a plate's wording and a character's or prop's), the series' look
 (look.json: the series form's Look), a shot's framing (framing.json: its
 `size:`) and its camera move (camera.json: how its `camera:` line starts).
+A music cue's presets (cue.json: the cue window's Preset) have no picture:
+each is a worked example of a cue's fields (kind, style, tempo, meter, key,
+and its sections as shares of the cue with their words, energies and who
+plays), which the editor fits to the cue's bars.
 Each preset's sample is under img/ (made by tools/make_preset_samples.py,
 with seriesmith itself): a JPEG, or for a camera move a short silent clip;
 one not made yet is simply left out of the answer.
@@ -22,7 +26,7 @@ import os
 from seriesmith.core import fileio as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-KINDS = ("relight", "look", "framing", "camera", "look_builder")
+KINDS = ("relight", "look", "framing", "camera", "look_builder", "cue")
 # a camera move's sample is a clip, the rest pictures
 EXT = {"camera": ".mp4"}
 # which of a relight preset's texts a ref kind reads
@@ -249,11 +253,16 @@ def listing(kind: str) -> list[dict]:
     """The presets of `kind`, as the editor shows them. A look: {id, label,
     group, text, image}. A relight: {id, label, group, for: [wordings],
     texts: {wording: text}, images: {wording: name}}. A framing: {id, label,
-    group, hint, image}. A camera move: {id, label, group, move, image}. An
+    group, hint, image}. A camera move: {id, label, group, move, image}. A
+    cue: {id, label, group, hint, fields} (no picture). An
     image is the sample's name for GET /seriesmith/presets/image, present
     only when made."""
     out = []
     for p in _load(kind):
+        if kind == "cue":
+            out.append({"id": p["id"], "label": p["label"], "group": p.get("group", ""),
+                        "hint": p.get("hint", ""), "fields": p["fields"]})
+            continue
         if kind in ("framing", "camera"):
             name = image_name(kind, p["id"])
             keep = ("hint",) if kind == "framing" else ("move",)

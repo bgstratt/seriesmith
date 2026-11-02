@@ -5,8 +5,8 @@
 
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
-  attachTrack, clearTrack, closeTrackPanel, copyText, dismissAlignResult, dismissUpload, loadAlignJob, loadAlignReady, openBrowse,
-  openTrackPanel, runAlign, uploadTrack,
+  attachTrack, clearTrack, closeTrackPanel, copyText, dismissAlignResult, dismissUpload, loadAlignJob, loadAlignReady, makeVocals, openBrowse,
+  openTrackPanel, runAlign, setDubFrom, uploadTrack,
 } from "../actions";
 import { fmtSeconds } from "../lib/format";
 import { dragHasFiles } from "../lib/lookback";
@@ -200,6 +200,38 @@ function AlignReport() {
   );
 }
 
+/** The recording's vocal stem: optional and off by default (docs/SOUND.md phase 7: H3's
+ * lip-sync was as good to the whole song), for align from the stem and for dub shots that
+ * hear it rather than the song. */
+export function VocalStem({ busy }: { busy: boolean }) {
+  const st = useStatus();
+  const tr = st?.track;
+  if (!tr) return null;
+  const stem = !!tr.vocals;
+  const dubStem = tr.dub_from === "vocals";
+  return (
+    <>
+      <div className="h3-h">Vocal stem <span className="h3-muted h3-small">optional</span></div>
+      <div className="h3-row h3-wrap h3-small">
+        <span className={stem ? "h3-badge h3-b-ok" : "h3-badge"} title={`${tr.path}.vocals.wav`}>{stem ? "made" : "not made"}</span>
+        <button className="h3-btn" disabled={busy || !tr.exists}
+          title="Split the singing from the band on local ComfyUI (seriesmith's Vocal Stem node, Hybrid Demucs), kept beside the recording as <recording>.vocals.wav"
+          onClick={() => void makeVocals(stem)}>
+          <i className="pi pi-sliders-h" /> {stem ? "Make it again" : "Make the vocal stem"}
+        </button>
+        <label className="h3-check" title="Send each dub shot's window from the vocal stem instead of the recording (the series config's audio.dub_from). The episode's sound stays the recording.">
+          <input type="checkbox" checked={dubStem} disabled={busy || !tr.exists}
+            onChange={(e) => void setDubFrom(e.target.checked ? "vocals" : "recording")} /> dub shots hear the vocal stem
+        </label>
+      </div>
+      <div className="h3-muted h3-small">
+        For a song with music under the singing. Off by default: H3 lip-synced as well to the whole song. The stem can be cleaner
+        input for another model; the episode's sound (the mix, <span className="h3-mono">--audio master</span>) is always the recording.
+      </div>
+    </>
+  );
+}
+
 export function TrackWindow() {
   const panel = useApp((s) => s.trackPanel);
   const ep = useApp((s) => s.ep);
@@ -212,11 +244,14 @@ export function TrackWindow() {
   const [typed, setTyped] = useState("");
   const [model, setModel] = useState("");
   const [snap, setSnap] = useState(true);
+  const [fromStem, setFromStem] = useState(false);
   // an align still running (the window reopened, the page reloaded): followed again
   useEffect(() => { if (panel && ep) void loadAlignJob(); }, [panel, ep]);
   if (!panel || !ep) return null;
   const t = trackSummary(st?.track);
-  const words = !!t?.words;
+  const tr = st?.track;
+  // align from the stem reads the stem's own transcript
+  const words = fromStem ? !!tr?.vocals_words : !!t?.words;
   const blockers = alignBlockers(ready, words);
   const running = !!run?.busy;
   const buildBad = !!build && !build.ok;
@@ -312,12 +347,15 @@ export function TrackWindow() {
         <label className="h3-check h3-small" title="Snap each window to the frame grid (align's --no-snap turns it off)">
           <input type="checkbox" checked={snap} disabled={running} onChange={(e) => setSnap(e.target.checked)} /> snap to frames
         </label>
+        <label className="h3-check h3-small" title="Transcribe the recording's vocal stem, and cut at the pauses in the singing, instead of the whole mix (align's --vocals). For a song; the stem is made on local ComfyUI first if it isn't there.">
+          <input type="checkbox" checked={fromStem} disabled={running || !t} onChange={(e) => setFromStem(e.target.checked)} /> from the vocal stem
+        </label>
         <span className="h3-grow" />
         <button
           className="h3-btn"
           disabled={!t || running || !blockers.ok}
           title={!t ? "Attach a recording first" : !blockers.ok ? missingText(blockers) : "Run align and show what it would write, without writing anything"}
-          onClick={() => void runAlign({ dryRun: true, model: model || null, snap })}
+          onClick={() => void runAlign({ dryRun: true, model: model || null, snap, vocals: fromStem })}
         >
           <i className={running && run?.dryRun ? "pi pi-spin pi-spinner" : "pi pi-eye"} /> Dry run
         </button>
@@ -325,7 +363,7 @@ export function TrackWindow() {
           className="h3-btn h3-primary"
           disabled={!t || running || !blockers.ok}
           title={!t ? "Attach a recording first" : !blockers.ok ? missingText(blockers) : "Write the `audio:` windows into the script and rebuild (copies of both files go to _history/)"}
-          onClick={() => void runAlign({ dryRun: false, model: model || null, snap })}
+          onClick={() => void runAlign({ dryRun: false, model: model || null, snap, vocals: fromStem })}
         >
           <i className={running && !run?.dryRun ? "pi pi-spin pi-spinner" : "pi pi-clock"} /> Align
         </button>
@@ -333,6 +371,7 @@ export function TrackWindow() {
       <AlignProgress />
       {run?.error && !run.busy && <div className="h3-note h3-note-err h3-small">{run.error}</div>}
       <AlignReport />
+      {t && <VocalStem busy={busy || running} />}
       <div className="h3-muted h3-small">
         Aligning writes the script's <span className="h3-mono">audio: in-out</span> lines (and the series config), rebuilds the
         episode, and leaves <span className="h3-mono">align_report.md</span> beside it. The old files go to{" "}

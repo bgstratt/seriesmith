@@ -284,6 +284,8 @@ export function createMockRefs(opts: {
       keyframe_target_source: src(chosen.keyframe_target),
       voice_target: chosen.voice_target ?? MOCK_REF_DEFAULTS.voice_target,
       voice_target_source: src(chosen.voice_target),
+      dub_target: "minimax_h3_ref2va",
+      dub_target_source: "default",
     };
   }
 

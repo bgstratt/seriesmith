@@ -76,8 +76,10 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
+from seriesmith import checks as CK  # noqa: E402
 from seriesmith import color as COL  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
+from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
@@ -543,6 +545,24 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
                            f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
 
 
+def held_take(sc: dict) -> bool:
+    """Whether a take's sidecar says it was rendered by `hold` (a picture held still)."""
+    try:
+        from seriesmith import hold as H
+        from seriesmith import targets as TG
+        return H.is_hold(TG.load_target(sc.get("target") or ""))
+    except Exception:                                    # noqa: BLE001  no target, or gone
+        return False
+
+
+def check_clips(plan: list[dict], fps: float) -> list[dict]:
+    """The plan's clips where they lie in the cut, for checks.check: {"id", "a", "b"
+    (seconds), "fade_in", "fade_out" (seconds, as laid), "held"}."""
+    return [{"id": p["id"], "a": p["cut_in"] / fps, "b": (p["cut_in"] + p["used"]) / fps,
+             "fade_in": p["fade_in"] / fps, "fade_out": p["fade_out"] / fps, "held": p.get("held", False)}
+            for p in plan]
+
+
 def lay_transitions(plan: list[dict]) -> dict:
     """Each plan item's fades and dissolve (`asked`: its cut entry's) fitted to
     the clips. A dissolve of n frames takes the clip before's last n (`tail`)
@@ -661,10 +681,13 @@ def sound_info(path: str, fps: float) -> tuple[int, int]:
 
 def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict],
               fps: float, size: tuple[int, int] | None, pass_: str, base_in: float,
-              args) -> int:
+              args, sound: dict | None = None, beds: list[dict] | None = None,
+              fx: list[dict] | None = None, voices: dict | None = None) -> int:
     """The plan as an FCP7 XML timeline (nle_xml), nothing encoded: each clip its
-    file, its sound as the mp4 export lays it (--audio none: none), and the
-    recorded dialogue, when the shotlist has one, under it on A3/A4."""
+    file, its sound as the mp4 export lays it (--audio none: none; with the mix's voices
+    only, its take's voice stem's wav where it has a fresh one: voices.for_plan), the
+    recorded dialogue, when the shotlist has one, under it on A3/A4, and the
+    episode's mix (`sound`, mix.py) on its own tracks after them."""
     from seriesmith import nle_xml as NX
     from seriesmith.core import fileio as FIO
     clips, last_seq = [], None
@@ -680,6 +703,9 @@ def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict]
                 gain = float(spec.get("gain", 1.0))
             else:
                 snd = p["wav"] if args.audio == "h3" else PK.clip_audio(p["path"], p["wav"])
+                v = (voices or {}).get(p["id"]) or {}
+                if v.get("plays") in ("voice", "silence"):
+                    snd = v["path"]                         # voices only: the stem's wav, or none
                 at, gain = -p["trim_in"], 1.0
             if snd:
                 channels, length = sound_info(snd, fps)
@@ -704,8 +730,32 @@ def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict]
             if channels:
                 recording = {"path": track, "channels": channels, "frames": length,
                              "at": -round(start * fps)}
+    lanes, hits = None, None
+    if sound is not None:
+        # the mix's tracks (mix.py), each item its own file; the ducking is computed,
+        # so it stays in seriesmith's own render
+        origins = MX.shot_origins(plan)
+        total = sum(p["used"] - p["dissolve_in"] for p in plan)
+        placed, dropped = MX.placed(sound, origins, total, fps, root,
+                                    length=lambda f: sound_info(f, fps)[1], beds=beds, fx=fx)
+        lanes = {}
+        for track, items in placed.items():
+            for it in items:
+                it["channels"] = sound_info(it["path"], fps)[0]
+            lanes[track] = [it for it in items if it["channels"]]
+        hits = [{"name": h.get("name") or h["id"], "at": MX.place(h["at"], origins)}
+                for h in sound.get("hits") or [] if MX.place(h["at"], origins) is not None]
+        for why in dropped:
+            print(f"  ! sound: {why}; left out")
+        if lanes.get("dialogue"):
+            print(f"  ! sound: {len(lanes['dialogue'])} item(s) on the dialogue track aren't "
+                  f"carried (the clips' own sound is)")
+        n = sum(len(v) for k, v in lanes.items() if k != "dialogue")
+        print(f"  the mix: {n} item(s) on their own tracks"
+              + (f", {len(hits)} hit(s) as markers" if hits else "")
+              + "; ducking and loudness are seriesmith's render only")
     name = f"{doc.get('episode', 'cut')} ({pass_}{', 2x' if args.upscaled else ''})"
-    FIO.write_text(xml_path, NX.write(name, fps, size, clips, recording))
+    FIO.write_text(xml_path, NX.write(name, fps, size, clips, recording, lanes, hits))
     colored = [p["id"] for p in plan if p["color"]]
     if colored:
         print(f"  ! colour isn't carried (grade it in the editor): {', '.join(colored[:8])}"
@@ -769,9 +819,15 @@ def main(argv: list[str] | None = None) -> int:
                     help="write the cut as an FCP7 XML timeline (<cut>.xml, for Premiere, Resolve "
                          "and the like) instead of an mp4: each clip its take's own file, in and "
                          "out where the cut uses it; nothing encoded, missing shots skipped")
+    ap.add_argument("--no-mix", action="store_true",
+                    help="leave the episode's mix (mix.json: effects, ambience, music, levels) "
+                         "out: each clip's own sound, as it always was")
     ap.add_argument("--size", default=None, metavar="WxH",
                     help="the cut's size (every clip scaled, letterboxed if its aspect "
                          "differs), e.g. 1920x1080")
+    ap.add_argument("--no-checks", action="store_true",
+                    help="don't check the export's picture for black and frozen runs and "
+                         "flashes (<cut>_checks.json; they never change the cut)")
     args = ap.parse_args(argv)
 
     pass_ = args.pass_ or ("proxy" if "_proxy" in os.path.basename(args.shotlist)
@@ -918,7 +974,7 @@ def main(argv: list[str] | None = None) -> int:
         audio_src = T.audio_source_file(root, e.audio, pass_)
         if audio_src and not PK.has_audio(audio_src):
             audio_src = None
-        p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip,
+        p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip, "base": t.paths.mp4,
              "upscaled": clip != t.paths.mp4, "posted": clip == t.paths.post_mp4,
              "placeholder": e.pass_ != pass_, "listed": e.in_cut_file,
              "keep": keep, "trim_in": trim_in, "trim_out": trim_out,
@@ -926,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
              # this clip's audio source (cut.json's `audio`), and the file it
              # plays: None for silence, or for a source that isn't there
              "audio_spec": e.audio, "audio_src": audio_src,
+             # a still on purpose (the `hold` target): the export's checks don't call it frozen
+             "held": held_take(sc),
              "wav": t.paths.h3_wav if os.path.isfile(t.paths.h3_wav) else None,
              "expected": s["length"], "policy": s.get("audio_policy", "?"),
              "src_fps": src_fps, "convert": convert,
@@ -998,6 +1056,7 @@ def main(argv: list[str] | None = None) -> int:
         d = p["dissolve_in"]
         total -= d
         p["start"] = (total + d / 2) / fps
+        p["cut_in"] = total                  # its first frame in the cut
         total += p["used"]
     windowed = [p for p in plan if p["keep"]]
     trimmed = [p for p in plan if p["trim_in"] or p["trim_out"]]
@@ -1061,6 +1120,55 @@ def main(argv: list[str] | None = None) -> int:
             print("  ! --audio master: the cut is not in script order; the master "
                   "track only lines up with script order")
 
+    # the episode's mix (mix.json, docs/SOUND.md); none, or one that changes nothing,
+    # leaves the cut's sound as it always was
+    sound, beds, fx, voices = None, [], [], {}
+    if not args.no_mix:
+        series_cfg = J.series_config(root)
+        try:
+            sound = MX.for_pass(root, pass_, series_cfg)
+        except ValueError as e:
+            print(f"  ! {MX.MIX_FILE}: {e}; the cut keeps its own sound")
+        if sound is not None:
+            # the places' ambience beds under their shots (ambience.py): a bed that's
+            # there and not muted makes a mix of its own
+            from seriesmith import ambience as AMB
+            beds = AMB.laid(root, plan, series_cfg, sound)
+            # the shots' picked effects at their clips (fx.py): one that's heard makes a
+            # mix of its own too
+            from seriesmith import fx as FXM
+            fx = FXM.laid(root, pass_, plan, sound)
+        heard = [b for b in beds if b["exists"] and not b["mute"]]
+        heard_fx = [f for f in fx if f["heard"]]
+        for f in fx:
+            if f["stale"] and not f["keep_stale"] and not f["mute"]:
+                print(f"  ! sound: {f['shot']}'s effects t{f['take']:02d} are stale "
+                      f"({f['stale']}); left out (seriesmith fx makes them again)")
+        if sound is not None and not MX.active(sound) and not heard and not heard_fx:
+            sound, beds, fx = None, [], []
+        if sound is not None and args.audio in ("none", "master"):
+            print(f"  ! --audio {args.audio}: the mix in {MX.MIX_FILE} is left out")
+            sound, beds, fx = None, [], []
+        if sound is not None and MX.voices_any(sound):
+            # voices only (voices.py): each clip's take's voice stem in place of its whole
+            # sound, where it's there and fresh; the rest play whole and are named
+            from seriesmith import voices as VO
+            voices = VO.for_plan(root, pass_, plan, sound)
+            for line in VO.said(voices):
+                print(line)
+        if sound is not None:
+            n = len(sound.get("items") or [])
+            muted = sum(1 for i in sound.get("items") or [] if i.get("mute"))
+            print(f"  sound: the mix in {MX.MIX_FILE}, {n} item(s) over the cut's own sound"
+                  + (f" ({muted} muted)" if muted else "")
+                  + (f", {len(heard)} ambience bed run(s) ({', '.join(sorted({b['place'] for b in heard}))})"
+                     if heard else "")
+                  + (f", effects under {len(heard_fx)} shot(s)" if heard_fx else ""))
+            for b in beds:
+                if not b["exists"]:
+                    print(f"  ! sound: {b['place']}'s ambience bed {b['rel']} isn't there "
+                          f"(seriesmith refs makes it); its shots have none")
+
     print(f"  assembled runtime {tc(total / fps)}  ({total} frames)")
     if args.check:
         print()
@@ -1114,7 +1222,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.xml:
         return write_xml(os.path.splitext(out_path)[0] + ".xml", root, doc, by_id, plan,
                          fps, (int(width), int(height)) if width and height else None,
-                         pass_, base_in, args)
+                         pass_, base_in, args, sound, beds, fx, voices)
 
     # Dialogue windows, cut.json trims and placeholders all need a re-encode;
     # so do clips at another frame rate or size (a mixed-target cut), and clips
@@ -1148,6 +1256,12 @@ def main(argv: list[str] | None = None) -> int:
             # the mp4's own sound, else its _h3.wav, else silence
             # (peaks.clip_audio: the editor's take `audio` is the same rule)
             p["sound"], p["sourced"] = PK.clip_audio(p["path"], p["wav"]), False
+        if not p["sourced"] and p["id"] in voices and args.audio != "none":
+            # voices only: its take's voice stem (sample 0 the take's first, as a _h3.wav),
+            # silence for a shot with no lines, its whole sound when its stem can't play
+            v = voices[p["id"]]
+            if v["plays"] != "whole":
+                p["sound"] = v["path"]
     # Only the clips that need it are re-encoded, the rest copied, when the
     # copies agree on their encoding and the re-encoded clips come out with the
     # same headers (conform at the quality the copies were saved with: a master's
@@ -1195,8 +1309,11 @@ def main(argv: list[str] | None = None) -> int:
                        and p["sound"] == p["path"]), None)
         if not copied:
             # nothing copied keeps its sound: one layout for the re-encoded and
-            # the remuxed clips alike (conform's own, 44.1 kHz stereo)
-            return (44100, 2) if reencode and sel is not None else None
+            # the remuxed clips alike (conform's own, 44.1 kHz stereo); with voices
+            # only, the stems (44.1 kHz stereo) and the silent clips' made-up track
+            # too, or the concat sees two layouts and drops the sound after the first
+            # change (Ballroom ep02: every clip a stem or silence)
+            return (44100, 2) if (reencode and sel is not None) or voices else None
         return sigs[id(copied)][1] if id(copied) in sigs else audio_format(copied["path"])
 
     def make(i: int, p: dict, sel, layout, tmp: str) -> str:
@@ -1304,6 +1421,18 @@ def main(argv: list[str] | None = None) -> int:
                          "-t", f"{total / fps:.6f}", tmp_out], timeout=1800)
                 if r.returncode == 0:
                     shutil.move(tmp_out, out_path)
+        if r.returncode == 0 and sound is not None:
+            # the episode's mix (mix.py): the joined sound is its dialogue track
+            say(args.progress, "sound", text="mixing the sound tracks")
+            stems = os.path.splitext(out_path)[0] + "_stems"
+            try:
+                wav = MX.render(sound, MX.shot_origins(plan), total, fps, root, out_path,
+                                stems, log=print, beds=beds, fx=fx)
+                MX.mux(out_path, wav, total, fps)
+                print(f"  sound: stems in {os.path.relpath(stems, root)}")
+            except RuntimeError as e:
+                print(f"\n  the mix failed: {e}\n", file=sys.stderr)
+                return 1
         if r.returncode == 0 and args.intermediate == "prores":
             mov = os.path.splitext(out_path)[0] + ".mov"
             say(args.progress, "prores", text=os.path.basename(mov))
@@ -1314,6 +1443,52 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n  concat failed: "
                   f"{r.stderr.decode('utf-8', 'replace')[-400:]}\n", file=sys.stderr)
             return 1
+
+    # the loudness check (docs/SOUND.md phase 5): the export measured against the mix's
+    # target and reported, beside it and here; the sound is never changed by it
+    side = os.path.splitext(out_path)[0] + MX.LOUDNESS_SUFFIX
+    if args.audio == "none":
+        if os.path.isfile(side):
+            os.remove(side)
+    else:
+        from seriesmith.core import fileio as FIO
+        say(args.progress, "loudness", text="measuring the loudness")
+        target = MX.loudness_target(sound, J.series_config(root))
+        lc = MX.loudness_check(out_path, target, mixed=sound is not None)
+        if lc is None:
+            print("  loudness: no sound to measure")
+            if os.path.isfile(side):
+                os.remove(side)
+        else:
+            FIO.write_json(side, lc)
+            print(f"  {'' if lc['on_target'] and not lc['over_peak'] else '! '}loudness: "
+                  f"{lc['verdict']}"
+                  + ("" if lc["mixed"] or lc["on_target"] else
+                     "; the cut's own sound, as it came (no mix brings it to the target)"))
+
+    # the picture's checks (checks.py): black and frozen runs and flashes, reported beside
+    # the cut and here; the cut is never changed by them
+    side = os.path.splitext(out_path)[0] + CK.SUFFIX
+    if args.no_checks:
+        if os.path.isfile(side):
+            os.remove(side)
+    else:
+        from seriesmith.core import fileio as FIO
+        say(args.progress, "checks", text="checking the picture")
+        try:
+            ck = CK.check(out_path, check_clips(plan, fps), fps, total / fps)
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+            print(f"  ! checks: the picture couldn't be read ({str(e).strip()[-200:]})")
+            if os.path.isfile(side):
+                os.remove(side)
+        else:
+            FIO.write_json(side, ck)
+            print(f"  {'' if ck['ok'] else '! '}checks: {ck['verdict']}")
+            for kind in ("black", "frozen", "flashes"):
+                for r in ck[kind]:
+                    print(f"    {kind:8} {tc(r['start'])}-{tc(r['end'])}  {r['seconds']:.2f} s  "
+                          f"{', '.join(r['shots'])}"
+                          + (f"  ({r['flashes']} flashes in a second)" if kind == "flashes" else ""))
 
     # ---- shot boundary list, for finding things in the timeline ----------
     edl = os.path.splitext(out_path)[0] + "_shots.txt"

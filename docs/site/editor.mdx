@@ -135,7 +135,7 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 | file-edit | **Edit the episode's script** — opens the Script window |
 | cog | **Series settings** — the series config as a form |
 | book | **Edit the series config** (`series.json`) as text |
-| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one |
+| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
 | play | **Play all** — the cut, played from its takes, no export needed |
 | film | **Open the timeline** |
 | speech bubble | **Issues** — the pass's notes (below), with how many are open |
@@ -303,9 +303,11 @@ under the shot.
   - **Dub to** (Dub only): **the recording** (its aligned window, when the episode has a
     recorded track and the shot was aligned), **a dub track**, or **a take's sound** (any
     finished take, either pass: a proxy's delivery for the final), each playable. **Generate
-    a dub track** renders the shot for its sound only, on H3 Ref2VA at 64x64 (or FastH3 Omni,
-    or LTX-2.5: the model beside it), its voices cloned, in about 15 seconds once the model is
-    loaded; dub tracks are kept apart from the takes (`<episode>/dub/<shot>/`). **Keep the
+    a dub track** renders the shot for its sound only, at 64x64 on the model beside it, its
+    voices cloned, in about 15 seconds once the model is loaded; dub tracks are kept apart from
+    the takes (`<episode>/dub/<shot>/`). The models offered are the ones whose target says they
+    render a dub track (H3 Ref2VA, FastH3 Omni, LTX-2.5); it starts on the series' voice model
+    (Series settings, **Voices**) when that is one of them, else on H3 Ref2VA. **Keep the
     model's sound effects under the voice** (on), or the voice alone.
   - **In the cut:** what the cut plays for it: its take's own sound, a dub track or a take's
     sound in its place, or silence. This changes no render (the mouths don't follow it);
@@ -788,12 +790,46 @@ script call for is listed here.
   opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
   on the clipboard, to run it somewhere else.
 - **Voices** has **Generate missing**: a voice sample for each character with none (and
-  none on its way), each a candidate to listen to and pick, as Clone speaks in it.
+  none on its way), each a candidate to listen to and pick, as Clone speaks in it. A
+  character with no voice sample yet takes its first finished one as its sample (the series
+  config gains its `voice_sample`); later ones wait for you to pick.
 - **Dub tracks** (after the refs): the shots that have one, or whose sound is set to dub,
   as shot keyframes list only those there are: its lines, how many it has and its sound.
   **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
   another voice model), or **Sound…** for its whole Sound card. A shot's first dub track
   comes from its Sound card or **Generate dub tracks** with shots selected.
+- **Dialogue, Music, Effects, Ambience** (after the dub tracks; voices and dub tracks are the
+  dialogue's): **Dialogue** is the Dialogue track's **Voices only** for the pass, with **Make
+  voice stems** and how many are split, then every shot in the cut: what the track plays for it
+  (whole, voices, silent), **Whole** and **Voices** to hear each side alone, its own way
+  (**Track's**, **Whole**, **Voices**) and **Split again**. **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
+  mix; a row opens the cue window. A cue in the mix has **plays in the mix**: untick it to
+  silence the cue in this pass's mix and Play all without taking it out (Ctrl+Z undoes it).
+  The **trash** button deletes the cue (below). **Effects** lists every shot with effects made in this pass
+  (picked or not): its takes, which one plays and whether it's stale. A row opens to its takes
+  (fetched then): play one alone, **Pick** it, **Make again** (on a model of your choice),
+  **Mute**, or **No effects**. Then the files on that lane of the pass's mix, where each starts
+  (it moves with its shot) and its level, with a button to show the lanes and one to take it out
+  of the mix (the file stays).
+  **Ambience** lists each place's **ambience bed** first: the place (a location, with its
+  angles and relit versions), its `ambience` words, how many of this episode's shots it plays
+  under, its takes and whether it's made. Open a row (its takes are fetched then) to play the
+  live bed and each take, **Make it** / **Render again** (on the default model, or pick
+  another beside it), click a finished take to make it the bed, or **Mute** the place in this
+  pass's mix. A take is finished as it lands: its first and last 1.5 s off, brought to the bed
+  level. Then the files on the ambience lane, as for Effects. A file goes on from a shot's menu
+  (Sound ▸ Add an effect / ambience from a file) or by dropping it on the lane.
+- **The +** on the Music, Effects and Ambience heads, as on the cast groups, opens a small
+  dialog. **+ Cue**: a new cue over a span of the cut, its first and last shot (or a sequence's
+  button for all its shots; it starts on the shots selected, else the sequence under the
+  playhead) and **Score** or **Song**; **Make the cue** opens it in the cue window. **+ Effects**:
+  the cut's shots by sequence, each sequence with a box for all its shots, ticked to start on
+  the shots without effects (a shot with them shows its take), and the foley model (the
+  default first); **Make effects** queues them. **+ Bed**: the places the cut's shots are at
+  (an angle or a relit version is its place, unless it says its own `ambience`), each saying
+  whether its bed is made and whether it has words; say what's heard there (new words are
+  written to the location's `ambience` in the series config, and the episode rebuilt), pick the
+  model when there's more than one, and **Make it**.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
@@ -1083,7 +1119,9 @@ wins and shows as such. On the standalone page opened on the PC that runs the se
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
-float it, or dock another window beside it.
+float it, or dock another window beside it. **Click the picture** to play or pause it (as
+`Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
+Replace audio preview.
 
 **Play all** has its own **Loop** (the cut starts over at the end; remembered).
 
@@ -1162,7 +1200,13 @@ with their pictures.
 
 The cut as an editable track, along the bottom of the page.
 
-- **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
+- **Drag a clip** to reorder it; **drag its edges** to trim frame by frame. When the mix has
+  music (a cue, a song on the Music lane) or the episode's recording is a song, the cut at the
+  clip's end **snaps to its beats**, a downbeat from further away than a beat; the tip says
+  which ("cuts on the downbeat, bar 12"). Hold **Alt** while dragging to trim frame by frame.
+  Either edge snaps the cut at the clip's end (a head trim moves it too), to the music that
+  stays put while you drag: music anchored to an earlier clip, or to this one when you trim
+  its tail.
 - **Drop a take from the gallery, or a video file**, onto a clip (that shot's take) or between
   two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
   jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
@@ -1183,12 +1227,14 @@ The cut as an editable track, along the bottom of the page.
 - **Double-click** opens the clip; **right-click** is the same context menu as the bin, so
   everything above — new takes, keyframes, locking, audio — is available here too.
 - **Ctrl + wheel** over the track zooms (or the slider).
-- **Turn on the waveform lane** (the wave button) to see the audio under the cut. Useful
-  with a recording attached.
+- **Sound** unfolds the waveforms under the cut: each clip's own sound on the dialogue lane (the
+  recording's, with Play all on it), and the mix's lanes (below).
 - **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
   **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
   says what's running (Assembling…, Adding titles…, Writing the XML…).
-  **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
+  **Export** assembles the pass's review cut into one mp4 (missing shots are skipped); the
+  toast when it's done says its loudness against the target (see FINISHING.md, "The export's
+  loudness"), as a warning when it's off.
   Before anything runs it says what's wrong with the cut: shots with nothing to play (no
   take, a failed one, trims that leave nothing; and whether one is rendering now), takes
   shorter than their dialogue on the recording, and the other pass's takes standing in.
@@ -1214,7 +1260,7 @@ The cut as an editable track, along the bottom of the page.
   **Play all** watches the cut straight from the takes without assembling anything.
 - **Cut** (the menu in the header): undo / redo, **Reset order**, **Clear trims**, copy the
   order, trims and audio from the other pass, **Upscale the cut (2x)…**, **Post-process the
-  cut…**, **Check colour** and the waveforms. The header also counts the clips flagged (click:
+  cut…**, **Check colour** and the sound lanes. The header also counts the clips flagged (click:
   the next one), moved out of script order, and missing refs (click: the Refs tab).
 
 ### Takes from outside
@@ -1252,6 +1298,331 @@ Setting a shot's keyframe from its neighbour is how you make a cut continuous: u
 menu's **Use this frame as the next shot's first frame** on the take you like, and the
 next shot starts where this one ended.
 
+### Sound: the episode's mix
+
+**Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
+where the waveforms are): a thin **hits** lane, then a lane per track: **Dialogue**, **Effects**,
+**Ambience** and **Music** by default, and any you add.
+They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
++12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
+default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level
+you set is the mix's own, 0 dB on Music too; a **double-click** drops it, back to the series
+config's level or the default. Dialogue shows
+each clip's own sound; the other lanes start empty. The mix is the pass's own (`mix.json`
+beside `cut.json`), and assemble renders it into the export,
+with stems beside it.
+
+- **Tracks of your own**: a lane head's **⋮** (or a right-click on the head) renames the track,
+  adds a new one below the lanes, moves it up or down, or deletes it. A new track has a
+  **kind**: Dialogue, Effects, Ambience or Music, which sets its default level and how far it
+  dips under speech (a music track starts at -12 dB and dips 9 dB), and whether its stem
+  joins the M&E (every kind but dialogue). A second music track for a song under the score, a
+  walla track (ambience), an ADR track (dialogue): each its own fader, mute, solo, stem
+  (`<cut>_stems/<name>.wav`) and pair of tracks in the XML. Deleting a track with something on
+  it asks there: move it to another track (one of its kind is offered first) or delete it
+  with the track. The four default tracks can be renamed; Dialogue (the takes' own sound)
+  can't be deleted. Move a block to another track by **dragging it up or down** onto that
+  lane, or with its menu's **Track**. The ambience beds sit on the Ambience track (else the
+  first ambience track), the shots' effects on Effects (likewise).
+- **Right-click a lane** for its menu (it opens above the click near the window's foot): every
+  lane can **Add a sound file here…** and open **Scoring (spotting)…**; Music and the hits lane
+  make a **New cue**; Dialogue has the shot's own sound (its Sound card, **Generate a dub
+  track**, Replace audio), **Voices only** for the track with **Make voice stems**, and the shot's
+  own way (keep its whole sound, or voices only); Effects makes the shot's effects (**Make
+  effects**, on each foley model) and lists the effects takes; Ambience has the bed of the place
+  of the shot under the click: **Make &lt;place>'s ambience bed** when it has words and no bed yet
+  (made at once), **Make &lt;place>'s bed again** and **Open the bed…** when it's made, and **Make
+  &lt;place>'s ambience bed…** when the place has no words (the + Bed dialog, on that place). On a selection, the shot items act on
+  every shot selected. **Double-click an empty spot on a lane** (or a lane's name) to open
+  Scoring. A clip's own menu has the same under **Sound**:
+  **Make effects** (below), **New music cue…** over it (or the shots selected) and **Add music /
+  an effect / ambience from a file…** at its first frame.
+- **Drop a sound file** (wav, mp3, flac, ogg, m4a…) from your computer onto a lane: it's
+  copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
+- **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head
+  keeps the sound where it was, as a clip's trim does); **Esc** cancels. **Right-click** it
+  for its gain (dB), fades in and out (frames), loop, label, **Plays in the mix**, **Clear the
+  volume points**, or Delete. **Plays in the mix** unticked mutes it where it is (saved at once,
+  undone with Ctrl+Z): drawn faint, silent in Play all and the export (its stem and the loudness
+  too), and laid switched off in the Premiere / Resolve XML; tick it to hear it again.
+- **Fade handles**: a block's fades have a small **white square** at each of its top corners,
+  as a picture clip's fades have white circles (the volume points are pink dots, so the two
+  don't mix up). A block with no fade shows its squares when you hover it, tucked in from the
+  corners; **drag one inwards** for a fade in or a fade out, with a tip saying how long (frames
+  and seconds) and what it was; **Esc** cancels. With a fade on, the square sits at its inner
+  end and a white ramp is drawn over the block: drag it further in or back out, and to the
+  block's edge to take the fade off. A shot's effects have them too, at the edges of what's
+  heard (inside a trim). Each drag is one undoable edit; the menu's numbers stay.
+- **Volume points** shape a block's level: the pink line across it (dB on its gain; a faint line
+  marks 0 dB; drawn -24 to +12). **Double-click on the line** for a point there, at the line's
+  level; **drag a point** up or down for its dB (0.5 dB a step, half a dB per pixel moved) and
+  along to move it to the shot and frame under it, with a tip saying both (**Esc** cancels);
+  **right-click a point** to delete it. Between points the level slides, before the first and
+  after the last it holds, as the export plays it. A cue take picked with its gain fitted brings
+  its points with it. The cue window's arc is green: that's what was asked of the music, this
+  is its level in the mix.
+- **Ambience beds** sit on the Ambience lane as dashed blocks named for their place: each run of
+  shots set in one place (a location, its angles and relit versions) plays its bed, looped,
+  crossfaded half a second into the next place's at the cut. They are laid from the cut and the
+  series config, so they follow every trim and reorder and can't be dragged; a place not made
+  yet is drawn hollow. **Right-click** one for the place's **level** (dB, every run of it, on
+  the Ambience fader), **Mute this place**, or **Open its ref…**; a **double-click** opens the
+  ref too. A file you put on the lane plays over the beds. A location gets a bed from its
+  **Ambience** words (its form, or `ambience` in series.json).
+- **Effects from the picture**: a clip's **Sound ▸ Make effects** makes its sync sound
+  (footsteps, a door, the cups on the table) from the frames of the take the cut plays, all of
+  it, on the Effects lane; with several clips selected, one take for each of them. It's never
+  automatic: many takes already have their model's effects in their own sound, so ask only for
+  the shots that need them (a dubbed or cloned shot, a model with no sound). The default model
+  is MiniMax H3 (about 10 s a shot once loaded); **Make effects on…** offers the others
+  installed (LTX-2.3 Foley, HunyuanVideo-Foley XL: a minute or two). The words are the shot's
+  `sound:` line, else its action: give a shot a `sound:` line ("cup taps on formica, hands
+  clapping") for effects worth having, since an action written for the picture can mislead
+  ("…looks up, about to sing" gets a voice). The job shows in the Jobs list, and a toast says
+  when it lands; each new take is picked into the mix as it lands (its level and mute kept); an earlier one is a pick away.
+- **A shot's effects** sit on the Effects lane at its clip, named for the shot and the model,
+  laid from the cut so they follow its trims and can't be moved. **Drag an edge** to trim it
+  (voices creeping in at the end of a take, where it should just die away): the block stays
+  where it is and as long, the trimmed end is drawn hatched and is **silent**; the tip says how
+  many frames, **Esc** cancels. Its **volume line** works as an item's: **double-click** on the
+  line for a point, drag a point up or down (its dB) or along (its frame), **right-click** a
+  point to delete it. **Right-click** the block for its
+  **level** (dB, on the Effects fader), **Trim head** and **Trim tail** (frames), **Fade in** and
+  **Fade out** (frames, at the edges of what's heard: Apply or Enter), **Reset trims and levels**
+  (its whole clip heard again, its points gone; its level stays), **Mute**, **No effects for** the shot, its **takes**
+  (fetched when the menu opens: ▶ to hear one alone, **Pick** to put it in the mix; the newest
+  first) and **Make again** on the model chosen beside it. When the cut plays another take of
+  the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
+  warning, left out of the mix and the export until they're made again, or **Keep as it is**
+  plays them anyway. A new take (Make again) is picked as it lands, keeping the level, trims,
+fades and points you gave the shot; the earlier ones stay in the menu to pick back. Every
+change is one undoable edit (Ctrl+Z), heard in Play all, the export and its effects stem, and
+in the XML as the clip trimmed to what's heard.
+- **Voices only** (right-click the Dialogue lane, or its head's **⋮**, or the Refs tab's Dialogue): each clip plays its take's **voice stem**,
+  its sound with the model's own music and room tone split off (Hybrid Demucs on local
+  ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
+  cut. **Make voice stems** beside it splits every take the cut plays (one job a take, in Jobs,
+  about a second each once loaded) and says how many are split ("8/10 shots split"); a take
+  rendered again is split again when you ask. With it on, a clip playing its stem has a small
+  mark on the Dialogue lane; a shot the script gives **no lines** is **silent** there (its
+  stem would hold the model's ad-libs and walla: drawn faint); a shot whose stem is missing or
+  stale **plays its whole sound**, with a warning mark, never silence. A clip's **Sound** menu
+  sets the shot its own way: **Keep its whole sound**, **Voices only** (its stem even with no
+  lines: a gasp the model gave it) or **Split its voice again**; click the checked one again
+  to go back to the track's. Play all, the export, its stems, the XML (the clip's sound is the
+  stem's wav) and the ducking all hear the same. A clip given sound of its own (Replace
+  audio…) keeps it. With the takes' own effects gone, make effects for the shots that need them.
+- **The music's beats** are drawn faintly across the Music lane (downbeats taller), where a
+  trimmed clip's cut snaps to (above). A cue take's come from its measured downbeat at the
+  cue's tempo; a song or any other file on the lane is measured once (about a second a minute
+  of it) and kept beside it as `<file>.beats.json`; with no music on the lane, the episode's
+  recording's, when it has a steady beat (a song does; speech doesn't). Zoomed out, the beats
+  thin to the downbeats, then to none.
+- **Hits** are the moments a cue lands on ("the door bursts"). **+** adds one at the Play all
+  playhead, a **double-click** on the hits lane adds one there; drag it to move it,
+  right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the
+  marker's colour) and whether it must land.
+- **Duck regions** change the ducking for a stretch. **Right-click any lane ▸ Duck region
+  here** makes one over the shot under the pointer, head to tail (with several clips
+  selected, **Duck region over the N shots selected**); or **Shift+drag** along the hits lane
+  for one over just that stretch. A new region is **score forward**: the music doesn't dip
+  under the lines there (it carries the scene) and the dialogue is lowered 4 dB instead. It's
+  drawn as a striped span down all the lanes, green for score forward and blue for a dip of
+  its own, with a tab on the hits lane saying what it does ("Score forward", "Dip -18 dB";
+  hover it for the whole of it). **Drag the tab's edges** to move where it starts and ends;
+  **right-click or double-click the tab** (or right-click a lane over it ▸ **Duck region
+  here: …**) for its menu: **Score forward** or **Its own dip** (how far the music dips under
+  the lines there: deeper than the track's -9 dB for a busy scene, or less), the ambience's
+  dip (empty: the track's own) and how far the dialogue is lowered; **Apply**, or **Delete**.
+  Its edges are anchored to shots, as everything here is, so it moves with the cut. Play all
+  and the export both follow it; where two overlap, the one made later wins. The spotting
+  sheet's map shows them on its Music rows.
+- Everything on the lanes is anchored to **a shot and a frame of its take**, not to a time: a
+  trim or a reorder carries it with its shot, so a hit stays on its action. Moving a block
+  re-anchors it to the shot it now starts in. An item whose shot leaves the cut drops out
+  of the mix (said so on export).
+- Each change is saved at once and is one step of the timeline's undo (`Ctrl+Z` undoes cut
+  and mix edits in the order you made them).
+- **Play all plays the mix**: every item at its gain, fades and volume points, the ambience
+  beds looped under their shots, each shot's picked effects at its clip, each lane at its
+  fader, mute and solo, and the music and ambience **ducked under speech as the export ducks
+  them**: the server works out where someone is speaking from the clips' own sound (fetched with
+  the mix, again when the cut or a take changes) and each lane dips by its duck depth there
+  (music -9 dB, ambience -6 dB by default; a duck region changes it for a stretch). The
+  dialogue fader turns the clips' own sound down (not up: a video plays at most at its own
+  level), as does a region that lowers the dialogue. With **Voices only**, a clip playing its
+  stem is muted and the stem plays in its place, on the dialogue fader.
+
+### The spotting sheet: the episode's music
+
+**Scoring** in the timeline's head (or any sound lane's menu, **Scoring (spotting)…**, or a double-click on a lane) opens
+the scoring window on its **Spotting** tab, the episode's view of its music: where cues go
+before they're shaped ([SCORING.md](/scoring), "The spotting sheet"). Its other tabs are the
+selected cue's **Score**, **Arc** and **Orchestration & takes** (the cue window's); with no cue
+in the episode yet, one of them opens the **New cue** dialog (+ Cue's) and the cue opens on that
+tab. The two views share the window's place and size. Spotting is
+Play all's player in that window (it remembers its place; `Esc` closes it), so the mix plays
+under the picture as Play all plays it, and every Play all key works in it.
+
+- **The picture and its transport**: play / pause, a frame back or on (`,` `.`), **◀ Hit** /
+  **Hit ▶** (or `[` `]`) to the hit before or the next, **+ Hit at playhead** (the same as the
+  Hits lane's **+**: name it and set its kind on the lane), the playhead's timecode and the
+  hit it's on.
+- **The music map**: the whole episode, a row per sequence in cut order (a sequence the cut
+  splits is two rows), each with its shots, the **hits** coloured by kind (as on the Hits
+  lane), **Music** (the cues: label, score or song, the take in the mix or *not placed*,
+  *stale* when the cut has moved under it), **Ambience** (the places' beds) and **Effects**
+  (the shots', stale ones marked). Click a cue to select it, then a tab (or double-click it)
+  to shape it, and the **Spotting** tab to come back; click a hit, or anywhere on a row, to go
+  there. **Right-click a row** (its head, or any lane at the frame under the pointer) for **New
+  cue here** (to the end of that shot), **New cue over &lt;sequence>**, **New cue from here to the
+  end of &lt;sequence>**, **Mark a hit here**, **Make effects for &lt;sequence>** and, when its shots
+  share a place, **Make &lt;place>'s bed** (or its dialog when the place has no words); a new cue
+  opens on the Score tab. **Right-click a cue** for **Open in Score**, its arc, its
+  orchestration and takes, **Render its takes**, **Plays in the mix** (when it's in the mix: a
+  muted cue's block is faint and tagged *muted*) or **Delete cue…**.
+- **The selected cue** (on the right): its **hits table** (name, kind, must, anchor, the cut's
+  timecode, the bar and beat it lands on, how far the fit leaves it off its line, and each
+  measured take's error in frames, best take first, the one in the mix marked ●; orange past
+  2 frames); a click on a row takes the picture there. **The tempo**: asked, fitted, the
+  stretch, the worst must-hit, and **the nearest other tempos** that land the hits (each with
+  its worst must-hit error): a click holds the cue at that tempo (its bpm set, **fixed**), and
+  its takes go stale. **Takes**: ▶ plays one under the picture from the cue's in point, in the
+  cue's place, without changing the mix (**Back to the mix** stops it); **Render** makes new
+  takes; a YuE2 take's line says what it planned. **Theme**: the cue's theme, set as in the cue
+  window. **Direction**: the series' score direction and the script's `music:` notes.
+- **Stale cues** at the foot: every cue whose take in the mix the cut has moved under (or, with
+  none picked, all of whose takes it has), with **Render** each, or **Render all stale**.
+- The **?** in its head shows how to use it.
+
+### The cue window: a piece of score
+
+A **cue** is music written to the cut: its tempo is fitted so its hits fall on bar lines,
+and it is rendered as several takes, measured and ranked ([SOUND.md](https://github.com/bgstratt/seriesmith/blob/main/docs/SOUND.md)). To make
+one, select the shots it plays over and **right-click the Music lane (or the hits lane) →
+New cue over the shots selected…**, or right-click where it should start for **New cue
+here**, which runs to the end of that shot. A cue's block on the Music lane shows a note
+icon; **double-click it** to open the cue. The window takes the viewer's place; **Timeline**
+or **Esc** goes back, and the pass toggle switches it with the rest of the editor.
+
+**Muting or deleting a cue.** To stop hearing a cue but keep it, untick **plays in the mix**
+(the Refs tab's Music row, its block's menu on the Music lane, or its menu on the spotting map):
+it stays where it is, faint, silent in Play all and the export, and Ctrl+Z brings it back. To
+be rid of it, **Delete cue…** (the trash in the cue window's head, on its Refs tab row, or its
+menu on the spotting map) asks first ("m03 and its 5 takes go to the episode's _history folder;
+it's taken out of the proxy and final mixes"), then moves its folder (its spec and every take)
+to the episode's `_history/cue-m03.<date-time>/` and takes it out of both passes' mixes. Ctrl+Z
+can't bring that back: move the folder back to `sound/m03/` by hand. It's refused while a take
+of it is still queued or rendering (cancel it in Jobs) and while another cue uses it as its
+theme. The cue window showing it goes back to the spotting sheet.
+
+The **Score** tab lays everything on one bar grid at the cue's tempo, from its pre-roll (the
+bars before its in point, hatched) through its tail, scrolling together:
+
+- **Picture**: the shots it plays over. **Hits**: each hit in its span, coloured by kind, with
+  the bar and beat it lands on and how far off its line the tempo fit leaves it (frames;
+  a dashed hit may miss). The **ruler**: bar numbers, beats as ticks.
+- **Sections**: the cue's stretches in whole bars, worked out from the hits until you change
+  them. **Click** one to edit it on the right; **drag an edge** to move it (whole bars).
+- **Intensity**: the arc, energy 1 (sparse) to 5 (fortissimo), the line the model is told
+  and the takes are ranked against. With no points of its own it is the line the sections
+  imply (hollow points); **drag** a point (to a beat, half a level) and they become the
+  cue's own; **double-click** adds one, **right-click** removes one, the **×** by the lane's
+  name goes back to the sections'. It is drawn in green: the timeline's gain is another
+  curve (dB, the mix), and a crescendo drawn there isn't one the music plays.
+- **Takes**, best first: each its waveform from its first bar line, its loudness per bar
+  (white, dashed) over the arc, then each hit's error in frames (orange past two; **—**:
+  nothing in the music there), its shape error (how far it is from the arc), its score
+  (what ranks it), the tempo heard, and **stale** when the cut has moved since it was made
+  (hover for what). **▶** plays it with a playhead over the grid; **Pick** puts it on the
+  Music track of the pass's mix, from the cue's in point, its level fitted to the arc with
+  breakpoints (at most 6 dB a bar). A YuE2 song's take also says what it planned (**Plan: 44
+  bars of 2/4, intro, verse, chorus · 0.6 s short of it**; hover it for the tempo the plan was
+  written at and sung at) and draws its planned sections along the bottom of its waveform; a
+  take made with a theme names it.
+- **Render N takes** queues that many, each its own seed; they fill in as they land.
+
+The panel on the right edits the **section** selected (its name; its words: instruments,
+texture, direction; its energy from and to; its lyrics, for a model that sings) or, with
+none selected, the **cue** (label, model, its **Theme**, tempo and whether it's fixed, meter,
+key, style, tail, takes a render makes) and the **fit**: the tempo asked and fitted, the stretch, and the
+worst must-hit's error, or why it can't be planned. Below either is **exactly what the
+model is told**, and the script's `music:` notes it took in. Each change is saved and the
+cue planned again (typing saves when you pause). A YuE2 song with no lyrics says so under the
+fit: it can't render until a section has some.
+
+**Theme** carries another cue's melody into this one (the leitmotif): **none**, **another cue's
+take** (the cue, then one of its finished takes, fetched when you pick the cue) or **a sound
+file** (a path inside the episode or the show's folder, typed or **Browse…**). Under it, how the
+cue's model hears it: YuE2 sings its melody (a YuE2 take's own plan, or a transcription of
+anything else), ACE-Step takes its sound as its timbre; Stable Audio 3 takes none, says so, and
+offers **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song). A changed
+theme makes the takes stale.
+
+**Meter** is a choice of 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8 and 12/8, or **Other…** for your own
+(beats/unit, 1 to 16 beats of a 2, 4, 8 or 16); the grid's beats to the bar are its top number.
+ACE-Step's time signature takes 2, 3, 4 or 6 beats, so for another meter it says which it gets
+(the meter as written goes in its tags). **Key** is none (the model's choice), one of the 12
+major or 12 minor keys, or **Other…** for your own text (a mode, "D dorian": only Stable Audio
+reads a key that isn't major or minor).
+
+Each tab has a **?** in the window's head: a strip of numbered steps for that tab and a link
+to the full guide ([SCORING.md](/scoring)). Close it with its **×**; it stays as you left it,
+per tab. A cue with no takes yet links the guide too.
+
+The **Arc** tab is the intensity lane large, on the same bar grid, with the picture, the hits
+and the sections above it for reference (edit the sections in Score). Draw the arc first:
+
+- **Draw**: drag across the lane; the stroke is put on beats and simplified into points, and
+  replaces the points it spans. **Points**: as in Score (drag one, double-click adds one,
+  right-click removes one). **Smooth** eases each point toward its neighbours.
+- **Shapes** replace the points over the cue's span (its in point to its out point; beyond
+  them the arc holds): **slow burn**, **build and release**, **sting**, **pulse**, and **from
+  the script** when the shots it plays over have `music:` notes (a gentle default shape: the
+  notes reach the model as words, not as a curve).
+- **Snap peaks to hits** moves each peak of the arc to the nearest **arrive** (or turn) hit
+  and each low to the nearest **drop** (or turn), within a bar, so the climax lands on the
+  reveal.
+- **Sections from the arc** cuts the sections where the arc turns (its peaks and lows, on the
+  nearest bar line), each its energy from and to from the arc. It asks before replacing
+  sections you've set (their names and words go).
+
+Beside it, **What the model hears**: each section's words and its energy as the model is told
+them ("rising from quiet to fortissimo, building"), then the prompt as it stands. Sections are
+the finest a model follows, so it flags what it can't: a **peak or dip inside a section**
+(**Split at bar N** makes it an edge) and, once the arc has points of its own, a section whose
+words don't say what the arc does there (Sections from the arc follows it). The arc is kept by
+ranking the takes against it and fitting the picked one's gain to it, not by the words alone
+([SOUND.md](https://github.com/bgstratt/seriesmith/blob/main/docs/SOUND.md)).
+
+The **Orchestration & takes** tab has the **orchestration grid**: a row per family of
+instruments (strings, solo horn, brass, woodwinds, timpani/percussion, piano, harp, choir to
+start with; **+ Family** adds one, type in its label to rename it, **×** removes it) and a
+column per bar, under the ruler and the sections. Pick a **brush** (off, under, present, lead)
+and click a cell, or drag across bars and rows to paint them; each stroke is one save. Each
+section is told who plays in it, strongest first, after its own words ("strings present,
+brass lead"); a change inside a section can't be followed, so the strongest level there wins,
+and the cells that won't be heard as painted are hatched.
+
+Below the grid are the **takes**, as in Score. **Drag across bars of a take** to select them,
+then:
+
+- **Comp bars a-b from…** another finished take (pick it in the list): a new take, this one
+  with those bars from the other, spliced on the bar lines (both are at the cue's tempo),
+  measured and ranked with the rest, labelled "comp of t03 + t01 bars 5-8".
+- **Lower bars a-b with breakpoints…** by the dB you set, for the take that's in the mix:
+  volume points on the cue's block on the Music lane (a short ramp at each end, the level
+  either side kept), one step of the timeline's undo, which you can drag there afterwards.
+- **Repaint bars a-b** (ACE-Step takes): those bars made again on the take's own model, its
+  prompt and seed, the rest of the take its own (its audio spliced back at the bar lines with
+  short crossfades): a new take, queued, labelled "repainted bars 5-8 from t03", measured and
+  ranked with the rest. Unticked, **new music** off, it plays the same music again in those
+  bars on the take's beat; ticked, it writes new music there, which can leave the beat over
+  four bars or more: the take shows **on the beat n/m (k)**, its onsets on the take's beats
+  against the original's k there (orange when it fell off). A take of a model that can't
+  repaint (YuE2, Stable Audio 3) has the button greyed, saying why. It needs seriesmith's
+  `SeriesmithAudioSpanMask` node in ComfyUI: restart ComfyUI after updating seriesmith.
+
 ### Finishing: upscale, post, master
 
 A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the
@@ -1280,10 +1651,11 @@ These work while the timeline or Play all has focus, and never while you are typ
 | `M` | Flag or unflag the clip to come back to (the one on screen in Play all) |
 | `Shift+M` | Go to the next flagged clip |
 | `Alt+←` `Alt+→` | Move the selected clip in the cut |
-| `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut |
+| `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut (and the mix) |
 | `Ctrl + wheel` | Zoom the track |
 | `←` `→` | Step candidates, in the Viewer |
-| `,` `.` | Step a frame back / forward, in the Viewer |
+| `,` `.` | Step a frame back / forward, in the Viewer, Play all and the spotting sheet |
+| `[` `]` | The hit before / the next, in the spotting sheet |
 | `Escape` | Close a menu, or cancel a drag |
 | `Ctrl+S` | Save, in the Script and Series config windows |
 

@@ -282,6 +282,8 @@ describe("mock: Phase 8.5", () => {
       target: "krea2", target_source: "default", keyframe_target: "flux2_klein_edit", keyframe_target_source: "default",
       // Phase 9c-B: the audio target voices generate with
       voice_target: "ltx2_voice", voice_target_source: "default",
+      // the dub track's model (the voice model when it's a video one)
+      dub_target: "minimax_h3_ref2va", dub_target_source: "default",
     });
     const k = (id: string) => refs.find((r) => r.id === id)!;
     expect(k("shot:sh060:first")).toMatchObject({ need: "required", method: "generate", target: "wan22_i2v", exists: false, can_generate: true });

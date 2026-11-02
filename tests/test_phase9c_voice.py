@@ -451,11 +451,29 @@ class VoicePickTest(Episode):
         self.assertIsNotNone(d.cleared)
         self.assertTrue(d.moved)
 
-    def test_auto_pick_leaves_voices_alone(self):
-        ref = R.find_ref(self.s, "voice:ada")
+    def test_auto_pick_takes_a_voice_with_no_sample(self):
+        # a character with no voice sample named takes its first finished voice, and the
+        # series config gains the line; one with a live sample is left alone
+        rex = R.find_ref(self.s, "voice:rex")
+        self.assertEqual(R.auto_pick(self.s, rex), [])                 # nothing made yet
+        t = self.sample("voice:rex")
+        self.sample("voice:rex")
+        res = R.auto_pick(self.s, rex)
+        self.assertEqual([r.take.take for r in res], [t.take])
+        self.assertTrue(res[0].series_changed)
+        cfg = json.load(open(self.s.config_file, encoding="utf-8"))
+        self.assertEqual(cfg["subjects"]["rex"]["voice_sample"], "refs/voices/rex.wav")
+        rex = R.find_ref(R.load_series(self.ep), "voice:rex")
+        self.assertEqual(R.auto_pick(self.s, rex), [])                 # live now: left alone
+
+    def test_auto_pick_leaves_a_live_or_cleared_voice_alone(self):
+        ada = R.find_ref(self.s, "voice:ada")
+        t = self.sample("voice:ada")
+        R.pick_take(self.s, ada, None, t.take)
         self.sample("voice:ada")
-        # picking a voice can write the series config, so it is never automatic
-        self.assertEqual(R.auto_pick(self.s, ref), [])
+        self.assertEqual(R.auto_pick(self.s, ada), [])                 # its sample is live
+        R.clear_pick(self.s, ada)
+        self.assertEqual(R.auto_pick(self.s, R.find_ref(self.s, "voice:ada")), [])   # cleared: your choice
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +558,37 @@ class VoiceDefaultsTest(Episode):
         with self.assertRaises(R.RefError):
             R.set_image_defaults(self.ep, {"voice_target": "krea2"})
 
+    def test_one_list_of_voice_models(self):
+        """The voice model is one list (TG.voice_targets): the audio targets and the video
+        targets whose target.json says they render a dub track. A video one is the dub
+        track's model and leaves voice samples on the default audio target."""
+        ids = {t.id: t.kind for t in TG.voice_targets()}
+        for tid in (VOICE, "minimax_h3_ref2va", "fasth3_omni", "ltx2"):
+            self.assertIn(tid, ids)
+        for tid in ("wan22_i2v", "minimax_h3_fl2va", "krea2"):
+            self.assertNotIn(tid, ids)
+        self.assertTrue(TG.load_target("fasth3_omni").capabilities()["dub_track"])
+        self.assertFalse(TG.load_target("wan22_i2v").capabilities()["dub_track"])
+        cfg = {"refs": {"voice_target": "fasth3_omni"}}
+        self.assertEqual(TG.refs_block(cfg)["voice_target"], "fasth3_omni")
+        self.assertEqual(TG.audio_target(cfg).id, TG.DEFAULT_AUDIO_TARGET)   # samples: audio
+        self.assertEqual(TG.dub_target(cfg), "fasth3_omni")
+        self.assertEqual(TG.dub_target({"refs": {"voice_target": VOICE}}), TG.DEFAULT_DUB_TARGET)
+        with self.assertRaises(ValueError):
+            TG.refs_block({"refs": {"voice_target": "wan22_i2v"}})          # no dub track
+        # the defaults: an audio choice is the samples', a video one the dub track's
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["dub_target"], d["dub_target_source"]), (TG.DEFAULT_DUB_TARGET, "default"))
+        R.set_image_defaults(self.ep, {"voice_target": "ltx2"})
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["voice_target"], d["voice_target_source"]), (VOICE, "default"))
+        self.assertEqual((d["dub_target"], d["dub_target_source"]), ("ltx2", "editor"))
+        self.assertEqual(J.dub_target(self.ep), "ltx2")
+        with self.assertRaises(R.RefError):
+            R.set_image_defaults(self.ep, {"voice_target": "wan22_i2v"})
+        R.set_image_defaults(self.ep, {"voice_target": None})
+        self.assertEqual(J.dub_target(self.ep), J.VOICE_TARGET)
+
     def test_per_ref_override(self):
         ref = R.find_ref(self.s, "voice:ada")
         ov = R.load_overrides(ref.home)
@@ -599,10 +648,13 @@ class VoiceApiTest(ApiTest):
         self.assertEqual((t["status"], t["source"]), ("ok", "generated"))
         self.assertTrue(t["audio"].endswith(".wav"))
         self.assertIsNone(t["image"])
-        # picking writes the series config
+        # rex had no voice sample: the listing took his first voice and wrote the series
+        # config (auto-pick), so picking it again changes nothing there
+        cfg = json.load(open(os.path.join(self.ep, "series.json"), encoding="utf-8"))
+        self.assertEqual(cfg["subjects"]["rex"]["voice_sample"], "refs/voices/rex.wav")
         out = self.ok(A.put_refs_pick(self.ctx, {"ep": self.ep, "ref": "voice:rex",
                                                  "take": 1}))
-        self.assertTrue(out["series_changed"])
+        self.assertFalse(out["series_changed"])
         self.assertEqual(out["path"], "refs/voices/rex.wav")
         self.assertTrue(out["exists"])
         cfg = json.load(open(os.path.join(self.ep, "series.json"), encoding="utf-8"))

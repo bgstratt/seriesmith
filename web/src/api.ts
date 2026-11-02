@@ -9,6 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
+import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
   MatchBy,
@@ -17,14 +18,14 @@ import type {
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
-  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult,
+  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult, VocalsResult,
   MasterJob, MasterResult, UpscaleOptions, UpscaleRequest, UpscaleResult,
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  DubSources, ShotSound,
+  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -162,6 +163,48 @@ export interface Api {
   discard(take: TakeRef): Promise<DiscardResult>;
   pick(req: PickRequest): Promise<{ cut: CutFile }>;
   putCut(ep: string, pass: Pass, entries: CutEntry[]): Promise<{ cut: CutFile }>;
+  /** GET /seriesmith/mix: the pass's mix, the series config's sound defaults under it, and the defaults. */
+  getMix(ep: string, pass: Pass): Promise<MixResult>;
+  /** PUT /seriesmith/mix: replace the pass's mix; answers it as stored (defaults dropped). */
+  putMix(ep: string, pass: Pass, mix: Mix): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/mix/duck: how much someone is speaking, 0..1 per `step` seconds of the cut (Play all ducks with it). */
+  getMixDuck(ep: string, pass: Pass): Promise<{ step: number; curve: number[] }>;
+  /** GET /seriesmith/mix/beats: each music item's beat grid and the recording's (the timeline snaps trims to them). */
+  getMixBeats?(ep: string, pass: Pass): Promise<MixBeats>;
+  /** GET /seriesmith/ambience: every place's ambience bed (a ref each), without its takes. */
+  ambience?(ep: string): Promise<{ beds: AmbienceBed[]; target: string | null }>;
+  /** GET /seriesmith/refs/one: one ref with its takes (an ambience bed's row, when it opens). */
+  refsOne?(ep: string, ref: string): Promise<Ref>;
+  /** GET /seriesmith/fx: one shot's effects takes with stale state (fetched when its menu opens). */
+  fxTakes?(ep: string, pass: Pass, shot: string): Promise<FxShot>;
+  /** GET /seriesmith/fx/shots: the shots with effects takes in the pass (the Refs tab's Effects). */
+  fxShots?(ep: string, pass: Pass): Promise<{ shots: FxShotSummary[] }>;
+  /** POST /seriesmith/fx/render: effects for those shots from the cut's takes, on the queue. */
+  renderFx?(req: { ep: string; pass: Pass; shots: string[]; target?: string | null; n?: number }): Promise<{
+    queued: { shot: string; take: number; job: string; seed: number; target: string }[]; skipped: { shot: string; why: string }[] }>;
+  /** POST /seriesmith/voices: the cut's takes split into their voice stems, on the queue (shots: default the whole cut). */
+  makeVoices?(req: { ep: string; pass: Pass; shots?: string[]; redo?: boolean }): Promise<{
+    queued: { shot: string; take: number; job: string }[]; skipped: { shot: string; why: string }[] }>;
+  /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
+  pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
+   * `pass`, each planned against that pass's cut too (its tempo, the take in the mix, what's stale). */
+  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[] }>;
+  /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
+  getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
+  /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
+  putCue(ep: string, cue: CueSpec): Promise<{ spec: CueSpec }>;
+  /** DELETE /seriesmith/cue: the cue's folder (spec, takes) moved to the episode's _history/,
+   * its items taken out of every pass's mix; 409 while a take of it is on the queue. */
+  deleteCue(ep: string, cue: string): Promise<{ cue: string; moved_to: string; takes: number; mixes: Pass[] }>;
+  /** POST /seriesmith/cue/render: queue `takes` takes (absent: its model's preset's). */
+  renderCue(req: { ep: string; pass: Pass; cue: string; takes?: number; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number }[] }>;
+  /** POST /seriesmith/cue/pick: a take as the cue's item on the music track (gain: fit its level to the arc). */
+  pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
+  /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
+  compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
+  /** POST /seriesmith/cue/repaint: a new take queued, take `take` with the cue's bars [a, b) made again on its own model (`fresh`: new music there), the rest kept. */
+  repaintCue(req: { ep: string; pass: Pass; cue: string; take: number; bars: [number, number]; seed?: number; fresh?: boolean; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number } }>;
   /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
@@ -207,6 +250,8 @@ export interface Api {
   refFileUrl(ep: string, path: string, version?: string | null): string;
   /** GET /seriesmith/presets: the relight and look presets the editor offers as pictures. */
   presets(): Promise<PresetList>;
+  /** GET /seriesmith/presets?kind=cue: the cue window's presets ([] from a server without them). */
+  cuePresets(): Promise<CuePreset[]>;
   /** A preset's sample picture (GET /seriesmith/presets/image), by the name presets gave. */
   presetImageUrl(name: string): string;
   /** POST /seriesmith/presets/own: keep one of your own looks or relights */
@@ -293,6 +338,10 @@ export interface Api {
   clearTrack(ep: string, pass?: Pass): Promise<TrackResult>;
   /** POST /seriesmith/align: run align (a 409's ApiError.data is an AlignMissing). */
   align(req: AlignRequest): Promise<AlignResult | { job: AlignJob }>;
+  /** POST /seriesmith/vocals: make the recording's vocal stem (queued on local ComfyUI). */
+  makeVocals(ep: string, redo?: boolean): Promise<VocalsResult>;
+  /** POST /seriesmith/track/dub_from: where each dub shot's window is cut from. */
+  setDubFrom(ep: string, dubFrom: "recording" | "vocals", pass?: Pass): Promise<TrackResult>;
   /** GET /seriesmith/align/job: the episode's align on the queue (or the last one), null: none */
   alignJob(ep: string): Promise<{ job: AlignJob | null }>;
   putRefOverride(req: RefOverrideRequest): Promise<{ override: RefOverrideResult }>;
@@ -367,6 +416,15 @@ export interface RefDefaultFields {
   keyframe_target?: string | null;
   voice_target?: string | null;
 }
+
+/** mix.py's defaults, for a server that answers without them. */
+export const MIX_DEFAULTS: MixResult["defaults"] = {
+  tracks: ["dialogue", "effects", "ambience", "music"],
+  gain_db: { dialogue: 0, effects: 0, ambience: 0, music: -12 },
+  duck_db: { effects: 0, ambience: -6, music: -9 },
+  duck: { threshold_db: -45, attack_ms: 60, release_ms: 450 },
+  loudness: { target_lufs: -16, true_peak_db: -1 },
+};
 
 /** Phase 9d: POST /seriesmith/audio/import as multipart/form-data. */
 export interface ClipAudioUploadRequest {
@@ -574,6 +632,47 @@ export function createHttpApi(t: Transport): Api {
     discard: ({ ep, pass, shot, take }) => call("POST", "/seriesmith/discard", { ep, shot, take, pass }),
     pick: (req) => call("PUT", "/seriesmith/pick", req),
     putCut: (ep, pass, entries) => call("PUT", "/seriesmith/cut", { ep, pass, entries }),
+    getMix: async (ep, pass) => {
+      const r = await get<Partial<MixResult>>(`/seriesmith/mix?${qs({ ep, pass })}`);
+      // everything the server sends (places, track_list, files...), the parts the editor leans on made safe
+      const { voices, ...rest } = r ?? {};
+      return { ...rest, mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) },
+               beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [],
+               ...(voices && Array.isArray(voices.shots) ? { voices } : {}) };
+    },
+    fxTakes: (ep, pass, shot) => get(`/seriesmith/fx?${qs({ ep, pass, shot })}`),
+    fxShots: (ep, pass) => get(`/seriesmith/fx/shots?${qs({ ep, pass })}`),
+    renderFx: (req) => call("POST", "/seriesmith/fx/render", req),
+    pickFx: (req) => call("POST", "/seriesmith/fx/pick", req),
+    makeVoices: (req) => call("POST", "/seriesmith/voices", req),
+    ambience: async (ep) => {
+      const r = await get<Partial<{ beds: AmbienceBed[]; target: string | null }>>(`/seriesmith/ambience?${qs({ ep })}`);
+      return { beds: Array.isArray(r?.beds) ? r.beds : [], target: r?.target ?? null };
+    },
+    refsOne: (ep, ref) => get(`/seriesmith/refs/one?${qs({ ep, ref })}`),
+    putMix: (ep, pass, mix) => call("PUT", "/seriesmith/mix", { ep, pass, mix }),
+    getMixDuck: async (ep, pass) => {
+      const r = await get<Partial<{ step: number; curve: number[] }>>(`/seriesmith/mix/duck?${qs({ ep, pass })}`);
+      return { step: typeof r?.step === "number" && r.step > 0 ? r.step : 0.05, curve: Array.isArray(r?.curve) ? r.curve : [] };
+    },
+    getMixBeats: async (ep, pass) => {
+      const r = await get<Partial<MixBeats>>(`/seriesmith/mix/beats?${qs({ ep, pass })}`);
+      return { items: Array.isArray(r?.items) ? r.items : [], recording: r?.recording ?? null };
+    },
+    cues: async (ep, pass) => {
+      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
+      return { cues: Array.isArray(r?.cues) ? r.cues : [] };
+    },
+    getCue: async (ep, pass, cue) => {
+      const r = await get<Partial<CueResult> & { spec: CueSpec }>(`/seriesmith/cue?${qs({ ep, pass, cue })}`);
+      return { spec: r.spec, plan: r.plan ?? null, plan_error: r.plan_error ?? null, takes: Array.isArray(r.takes) ? r.takes : [] };
+    },
+    putCue: (ep, cue) => call("PUT", "/seriesmith/cue", { ep, cue }),
+    deleteCue: (ep, cue) => call("DELETE", `/seriesmith/cue?${qs({ ep, cue })}`),
+    renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
+    pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
+    compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
+    repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {
@@ -630,6 +729,10 @@ export function createHttpApi(t: Transport): Api {
       const list = <T,>(v: T[] | undefined) => (Array.isArray(v) ? v : []);
       return { relight: list(r?.relight), look: list(r?.look), framing: list(r?.framing), camera: list(r?.camera),
         look_builder: list(r?.look_builder) };
+    },
+    cuePresets: async () => {
+      const r = await get<{ cue?: CuePreset[] }>("/seriesmith/presets?kind=cue");
+      return Array.isArray(r?.cue) ? r.cue : [];
     },
     presetImageUrl: (name) => t.url(`/seriesmith/presets/image?${qs({ name })}`),
     presetSaveOwn: (req) => call("POST", "/seriesmith/presets/own", req),
@@ -701,9 +804,12 @@ export function createHttpApi(t: Transport): Api {
       if (req.model) body.model = req.model;
       if (req.snap === false) body.snap = false;
       if (req.dry_run) body.dry_run = true;
+      if (req.vocals) body.vocals = true;
       if (req.pass) body.pass = req.pass;
       return call("POST", "/seriesmith/align", body);
     },
+    makeVocals: (ep, redo) => call("POST", "/seriesmith/vocals", redo ? { ep, redo: true } : { ep }),
+    setDubFrom: (ep, dubFrom, pass) => call("POST", "/seriesmith/track/dub_from", pass ? { ep, dub_from: dubFrom, pass } : { ep, dub_from: dubFrom }),
     alignJob: (ep) => get(`/seriesmith/align/job?${qs({ ep })}`),
     refsImport: ({ pick, ...req }) => call("POST", "/seriesmith/refs/import", pick ? { ...req, pick: true } : req),
     refsUpload: (req, onProgress) => {

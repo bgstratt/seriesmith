@@ -1,0 +1,8 @@
+{
+ "1": {"class_type": "LoadVideo", "inputs": {"file": ""}, "_meta": {"title": "Take"}},
+ "2": {"class_type": "GetVideoComponents", "inputs": {"video": ["1", 0]}, "_meta": {"title": "Frames"}},
+ "3": {"class_type": "HunyuanModelLoader", "inputs": {"model_name": "hunyuanvideo_foley_xl.safetensors", "precision": "bf16", "quantization": "auto"}, "_meta": {"title": "Model"}},
+ "4": {"class_type": "HunyuanDependenciesLoader", "inputs": {"vae_name": "vae_128d_48k_fp16.safetensors", "synchformer_name": "synchformer_state_dict_fp16.safetensors"}, "_meta": {"title": "VAE and synchformer"}},
+ "5": {"class_type": "HunyuanFoleySampler", "inputs": {"hunyuan_model": ["3", 0], "hunyuan_deps": ["4", 0], "image": ["2", 0], "frame_rate": 24.0, "duration": 5.0, "prompt": "", "negative_prompt": "music, speech, talking, voices, singing, noisy, harsh", "cfg_scale": 4.5, "steps": 50, "sampler": "euler", "batch_size": 1, "seed": 0, "force_offload": true}, "_meta": {"title": "Sampler"}},
+ "6": {"class_type": "SaveAudio", "inputs": {"audio": ["5", 0], "filename_prefix": "seriesmith/fx"}, "_meta": {"title": "Save"}}
+}

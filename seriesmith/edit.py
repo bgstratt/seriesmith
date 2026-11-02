@@ -297,7 +297,8 @@ def dub_sources(root: str, shot_id: str) -> dict:
         except (KeyError, FileNotFoundError, ValueError):
             continue
         s = doc["shots"][i]
-        rec = s.get("audio_file") or doc.get("defaults", {}).get("master_track", "")
+        from seriesmith.targets import held_audio as HA
+        rec = HA.dub_recording(doc, s)
         if "audio_in" in s and rec:
             track = {"file": rec, "in": s["audio_in"], "out": s["audio_out"]}
         break
@@ -785,9 +786,12 @@ def episode_track(root: str) -> dict | None:
     """The series config's recorded dialogue (`audio.track`, relative to the
     episode) as {"path" (relative to the episode, forward slashes; absolute
     when it is on another drive), "duration" (seconds), "rate" (Hz), "exists",
-    "words" (a cached transcript sits beside it)}, or None when the series
-    config names none. `aligned` (how many shots carry a window) is added by
-    episode_status, which knows the shots."""
+    "words" (a cached transcript sits beside it), "vocals" (its vocal stem
+    sits beside it, fresh: vocals.py), "vocals_words" (the stem's transcript),
+    "dub_from" (the series config's audio.dub_from: "recording" or "vocals")},
+    or None when the series config names none. `aligned` (how many shots carry
+    a window) is added by episode_status, which knows the shots."""
+    from seriesmith import vocals as VOC
     cfg = episode_series_config(root)
     try:
         b = (T.read_json(cfg) or {}) if cfg else {}
@@ -802,13 +806,17 @@ def episode_track(root: str) -> dict | None:
         path = os.path.relpath(full, root).replace(os.sep, "/")
     except ValueError:                                    # another drive
         path = full
+    dub_from = VOC.dub_from(b)
     if not os.path.isfile(full):
         return {"path": path, "duration": None, "rate": None, "exists": False,
-                "words": False}
+                "words": False, "vocals": False, "vocals_words": False, "dub_from": dub_from}
     info = PK.media_info(full)
     dur = info["duration"]
+    stem = VOC.fresh(full)
     return {"path": path, "duration": round(dur, 6) if dur is not None else None,
-            "rate": info["rate"], "exists": True, "words": has_words(full)}
+            "rate": info["rate"], "exists": True, "words": has_words(full),
+            "vocals": bool(stem), "vocals_words": bool(stem) and has_words(stem),
+            "dub_from": dub_from}
 
 
 def track_info(root: str, pass_: str = "proxy") -> dict | None:
@@ -2710,7 +2718,16 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         if line.startswith("-> ") and line.lower().endswith(".xml" if xml else ".mp4"):
             output = rel(root, line[3:].strip())
     ok = rc == 0 and output is not None
-    return {"ok": ok, "output": output, "report": out,
+    # the loudness check and the picture's checks assemble wrote beside the cut
+    # (mix.loudness_check, checks.check), for the editor
+    loud = checks = None
+    if ok and not xml:
+        from seriesmith.core import fileio as FIO
+        stem = os.path.splitext(os.path.join(root, *output.split("/")))[0]
+        loud = FIO.read_json_or(stem + "_loudness.json", None)
+        checks = FIO.read_json_or(stem + "_checks.json", None)
+    return {"ok": ok, "output": output, "report": out, "loudness": loud if isinstance(loud, dict) else None,
+            "checks": checks if isinstance(checks, dict) else None,
             "error": "" if ok else (err.strip() or "assemble wrote no cut")}
 
 

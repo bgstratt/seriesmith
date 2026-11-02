@@ -95,7 +95,7 @@ describe.skipIf(!dumps.length)("Phase 9b on real episode dumps (test/local/p9b_*
 
       it(`${dir}/${name}: the timeline, the cut section, the menu and Play all render`, () => {
         const shot = st.shots[0]?.shot ?? null;
-        const base = { ep, pass, status: { [key]: st }, shot, waves: true };
+        const base = { ep, pass, status: { [key]: st }, shot, sound: true };
         const tl = renderWith(base, createElement(Timeline));
         for (const s of st.shots) expect(tl).toContain(`data-shot="${s.shot}"`);
         if (name.includes("edited")) {

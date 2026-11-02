@@ -2,6 +2,7 @@
 // root, but they all live in one bundle, so they all see this module.
 
 import { useSyncExternalStore } from "react";
+import type { MixBeats } from "./lib/beats";
 import type { ToastAction } from "./host";
 import type { ExportProblem, ExportRun } from "./lib/exportCheck";
 import type { ShotColor } from "./lib/color";
@@ -9,8 +10,8 @@ import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
-  Issue, MasterJob, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
-  TargetList, PresetList } from "./types";
+  CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
+  TargetList, PresetList, Anchor } from "./types";
 
 // ---------------------------------------------------------------------------
 // a tiny store
@@ -65,9 +66,10 @@ export type CompareMode = "single" | "side" | "wipe";
  * The floating viewer shows one of:
  *  - `takes`: one shot's takes, A/B compare (the take viewer);
  *  - `cut`: Play all, the cut in order from its takes;
- *  - `image`: a ref's candidates (stills), A/B side by side or wipe.
+ *  - `image`: a ref's candidates (stills), A/B side by side or wipe;
+ *  - `cue`: a music cue's window (its bars, sections, arc and takes).
  */
-export type ViewerKind = "takes" | "cut" | "image";
+export type ViewerKind = "takes" | "cut" | "image" | "cue";
 
 export interface ViewerState {
   kind: ViewerKind;
@@ -88,6 +90,32 @@ export interface ViewerState {
    * of the four picked views -- so it has no take number to compare by.
    */
   file?: string | null;
+  /** cue mode: the cue's id; cut mode with `spot`: the spotting sheet's selected cue */
+  cue?: string;
+  /** cut mode: the spotting sheet (the cut player with the episode's music map) instead of Play all's window */
+  spot?: boolean;
+  /** cue mode: opened from the spotting sheet (its head goes back there) */
+  back?: "spot";
+  /** cue mode: the scoring window's tab it opens on (Score when none) */
+  cueTab?: "score" | "arc" | "orch";
+}
+
+/** A cue's take played in the cue's place under the picture, in the preview only (the spotting sheet's audition). */
+export interface Audition {
+  ep: string;
+  pass: Pass;
+  cue: string;
+  take: number;
+  /** the take's wav, relative to the episode */
+  path: string;
+  /** seconds into it of the cue's in point (its measured offset) */
+  offset: number;
+  /** frames of its fade out (a bar, as a pick lays it) */
+  fadeOut: number;
+  /** the cue's span and label */
+  in: Anchor;
+  out: Anchor;
+  label: string;
 }
 
 /** The gallery: its scope, and where it is in it. */
@@ -160,6 +188,13 @@ export interface PresetPictureAsk {
 }
 
 /** the sequence relight dialog: the sequence whose plates it relights */
+/** The Refs tab's sound "+" dialogs (SoundAdd.tsx): a new cue (opening on `tab`), effects
+ * for shots, an ambience bed for a place. */
+export type SoundAddAsk =
+  | { kind: "cue"; tab?: "score" | "arc" | "orch"; shots?: string[] }
+  | { kind: "fx"; shots?: string[] }
+  | { kind: "bed"; place?: string };
+
 export interface RelightAsk {
   sequence: string;
 }
@@ -363,6 +398,7 @@ export interface AppState {
   postAsk: PostAsk | null;
   masterAsk: MasterAsk | null;
   relightAsk: RelightAsk | null;
+  soundAdd: SoundAddAsk | null;
   presetPictureAsk: PresetPictureAsk | null;
   /** the episode's master job: being assembled, or the last one (null: none known) */
   masterJob: MasterJob | null;
@@ -430,10 +466,27 @@ export interface AppState {
   promote: { shot: string | null } | null;
   /** Phase 9b: Play all's sound (the recording needs the episode's `track`) */
   cutAudio: CutAudio;
-  /** Phase 9b: the waveform lane under the timeline's clips is shown */
-  waves: boolean;
   /** Phase 13: the viewer and Play all show each take's fresh upscale (2x) where it has one */
   upscaled: boolean;
+  /** the timeline's sound lanes (hits, dialogue, effects, ambience, music) are unfolded */
+  sound: boolean;
+  /** GET /seriesmith/mix of the pass open, by statusKey (fetched with its status) */
+  mix: Record<string, MixResult>;
+  mixError: Record<string, string>;
+  /** GET /seriesmith/mix/duck of the pass open, by statusKey (fetched with the mix): Play all ducks with it */
+  mixDuck: Record<string, { step: number; curve: number[] }>;
+  /** GET /seriesmith/mix/beats of the pass open, by statusKey: fetched when the mix's music files (or the
+   * recording) change, never polled; `sig` is what it was fetched for. The timeline snaps trims to them. */
+  mixBeats: Record<string, { sig: string; beats: MixBeats }>;
+  /** GET /seriesmith/cues, by episode (fetched with the mix while the lanes are unfolded, and on opening a cue) */
+  cues: Record<string, CueSummary[]>;
+  /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
+  cue: Record<string, CueResult>;
+  cueError: Record<string, string>;
+  /** the cues planned against a pass (GET /seriesmith/cues?pass=: the spotting sheet's), by statusKey(ep, pass) */
+  cueStates: Record<string, CueSummary[]>;
+  /** a take auditioned under the picture in place of its cue's (null: the mix as it is) */
+  audition: Audition | null;
   /** Phase 9b: what Ctrl+Z / Ctrl+Shift+Z would undo / redo, by statusKey */
   cutUndo: Record<string, { undo: string | null; redo: string | null }>;
   /** Phase 9b: the timeline's Cut menu, open at (x, y) */
@@ -550,6 +603,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     postAsk: null,
     masterAsk: null,
     relightAsk: null,
+    soundAdd: null,
     presetPictureAsk: null,
     masterJob: null,
     refs: {},
@@ -600,8 +654,18 @@ export function initialState(prefs: Prefs = {}): AppState {
     featuresOpen: false,
     featuresFocus: null,
     soundAsk: null,
-    waves: prefs.waves ?? false,
     upscaled: prefs.upscaled ?? false,
+    // the clips' waveform lane was its own toggle before the sound lanes: one who had it on gets them
+    sound: prefs.sound ?? prefs.waves ?? false,
+    mix: {},
+    mixError: {},
+    mixDuck: {},
+    mixBeats: {},
+    cues: {},
+    cue: {},
+    cueError: {},
+    cueStates: {},
+    audition: null,
     cutUndo: {},
     cutMenu: null,
     exportMenu: null,
@@ -674,10 +738,12 @@ export interface Prefs {
   ep?: string | null;
   pass?: Pass;
   zoom?: number;
-  /** Phase 9b: the waveform lane */
+  /** the old waveform lane's toggle, read only to open the sound lanes in its place */
   waves?: boolean;
   /** Phase 13: play upscales (the viewer's and Play all's 2x) */
   upscaled?: boolean;
+  /** the timeline's sound lanes unfolded */
+  sound?: boolean;
 }
 
 type KV = Pick<Storage, "getItem" | "setItem">;
@@ -701,16 +767,18 @@ export function loadPrefs(storage: KV | null = defaultStorage()): Prefs {
       zoom: typeof p.zoom === "number" ? p.zoom : undefined,
       waves: typeof p.waves === "boolean" ? p.waves : undefined,
       upscaled: typeof p.upscaled === "boolean" ? p.upscaled : undefined,
+      sound: typeof p.sound === "boolean" ? p.sound : undefined,
     };
   } catch {
     return {};
   }
 }
 
-export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: boolean; upscaled?: boolean }, storage: KV | null = defaultStorage()) {
+export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { upscaled?: boolean; sound?: boolean }, storage: KV | null = defaultStorage()) {
   try {
-    storage?.setItem(PREFS_KEY, JSON.stringify({ ep: s.ep, pass: s.pass, zoom: s.zoom, ...(s.waves != null ? { waves: s.waves } : {}),
-                                               ...(s.upscaled != null ? { upscaled: s.upscaled } : {}) }));
+    storage?.setItem(PREFS_KEY, JSON.stringify({ ep: s.ep, pass: s.pass, zoom: s.zoom,
+                                               ...(s.upscaled != null ? { upscaled: s.upscaled } : {}),
+                                               ...(s.sound != null ? { sound: s.sound } : {}) }));
   } catch {
     /* private window or blocked storage: not remembering is fine */
   }
@@ -718,12 +786,12 @@ export function savePrefs(s: Pick<AppState, "ep" | "pass" | "zoom"> & { waves?: 
 
 /** Save prefs whenever they change. Returns the unsubscribe. */
 export function persistPrefs(st: Store<AppState>, storage: KV | null = defaultStorage()): () => void {
-  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, waves: st.get().waves, upscaled: st.get().upscaled };
+  let last = { ep: st.get().ep, pass: st.get().pass, zoom: st.get().zoom, upscaled: st.get().upscaled, sound: st.get().sound };
   return st.subscribe(() => {
     const s = st.get();
-    if (s.ep !== last.ep || s.pass !== last.pass || s.zoom !== last.zoom || s.waves !== last.waves
-        || s.upscaled !== last.upscaled) {
-      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, waves: s.waves, upscaled: s.upscaled };
+    if (s.ep !== last.ep || s.pass !== last.pass || s.zoom !== last.zoom
+        || s.upscaled !== last.upscaled || s.sound !== last.sound) {
+      last = { ep: s.ep, pass: s.pass, zoom: s.zoom, upscaled: s.upscaled, sound: s.sound };
       savePrefs(last, storage);
     }
   });

@@ -8,7 +8,9 @@
 
   "capabilities": {
     "_note": "duration: predict. LTX 2.4+ has a duration head: `dur: model` shots get ComfyUI's ModelPatchLoader (the preset's duration_head file, from models/model_patches) + LTXVDurationPredictor, whose num_frames (8k+1) drives every length input of the graph. The build writes an estimate (the dialogue's `dur: auto` length, else the preset's default_seconds); without the weights installed the take renders that estimate and says so.",
-    "duration": "predict"
+    "duration": "predict",
+    "_dub_track_note": "dub_track: it renders a dub track (the Sound dialog's \"Generate a dub track\", jobs.RenderRequest.dub_track): the shot at a tiny size with its voices cloned from their samples, kept for its sound. So it is offered as a voice model (the series config's refs.voice_target) beside the audio targets. Its clone makes each line with the audio-only model, continuing the speaker's sample (held_audio.patch_clone).",
+    "dub_track": true
   },
 
   "template": {

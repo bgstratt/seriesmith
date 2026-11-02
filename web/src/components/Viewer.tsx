@@ -1,12 +1,14 @@
-// The floating viewer. One window, three kinds (store `viewer.kind`):
+// The floating viewer. One window, four kinds (store `viewer.kind`):
 //  - takes: one shot's takes with A/B compare (side by side or wipe);
 //  - cut:   Play all, the cut in order from the takes themselves (CutPlayer);
-//  - image: a ref's candidates (stills), with the same A/B compare.
+//           with `spot`, the spotting sheet (SpottingSheet.tsx: the same player);
+//  - image: a ref's candidates (stills), with the same A/B compare;
+//  - cue:   a music cue's window (CueWindow.tsx).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import {
   closeViewer, currentPlaylist, openPano, openInspector, openMenu, openRedo, openSidecar, openViewer, pickRef, pickTake,
-  reportCutPos, seekCut, setCutPlaying, toggleUpscaled, updateViewer,
+  reportCutPos, seekCut, setCutPlaying, stepFrame, toggleUpscaled, updateViewer,
 } from "../actions";
 import { cutKey, isTyping, lockedPickRefusal, setCutAudio } from "../cutActions";
 import { api } from "../host";
@@ -18,16 +20,21 @@ import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
+import { dialogueDbAt, trackGains, voicedShots } from "../lib/mix";
+import { currentMix } from "../mixActions";
+import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
 import { HoldUseBar } from "./TourSection";
 import { shotTarget, takeTargetBadge, targetLabel } from "../lib/targets";
 import { store, useApp, type CompareMode, type ViewerState } from "../store";
-import type { RefTake, TakeSummary } from "../types";
+import type { Pass, RefTake, TakeSummary } from "../types";
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { aspectOf, useShotStatus, useStatus } from "./hooks";
 import { useTargets } from "./Targets";
 import { ColorDefs, useClipFilter } from "./ColorDefs";
 import { Thumb } from "./Thumb";
+import { CueWindow } from "./CueWindow";
+import { SpottingSheet } from "./SpottingSheet";
 
 // v2: round 2 moved the default place so the viewer and the inspector sit side by side
 export const VIEWER_RECT_KEY = "seriesmith.viewer.rect.v2";
@@ -230,10 +237,11 @@ export function Viewer() {
   const ep = useApp((s) => s.ep);
   if (!v || !ep) return null;
   if (v.kind === "image") return <StillsView ep={ep} v={v} />;
+  if (v.kind === "cue") return <CueWindow ep={ep} v={v} />;
   return (
     <>
       <ColorDefs prefix="v" />
-      {v.kind === "cut" ? <CutPlayer ep={ep} v={v} /> : <TakesView ep={ep} v={v} />}
+      {v.kind === "cut" ? (v.spot ? <SpottingSheet ep={ep} v={v} /> : <CutPlayer ep={ep} v={v} />) : <TakesView ep={ep} v={v} />}
     </>
   );
 }
@@ -320,6 +328,11 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           autoPlay={which === "a"}
           loop
           style={colorFilter ? { filter: colorFilter } : undefined}
+          // a click plays or pauses, as space does: A leads, B follows it
+          onClick={() => {
+            const lead = aEl ?? bEl;
+            if (lead) void (lead.paused ? lead.play().catch(() => {}) : lead.pause());
+          }}
           onContextMenu={(e) => {
             // the take's menu, knowing the frame on screen ("use this frame as the next shot's first frame")
             e.preventDefault();
@@ -461,6 +474,8 @@ interface Engine {
   items: PlayItem[];
 }
 
+const LOOP_ALL_KEY = "seriesmith.playall.loop";
+
 /**
  * Plays the playlist through two <video> elements: the one on screen, and a
  * spare holding the next clip, loaded and parked at its in point, so a cut is a
@@ -469,10 +484,14 @@ interface Engine {
  * playhead reads it). Phase 9b: J / L shuttle (2x, 4x; backwards by stepping
  * the picture), and the episode's recorded dialogue under the cut instead of
  * the clips' own sound (one <audio>, kept on the cut's clock).
+ *
+ * Play all's engine, for the window it's in (`winRef`: its keys): Play all's
+ * window and the spotting sheet use it. `onKey` sees a key first (true: it
+ * took it); , and . step a frame.
  */
-const LOOP_ALL_KEY = "seriesmith.playall.loop";
-
-function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
+export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>, onKey?: (e: KeyboardEvent) => boolean) {
+  const onKeyRef = useRef(onKey);
+  onKeyRef.current = onKey;
   const items = useApp((s) => currentPlaylist(s));
   // Loop: the cut starts over from its first shot at the end (remembered)
   const [loopAll, setLoopAll] = useState(() => {
@@ -504,13 +523,14 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   }).length;
   const anyUpscale = upscaledCount > 0;
   const fps = st?.fps || 24;
+  const fpsRef = useRef(fps);
+  fpsRef.current = fps;
   // the recording, when there is one that can be played
   const ts = trackState(st?.track);
   const track = ts && !ts.why ? ts : null;
   const recording = audioMode === "recording" && !!track;
   // Phase 9d: the recording wins over every clip's own audio source
   const audioClips = useMemo(() => clipsWithAudio(st?.shots ?? []), [st]);
-  const winRef = useRef<HTMLDivElement>(null);
   const v0 = useRef<HTMLVideoElement>(null);
   const v1 = useRef<HTMLVideoElement>(null);
   const au = useRef<HTMLAudioElement>(null);
@@ -526,6 +546,24 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const sync = useMemo(() => masterSync(items, fps, baseIn(st), anyOutOfOrder(st)), [items, fps, st]);
   const recStart = useRef(sync.start);
   recStart.current = sync.start;
+  // the episode's mix under the cut (effects, ambience, music), on its clock; and voices
+  // only's stems in place of their clips' own sound (not while the recording plays)
+  useMixAudio(ep, items, fps, !recording);
+  // voices only: the clips whose own sound isn't heard (their stem plays, or nothing)
+  const voiced = useApp((s) => voicedShots(currentMix(s)).join(" "));
+  const voicedRef = useRef<Set<string>>(new Set());
+  voicedRef.current = new Set(voiced ? voiced.split(" ") : []);
+  // the dialogue fader, mute and solo on the clips' own sound and the recording, and a
+  // region's dialogue_db under the playhead (a video plays at most at its own level)
+  const dialogue = useApp((s) => {
+    const res = currentMix(s);
+    const g = trackGains(res).dialogue;
+    const r = res?.mix.regions?.length ? dialogueDbAt(items, res.mix, fps, s.cutPlay.pos) : 0;
+    return Math.min(1, r ? g * 10 ** (r / 20) : g);
+  });
+  useEffect(() => {
+    for (const el of [v0.current, v1.current, au.current]) if (el) el.volume = dialogue;
+  }, [dialogue, track]);
 
   const els = (): [HTMLVideoElement | null, HTMLVideoElement | null] => [v0.current, v1.current];
   /** forwards at 1x, 2x or 4x (the <video> plays); backwards is stepped here */
@@ -572,7 +610,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
       off?.pause();
       if (off) off.muted = true;
       if (on) {
-        on.muted = rec.current;
+        on.muted = rec.current || voicedRef.current.has(it.shot);
         on.playbackRate = forward() ? rate.current : 1;
         if (forward()) void on.play().catch(() => {});
         else on.pause();
@@ -692,13 +730,14 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
     }
   }, [cp.playing, cpRate]);
 
-  // clips' sound or the recording
+  // clips' sound or the recording (a clip voices only plays from its stem stays muted)
   useEffect(() => {
     const e = eng.current;
     const el = els()[e.active];
-    if (el && e.items[e.idx]?.mp4) el.muted = recording;
+    const it = e.items[e.idx];
+    if (el && it?.mp4) el.muted = recording || voicedRef.current.has(it.shot);
     if (!recording) au.current?.pause();
-  }, [recording]);
+  }, [recording, voiced]);
 
   // the cut changed under us (a pick, a trim, a move, a render finishing): re-place the playhead
   useEffect(() => {
@@ -725,8 +764,14 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   }, [items, show, loadSlot]);
 
   useWindowKeys(winRef, useCallback((e: KeyboardEvent) => {
-    if (cutKey(e)) {
+    if (onKeyRef.current?.(e)) {
       e.preventDefault();
+    } else if (cutKey(e)) {
+      e.preventDefault();
+    } else if ((e.key === "," || e.key === ".") && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      // a frame back or on, paused there
+      e.preventDefault();
+      stepFrame(e.key === "," ? -1 : 1, fpsRef.current);
     } else if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && !e.altKey && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       const i = eng.current.idx + (e.key === "ArrowRight" ? 1 : -1);
@@ -749,6 +794,75 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const driftTitle = sync.warnings.length
     ? `The recording won't line up everywhere:\n• ${sync.warnings.join("\n• ")}${sync.drifts.length ? `\n\nOff by more than a frame: ${sync.drifts.slice(0, 12).map((d) => `${d.shot} ${d.drift > 0 ? "+" : ""}${d.drift.toFixed(2)} s`).join(", ")}${sync.drifts.length > 12 ? "…" : ""}` : ""}`
     : "The recording lines up with every clip's dialogue window";
+
+  return {
+    items, st, cp, fps, total, v0, v1, au, shown, track, ts, recording, sync, audioClips, anyUpscale, upscaledCount, upscaled,
+    loopAll, toggleLoopAll, cur, cutFilter, veil, jump, missingCount, speed, driftTitle, cpRate,
+  };
+}
+
+export type CutEngine = ReturnType<typeof useCutEngine>;
+
+/**
+ * Play all's picture: the cut through its two <video> elements (and the
+ * recording's <audio>), a click playing or pausing it. Play all's window and
+ * the spotting sheet show it.
+ */
+export function CutStage({ ep, e, pass, className = "" }: { ep: string; e: CutEngine; pass: Pass; className?: string }) {
+  const { cp, v0, v1, au, cur, shown, cutFilter, veil, items, speed, recording, track } = e;
+  return (
+    <>
+      <div
+        className={`h3-stage h3-single h3-cutstage${className ? ` ${className}` : ""}`}
+        onClick={() => setCutPlaying(!cp.playing)}
+        title="Click or space: play / pause · J / K / L: back / stop / forward (again: faster) · , / .: a frame back / on · ←/→: previous / next shot · I / O: trim the clip to start / end here · Ctrl+Z: undo a cut edit"
+      >
+        {[v0, v1].map((r, i) => (
+          <video
+            key={i}
+            ref={r}
+            playsInline
+            preload="auto"
+            className={cur?.mp4 && shown.active === i ? "h3-on" : ""}
+            style={cutFilter && shown.active === i ? { filter: cutFilter } : undefined}
+            onError={(e) => console.warn("seriesmith play all: video error", (e.currentTarget as HTMLVideoElement).error)}
+          />
+        ))}
+        {veil > 0.003 && <div className="h3-fade-veil" style={{ opacity: veil }} />}
+        {cur && !cur.mp4 && (
+          <div className="h3-missing-card">
+            <b>{cur.shot}</b>
+            <span>missing · {cur.why}</span>
+          </div>
+        )}
+        {cur && (
+          <span className="h3-pane-label">
+            {cur.shot} {cur.take != null && cur.mp4 ? tn(cur.take) : ""}{cur.pass !== pass ? ` (${cur.pass})` : ""} · {shown.idx + 1}/{items.length}
+            {speed ? ` · ${speed}` : ""}
+            {recording ? " · recording" : ""}
+          </span>
+        )}
+        {!items.length && <div className="h3-empty-state">The cut is empty.</div>}
+      </div>
+      {track && (
+        <audio
+          ref={au}
+          preload="auto"
+          src={api().fileUrl(ep, track.path)}
+          onError={(e) => console.warn("seriesmith play all: recording error", (e.currentTarget as HTMLAudioElement).error)}
+        />
+      )}
+    </>
+  );
+}
+
+function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
+  const winRef = useRef<HTMLDivElement>(null);
+  const e = useCutEngine(ep, winRef);
+  const {
+    items, cp, total, ts, recording, sync, audioClips, anyUpscale, upscaledCount, upscaled,
+    loopAll, toggleLoopAll, cur, jump, missingCount, driftTitle,
+  } = e;
 
   const head = (
     <>
@@ -777,46 +891,7 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef}>
-      <div
-        className="h3-stage h3-single h3-cutstage"
-        onClick={() => setCutPlaying(!cp.playing)}
-        title="Click or space: play / pause · J / K / L: back / stop / forward (again: faster) · ←/→: previous / next shot · I / O: trim the clip to start / end here · Ctrl+Z: undo a cut edit"
-      >
-        {[v0, v1].map((r, i) => (
-          <video
-            key={i}
-            ref={r}
-            playsInline
-            preload="auto"
-            className={cur?.mp4 && shown.active === i ? "h3-on" : ""}
-            style={cutFilter && shown.active === i ? { filter: cutFilter } : undefined}
-            onError={(e) => console.warn("seriesmith play all: video error", (e.currentTarget as HTMLVideoElement).error)}
-          />
-        ))}
-        {veil > 0.003 && <div className="h3-fade-veil" style={{ opacity: veil }} />}
-        {cur && !cur.mp4 && (
-          <div className="h3-missing-card">
-            <b>{cur.shot}</b>
-            <span>missing · {cur.why}</span>
-          </div>
-        )}
-        {cur && (
-          <span className="h3-pane-label">
-            {cur.shot} {cur.take != null && cur.mp4 ? tn(cur.take) : ""}{cur.pass !== v.pass ? ` (${cur.pass})` : ""} · {shown.idx + 1}/{items.length}
-            {speed ? ` · ${speed}` : ""}
-            {recording ? " · recording" : ""}
-          </span>
-        )}
-        {!items.length && <div className="h3-empty-state">The cut is empty.</div>}
-      </div>
-      {track && (
-        <audio
-          ref={au}
-          preload="auto"
-          src={api().fileUrl(ep, track.path)}
-          onError={(e) => console.warn("seriesmith play all: recording error", (e.currentTarget as HTMLAudioElement).error)}
-        />
-      )}
+      <CutStage ep={ep} e={e} pass={v.pass} />
       <div className="h3-transport">
         <button className="h3-btn h3-icon" title="Previous shot (←)" onClick={() => jump(-1)}><i className="pi pi-step-backward" /></button>
         <button className="h3-btn h3-icon" title="Play / pause (space)" onClick={() => setCutPlaying(!cp.playing)}>

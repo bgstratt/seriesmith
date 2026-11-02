@@ -7,6 +7,7 @@ Use this when you have real recorded lines (actors, you, or TTS) instead of lett
 ```
 cd <your projects folder>
 pip install faster-whisper                                    # once
+pip install nvidia-cublas-cu12                                # an NVIDIA card: Whisper on the GPU
 
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav --dry-run   # look first
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav
@@ -19,7 +20,7 @@ Put the recording inside the episode folder (for example `ep05\audio\`) so the s
 
 ## Recording
 
-- Record the lines in script order, dry: no music under them. If there is music, split it first with `python -m demucs --two-stems vocals file.wav` and use the vocals stem.
+- Record the lines in script order, dry: no music under them. If there is music under them (a song), see **A recording with music: the vocal stem** below.
 - Leave real pauses where the script has silent shots. align stretches or squeezes those shots to fit the pause, and warns you when the pause is far off.
 - One file for the whole episode.
 
@@ -56,11 +57,21 @@ On other models a dub shot works too, without retention: on LTX (`ltx2`, `ltx2_i
 | `--dry-run` | Report only. Changes no files. Always worth running first |
 | `--retranscribe` | Ignore the cached `<recording>.words.json` after replacing the recording |
 | `--words <file>` | Use word timings you already have instead of transcribing |
-| `--model <name>` | Whisper model: `tiny.en`, `base.en`, `small.en`, `medium.en` (default), `large-v3` |
+| `--model <name>` | Whisper model: `tiny.en`, `base.en`, `small.en`, `medium.en` (default), `large-v3`, `large-v3-turbo` (close to large-v3, several times faster) |
 | `--device cuda\|cpu` | Where Whisper runs. `auto` by default |
 | `--script <file>` | Pick the script when the folder holds more than one `.md` |
 | `--no-snap` | Leave windows exactly as measured instead of lengthening them to the target's frame grid |
+| `--vocals` | Transcribe the recording's vocal stem, and cut at the pauses in it, instead of the whole mix. Makes the stem first if it isn't there. Off by default |
 | `--policy`, `--retention` | Override the defaults in the table above for the whole episode |
+
+## A recording with music: the vocal stem
+
+A song, or lines with music under them, can be split into its **vocal stem** (the voice alone) and the rest. seriesmith does it on your local ComfyUI with its own Vocal Stem node (torchaudio's Hybrid Demucs, which ComfyUI already has; its weights download once). The stem lands beside the recording as `<recording>.vocals.wav` and is kept until the recording changes. Nothing uses it unless you ask, in two places:
+
+- **Align from the stem.** `seriesmith align <ep> --vocals`, or **from the vocal stem** in the editor's Recording window. Whisper hears the voice without the band, and the cuts land in the pauses of the singing. The series config still points at the recording.
+- **Dub shots hear the stem.** `"audio": {"dub_from": "vocals"}` in the series config, or **dub shots hear the vocal stem** in the Recording window. Each dub shot's window is cut from the stem instead of the recording. The episode's own sound (the mix, `assemble --audio master`) is still the recording.
+
+Both are off by default: on the pop song they were tried on, H3 Ref2VA lip-synced as well to the whole song as to the stem. Try the stem when a model mouths the band, or when align misses lines under loud music. The ComfyUI must have loaded seriesmith's node pack since the Vocal Stem node was added: restart it once after updating seriesmith. **Make the vocal stem** in the Recording window makes it on its own. Making a music video from a song is in [MUSIC_VIDEO.md](MUSIC_VIDEO.md).
 
 ## Conform
 

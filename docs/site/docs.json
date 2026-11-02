@@ -42,7 +42,7 @@
           "tutorials/gallery"
         ]
       },
-      { "group": "Using seriesmith", "pages": ["editor", "commands"] },
+      { "group": "Using seriesmith", "pages": ["editor", "scoring", "music-video", "commands"] },
       { "group": "Setup in detail", "pages": ["full-setup", "install", "setup"] },
       {
         "group": "Guides",

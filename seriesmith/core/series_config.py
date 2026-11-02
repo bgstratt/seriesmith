@@ -51,6 +51,16 @@ version of it: the same view under another light (the porch at dusk). An edit
 target generates its plate as an edit of the source's plate with that relight
 (refs.built_prompt); a sequence relight writes them (seriesmith.relight). A
 relit location may be of an angle; nothing is of a relit one.
+
+A location may say what is **heard** there (docs/SOUND.md phase 3): `ambience`, the words
+an ambience bed is made from ("Room tone of a small roadside diner at night: a
+refrigerator hum, ..."), and `ambience_bed`, the bed's file (a path like `plate`; by
+default `_amb/<id>.wav` in the refs folder its place's plate is in: `../refs/_amb/diner.wav`
+beside `../refs/_bg/diner.png`, else `refs/_amb/<id>.wav`). A bed belongs to the **place**,
+the location an angle or a relit version is `of` (location_master), so every view of the
+place shares one; a variant with its own `ambience` (a golden-hour hall with evening
+birds) has its own bed. Nothing is automatic: a place with neither has no bed
+(ambience_bed_of).
 """
 
 from __future__ import annotations
@@ -84,6 +94,7 @@ def series_config_from(series_cfg: dict) -> dict:
     _check_required(series_cfg)
     _check_groups(series_cfg["subjects"])
     _check_angles(series_cfg["locations"])
+    _check_ambience(series_cfg["locations"])
     profile_styles(series_cfg)                 # a profile's look and lens, checked
     _check_continuous(series_cfg)
     return series_cfg
@@ -178,6 +189,73 @@ def location_master(series_cfg: dict, lid: str) -> str:
             break
         lid = of
     return lid
+
+
+AMBIENCE_DIR = "_amb"              # a bed's folder in the refs folder of its place's plate
+
+
+def _check_ambience(locations: dict) -> None:
+    """A location's `ambience` is words and its `ambience_bed` a relative or absolute path."""
+    for lid, e in locations.items():
+        for k in ("ambience", "ambience_bed"):
+            v = e.get(k)
+            if v is not None and (not isinstance(v, str) or not v.strip()):
+                raise ValueError(f"location '{lid}' has `{k}: {v!r}`: "
+                                 + ("what is heard there, as words (a room tone, the air)"
+                                    if k == "ambience" else
+                                    "the bed's file, a path like `plate`'s"))
+
+
+def _has_ambience(e: dict) -> bool:
+    return bool(str(e.get("ambience") or "").strip() or str(e.get("ambience_bed") or "").strip())
+
+
+def default_bed_path(series_cfg: dict, bed: str) -> str:
+    """Where a bed with no `ambience_bed` goes: `_amb/<bed>.wav` in the refs folder its
+    place's plate is in (`../refs/_bg/x.png` -> `../refs/_amb/<bed>.wav`), else
+    `refs/_amb/<bed>.wav` (relative to the series config's folder, as a plate is)."""
+    loc = (series_cfg.get("locations") or {}).get(bed) or {}
+    plate = str(loc.get("plate") or "").replace("\\", "/")
+    if not plate:
+        master = (series_cfg.get("locations") or {}).get(location_master(series_cfg, bed)) or {}
+        plate = str(master.get("plate") or "").replace("\\", "/")
+    head = ""
+    if plate.startswith("refs/"):
+        head = "refs/"
+    elif "/refs/" in plate:
+        head = plate[:plate.index("/refs/") + len("/refs/")]
+    return f"{head or 'refs/'}{AMBIENCE_DIR}/{bed}.wav"
+
+
+def ambience_bed_of(series_cfg: dict, lid: str) -> dict | None:
+    """The bed a location's shots play over: {"id" (the location whose bed it is: its
+    own when it says `ambience` or `ambience_bed`, else its place's, location_master),
+    "name", "words" ("" when only a file is named), "path" (as the series config's other
+    paths, relative to its folder)}; None when neither the location nor its place has
+    one (nothing is automatic)."""
+    locs = series_cfg.get("locations") or {}
+    e = locs.get(lid)
+    if not isinstance(e, dict) or lid.startswith("_"):
+        return None
+    bed = lid if _has_ambience(e) else location_master(series_cfg, lid)
+    be = locs.get(bed)
+    if not isinstance(be, dict) or not _has_ambience(be):
+        return None
+    return {"id": bed, "name": str(be.get("name") or bed),
+            "words": " ".join(str(be.get("ambience") or "").split()),
+            "path": str(be.get("ambience_bed") or "").strip().replace("\\", "/")
+            or default_bed_path(series_cfg, bed)}
+
+
+def ambience_beds(series_cfg: dict) -> dict[str, dict]:
+    """Every bed of the series config, {bed id: ambience_bed_of's dict plus "locations":
+    the locations whose shots play over it}, in the series config's order."""
+    out: dict[str, dict] = {}
+    for lid in series_cfg.get("locations") or {}:
+        b = ambience_bed_of(series_cfg, lid)
+        if b is not None:
+            out.setdefault(b["id"], dict(b, locations=[]))["locations"].append(lid)
+    return out
 
 
 MAX_MEMBERS = 12            # past this it is a crowd: write it as `extras:` or put it in the plate

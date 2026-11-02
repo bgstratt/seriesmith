@@ -1,0 +1,381 @@
+# Scoring an episode
+
+Music under a cut, made to fit it: where it goes, what it does, which take, how loud. This
+guide walks through it in the order you'd do it, with Ballroom's ep03 "Choice" as the example.
+The editor's buttons are listed in [EDITOR.md](EDITOR.md); the design and the measurements
+behind it are in [SOUND.md](SOUND.md).
+
+## The idea in one paragraph
+
+The timeline decides **where** music goes; the **cue window** decides **what it does** there.
+You mark the moments the music must answer (**hits**: a door slams, she says yes), make a **cue**
+over a stretch of shots, say how it should rise and fall (its **sections** and **arc**), and
+render **eight takes** of it. seriesmith fits the tempo so the hits fall on bar lines, measures
+every take (does something happen at each hit? does its loudness follow the arc?) and ranks
+them. You listen to the top two or three, **Pick** one, and it lands on the Music track with its
+level already shaped to the arc. A cue stays tied to its shots: trim or move them and it moves
+with them, and tells you when the change means it should be made again.
+
+## Before you start
+
+- **Lock the picture first, mostly.** A cue is written to the cut's timing. Small changes later
+  are fine (it follows its shots, and tells you what moved); re-cutting a whole scene means
+  re-rendering its cues.
+- **Open the sound lanes**: **Sound** in the timeline's header. Under the clips you get a
+  **Hits** lane and four tracks: Dialogue (each clip's own sound), Effects, Ambience, Music.
+  **Scoring**, beside it, opens the scoring window on its **Spotting** tab: the whole episode's
+  music on one sheet (below), where scoring starts.
+- **Decide where the music goes before what it is.** Watch the scene with the sound on and note
+  where music would help and where silence is stronger. A comedy played straight, like ep03, wants
+  the music to be sincere and to **stop dead** on the deflating beats, so the jokes land in
+  silence.
+
+## The spotting sheet
+
+**Scoring** in the timeline's head opens the scoring window, one window with four tabs:
+**Spotting** (the episode's view, where scoring starts), then the selected cue's **Score**,
+**Arc** and **Orchestration & takes** (steps 3 and 4; they open the cue selected on the map,
+and with no cue in the episode yet they ask for a new one, its span and kind, and open it on that
+tab). The Spotting tab is a large picture of
+the cut playing with its mix, and under it the **music map**, a row per sequence with its cues,
+ambience, effects and hits. It's where you do the first two steps below, and come back to
+between cues:
+
+- **Watch and decide.** Play the cut and note where music would help and where silence is
+  stronger. Stop on the frame (`,` and `.` step one) and **+ Hit at playhead** marks a moment
+  the music must answer; **◀ Hit** / **Hit ▶** (`[` `]`) jump between them. Name a hit and set
+  its kind on the timeline's Hits lane (step 1).
+- **See the whole score at once.** Each cue on the map says whether it's placed (the take in
+  the mix) or stale; click one to see it on the right, then a tab (or a double-click on it) to
+  shape it; the **Spotting** tab comes back.
+- **Check a cue against its hits.** The right side's table has each hit's bar and beat, how far
+  the tempo fit leaves it off its line, and how far each take's music is from it (frames,
+  orange past 2). Click a row to see the frame. Under it, **the tempo**: what was asked, what
+  it was fitted to, the worst must-hit, and the **nearest other tempos** that land the hits; a
+  click holds the cue at one (fixed), and its takes need rendering again.
+- **Hear a take against the picture.** ▶ beside any take plays it under the picture from the
+  cue's in point, in the cue's place, without changing the mix; **Back to the mix** ends it.
+  It's the way to choose between the top two or three.
+- **Render what's stale.** When the cut has moved under a cue's take, the foot of the sheet
+  lists it: **Render** it, or **Render all stale**.
+- **Right-click to add.** Right-click a row of the map (its head, or a lane at the frame you
+  want) for **New cue here** (to the end of that shot), **New cue over** the row's sequence,
+  **New cue from here to the end of** it, **Mark a hit here**, **Make effects for** the
+  sequence, and its place's ambience bed. Right-click a cue for **Open in Score**, its arc, its
+  orchestration and takes, **Render its takes**, **Plays in the mix** or **Delete cue…** (below).
+
+In ep03: the map lays *1M1*, *1M2* and *1M3* over their shots with the four hits on them in
+their colours, and the gaps between the cues are the silences the comedy wants.
+
+## 1. Mark the hits
+
+A **hit** is a moment the music must answer. Make one on the Hits lane: **double-click** where it
+goes (or **+** for one at Play all's playhead), then right-click it to name it and set its kind:
+
+| Kind | What the music does there | Use it for |
+|---|---|---|
+| **accent** | a sting or a downbeat lands on the frame | a door slam, a reveal shot, a punch |
+| **arrive** | the music's peak arrives here; the section before builds to it | "I choose you", the kiss, the summit |
+| **drop** | the music cuts out or thins | the deadpan "Oh.", silence before a reveal |
+| **turn** | a change of key or mood; a new section starts | the scene turns, a new character enters |
+
+**Must land** (on by default) means the tempo is fitted to put it exactly on its line; turn it
+off for a hit that's nice to land but not essential. Two must-land hits a distance apart that no
+nearby tempo divides into whole bars can't both land; the window tells you how far off each is.
+
+A hit is anchored to a shot and a frame of its take, so trimming or moving the shot carries it.
+Tip: an onscreen sound (a door, a footstep) is easiest to place by finding it in the take's own
+sound on the Dialogue lane's waveform.
+
+In ep03: *I choose you* (arrive, sh020), *Oh.* (drop, sh030), *the door shuts* (drop, sh100 frame
+111, found from the take's sound), *What did I get chosen for?* (turn, sh130).
+
+## 2. Make a cue
+
+Select the shots the music plays over (Ctrl-click), right-click one and choose **Sound ▸ New
+music cue**, or right-click the Music lane: **New cue…**. On the spotting sheet, right-click a
+row: **New cue over** its sequence, or **New cue here**. Or the Refs tab's Music **+ Cue**: its
+first and last shot (or a sequence), and Score or Song. The scoring window opens on its
+Score tab.
+
+A cue is **Score** (instrumental, under the picture: the usual) or **Song** (sung; its sections
+take lyrics). Set it top right in the inspector, with:
+
+- **Label**: how it's listed ("1M3 The Proposal": reel 1, music cue 3, a name).
+- **Model**: empty uses the kind's default: **Stable Audio 3** for score (it follows a rise and
+  fall best), **YuE2** for a song (it plans the song, then sings it); **ACE-Step** sings too, and
+  is the one when a cue must sit exactly on a bpm.
+- **Theme**: a melody carried from cue to cue (below: *Carrying a theme*).
+- **Tempo** in bpm (the fit may move it up to 8 % to land the hits; tick **fixed** to stop that),
+  **Meter** (4/4, 3/4, 6/8, 7/8, or your own), **Key** (pick one, or leave it to the model),
+  **Style** (the sound: "romantic period strings, solo horn, no percussion"), **Tail** (seconds
+  it rings on past its out point), **Takes** per render.
+
+**Start from a preset** if you don't know what to put in these: the inspector's **Preset**
+(top, "Start from a preset…") has worked examples, a score's (romantic swell, tension
+underscore, light comedy, action chase, sad and tender, wonder and awe, heist jazz, horror drone,
+triumphant finale, lullaby waltz) and a song's (pop ballad, upbeat pop); hover one for when it
+fits. Picking one fills the kind, style, tempo, meter and key, and the sections (names, words,
+energies) and who plays in each, fitted to the cue's bars at that tempo; it clears the arc, and
+leaves the label, span, model, hits and takes alone. When the cue already has its own sections,
+style or orchestration it asks before replacing them. Then adjust: the tempo to the scene, the
+section edges to the hits, the words to your instruments; a song's sections need their lyrics.
+
+**Songs.** A song on YuE2 sings each section's **Lyrics** (click a section, type its lines), under
+the section's name as its tag: a verse sings as `[Verse]`, a chorus as `[Chorus]`, a bridge, intro
+or outro as theirs, any other name as a verse; a section with no lyrics isn't sung (YuE2 plays
+its own intro and breaks). A song with no lyrics at all won't render: YuE2 sings words. Each take
+is made in two steps in one job: YuE2 first **plans** the song (its sections and bars, written
+as ABC music notation), the plan's tempo is set to the cue's, and then it sings to that plan, so
+it holds the cue's tempo (within 1-2 %) where the tempo written in the style doesn't. The song is
+as long as its plan (often a minute or two for two sections), not the cue: the cue plays its span
+of it, from the in point. Each take keeps its plan beside it (`tNN.abc`), and the takes list says
+what it planned: **Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short of it**, with its
+sections drawn along the bottom of its waveform on the bar grid, so you see where the verse and
+chorus land against your hits. YuE2's weights are for **non-commercial** use (CC BY-NC 4.0);
+ACE-Step (MIT) is the one for a commercial song.
+
+**Carrying a theme.** A cue can carry another's melody, the way a film's love theme comes back
+in a later scene: the inspector's **Theme** is *none*, *another cue's take* (pick the cue; its
+take is **the take in the mix** unless you name one of its finished takes) or *a sound file*
+(inside the episode or the show's folder: a gallery item, a recording; type its path or
+**Browse…**). **The take in the mix** follows that cue: whichever of its takes is in this pass's
+mix (picked, muted or not) when a take of this cue is rendered, else its best finished take
+(the best measured, else the first finished) while none is picked. Each take of this cue says
+which it heard ("theme m02 t03"), and picking another take of the theme's cue makes this cue's
+takes stale, so the leitmotif can be re-rendered to match. Name a take instead to keep it fixed
+whatever is picked. Each model hears it its own way:
+
+- **YuE2** sings its melody to this cue's lyrics and tempo. A YuE2 take's own plan is used as it
+  is; any other sound is transcribed first (SheetSage2, in the same job; it needs
+  `sheetsage2_bf16.safetensors` in `models/audio_encoders`).
+- **ACE-Step** hears its sound as the **timbre** reference: the instruments and voice, not the
+  tune.
+- **Stable Audio 3** takes none: the inspector says so, renders without it, and offers
+  **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song).
+
+The spotting sheet's selected cue shows and sets its theme too. Changing the theme makes the
+cue's takes stale (hover the badge: "the theme is m02 t01"), and so does a new pick in the
+theme's cue when the theme is the take in the mix ("the theme is m02 t03, not m02 t01").
+
+In ep03: *1M1 The Selection* (sh010 to sh030, 72 bpm, D major), *1M2 The Departure* (sh080 to the
+door, 96 bpm), *1M3 Chosen* (sh120 to the end, 66 bpm); no music under sh040-sh070 or sh110.
+
+## 3. Shape it: the Score tab
+
+The **Score** tab is the cue on one bar grid, top to bottom:
+
+- **Picture**: the shots it plays over, with the pre-roll before (music that starts before its
+  in point, so the first hit falls on a bar line) and the tail after.
+- **Hits**: each one, the bar and beat it lands on, and how far off its line the fit leaves it
+  (frames). A drop on the cue's out point is its **end**: the music is cut there, so it isn't
+  fitted.
+- **Bars**, then **Sections**: blocks of whole bars. Drag an edge to move it; click one to edit
+  it in the inspector: its **name** (a score's: intro, build, climax, release, drop, turn,
+  sting, transition, outro; a song's: verse, pre-chorus, chorus, bridge, break, instrumental,
+  solo; or **Other…**, your own; ACE-Step hears it as the section's tag, Stable Audio doesn't
+  hear names), **words** (what plays: "strings enter, timpani roll"), and
+  its energy **from** and **to** (1 sparse … 5 fortissimo). With no sections given, they're worked
+  out from the hits (a build into an arrive, quiet after a drop); a cue with no arrive, drop or
+  turn hit starts as one section over all its bars.
+  - **Add one**: **double-click** the lane where it should start. The section there splits at
+    the nearest bar line, both halves keeping its words and energies, the second named after it
+    ("build 2"); rename it in the inspector.
+  - **Remove one**: **right-click** it, **Merge with previous** or **Merge with next**. The
+    earlier one's name and words stay, with the bars of both.
+  - The right-click menu also has **Split at bar N** (where you clicked), **Edit**, and **Reset
+    sections from the hits**, which clears your sections (it asks first: their names and words
+    go) so they're worked out from the hits again.
+- **Intensity**: the arc, the energy you want bar by bar (green). Drag its points, double-click
+  to add one, right-click to remove one. A drawn arc **sets the sections' energies**, so what the
+  model is told follows it.
+- **Takes** (below; see step 5).
+
+The inspector's foot shows **exactly what the model is told** for the cue or the selected
+section, and the script's `music:` notes for the shots it covers, which go in too.
+
+## 4. Optional: the Arc and Orchestration & takes tabs
+
+**Arc** is the intensity lane large, for drawing the shape first:
+
+- **Draw** freehand, edit **Points**, or **Smooth** them.
+- **Presets**: slow burn, build and release, sting, pulse (and one from the script's notes).
+- **Snap peaks to hits**: moves the arc's peaks onto arrive hits and its lows onto drops.
+- **Sections from the arc**: cuts the sections where the arc turns, on bar lines (it asks first:
+  it replaces your sections' names and words).
+- The readout says what each section will be told, and flags detail the model can't follow: a
+  dip inside one section won't happen (models follow sections, not bars) — **Split at bar N** keeps
+  it.
+
+**Orchestration & takes** is who plays when:
+
+- **The grid**: a row per instrument family, a column per bar, each cell **off**, **under**,
+  **present** or **lead**. The **step** brush (the one it opens on) moves a clicked cell up a
+  level (off, under, present, lead, off) and **Shift**-click down; a drag gives every cell it
+  crosses the first one's new level. The other brushes paint their level: click a cell, or drag
+  across bars and rows. Keys **1-5** pick the brush (off, under, present, lead, step). Each
+  section is told its families, loudest first ("solo horn present, strings under"). A family
+  that changes inside a section is marked: the strongest level wins.
+- **The rows** start as an orchestra's families; **+ Family** adds one, and a row's name can be
+  any sound (celesta, fiddle, 808 bass, analog synth pad, gospel choir): it goes to the model as
+  written, so name it as you'd describe it.
+- **The takes** on the same bars, for fixing part of one (step 6).
+
+## 5. Render and choose a take
+
+**Render 8 takes** in the window's bar. Each lands in a few seconds (Stable Audio 3, about 2-4 s
+a take on a 5090) and is measured as it does:
+
+- **Its waveform**, from its first bar line.
+- **The white dotted line**: its loudness per bar; the faint green under it is your arc. The
+  closer they run, the better it follows the shape.
+- **Hit chips**: at each hit, how far (frames) the nearest real event in the music is; orange
+  past 2 frames, **—** when nothing happens there.
+- **Shape** (0 is your arc exactly), the **tempo heard**, and a **stale** badge if the cut has
+  moved since it was made (hover it for what moved).
+
+The list is **ranked**: #1 best lands the must-land hits and follows the arc. It can't hear
+whether the music is any good, so **listen to the top two or three** (▶) and **Pick** the one you
+like. Picking puts it on the Music track from the cue's in point to its out point, with volume
+points that pull its loudness toward the arc (a drop really drops). Render again for eight more
+if none is right; the models vary a lot from take to take, which is why it makes eight.
+
+What the measurements found (so you know what to expect): Stable Audio 3 put the climax where it
+was asked six times in eight; ACE-Step followed sections far less reliably, so the arc is kept by
+ranking and by the volume points, not by the words alone.
+
+## 6. Fix part of a take
+
+On **Orchestration & takes**, drag across bars on a take:
+
+- **Comp bars a-b from…** another take: a new take, this one with those bars from the other,
+  spliced on bar lines. It's measured and ranked like the rest.
+- **Lower bars a-b with breakpoints…** (the take in the mix): volume points that dip those bars,
+  shown on the timeline lane.
+- **Repaint bars a-b**: those bars made again on the take's own model, the rest of the take
+  kept exactly (spliced back at the bar lines). A new take, queued; it lands in a second or two,
+  noted "repainted bars a-b from t03", and is measured and ranked like the rest. By default it
+  plays the same music again in those bars, on the take's beat (a new performance of them);
+  tick **new music** for something different there, which can drift off the beat over four
+  bars or more: the take shows **on the beat n/m** against the original's count, so render a
+  couple and keep the one that stays on it. ACE-Step takes only: YuE2 and Stable Audio 3 can't
+  repaint (comp from another take instead). After updating seriesmith, restart ComfyUI once so
+  it loads the node a repaint needs. A repaint can't change what the bars are (new words, other
+  instruments): inside a take, ACE-Step follows the bars around them, not new words. For that,
+  change those sections' words in the inspector, render the cue again, and **Comp** the bars
+  from the take that follows them.
+
+## 7. Levels
+
+- **Faders**: one level per track. Music starts at **-12 dB**, under the lines. In ep03, at 0 dB
+  the score was louder than the dialogue it sat under; at -12 it sat 5-10 dB under the lines and
+  level with them on the swell.
+- **Ducking**: music dips 9 dB (ambience 6) whenever someone speaks, automatically, in Play all
+  and in the export alike.
+- **Score forward**, where the music should carry the scene over the lines (a reveal, a
+  montage with a voice-over, the swell under the last line): right-click a lane over the shot
+  (or select the shots first) ▸ **Duck region here**. In that stretch the music doesn't dip
+  under the lines; the dialogue is lowered 4 dB instead. It shows as a green striped span down
+  the lanes with a "Score forward" tab on the hits lane; drag the tab's edges to fit it,
+  right-click the tab to change how far the dialogue is lowered, to give it **its own dip**
+  instead (a deeper one, say -18 dB, where a busy cue fights the lines), or to delete it.
+  **Shift+drag** along the hits lane makes one over just the stretch you drag. It follows its
+  shots when the cut changes.
+- **Fades**: drag the white square at a block's top corner inwards (the menu's numbers do the
+  same).
+- **Volume points**: the pink line on a block. Drag a point up or down, double-click to add,
+  right-click to delete. Picking a take adds them (the fit to the arc); the block's menu clears
+  them. A crescendo the music doesn't have can't be made with points; that's what the arc and the
+  words are for. Points shape the level of what's there.
+- **Mute / solo** a track on its lane's head.
+- **Under the score**, the Ambience lane carries each place's room tone (its location's
+  `ambience` words, made into a bed in the Refs tab's Ambience), looped under its shots. It sits
+  well under the lines at 0 dB; right-click a place's block for its own level or to mute it.
+- **Effects** for a shot whose take has none of its own (a dubbed line, a model with no sound):
+  right-click its clip, **Sound ▸ Make effects**, and pick the take on the Effects lane when it
+  lands. They follow the shot's trims; if the shot's take changes they go stale and drop out
+  until you make them again ([EDITOR.md](EDITOR.md), Sound).
+- **Voices only**, when the takes' own music fights the score: H3, Seedance and FastH3 Omni
+  bake music and room tone into each take, different at every cut. The Dialogue lane head's
+  **⋮ ▸ Voices only** plays each clip's voices alone (split off by Demucs: **Make voice
+  stems** there, about a second a shot), so the score, the beds and the effects are all that's
+  under the lines. A shot with no lines goes silent on Dialogue; a shot whose stem isn't made
+  plays whole (a mark on its clip says so). With the takes' effects gone too, make effects for
+  the shots that need them. A shot can keep its whole sound: right-click it, **Sound ▸ Keep
+  its whole sound**.
+
+The export (**Export**) mixes everything to -16 LUFS and writes the stems (dialogue, effects,
+ambience, music, and music-and-effects) beside it; the **Premiere / Resolve XML** puts each
+track on its own audio tracks with the levels.
+
+## Muting or deleting a cue
+
+Two ways to take a cue out, for two different wishes:
+
+- **Mute it** to try the scene without it, or keep it for later: untick **plays in the mix** on
+  its row in the Refs tab's Music, in its block's menu on the Music lane, or in its menu on the
+  spotting map. It stays where it is, its take and its levels kept, drawn faint; Play all and
+  the export leave it silent (the music stem and the loudness too, and the Premiere / Resolve
+  XML lays it switched off). Ctrl+Z undoes it, like any mix edit; tick it to hear it again.
+  It's per pass: muting it in the proxy mix leaves the final as it was. Picking a take in the
+  cue window puts it back in the mix playing.
+- **Delete it** when it's not wanted at all: **Delete cue…** (the trash in the cue window's
+  head, on its Refs tab row, or its menu on the spotting map). It asks first, saying what goes
+  ("m03 and its 5 takes go to the episode's _history folder; it's taken out of the proxy and
+  final mixes"), then moves the cue's folder, its spec and every take, to the episode's
+  `_history/cue-m03.<date-time>/` and takes it out of both passes' mixes. **Ctrl+Z can't bring
+  it back**: to restore it, move that folder back to `sound/m03/` and pick its take again. A
+  cue with a take still queued or rendering can't be deleted (cancel it in Jobs), nor one
+  another cue uses as its theme (give that cue another theme first).
+
+## 8. When the cut changes
+
+A cue follows its shots. If the cut moves under it, its takes say what changed (the span is
+longer or shorter, a hit moved): a shorter span just ends on its out point, faded; a moved hit
+or a longer span means rendering again (or measuring again, from the takes' measure, when the
+tempo still fits).
+
+## 9. Cutting the picture to the music
+
+The other way round: once a cue (or a song) is in the mix, the picture can be cut to it. Its
+beats are drawn faintly across the timeline's Music lane, and **dragging a clip's edge snaps
+the cut at its end to a beat**, a downbeat from further away than a beat; the tip names it
+("cuts on the downbeat, bar 12"). Hold **Alt** to trim frame by frame. Only the music that
+stays put while you drag counts: music anchored to an earlier clip (or to this one, trimming
+its tail). A montage cut to a cue, or a music video cut to its song: a song laid on the Music
+lane is measured once (a second or so a minute of it) and its beats kept beside it; with no
+music on the lane, the episode's recording's beats are used when it is a song.
+
+Trimming moves the clips after it, and a cue anchored there with them: a cue is written to its
+span, so a trim inside its span makes it stale (above).
+
+## Quick reference
+
+| You want | Do |
+|---|---|
+| Music to land on a moment | a hit, kind arrive (peak) or accent (sting) |
+| Music to stop for a joke | a drop hit, and end the cue there |
+| A swell | an arc rising to 5 into an arrive hit |
+| A different feel bar by bar | Orchestration's grid, or sections with their own words |
+| Another section | double-click the Sections lane where it starts |
+| One section fewer | right-click it: Merge with previous / next |
+| The sections from the hits again | right-click a section: Reset sections from the hits |
+| It's too loud | the Music fader (it starts at -12), or volume points |
+| The music over the lines, not under them | right-click a lane ▸ **Duck region here** (score forward) |
+| The music further down under busy lines | a duck region, **Its own dip** (-18 dB, say) |
+| A fade in or out on a block | drag the white square at its top corner inwards |
+| Most of a take is right | Comp the bad bars from another take |
+| A song | Kind: Song; lyrics on its sections (YuE2 needs them) |
+| Where a song's verse and chorus land | the take's plan: its line and the strip along its waveform |
+| A melody heard again later | the later cue's **Theme**: the first cue's take (YuE2 sings it) |
+| A song in a recording's tune | **Theme**: a sound file, on YuE2 |
+| The same instruments as another cue | **Theme**: its take, on ACE-Step (its timbre) |
+| A place to start | the inspector's Preset, then adjust |
+| The whole episode's music at a glance | **Scoring** ▸ Spotting: the music map |
+| A cue over a whole sequence | the spotting map: right-click its row, **New cue over** it |
+| Cuts on the beat | drag a clip's edge near a beat on the Music lane (Alt: no snap) |
+| To hear a take under the picture | the spotting sheet: ▶ beside the take |
+| Another tempo that lands the hits | the spotting sheet: a tempo under **The tempo** |
+| The cues the cut has moved under | the spotting sheet's **Stale cues** |
+| To hear the scene without a cue | untick its **plays in the mix** (Ctrl+Z undoes) |
+| To be rid of a cue | **Delete cue…** (its folder to `_history/`, out of both mixes) |

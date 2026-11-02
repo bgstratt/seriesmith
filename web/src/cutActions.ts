@@ -18,7 +18,7 @@ import { PeaksCache } from "./lib/peaks";
 import { locate, totalDuration } from "./lib/playlist";
 import { UndoStack, applyEdit, diffEdit, type CutEdit } from "./lib/undo";
 import { statusKey, store, type CutAudio } from "./store";
-import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, MatchBy, Pass } from "./types";
+import type { CutAudioSource, CutEntry, CutWhat, EpisodeStatus, MatchBy, Mix, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -43,6 +43,20 @@ function syncUndo(ep: string, pass: Pass) {
   const s = undoStack(ep, pass);
   const k = statusKey(ep, pass);
   set((st) => ({ cutUndo: { ...st.cutUndo, [k]: { undo: s.undoLabel, redo: s.redoLabel } } }));
+}
+
+/** An edit made elsewhere (the mix) onto the pass's stack: undone in turn with the cut's. */
+export function pushEdit(ep: string, pass: Pass, edit: CutEdit) {
+  undoStack(ep, pass).push(edit);
+  syncUndo(ep, pass);
+}
+
+/** How a mix edit is undone or redone (mixActions sets it): save that mix. */
+type MixUndo = (ep: string, pass: Pass, mix: Mix, what: string) => Promise<boolean>;
+let mixUndo: MixUndo | null = null;
+
+export function setMixUndo(fn: MixUndo | null) {
+  mixUndo = fn;
 }
 
 /** For tests: forget every stack. */
@@ -142,8 +156,13 @@ async function step(dir: "undo" | "redo"): Promise<boolean> {
     return false;
   }
   syncUndo(c.ep, c.pass);
-  const entries = applyEdit(entriesOf(c.st), edit, dir);
-  const ok = sameEntries(entries, entriesOf(c.st)) || (await save(c.ep, c.pass, c.st, entries, `${dir} ${edit.label.toLowerCase()}`));
+  let ok: boolean;
+  if (edit.mix) {
+    ok = !!mixUndo && (await mixUndo(c.ep, c.pass, dir === "undo" ? edit.mix.before : edit.mix.after, `${dir} ${edit.label.toLowerCase()}`));
+  } else {
+    const entries = applyEdit(entriesOf(c.st), edit, dir);
+    ok = sameEntries(entries, entriesOf(c.st)) || (await save(c.ep, c.pass, c.st, entries, `${dir} ${edit.label.toLowerCase()}`));
+  }
   if (!ok) {
     if (dir === "undo") stack.restoreUndo(edit);
     else stack.restoreRedo(edit);
@@ -602,10 +621,6 @@ export function shuttle(key: "j" | "k" | "l") {
 
 export function setCutAudio(cutAudio: CutAudio) {
   set({ cutAudio });
-}
-
-export function toggleWaves(on?: boolean) {
-  set((s) => ({ waves: on ?? !s.waves }));
 }
 
 // ---------------------------------------------------------------------------

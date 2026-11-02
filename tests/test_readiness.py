@@ -647,10 +647,10 @@ class LoraSpecTest(unittest.TestCase):
     def test_every_target_can_take_a_lora(self):
         from seriesmith import jobs as J
         for t in TG.list_targets():
-            # audio targets take no LoRA; krea2 splices its own (LoraLoader, model
-            # and clip) in targets/image/krea2/graph.py rather than through
+            # audio and music targets take no LoRA; krea2 splices its own (LoraLoader,
+            # model and clip) in targets/image/krea2/graph.py rather than through
             # apply_loras, which is why it alone needs no insert_after
-            if t.kind == "audio" or t.id == TG.DEFAULT_IMAGE_TARGET:
+            if t.kind in ("audio", "music", "ambience", "foley") or t.id == TG.DEFAULT_IMAGE_TARGET:
                 continue
             with self.subTest(target=t.id):
                 specs = t.binding.specs("loras")

@@ -25,6 +25,11 @@ import fixturesRaw from "./fixtures.json?raw";
 import { FsError, browse as fsBrowse, fsExists, fsFileExists } from "./mockFs";
 import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindow } from "./mockAudio";
 import { AlignError, createMockAlign } from "./mockTrack";
+import { MIX_DEFAULTS } from "../api";
+import { MixError, checkMix, speechCurve } from "./mockMix";
+import { CUE_PRESETS, CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
+import { buildPlaylist } from "../lib/playlist";
+import type { CueSpec, CueSummary, CueTake, MixVoice, MixVoices } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
 import { RefError, createMockRefs } from "./mockRefs";
 import { svgImage, type KeyframeNeedSpec } from "./mockRefs";
@@ -67,6 +72,8 @@ export interface MockOptions {
   latency?: number;
   /** base URL of the media folder */
   mediaBase?: string;
+  /** a music cue to open (m01 over the first shots, three hits in the proxy mix, measured takes) */
+  cueDemo?: boolean;
 }
 
 class MockError extends Error {
@@ -99,6 +106,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   const status: Partial<Record<Pass, EpisodeStatus>> = clone(fx.status);
   const detail: Partial<Record<Pass, Record<string, ShotDetail>>> = clone(fx.detail);
   const cut: Record<Pass, CutEntry[]> = { final: [], proxy: [] };
+  /** mix.json: one mix per pass */
+  const mixes: Record<Pass, import("../types").Mix> = { final: {}, proxy: {} };
   const media = opts.mediaBase ?? "/mock/media/";
   /** a simulated take's files -> the real file it borrows */
   const alias = new Map<string, string>();
@@ -321,6 +330,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   let trackPath: string | null = TRACK_PATH;
   /** a transcript sits beside the recording (re-aligning then needs no Whisper) */
   let trackWords = true;
+  /** the recording's vocal stem sits beside it; the series config's audio.dub_from */
+  let trackVocals = false;
+  let dubFrom: "recording" | "vocals" = "recording";
 
   function round3(n: number) {
     return Math.round(n * 1000) / 1000;
@@ -358,6 +370,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     e.track = trackPath
       ? {
         path: trackPath, duration: track.duration, rate: TRACK_RATE, exists: true, words: trackWords,
+        vocals: trackVocals, vocals_words: false, dub_from: dubFrom,
         aligned: e.shots.filter((s) => windows[s.shot]).length,
       }
       : null;
@@ -420,6 +433,76 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   }
   // Phase 9b: order, script_index, out_of_order from the start
   for (const pass of ["final", "proxy"] as Pass[]) recut(pass);
+
+  // ---- music cues (seriesmith/cue.py): specs, takes, a plan against Play all's layout ----
+  const cueSpecs = new Map<string, CueSpec>();
+  const cueTakes = new Map<string, CueTake[]>();
+  /** the script's music: notes, for a plan's prompt */
+  const MUSIC_NOTES: Record<string, string> = { sh020: "tension rises as she looks up", sh030: "swells, full, on the reveal" };
+  const cuePlaylist = (pass: Pass) => buildPlaylist(status[pass], status[pass === "proxy" ? "final" : "proxy"]);
+  // the takes split into voice stems ("pass:shot:take"): made at once when asked
+  const voiceStems = new Set<string>();
+  // GET /seriesmith/mix's voices: every other clip has lines, as the speech curve has them speak
+  const mockVoices = (pass: Pass): MixVoices => {
+    const mix = mixes[pass] ?? {};
+    const on = !!mix.tracks?.dialogue?.voices_only;
+    const shots: MixVoice[] = cuePlaylist(pass).filter((it) => it.mp4 && it.take != null).map((it) => {
+      const own = mix.voices?.[it.shot]?.voices_only;
+      const want = own ?? on;
+      const ok = voiceStems.has(`${pass}:${it.shot}:${it.take}`);
+      const lines = it.index % 2 === 0;
+      const plays = !want ? "whole" : !lines && own !== true ? "silence" : ok ? "voice" : "whole";
+      return { shot: it.shot, pass: it.pass, take: it.take, path: it.mp4!.replace(/\.mp4$/, ".voice.wav"),
+               state: ok ? "ok" : "missing", why: ok ? null : `${it.shot} hasn't been split`, voices_only: want,
+               override: own ?? null, plays, lines };
+    });
+    return { voices_only: on, shots, split: shots.filter((x) => x.state === "ok").length, of: shots.length, queued: 0 };
+  };
+  /** the series config's score direction (sound.score) */
+  const SCORE_DIRECTION = "sincere, never comic: strings and a solo horn";
+  const cuePlan = (spec: CueSpec, pass: Pass) => planCue(spec, cuePlaylist(pass), st(pass).fps || 24, mixes[pass] ?? {}, MUSIC_NOTES, SCORE_DIRECTION);
+  const cueFile = (cid: string, n: number) => `sound/${cid}/t${String(n).padStart(2, "0")}.wav`;
+  function cueTakeDone(cid: string, t: CueTake, pass: Pass) {
+    const spec = cueSpecs.get(cid)!;
+    const p = cuePlan(spec, pass);
+    t.status = "ok";
+    t.measured = measureCue(p, t.seed ?? t.take);
+    t.file = cueFile(cid, t.take);
+    t.finished = new Date().toISOString();
+    t.stale = [];
+    clipFiles.set(t.file, makeVoice(`cue|${cid}|${t.take}`, p.seconds + t.measured.downbeat));
+  }
+  /** the takes best first (cue.ranked) */
+  const rankedTakes = (cid: string) => {
+    const all = cueTakes.get(cid) ?? [];
+    const done = all.filter((t) => t.status === "ok" && t.measured).sort((a, b) => a.measured!.score - b.measured!.score);
+    return [...done, ...all.filter((t) => !done.includes(t))];
+  };
+  if (opts.cueDemo) {
+    const shots = status.proxy?.shots ?? [];
+    mixes.proxy = {
+      hits: [
+        { id: "h01", name: "she looks up", at: { shot: shots[1].shot, frame: 30 } },
+        { id: "h02", name: "the reveal", at: { shot: shots[2].shot, frame: 20 }, kind: "arrive" },
+        { id: "h03", name: "silence", at: { shot: shots[3].shot, frame: 12 }, kind: "drop", must: false },
+      ],
+      // a bed under the first shots, brought up and down by its volume points (the gain line)
+      items: [{
+        id: "amb01", track: "ambience", path: "audio/room_tone.wav", in: { shot: shots[0].shot, frame: 0 }, out: { shot: shots[2].shot, frame: 40 }, loop: true,
+        points: [{ at: { shot: shots[0].shot, frame: 30 }, db: -9 }, { at: { shot: shots[1].shot, frame: 20 }, db: 3 }, { at: { shot: shots[2].shot, frame: 10 }, db: -4 }],
+      }],
+    };
+    cueSpecs.set("m01", {
+      id: "m01", label: "1M1 The Reveal", in: { shot: shots[0].shot, frame: 24 }, out: { shot: shots[3].shot, frame: 60 },
+      style: "romantic orchestral, solo horn", bpm: 92,
+    });
+    const takes: CueTake[] = [1, 2, 3, 4].map((n) => ({ take: n, status: "queued", seed: 1000 + n * 37, target: "stable_audio3", pass: "proxy" as Pass }));
+    for (const t of takes.slice(0, 3)) cueTakeDone("m01", t, "proxy");
+    takes[2].stale = ["she looks up moved -6 frames"];
+    takes[3].status = "failed";
+    takes[3].error = "the job ended failed: out of memory";
+    cueTakes.set("m01", takes);
+  }
 
   function effectiveOf(pass: Pass, shot: string): ShotDetail["effective"] {
     const d = det(pass, shot);
@@ -698,6 +781,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     const shots = status[pass]?.shots ?? [];
     return {
       path: trackPath, duration: track.duration, rate: TRACK_RATE, exists: true, words: trackWords,
+        vocals: trackVocals, vocals_words: false, dub_from: dubFrom,
       aligned: shots.filter((s) => windows[s.shot]).length,
     };
   }
@@ -722,7 +806,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     const same = path === trackPath;
     trackPath = path;
     // a recording the editor just attached has no transcript beside it yet
-    if (!same) trackWords = false;
+    if (!same) { trackWords = false; trackVocals = false; }
     emit("seriesmith.episode", { ep: EP });
     return {
       track: trackInfo(pass),
@@ -1164,6 +1248,239 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       recut(pass);
       emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
+    },
+    async getMix(ep, pass) {
+      await wait();
+      need(ep);
+      return { mix: clone(mixes[pass] ?? {}), series: {}, defaults: clone(MIX_DEFAULTS), voices: mockVoices(pass) };
+    },
+    async makeVoices(req) {
+      await wait();
+      need(req.ep);
+      const rows = mockVoices(req.pass).shots;
+      const want = req.shots ?? rows.map((r) => r.shot);
+      const queued: { shot: string; take: number; job: string }[] = [];
+      const skipped: { shot: string; why: string }[] = [];
+      for (const shot of want) {
+        const r = rows.find((x) => x.shot === shot);
+        if (!r || r.take == null) skipped.push({ shot, why: "it isn't in the cut" });
+        else if (r.state === "ok" && !req.redo) skipped.push({ shot, why: "its voice stem is made" });
+        else {
+          voiceStems.add(`${req.pass}:${shot}:${r.take}`);
+          queued.push({ shot, take: r.take, job: `voice-${shot}` });
+        }
+      }
+      if (queued.length) emit("seriesmith.episode", { ep: EP });
+      return { queued, skipped };
+    },
+    async putMix(ep, pass, mix) {
+      await wait();
+      need(ep);
+      if (pass !== "final" && pass !== "proxy") throw new MockError(`pass must be final or proxy`, 400);
+      const checked = checkMix(mix);
+      for (const it of checked.items ?? []) {
+        if (/^([\\/]|[a-zA-Z]:)/.test(it.path) || it.path.split("/").includes("..")) throw new MockError(`${it.path} is outside the episode`, 400);
+        if (mediaSeconds(it.path) == null) throw new MockError(`No such file: ${it.path}`, 404);
+      }
+      const changed = JSON.stringify(checked) !== JSON.stringify(mixes[pass]);
+      mixes[pass] = checked;
+      if (changed) emit("seriesmith.episode", { ep: EP });
+      return { mix: clone(checked) };
+    },
+    async getMixDuck(ep, pass) {
+      await wait();
+      need(ep);
+      return speechCurve(cuePlaylist(pass));
+    },
+    async cues(ep, pass) {
+      await wait();
+      need(ep);
+      return { cues: [...cueSpecs.values()].sort((a, b) => a.id.localeCompare(b.id)).map((spec) => {
+        const ts = cueTakes.get(spec.id) ?? [];
+        const row: CueSummary = { spec: clone(spec), takes: ts.length, ok: ts.filter((t) => t.status === "ok").length,
+                                  placed: [...new Set(ts.map((t) => t.placed).filter((p): p is Pass => !!p))].sort() };
+        if (!pass) return row;
+        // planned against the pass: its tempo, the take its mix item plays, what's stale (the takes' own stale words)
+        const item = (mixes[pass]?.items ?? []).find((i) => i.id === spec.id);
+        const m = item?.path.match(/^sound\/[^/]+\/t(\d{2,3})\.wav$/);
+        const inMix = m ? Number(m[1]) : null;
+        const done = ts.filter((t) => t.status === "ok");
+        try {
+          row.bpm = cuePlan(spec, pass).fit.bpm;
+          row.plan_error = null;
+        } catch (e) {
+          if (!(e instanceof CueError)) throw e;
+          return { ...row, bpm: null, in_mix: inMix, stale: [], stale_takes: [], plan_error: e.message };
+        }
+        return { ...row, in_mix: inMix, stale: [...(done.find((t) => t.take === inMix)?.stale ?? [])],
+                 stale_takes: done.filter((t) => t.stale?.length).map((t) => t.take) };
+      }) };
+    },
+    async getCue(ep, pass, cue) {
+      await wait();
+      need(ep);
+      const spec = cueSpecs.get(cue);
+      if (!spec) throw new MockError(`no cue ${cue}`, 404);
+      let plan = null;
+      let why: string | null = null;
+      try {
+        plan = cuePlan(spec, pass);
+      } catch (e) {
+        if (!(e instanceof CueError)) throw e;
+        why = e.message;
+      }
+      return { spec: clone(spec), plan, plan_error: why, takes: clone(rankedTakes(cue)) };
+    },
+    async putCue(ep, cue) {
+      await wait();
+      need(ep);
+      const spec = checkCue(cue);
+      cueSpecs.set(spec.id, spec);
+      emit("seriesmith.episode", { ep: EP });
+      return { spec: clone(spec) };
+    },
+    async deleteCue(ep, cue) {
+      await wait();
+      need(ep);
+      const spec = cueSpecs.get(cue);
+      if (!spec) throw new MockError(`no cue ${cue}`, 404);
+      const ts = cueTakes.get(cue) ?? [];
+      if (ts.some((t) => t.status === "queued")) throw new MockError(`${cue} has takes queued or rendering: cancel them in Jobs first`, 409);
+      const users = [...cueSpecs.values()].filter((c) => c.id !== cue && c.theme && "cue" in c.theme && c.theme.cue === cue).map((c) => c.id);
+      if (users.length) throw new MockError(`${cue} is the theme of ${users.join(", ")}: give it another theme first`, 409);
+      const changed: Pass[] = [];
+      for (const pass of ["final", "proxy"] as Pass[]) {
+        const items = mixes[pass].items ?? [];
+        const kept = items.filter((i) => i.id !== cue && !i.path.startsWith(`sound/${cue}/`));
+        if (kept.length === items.length) continue;
+        const m: import("../types").Mix = { ...mixes[pass], items: kept };
+        if (!kept.length) delete m.items;
+        mixes[pass] = m;
+        changed.push(pass);
+      }
+      cueSpecs.delete(cue);
+      cueTakes.delete(cue);
+      emit("seriesmith.episode", { ep: EP });
+      return { cue, moved_to: `_history/cue-${cue}.20261102-120000`, takes: ts.length, mixes: changed };
+    },
+    async renderCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      try {
+        cuePlan(spec, req.pass);
+      } catch (e) {
+        if (e instanceof CueError) throw new MockError(e.message, 400);
+        throw e;
+      }
+      const list = cueTakes.get(req.cue) ?? [];
+      cueTakes.set(req.cue, list);
+      const n = req.takes ?? spec.takes ?? 8;
+      const queued: { take: number; job: string; seed: number }[] = [];
+      for (let k = 0; k < n; k++) {
+        const take = Math.max(0, ...list.map((t) => t.take)) + 1;
+        const seed = (spec.seed ?? 5000) + list.length;
+        const t: CueTake = { take, status: "queued", seed, target: spec.model ?? "stable_audio3", pass: req.pass, created: new Date().toISOString() };
+        list.push(t);
+        queued.push({ take, job: `cue-${req.cue}-${take}`, seed });
+        // each lands a little after the last, as the queue runs them
+        setTimeout(() => {
+          if (!cueSpecs.has(req.cue)) return;
+          try {
+            cueTakeDone(req.cue, t, req.pass);
+          } catch (e) {
+            t.status = "failed";
+            t.error = e instanceof Error ? e.message : String(e);
+          }
+          emit("seriesmith.cue", { ep: EP, cue: req.cue, take, status: t.status });
+          emit("seriesmith.episode", { ep: EP });
+        }, (opts.latency ?? 120) * 4 + 400 * (k + 1));
+      }
+      emit("seriesmith.episode", { ep: EP });
+      return { queued };
+    },
+    async pickCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      const t = (cueTakes.get(req.cue) ?? []).find((x) => x.take === req.take);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      if (!t || t.status !== "ok" || !t.measured || !t.file) throw new MockError(`cue ${req.cue} has no finished take ${req.take}`, 409);
+      const p = cuePlan(spec, req.pass);
+      const mix = clone(mixes[req.pass] ?? {});
+      const items = (mix.items ?? []).filter((i) => i.id !== req.cue);
+      items.push({ id: req.cue, track: "music", path: t.file, in: spec.in, out: spec.out, offset: Math.round(t.measured.offset * 1000) / 1000,
+                   fade_out: Math.max(1, Math.round(p.bar * p.fps)), label: spec.label || req.cue });
+      mix.items = items;
+      mixes[req.pass] = checkMix(mix);
+      for (const x of cueTakes.get(req.cue) ?? []) if (x.placed === req.pass) delete x.placed;
+      t.placed = req.pass;
+      emit("seriesmith.episode", { ep: EP });
+      return { mix: clone(mixes[req.pass]) };
+    },
+    async compCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      const list = cueTakes.get(req.cue) ?? [];
+      const [base, src] = [req.take, req.from].map((n) => list.find((x) => x.take === n));
+      for (const [n, t] of [[req.take, base], [req.from, src]] as const) {
+        if (!t || t.status !== "ok" || !t.measured) throw new MockError(`cue ${req.cue} has no finished take ${n}`, 409);
+      }
+      const p = cuePlan(spec, req.pass);
+      const [a, b] = req.bars;
+      if (!(Number.isInteger(a) && Number.isInteger(b) && 0 <= a && a < b && b <= p.bars)) throw new MockError(`bars ${a}-${b} aren't inside cue ${req.cue}'s ${p.bars}`, 409);
+      const take = Math.max(0, ...list.map((t) => t.take)) + 1;
+      const t: CueTake = {
+        take, status: "ok", target: base!.target, pass: req.pass, comp: { base: req.take, from: req.from, bars: [a, b] },
+        measured: compMeasured(p, base!.measured!, src!.measured!, [a, b]), file: cueFile(req.cue, take),
+        created: new Date().toISOString(), finished: new Date().toISOString(), stale: [],
+      };
+      list.push(t);
+      cueTakes.set(req.cue, list);
+      clipFiles.set(t.file!, makeVoice(`cue|${req.cue}|${take}`, p.seconds + t.measured!.downbeat));
+      emit("seriesmith.cue", { ep: EP, cue: req.cue, take, status: "ok" });
+      emit("seriesmith.episode", { ep: EP });
+      return { take: clone(t) };
+    },
+    async repaintCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      const list = cueTakes.get(req.cue) ?? [];
+      const base = list.find((x) => x.take === req.take);
+      if (!base || base.status !== "ok" || !base.measured) throw new MockError(`cue ${req.cue} has no finished take ${req.take}`, 409);
+      if (!MUSIC_TARGETS.find((x) => x.id === base.target)?.capabilities?.repaint) {
+        throw new MockError(`${base.target} can't make bars of a take again (docs/SOUND.md 'Measured: repaint'): comp them from another take instead`, 409);
+      }
+      const p = cuePlan(spec, req.pass);
+      const [a, b] = req.bars;
+      if (!(Number.isInteger(a) && Number.isInteger(b) && 0 <= a && a < b && b <= p.bars)) throw new MockError(`bars ${a}-${b} aren't inside cue ${req.cue}'s ${p.bars}`, 409);
+      const take = Math.max(0, ...list.map((t) => t.take)) + 1;
+      const seed = req.seed ?? (spec.seed ?? 5000) + list.length;
+      const codes = req.fresh ? seed : base.repaint?.codes ?? base.seed;
+      const t: CueTake = {
+        take, status: "queued", seed, target: base.target, pass: base.pass ?? req.pass, created: new Date().toISOString(),
+        repaint: { from: req.take, bars: [a, b], ...(codes != null ? { codes } : {}), fresh: !!req.fresh },
+      };
+      list.push(t);
+      cueTakes.set(req.cue, list);
+      setTimeout(() => {
+        if (!cueSpecs.has(req.cue)) return;
+        // its bars made again (a little louder or softer), the rest the take's own
+        const m = clone(base.measured!);
+        m.levels = m.levels.map((lv, k) => (k >= a && k < b ? Math.round((lv + 1.5 - 3 * ((seed + k) % 2)) * 100) / 100 : lv));
+        Object.assign(t, { status: "ok", measured: m, file: cueFile(req.cue, take), finished: new Date().toISOString(), stale: [],
+          repaint_check: { beats: (b - a) * 4, on: (b - a) * 4 - (req.fresh ? 1 : 0), on_before: (b - a) * 4, median_ms: 3 } });
+        clipFiles.set(t.file!, makeVoice(`cue|${req.cue}|${take}`, p.seconds + m.downbeat));
+        emit("seriesmith.cue", { ep: EP, cue: req.cue, take, status: "ok" });
+        emit("seriesmith.episode", { ep: EP });
+      }, (opts.latency ?? 120) * 4 + 400);
+      emit("seriesmith.episode", { ep: EP });
+      return { queued: { take, job: `cue-${req.cue}-${take}`, seed } };
     },
     async cutReset(ep, pass, what) {
       await wait();
@@ -1723,6 +2040,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait();
       return { relight: [], look: [], framing: [], camera: [], look_builder: [] };
     },
+    async cuePresets() {
+      await wait();
+      return clone(CUE_PRESETS);
+    },
     presetImageUrl(name) {
       return media + name.split("/").pop();
     },
@@ -1860,6 +2181,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async targets(o) {
       const { kind, ready } = targetsQuery(o);
       await wait(ready ? 300 : undefined);
+      if (kind === "music") return { targets: clone(MUSIC_TARGETS), default: { music: "stable_audio3" } };
       const all = clone(MOCK_TARGETS);
       if (ready) for (const t of all.targets) t.readiness = mockReadiness(t.id);
       for (const t of all.targets) t.graph = mockGraph(t);
@@ -2201,6 +2523,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!trackPath) throw new MockError("the series config names no recording", 400);
       trackPath = null;
       trackWords = false;
+      trackVocals = false;
+      dubFrom = "recording";
       emit("seriesmith.episode", { ep: EP });
       return { track: null, hash: mockHash(files.series.text + "|no-track"), build: await api.build(ep), path: null, copied: false, reformatted: false };
     },
@@ -2210,6 +2534,22 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const build = req.dry_run ? null : await api.build(req.ep);
       if (!req.dry_run) emit("seriesmith.episode", { ep: EP });
       return { ...r, track: trackInfo(req.pass ?? "proxy"), build };
+    },
+    async makeVocals(ep) {
+      await wait(150);
+      need(ep);
+      if (!trackPath) throw new MockError("the episode has no recording (attach one first)", 409);
+      trackVocals = true;
+      emit("seriesmith.vocals", { ep: EP, recording: trackPath, status: "ok", error: "" });
+      return { job: "vocals-1", stem: null };
+    },
+    async setDubFrom(ep, value, pass) {
+      await wait(150);
+      need(ep);
+      if (value !== "recording" && value !== "vocals") throw new MockError("dub_from must be one of recording, vocals", 400);
+      dubFrom = value;
+      emit("seriesmith.episode", { ep: EP });
+      return { track: trackInfo(pass ?? "proxy"), hash: mockHash(files.series.text + "|dub_from=" + value), build: await api.build(ep) };
     },
     // ---- Phase 9c-B: a line from a take as a voice sample ----
     async refsVoiceFromTake(req) {
@@ -2242,7 +2582,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         if (e instanceof MockError) throw new ApiError(e.message, e.status, `/mock/${k}`, e.data);
         // an align 409 carries what is missing, as the route does
         if (e instanceof AlignError) throw new ApiError(e.message, e.status, `/mock/${k}`, e.data ? { error: e.message, ...(e.data as object) } : undefined);
-        if (e instanceof FsError || e instanceof RefError || e instanceof CutError) throw new ApiError(e.message, e.status, `/mock/${k}`);
+        if (e instanceof FsError || e instanceof RefError || e instanceof CutError || e instanceof MixError || e instanceof CueError) throw new ApiError(e.message, e.status, `/mock/${k}`);
         throw e;
       }
     };

@@ -2,7 +2,7 @@
 // dropped on a shot as its first keyframe or between clips (held), a text file refused.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickShot, generateDubTracks, loadRefs, refreshEpisode, renderSelected, select, setSound } from "../src/actions";
-import { VOICE_TARGET, VOICE_TARGETS } from "../src/lib/readiness";
+import { VOICE_TARGET } from "../src/lib/readiness";
 import type { TargetList } from "../src/types";
 import { setApi, setHost, type Host } from "../src/host";
 import { keyframeRefId } from "../src/lib/keyframes";
@@ -86,7 +86,7 @@ describe("several shots, and a picture as a keyframe", () => {
     const spy = vi.spyOn(api, "render");
     store.set({ targets: { targets: [{ id: VOICE_TARGET, readiness: { status: "not_ready", missing: [] } }] } as unknown as TargetList });
     generateDubTracks([shots()[0]]);
-    expect(store.get()).toMatchObject({ featuresOpen: true, featuresFocus: VOICE_TARGETS[0].feature });
+    expect(store.get()).toMatchObject({ featuresOpen: true, featuresFocus: `target:${VOICE_TARGET}` });
     expect(spy).not.toHaveBeenCalled();
   });
 

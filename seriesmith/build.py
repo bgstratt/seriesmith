@@ -116,10 +116,24 @@ def compile_groups(story: ir.Episode, series_cfg: dict, pass_: str,
     check_story(story, series_cfg)
     multishot = TG.multishot_check(story, series_cfg)     # raises for a group no target renders
     built = [(t, *t.compile_episode(story, series_cfg, pass_, only=ids)) for t, ids in groups]
+    for _, doc, _ in built:
+        with_dub_track(doc, series_cfg)
     if built:
         built[0][2]["warnings"] = (list(built[0][2].get("warnings") or [])
                                    + story_warnings(story, series_cfg) + multishot)
     return built
+
+
+def with_dub_track(doc: dict, series_cfg: dict) -> None:
+    """`audio.dub_from: "vocals"`: the shotlist's `defaults.dub_track`, the recording's vocal
+    stem (vocals.py: `<recording>.vocals.wav`), which every dub shot's window is then cut
+    from (held_audio.dub_recording); `master_track` stays the recording, the episode's
+    sound. Nothing is added otherwise, so a shotlist is what it was."""
+    if (series_cfg.get("audio") or {}).get("dub_from") != "vocals":
+        return
+    d = doc.get("defaults")
+    if isinstance(d, dict) and d.get("master_track"):
+        d["dub_track"] = d["master_track"] + ".vocals.wav"
 
 
 def check_story(story: ir.Episode, series_cfg: dict) -> None:
@@ -322,6 +336,36 @@ def render_todo(report: dict, root: str) -> str:
     return "\n".join(lines)
 
 
+def with_beds(report: dict, story: ir.Episode, series_cfg: dict) -> dict:
+    """The report with each place's ambience bed its shots play over (docs/SOUND.md
+    phase 3: a location's `ambience` words, core.series_config.ambience_bed_of) in its
+    work order, kind "ambience bed", the shots under it as its "blocked" shots (they
+    render without it; the mix lays it under them). A bed with no words (a file you
+    supply) is listed with a prompt saying so. Unchanged when there's none."""
+    from seriesmith.core.series_config import ambience_bed_of
+    from seriesmith.targets.ambience.common import bed_words
+    beds: dict[str, tuple[dict, list[str]]] = {}
+    for sq in story.sequences:
+        b = ambience_bed_of(series_cfg, sq.location)
+        if b is None:
+            continue
+        beds.setdefault(b["path"], (b, []))[1].extend(sh.id for sh in sq.shots)
+    if not beds:
+        return report
+    out = dict(report, needed=dict(report["needed"]),
+               blocked_shots={k: list(v) for k, v in report.get("blocked_shots", {}).items()},
+               size_hints=dict(report.get("size_hints", SIZE_HINT)))
+    for path, (b, shots) in beds.items():
+        out["needed"].setdefault(path, {
+            "kind": "ambience bed",
+            "prompt": bed_words(b["words"]) if b["words"] else
+            f"A recording of {b['name']}'s room tone or air (series.json names the file; "
+            f"no `ambience` words to make one from)."})
+        out["blocked_shots"].setdefault(path, shots)
+    out["size_hints"].setdefault("ambience bed", "a loopable wav, 5-30 s")
+    return out
+
+
 def print_report(r: dict, root: str) -> None:
     print(f"\n  {r['episode']}  {r['title']}   [{r['mode']}]  "
           f"{r['resolution']}  {r['steps']} steps")
@@ -465,6 +509,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
         print(f"\n  {exc}\n", file=sys.stderr)
         return 1
 
+    report = with_beds(report, story, series_cfg)
     print_report(report, args.out)
     for t, _, rep in built[1:]:
         print(f"  target {t.id} ({t.short}): {rep['shots']} shot(s) of this episode")

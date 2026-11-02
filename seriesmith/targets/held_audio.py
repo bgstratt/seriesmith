@@ -143,6 +143,15 @@ def audio_slots(doc: dict, shot: dict) -> list[dict]:
     return recording_slot(doc, shot)
 
 
+def dub_recording(doc: dict, shot: dict) -> str:
+    """The file a dub shot's window is cut from: the shot's own recording (`audio_file`: a
+    dub track, a take's sound), else the episode's vocal stem when the series config asks
+    for it (`defaults.dub_track`: build.with_dub_track), else the recording
+    (`master_track`). The episode's sound is always the recording."""
+    d = doc.get("defaults") or {}
+    return shot.get("audio_file") or d.get("dub_track") or d.get("master_track", "")
+
+
 def recording_slot(doc: dict, shot: dict) -> list[dict]:
     """A dub shot's recorded track as a ref slot (as H3 declares it): a
     missing recording blocks the render, or renders anyway without it. No
@@ -150,8 +159,7 @@ def recording_slot(doc: dict, shot: dict) -> list[dict]:
     uploads the shot's window of it."""
     if shot.get("audio_policy") not in DUB:
         return []
-    return [{"slot": "recording", "kind": "audio",
-             "path": shot.get("audio_file") or (doc.get("defaults") or {}).get("master_track", "")}]
+    return [{"slot": "recording", "kind": "audio", "path": dub_recording(doc, shot)}]
 
 
 def stage_dub(target, job, comfy=None) -> dict:

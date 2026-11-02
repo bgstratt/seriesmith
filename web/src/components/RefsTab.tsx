@@ -50,6 +50,7 @@ import { PanoSection } from "./PanoViewer";
 import { TourSection } from "./TourSection";
 import { voicesMissing } from "../lib/refs";
 import { DubTracksSection } from "./DubTracks";
+import { SoundRefsSections } from "./SoundRefs";
 
 const FILTERS: { id: RefFilter; label: string; title: string }[] = [
   { id: "episode", label: "this episode", title: "Refs used by this episode's shots (this pass)" },
@@ -1526,6 +1527,7 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               );
             })}
             {refs && view !== "board" && <DubTracksSection st={st} />}
+            {refs && view !== "board" && ep && <SoundRefsSections ep={ep} />}
           </div>
         </>
       )}

@@ -320,11 +320,11 @@ describe("targetCounts with the server's default/series sources", () => {
   });
 });
 
-import { VOICE_TARGET, cantDub, dubBlock, dubTrackBlock } from "../src/lib/readiness";
+import { VOICE_TARGET, cantDub, dubBlock, dubTrackBlock, dubTrackDefault, dubTrackModels, isVoiceModel } from "../src/lib/readiness";
 import type { TargetList } from "../src/types";
 
 describe("a dub track needs its voice model installed", () => {
-  const list = (readiness: unknown) => ({ targets: [{ id: VOICE_TARGET, readiness }] } as unknown as TargetList);
+  const list = (readiness: unknown) => ({ targets: [{ id: VOICE_TARGET, label: "MiniMax H3 Ref2VA", readiness }] } as unknown as TargetList);
   it("says what to install when it isn't ready, and nothing otherwise", () => {
     const why = dubTrackBlock(list({
       status: "not_ready",
@@ -337,6 +337,26 @@ describe("a dub track needs its voice model installed", () => {
     expect(dubTrackBlock(list({ status: "ready" }))).toBeNull();
     expect(dubTrackBlock(list({ status: "degraded", missing: [] }))).toBeNull();
     expect(dubTrackBlock(null)).toBeNull();          // not known: the server says
+  });
+});
+
+describe("the voice model is one list, read from the targets", () => {
+  const list = { targets: [
+    { id: "ltx2_voice", kind: "audio", label: "LTX-2.5 audio-only", capabilities: {} },
+    { id: "minimax_h3_ref2va", kind: "video", label: "MiniMax H3 Ref2VA", capabilities: { dub_track: true } },
+    { id: "fasth3_omni", kind: "video", label: "FastH3 Omni", capabilities: { dub_track: true } },
+    { id: "wan22_i2v", kind: "video", label: "Wan 2.2 I2V", capabilities: {} },
+    { id: "krea2", kind: "image", label: "Krea 2", capabilities: {} },
+  ] } as unknown as TargetList;
+  it("the audio models and the video models that render a dub track voice a line", () => {
+    expect(list.targets.filter(isVoiceModel).map((t) => t.id)).toEqual(["ltx2_voice", "minimax_h3_ref2va", "fasth3_omni"]);
+  });
+  it("a dub track is offered on the video ones only", () => {
+    expect(dubTrackModels(list).map((t) => t.id)).toEqual(["minimax_h3_ref2va", "fasth3_omni"]);
+  });
+  it("the series' voice model is the dub track's default when it renders one", () => {
+    expect(dubTrackDefault({ dub_target: "fasth3_omni", dub_target_source: "series" })).toBe("fasth3_omni");
+    expect(dubTrackDefault(null)).toBe(VOICE_TARGET);
   });
 });
 

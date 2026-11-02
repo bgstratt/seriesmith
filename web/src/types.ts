@@ -312,6 +312,12 @@ export interface Track {
   /** Phase 9c: how many of the pass's shots carry a dialogue window (0 until
    * the script has `audio:` lines and the episode is rebuilt). */
   aligned?: number;
+  /** the recording's vocal stem sits beside it (`<rec>.vocals.wav`, newer than it) */
+  vocals?: boolean;
+  /** the stem has a transcript of its own (`<rec>.vocals.wav.words.json`) */
+  vocals_words?: boolean;
+  /** the series config's `audio.dub_from`: where each dub shot's window is cut from */
+  dub_from?: "recording" | "vocals";
 }
 
 /** Phase 9b: GET /seriesmith/peaks. */
@@ -408,7 +414,23 @@ export interface AlignRequest {
   /** snap the windows to the frame grid (default true) */
   snap?: boolean;
   dry_run?: boolean;
+  /** hear the recording's vocal stem (align --vocals; made first when it isn't there) */
+  vocals?: boolean;
   pass?: Pass;
+}
+
+/** POST /seriesmith/vocals: the stem queued (`job`), or already there (`stem`). */
+export interface VocalsResult {
+  job: string | null;
+  stem: string | null;
+}
+
+/** The `seriesmith.vocals` event: a vocal stem made, or not. */
+export interface VocalsEvent {
+  ep: string | null;
+  recording: string;
+  status: "ok" | "failed";
+  error?: string;
 }
 
 /** One shot in an align report: null times mean it keeps its `dur:`. */
@@ -920,6 +942,53 @@ export interface AssembleResult {
   /** with `publish`: the assembled cut, and the published file (null if publishing failed) */
   cut?: string;
   published?: string | null;
+  /** the loudness check on the export (docs/SOUND.md phase 5; `<cut>_loudness.json`): measured
+   * against the mix's target, never changing it. Null: no sound, the XML, or an older server */
+  loudness?: LoudnessCheck | null;
+  /** the picture's checks on the export (docs/FINISHING.md "The export's checks"; `<cut>_checks.json`):
+   * black and frozen runs and flashes, never changing it. Null: skipped, the XML, or an older server */
+  checks?: ExportChecks | null;
+}
+
+/** A run the export's checks found: seconds in the cut, and the shots playing then. */
+export interface ExportCheckRun {
+  start: number;
+  end: number;
+  seconds: number;
+  shot: string | null;
+  shots: string[];
+  /** a flashing run: the most flashes in any one second */
+  flashes?: number;
+}
+
+/** The export's picture checked (checks.check): what the cut's own fades and held shots explain is left out. */
+export interface ExportChecks {
+  black: ExportCheckRun[];
+  frozen: ExportCheckRun[];
+  flashes: ExportCheckRun[];
+  explained: { black: number; frozen: number };
+  ok: boolean;
+  /** in words */
+  verdict: string;
+}
+
+/** An export's loudness against its target (mix.loudness_check). */
+export interface LoudnessCheck {
+  integrated_lufs: number;
+  range_lu: number;
+  true_peak_dbtp: number;
+  target_lufs: number;
+  /** the true peak's ceiling */
+  true_peak_db: number;
+  /** integrated minus target, LU */
+  off_lu: number;
+  /** within 1 LU of the target */
+  on_target: boolean;
+  over_peak: boolean;
+  /** the mix brought it to the target (false: the cut's own sound as it came) */
+  mixed: boolean;
+  /** in words */
+  verdict: string;
 }
 
 /** Phase 13: POST /seriesmith/assemble's extras. `upscaled` (final pass): each clip
@@ -1450,6 +1519,9 @@ export interface RefDefaults {
   /** Phase 9c-B: the audio target voice refs generate with */
   voice_target?: string | null;
   voice_target_source?: RefDefaultSource | null;
+  /** the video model a dub track renders on: the voice model when it's one, else H3 Ref2VA */
+  dub_target?: string | null;
+  dub_target_source?: RefDefaultSource | null;
 }
 
 export interface Ref {
@@ -1876,7 +1948,8 @@ export interface RefEvent {
 // targets (API.md "Targets (Phase 7)", "Phase 8 additions")
 // ---------------------------------------------------------------------------
 
-export type TargetKind = "video" | "image" | "audio";
+/** music: a score cue (docs/SOUND.md; GET /seriesmith/targets?kind=music) */
+export type TargetKind = "video" | "image" | "audio" | "music" | "ambience" | "foley";
 
 /** One binding entry: a graph widget (`class_type` + `field`, or for LoRAs
  * `name`/`strength`/`input`/`chain`), or `{"via": "loader"}`. */
@@ -1921,6 +1994,8 @@ export interface Target {
     voice_reference?: boolean;
     /** it can dub a track of its own: a take's sound, a dub track */
     dubs_tracks?: boolean;
+    /** it can make a dub track (a voice model beside the audio targets: refs.voice_target) */
+    dub_track?: boolean;
     subject_refs?: boolean;
     prompt?: string;
     negative_prompt?: boolean;
@@ -1935,6 +2010,18 @@ export interface Target {
     reference_audio?: boolean;
     /** Phase 9c-B, audio targets: the longest sample it generates, seconds */
     max_seconds?: number;
+    /** music targets: the tempo is asked in words ("text"), as its own input ("bpm"), or in its plan's Q: line ("abc": YuE2) */
+    tempo?: "text" | "bpm" | "abc";
+    /** music targets: an arc told as a story, sections as tags, or its own plan (YuE2) */
+    structure?: "story" | "sections" | "plan";
+    /** music targets: it sings a section's lyrics */
+    lyrics?: boolean;
+    /** music targets: bars of a take can be made again (POST /seriesmith/cue/repaint; ACE-Step) */
+    repaint?: boolean;
+    /** music targets: a song on it must have lyrics (YuE2 sings words) */
+    needs_lyrics?: boolean;
+    /** music targets: how it hears a cue's theme: sung as its melody (YuE2), as its timbre (ACE-Step), or not at all */
+    theme?: "melody" | "timbre" | null;
     [key: string]: unknown;
   };
   template?: TargetTemplate;
@@ -2419,4 +2506,576 @@ export interface PromoteResult {
   left: PromoteLeft[];
   hashes: PromoteHashes;
   build: BuildResult | null;
+}
+
+// ---------------------------------------------------------------------------
+// the episode's mix (docs/SOUND.md; seriesmith/mix.py's docstring has the shape)
+// ---------------------------------------------------------------------------
+
+/** What a track is (docs/SOUND.md phase 6): its default fader and duck depth, what a region
+ * reaches, whether it joins the M&E. The four default tracks are each their own kind. */
+export type TrackKind = "dialogue" | "effects" | "ambience" | "music";
+/** A track's id: one of the defaults ("dialogue", "effects", "ambience", "music") or one of the mix's own. */
+export type MixTrack = string;
+
+/** A track in the mix's own list (`track_list`): its id, kind and name (none: the default's, or its id). */
+export interface MixTrackDef {
+  id: MixTrack;
+  kind: TrackKind;
+  label?: string;
+}
+
+/** A shot and a frame of its take at the cut's rate, counted from the take's
+ * first frame before any trim: a trim or a reorder moves it with its shot. */
+export interface Anchor {
+  shot: string;
+  frame: number;
+}
+
+/** A track's fader (dB), mute, solo, and how far it dips under speech (not dialogue). */
+export interface MixTrackSettings {
+  gain_db?: number;
+  mute?: boolean;
+  solo?: boolean;
+  duck_db?: number;
+  /** the dialogue track only: each clip plays its take's voice stem (voices.py), the model's
+   * music and room tone split off */
+  voices_only?: boolean;
+}
+
+/** A volume breakpoint: dB at an anchor (linear between, held beyond the ends). */
+export interface MixPoint {
+  at: Anchor;
+  db: number;
+}
+
+/** A file on a track: plays `path` from `offset` seconds into it, from `in` to
+ * `out` (none: until the file ends). Defaults are left out, as mix.json keeps it. */
+export interface MixItem {
+  id: string;
+  track: MixTrack;
+  /** relative to the episode, "/" separators */
+  path: string;
+  in: Anchor;
+  out?: Anchor | null;
+  offset?: number;
+  gain_db?: number;
+  /** frames */
+  fade_in?: number;
+  fade_out?: number;
+  points?: MixPoint[];
+  loop?: boolean;
+  label?: string;
+  /** silent where it is: left out of the render, its stem and the loudness, and of Play all (absent: plays) */
+  mute?: boolean;
+}
+
+/** What a hit asks of the music: a sting or downbeat on the frame (accent, the
+ * default), the peak arriving there, the music cutting out or thinning, a turn. */
+export type HitKind = "accent" | "arrive" | "drop" | "turn";
+
+/** A named anchor ("the door bursts") a cue can land on. */
+export interface MixHit {
+  id: string;
+  name?: string;
+  at: Anchor;
+  /** absent: accent */
+  kind?: HitKind;
+  /** only false is stored: it may miss when one tempo can't land every hit */
+  must?: boolean;
+}
+
+/** A stretch that changes the ducking (score forward, a deeper dip). */
+export interface MixRegion {
+  from: Anchor;
+  to: Anchor;
+  music_duck_db?: number;
+  ambience_duck_db?: number;
+  dialogue_db?: number;
+}
+
+/** One pass's mix, as mix.json holds it ({} for none). */
+export interface Mix {
+  tracks?: Partial<Record<MixTrack, MixTrackSettings>>;
+  items?: MixItem[];
+  hits?: MixHit[];
+  regions?: MixRegion[];
+  duck?: { threshold_db?: number; attack_ms?: number; release_ms?: number };
+  loudness?: { target_lufs?: number; true_peak_db?: number };
+  /** what you changed of a place's ambience bed (docs/SOUND.md phase 3): its level, mute */
+  beds?: Record<string, MixBedSettings>;
+  /** a shot's picked effects take (docs/SOUND.md phase 4), its level, mute, kept though stale */
+  fx?: Record<string, MixFxSettings>;
+  /** the mix's own tracks in lane order (docs/SOUND.md phase 6); none: the four defaults */
+  track_list?: MixTrackDef[];
+  /** a shot's own voices only, over the dialogue track's (false: its whole sound) */
+  voices?: Record<string, { voices_only: boolean }>;
+}
+
+/** What a clip's take's voice stem is (voices.py). */
+export type VoiceState = "ok" | "missing" | "stale" | "queued" | "failed" | "sourced" | "silent";
+
+/** A cut shot's voice stem and what voices only does to it (GET /seriesmith/mix `voices.shots`). */
+export interface MixVoice {
+  shot: string;
+  pass: Pass;
+  take: number | null;
+  /** the stem, relative to the episode (null: no take) */
+  path: string | null;
+  state: VoiceState;
+  why: string | null;
+  /** the shot's, the track's under it */
+  voices_only: boolean;
+  /** the shot's own setting (null: the track's) */
+  override: boolean | null;
+  /** what the Dialogue track plays for it */
+  plays: "voice" | "whole" | "silence";
+  /** the script gives it a line */
+  lines: boolean;
+  measured?: { whole_rms_db?: number | null; voice_rms_db?: number | null; rest_rms_db?: number | null } | null;
+  seconds?: number | null;
+}
+
+/** GET /seriesmith/mix `voices`: the Dialogue track's voices only. */
+export interface MixVoices {
+  /** the track's setting */
+  voices_only: boolean;
+  shots: MixVoice[];
+  /** of the cut's shots that can be split, how many are, and how many are queued */
+  split: number;
+  of: number;
+  queued: number;
+}
+
+export interface MixFxSettings {
+  take: number;
+  gain_db?: number;
+  mute?: boolean;
+  /** play it though the cut's picture changed under it */
+  keep_stale?: boolean;
+  /** frames silent from the clip's head and tail: the block keeps its place and length */
+  trim_in?: number;
+  trim_out?: number;
+  /** frames, at the kept span's edges */
+  fade_in?: number;
+  fade_out?: number;
+  /** its volume points (dB on its gain at anchors on the shot), as an item's */
+  points?: MixPoint[];
+}
+
+/** A shot's picked effects laid at its clip (GET /seriesmith/mix `fx`: worked out from the
+ * cut and the mix's `fx`, never stored as an item; fx.laid). */
+export interface MixFx {
+  shot: string;
+  take: number;
+  /** the foley target it was made on */
+  model: string;
+  /** its wav, relative to the episode */
+  path: string;
+  exists: boolean;
+  /** the clip's first frame of the take, and the frame after its last */
+  in: Anchor;
+  out: Anchor;
+  /** cut seconds, as the server laid it */
+  start: number;
+  end: number;
+  /** seconds into the file at `start` (the clip's trim) */
+  offset: number;
+  gain_db: number;
+  mute: boolean;
+  keep_stale: boolean;
+  /** why it no longer matches the cut's picture (null: it does) */
+  stale: string | null;
+  heard: boolean;
+}
+
+/** One effects take's sidecar (GET /seriesmith/fx). */
+export interface FxTake {
+  take: number;
+  status: "queued" | "ok" | "failed";
+  target: string;
+  seed?: number;
+  prompt?: string;
+  text?: string;
+  error?: string;
+  path: string;
+  picked: boolean;
+  stale: string | null;
+  source?: { pass: Pass; take: number };
+  measured?: { seconds: number; peak_db: number | null; rms_db: number | null };
+  created?: string;
+}
+
+/** GET /seriesmith/fx/shots: a shot with effects takes in the pass, from their sidecars. */
+export interface FxShotSummary {
+  shot: string;
+  takes: number;
+  ok: number;
+  queued: number;
+  failed: number;
+  /** the take the pass's mix plays (null: none picked) */
+  picked: number | null;
+}
+
+/** GET /seriesmith/fx: one shot's effects takes, newest first. */
+export interface FxShot {
+  shot: string;
+  pass: Pass;
+  cut_take: { pass: Pass; take: number } | null;
+  picked: number | null;
+  settings: Partial<MixFxSettings>;
+  /** the words a new take is made from: the shot's sound: line, else its action */
+  text: string;
+  text_from: "sound" | "action" | "";
+  takes: FxTake[];
+}
+
+export interface MixBedSettings {
+  gain_db?: number;
+  mute?: boolean;
+}
+
+/** A place's ambience bed under a run of the cut's shots (GET /seriesmith/mix `beds`: worked
+ * out from the cut and the series config, never stored; ambience.laid). */
+export interface MixBed {
+  /** the place's id (its location, or the variant with its own ambience) */
+  place: string;
+  label: string;
+  /** the bed's file, relative to the episode */
+  path: string;
+  /** made yet */
+  exists: boolean;
+  words: string;
+  shots: string[];
+  /** from the first shot's first frame played to the frame after the last's */
+  in: Anchor;
+  out: Anchor;
+  /** cut seconds, as the server laid it */
+  start: number;
+  end: number;
+  gain_db: number;
+  mute: boolean;
+}
+
+/** GET /seriesmith/ambience: a place's bed as a ref (`ambience:<place>`), without its takes. */
+export interface AmbienceBed {
+  ref: string;
+  place: string;
+  name: string;
+  words: string;
+  path: string | null;
+  exists: boolean;
+  /** the locations whose shots play over it */
+  locations: string[];
+  used_by: string[];
+  takes: number;
+  ok: number;
+  queued: number;
+  picked: number | null;
+  can_generate: boolean;
+  why_not: string | null;
+  target: string | null;
+}
+
+/** A cut shot's place (GET /seriesmith/mix `places`): its bed's place, else its location's master. */
+export interface MixPlace {
+  place: string;
+  name: string;
+  /** the place has a bed (words or a file) */
+  bed: boolean;
+}
+
+/** GET /seriesmith/mix */
+export interface MixResult {
+  mix: Mix;
+  /** the places' ambience beds under the cut (none: the server has none to lay) */
+  beds?: MixBed[];
+  /** the shots' picked effects at their clips */
+  fx?: MixFx[];
+  /** the Dialogue track's voices only: each cut shot's voice stem (none: an older server) */
+  voices?: MixVoices;
+  /** each cut shot's place: the place whose bed it plays over, or would (none: an older server) */
+  places?: Record<string, MixPlace>;
+  /** the series config's `sound` defaults the mix sits on */
+  series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
+  /** the mix's tracks in lane order, each named (the server's; the editor works it out from `mix` too) */
+  track_list?: (MixTrackDef & { label: string })[];
+  defaults: {
+    tracks: MixTrack[];
+    /** the default tracks' names */
+    labels?: Record<TrackKind, string>;
+    /** each track's fader when neither the mix nor the series config sets it (music -12) */
+    gain_db: Record<MixTrack, number>;
+    duck_db: Partial<Record<MixTrack, number>>;
+    duck: { threshold_db: number; attack_ms: number; release_ms: number };
+    loudness: { target_lufs: number; true_peak_db: number };
+  };
+}
+
+// ---------------------------------------------------------------------------
+// music cues (docs/SOUND.md "The cue window"; seriesmith/cue.py's docstring has the shape)
+// ---------------------------------------------------------------------------
+
+/** A stretch of a cue: its bars (omitted: the plan fills them), its words, its
+ * energy 1-5 at its start and end, a song's lyrics. */
+export interface CueSection {
+  name: string;
+  bars?: number;
+  words?: string;
+  from?: number;
+  to?: number;
+  lyrics?: string;
+}
+
+/** A point of a cue's arc: an energy (1-5) at an anchor. */
+export interface CueArcPoint {
+  at: Anchor;
+  level: number;
+}
+
+/** A cue's spec (`<ep>/sound/<cue>/spec.json`), defaults left out. */
+export type CueKind = "score" | "song";
+
+/** A cue's theme: another cue's take in the episode (`take`; without one, whichever take that cue
+ * has in the pass's mix, else its best finished one), or a file relative to it (a gallery item, a recording). */
+export type CueTheme = { cue: string; take?: number } | { file: string };
+
+/** How the plan's model hears the cue's theme (cue.theme_for): "plan" (YuE2 sings a YuE2 take's own
+ * plan), "transcribe" (YuE2 sings SheetSage2's transcription), "timbre" (ACE-Step), or null and a
+ * warning (it isn't there, or the model takes none: rendered without it). */
+export interface CuePlanTheme {
+  spec: CueTheme;
+  label: string;
+  use: "plan" | "transcribe" | "timbre" | null;
+  warning: string | null;
+  /** a theme that follows another cue's pick: how its take was found ("mix": the one in the pass's
+   * mix; "best": none there, its best finished take); `label` names that take. null otherwise */
+  from?: "mix" | "best" | null;
+}
+
+/** A section of a song's plan (YuE2's ABC, read by core/abc.py) where a take puts it. */
+export interface CueSongSection {
+  name: string;
+  /** seconds into the take (at the cue's tempo) */
+  start: number;
+  seconds: number;
+  /** seconds from the cue's in point (negative: before it) */
+  at: number;
+  /** the plan's own bars (its meter's) and beats */
+  bars: number;
+  beats: number;
+  /** its length in the cue's bars */
+  cue_bars: number;
+}
+
+/** A song take's plan (tNN.abc) read against what came back. */
+export interface CueSong {
+  /** tNN.abc, relative to the episode */
+  file: string;
+  source: "planned" | "theme plan" | "theme transcribed";
+  /** the plan's own tempo, before the cue's was set (null: it had none) */
+  tempo_written: number | null;
+  tempo: number | null;
+  meter: string;
+  key: string;
+  bars: number;
+  /** its bars at the tempo asked, against the take as it came */
+  plan_seconds: number;
+  raw_seconds: number | null;
+  short: number | null;
+  /** the plan's first sung note, seconds into the take */
+  first_note: number | null;
+  sections: CueSongSection[];
+}
+
+export interface CueSpec {
+  id: string;
+  /** score (underscore, instrumental; the default) or a song (sung: its sections' lyrics) */
+  kind?: CueKind;
+  label?: string;
+  /** a music target (absent: the series' or the default) */
+  model?: string;
+  in: Anchor;
+  out: Anchor;
+  style?: string;
+  bpm?: number;
+  fixed_tempo?: boolean;
+  /** beats/unit: "3/4", "6/8", "7/8", "12/8" (absent: 4/4; a bare number, the older form, is N/4) */
+  meter?: string | number;
+  key?: string;
+  /** seconds after its out point (absent: 2) */
+  tail?: number;
+  sections?: CueSection[];
+  arc?: CueArcPoint[];
+  /** the orchestration grid: {family: [level per bar]}, 0 off, 1 under, 2 present, 3 lead
+   * (trailing offs and a family off throughout dropped); folded into each section's words */
+  orchestra?: Record<string, number[]>;
+  /** the mix's hits it lands (absent: every hit in its span) */
+  hits?: string[] | null;
+  /** its theme (the leitmotif): another cue's take, or a sound file relative to the episode */
+  theme?: CueTheme | null;
+  /** takes a render makes (absent: its model's preset's) */
+  takes?: number | null;
+  seed?: number | null;
+}
+
+/** A section of a cue preset: its share of the cue's bars, its words and energies, who plays ({family: 0-3}). */
+export interface CuePresetSection {
+  name: string;
+  share: number;
+  words?: string;
+  from: number;
+  to: number;
+  orchestra?: Record<string, number>;
+}
+
+/** GET /seriesmith/presets?kind=cue: a worked example of a cue's fields (seriesmith/presets/cue.json). */
+export interface CuePreset {
+  id: string;
+  label: string;
+  /** "Score" or "Song" */
+  group: string;
+  /** when to use it */
+  hint: string;
+  fields: { kind: CueKind; style: string; bpm: number; meter?: string; key?: string; shape: CuePresetSection[] };
+}
+
+/** GET /seriesmith/cues: one cue. */
+export interface CueSummary {
+  spec: CueSpec;
+  takes: number;
+  ok: number;
+  /** the passes whose mix it's in */
+  placed: Pass[];
+  /** with `pass` asked (GET /seriesmith/cues?pass=): the cue planned against that pass's cut */
+  bpm?: number | null;
+  /** the take its item in the pass's mix plays (null: none) */
+  in_mix?: number | null;
+  /** what has moved under that take since it was rendered ([]: nothing, or none in the mix) */
+  stale?: string[];
+  /** the finished takes something has moved under */
+  stale_takes?: number[];
+  /** its anchors aren't in the cut (null: planned) */
+  plan_error?: string | null;
+}
+
+/** A tempo the cue's hits could be fitted to (core/score.alternatives). */
+export interface CueTempo {
+  bpm: number;
+  preroll: number;
+  /** frames: the must-hits' worst error there */
+  worst_must: number;
+  /** frames: every hit's error added up */
+  total: number;
+}
+
+/** A hit of the cue's plan: seconds from its in point. */
+export interface CueHit {
+  id: string;
+  name: string;
+  kind: HitKind;
+  must: boolean;
+  t: number;
+  /** where it is in the cut (the mix's anchor) */
+  at?: Anchor;
+  /** a drop on its out point: the music's end, neither fitted to a bar line nor measured */
+  ends?: boolean;
+}
+
+/** What a cue would be asked now, against the pass's cut. */
+export interface CuePlan {
+  target: string;
+  fps: number;
+  /** seconds from its in point to its out point */
+  span: number;
+  hits: CueHit[];
+  /** the cue's exact tempo, the whole bpm the model is asked, the stretch
+   * between them, each hit's distance to its line (frames), the worst must-hit's */
+  fit: { bpm: number; ask_bpm: number; stretch: number; errors: (number | null)[]; worst_must: number };
+  /** the best few tempos within 8 % of the asked one, best first (the fit's first unless fixed) */
+  alternatives?: CueTempo[];
+  /** the series config's score direction (`sound.score`; "" when none), before the cue's style in the prompt */
+  direction?: string;
+  bars: number;
+  /** seconds a bar */
+  bar: number;
+  /** seconds before the in point where the first bar starts */
+  preroll: number;
+  seconds: number;
+  ask_seconds: number;
+  /** every section with its bars and levels filled */
+  sections: (CueSection & { bars: number; from: number; to: number })[];
+  /** an energy per bar */
+  arc: number[];
+  prompt: { prompt: string; negative: string | null; values: Record<string, unknown> };
+  /** the script's music: notes of the shots it plays over (folded into the prompt) */
+  notes?: { shot: string; music: string }[];
+  /** how its model hears the cue's theme (absent: it has none) */
+  theme?: CuePlanTheme;
+  /** what it will render without, in words (a theme it can't take, or that isn't there) */
+  warnings?: string[];
+  /** why it can't render (a YuE2 song with no lyrics) */
+  blocked?: string;
+  /** a theme's plan, known before it renders (YuE2 singing a YuE2 take's plan) */
+  song?: { source: string; bars: number; meter: string; sections: CueSongSection[] };
+}
+
+/** A take, once back, measured against the plan. */
+export interface CueMeasured {
+  bpm_heard: number | null;
+  /** the heard tempo was believed (else the plan's stretch was used) */
+  tempo_heard: boolean;
+  stretch: number;
+  /** seconds into the wav of its first bar line */
+  downbeat: number;
+  /** seconds into the wav of the cue's in point */
+  offset: number;
+  /** frames, one per hit of the plan (null: nothing in the music there) */
+  hit_errors: (number | null)[];
+  worst_must: number;
+  /** dB per bar */
+  levels: number[];
+  shape_error: number | null;
+  /** lower is better */
+  score: number;
+}
+
+/** A take's sidecar (tNN.json) with its number. */
+export interface CueTake {
+  take: number;
+  status: "queued" | "ok" | "failed" | (string & {});
+  seed?: number;
+  target?: string;
+  pass?: Pass;
+  /** relative to the episode: tNN.wav */
+  file?: string;
+  error?: string;
+  measured?: CueMeasured;
+  /** the pass whose mix it's in, once picked */
+  placed?: Pass;
+  /** what has moved in the cut since it was rendered ([] or absent: nothing) */
+  stale?: string[];
+  /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
+  comp?: { base: number; from: number; bars: [number, number] };
+  /** a repaint (POST /seriesmith/cue/repaint): take `from` with the cue's bars [a, b) made again
+   * (`codes`: the seed its music was written from; `fresh`: new music there; `span`: the bars in
+   * seconds of the take's file) */
+  repaint?: { from: number; bars: [number, number]; codes?: number; fresh?: boolean; span?: [number, number] };
+  /** a repaint's bars against the take's beat: of `beats` beats, the onsets within 40 ms, in the new bars and the take's */
+  repaint_check?: { beats: number; on: number; on_before: number; median_ms: number | null };
+  /** a song's plan (YuE2): its sections against the cue, its length against the take's */
+  song?: CueSong;
+  /** the theme it was rendered with, and how its model heard it */
+  theme?: { label: string; use: CuePlanTheme["use"]; from?: "mix" | "best" };
+  finished?: string;
+  created?: string;
+}
+
+/** GET /seriesmith/cue */
+export interface CueResult {
+  spec: CueSpec;
+  plan: CuePlan | null;
+  plan_error: string | null;
+  /** best first */
+  takes: CueTake[];
 }

@@ -14,6 +14,7 @@ import {
   withMasterTargets,
 } from "../lib/seriesForm";
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
+import { isVoiceModel } from "../lib/readiness";
 import { useApp } from "../store";
 import type { LookBuilderRow, LookPreset, Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
@@ -319,7 +320,7 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
   lookParts?: LookParts | null;
   onLookParts?: (p: LookParts) => void;
 }) {
-  const kind = f.kind === "video_target" || f.kind === "first_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "audio_target" ? "audio" : null;
+  const kind = f.kind === "video_target" || f.kind === "first_target" ? "video" : f.kind === "image_target" ? "image" : f.kind === "voice_target" ? "audio" : null;
   let input;
   if (f.kind === "long") {
     input = <textarea className="h3-in" rows={3} style={{ fontFamily: "inherit", resize: "vertical" }} value={value}
@@ -337,7 +338,9 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
     );
   } else if (kind) {
     // first frames: only the video models that read one
-    const mine = (targets ?? []).filter((t) => t.kind === kind && !t.draft
+    // voices: one list, the audio models and the video models that render a dub track
+    const mine = (targets ?? []).filter((t) => !t.draft
+      && (f.kind === "voice_target" ? isVoiceModel(t) : t.kind === kind)
       && (f.kind !== "first_target" || (t.capabilities?.keyframes ?? []).includes("first")));
     const dflt = f.kind === "first_target" ? undefined : defaults?.[kind as TargetKind];
     input = (

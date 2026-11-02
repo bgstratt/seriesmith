@@ -646,6 +646,243 @@
 .h3-wave-rec { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--h3-accent) 45%, transparent); }
 .h3-wave-note { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); font-size: 9px; color: var(--h3-muted); pointer-events: none; }
 .h3-b-moved { color: var(--h3-queued); border-style: dashed; }
+/* the sound lanes (the episode's mix, docs/SOUND.md): under the clips, inside the track */
+.h3-snd { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; flex-direction: column; gap: 1px; z-index: 2; }
+.h3-snd-lane { position: relative; flex: 0 0 auto; background: color-mix(in srgb, var(--h3-bg2) 70%, transparent); border-radius: 2px; }
+.h3-snd-lane.h3-drop-onto { outline: 2px dashed var(--h3-accent); outline-offset: -2px; }
+.h3-snd-hits { background: transparent; border-bottom: 1px solid var(--h3-border); cursor: copy; }
+.h3-snd-head {
+  position: sticky; left: 0; z-index: 4; height: 100%; display: flex; align-items: center; gap: 3px; padding: 0 4px;
+  background: var(--h3-bg); border-right: 1px solid var(--h3-border); font-size: 10px; color: var(--h3-muted); cursor: default;
+}
+.h3-snd-name { width: 48px; flex: none; color: var(--h3-fg); white-space: nowrap; overflow: hidden; }
+.h3-snd-fader { width: 44px; flex: 1 1 auto; min-width: 0; height: 12px; margin: 0; }
+.h3-snd-db { width: 26px; flex: none; text-align: right; font-size: 9px; }
+.h3-root button.h3-snd-btn {
+  flex: none; min-width: 16px; height: 16px; padding: 0 3px; font: inherit; font-size: 9px; font-weight: 700; line-height: 14px;
+  color: var(--h3-muted); background: none; border: 1px solid var(--h3-border); border-radius: 3px; cursor: pointer;
+}
+.h3-root button.h3-snd-btn:disabled { opacity: 0.4; cursor: default; }
+.h3-root button.h3-snd-btn.h3-snd-mute { color: #fff; background: var(--h3-failed); border-color: var(--h3-failed); }
+.h3-root button.h3-snd-btn.h3-snd-solo { color: #000; background: var(--h3-stale); border-color: var(--h3-stale); }
+.h3-snd-silent > .h3-snd-own, .h3-snd-silent > .h3-snd-item { opacity: 0.35; }
+.h3-snd-own { position: absolute; top: 0; height: 100%; }
+.h3-snd-own .h3-wave { margin-top: 2px; }
+.h3-snd-item {
+  position: absolute; top: 2px; bottom: 2px; z-index: 1; overflow: hidden; cursor: grab; border-radius: 3px;
+  --h3-snd-c: var(--h3-accent);
+  background: color-mix(in srgb, var(--h3-snd-c) 22%, var(--h3-bg)); border: 1px solid color-mix(in srgb, var(--h3-snd-c) 70%, transparent);
+}
+.h3-snd-item canvas { position: absolute; left: 0; top: 1px; display: block; pointer-events: none; }
+.h3-snd-item.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); cursor: grabbing; }
+/* a muted item: where it is, silent (its "plays in the mix" unticked) */
+.h3-snd-item.h3-snd-silent { opacity: 0.35; }
+.h3-snd-item:hover .h3-trim-h { opacity: 0.55; }
+.h3-snd-effects { --h3-snd-c: #e0a040; }
+.h3-snd-ambience { --h3-snd-c: #4fae8a; }
+/* a place's ambience bed: laid from the cut, not dragged (a menu instead); hollow until made */
+.h3-snd-item.h3-snd-bed { z-index: 0; cursor: context-menu; border-style: dashed; background: color-mix(in srgb, var(--h3-snd-c) 12%, var(--h3-bg)); }
+.h3-snd-item.h3-snd-bed-missing { background: transparent; opacity: 0.6; }
+.h3-snd-item.h3-snd-bed.h3-snd-silent { opacity: 0.35; }
+/* a shot's effects at its clip (laid from the cut: not moved, its edges trim it); stale ones marked and dimmed */
+.h3-snd-item.h3-snd-fx { z-index: 0; cursor: context-menu; background: color-mix(in srgb, var(--h3-snd-c) 14%, var(--h3-bg)); }
+.h3-snd-item.h3-snd-fx.h3-snd-silent { opacity: 0.4; }
+.h3-snd-item.h3-snd-fx-stale { border-style: dashed; border-color: var(--h3-warn, #e0a040); }
+.h3-snd-fxmenu { min-width: 260px; }
+/* a shot's effects trimmed at its head or tail: the block keeps its place, the trimmed ends hatched (silent) */
+.h3-snd-fx-cut {
+  position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0 3px, rgba(0, 0, 0, 0.3) 3px 6px);
+}
+.h3-snd-music { --h3-snd-c: #8a6ce0; }
+.h3-snd-dialogue { --h3-snd-c: #4a90d9; }
+.h3-snd-label {
+  position: absolute; left: 4px; top: 1px; font-size: 9px; color: var(--h3-fg); white-space: nowrap; pointer-events: none;
+  text-shadow: 0 0 2px var(--h3-bg), 0 0 2px var(--h3-bg);
+}
+.h3-snd-label .pi { font-size: 8px; }
+.h3-snd-fade { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+/* an item's gain line (its volume points, dB): its own colour, apart from the cue window's arc */
+.h3-root { --h3-gain: #ff8fb1; }
+.h3-snd-gain { position: absolute; left: 0; top: 1px; overflow: visible; pointer-events: none; z-index: 3; }
+.h3-snd-zero { stroke: var(--h3-gain); stroke-width: 1; opacity: 0.25; }
+.h3-snd-gainline { fill: none; stroke: var(--h3-gain); stroke-width: 1.5; stroke-linejoin: round; }
+.h3-snd-pt { fill: var(--h3-gain); stroke: var(--h3-bg); stroke-width: 1; }
+.h3-snd-pt-hit { fill: transparent; pointer-events: all; cursor: move; }
+.h3-snd-pt-hit:hover { fill: color-mix(in srgb, var(--h3-gain) 30%, transparent); }
+.h3-snd-fade.h3-l { left: 0; background: linear-gradient(to top right, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
+.h3-snd-fade.h3-r { right: 0; background: linear-gradient(to top left, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
+/* a block's fades: the ramp white over it and a white square at each top corner (the picture clips'
+   fade handles are white circles; the volume points pink dots), above the gain line; a corner with no
+   fade shows its square on hover */
+.h3-snd-fades { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 4; }
+.h3-snd-fadeline { fill: none; stroke: #fff; stroke-width: 1.25; opacity: 0.85; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
+.h3-snd-fadeh { fill: #fff; stroke: rgba(0, 0, 0, 0.85); stroke-width: 1; cursor: ew-resize; pointer-events: all; }
+.h3-snd-fadeh:hover, .h3-snd-fadeh.h3-on { fill: var(--h3-accent); }
+.h3-snd-fadeh-corner { opacity: 0; transition: opacity 0.1s; }
+.h3-snd-item:hover .h3-snd-fadeh-corner { opacity: 0.75; }
+.h3-snd-item:hover .h3-snd-fadeh-corner:hover { opacity: 1; }
+/* duck regions (mix.py's regions): a tinted span down the lanes, a tab on the hits lane with its edges */
+.h3-snd-region-forward { --h3-region: #9fd36a; }
+.h3-snd-region-custom { --h3-region: #9aa6ff; }
+.h3-snd-region {
+  position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--h3-region) 14%, transparent) 0 6px, color-mix(in srgb, var(--h3-region) 6%, transparent) 6px 12px);
+  border-left: 1px dashed color-mix(in srgb, var(--h3-region) 80%, transparent); border-right: 1px dashed color-mix(in srgb, var(--h3-region) 80%, transparent);
+}
+.h3-snd-region.h3-on { background: color-mix(in srgb, var(--h3-region) 22%, transparent); }
+.h3-snd-region-tab {
+  position: absolute; top: 2px; height: calc(100% - 4px); z-index: 2; box-sizing: border-box; padding: 0 5px; overflow: hidden;
+  font-size: 9px; line-height: 12px; white-space: nowrap; text-overflow: ellipsis; cursor: context-menu; color: #000;
+  background: color-mix(in srgb, var(--h3-region) 75%, transparent); border-radius: 0 0 3px 0;
+}
+.h3-snd-region-tab.h3-on { box-shadow: 0 0 0 1px var(--h3-fg); }
+.h3-snd-region-edge { position: absolute; top: 0; height: 100%; width: 6px; z-index: 3; cursor: ew-resize; }
+/* a grip at each end, always shown: two short bars in the region's colour, so the edges read as draggable */
+.h3-snd-region-edge::after {
+  content: ""; position: absolute; left: 1px; top: 15%; height: 70%; width: 1px;
+  border-left: 1px solid color-mix(in srgb, var(--h3-region, var(--h3-fg)) 90%, #000);
+  border-right: 1px solid color-mix(in srgb, var(--h3-region, var(--h3-fg)) 90%, #000);
+  background: var(--h3-region, var(--h3-fg)); border-radius: 1px; width: 2px;
+}
+.h3-snd-region-edge:hover { background: color-mix(in srgb, var(--h3-accent) 60%, transparent); }
+.h3-snd-regionmenu { min-width: 280px; }
+.h3-snd-region-mode { align-items: flex-start; }
+.h3-snd-region-mode > span { width: auto; flex: 1 1 auto; color: var(--h3-fg); white-space: normal; max-width: 260px; }
+/* hits: a flag on the hits lane and a line down the lanes, coloured by kind */
+.h3-snd-hit {
+  position: absolute; top: 1px; height: calc(100% - 2px); z-index: 3; padding: 0 4px 0 3px; margin-left: -1px; max-width: 140px;
+  font-size: 9px; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: ew-resize;
+  color: #000; background: var(--h3-hit); border-radius: 0 3px 3px 0;
+}
+.h3-snd-hit.h3-hit-may { background: color-mix(in srgb, var(--h3-hit) 45%, transparent); color: var(--h3-fg); }
+.h3-snd-hit.h3-on { box-shadow: 0 0 0 1px var(--h3-fg); }
+.h3-snd-hitline { position: absolute; bottom: 0; width: 0; margin-left: -1px; border-left: 1px dashed var(--h3-hit); pointer-events: none; z-index: 3; }
+/* the music's beats on the Music lane (docs/SOUND.md phase 5): faint, under its blocks; where a trim snaps */
+.h3-snd-beats { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; }
+.h3-snd-beat { stroke: var(--h3-fg); stroke-width: 1; opacity: 0.12; }
+.h3-snd-downbeat { stroke: var(--h3-fg); stroke-width: 1; opacity: 0.28; }
+.h3-trim-beat { color: var(--h3-hit, #f2c94c); }
+.h3-trim-beat.h3-down { font-weight: 600; }
+.h3-hit-accent { --h3-hit: #f2c94c; }
+.h3-hit-arrive { --h3-hit: #eb5757; }
+.h3-hit-drop { --h3-hit: #56ccf2; }
+.h3-hit-turn { --h3-hit: #bb6bd9; }
+.h3-snd-pop { padding: 4px 0; min-width: 220px; }
+.h3-snd-field { display: flex; align-items: center; gap: 8px; padding: 3px 8px; font-size: 11px; }
+.h3-snd-field > span { width: 64px; flex: none; color: var(--h3-muted); }
+.h3-snd-field > .h3-in { flex: 1 1 auto; min-width: 0; }
+
+/* the cue window (CueWindow.tsx): one bar grid, the inspector on the right. The arc
+   (energy, intent) has its own colour: the timeline's gain breakpoints (dB) are another curve */
+.h3-root { --h3-arc: #9ccc65; }
+.h3-cue-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.h3-cue-main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.h3-cue-main.h3-empty-state { justify-content: center; }
+.h3-cue-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--h3-border); flex: 0 0 auto; flex-wrap: wrap; }
+.h3-cue-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.h3-cue-grid { position: relative; padding-bottom: 8px; }
+.h3-cue-under { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.h3-cue-head { position: sticky; top: 0; z-index: 7; background: var(--h3-bg); border-bottom: 1px solid var(--h3-border); }
+.h3-cue-barline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid color-mix(in srgb, var(--h3-border) 70%, transparent); }
+.h3-cue-outside { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(127, 127, 127, 0.1) 0 4px, transparent 4px 8px); }
+.h3-cue-inout { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--h3-accent); }
+.h3-cue-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--h3-fg); z-index: 5; }
+.h3-cue-row { position: relative; display: flex; border-bottom: 1px solid color-mix(in srgb, var(--h3-border) 50%, transparent); }
+.h3-cue-lab {
+  position: sticky; left: 0; z-index: 6; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 6px;
+  background: var(--h3-bg); border-right: 1px solid var(--h3-border); font-size: 10px; color: var(--h3-muted); overflow: hidden;
+}
+.h3-cue-lane { position: relative; flex: none; height: 100%; }
+.h3-cue-pic {
+  position: absolute; top: 2px; bottom: 2px; overflow: hidden; border-radius: 2px; background-color: #000;
+  background-size: auto 100%; background-repeat: repeat-x; border-right: 2px solid var(--h3-bg);
+}
+.h3-cue-pic > span { position: absolute; left: 3px; bottom: 1px; font-size: 9px; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.h3-cue-hit {
+  position: absolute; top: 2px; bottom: 2px; z-index: 3; display: flex; flex-direction: column; padding: 0 4px 0 3px; max-width: 150px;
+  font-size: 9px; line-height: 12px; white-space: nowrap; overflow: hidden; color: #000; background: var(--h3-hit);
+  border-radius: 0 3px 3px 0; border-left: 2px solid var(--h3-hit); cursor: help;
+}
+.h3-cue-hit > span { overflow: hidden; text-overflow: ellipsis; }
+.h3-cue-hit.h3-hit-may { background: color-mix(in srgb, var(--h3-hit) 45%, transparent); color: var(--h3-fg); border-left-style: dashed; }
+.h3-cue-hit.h3-cue-off .h3-mono { color: #7a2a00; font-weight: 700; }
+.h3-cue-ruler .h3-cue-lane { background: var(--h3-bg3); }
+.h3-cue-bnum { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--h3-muted); font-size: 9px; color: var(--h3-fg); }
+.h3-cue-bnum > span { position: absolute; left: 2px; top: 2px; }
+.h3-cue-bnum > i { position: absolute; bottom: 0; height: 5px; border-left: 1px solid var(--h3-muted); }
+.h3-cue-sect {
+  position: absolute; top: 3px; bottom: 3px; display: flex; align-items: center; gap: 4px; padding: 0 6px; overflow: visible; cursor: pointer;
+  font-size: 10px; white-space: nowrap; background: color-mix(in srgb, #8a6ce0 22%, var(--h3-bg)); border: 1px solid color-mix(in srgb, #8a6ce0 60%, transparent);
+  border-radius: 3px; box-sizing: border-box;
+}
+.h3-cue-sect > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.h3-cue-sect.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); z-index: 1; }
+.h3-cue-edge { position: absolute; right: -5px; top: -3px; bottom: -3px; width: 9px; cursor: col-resize; z-index: 2; }
+.h3-cue-edge:hover { background: color-mix(in srgb, var(--h3-accent) 50%, transparent); }
+.h3-cue-tip { position: absolute; top: 2px; z-index: 7; padding: 1px 5px; font-size: 10px; border-radius: 3px; background: var(--h3-bg3); border: 1px solid var(--h3-border); pointer-events: none; }
+.h3-cue-arc .h3-cue-lane { cursor: copy; }
+.h3-cue-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.h3-cue-level { stroke: color-mix(in srgb, var(--h3-border) 50%, transparent); stroke-width: 1; }
+.h3-cue-arcline { fill: none; stroke: var(--h3-arc); stroke-width: 2; stroke-linejoin: round; }
+.h3-cue-arcline.h3-dim { opacity: 0.35; }
+.h3-cue-ptline { fill: none; stroke: var(--h3-arc); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.7; }
+.h3-cue-heard { fill: none; stroke: var(--h3-fg); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.h3-cue-pt { fill: var(--h3-arc); stroke: var(--h3-bg); stroke-width: 1.5; cursor: grab; }
+.h3-cue-pt.h3-implied { fill: var(--h3-bg); stroke: var(--h3-arc); }
+.h3-cue-pt:hover { r: 6; }
+.h3-cue-take { border-bottom: 1px solid var(--h3-border); }
+.h3-cue-take.h3-on .h3-cue-lab { color: var(--h3-ok); }
+.h3-cue-wave .h3-cue-lane canvas { position: absolute; left: 0; top: 2px; }
+.h3-cue-meas { position: sticky; left: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 2px 8px 4px; max-width: 760px; }
+.h3-cue-chip { font-family: var(--h3-mono); font-size: 10px; padding: 0 4px; border-radius: 3px; border: 1px solid var(--h3-border); }
+.h3-cue-chip.h3-cue-off { color: #000; background: var(--h3-stale); border-color: var(--h3-stale); }
+.h3-cue-chip.h3-cue-none { color: var(--h3-stale); border-style: dashed; }
+.h3-cue-offtext { color: var(--h3-stale); }
+.h3-cue-side {
+  flex: 0 0 300px; display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: auto;
+  border-left: 1px solid var(--h3-border); background: var(--h3-bg);
+}
+.h3-cue-h { margin-top: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--h3-muted); }
+.h3-cue-prompt pre {
+  margin: 2px 0 0; padding: 6px; font-size: 10.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;
+  background: var(--h3-bg2); border: 1px solid var(--h3-border); border-radius: 4px; max-height: 220px; overflow: auto;
+}
+/* the Arc tab: the lane large, drawn freehand or by points, what the model hears beside it */
+.h3-cue-draw .h3-cue-lane { cursor: crosshair; }
+.h3-cue-pt.h3-passive { pointer-events: none; }
+.h3-cue-stroke { fill: none; stroke: var(--h3-arc); stroke-width: 1.5; opacity: 0.85; }
+.h3-cue-lvtext { font-size: 9px; fill: var(--h3-muted); pointer-events: none; }
+.h3-cue-sect.h3-ro { cursor: default; }
+.h3-cue-read { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; border-top: 1px solid var(--h3-border); }
+/* a tab's "how to use this tab" (the ? in the window's head) */
+.h3-cue-help {
+  display: flex; align-items: flex-start; gap: 8px; padding: 4px 8px; flex: 0 0 auto; font-size: 11px;
+  border-bottom: 1px solid var(--h3-border); background: color-mix(in srgb, var(--h3-accent) 8%, var(--h3-bg));
+}
+.h3-cue-help ol { flex: 1 1 auto; margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.h3-cue-flag { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; color: var(--h3-stale); }
+/* the orchestration grid: a cell's level in one colour, stronger as it's louder; a cell the
+   model won't hear as painted (a change inside a section) hatched */
+.h3-root { --h3-orch: #5b9bd5; }
+.h3-cue-orch .h3-cue-lane { cursor: cell; }
+.h3-cue-orow .h3-cue-lab input.h3-in { min-width: 0; width: 100%; height: 16px; padding: 0 3px; font-size: 10px; }
+.h3-cue-cell { position: absolute; top: 2px; bottom: 2px; box-sizing: border-box; border-right: 1px solid var(--h3-bg); pointer-events: none; }
+.h3-lv-0 { background-color: transparent; }
+.h3-lv-1 { background-color: color-mix(in srgb, var(--h3-orch) 30%, transparent); }
+.h3-lv-2 { background-color: color-mix(in srgb, var(--h3-orch) 62%, transparent); }
+.h3-lv-3 { background-color: var(--h3-orch); }
+.h3-held { background-image: repeating-linear-gradient(135deg, var(--h3-stale) 0 1.5px, transparent 1.5px 5px); }
+.h3-cue-cell.h3-held { box-shadow: inset 0 0 0 1px var(--h3-stale); }
+.h3-cue-swatch { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--h3-border); border-radius: 2px; vertical-align: -1px; }
+/* a take's bars selected, and what can be done to them */
+.h3-cue-selectable .h3-cue-lane { cursor: text; }
+.h3-cue-range {
+  position: absolute; top: 0; bottom: 0; z-index: 2; box-sizing: border-box; pointer-events: none;
+  background: color-mix(in srgb, var(--h3-accent) 22%, transparent); border: 1px solid var(--h3-accent);
+}
+.h3-cue-fixes { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px 6px; border-top: 1px dashed var(--h3-border); }
+.h3-cue-comp { color: var(--h3-accent); }
 .h3-b-locked, .h3-b-trimmed { color: var(--h3-muted); }
 .h3-b-drift { color: var(--h3-stale); border-color: var(--h3-stale); cursor: help; }
 .h3-cut-strip {
@@ -1093,4 +1330,77 @@
 .h3-gallery > .h3-window-head { flex-wrap: nowrap; }
 .h3-gal-view-tools {
   flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 8px;
+}
+/* the spotting sheet (docs/SOUND.md): Play all's picture large, the music map under it, the selected cue on the right */
+.h3-spot-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.h3-spot-main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; }
+.h3-spot-picture { position: relative; display: flex; flex: 0 0 auto; height: min(48vh, 460px); min-height: 160px; background: #000; }
+.h3-spot-transport { flex-wrap: wrap; }
+.h3-spot-hitname { font-size: 10px; padding: 0 6px; border-radius: 3px; color: #000; background: var(--h3-hit); }
+.h3-spot-aud {
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 11px;
+  background: color-mix(in srgb, #8a6ce0 18%, var(--h3-bg)); border-bottom: 1px solid var(--h3-border);
+}
+.h3-spot-map { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 10px; }
+.h3-spot-row { border: 1px solid var(--h3-border); border-radius: 4px; padding: 3px 4px 4px; background: var(--h3-bg); }
+.h3-spot-row.h3-on { border-color: color-mix(in srgb, var(--h3-accent) 60%, var(--h3-border)); }
+.h3-spot-rowhead { display: flex; align-items: baseline; gap: 8px; font-size: 11px; padding: 0 2px 2px; }
+.h3-spot-lanes { position: relative; display: flex; flex-direction: column; gap: 1px; }
+.h3-spot-lanerow { display: flex; align-items: stretch; height: 18px; }
+.h3-spot-lab { flex: 0 0 64px; font-size: 9px; color: var(--h3-muted); align-self: center; }
+.h3-spot-lane { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; border-radius: 2px; cursor: pointer;
+  background: color-mix(in srgb, var(--h3-bg2) 70%, transparent); }
+.h3-spot-shot {
+  position: absolute; top: 0; bottom: 0; box-sizing: border-box; padding: 0 3px; font-size: 9px; line-height: 18px; white-space: nowrap; overflow: hidden;
+  border-right: 1px solid var(--h3-border); color: var(--h3-muted); pointer-events: none;
+}
+.h3-root button.h3-spot-hit {
+  position: absolute; top: 1px; bottom: 1px; max-width: 140px; padding: 0 4px 0 3px; margin: 0; font: inherit; font-size: 9px; line-height: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000; background: var(--h3-hit); border: 0;
+  border-left: 2px solid var(--h3-hit); border-radius: 0 3px 3px 0; cursor: pointer; z-index: 2;
+}
+.h3-root button.h3-spot-hit.h3-hit-may { background: color-mix(in srgb, var(--h3-hit) 45%, transparent); color: var(--h3-fg); border-left-style: dashed; }
+.h3-root .h3-spot-blk {
+  position: absolute; top: 1px; bottom: 1px; box-sizing: border-box; display: flex; align-items: center; gap: 4px; padding: 0 4px; margin: 0;
+  font: inherit; font-size: 9px; white-space: nowrap; overflow: hidden; color: var(--h3-fg); border-radius: 3px;
+  background: color-mix(in srgb, var(--h3-snd-c) 24%, var(--h3-bg)); border: 1px solid color-mix(in srgb, var(--h3-snd-c) 70%, transparent);
+}
+.h3-root button.h3-spot-cue { cursor: pointer; }
+.h3-root .h3-spot-blk.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); z-index: 1; }
+.h3-root .h3-spot-blk.h3-spot-unplaced { background: transparent; border-style: dashed; }
+.h3-root .h3-spot-blk.h3-snd-silent { opacity: 0.4; }
+.h3-root .h3-spot-blk.h3-spot-stale { border-color: var(--h3-stale); border-style: dashed; }
+.h3-spot-tag { font-size: 8px; padding: 0 3px; border-radius: 2px; background: color-mix(in srgb, var(--h3-bg) 70%, transparent); }
+.h3-spot-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--h3-fg); pointer-events: none; z-index: 4; }
+.h3-spot-side { flex: 0 0 380px; }
+.h3-spot-tablewrap { overflow: auto; max-height: 260px; border: 1px solid var(--h3-border); border-radius: 4px; }
+.h3-spot-table { border-collapse: collapse; width: 100%; font-size: 10.5px; }
+.h3-spot-table th, .h3-spot-table td { padding: 2px 5px; text-align: left; white-space: nowrap; border-bottom: 1px solid color-mix(in srgb, var(--h3-border) 50%, transparent); }
+.h3-spot-table th { position: sticky; top: 0; background: var(--h3-bg2); font-weight: 600; color: var(--h3-muted); }
+.h3-spot-table th.h3-spot-inmix { color: var(--h3-ok); }
+.h3-spot-hitrow { cursor: pointer; }
+.h3-spot-hitrow:hover { background: var(--h3-bg2); }
+.h3-spot-hitrow.h3-on { background: color-mix(in srgb, var(--h3-accent) 18%, transparent); }
+.h3-spot-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--h3-hit); vertical-align: 0; }
+.h3-spot-err-off { color: var(--h3-stale); font-weight: 700; }
+.h3-spot-err-none { color: var(--h3-muted); }
+.h3-spot-take.h3-on { color: var(--h3-ok); }
+.h3-spot-stalelist { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--h3-border); }
+.h3-root button.h3-linkbtn { font: inherit; padding: 0 2px; margin: 0; color: var(--h3-accent); background: none; border: 0; cursor: pointer; text-decoration: underline; }
+/* a song take's planned sections (YuE2's plan) along the bottom of its waveform */
+.h3-cue-songrow { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; pointer-events: none; }
+.h3-cue-songsec {
+  box-sizing: border-box; overflow: hidden; white-space: nowrap; padding: 0 3px; line-height: 12px; font-size: 9px;
+  border-left: 1px solid var(--h3-accent); color: var(--h3-fg); pointer-events: auto;
+}
+.h3-cue-songsec-0 { background: color-mix(in srgb, var(--h3-accent) 28%, transparent); }
+.h3-cue-songsec-1 { background: color-mix(in srgb, var(--h3-accent) 14%, transparent); }
+/* voices only (voices.py): a Dialogue clip playing its voice stem, or silent (no lines), or its whole sound for want of one */
+.h3-snd-voice-silent .h3-wave { opacity: 0.25; }
+.h3-snd-voice-mark { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; color: var(--h3-muted, #8a8f98); pointer-events: none; }
+.h3-snd-voice-warn { color: var(--h3-stale); }
+/* a duck region on the spotting map's Music row: under the cues */
+.h3-spot-region {
+  position: absolute; top: 0; bottom: 0; box-sizing: border-box;
+  background: color-mix(in srgb, var(--h3-region) 18%, transparent); border-left: 1px dashed var(--h3-region); border-right: 1px dashed var(--h3-region);
 }

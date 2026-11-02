@@ -1,0 +1,95 @@
+{
+  "id": "ace_step15",
+  "kind": "music",
+  "label": "ACE-Step 1.5 XL",
+  "short": "ACE-Step 1.5",
+  "default_rank": 2,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Tags, lyrics with section tags, a whole bpm, a length, a time signature and a key. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: ACE-Step 1.5 XL Turbo'): it holds a bpm when the music has a pulse (five of six within 0.3 %); sections and energy words don't make it follow an arc (the climax in place 1-3 of 8 seeds), so a cue's arc is kept by ranking takes and fitting gain. Its section tags each take one line per bar (prompt.py). About 4 s a cue on Turbo. For songs and a cue that must sit on a bpm.",
+    "mode": "t2m",
+    "tempo": "bpm",
+    "structure": "sections",
+    "lyrics": true,
+    "theme": "timbre",
+    "_repaint": "Bars of a take made again (cue.repaint): the take encoded, a noise mask over the bars (SeriesmithAudioSpanMask), its own graph at its own codes' seed, the take's audio spliced back outside them. Measured 2026-11-02 (docs/SOUND.md 'Measured: repaint'): the grid held in every span, the seams within 3 dB of the take's own, 1.3 s a repaint.",
+    "repaint": true,
+    "max_seconds": 600
+  },
+
+  "template": {
+    "default_seconds": 30.0,
+    "min_seconds": 2.0,
+    "max_seconds": 600.0
+  },
+
+  "binding": {
+    "_note": "ComfyUI's audio_ace_step1_5_xl_turbo template: UNETLoader -> ModelSamplingAuraFlow (shift 3), DualCLIPLoader (the 0.6B and 4B Qwen encoders, type ace), TextEncodeAceStepAudio1.5 (tags, lyrics, seed, bpm, duration, time signature, key) with its conditioning zeroed for the negative, EmptyAceStep1.5LatentAudio, KSampler, VAEDecodeAudio, SaveAudio. The length and the seed each go to two nodes.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_ace_step15.json",
+    "env": "SERIESMITH_ACE_STEP15_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "text_encoder": {"class_type": "DualCLIPLoader", "field": "clip_name1"},
+      "text_encoder_2": {"class_type": "DualCLIPLoader", "field": "clip_name2"},
+      "vae": {"class_type": "VAELoader", "field": "vae_name"},
+      "prompt": {"class_type": "TextEncodeAceStepAudio1.5", "field": "tags"},
+      "lyrics": {"class_type": "TextEncodeAceStepAudio1.5", "field": "lyrics"},
+      "bpm": {"class_type": "TextEncodeAceStepAudio1.5", "field": "bpm"},
+      "keyscale": {"class_type": "TextEncodeAceStepAudio1.5", "field": "keyscale"},
+      "timesignature": {"class_type": "TextEncodeAceStepAudio1.5", "field": "timesignature"},
+      "seconds": [{"class_type": "TextEncodeAceStepAudio1.5", "field": "duration"},
+                  {"class_type": "EmptyAceStep1.5LatentAudio", "field": "seconds"}],
+      "seed": [{"class_type": "TextEncodeAceStepAudio1.5", "field": "seed"},
+               {"class_type": "KSampler", "field": "seed"}],
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "ace-step-1.5", "patterns": ["*acestep*1.5*", "*ace*step*1.5*", "*acestep_v1.5*"], "tier": "required",
+              "keep": ["(?<![a-z])(turbo|sft|base)(?![a-z])"]},
+    "text_encoder": {"family": "ace-step-1.5-qwen-small", "patterns": ["*qwen*0.6b*ace15*"], "tier": "required"},
+    "text_encoder_2": {"family": "ace-step-1.5-qwen-large", "patterns": ["*qwen*4b*ace15*", "*qwen*1.7b*ace15*"], "tier": "required"},
+    "vae": {"family": "ace-step-1.5-vae", "patterns": ["*ace*1.5*vae*"], "tier": "required"}
+  },
+
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: what a cue's theme adds (prompt.py cue_graph): its sound loaded, encoded by the ACE VAE and set as the conditioning's timbre reference (ReferenceTimbreAudio), all ComfyUI core. No ComfyUI template wires ReferenceTimbreAudio; it is wired as its inputs say (a CONDITIONING and an optional LATENT), on the positive conditioning before the negative is zeroed from it. Optional: without them a theme is left out.",
+    "LoadAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"},
+    "VAEEncodeAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"},
+    "ReferenceTimbreAudio": {"tier": "optional", "feature": "a cue's theme as its timbre reference"},
+    "SeriesmithAudioSpanMask": {"tier": "optional", "feature": "bars of a take made again (repaint): seriesmith's node pack, ComfyUI restarted after updating it"}
+  },
+
+  "presets": {
+    "final": {
+      "_note": "XL SFT at 50 steps, cfg 7, as ComfyUI's audio_ace_step1_5_xl_sft template; Turbo (8 steps, cfg 1, its template's) is the proxy's.",
+      "model": "acestep_v1.5_xl_sft_bf16.safetensors",
+      "text_encoder": "qwen_0.6b_ace15.safetensors", "text_encoder_2": "qwen_4b_ace15.safetensors",
+      "vae": "ace_1.5_vae.safetensors",
+      "steps": 50, "cfg": 7.0,
+      "takes": 8
+    },
+    "proxy": {
+      "model": "acestep_v1.5_xl_turbo_bf16.safetensors",
+      "text_encoder": "qwen_0.6b_ace15.safetensors", "text_encoder_2": "qwen_4b_ace15.safetensors",
+      "vae": "ace_1.5_vae.safetensors",
+      "steps": 8, "cfg": 1.0,
+      "takes": 8
+    }
+  },
+
+  "downloads": {
+    "_note": "The files ComfyUI's audio_ace_step1_5_xl_turbo / _sft templates name (properties.models).",
+    "acestep_v1.5_xl_turbo_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_xl_turbo_bf16.safetensors", "source": "ComfyUI template audio_ace_step1_5_xl_turbo.json (properties.models)"},
+    "acestep_v1.5_xl_sft_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/diffusion_models/acestep_v1.5_xl_sft_bf16.safetensors", "source": "ComfyUI template audio_ace_step1_5_xl_sft.json (properties.models)"},
+    "qwen_0.6b_ace15.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_0.6b_ace15.safetensors", "source": "ComfyUI template audio_ace_step1_5_xl_turbo.json (properties.models)"},
+    "qwen_4b_ace15.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/text_encoders/qwen_4b_ace15.safetensors", "source": "ComfyUI template audio_ace_step1_5_xl_turbo.json (properties.models)"},
+    "ace_1.5_vae.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/split_files/vae/ace_1.5_vae.safetensors", "source": "ComfyUI template audio_ace_step1_5_xl_turbo.json (properties.models)"}
+  }
+}

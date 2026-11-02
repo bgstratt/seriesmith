@@ -20,8 +20,10 @@ failed exits 1.
 | `seriesmith takes` / `pick` / `override` / `keyframe` / `discard` / `cut` | Takes, the cut and per-shot tweaks (below) |
 | `seriesmith promote <episode>` | Overrides moved into the script or the series config |
 | `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note>`, `--export`, `--clear`, `--resolve <id>`) |
-| `seriesmith align <episode> <recording>` | The script timed against a dialogue recording |
+| `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
 | `seriesmith assemble <episode>` | The review cut |
+| `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
+| `seriesmith voices <episode>` | The cut's takes split into their voice stems (the model's music and room tone taken off), for the mix's voices only (`--proxy`, `--shots`, `--redo`, `--list`) |
 | `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
 | `seriesmith all <episode>` | build → refs → render → assemble (`--skip-build` keeps the shotlists on disk) |
 | `seriesmith targets [<episode>]` | Which models the running ComfyUI can render, what to download for the rest |
@@ -340,7 +342,81 @@ seriesmith assemble Shows\ep05 --xml             # the cut as a Premiere / Resol
   `epNN_up.mp4` at the upscales' size beside the plain cut; a clip without one is scaled up
   and named in the report. `--size WxH` sets the cut's size (`1920x1080` for a 1920×1088
   upscale), letterboxing a clip whose aspect differs.
+- The episode's mix (`mix.json`, the editor's sound lanes; docs/SOUND.md): when it changes
+  anything (an item, a track's level, a place's ambience bed, a shot's picked effects), the
+  sound is mixed from its tracks (by default four: the clips' own sound as Dialogue, then
+  Effects, Ambience and Music; and any the mix adds of its own, a Song or Walla track),
+  brought to the loudness target, and the stems written to `<cut>_stems/`, one per track
+  named for it (`dialogue`, `effects`, `ambience`, `music`, `song`…), `me` (every track but
+  the dialogue kind's: the M&E) and `mix`. `--no-mix` leaves the clips' own sound as it is.
+  `--xml` carries the tracks as lanes, a pair each in the mix's order.
+- **The loudness check**: the mp4 is measured when it's written (integrated loudness, loudness
+  range, true peak) against the mix's loudness target (the series config's `sound.loudness`,
+  else -16 LUFS and -1 dBTP), and reported: `loudness: -16.1 LUFS integrated (on the -16
+  target), range 13.7 LU, true peak -4.5 dBTP (under the -1 ceiling)`, with `!` in front when
+  it's more than 1 LU off the target or over the ceiling. It's kept beside the cut as
+  `<cut>_loudness.json`. It never changes the sound: a cut with no mix is measured as it came
+  (a mastered song under `--audio master` reads far louder than -16, and says so).
+- **The picture's checks** (FINISHING.md "The export's checks"): black runs (half a second or
+  more), frozen runs (two seconds or more) and flashes (more than three in any second, the
+  common photosensitivity guideline, on the whole frame's average), each with its times and
+  shot, reported under the loudness line (`checks: no black, frozen or flashing runs`, `!` in
+  front when it found any) and kept as `<cut>_checks.json`. Black or frozen frames inside a
+  clip's own fade, or a held shot (`hold`), are left out. It never changes the cut;
+  `--no-checks` skips it.
 - This is a review cut. Mix the final audio in Resolve.
+
+### Effects: fx
+
+```
+seriesmith fx Shows\ep05 --proxy --shots sh010,sh020          # one take each, on h3_foley
+seriesmith fx Shows\ep05 --shots sh040 --target ltx23_foley --takes 2
+seriesmith fx Shows\ep05 --proxy --shots sh010,sh020 --pick   # and into the proxy mix
+seriesmith fx Shows\ep05 --proxy --list                       # each shot's takes, stale or not
+```
+
+- A shot's effects are made from the frames of the take the pass's cut plays for it, all of
+  it, on a `foley` model: `h3_foley` (the default: MiniMax H3 FL2VA asked for the sound of
+  the video it's given, about 10 s a shot), `ltx23_foley` (the LTX-2.3 Foley LoRA, a minute
+  or two) or `hunyuan_xl_foley` (HunyuanVideo-Foley XL). The series config's
+  `sound.effects_model` sets the series' own; `--target` this run's.
+- Only the shots you ask for: many takes already carry their model's effects in their own
+  sound. The words are the shot's `sound:` line, else its action, and "No dialogue, no
+  voices, no singing, no music."; the seed comes from the episode, the shot and the take
+  number.
+- Takes land in `<episode>/sound/fx/<pass>/<shot>/tNN.wav` with a `tNN.json` (the model, the
+  prompt, the seed, and the take it was made from). `--pick` puts each shot's new take in the
+  pass's mix (`mix.json` `fx`); the editor's Effects lane picks among them too.
+- The mix lays a shot's picked effects at its clip, trimmed with it. When the cut plays
+  another take of the shot, or that take is rendered again, the effects are **stale**: left
+  out of the mix (assemble says so) until they're made again, or kept on purpose (the
+  Effects lane's **Keep as it is**, `fx: {shot: {keep_stale: true}}`).
+- Runs on a queue of its own and waits (`--backend`, default `local`); the editor's server
+  queues them on its own queue (`POST /seriesmith/fx/render`).
+
+### Voice stems: voices
+
+```
+seriesmith voices Shows\ep05                       # every take the final cut plays, split
+seriesmith voices Shows\ep05 --proxy --shots sh020 # one shot of the proxy cut
+seriesmith voices Shows\ep05 --redo                # made again, fresh or not
+seriesmith voices Shows\ep05 --list                # each shot's stem: ok, missing, stale
+```
+
+- A video model that makes its own sound (H3, Seedance, FastH3 Omni) bakes its music and room
+  tone into each take, different at every cut. This splits the take the cut plays for each
+  shot into its voices and the rest (Hybrid Demucs, on this machine's ComfyUI: seriesmith's
+  vocal-stem node, as the vocal stem of a song), one queued job a take, under a second each
+  once loaded.
+- The stem lands beside the take, `<shot>_tNN.voice.wav`, with a `.voice.json` (what it was
+  split from, and the levels of the whole sound, the voices and the rest). It's **stale** when
+  the take's sound changes (rendered again): made again by running this again.
+- It's heard only when the pass's mix asks for it: the Dialogue track's **Voices only**
+  (`mix.json` `tracks.dialogue.voices_only`, a shot its own way in `voices`). Then assemble's
+  clips, the stems, the XML and the ducking hear the voices; a shot whose stem is missing or
+  stale plays its whole sound (assemble names it), and a shot the script gives no lines is
+  silent on the Dialogue track unless it's set to voices only itself.
+- The editor's server queues them on its own queue (`POST /seriesmith/voices`).
 
 ### Takes, picks and overrides
 
@@ -548,6 +624,8 @@ seriesmith assemble Shows\ep05 --proxy --audio master          # picture over th
   [INSTALL.md](../INSTALL.md#1-requirements) if it picks the wrong one.
 - align transcribes the recording with word timings, matches it to the script, and cuts it
   into one continuous run of windows with cuts at the quietest point of each pause.
+  `--vocals` hears the recording's vocal stem instead (a song: made on local ComfyUI first,
+  kept as `<recording>.vocals.wav`; off by default).
 - It writes `audio: in-out` on every shot, points the series config at the recording, keeps the
   old copy of each in `<episode>\_history\` (the editor's history), and writes `align_report.md`.
 - Speaking shots then default to `dub_keep_foley`: H3 lip-syncs to your line and keeps its own

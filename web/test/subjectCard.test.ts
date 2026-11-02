@@ -77,7 +77,7 @@ describe("cast cards", () => {
     expect(ids("character")).toEqual(["name", "design", "voice", "of", "sheet", "sheet_panels", "voice_sample"]);
     expect(ids("group")).toContain("members");
     expect(ids("voice")).toEqual(["name", "voice", "voice_sample"]);
-    expect(ids("location")).toEqual(["description", "of", "plate"]);
+    expect(ids("location")).toEqual(["description", "of", "ambience", "plate", "ambience_bed"]);
     const variantOf = cardFields("character", show, "new").find((f) => f.path[0] === "of")!.choices!.map((c) => c.value);
     expect(variantOf).toContain("ada");
     expect(variantOf).not.toContain("ada_wet");          // a variant isn't a base

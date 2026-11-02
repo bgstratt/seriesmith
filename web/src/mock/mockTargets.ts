@@ -24,7 +24,7 @@ export const MOCK_TARGETS: TargetList = {
   targets: [
     {
       id: H3, kind: "video", label: "MiniMax H3 Ref2VA", default: true, short: "H3",
-      capabilities: { keyframes: [], policies: ["generate", "dub", "dub_keep_foley", "clone"], voice_reference: true, subject_refs: true, prompt: "sections" },
+      capabilities: { keyframes: [], policies: ["generate", "dub", "dub_keep_foley", "clone"], voice_reference: true, subject_refs: true, prompt: "sections", dub_track: true },
       presets: {
         final: {
           model: "minimax_h3_ref2va_pruned_int8_convrot.safetensors",

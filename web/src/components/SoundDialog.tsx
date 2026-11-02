@@ -16,7 +16,7 @@ import { closeSound, generateDubTracks, openClipAudio, setSound } from "../actio
 import { setClipAudio } from "../cutActions";
 import { api } from "../host";
 import { tn } from "../lib/format";
-import { VOICE_TARGET, VOICE_TARGETS, dubBlock, dubTrackBlock } from "../lib/readiness";
+import { dubBlock, dubTrackBlock, dubTrackDefault, dubTrackModels } from "../lib/readiness";
 import { seriesDefaultTarget, shotTarget, targetShort } from "../lib/targets";
 import { statusKey, useApp } from "../store";
 import type { CutAudioSource, DubOption, DubSource, DubSources, ShotSound } from "../types";
@@ -78,7 +78,10 @@ export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "
   useEffect(() => setMode(current?.mode ?? "default"), [current?.mode]);
   const [src, setSrc] = useState<DubSources | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [model, setModel] = useState(VOICE_TARGET);
+  // the series' voice model when it renders dub tracks (Series settings: Voices)
+  const served = useApp((s) => (s.ep ? s.refDefaults[s.ep] : undefined));
+  const [model, setModel] = useState(() => dubTrackDefault(served));
+  const voices = dubTrackModels(targets);
   const cutRef = useRef<HTMLDivElement>(null);
   const n = status?.takes.length ?? 0;
 
@@ -155,10 +158,11 @@ export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "
               {(src.dubs.some((d) => d.status === "queued")) && <span className="h3-small h3-muted">one on its way…</span>}
               <span className="h3-row h3-wrap" style={{ gap: 6 }}>
                 <select className="h3-in" value={model} onChange={(e) => setModel(e.target.value)} aria-label="Voice model">
-                  {VOICE_TARGETS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                  {voices.map((v) => <option key={v.id} value={v.id}>{v.short ?? v.label}</option>)}
+                  {!voices.some((v) => v.id === model) && <option value={model}>{model}</option>}
                 </select>
                 <button className="h3-btn h3-primary"
-                  title={noModel ?? `Queue a dub track of ${shot} now on ${VOICE_TARGETS.find((v) => v.id === model)?.label}: its voices cloned, the picture tiny and dropped`}
+                  title={noModel ?? `Queue a dub track of ${shot} now on ${voices.find((v) => v.id === model)?.short ?? model}: its voices cloned, the picture tiny and dropped`}
                   onClick={() => { generateDubTracks([shot], model); setTimeout(load, 800); }}>
                   <i className={noModel ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a dub track
                 </button>

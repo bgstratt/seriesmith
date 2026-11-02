@@ -1562,7 +1562,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     if req.dub_track:
         # a dub track: on the voice model at a size too small to matter, always
         # a new one, in the shot's dub folder
-        req = _replace(req, target=req.target or VOICE_TARGET, size=req.size or VOICE_SIZE,
+        req = _replace(req, target=req.target or dub_target(root), size=req.size or VOICE_SIZE,
                        redo=True)
         folder = T.DUB_FOLDER
     built = doc["shots"][index]
@@ -1738,8 +1738,19 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
 # Measured live 2026-10-28 (Dean ep01 sh025, one seed): 1344x768 down to 32x32
 # all said the line word for word (Whisper) in the speaker's voice; 64x64 the
 # loudest without clipping; about 15 s a take once H3 is loaded.
-VOICE_TARGET = "minimax_h3_ref2va"
+VOICE_TARGET = TG.DEFAULT_DUB_TARGET
 VOICE_SIZE = "64x64"
+
+
+def dub_target(root: str) -> str:
+    """The model a dub track renders on when the request names none: the voice model
+    (the editor's episode choice, else the series config's refs.voice_target) when it's
+    a video target that renders one, else VOICE_TARGET (TG.dub_target)."""
+    try:
+        chosen = T.episode_field(T.load_overrides(root), "voice_target")
+        return TG.dub_target(series_config(root) or {}, chosen)
+    except (ValueError, OSError):
+        return VOICE_TARGET
 VOICE_SOUND = ("Only the spoken dialogue, recorded close and dry: no room tone, ambience, "
                "effects or music.")
 

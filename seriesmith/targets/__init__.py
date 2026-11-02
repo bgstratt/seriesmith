@@ -6,8 +6,10 @@ targets — everything model-specific, one folder per model.
     targets/<kind>/<id>/workflow.json the ComfyUI graph the binding patches
 
 `kind` is "video" (a shot model: story IR -> shotlist entries), "image" (a
-reference model: a ref request -> a picture) or "audio" (a voice model: a
-voice ref -> a wav). The core (core, build,
+reference model: a ref request -> a picture), "audio" (a voice model: a
+voice ref -> a wav), "music" (a score model: a cue -> a wav; docs/SOUND.md), "ambience"
+(a place's words -> its ambience bed, a wav: docs/SOUND.md phase 3) or "foley" (a take's
+picture -> its effects, a wav: docs/SOUND.md phase 4). The core (core, build,
 jobs, refs, the routes) only talks to a target through this module:
 
     load_target(id)            -> Target            (cached; TargetError if unknown)
@@ -47,6 +49,21 @@ and, for a video target, the code behind it:
 or, for an image target:
 
     ref_prompt(request, series_cfg)                 -> the wording of one ref
+
+or, for a music target (targets/music/common.py):
+
+    cue_prompt(cue)                                 -> {"prompt", "negative", "values"}
+    cue_graph(graph, plan, values, audio)           (optional) graph surgery for a
+                                                    cue's theme (YuE2: the planner
+                                                    replaced; ACE-Step: its timbre)
+
+or, for an ambience target (targets/ambience/common.py):
+
+    ambience_prompt(words, seconds)                 -> {"prompt", "negative", "values"}
+
+or, for a foley target (targets/foley/common.py):
+
+    foley_prompt(text, video)                       -> {"prompt", "negative", "values"}
 
 or, for an audio target:
 
@@ -88,13 +105,20 @@ from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
-KINDS = ("video", "image", "audio")
+KINDS = ("video", "image", "audio", "music", "ambience", "foley")
 TIERS = ("required", "accelerator", "optional")
 DEFAULT_VIDEO_TARGET = "minimax_h3_ref2va"
 DEFAULT_IMAGE_TARGET = "krea2"
 DEFAULT_AUDIO_TARGET = "ltx2_voice"
+# a dub track's model when the series names none of its own (jobs.VOICE_TARGET; measured
+# live 2026-10-28: the line word for word in the speaker's voice at 64x64)
+DEFAULT_DUB_TARGET = "minimax_h3_ref2va"
+DEFAULT_MUSIC_TARGET = "stable_audio3"
+DEFAULT_AMBIENCE_TARGET = "mmaudio_ambience"
+DEFAULT_FOLEY_TARGET = "h3_foley"
 DEFAULT_TARGETS = {"video": DEFAULT_VIDEO_TARGET, "image": DEFAULT_IMAGE_TARGET,
-                   "audio": DEFAULT_AUDIO_TARGET}
+                   "audio": DEFAULT_AUDIO_TARGET, "music": DEFAULT_MUSIC_TARGET,
+                   "ambience": DEFAULT_AMBIENCE_TARGET, "foley": DEFAULT_FOLEY_TARGET}
 PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
@@ -751,6 +775,40 @@ class Target:
             return {**common, "mode": caps.get("mode") or "t2i",
                     "max_refs": int(caps.get("max_refs") or 0),
                     "negative_prompt": bool(self.binding.specs("negative"))}
+        if self.kind == "music":
+            caps = self.spec.get("capabilities") or {}
+            default, hi, lo = self.seconds_range()
+            # how it takes a tempo ("bpm": an input; "text": in the words; "abc": in
+            # its plan's Q: line), its sections ("sections": its own tags; "story": told
+            # in prose; "plan": its own plan), lyrics (and whether a song must have
+            # them), a cue's theme ("melody": sung; "timbre": its sound; None), and
+            # whether bars of a take can be made again (cue.repaint)
+            return {**common, "mode": caps.get("mode") or "t2m",
+                    "tempo": caps.get("tempo") or "text",
+                    "structure": caps.get("structure") or "story",
+                    "lyrics": bool(caps.get("lyrics")),
+                    "needs_lyrics": bool(caps.get("needs_lyrics")),
+                    "theme": caps.get("theme") or None,
+                    "repaint": bool(caps.get("repaint")),
+                    "max_seconds": float(caps.get("max_seconds") or hi),
+                    "min_seconds": lo, "default_seconds": default}
+        if self.kind == "ambience":
+            caps = self.spec.get("capabilities") or {}
+            default, hi, lo = self.seconds_range()
+            return {**common, "mode": caps.get("mode") or "t2a",
+                    "max_seconds": float(caps.get("max_seconds") or hi),
+                    "min_seconds": lo, "default_seconds": default,
+                    "negative_prompt": bool(self.binding.specs("negative"))}
+        if self.kind == "foley":
+            caps = self.spec.get("capabilities") or {}
+            # what the take is made into before it goes up (fx.stage): a size (a
+            # height of 0 keeps the take's shape), a frame rate (None: the take's)
+            # and a frame grid ([step, base]: LTX's 8k+1)
+            p = self.presets.get("final")
+            return {**common, "mode": caps.get("mode") or "v2a",
+                    "width": int((p.width if p else 0) or 0), "height": int((p.height if p else 0) or 0),
+                    "fps": caps.get("fps"), "frame_grid": caps.get("frame_grid"),
+                    "negative_prompt": bool(self.binding.specs("negative"))}
         if self.kind == "audio":
             caps = self.spec.get("capabilities") or {}
             default, hi, lo = self.seconds_range()
@@ -789,6 +847,8 @@ class Target:
                 "voice_reference": bool(r.get("voice_slots")) or "clone" in self.policies,
                 # it can dub a file: a take's sound, a dub track (jobs.apply_sound)
                 "dubs_tracks": self.supports("DUB_BY_FILE"),
+                # it can make a dub track (a voice model: refs.voice_target)
+                "dub_track": renders_dub_track(self),
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),
@@ -799,6 +859,24 @@ class Target:
     # image
     def ref_prompt(self, req: RefRequest, series_cfg: dict) -> str:
         return self._need("ref_prompt")(self, req, series_cfg)
+
+    # music
+    def cue_prompt(self, cue: dict) -> dict:
+        """A cue's brief on this model: {"prompt", "negative", "values"}
+        (targets/music/common.py)."""
+        return self._need("cue_prompt")(self, cue)
+
+    # ambience
+    def ambience_prompt(self, words: str, seconds: float) -> dict:
+        """A place's bed on this model: {"prompt", "negative", "values"}
+        (targets/ambience/common.py)."""
+        return self._need("ambience_prompt")(self, words, seconds)
+
+    # foley
+    def foley_prompt(self, text: str, video: dict) -> dict:
+        """A take's effects on this model: {"prompt", "negative", "values"}
+        (targets/foley/common.py)."""
+        return self._need("foley_prompt")(self, text, video)
 
     # audio
     def voice_prompt(self, name: str, voice: str = "", design: str = "",
@@ -1308,13 +1386,37 @@ DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs
 
 
 REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image",
-                     "voice_target": "audio"}
+                     "voice_target": "audio", "ambience_target": "ambience"}
+
+
+def renders_dub_track(t: "Target") -> bool:
+    """A video target that renders a dub track (target.json `capabilities.dub_track`): the
+    shot tiny, its voices cloned, kept for its sound (jobs.RenderRequest.dub_track)."""
+    return t.kind == "video" and bool((t.spec.get("capabilities") or {}).get("dub_track"))
+
+
+def voice_targets() -> list["Target"]:
+    """What can voice a line, the one list the series config's `refs.voice_target` takes:
+    the audio targets (a voice sample from a description) and the video targets that
+    render a dub track. A voice sample is made on an audio one (audio_target), a dub track
+    on a video one (dub_target): each falls back to its default when the series names the
+    other kind."""
+    return list_targets("audio") + [t for t in list_targets("video") if renders_dub_track(t)]
+
+
+def voice_kind(tid: str) -> str | None:
+    """"audio" or "video" for an id voice_targets has, else None."""
+    for t in voice_targets():
+        if t.id == tid:
+            return t.kind
+    return None
 
 
 def refs_block(series_cfg: dict | None) -> dict:
     """The series config's `refs` block ({"target", "keyframe_target",
-    "voice_target"}), validated: the first two must name an image target,
-    `voice_target` an audio one. ValueError otherwise."""
+    "voice_target", "ambience_target"}), validated: the first two must name an
+    image target, `voice_target` an audio one, `ambience_target` an ambience one
+    (a place's bed). ValueError otherwise."""
     raw = (series_cfg or {}).get("refs") or {}
     if not isinstance(raw, dict):
         raise ValueError("series.json `refs` must be an object: {\"target\": \"<image target>\", "
@@ -1325,9 +1427,14 @@ def refs_block(series_cfg: dict | None) -> dict:
         v = raw.get(k)
         if v in (None, ""):
             continue
-        known = [t.id for t in list_targets(kind)]
+        if k == "voice_target":
+            known = [t.id for t in voice_targets()]
+            what = "an audio target or a video target that renders a dub track"
+        else:
+            known = [t.id for t in list_targets(kind)]
+            what = f"an {kind} target"
         if not isinstance(v, str) or v not in known:
-            raise ValueError(f"series.json refs.{k}: {v!r} is not an {kind} target "
+            raise ValueError(f"series.json refs.{k}: {v!r} is not {what} "
                              f"(known: {', '.join(known)})")
         out[k] = v
     return out
@@ -1343,9 +1450,19 @@ def image_target(series_cfg: dict | None = None) -> Target:
 
 def audio_target(series_cfg: dict | None = None) -> Target:
     """The audio target that makes this series' voice samples: the series
-    config's `refs.voice_target`, else ltx2_voice."""
-    return load_target(refs_block(series_cfg).get("voice_target") or DEFAULT_AUDIO_TARGET,
-                       "audio")
+    config's `refs.voice_target` when it's an audio target, else ltx2_voice (a
+    video voice model makes dub tracks, not samples: dub_target)."""
+    v = refs_block(series_cfg).get("voice_target")
+    return load_target(v if v and voice_kind(v) == "audio" else DEFAULT_AUDIO_TARGET, "audio")
+
+
+def dub_target(series_cfg: dict | None = None, chosen: str | None = None) -> str:
+    """The video target a dub track renders on: `chosen` (the editor's episode choice) or
+    the series config's `refs.voice_target` when it renders one, else H3 Ref2VA."""
+    for v in (chosen, refs_block(series_cfg).get("voice_target")):
+        if v and voice_kind(v) == "video":
+            return v
+    return DEFAULT_DUB_TARGET
 
 
 def keyframe_target(series_cfg: dict | None = None, ready=None) -> Target:
@@ -1731,6 +1848,7 @@ MODEL_FOLDERS: dict[tuple, str] = {
     ("UNETLoader", "unet_name"): "diffusion_models",
     ("UnetLoaderGGUF", "unet_name"): "diffusion_models",
     ("CheckpointLoaderSimple", "ckpt_name"): "checkpoints",
+    ("AudioEncoderLoader", "audio_encoder_name"): "audio_encoders",
     ("LTXVAudioVAELoader", "ckpt_name"): "checkpoints",
     ("LTXAVTextEncoderLoader", "ckpt_name"): "checkpoints",
     ("LTXAVTextEncoderLoader", "text_encoder"): "text_encoders",
