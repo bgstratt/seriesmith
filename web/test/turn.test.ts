@@ -1,7 +1,10 @@
+// @vitest-environment happy-dom
+//
 // Turn's model and the Edits model: the Turn button runs on Qwen 2.1 + angles
 // or any edit model (the viewer's choice, kept in this browser), and the Refs
 // tab's Made with row has an Edits picker of the models that can edit.
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { ImageModelBar, TurnButton } from "../src/components/RefsTab";
@@ -64,16 +67,13 @@ describe("Turn's model", () => {
   });
 
   it("is remembered in this browser", () => {
-    const m = new Map<string, string>();
-    (globalThis as { localStorage?: unknown }).localStorage = {
-      getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => m.set(k, v), removeItem: (k: string) => m.delete(k),
-    };
+    localStorage.clear();
     setTurnModel("flux_kontext");
-    expect(m.get("seriesmith.turnModel")).toBe("flux_kontext");
+    expect(localStorage.getItem("seriesmith.turnModel")).toBe("flux_kontext");
     expect(readTurnModel()).toBe("flux_kontext");
     setTurnModel("");
     expect(readTurnModel()).toBe("");
-    delete (globalThis as { localStorage?: unknown }).localStorage;
+    localStorage.clear();
   });
 
   it("the button names the model it will use", () => {
@@ -86,6 +86,34 @@ describe("Turn's model", () => {
     setTurnModel("flux2_klein_edit");
     html = renderToString(createElement(TurnButton, { r: ADA, view: "03_back", label: "Back" }));
     expect(html).toContain("on Flux 2 Klein edit, told the turn in words");
+  });
+});
+
+describe("the Turn model menu", () => {
+  it("opens over the view's head (which clips) and takes a pick", () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    localStorage.clear();
+    store.set({ ...initialState(), ep: "C:/ep02", targets: listWith(true), refs: { "C:/ep02": [ADA] },
+      refDefaults: { "C:/ep02": { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext", edit_target_source: "editor" } } });
+    const head = document.createElement("div");
+    head.className = "h3-view-head";
+    head.style.overflow = "hidden";
+    document.body.appendChild(head);
+    const root = createRoot(head);
+    act(() => root.render(createElement(TurnButton, { r: ADA, view: "03_back", label: "Back" })));
+    act(() => (head.querySelector('[aria-label="The model Turn runs on"]') as HTMLButtonElement).click());
+    // the menu is the page's, not inside the head that would clip it
+    const menu = document.body.querySelector(".sm-turn-menu") as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(head.contains(menu)).toBe(false);
+    const kontext = Array.from(menu.querySelectorAll("button")).find((b) => b.textContent?.includes("Flux Kontext"))!;
+    act(() => kontext.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+    act(() => kontext.click());
+    expect(localStorage.getItem("seriesmith.turnModel")).toBe("flux_kontext");
+    expect(document.body.querySelector(".sm-turn-menu")).toBeNull();
+    act(() => root.unmount());
+    head.remove();
+    localStorage.clear();
   });
 });
 

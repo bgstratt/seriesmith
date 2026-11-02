@@ -3,6 +3,7 @@
 // ref's prompt and settings override.
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
   openFrameUse, openGallery, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
@@ -932,24 +933,38 @@ export function TurnButton({ r, view, label }: { r: Ref; view: string; label: st
   const { list } = useTargets();
   const defaults = useRefDefaults();
   const [chosen, setChosen] = useTurnModel();
-  const [open, setOpen] = useState(false);
+  // where the menu opens: in the page's body, fixed under the ▾, as the view's head clips
+  // what hangs out of it (overflow: hidden) and sets its text small; null while it's shut
+  const [open, setOpen] = useState<{ top: number; right: number } | null>(null);
   const box = useRef<HTMLSpanElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e: globalThis.MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const close = (e: globalThis.MouseEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !menu.current?.contains(t)) setOpen(null);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
+    const shut = () => setOpen(null);
     window.addEventListener("mousedown", close);
     window.addEventListener("keydown", esc);
-    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", esc); };
+    window.addEventListener("resize", shut);
+    window.addEventListener("scroll", shut, true);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", esc);
+      window.removeEventListener("resize", shut);
+      window.removeEventListener("scroll", shut, true);
+    };
   }, [open]);
   const picked = VIEWS.map((v) => v.view).filter((v) => v !== view && pickedOf(r, v) != null);
   const from = picked.includes("01_threequarter") ? "01_threequarter" : picked[0];
   const plan = turnPlan(list, chosen, defaults.edits);
   const qwen = findTarget(list, TURN_TARGET);
   const others = turnChoices(list);
-  const pick = (id: string) => { setChosen(id); setOpen(false); };
+  const pick = (id: string) => { setChosen(id); setOpen(null); };
   const item = (id: string, text: string, title: string) => (
-    <button key={id || "auto"} className={`h3-btn${(chosen || "") === id ? " h3-on" : ""}`} style={{ justifyContent: "flex-start" }}
+    <button key={id || "auto"} className={`h3-btn${(chosen || "") === id ? " h3-on" : ""}`} style={{ justifyContent: "flex-start", textAlign: "left" }}
       title={title} onClick={() => pick(id)}>{text}</button>
   );
   return (
@@ -969,14 +984,19 @@ ${plan.warn.text}` : ""}`
       >
         ↻ Turn
       </button>
-      <button className={`h3-btn${plan.warn ? plan.warn.severity === "err" ? " h3-err" : " h3-warn" : ""}`} aria-expanded={open}
+      <button className={`h3-btn${plan.warn ? plan.warn.severity === "err" ? " h3-err" : " h3-warn" : ""}`} aria-expanded={!!open}
         aria-label="The model Turn runs on" style={{ padding: "0 3px" }}
         title={`Turn runs on ${plan.uses}${plan.warn ? `
 ${plan.warn.text}` : ""}. Choose another (kept in this browser, for every Turn)`}
-        onClick={() => setOpen(!open)}>▾</button>
-      {open && (
-        <div className="h3-col sm-add-menu" style={{
-          position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 50, minWidth: 220, padding: 4, gap: 2,
+        onClick={(e) => {
+          if (open) return setOpen(null);
+          const at = e.currentTarget.getBoundingClientRect();
+          setOpen({ top: at.bottom + 4, right: Math.max(4, window.innerWidth - at.right) });
+        }}>▾</button>
+      {open && createPortal(
+        <div ref={menu} className="h3-root h3-col sm-add-menu sm-turn-menu" style={{
+          position: "fixed", top: open.top, right: open.right, zIndex: 2100, minWidth: 220, padding: 4, gap: 2,
+          textTransform: "none", letterSpacing: "normal", fontSize: 12, whiteSpace: "nowrap",
           background: "var(--h3-bg2)", border: "1px solid var(--h3-border)", borderRadius: 4, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
         }}>
           {item("", "Automatic", `${TURN_ANGLES_LABEL} when the angles LoRA is installed, else the episode's Edits model`)}
@@ -985,7 +1005,8 @@ ${plan.warn.text}` : ""}. Choose another (kept in this browser, for every Turn)`
           {others.length > 0 && <div style={{ borderTop: "1px solid var(--h3-border)", margin: "2px 0" }} />}
           {others.map((t) => item(t.id, targetOptionText(t),
             pickWarning(targetLabel(list, t.id), t.readiness)?.text ?? `${targetLabel(list, t.id)}, told the turn in words (no LoRA)`))}
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );
