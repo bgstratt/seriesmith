@@ -13,7 +13,9 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
                              {"at": {"shot": "sh050", "frame": 12}, "db": 6}]},
                  {"id": "a01", "track": "ambience", "path": "sound/beds/harbour.wav",
                   "in": {"shot": "sh010", "frame": 0}, "out": {"shot": "sh030", "frame": 96},
-                  "loop": true}],
+                  "loop": true},
+                 {"id": "m02", "track": "music", "path": "sound/m02/t01.wav",
+                  "in": {"shot": "sh060", "frame": 0}, "mute": true}],
        "hits": [{"id": "h1", "name": "the door bursts", "at": {"shot": "sh030", "frame": 17},
                  "kind": "accent"},
                 {"id": "h2", "name": "reveal", "at": {"shot": "sh060", "frame": 4},
@@ -59,6 +61,8 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
   `in` anchor to its `out` (none: until the file ends), at `gain_db`, faded in and out over
   `fade_in` / `fade_out` frames, its level shaped by `points` (dB at anchors, linear between,
   held beyond the first and last), and `loop`ed with a crossfade when the file is shorter.
+  A `mute`d one stays where it is but is silent: left out of the render, its stems and the
+  loudness, laid disabled in the FCP7 export, silent in the editor's Play all.
 - **Ducking** is a gain curve computed from the dialogue track (its level in 10 ms windows
   against `threshold_db`, smoothed by attack and release), so the editor's preview and the
   render apply the same dips. A **region** changes it for a stretch: `music_duck_db` (0 is
@@ -126,7 +130,7 @@ WINDOW_S = 0.010                                  # the ducking detector's windo
 LOOP_XFADE_S = 1.0                                # a loop's crossfade, at most
 
 ITEM_FIELDS = ("id", "track", "path", "in", "out", "offset", "gain_db", "fade_in", "fade_out",
-               "points", "loop", "label")
+               "points", "loop", "label", "mute")
 TRACK_FIELDS = ("gain_db", "mute", "solo", "duck_db", "voices_only")
 REGION_FIELDS = ("from", "to", "music_duck_db", "ambience_duck_db", "dialogue_db")
 HIT_FIELDS = ("id", "name", "at", "kind", "must")
@@ -228,6 +232,10 @@ def check_item(raw, tracks=TRACKS) -> dict:
         out["loop"] = True
     if isinstance(raw.get("label"), str) and raw["label"].strip():
         out["label"] = raw["label"].strip()[:120]
+    if raw.get("mute") is not None and not isinstance(raw["mute"], bool):
+        raise ValueError(f"item {out['id']}'s mute is true or false")
+    if raw.get("mute"):
+        out["mute"] = True
     return out
 
 
@@ -527,9 +535,9 @@ def fader(tracks: dict, name: str, kind: str | None = None) -> float:
 
 
 def active(mix: dict) -> bool:
-    """Whether a mix changes anything: an item, a track's level or mute, or voices only
-    (on the track, or for a shot)."""
-    return bool(mix.get("items") or any(
+    """Whether a mix changes anything: an item that plays (not muted), a track's level or
+    mute, or voices only (on the track, or for a shot)."""
+    return bool(any(not i.get("mute") for i in mix.get("items") or []) or any(
         t.get("gain_db") or t.get("mute") or t.get("solo")
         for t in (mix.get("tracks") or {}).values()) or voices_any(mix))
 
@@ -597,7 +605,8 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
     """Each track's items laid on the cut, for a timeline that plays files (the FCP7
     export): ({track: [{"id", "label", "path" (absolute), "start", "end" (cut frames),
     "in" (the file's frame at start), "gain_db" (the item's and its track's),
-    "points": [(cut frame, dB)], "fade_in", "fade_out"}]}, what was left out). A loop is
+    "points": [(cut frame, dB)], "fade_in", "fade_out", "mute"}]}, what was left out). A
+    muted item is laid as any other, `mute` true (the export lays it disabled). A loop is
     its file laid again end to end. `length(path)` is a file's length in the cut's frames
     (None: it can't be read). `beds` (ambience.laid) go on the ambience lane first, each
     run its bed laid end to end at its gain and the track's fader; `fx` (fx.laid) on the
@@ -650,7 +659,8 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
                 "path": path, "start": at, "end": at + run, "in": src_in, "frames": n,
                 "gain_db": gain, "points": [(f, d) for f, d in pts if at <= f < at + run],
                 "fade_in": item.get("fade_in", 0) if at == s else 0,
-                "fade_out": item.get("fade_out", 0) if at + run == e else 0})
+                "fade_out": item.get("fade_out", 0) if at + run == e else 0,
+                "mute": bool(item.get("mute"))})
             at, src_in, k = at + run, 0, k + 1
             if not item.get("loop"):
                 break
@@ -902,7 +912,8 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
     M&E), the mix as mix.wav, brought to the loudness target. `dialogue_src` is the
     assembled cut, whose own sound is the dialogue track. `beds` (ambience.laid) are laid
     on the ambience track (bed_track) under its items, `fx` (fx.laid) on the effects track
-    (fx_track). Returns mix.wav's path."""
+    (fx_track). A muted item is left out (silent in the mix, its stem and the loudness).
+    Returns mix.wav's path."""
     np = _np()
     n = round(total / fps * RATE)
     tracks = mix.get("tracks") or {}
@@ -933,6 +944,9 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         else:
             log("  ! sound: no effects track for the shots' effects; left out")
     for item in mix.get("items") or []:
+        if item.get("mute"):
+            log(f"  sound: {item['id']} is muted; silent")
+            continue
         s0, got = render_item(item, origins, total, fps, root)
         if s0 is None:
             log(f"  ! sound: {got}; left out")

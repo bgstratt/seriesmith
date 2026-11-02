@@ -74,6 +74,16 @@ class CheckTest(unittest.TestCase):
         self.assertTrue(MX.active(MX.check({"tracks": {"dialogue": {"gain_db": -3}}})))
         self.assertTrue(MX.active(MX.check({"tracks": {"music": {"mute": True}}})))
 
+    def test_mute(self):
+        # a muted item is kept (true only), checked, and alone it is no mix
+        got = MX.check({"items": [self.item(mute=True), self.item(id="m02", mute=False)]})
+        self.assertEqual(got["items"][0]["mute"], True)
+        self.assertNotIn("mute", got["items"][1])
+        self.assertTrue(MX.active(got))
+        self.assertFalse(MX.active(MX.check({"items": [self.item(mute=True)]})))
+        with self.assertRaises(ValueError):
+            MX.check({"items": [self.item(mute="yes")]})
+
     def test_refusals(self):
         bad = [
             {"items": [self.item(track="drums")]},
@@ -332,6 +342,30 @@ class AssembleMixTest(unittest.TestCase):
         out = self.assemble()
         self.assertIn("m02: sh999 isn't in the cut; left out", out)
         self.assertLess(self.level(self.stem("music"), 0.1, 1.9), -80)
+
+    def test_muted_item_is_silent(self):
+        # m01 muted, m02 the same file over sh020 only: m01's second is silent, and the
+        # export's XML lays it disabled
+        import xml.etree.ElementTree as ET
+        MX.save(self.root, {"final": {"items": [
+            self.music(mute=True, out=anchor("sh010", 24)),
+            self.music(id="m02", **{"in": anchor("sh020")})]}})
+        out = self.assemble()
+        self.assertIn("2 item(s) over the cut's own sound (1 muted)", out)
+        self.assertIn("m01 is muted; silent", out)
+        music = self.stem("music")
+        self.assertLess(self.level(music, 0.1, 0.9), -80)
+        self.assertGreater(self.level(music, 1.1, 1.9), -55)
+        self.assemble("--xml")
+        doc = ET.parse(os.path.join(self.root, "renders", "ep01.xml")).getroot()
+        clips = doc.findall("./sequence/media/audio/track")[2].findall("clipitem")
+        self.assertEqual([(c.findtext("start"), c.findtext("enabled")) for c in clips],
+                         [("0", "FALSE"), ("24", "TRUE")])
+
+    def test_only_muted_items_is_no_mix(self):
+        MX.save(self.root, {"final": {"items": [self.music(mute=True)]}})
+        self.assemble()
+        self.assertFalse(os.path.isdir(os.path.join(self.root, "renders", "ep01_stems")))
 
     def test_loudness_target(self):
         MX.save(self.root, {"final": {"items": [self.music()],

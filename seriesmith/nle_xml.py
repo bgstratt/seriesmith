@@ -20,7 +20,8 @@ assemble counts it; its file carries its own rate and the editor conforms it).
     sound: {track id (the mix's, in its order: "effects", "ambience", "music", one of its
              own): [{"label", "path", "channels", "frames",
              "start", "end" (the cut's frames), "in" (the file's frame at start),
-             "gain_db", "points": [(cut frame, dB)], "fade_in", "fade_out"}]}
+             "gain_db", "points": [(cut frame, dB)], "fade_in", "fade_out", "mute"}]}
+           (a `mute`d one is laid with <enabled>FALSE</enabled>: there, silent)
     hits: [{"name", "at" (the cut's frame)}]
 
 A dissolve of n frames on a clip is a centred Cross Dissolve on its join: the
@@ -220,11 +221,11 @@ def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict]
 
     def item(track: ET.Element, label: str, path: str, frames: int, file_fps: float,
              fsize, channels: int, start: int, end: int, in_: int, out: int,
-             kind: str, src_track: int = 1) -> ET.Element:
+             kind: str, src_track: int = 1, enabled: bool = True) -> ET.Element:
         cid = f"clipitem-{next(ids)}"
         it = _sub(track, "clipitem", id=cid)
         _sub(it, "name", label)
-        _sub(it, "enabled", True)
+        _sub(it, "enabled", enabled)
         _sub(it, "duration", frames)
         _rate(it, fps)
         _sub(it, "start", start)
@@ -330,7 +331,8 @@ def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict]
             for ch in range(min(2, it["channels"])):
                 ai = item(pair[ch], it["label"], it["path"], it["frames"], fps, None,
                           it["channels"], it["start"], it["end"], it["in"],
-                          it["in"] + it["end"] - it["start"], "audio", ch + 1)
+                          it["in"] + it["end"] - it["start"], "audio", ch + 1,
+                          enabled=not it.get("mute"))
                 if abs(it["gain_db"]) > 1e-6 or keys:
                     _gain(ai, _lin(it["gain_db"]), keys)
             for n, align, at in ((it["fade_in"], "start-black", it["start"]),

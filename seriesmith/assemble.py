@@ -1133,7 +1133,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(line)
         if sound is not None:
             n = len(sound.get("items") or [])
+            muted = sum(1 for i in sound.get("items") or [] if i.get("mute"))
             print(f"  sound: the mix in {MX.MIX_FILE}, {n} item(s) over the cut's own sound"
+                  + (f" ({muted} muted)" if muted else "")
                   + (f", {len(heard)} ambience bed run(s) ({', '.join(sorted({b['place'] for b in heard}))})"
                      if heard else "")
                   + (f", effects under {len(heard_fx)} shot(s)" if heard_fx else ""))

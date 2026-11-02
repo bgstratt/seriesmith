@@ -53,6 +53,10 @@ Picking (`place`): the take becomes the cue's item on the music track of the pas
 (mix.py): anchored at the cue's in point, played from where its pre-roll ends, to its out
 point with a one-bar fade, and (`fit_gain`) breakpoints at each bar that pull its level
 toward the arc, ±6 dB at most.
+
+Deleting (`delete`): the cue's folder moved whole to `<ep>/_history/cue-<id>.<stamp>/` (to put
+back by hand) and its items taken out of every pass's mix. Muting it instead (its item's
+`mute`, mix.py) keeps it where it is, silent.
 """
 
 from __future__ import annotations
@@ -102,6 +106,7 @@ TEMPO_TRUST = 0.03
 GAIN_FIT_DB = 6.0                      # how far fit_gain moves a bar, either way
 ONSET_MIN = 0.15                       # an onset this strong (of the take's strongest) marks a hit
 _TAKE = re.compile(r"^t(\d{2,3})\.json$")
+_ID_RX = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
 
 class CueError(ValueError):
@@ -307,6 +312,50 @@ def save_spec(root: str, raw) -> dict:
         raise CueError(f"cue {spec['id']}'s theme: there is no cue {th['cue']} in the episode")
     F.write_json(os.path.join(cue_dir(root, spec["id"]), SPEC), spec)
     return spec
+
+
+def _of_cue(item: dict, cid: str) -> bool:
+    """Whether a mix item is cue `cid`'s: its id, or one of its takes' files."""
+    return item.get("id") == cid or (item.get("path") or "").startswith(f"{SOUND_DIR}/{cid}/")
+
+
+def delete(root: str, cid: str) -> dict:
+    """Cue `cid` taken out of the episode: its folder (spec, takes, their sidecars) moved
+    whole to <ep>/_history/cue-<id>.<YYYYmmdd-HHMMSS>/ (put back by hand: move it to
+    sound/<id>/ again), and its items taken out of every pass's mix (each a normal mix
+    write: the old mix.json to _history too). Returns {"cue", "moved_to" (relative to the
+    episode, "/"), "takes", "mixes" (the passes whose mix had it)}. FileNotFoundError when
+    there's no such cue; CueError when another cue takes it as its theme, or a pass's mix
+    doesn't read (nothing is changed then)."""
+    from seriesmith import source as SRC                # it imports edit: not at the top
+    d = cue_dir(root, cid)
+    if not _ID_RX.match(cid or "") or not os.path.isfile(os.path.join(d, SPEC)):
+        raise FileNotFoundError(f"no cue {cid} in {root}")
+    users = [c["id"] for c in list_cues(root)
+             if c["id"] != cid and ((c.get("theme") or {}).get("cue") == cid)]
+    if users:
+        raise CueError(f"{cid} is the theme of {', '.join(users)}: give "
+                       f"{'it' if len(users) == 1 else 'them'} another theme first")
+    mixes = {}
+    for pass_, raw in MX.load(root).items():
+        try:
+            mix = MX.check(raw)
+        except ValueError as e:
+            raise CueError(f"the {pass_} pass's {MX.MIX_FILE} doesn't read: {e}") from None
+        kept = [i for i in mix.get("items") or [] if not _of_cue(i, cid)]
+        if len(kept) != len(mix.get("items") or []):
+            out = dict(mix)
+            if kept:
+                out["items"] = kept
+            else:
+                out.pop("items", None)
+            mixes[pass_] = out
+    takes = len(list_takes(root, cid))
+    dst = SRC.move_to_history(root, d, f"cue-{cid}")
+    for pass_, mix in mixes.items():
+        MX.write(root, pass_, mix)
+    return {"cue": cid, "moved_to": os.path.relpath(dst, root).replace(os.sep, "/"),
+            "takes": takes, "mixes": sorted(mixes)}
 
 
 def list_cues(root: str) -> list[dict]:

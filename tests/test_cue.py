@@ -453,6 +453,26 @@ class _Runner:
         return f"job{n}"
 
 
+class _Job:
+    def __init__(self, cue, status="queued"):
+        self.kind, self.info, self.status, self.created = "cue", {"cue": cue}, status, 0.0
+
+
+class _QRunner(_Runner):
+    """_Runner with a queue of its own: each cue take asked for is a job, queued."""
+
+    def __init__(self):
+        super().__init__()
+        self.queue = type("Q", (), {"jobs": {}})()
+
+    def enqueue_cue(self, root, cid, n, graph, p, backend):
+        job = super().enqueue_cue(root, cid, n, graph, p, backend)
+        j = _Job(cid)
+        j.info["ep"] = root
+        self.queue.jobs[job + cid] = j
+        return job
+
+
 class RouteTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -517,6 +537,42 @@ class RouteTest(unittest.TestCase):
         # a model that can't repaint
         CU.update(self.ep, "m01", 1, target="stable_audio3")
         self.assertIn("can't make bars", self.call(A.post_cue_repaint, body, 409)["error"])
+
+    def test_delete(self):
+        self.ctx.runner = _QRunner()
+        for cid in ("m01", "m02"):
+            self.call(A.put_cue, {"ep": self.ep, "cue": {"id": cid, "in": anchor("sh010"),
+                                                         "out": anchor("sh020", 60)}})
+        self.call(A.post_cue_render, {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 2})
+        own = {"id": "s01", "track": "music", "path": "sound/score.wav", "in": anchor("sh010")}
+        MX.save(self.ep, {p: {"items": [{"id": "m01", "track": "music", "path": "sound/m01/t02.wav",
+                                         "in": anchor("sh010"), "mute": True}, own]}
+                          for p in ("final", "proxy")})
+        # its takes on the queue: refused until they're done
+        q = {"ep": self.ep, "cue": "m01"}
+        self.assertIn("2 takes queued", self.call(A.delete_cue, q, 409)["error"])
+        for j in self.ctx.runner.queue.jobs.values():
+            j.status = "canceled"
+        # another cue's theme: refused
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m02", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60),
+                                                     "theme": {"cue": "m01", "take": 1}}})
+        self.assertIn("theme of m02", self.call(A.delete_cue, q, 409)["error"])
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m02", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60)}})
+        r = self.call(A.delete_cue, q)
+        self.assertEqual((r["cue"], r["takes"], r["mixes"]), ("m01", 2, ["final", "proxy"]))
+        self.assertRegex(r["moved_to"], r"^_history/cue-m01\.\d{8}-\d{6}$")
+        kept = os.path.join(self.ep, *r["moved_to"].split("/"))
+        self.assertEqual(sorted(os.listdir(kept)), ["spec.json", "t01.json", "t02.json"])
+        self.assertFalse(os.path.exists(os.path.join(self.ep, "sound", "m01")))
+        # both passes' mixes without it, the rest kept; the old mix.json in _history
+        self.assertEqual({p: m["items"] for p, m in MX.load(self.ep).items()},
+                         {"final": [own], "proxy": [own]})
+        self.assertTrue(any(n.startswith("mix.json.") for n in os.listdir(os.path.join(self.ep, "_history"))))
+        self.assertEqual([c["spec"]["id"] for c in self.call(A.get_cues, {"ep": self.ep})["cues"]], ["m02"])
+        self.call(A.delete_cue, q, 404)
+        self.call(A.delete_cue, {"ep": self.ep, "cue": "../x"}, 404)
 
     def test_stale_when_the_cut_moves(self):
         MX.save(self.ep, {"final": {"hits": [{"id": "h1", "name": "door", "at": anchor("sh020", 12)}]}})

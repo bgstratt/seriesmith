@@ -468,6 +468,21 @@ def save_history_bytes(ep: str, name: str, data: bytes, keep: int = HISTORY_KEEP
     return dst
 
 
+def move_to_history(ep: str, path: str, name: str) -> str:
+    """Move a folder (or file) whole into <ep>/_history/<name>.<YYYYmmdd-HHMMSS> (-2, -3...
+    when one that second exists): something taken out of the episode, kept to put back by
+    hand (a deleted cue's folder). Never pruned. Returns where it went."""
+    d = history_dir(ep)
+    os.makedirs(d, exist_ok=True)
+    stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    dst, k = os.path.join(d, f"{name}.{stamp}"), 1
+    while os.path.exists(dst):
+        k += 1
+        dst = os.path.join(d, f"{name}.{stamp}-{k}")
+    F.replace(path, dst)
+    return dst
+
+
 def history(ep: str, name: str) -> list[str]:
     """The history copies of file `name`, oldest first."""
     d = history_dir(ep)

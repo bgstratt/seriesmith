@@ -2794,6 +2794,32 @@ def put_cue(ctx: Context, body):
 
 
 @handler
+def delete_cue(ctx: Context, query: dict):
+    """Delete a cue: `?ep=…&cue=…`. Its folder (spec, takes) moves whole to
+    `<ep>/_history/cue-<id>.<stamp>/` (put it back by hand: move it to `sound/<id>/`), and
+    its items come out of every pass's mix (each a mix write, the old mix.json to _history).
+    404 for no such cue; 409 while a take of it is queued or running on seriesmith's queue,
+    when another cue takes it as its theme, or a pass's mix doesn't read. Returns {"cue",
+    "moved_to" (relative to the episode), "takes", "mixes" (the passes it was taken out of)}."""
+    ep = check_ep(ctx, query.get("ep"))
+    cid = query.get("cue")
+    _cue_spec(ep, cid)
+    from seriesmith.queue import DONE
+    busy = [j for j in _local_jobs(ctx, "cue", ep) if j.status not in DONE and j.info.get("cue") == cid]
+    if busy:
+        raise ApiError(409, f"{cid} has {len(busy)} take{'' if len(busy) == 1 else 's'} queued or "
+                            f"rendering: cancel {'it' if len(busy) == 1 else 'them'} in Jobs first")
+    try:
+        out = CU.delete(ep, cid)
+    except FileNotFoundError:
+        raise ApiError(404, f"no cue {cid}")
+    except CU.CueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, out
+
+
+@handler
 def post_cue_render(ctx: Context, body):
     """Render a cue's takes on seriesmith's queue: `{ep, pass, cue, takes?, backend?}`
     (takes: how many, default the model's preset's). Each is planned against the pass's
@@ -5517,6 +5543,7 @@ ROUTES = [
     ("GET", "/seriesmith/cues", get_cues, "query"),
     ("GET", "/seriesmith/cue", get_cue, "query"),
     ("PUT", "/seriesmith/cue", put_cue, "body"),
+    ("DELETE", "/seriesmith/cue", delete_cue, "query"),
     ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
