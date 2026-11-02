@@ -1,19 +1,20 @@
 // The Refs tab's sound beyond the voices (docs/SOUND.md): Music (the episode's cues),
-// Effects (the files on that lane of this pass's mix) and Ambience: each place's
+// Effects (each shot's effects takes, made from its take by a foley model, then the files on
+// that lane of this pass's mix) and Ambience: each place's
 // ambience bed (an `ambience:<place>` ref, made from its location's `ambience` words
 // and laid under its shots by the mix), then the files on the ambience lane. Voices
 // and dub tracks stay where they are, for the dialogue. Cues and files aren't refs,
 // but they are what the episode's sound is made from, so they are listed beside them.
 
 import { useEffect, useRef, useState } from "react";
-import { generateRef, pickRef } from "../actions";
+import { generateRef, onFxEvent, pickRef } from "../actions";
 import { loadCues, openCue } from "../cueActions";
 import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
-import { currentMix, deleteMixItem, loadMix, setMixBed, toggleSound } from "../mixActions";
+import { currentMix, deleteMixItem, loadMix, makeEffects, pickMixFx, setMixBed, setMixFx, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
-import type { AmbienceBed, MixItem, Ref } from "../types";
+import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, Ref } from "../types";
 import { useTargets } from "./Targets";
 import { VoiceCandidate, VoiceLive } from "./VoiceRef";
 
@@ -186,6 +187,143 @@ function BedRow({ ep, bed }: { ep: string; bed: AmbienceBed }) {
   );
 }
 
+/** The pass's shots with effects takes (GET /seriesmith/fx/shots), fetched with the section and
+ * again as a take lands or the mix changes; each row's takes when it opens (GET /seriesmith/fx). */
+function useFxShots(ep: string, pass: "final" | "proxy"): FxShotSummary[] | null {
+  const mixSeen = useApp((s) => currentMix(s));
+  const [shots, setShots] = useState<FxShotSummary[] | null>(null);
+  const [landed, setLanded] = useState(0);
+  useEffect(() => onFxEvent((d) => (!d.pass || d.pass === pass) && setLanded((n) => n + 1)), [pass]);
+  useEffect(() => {
+    let live = true;
+    const call = api().fxShots;
+    if (!call) {
+      setShots([]);
+      return;
+    }
+    call(ep, pass).then((r) => live && setShots(r.shots)).catch(() => live && setShots((s) => s ?? []));
+    return () => {
+      live = false;
+    };
+  }, [ep, pass, mixSeen, landed]);
+  return shots;
+}
+
+/** One shot's effects: its count and pick, and (open) its takes to play and pick, made again on a model. */
+function FxRow({ ep, pass, s }: { ep: string; pass: "final" | "proxy"; s: FxShotSummary }) {
+  const [open, setOpen] = useState(false);
+  const [info, setInfo] = useState<FxShot | null>(null);
+  const [why, setWhy] = useState<string | null>(null);
+  const [model, setModel] = useState<string>("");
+  const [playing, setPlaying] = useState<number | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const mix = useApp((st) => currentMix(st));
+  const own = mix?.mix.fx?.[s.shot];
+  const laid = mix?.fx?.find((f) => f.shot === s.shot);
+  const { list } = useTargets();
+  const models = (list?.targets ?? []).filter((t) => t.kind === "foley");
+  // fetched when it opens, and again while it's open as a take lands or the pick changes
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    const fn = api().fxTakes;
+    if (fn) void fn(ep, pass, s.shot).then((r) => live && setInfo(r)).catch((e) => live && setWhy(String((e as Error)?.message ?? e)));
+    return () => {
+      live = false;
+    };
+  }, [ep, pass, s.shot, open, s.takes, s.ok, s.picked]);
+  useEffect(() => () => audio.current?.pause(), []);
+  const play = (t: FxTake) => {
+    const a = audio.current ?? (audio.current = new Audio());
+    if (playing === t.take) {
+      a.pause();
+      setPlaying(null);
+      return;
+    }
+    a.src = api().fileUrl(ep, t.path);
+    a.onended = () => setPlaying(null);
+    void a.play().catch(() => setPlaying(null));
+    setPlaying(t.take);
+  };
+  return (
+    <div className="h3-kf-shot">
+      <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={() => setOpen((o) => !o)}
+        title={`${s.shot}'s effects takes, made from the take the cut plays. Click: its takes`}>
+        <span className="h3-chev">{open ? "▼" : "▶"}</span>
+        <i className="pi pi-bolt" />
+        <b>{s.shot}</b>
+        <span className="h3-grow" />
+        {s.queued > 0 && <span className="h3-badge" title="Takes on their way"><i className="pi pi-spin pi-spinner" /> {s.queued}</span>}
+        {s.failed > 0 && <span className="h3-badge" title="Takes that failed (open the row for why)">{s.failed} failed</span>}
+        <span className={s.ok ? "" : "h3-muted"}>{s.ok}/{s.takes} take{s.takes === 1 ? "" : "s"}</span>
+        {laid?.stale && !own?.keep_stale && <span className="h3-badge" title={`Stale: ${laid.stale}. Left out of the mix.`}><i className="pi pi-exclamation-triangle" /> stale</span>}
+        {s.picked != null
+          ? <span className="h3-badge h3-b-voice" title={`${tn(s.picked)} plays in this pass's mix`}>{tn(s.picked)}</span>
+          : <span className="h3-badge" title="None picked: no effects for this shot in the mix">none picked</span>}
+        {!!own?.gain_db && <span className="h3-badge" title="Its level in this pass's mix">{own.gain_db > 0 ? "+" : ""}{own.gain_db} dB</span>}
+        {own?.mute && <span className="h3-badge" title="Muted in this pass's mix">muted</span>}
+      </div>
+      {open && (
+        <div className="h3-col h3-pad" style={{ gap: 6 }}>
+          {info && (
+            <div className="h3-small h3-muted" title={info.text_from === "sound" ? "The shot's sound: line" : "The shot's action (it has no sound: line: give it one for a better prompt)"}>
+              From its {info.text_from === "sound" ? "sound: line" : "action"}: “{info.text}”
+            </div>
+          )}
+          <div className="h3-row h3-small" style={{ gap: 6 }}>
+            <button className="h3-btn h3-primary" onClick={() => void makeEffects([s.shot], model || null)}
+              title="A new take of this shot's effects, from the take the cut plays now">
+              <i className="pi pi-sparkles" /> Make again
+            </button>
+            {models.length > 1 && (
+              <select className="h3-in" style={{ width: "auto" }} value={model} onChange={(e) => setModel(e.target.value)}
+                title="The model this take is made on (empty: the series' or this machine's default)">
+                <option value="">default model</option>
+                {models.map((m) => <option key={m.id} value={m.id}>{m.short ?? m.label}</option>)}
+              </select>
+            )}
+            <span className="h3-grow" />
+            {s.picked != null && (
+              <button className="h3-btn" title={own?.mute ? "Hear this shot's effects again in this pass's mix" : "Silence this shot's effects in this pass's mix"}
+                onClick={() => void setMixFx(s.shot, { mute: !own?.mute }, `${own?.mute ? "Unmute" : "Mute"} ${s.shot}'s effects`)}>
+                <i className={own?.mute ? "pi pi-volume-up" : "pi pi-volume-off"} /> {own?.mute ? "Unmute" : "Mute"}
+              </button>
+            )}
+            <button className="h3-btn" title="Show it on the timeline's sound lanes (the Effects lane)" onClick={() => toggleSound(true)}>
+              <i className="pi pi-wave-pulse" />
+            </button>
+          </div>
+          {why && <div className="h3-note h3-note-err h3-small">Its takes didn't load: {why}</div>}
+          {!info && !why && <div className="h3-muted h3-small">Loading its takes…</div>}
+          {info && info.takes.map((t) => (
+            <div key={t.take} className="h3-row h3-small" style={{ gap: 6 }}>
+              <button className="h3-btn" disabled={t.status !== "ok"} title={playing === t.take ? "Stop" : "Play this take alone"} onClick={() => play(t)}>
+                <i className={playing === t.take ? "pi pi-stop" : "pi pi-play"} />
+              </button>
+              <b>{tn(t.take)}</b>
+              <span className="h3-muted">{t.target.replace(/_foley$/, "")}</span>
+              {t.source && <span className="h3-muted" title="The shot's take it was made from">from {tn(t.source.take)}</span>}
+              {t.status === "queued" && <span className="h3-badge"><i className="pi pi-spin pi-spinner" /> on its way</span>}
+              {t.status === "failed" && <span className="h3-badge" title={t.error}>failed</span>}
+              {t.stale && <span className="h3-badge" title={t.stale}><i className="pi pi-exclamation-triangle" /> stale</span>}
+              <span className="h3-grow" />
+              {t.picked
+                ? <span className="h3-badge h3-b-voice">in the mix</span>
+                : t.status === "ok" && <button className="h3-btn" title="Play this take under the shot in this pass's mix" onClick={() => void pickMixFx(s.shot, t.take)}>Pick</button>}
+            </div>
+          ))}
+          {info && s.picked != null && (
+            <button className="h3-btn" style={{ alignSelf: "flex-start" }} title="Take the shot's effects out of this pass's mix (its takes are kept)"
+              onClick={() => void pickMixFx(s.shot, null)}>
+              <i className="pi pi-times" /> No effects
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SoundRefsSections({ ep }: { ep: string }) {
   const pass = useApp((s) => s.pass);
   const cues = useApp((s) => s.cues[ep]);
@@ -197,6 +335,7 @@ export function SoundRefsSections({ ep }: { ep: string }) {
   }, [ep, pass]);
   const items = mix?.mix.items ?? [];
   const { beds, error: bedsError } = useBeds(ep);
+  const fxShots = useFxShots(ep, pass);
   const on = (t: string) => items.filter((x) => x.track === t);
   return (
     <>
@@ -220,10 +359,12 @@ export function SoundRefsSections({ ep }: { ep: string }) {
           </div>
         ))}
       </Section>
-      <Section label="Effects" count={on("effects").length}
-        title="Sound effects on the effects lane of this pass's mix"
-        note="Coming: a shot's effects made from its take by a foley model (docs/SOUND.md phase 4). For now: a file (right-click a shot: Sound ▸ Add an effect, or drop one on the lane).">
-        <ItemRows items={on("effects")} empty="None on the effects lane." />
+      <Section label="Effects" count={(fxShots?.length ?? 0) + on("effects").length}
+        title="Each shot's effects, made from its take by a foley model, and the files on the effects lane of this pass's mix"
+        note="Make a shot's effects: right-click it (Sound ▸ Make effects; on a selection, every selected shot). Its first take is picked; pick another here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
+        {fxShots && !fxShots.length && <div className="h3-muted h3-small h3-pad">No shot has effects made in this pass.</div>}
+        {(fxShots ?? []).map((x) => <FxRow key={x.shot} ep={ep} pass={pass} s={x} />)}
+        <ItemRows items={on("effects")} empty="No files on the effects lane." />
       </Section>
       <Section label="Ambience" count={(beds?.length ?? 0) + on("ambience").length}
         title="Each place's ambience bed, looped under its shots, and the files on the ambience lane of this pass's mix"

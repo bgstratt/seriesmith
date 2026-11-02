@@ -2803,6 +2803,21 @@ def get_fx(ctx: Context, query: dict):
 
 
 @handler
+def get_fx_shots(ctx: Context, query: dict):
+    """The shots with effects takes in a pass (fx.shots): `{ep, pass}` -> {"shots": [{shot,
+    takes, ok, queued, failed, picked}]}, from the takes' sidecars alone; a shot's takes and
+    whether they're stale are GET /seriesmith/fx, when its row opens."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    from seriesmith import fx as FXM
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    return 200, {"shots": FXM.shots(ep, pass_, mix)}
+
+
+@handler
 def post_fx_render(ctx: Context, body):
     """Make effects for shots on seriesmith's queue: `{ep, pass, shots: [...], target?, n?,
     backend?}` (target: a foley target, default the series config's `sound.effects_model`,
@@ -5250,6 +5265,7 @@ ROUTES = [
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),
+    ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
     ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
     ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),

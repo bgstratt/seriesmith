@@ -263,6 +263,18 @@ class LaidTest(unittest.TestCase):
         self.assertEqual([t["take"] for t in info["takes"]], [n2, n])
         self.assertEqual((info["cut_take"], info["text_from"]), ({"pass": "final", "take": 1}, "sound"))
 
+    def test_the_first_take_is_picked_and_listed(self):
+        # made and asked for, a shot's first effects are heard and shown; a later take isn't
+        # swapped in over the one you picked
+        self.assertEqual(FX.shots(self.root, "final"), [])
+        n = finished(self.root, "sh010", 2.0)
+        self.assertTrue(FX.pick_first(self.root, "final", "sh010", n))
+        n2 = finished(self.root, "sh010", 2.0)
+        self.assertFalse(FX.pick_first(self.root, "final", "sh010", n2))
+        self.assertEqual(MX.load(self.root)["final"]["fx"], {"sh010": {"take": n}})
+        self.assertEqual(FX.shots(self.root, "final"),
+                         [{"shot": "sh010", "takes": 2, "ok": 2, "queued": 0, "failed": 0, "picked": n}])
+
 
 class _Runner:
     """seriesmith's queue, stood in for: it remembers what it was asked."""
@@ -293,6 +305,12 @@ class RouteTest(unittest.TestCase):
         code, data = fn(self.ctx, arg)
         self.assertEqual(code, status, data)
         return data
+
+    def test_shots(self):
+        self.assertEqual(self.call(A.get_fx_shots, {"ep": self.ep, "pass": "final"}), {"shots": []})
+        self.call(A.post_fx_render, {"ep": self.ep, "pass": "final", "shots": ["sh010"]})
+        got = self.call(A.get_fx_shots, {"ep": self.ep, "pass": "final"})["shots"]
+        self.assertEqual([(s["shot"], s["takes"], s["queued"], s["picked"]) for s in got], [("sh010", 1, 1, None)])
 
     def test_render_list_pick(self):
         r = self.call(A.post_fx_render, {"ep": self.ep, "pass": "final", "shots": ["sh010", "sh020", "sh030"]})

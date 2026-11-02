@@ -24,7 +24,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  AmbienceBed, FxShot, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
+  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -174,6 +174,8 @@ export interface Api {
   refsOne?(ep: string, ref: string): Promise<Ref>;
   /** GET /seriesmith/fx: one shot's effects takes with stale state (fetched when its menu opens). */
   fxTakes?(ep: string, pass: Pass, shot: string): Promise<FxShot>;
+  /** GET /seriesmith/fx/shots: the shots with effects takes in the pass (the Refs tab's Effects). */
+  fxShots?(ep: string, pass: Pass): Promise<{ shots: FxShotSummary[] }>;
   /** POST /seriesmith/fx/render: effects for those shots from the cut's takes, on the queue. */
   renderFx?(req: { ep: string; pass: Pass; shots: string[]; target?: string | null; n?: number }): Promise<{
     queued: { shot: string; take: number; job: string; seed: number; target: string }[]; skipped: { shot: string; why: string }[] }>;
@@ -620,6 +622,7 @@ export function createHttpApi(t: Transport): Api {
                beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [] };
     },
     fxTakes: (ep, pass, shot) => get(`/seriesmith/fx?${qs({ ep, pass, shot })}`),
+    fxShots: (ep, pass) => get(`/seriesmith/fx/shots?${qs({ ep, pass })}`),
     renderFx: (req) => call("POST", "/seriesmith/fx/render", req),
     pickFx: (req) => call("POST", "/seriesmith/fx/pick", req),
     ambience: async (ep) => {

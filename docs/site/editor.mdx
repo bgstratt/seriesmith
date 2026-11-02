@@ -796,10 +796,12 @@ script call for is listed here.
   comes from its Sound card or **Generate dub tracks** with shots selected.
 - **Music, Effects, Ambience** (after the dub tracks; voices and dub tracks are the dialogue's):
   **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
-  mix; a row opens the cue window. **Effects** lists the files on that lane of the pass's mix,
-  where each starts (it moves with its shot) and its level, with a button to show the lanes
-  and one to take it out of the mix (the file stays). A shot's effects made from its take are
-  on the Effects lane itself (below: **Make effects** on a clip's Sound menu).
+  mix; a row opens the cue window. **Effects** lists every shot with effects made in this pass
+  (picked or not): its takes, which one plays and whether it's stale. A row opens to its takes
+  (fetched then): play one alone, **Pick** it, **Make again** (on a model of your choice),
+  **Mute**, or **No effects**. Then the files on that lane of the pass's mix, where each starts
+  (it moves with its shot) and its level, with a button to show the lanes and one to take it out
+  of the mix (the file stays).
   **Ambience** lists each place's **ambience bed** first: the place (a location, with its
   angles and relit versions), its `ambience` words, how many of this episode's shots it plays
   under, its takes and whether it's made. Open a row (its takes are fetched then) to play the
@@ -1313,8 +1315,10 @@ with stems beside it.
   the shots that need them (a dubbed or cloned shot, a model with no sound). The default model
   is MiniMax H3 (about 10 s a shot once loaded); **Make effects on…** offers the others
   installed (LTX-2.3 Foley, HunyuanVideo-Foley XL: a minute or two). The words are the shot's
-  `sound:` line, else its action. The job shows in the Jobs list, and a toast says when it
-  lands.
+  `sound:` line, else its action: give a shot a `sound:` line ("cup taps on formica, hands
+  clapping") for effects worth having, since an action written for the picture can mislead
+  ("…looks up, about to sing" gets a voice). The job shows in the Jobs list, and a toast says
+  when it lands; a shot's first take is picked into the mix, a later one waits to be picked.
 - **A shot's effects** sit on the Effects lane at its clip, named for the shot and the model,
   laid from the cut so they follow its trims and can't be dragged. **Right-click** one for its
   **level** (dB, on the Effects fader), **Mute**, **No effects for** the shot, its **takes**

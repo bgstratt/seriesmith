@@ -369,10 +369,25 @@ def collect(root: str, pass_: str, shot: str, n: int, run, status: str) -> dict:
     os.close(fd)
     try:
         outs[0].save(tmp)
-        return finish_take(root, pass_, shot, n, tmp)
+        sc = finish_take(root, pass_, shot, n, tmp)
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
+    pick_first(root, pass_, shot, n)
+    return sc
+
+
+def pick_first(root: str, pass_: str, shot: str, n: int) -> bool:
+    """Take `n` into the pass's mix when the shot has no effects picked yet, as a place's
+    first bed is picked: made and asked for, it's heard and shown (the lane and the Refs
+    tab list what's picked). A mix that doesn't read is left alone. True when picked."""
+    try:
+        if picked(MX.check(MX.load(root).get(pass_)), shot):
+            return False
+        pick(root, pass_, shot, n)
+    except (ValueError, FxError):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +447,27 @@ def pick(root: str, pass_: str, shot: str, n: int | None) -> dict:
     if not fx:
         del mix["fx"]
     return MX.write(root, pass_, mix)
+
+
+def shots(root: str, pass_: str, mix: dict | None = None) -> list[dict]:
+    """The shots with effects takes in a pass, in shot order: {"shot", "takes", "ok",
+    "queued", "failed", "picked"} from their sidecars (no audio read, no staleness: that's
+    shot_takes, when a row opens). What the Refs tab's Effects section lists."""
+    mix = MX.check(MX.load(root).get(pass_)) if mix is None else mix
+    base = os.path.join(root, "sound", "fx", pass_)
+    try:
+        names = sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))
+    except OSError:
+        return []
+    out = []
+    for shot in names:
+        tk = list_takes(root, pass_, shot)
+        if not tk:
+            continue
+        st = [t.get("status") for t in tk]
+        out.append({"shot": shot, "takes": len(tk), "ok": st.count("ok"), "queued": st.count("queued"),
+                    "failed": st.count("failed"), "picked": picked(mix, shot).get("take")})
+    return out
 
 
 def shot_takes(root: str, pass_: str, shot: str, mix: dict | None = None) -> dict:

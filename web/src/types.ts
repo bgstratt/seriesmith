@@ -2563,6 +2563,17 @@ export interface FxTake {
   created?: string;
 }
 
+/** GET /seriesmith/fx/shots: a shot with effects takes in the pass, from their sidecars. */
+export interface FxShotSummary {
+  shot: string;
+  takes: number;
+  ok: number;
+  queued: number;
+  failed: number;
+  /** the take the pass's mix plays (null: none picked) */
+  picked: number | null;
+}
+
 /** GET /seriesmith/fx: one shot's effects takes, newest first. */
 export interface FxShot {
   shot: string;

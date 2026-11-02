@@ -52,7 +52,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
 | `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
-| `GET /seriesmith/fx`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
+| `GET /seriesmith/fx`, `GET /seriesmith/fx/shots`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -708,11 +708,18 @@ shot's effects takes, newest first, each its sidecar with `take`, `path` (relati
 episode), `picked`, and `stale` (why it no longer matches the cut's picture; null when it does,
 or when it isn't finished). What a block's menu fetches when it opens.
 
+### `GET /seriesmith/fx/shots?ep=…&pass=…`
+`{"shots": [{shot, takes, ok, queued, failed, picked}]}`: the shots with effects takes in the
+pass, in shot order, from their sidecars alone (no audio read). What the Refs tab's Effects
+section lists; a row's takes are `GET /seriesmith/fx` when it opens.
+
 ### `POST /seriesmith/fx/render`
 Body `{"ep", "pass", "shots": [...], "target"?, "n"?, "backend"?}`: `n` takes (1-8, default 1)
 of each shot, on seriesmith's queue (job kind `fx`, in the Jobs list); `seriesmith.fx` `{ep, pass, shot, take, status}` as each lands. Answers `{"queued": [{shot, take, job, seed, target}], "skipped": [{shot, why}]}` (a shot with no take in the cut, or no words to make its
 effects from). 400 for a target that isn't a foley one, or when none can be made; 409 without
 the queue. When a job starts, a take whose picture changed since it was asked fails, saying so.
+A shot's first finished take is picked into the mix when it has none (as a place's first bed
+is); later takes wait to be picked.
 
 ### `POST /seriesmith/fx/pick`
 Body `{"ep", "pass", "shot", "take"}`: the take into the pass's mix (`fx`), the shot's level
