@@ -194,6 +194,34 @@ describe("voices only in the editor", () => {
     expect(el.querySelectorAll(".h3-snd-voice-silent").length).toBeGreaterThan(0);  // the shots with no lines
   });
 
+  it("each lane's right-click menu has its track's own things and Scoring; a double-click on a lane opens Scoring", async () => {
+    store.set({ sound: true });
+    const order = store.get().status[statusKey(EP, "proxy")]!.shots.map((s) => s.shot);
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const i = this.dataset.shot ? order.indexOf(this.dataset.shot) : -1;
+      return (i < 0 ? RECT.call(this) : { left: i * 100, width: 100, top: 0, height: 40, right: i * 100 + 100, bottom: 40, x: i * 100, y: 0 }) as DOMRect;
+    };
+    await act(async () => root.render(createElement(Timeline)));
+    await act(async () => store.set((s) => ({ zoom: s.zoom + 1 })));
+    const lane = (track: string) => el.querySelector<HTMLElement>(`.h3-snd-lane[data-track='${track}']`)!;
+    const menuOf = async (track: string) => {
+      await act(async () => lane(track).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 5 })));
+      const m = [...document.querySelectorAll<HTMLElement>(".h3-snd-pop")].pop()!;
+      return [...m.querySelectorAll("button, label")].map((b) => b.textContent!.trim());
+    };
+    const dia = await menuOf("dialogue");
+    expect(dia).toContain("Voices only");
+    expect(dia.some((t) => t.endsWith("keep its whole sound"))).toBe(true);
+    expect(dia).toContain("Scoring (spotting)…");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    const fx = await menuOf("effects");
+    expect(fx.some((t) => t.startsWith("Make effects for"))).toBe(true);
+    expect(fx).toContain("Scoring (spotting)…");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    await act(async () => lane("ambience").dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+    expect([store.get().viewer?.kind, store.get().viewer?.spot]).toEqual(["cut", true]);
+  });
+
   it("a clip's Sound menu sets the shot its own way and splits it again", async () => {
     const key = statusKey(EP, "proxy");
     const shot = currentMix()!.voices!.shots[0].shot;

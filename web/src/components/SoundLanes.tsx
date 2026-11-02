@@ -41,13 +41,14 @@ import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
-  makeVoiceStems, setVoicesOnlyMix,
+  makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
 import { tn } from "../lib/format";
 import { useTargets } from "./Targets";
 import { api, host } from "../host";
-import { openSound } from "../actions";
+import { generateDubTracks, openSound } from "../actions";
+import { dubTrackBlock } from "../lib/readiness";
 import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
@@ -366,7 +367,12 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
             onDrop={(e) => onDrop(e, track)}
             onContextMenu={(e) => onLaneMenu(e, track)}
-            title={`${def.label}${def.label !== TRACK_LABEL[kind] ? ` (${kind})` : ""}: drop a sound file here to lay it from where it falls · click: seek · right-click: ${kind === "music" ? "a new cue here, a sound file" : track === "dialogue" ? "the shot's sound, a sound file" : "a sound file"} · its head's ⋮: rename, add a track, move, delete`}>
+            onDoubleClick={(e) => {
+              // on the lane itself or a dialogue clip's wave (blocks, beds and effects have their own)
+              const t = e.target as HTMLElement;
+              if (t === e.currentTarget || t.closest(".h3-snd-own")) openSpotting();
+            }}
+            title={`${def.label}${def.label !== TRACK_LABEL[kind] ? ` (${kind})` : ""}: drop a sound file here to lay it from where it falls · click: seek · double-click: Scoring · right-click: ${kind === "music" ? "a new cue here" : track === "dialogue" ? "the shot's sound, voices only" : kind === "effects" ? "make effects" : "this place's bed"}, a sound file, Scoring · its head's ⋮: rename, add a track, move, delete`}>
             <LaneHead track={def} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res}
               series={res?.series?.tracks?.[track]?.gain_db ?? null} fallback={defaultGain(res, track)}
               own={res?.mix.tracks?.[track]?.gain_db != null}
@@ -494,7 +500,8 @@ function LaneHead({ track: def, gain, mute, solo, ready, series, fallback, own, 
         e.stopPropagation();
         onMenu(e.clientX, e.clientY);
       }}>
-      <span className="h3-snd-name" title={`${name}: a ${def.kind} track${def.id !== def.kind ? "" : " (a default)"} · right-click or ⋮: rename, add a track, move, delete`}>{name}</span>
+      <span className="h3-snd-name" title={`${name}: a ${def.kind} track${def.id !== def.kind ? "" : " (a default)"} · double-click: Scoring · right-click or ⋮: rename, add a track, move, delete${def.kind === "dialogue" ? ", voices only" : ""}`}
+        onDoubleClick={() => openSpotting()}>{name}</span>
       <input type="range" className="h3-snd-fader" min={GAIN_MIN} max={GAIN_MAX} step={0.5} value={v} disabled={!ready}
         aria-label={`${name} fader`}
         title={`${name}: ${db(v)}${own ? "" : series != null ? " (the series config's)" : " (the default)"} · double-click: ${db(under)}, ${series != null ? "the series config's" : "the default"}${track === "dialogue" ? "\nThe clips' own sound, and anything put on this lane" : ""}`}
@@ -1225,8 +1232,16 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
   const over = multi.length > 1;
   const at = menu.at;
   const track = menu.track;
-  const lanesMix = useApp((s) => currentMix(s)?.mix);
+  const lanesRes = useApp((s) => currentMix(s));
+  const lanesMix = lanesRes?.mix;
   const kind = track ? kindOf(lanesMix, track) : null;
+  const { list: targets } = useTargets();
+  // the shots it acts on: the selection when the clip under the pointer is one of several, else that clip
+  const shots = at ? (over && multi.includes(at.shot) ? multi : [at.shot]) : [];
+  const many = shots.length > 1 ? ` (${shots.length} shots)` : "";
+  const fxModels = (targets?.targets ?? []).filter((t) => t.kind === "foley");
+  const fxDefault = targets?.default?.foley ?? "h3_foley";
+  const noVoice = dubTrackBlock(targets);
   const name = track ? labelOf(lanesMix, track) : "Hits";
   const run = (fn: () => void) => () => {
     onClose();
@@ -1241,26 +1256,55 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
           <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${at?.shot ?? "the shot"})…`}
         </button>
       )}
-      {kind === "music" && (
-        <button title="The spotting sheet: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it"
-          onClick={run(() => openSpotting())}>
-          <i className="pi pi-map" /> Scoring (spotting)…
-        </button>
-      )}
       {track === "dialogue" && at && (
         <>
           <button title={`How ${at.shot}'s sound is made: generate, clone, or dub a track (its voices and dub tracks)`} onClick={run(() => openSound([at.shot]))}>
             <i className="pi pi-microphone" /> {at.shot}'s sound…
+          </button>
+          <button title={noVoice ?? "Queue a dub track now: the shot rendered for its sound only, its voices cloned; pick it in Sound… to dub the shot with"}
+            onClick={run(() => generateDubTracks(shots))}>
+            <i className={noVoice ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate a dub track{many}
           </button>
           <button title={`${at.shot}'s picture with another take's (or a file's) sound under it`} onClick={run(() => openSound([at.shot], "cut"))}>
             <i className="pi pi-volume-up" /> Replace {at.shot}'s audio…
           </button>
         </>
       )}
+      {track === "dialogue" && lanesRes && (
+        <>
+          <VoicesSection mix={lanesMix ?? {}} voices={lanesRes.voices} onClose={onClose} />
+          {at && lanesRes.voices && (() => {
+            const own = lanesMix?.voices?.[at.shot]?.voices_only;
+            return (
+              <>
+                <button data-voices="whole" title={`${shots.length > 1 ? "These shots play" : `${at.shot} plays`} the take's whole sound, the model's music and room tone with it, whatever the track says`}
+                  onClick={run(() => void setShotVoicesMix(shots, own === false ? null : false))}>
+                  <i className={own === false ? "pi pi-check" : "pi pi-volume-up"} /> {at.shot}: keep its whole sound{many}
+                </button>
+                <button data-voices="only" title={`${shots.length > 1 ? "These shots play" : `${at.shot} plays`} the voice stem alone, even with no lines in the script`}
+                  onClick={run(() => void setShotVoicesMix(shots, own === true ? null : true))}>
+                  <i className={own === true ? "pi pi-check" : "pi pi-user"} /> {at.shot}: voices only{many}
+                </button>
+              </>
+            );
+          })()}
+        </>
+      )}
       {kind === "effects" && (
-        <button disabled title="Coming (docs/SOUND.md phase 4): the shot's effects made from its take by a foley model">
-          <i className="pi pi-bolt" /> Effects from {at?.shot ?? "the shot"}'s take…
-        </button>
+        <>
+          <button disabled={!at} title={`Sync sound made from the frames of the take the cut plays${many ? ` for each of the ${shots.length} shots selected` : ""}`}
+            onClick={run(() => void makeEffects(shots))}>
+            <i className="pi pi-bolt" /> Make effects{at ? ` for ${shots.length > 1 ? `${shots.length} shots` : at.shot}` : ""}
+          </button>
+          {fxModels.filter((t) => t.id !== fxDefault).map((t) => (
+            <button key={t.id} disabled={!at} title={`The same on ${t.label}`} onClick={run(() => void makeEffects(shots, t.id))}>
+              <i className="pi pi-bolt" /> Make effects on {t.short ?? t.label}{many}
+            </button>
+          ))}
+          <button title="Every shot's effects takes: play, pick, mute (the Refs tab's Effects)" onClick={run(() => host().show("refs"))}>
+            <i className="pi pi-list" /> The effects takes…
+          </button>
+        </>
       )}
       {kind === "ambience" && (
         <button title="The places' ambience beds (the Refs tab's Ambience): a location's room tone or air, made once from its `ambience` words and looped under its shots"
@@ -1279,6 +1323,11 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
           <i className="pi pi-upload" /> Add a sound file here…
         </button>
       )}
+      <div className="h3-menu-sep" />
+      <button title="Scoring, on its Spotting tab: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it (or double-click an empty spot on a lane)"
+        onClick={run(() => openSpotting())}>
+        <i className="pi pi-map" /> Scoring (spotting)…
+      </button>
     </div>
   );
 }

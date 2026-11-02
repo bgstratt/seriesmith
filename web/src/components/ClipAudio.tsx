@@ -493,6 +493,7 @@ function ClipAudioBody({ ep }: { ep: string }) {
             muted={!!draft}
             preload="metadata"
             className="h3-clipaudio-video"
+            onClick={() => item?.mp4 && (!draft || path || draft.source === "none") && (playing ? stop() : play())}
             onTimeUpdate={onTime}
             onPause={() => setPlaying(false)}
           />

@@ -328,6 +328,11 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           autoPlay={which === "a"}
           loop
           style={colorFilter ? { filter: colorFilter } : undefined}
+          // a click plays or pauses, as space does: A leads, B follows it
+          onClick={() => {
+            const lead = aEl ?? bEl;
+            if (lead) void (lead.paused ? lead.play().catch(() => {}) : lead.pause());
+          }}
           onContextMenu={(e) => {
             // the take's menu, knowing the frame on screen ("use this frame as the next shot's first frame")
             e.preventDefault();

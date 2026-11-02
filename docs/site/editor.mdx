@@ -1101,7 +1101,9 @@ wins and shows as such. On the standalone page opened on the PC that runs the se
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
-float it, or dock another window beside it.
+float it, or dock another window beside it. **Click the picture** to play or pause it (as
+`Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
+Replace audio preview.
 
 **Play all** has its own **Loop** (the cut starts over at the end; remembered).
 
@@ -1305,9 +1307,14 @@ with stems beside it.
   lane, or with its menu's **Track**. The ambience beds sit on the Ambience track (else the
   first ambience track), the shots' effects on Effects (likewise).
 - **Right-click a lane** for its menu (it opens above the click near the window's foot): every
-  lane can **Add a sound file here…**; Music and the hits lane make a **New cue**; Dialogue opens
-  the shot's own sound (its Sound card, Replace audio); Ambience opens the place's ambience bed
-  under the click (the Refs tab's Ambience). A clip's own menu has the same under **Sound**:
+  lane can **Add a sound file here…** and open **Scoring (spotting)…**; Music and the hits lane
+  make a **New cue**; Dialogue has the shot's own sound (its Sound card, **Generate a dub
+  track**, Replace audio), **Voices only** for the track with **Make voice stems**, and the shot's
+  own way (keep its whole sound, or voices only); Effects makes the shot's effects (**Make
+  effects**, on each foley model) and lists the effects takes; Ambience opens the place's
+  ambience bed under the click (the Refs tab's Ambience). On a selection, the shot items act on
+  every shot selected. **Double-click an empty spot on a lane** (or a lane's name) to open
+  Scoring. A clip's own menu has the same under **Sound**:
   **Make effects** (below), **New music cue…** over it (or the shots selected) and **Add music /
   an effect / ambience from a file…** at its first frame.
 - **Drop a sound file** (wav, mp3, flac, ogg, m4a…) from your computer onto a lane: it's
@@ -1350,7 +1357,7 @@ with stems beside it.
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
   plays them anyway. A new take lands unpicked: pick it from the menu.
-- **Voices only** (the Dialogue lane head's **⋮**): each clip plays its take's **voice stem**,
+- **Voices only** (right-click the Dialogue lane, or its head's **⋮**): each clip plays its take's **voice stem**,
   its sound with the model's own music and room tone split off (Hybrid Demucs on local
   ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
   cut. **Make voice stems** beside it splits every take the cut plays (one job a take, in Jobs,
@@ -1392,7 +1399,7 @@ with stems beside it.
 
 ### The spotting sheet: the episode's music
 
-**Scoring** in the timeline's head (or the Music lane's menu, **Scoring (spotting)…**) opens
+**Scoring** in the timeline's head (or any sound lane's menu, **Scoring (spotting)…**, or a double-click on a lane) opens
 the scoring window on its **Spotting** tab, the episode's view of its music: where cues go
 before they're shaped ([SCORING.md](/scoring), "The spotting sheet"). Its other tabs are the
 selected cue's **Score**, **Arc** and **Orchestration & takes** (the cue window's), greyed until

@@ -835,7 +835,8 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
             {side && (
               <div className="h3-gal-pane">
                 <span className="h3-pane-label">cut · {tn(cutTake!.take)}</span>
-                <video key={play(cutTake!)} ref={setBEl} src={api().fileUrl(ep, play(cutTake!))} loop playsInline preload="auto" muted />
+                <video key={play(cutTake!)} ref={setBEl} src={api().fileUrl(ep, play(cutTake!))} loop playsInline preload="auto" muted
+                  onClick={() => aEl && (aEl.paused ? void aEl.play() : aEl.pause())} />
               </div>
             )}
             <NavButtons n={n} of={of} step={step} />
