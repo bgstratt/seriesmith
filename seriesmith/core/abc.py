@@ -23,7 +23,9 @@ exact and the bars close. `first_note` is the first note (not a rest) of the mel
 (the first declared, the vocal in YuE2's plans), in beats from the start.
 
 `set_tempo(text, bpm)` sets the `Q:` line as the cue graph's two RegexReplace nodes do
-(targets/music/yue2: every `Q:` line dropped, one put before the first `K:`); `melody(text)`
+(targets/music/yue2: every `Q:` line dropped, one put after the `L:` line, where YuE2 writes
+it: put after the voices, before `K:`, it was sung at 88 of 96 bpm, twice, 2026-11-01);
+`melody(text)`
 drops the chord symbols, the form YuE2's `melody` mode and SheetSage2's melody transcription
 use.
 
@@ -36,6 +38,7 @@ from fractions import Fraction
 
 # the RegexReplace patterns the yue2 graph uses (multiline), here for the same result in Python
 Q_LINE = r"^Q:.*\n?"
+L_LINE = r"^(L:.*)$"
 K_LINE = r"^K:"
 _FIELD = re.compile(r"^([A-Za-z]):\s*(.*)$")
 _LENGTH = re.compile(r"(\d*)(/*)(\d*)")
@@ -280,11 +283,13 @@ def _beats(whole: Fraction, beat: Fraction) -> float:
 
 
 def set_tempo(text: str, bpm: int | float, unit: str = "1/4") -> str:
-    """The plan with its tempo `Q:{unit}={bpm}`: every Q: line dropped, one put before the
-    first K: line (after the X: line when there is none), as the graph's RegexReplace
-    nodes do it."""
+    """The plan with its tempo `Q:{unit}={bpm}`: every Q: line dropped, one put after the
+    first L: line, as the graph's RegexReplace nodes do it (with no L: line, before the K:
+    line, or after X:, which the graph doesn't do)."""
     q = f"Q:{unit}={_num(bpm)}"
     out = re.sub(Q_LINE, "", text, flags=re.M)
+    if re.search(L_LINE, out, flags=re.M):
+        return re.sub(L_LINE, lambda m: m.group(1) + "\n" + q, out, count=1, flags=re.M)
     if re.search(K_LINE, out, flags=re.M):
         return re.sub(K_LINE, q + "\nK:", out, count=1, flags=re.M)
     if re.search(r"^X:.*$", out, flags=re.M):

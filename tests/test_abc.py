@@ -105,13 +105,14 @@ class EditTest(unittest.TestCase):
         text = fixture("yue2_s1.abc")
         out = A.set_tempo(text, 96)
         self.assertEqual(re.findall(r"^Q:.*$", out, re.M), ["Q:1/4=96"])
-        self.assertIn("Q:1/4=96\nK:D", out)
+        self.assertIn("L:1/32\nQ:1/4=96\nV:", out)           # where YuE2 writes it
         self.assertEqual(A.read(out)["tempo"], 96.0)
         self.assertEqual(A.read(out)["sections"], A.read(text)["sections"])
         # what the graph's RegexReplace nodes do (case sensitive, multiline)
-        g = re.sub(A.K_LINE, "Q:1/4=96\nK:", re.sub(A.Q_LINE, "", text, flags=re.M), count=1, flags=re.M)
+        g = re.sub(A.L_LINE, "\\1\nQ:1/4=96", re.sub(A.Q_LINE, "", text, flags=re.M), count=1, flags=re.M)
         self.assertEqual(g, out)
-        # a plan with no Q:, and one with no K: either
+        # a plan with no Q:; one with no L:, and one with neither L: nor K:
+        self.assertIn("L:1/8\nQ:1/8=70\nK:C", A.set_tempo("X:1\nL:1/8\nK:C\nabc|", 70, "1/8"))
         self.assertIn("Q:1/8=70\nK:C", A.set_tempo("X:1\nK:C\nabc|", 70, "1/8"))
         self.assertTrue(A.set_tempo("X:1\nabc|", 70).startswith("X:1\nQ:1/4=70\n"))
 

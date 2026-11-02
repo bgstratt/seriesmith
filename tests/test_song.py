@@ -9,7 +9,7 @@ takes stale when it changes.
 from __future__ import annotations
 
 import os
-import shutil
+import re
 import sys
 import tempfile
 import unittest
@@ -71,13 +71,13 @@ class Yue2Test(_Base):
         # without lyrics isn't sung
         self.assertEqual(v["lyrics"], "[Verse]\nCoffee in a paper cup\nNeon humming\n\n[Chorus]\nStay a while")
         self.assertEqual(v["mode"], "full")
-        self.assertEqual(v["tempo"], f"Q:1/4={p['fit']['ask_bpm']}\nK:")
+        self.assertEqual(v["tempo"], f"\\1\nQ:1/4={p['fit']['ask_bpm']}")
         self.assertIn("vocal", p["prompt"]["prompt"])
         self.assertIn(f"{p['fit']['ask_bpm']} BPM", p["prompt"]["prompt"])
         self.assertIn("D major", p["prompt"]["prompt"])
         self.assertNotIn("blocked", p)
         # 6/8: the plan's tempo counts eighths, as the cue's does
-        self.assertTrue(CU.plan(self.root, "final", self.spec(meter="6/8"), {})["prompt"]["values"]["tempo"].startswith("Q:1/8="))
+        self.assertIn("\nQ:1/8=", CU.plan(self.root, "final", self.spec(meter="6/8"), {})["prompt"]["values"]["tempo"])
 
     def test_no_lyrics_no_song(self):
         p = CU.plan(self.root, "final", self.spec(sections=[{"name": "verse", "words": "warm"}]), {})
@@ -99,7 +99,12 @@ class Yue2Test(_Base):
         music = next(v for v in g.values() if v["class_type"] == "YuE2GenerateMusic")
         self.assertEqual(music["inputs"]["abc"], g[sung]["inputs"]["text"])
         tempo = next(v for v in g.values() if v["_meta"]["title"] == "Plan at the cue's tempo")
-        self.assertEqual(tempo["inputs"]["replace"], f"Q:1/4={p['fit']['ask_bpm']}\nK:")
+        self.assertEqual(tempo["inputs"]["replace"], f"\\1\nQ:1/4={p['fit']['ask_bpm']}")
+        # the graph's two RegexReplace nodes do to a plan what abc.set_tempo does
+        first = next(v for v in g.values() if v["_meta"]["title"] == "Plan without its tempo")["inputs"]
+        done = re.sub(tempo["inputs"]["regex_pattern"], tempo["inputs"]["replace"],
+                      re.sub(first["regex_pattern"], first["replace"], plan_text(), flags=re.M), count=1, flags=re.M)
+        self.assertEqual(done, ABC.set_tempo(plan_text(), p["fit"]["ask_bpm"]))
         seeds = [v["inputs"]["seed"] for v in g.values() if "seed" in v["inputs"]]
         self.assertEqual(seeds, [7, 7, 7])
         self.assertEqual(music["inputs"]["mode"], "full")

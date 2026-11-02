@@ -3,7 +3,7 @@ yue2: YuE2, songs (target.json beside this file). Its style is the cue's head wi
 in words and "vocal" (the style words barely move the tempo; the plan's Q: line does: docs/
 SOUND.md "Measured: YuE2"), and the script's music: notes; its lyrics are the sections that
 have lyrics, each under its tag ([Verse], [Chorus]...), a blank line between; `tempo` is
-what the graph's second RegexReplace puts before the plan's K: line (the cue's whole bpm, of
+what the graph's second RegexReplace puts after the plan's L: line (the cue's whole bpm, of
 the cue's beat). A song with no lyrics is refused before it renders (cue.plan's `blocked`):
 YuE2 sings words.
 
@@ -43,10 +43,10 @@ def lyrics(cue: dict) -> str:
 
 
 def tempo_line(cue: dict) -> str:
-    """The plan's tempo as the graph sets it: `Q:1/<the meter's note>=<bpm>`, then K: (the
-    RegexReplace that puts it before the plan's K: line)."""
+    """The plan's tempo as the graph sets it: `Q:1/<the meter's note>=<bpm>` after the plan's
+    L: line (the RegexReplace's replacement: `\\1` is the L: line)."""
     unit = str(cue.get("meter") or "4/4").split("/")[-1].strip() or "4"
-    return f"Q:1/{unit}={int(round(float(cue.get('bpm') or 120)))}\nK:"
+    return f"\\1\nQ:1/{unit}={int(round(float(cue.get('bpm') or 120)))}"
 
 
 def cue_prompt(target, cue: dict) -> dict:

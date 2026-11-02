@@ -7,7 +7,7 @@
   "code": "prompt.py",
 
   "capabilities": {
-    "_note": "Songs: style words and lyrics by section ([Verse], [Chorus]...), sung. A take is two stages in one graph: YuE2GenerateABC plans the song as ABC (its sections and bars), the plan's Q: line is set to the cue's tempo (two RegexReplace nodes), then YuE2GenerateMusic sings that plan. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: YuE2'): the Q: line holds the tempo exactly (96.0-96.1 heard of 96 asked), the length follows the plan's bars (~2 % short), a 2-2.5 minute song in 18-22 s on an RTX 5090, the plan included. A theme (a cue's leitmotif) is sung as its melody: another YuE2 take's plan, or SheetSage2's transcription of any recording, in `melody` mode. Licence: the YuE2-3B and SheetSage2 weights are CC BY-NC 4.0 (non-commercial; the m-a-p model cards, and Comfy-Org/YuE2's repackaging), so a song made with it is for non-commercial use.",
+    "_note": "Songs: style words and lyrics by section ([Verse], [Chorus]...), sung. A take is two stages in one graph: YuE2GenerateABC plans the song as ABC (its sections and bars), the plan's Q: line is set to the cue's tempo (two RegexReplace nodes: every Q: line out, one after the L: line, where YuE2 writes it; put before K: it was sung at 88 of 96 bpm), then YuE2GenerateMusic sings that plan. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: YuE2'): the Q: line holds the tempo exactly (96.0-96.1 heard of 96 asked), the length follows the plan's bars (~2 % short), a 2-2.5 minute song in 18-22 s on an RTX 5090, the plan included. A theme (a cue's leitmotif) is sung as its melody: another YuE2 take's plan, or SheetSage2's transcription of any recording, in `melody` mode. Licence: the YuE2-3B and SheetSage2 weights are CC BY-NC 4.0 (non-commercial; the m-a-p model cards, and Comfy-Org/YuE2's repackaging), so a song made with it is for non-commercial use.",
     "mode": "t2m",
     "tempo": "abc",
     "structure": "plan",
@@ -25,7 +25,7 @@
   },
 
   "binding": {
-    "_note": "ComfyUI's audio_yue2_text2music template (CheckpointLoaderSimple -> YuE2GenerateABC -> YuE2GenerateMusic -> EmptyYuE2LatentAudio from its seconds -> KSampler 32 steps dpm_2 sgm_uniform cfg 1 -> VAEDecodeAudio -> SaveAudio), with the plan's tempo set between the two stages by two core RegexReplace nodes (every Q: line out, one before K:) and the plan saved twice by SaveText (as written, and as sung: tNN.abc beside the take). A theme replaces YuE2GenerateABC (prompt.py cue_graph): a plan given as text, or LoadAudio -> SheetSage2AudioToABC (audio_yue2_music_cover's), and both stages go to `melody` mode. The seed goes to the plan, the song and the sampler.",
+    "_note": "ComfyUI's audio_yue2_text2music template (CheckpointLoaderSimple -> YuE2GenerateABC -> YuE2GenerateMusic -> EmptyYuE2LatentAudio from its seconds -> KSampler 32 steps dpm_2 sgm_uniform cfg 1 -> VAEDecodeAudio -> SaveAudio), with the plan's tempo set between the two stages by two core RegexReplace nodes (every Q: line out, one after L:) and the plan saved twice by SaveText (as written, and as sung: tNN.abc beside the take). A theme replaces YuE2GenerateABC (prompt.py cue_graph): a plan given as text, or LoadAudio -> SheetSage2AudioToABC (audio_yue2_music_cover's), and both stages go to `melody` mode. The seed goes to the plan, the song and the sampler.",
     "workflow": "workflow.json",
     "workflow_name": "seriesmith_yue2.json",
     "env": "SERIESMITH_YUE2_WORKFLOW",
