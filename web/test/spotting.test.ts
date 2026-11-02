@@ -174,6 +174,7 @@ describe("a cue's hits table", () => {
 
 import { refreshEpisode } from "../src/actions";
 import { Viewer } from "../src/components/Viewer";
+import { SoundAddDialog } from "../src/components/SoundAdd";
 import { cueKey, cueSettled, loadCue } from "../src/cueActions";
 import { resetCutHistory } from "../src/cutActions";
 import { setApi, setHost, type Host } from "../src/host";
@@ -181,6 +182,7 @@ import { createMockApi } from "../src/mock/mockApi";
 import { loadMix, mixSettled } from "../src/mixActions";
 import { loadCueStates, openSpotting } from "../src/spotActions";
 import { initialState, statusKey, store } from "../src/store";
+import { Fragment } from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -346,6 +348,68 @@ describe("the spotting sheet", () => {
     expect([store.get().viewer?.kind, store.get().viewer?.cue, store.get().viewer?.cueTab]).toEqual(["cue", "m01", "arc"]);
     const on = [...document.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")].find((b) => b.classList.contains("h3-on"))!;
     expect(on.textContent!.trim()).toBe("Arc");
+  });
+
+  it("with no cue in the episode the cue tabs ask for one, and the cue window opens on the tab clicked", async () => {
+    // the episode with no cue (the demo's hidden); the one made is saved
+    const put: string[] = [];
+    setApi({ ...api, cues: async () => ({ cues: [] }), putCue: async (ep, cue) => {
+      put.push(cue.id);
+      return api.putCue(ep, cue);
+    } });
+    await act(async () => {
+      openSpotting(null);
+      root.render(createElement(Fragment, null, createElement(Viewer), createElement(SoundAddDialog)));
+    });
+    await act(async () => {
+      await loadCueStates(EP, "proxy");
+    });
+    const tab = (name: string) => [...document.querySelectorAll<HTMLButtonElement>(".h3-spot-win .h3-seg button")].find((b) => b.textContent!.trim() === name)!;
+    expect([tab("Score").disabled, tab("Arc").disabled, tab("Orchestration & takes").disabled]).toEqual([false, false, false]);
+    expect(tab("Arc").title).toContain("No cue yet");
+    await act(async () => tab("Arc").click());
+    expect(store.get().soundAdd).toEqual({ kind: "cue", tab: "arc" });
+    const make = document.querySelector<HTMLButtonElement>(".h3-dialog button[data-act='make-cue']")!;
+    expect(make.disabled).toBe(false);
+    await act(async () => make.click());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const v = store.get().viewer!;
+    expect(put).toHaveLength(1);
+    expect([v.kind, v.cue, v.cueTab, v.back]).toEqual(["cue", put[0], "arc", "spot"]);
+  });
+
+  it("a right-click on a row of the map makes a cue over its sequence", async () => {
+    await open();
+    const rows = q(".h3-spot-row");
+    const row = rows[rows.length > 1 ? 1 : 0];
+    const seq = row.querySelector(".h3-spot-rowhead b")!.textContent!;
+    const ids = [...row.querySelectorAll<HTMLElement>(".h3-spot-shots .h3-spot-shot")].map((x) => x.textContent!);
+    await act(async () => row.querySelector(".h3-spot-rowhead")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 40 })));
+    const menu = document.querySelector<HTMLElement>(".h3-spot-menu")!;
+    expect(menu.textContent).toContain(`New cue over ${seq}`);
+    expect(menu.textContent).toContain("Mark a hit here");
+    expect(menu.textContent).toContain(`Make effects for ${seq}`);
+    const before = (await api.cues(EP)).cues.map((c) => c.spec.id);
+    await act(async () => menu.querySelector<HTMLButtonElement>("button[data-spot='cue-seq']")!.click());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    const made = (await api.cues(EP)).cues.find((c) => !before.includes(c.spec.id))!;
+    expect([made.spec.in.shot, made.spec.out.shot]).toEqual([ids[0], ids[ids.length - 1]]);
+    const v = store.get().viewer!;
+    expect([v.kind, v.cue, v.cueTab, v.back]).toEqual(["cue", made.spec.id, "score", "spot"]);
+    expect(document.querySelector(".h3-spot-menu")).toBeNull();
+  });
+
+  it("a right-click on a cue block offers its own: Open in Score", async () => {
+    await open();
+    await act(async () => q(".h3-spot-cue")[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 40 })));
+    const open1 = document.querySelector<HTMLButtonElement>(".h3-spot-menu button[data-spot='open-score']")!;
+    expect(open1.textContent).toContain("Open m01 in Score");
+    await act(async () => open1.click());
+    expect([store.get().viewer?.kind, store.get().viewer?.cue, store.get().viewer?.cueTab]).toEqual(["cue", "m01", "score"]);
   });
 
   it("a stale take in the mix lists the cue as stale, to render again", async () => {

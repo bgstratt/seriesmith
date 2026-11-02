@@ -13,17 +13,17 @@
 // again. The map reads what's loaded (the mix with its beds and effects, the
 // cues planned against the pass); the selected cue is fetched when selected.
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
-import { cueKey, saveCueAt } from "../cueActions";
+import { cueKey, newCue, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
 import { hitChip, cueTitle, withSpec } from "../lib/cue";
-import { HIT_KIND_TITLE } from "../lib/mix";
+import { HIT_KIND_TITLE, timeAnchor } from "../lib/mix";
 import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
   type CueBlock, type CutHit, type MapRow,
 } from "../lib/spotting";
-import { addMixHit, currentMix } from "../mixActions";
+import { addMixHit, currentMix, makeBed, makeEffects, openSoundAdd } from "../mixActions";
 import {
   auditionTake, jumpToHit, loadCueStates, openCueFromSpot, renderCues, seekToTime, selectSpotCue, setCueTempo, stopAudition,
 } from "../spotActions";
@@ -34,6 +34,7 @@ import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
 import { SCORING_URL, useMusicTargets } from "./CueWindow";
 import { SongLine, ThemeField } from "./CueTheme";
 import { CutStage, FullscreenButton, useCutEngine } from "./Viewer";
+import { onScreen } from "./SoundLanes";
 
 /** its help strip, open or closed, kept in this browser */
 export const SPOT_HELP_KEY = "seriesmith.spotting.help";
@@ -42,7 +43,7 @@ const EMPTY_CUES: CueSummary[] = [];
 
 const HELP_STEPS = [
   "Watch the cut with its sound and decide where music goes and where silence is stronger. Stop on a frame (, and . step one) and + Hit marks a moment the music must answer; ◀ Hit / Hit ▶ jump between them.",
-  "The map is the whole episode, a row per sequence: Music (the cues), Ambience (the places' beds), Effects (the shots'), the hits by kind. Click a cue to see it here, double-click to shape it in the cue window; click a hit or a row to go there.",
+  "The map is the whole episode, a row per sequence: Music (the cues), Ambience (the places' beds), Effects (the shots'), the hits by kind. Click a cue to see it here, double-click to shape it in the cue window; click a hit or a row to go there. Right-click a row for a new cue (here, over the sequence, to its end), a hit, the sequence's effects or its place's bed; right-click a cue for its tabs and takes.",
   "For the selected cue: where each hit lands in the music (bar.beat) and how far off each take is; how its tempo was fitted, and the nearest other tempos (a click holds the cue at one); ▶ plays a take under the picture from the cue's in point without changing the mix.",
   "Cues stale under the cut (it moved since their takes were made) are listed at the foot: render them again from there.",
 ];
@@ -74,6 +75,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const audition = useApp((s) => s.audition);
   const sel = v.cue ?? null;
   const [help, setHelp] = useState(helpOpen);
+  const [menu, setMenu] = useState<SpotMenuAt | null>(null);
   const showHelp = (on: boolean) => {
     try {
       localStorage.setItem(SPOT_HELP_KEY, on ? "1" : "0");
@@ -144,7 +146,8 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
               <button className="h3-btn" onClick={stopAudition}><i className="pi pi-stop" /> Back to the mix</button>
             </div>
           )}
-          <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={cp.pos} fps={fps} sel={sel} />
+          <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={cp.pos} fps={fps} sel={sel} onMenu={setMenu} />
+          {menu && <SpotMenu at={menu} fps={fps} onClose={() => setMenu(null)} />}
           {offCut.length > 0 && (
             <div className="h3-small h3-muted" style={{ padding: "2px 8px" }}>
               Not in this cut: {offCut.map((c) => (
@@ -195,19 +198,30 @@ function SpotTransport({ fps, total, pos, playing, hits }: { fps: number; total:
 type Bed = ReturnType<typeof bedBlocks>[number];
 type Fx = ReturnType<typeof fxBlocks>[number];
 
-function MusicMap({ rows, blocks, beds, fx, hits, pos, fps, sel }: {
+/** Where the map was right-clicked: a row, the cut time under the pointer, the cue block if on one. */
+interface SpotMenuAt {
+  x: number;
+  y: number;
+  row: MapRow;
+  t: number;
+  cue?: string;
+}
+
+function MusicMap({ rows, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
   rows: MapRow[]; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; pos: number; fps: number; sel: string | null;
+  onMenu: (m: SpotMenuAt) => void;
 }) {
   if (!rows.length) return <div className="h3-empty-state">The cut is empty.</div>;
   return (
     <div className="h3-spot-map" aria-label="The music map">
-      {rows.map((r, i) => <MapRowView key={`${r.seq}|${i}`} row={r} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={pos} fps={fps} sel={sel} />)}
+      {rows.map((r, i) => <MapRowView key={`${r.seq}|${i}`} row={r} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={pos} fps={fps} sel={sel} onMenu={onMenu} />)}
     </div>
   );
 }
 
-function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel }: {
+function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
   row: MapRow; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; pos: number; fps: number; sel: string | null;
+  onMenu: (m: SpotMenuAt) => void;
 }) {
   const span = Math.max(1e-6, row.end - row.start);
   const pct = (t: number) => `${((t - row.start) / span) * 100}%`;
@@ -218,14 +232,24 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel }: {
   };
   const rowHits = hits.filter((h) => h.t >= row.start - 1e-6 && h.t < row.end + 1e-6);
   const here = pos >= row.start && pos < row.end;
-  const lane = (name: string, cls: string, children: React.ReactNode) => (
+  // right-click: on a lane, the time under the pointer; on the row's head, the playhead (in the row) or its start
+  const menuAt = (e: RMouseEvent<HTMLElement>, cue?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const laneEl = (e.target as HTMLElement).closest?.(".h3-spot-lane") as HTMLElement | null;
+    let t = here ? pos : row.start;
+    const r = laneEl?.getBoundingClientRect();
+    if (r && r.width > 0) t = row.start + Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * span;
+    onMenu({ x: e.clientX, y: e.clientY, row, t, ...(cue ? { cue } : {}) });
+  };
+  const lane =(name: string, cls: string, children: React.ReactNode) => (
     <div className="h3-spot-lanerow">
       <span className="h3-spot-lab">{name}</span>
       <div className={`h3-spot-lane ${cls}`} onClick={seekAt}>{children}</div>
     </div>
   );
   return (
-    <div className={`h3-spot-row${here ? " h3-on" : ""}`}>
+    <div className={`h3-spot-row${here ? " h3-on" : ""}`} onContextMenu={(e) => menuAt(e)}>
       <div className="h3-spot-rowhead">
         <b>{row.seq ?? "no sequence"}</b>
         <span className="h3-mono h3-muted">{timecode(row.start, fps)} – {timecode(row.end, fps)}</span>
@@ -254,6 +278,10 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel }: {
             onDoubleClick={(e) => {
               e.stopPropagation();
               openCueFromSpot(c.id);
+            }}
+            onContextMenu={(e) => {
+              selectSpotCue(c.id);
+              menuAt(e, c.id);
             }}>
             {c.fromBefore ? "… " : ""}{c.label}
             <span className="h3-spot-tag">{c.kind === "song" ? "song" : "score"}</span>
@@ -271,6 +299,103 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel }: {
         )))}
         {here && <div className="h3-spot-playhead" style={{ left: `calc(64px + (100% - 64px) * ${(pos - row.start) / span})` }} />}
       </div>
+    </div>
+  );
+}
+
+/** The map's right-click menu (h3-menu, as the lanes'): a cue from here, over the row's
+ * sequence or to its end; a hit here; the sequence's effects and its place's bed; on a cue
+ * block, the cue's own (its tabs, render its takes). */
+function SpotMenu({ at, fps, onClose }: { at: SpotMenuAt; fps: number; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: at.x, top: at.y });
+  const items = useApp((s) => currentPlaylist(s));
+  const res = useApp((s) => currentMix(s));
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(at.x, at.y, r));
+  }, [at]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const { row, cue } = at;
+  const seq = row.seq ?? "these shots";
+  const shots = row.shots.map((s) => s.shot);
+  const last = shots[shots.length - 1];
+  // the frame under the pointer, kept inside the row
+  const anchor = timeAnchor(items, Math.min(Math.max(at.t, row.start), row.end - 0.5 / (fps || 24)), fps);
+  // the sequence's place, when its shots share one
+  const placed = shots.map((x) => res?.places?.[x]).filter((p) => !!p);
+  const place = placed.length && placed.every((p) => p!.place === placed[0]!.place) ? placed[0]! : undefined;
+  const laid = place ? res?.beds?.find((b) => b.place === place.place) : undefined;
+  const run = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop h3-spot-menu" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}>
+      <div className="h3-menu-head">{row.seq ?? "no sequence"}{anchor ? ` · ${anchor.shot} frame ${anchor.frame}` : ""}</div>
+      {cue && (
+        <>
+          <button data-spot="open-score" title="Shape it in the scoring window: everything on one bar grid" onClick={run(() => openCueFromSpot(cue, "score"))}>
+            <i className="pi pi-external-link" /> Open {cue} in Score
+          </button>
+          <button title="Its intensity lane, large" onClick={run(() => openCueFromSpot(cue, "arc"))}>
+            <i className="pi pi-chart-line" /> Its arc…
+          </button>
+          <button title="Who plays in each bar; its takes" onClick={run(() => openCueFromSpot(cue, "orch"))}>
+            <i className="pi pi-sliders-h" /> Its orchestration &amp; takes…
+          </button>
+          <button title="Render its takes again (its model's preset's number), on the queue" onClick={run(() => void renderCues([cue]))}>
+            <i className="pi pi-play" /> Render its takes
+          </button>
+          <div className="h3-menu-sep" />
+        </>
+      )}
+      <button data-spot="cue-here" disabled={!anchor} title="A cue from this frame to the end of its shot (drag its out point later)"
+        onClick={run(() => anchor && void newCue(anchor, { until: anchor.shot, tab: "score" }))}>
+        <i className="pi pi-volume-up" /> New cue here{anchor ? ` (to the end of ${anchor.shot})` : ""}
+      </button>
+      <button data-spot="cue-seq" title={`A cue over every shot of ${seq} in this row: ${shots[0]} to ${last}`}
+        onClick={run(() => void newCue(null, { shots, tab: "score" }))}>
+        <i className="pi pi-volume-up" /> New cue over {seq}
+      </button>
+      <button data-spot="cue-to-end" disabled={!anchor} title={`A cue from this frame to the end of ${last}`}
+        onClick={run(() => anchor && void newCue(anchor, { until: last, tab: "score" }))}>
+        <i className="pi pi-volume-up" /> New cue from here to the end of {seq}
+      </button>
+      <button data-spot="hit" disabled={!anchor} title="A hit on this frame: a moment the music must answer (name it and set its kind on the timeline's Hits lane)"
+        onClick={run(() => anchor && void addMixHit(anchor))}>
+        <i className="pi pi-flag" /> Mark a hit here
+      </button>
+      <div className="h3-menu-sep" />
+      <button data-spot="fx" title={`Sync sound made from the frames of the take each of ${seq}'s ${shots.length} shot${shots.length === 1 ? "" : "s"} plays`}
+        onClick={run(() => void makeEffects(shots))}>
+        <i className="pi pi-bolt" /> Make effects for {seq}
+      </button>
+      {place && (laid
+        ? (
+          <button data-spot="bed" title={`${laid.exists ? "A new take of" : "Make"} ${place.name}'s bed from its words (“${laid.words}”)`} onClick={run(() => void makeBed(place.place))}>
+            <i className="pi pi-cloud" /> Make {place.name}'s bed{laid.exists ? " again" : ""}
+          </button>
+        ) : (
+          <button data-spot="bed" title={`${place.name} has no ambience words yet: say what's heard there, and make its bed`}
+            onClick={run(() => openSoundAdd({ kind: "bed", place: place.place }))}>
+            <i className="pi pi-cloud" /> Make {place.name}'s ambience bed…
+          </button>
+        ))}
     </div>
   );
 }
