@@ -712,6 +712,36 @@
 .h3-snd-pt-hit:hover { fill: color-mix(in srgb, var(--h3-gain) 30%, transparent); }
 .h3-snd-fade.h3-l { left: 0; background: linear-gradient(to top right, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
 .h3-snd-fade.h3-r { right: 0; background: linear-gradient(to top left, rgba(0, 0, 0, 0.45) 50%, transparent 50%); }
+/* a block's fades: the ramp white over it and a white square at each top corner (the picture clips'
+   fade handles are white circles; the volume points pink dots), above the gain line; a corner with no
+   fade shows its square on hover */
+.h3-snd-fades { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 4; }
+.h3-snd-fadeline { fill: none; stroke: #fff; stroke-width: 1.25; opacity: 0.85; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
+.h3-snd-fadeh { fill: #fff; stroke: rgba(0, 0, 0, 0.85); stroke-width: 1; cursor: ew-resize; pointer-events: all; }
+.h3-snd-fadeh:hover, .h3-snd-fadeh.h3-on { fill: var(--h3-accent); }
+.h3-snd-fadeh-corner { opacity: 0; transition: opacity 0.1s; }
+.h3-snd-item:hover .h3-snd-fadeh-corner { opacity: 0.75; }
+.h3-snd-item:hover .h3-snd-fadeh-corner:hover { opacity: 1; }
+/* duck regions (mix.py's regions): a tinted span down the lanes, a tab on the hits lane with its edges */
+.h3-snd-region-forward { --h3-region: #9fd36a; }
+.h3-snd-region-custom { --h3-region: #9aa6ff; }
+.h3-snd-region {
+  position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--h3-region) 14%, transparent) 0 6px, color-mix(in srgb, var(--h3-region) 6%, transparent) 6px 12px);
+  border-left: 1px dashed color-mix(in srgb, var(--h3-region) 80%, transparent); border-right: 1px dashed color-mix(in srgb, var(--h3-region) 80%, transparent);
+}
+.h3-snd-region.h3-on { background: color-mix(in srgb, var(--h3-region) 22%, transparent); }
+.h3-snd-region-tab {
+  position: absolute; top: 2px; height: calc(100% - 4px); z-index: 2; box-sizing: border-box; padding: 0 5px; overflow: hidden;
+  font-size: 9px; line-height: 12px; white-space: nowrap; text-overflow: ellipsis; cursor: context-menu; color: #000;
+  background: color-mix(in srgb, var(--h3-region) 75%, transparent); border-radius: 0 0 3px 0;
+}
+.h3-snd-region-tab.h3-on { box-shadow: 0 0 0 1px var(--h3-fg); }
+.h3-snd-region-edge { position: absolute; top: 0; height: 100%; width: 6px; z-index: 3; cursor: ew-resize; }
+.h3-snd-region-edge:hover { background: color-mix(in srgb, var(--h3-accent) 60%, transparent); }
+.h3-snd-regionmenu { min-width: 280px; }
+.h3-snd-region-mode { align-items: flex-start; }
+.h3-snd-region-mode > span { width: auto; flex: 1 1 auto; color: var(--h3-fg); white-space: normal; max-width: 260px; }
 /* hits: a flag on the hits lane and a line down the lanes, coloured by kind */
 .h3-snd-hit {
   position: absolute; top: 1px; height: calc(100% - 2px); z-index: 3; padding: 0 4px 0 3px; margin-left: -1px; max-width: 140px;
@@ -1362,3 +1392,8 @@
 .h3-snd-voice-silent .h3-wave { opacity: 0.25; }
 .h3-snd-voice-mark { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; color: var(--h3-muted, #8a8f98); pointer-events: none; }
 .h3-snd-voice-warn { color: var(--h3-stale); }
+/* a duck region on the spotting map's Music row: under the cues */
+.h3-spot-region {
+  position: absolute; top: 0; bottom: 0; box-sizing: border-box;
+  background: color-mix(in srgb, var(--h3-region) 18%, transparent); border-left: 1px dashed var(--h3-region); border-right: 1px dashed var(--h3-region);
+}

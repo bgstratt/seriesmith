@@ -11,13 +11,14 @@ import { api, host } from "./host";
 import {
   addTrack, deleteTrack, itemToTrack, itemsOn, kindOf, labelOf, moveTrack, renameTrack, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
   setShotVoices, setVoicesOnly, resetFxShape, trimFx, type PointsOf,
+  addRegion, moveRegionEdge, patchRegion, regionShort, removeRegion, setRegionMode, type RegionMode,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { trackList as trackListOf } from "./lib/mix";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
-import type { Anchor, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass, TrackKind } from "./types";
+import type { Anchor, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixRegion, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -523,4 +524,38 @@ export function setMixHit(id: string, patch: Partial<MixHit>, label = `Change hi
 
 export function deleteMixHit(id: string): Promise<boolean> {
   return editMix(`Delete hit ${id}`, (m) => removeHit(m, id));
+}
+
+// ---------------------------------------------------------------------------
+// duck regions (mix.py's `regions`): score forward, or a dip of their own
+// ---------------------------------------------------------------------------
+
+/** A region from `from` to `to` (score forward: the music doesn't dip, the dialogue lowered). Returns its index (null: none added). */
+export async function addMixRegion(from: Anchor, to: Anchor): Promise<number | null> {
+  let i: number | null = null;
+  const ok = await editMix(`Add a duck region at ${from.shot}`, (m) => {
+    const r = addRegion(m, { from, to });
+    i = r.i;
+    return r.mix;
+  });
+  return ok ? i : null;
+}
+
+/** Region `i`'s fields (undefined: dropped, the track's own then): one edit. */
+export function setMixRegion(i: number, patch: Partial<MixRegion>, label = "Change a duck region"): Promise<boolean> {
+  return editMix(label, (m) => patchRegion(m, i, patch));
+}
+
+export function setMixRegionMode(i: number, mode: RegionMode): Promise<boolean> {
+  return editMix(mode === "forward" ? "Make a duck region score forward" : "Give a duck region its own dip", (m) => setRegionMode(m, i, mode));
+}
+
+/** An edge of region `i` dragged to `at`: one edit. */
+export function moveMixRegionEdge(i: number, side: "from" | "to", at: Anchor): Promise<boolean> {
+  return editMix(`Move a duck region's ${side === "from" ? "start" : "end"}`, (m) => moveRegionEdge(m, i, side, at, currentPlaylist(), fps()));
+}
+
+export function deleteMixRegion(i: number): Promise<boolean> {
+  const r = currentMix()?.mix.regions?.[i];
+  return editMix(`Delete a duck region${r ? ` (${regionShort(r).toLowerCase()})` : ""}`, (m) => removeRegion(m, i));
 }

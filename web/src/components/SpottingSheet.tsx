@@ -18,7 +18,7 @@ import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
 import { cueKey, deleteCue, newCue, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
 import { hitChip, cueTitle, withSpec } from "../lib/cue";
-import { HIT_KIND_TITLE, timeAnchor } from "../lib/mix";
+import { HIT_KIND_TITLE, anchorTime, regionLabel, regionMode, timeAnchor, type RegionMode } from "../lib/mix";
 import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
   type CueBlock, type CutHit, type MapRow,
@@ -102,6 +102,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const beds = useMemo(() => bedBlocks(res?.beds), [res?.beds]);
   const fx = useMemo(() => fxBlocks(res?.fx), [res?.fx]);
   const hits = useMemo(() => cutHits(res?.mix, items, fps), [res?.mix, items, fps]);
+  const regions = useMemo(() => regionBlocks(res?.mix.regions, items, fps), [res?.mix.regions, items, fps]);
   const stale = useMemo(() => staleCues(cues), [cues]);
   const offCut = cues.filter((c) => !blocks.some((b) => b.id === c.spec.id));
   // the cue the cue tabs open: the selected one, else the one under the playhead, else the first
@@ -146,7 +147,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
               <button className="h3-btn" onClick={stopAudition}><i className="pi pi-stop" /> Back to the mix</button>
             </div>
           )}
-          <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={cp.pos} fps={fps} sel={sel} onMenu={setMenu} />
+          <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} regions={regions} pos={cp.pos} fps={fps} sel={sel} onMenu={setMenu} />
           {menu && <SpotMenu at={menu} fps={fps} onClose={() => setMenu(null)} />}
           {offCut.length > 0 && (
             <div className="h3-small h3-muted" style={{ padding: "2px 8px" }}>
@@ -207,20 +208,31 @@ interface SpotMenuAt {
   cue?: string;
 }
 
-function MusicMap({ rows, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
-  rows: MapRow[]; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; pos: number; fps: number; sel: string | null;
+/** A duck region on the map (the timeline's sound lanes make and edit them): its span, mode and what it does. */
+type RegionBlock = { id: string; start: number; end: number; mode: RegionMode; label: string };
+
+function regionBlocks(regions: Parameters<typeof regionLabel>[0][] | undefined, items: Parameters<typeof anchorTime>[0], fps: number): RegionBlock[] {
+  return (regions ?? []).flatMap((r, i) => {
+    const a = anchorTime(items, r.from, fps);
+    const b = anchorTime(items, r.to, fps);
+    return a == null || b == null || b <= a ? [] : [{ id: `r${i}`, start: a, end: b, mode: regionMode(r), label: regionLabel(r) }];
+  });
+}
+
+function MusicMap({ rows, blocks, beds, fx, hits, regions, pos, fps, sel, onMenu }: {
+  rows: MapRow[]; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; regions: RegionBlock[]; pos: number; fps: number; sel: string | null;
   onMenu: (m: SpotMenuAt) => void;
 }) {
   if (!rows.length) return <div className="h3-empty-state">The cut is empty.</div>;
   return (
     <div className="h3-spot-map" aria-label="The music map">
-      {rows.map((r, i) => <MapRowView key={`${r.seq}|${i}`} row={r} blocks={blocks} beds={beds} fx={fx} hits={hits} pos={pos} fps={fps} sel={sel} onMenu={onMenu} />)}
+      {rows.map((r, i) => <MapRowView key={`${r.seq}|${i}`} row={r} blocks={blocks} beds={beds} fx={fx} hits={hits} regions={regions} pos={pos} fps={fps} sel={sel} onMenu={onMenu} />)}
     </div>
   );
 }
 
-function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
-  row: MapRow; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; pos: number; fps: number; sel: string | null;
+function MapRowView({ row, blocks, beds, fx, hits, regions, pos, fps, sel, onMenu }: {
+  row: MapRow; blocks: CueBlock[]; beds: Bed[]; fx: Fx[]; hits: CutHit[]; regions: RegionBlock[]; pos: number; fps: number; sel: string | null;
   onMenu: (m: SpotMenuAt) => void;
 }) {
   const span = Math.max(1e-6, row.end - row.start);
@@ -267,7 +279,10 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
               seekToTime(h.t);
             }}>{h.name}</button>
         )))}
-        {lane("Music", "h3-snd-music", inRow(row, blocks).map((c) => (
+        {lane("Music", "h3-snd-music", [...inRow(row, regions).map((g) => (
+          <span key={g.id} className={`h3-spot-region h3-snd-region-${g.mode}`} style={{ left: pct(g.a), width: wid(g.a, g.b) }} data-region={g.id}
+            title={`${g.label} (a duck region: right-click its tab on the timeline's hits lane to change it)`} />
+        )), ...inRow(row, blocks).map((c) => (
           <button key={c.id} className={`h3-spot-blk h3-spot-cue${c.id === sel ? " h3-on" : ""}${c.stale.length ? " h3-spot-stale" : ""}${c.inMix == null ? " h3-spot-unplaced" : ""}${c.muted ? " h3-snd-silent" : ""}`}
             style={{ left: pct(c.a), width: wid(c.a, c.b) }}
             title={`${c.label} (${c.kind}) · ${c.inMix != null ? `${tn(c.inMix)} in the mix` : c.ok ? `${c.ok} take${c.ok === 1 ? "" : "s"}, none picked` : "no takes yet"}${c.muted ? " · muted" : ""}${c.stale.length ? `\nstale: ${c.stale.join("; ")}` : ""}\nclick: select · double-click: the cue window`}
@@ -289,7 +304,7 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
             {c.muted && <span className="h3-spot-tag">muted</span>}
             {c.stale.length > 0 && <span className="h3-spot-tag h3-b-stale">stale</span>}
           </button>
-        )))}
+        ))])}
         {lane("Ambience", "h3-snd-ambience", inRow(row, beds).map((b) => (
           <span key={b.id} className={`h3-spot-blk${b.exists ? "" : " h3-spot-unplaced"}${b.mute ? " h3-snd-silent" : ""}`} style={{ left: pct(b.a), width: wid(b.a, b.b) }}
             title={`${b.label}${b.exists ? "" : " (not made yet: the Refs tab's Ambience)"}${b.mute ? " · muted" : ""}`}>{b.label}</span>

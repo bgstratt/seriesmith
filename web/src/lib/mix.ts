@@ -7,7 +7,7 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackDef, MixTrackSettings, MixResult, MixVoice, TrackKind } from "../types";
+import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixRegion, MixTrack, MixTrackDef, MixTrackSettings, MixResult, MixVoice, TrackKind } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
 /** the default tracks, each its own kind (the kinds a track can be) */
@@ -599,6 +599,133 @@ export function duckTracks(res: TrackSource | undefined, items: PlayItem[], fps:
     db[name] = any ? out : null;
   }
   return { step, db };
+}
+
+// ---------------------------------------------------------------------------
+// duck regions: a stretch where the ducking is the region's (mix.py's
+// `regions`), each edge anchored as an item's so it moves with the cut; kept
+// in mix.json's order (the later wins where two overlap), so an index names one
+// ---------------------------------------------------------------------------
+
+/** a region's dips, dB: mix.py's bounds (a music or ambience dip -40..0, the dialogue GAIN_MIN..0) */
+export const REGION_DIP_MIN = -40;
+/** how far a new score-forward region lowers the dialogue (mix.py's example) */
+export const FORWARD_DIALOGUE_DB = -4;
+/** a new custom region's music dip: deeper than the track's -9 */
+export const DEEPER_DIP_DB = -18;
+
+/** "forward": the music doesn't dip (music_duck_db 0); "custom": its own dips. */
+export type RegionMode = "forward" | "custom";
+export const regionMode = (r: MixRegion): RegionMode => (r.music_duck_db === 0 ? "forward" : "custom");
+
+const dbStr = (db: number) => `${db > 0 ? "+" : ""}${db} dB`;
+
+/** What a region does, in a line (its tab and its menu). */
+export function regionLabel(r: MixRegion): string {
+  const dial = r.dialogue_db ? `the dialogue ${dbStr(r.dialogue_db)}` : "";
+  if (regionMode(r) === "forward") {
+    return `Score forward: the music doesn't dip under the lines here${dial ? `; ${dial} instead` : ""}`;
+  }
+  const parts = [
+    r.music_duck_db != null ? `music dips ${dbStr(r.music_duck_db)}` : "",
+    r.ambience_duck_db != null ? `ambience dips ${dbStr(r.ambience_duck_db)}` : "",
+    dial,
+  ].filter(Boolean);
+  return `Ducking here: ${parts.length ? parts.join(", ") : "as the tracks set it"} under the lines`;
+}
+
+/** Its tab's few words: "Score forward", "Dip -18 dB". */
+export function regionShort(r: MixRegion): string {
+  if (regionMode(r) === "forward") return "Score forward";
+  const d = r.music_duck_db ?? r.ambience_duck_db;
+  return d != null ? `Dip ${dbStr(d)}` : r.dialogue_db ? `Dialogue ${dbStr(r.dialogue_db)}` : "Duck region";
+}
+
+const roundDb = (v: number, lo: number) => Math.round(Math.min(0, Math.max(lo, Number.isFinite(v) ? v : 0)) * 2) / 2;
+
+/** A region as mix.json keeps it: the dips in mix.py's bounds (half dB), a 0 dialogue dropped. */
+export function cleanRegion(r: MixRegion): MixRegion {
+  const o: MixRegion = { from: r.from, to: r.to };
+  if (r.music_duck_db != null) o.music_duck_db = roundDb(r.music_duck_db, REGION_DIP_MIN) || 0;
+  if (r.ambience_duck_db != null) o.ambience_duck_db = roundDb(r.ambience_duck_db, REGION_DIP_MIN) || 0;
+  if (r.dialogue_db) {
+    const d = roundDb(r.dialogue_db, GAIN_MIN);
+    if (d) o.dialogue_db = d;
+  }
+  return o;
+}
+
+/** The span of `shots` on the cut (the first in cut order's head to the last's tail), as a region's edges. */
+export function shotsSpan(items: PlayItem[], shots: string[], fps: number): { from: Anchor; to: Anchor } | null {
+  const f = fps || 24;
+  const on = items.filter((i) => shots.includes(i.shot) && i.dur > 0);
+  if (!on.length) return null;
+  const a = on[0];
+  const b = on[on.length - 1];
+  return { from: { shot: a.shot, frame: Math.round(a.inT * f) }, to: { shot: b.shot, frame: Math.round((b.inT + b.dur) * f) } };
+}
+
+/** A region added (score forward unless `r` says otherwise); its index. */
+export function addRegion(mix: Mix, r: { from: Anchor; to: Anchor } & Partial<MixRegion>): { mix: Mix; i: number } {
+  const reg = cleanRegion(r.music_duck_db == null && r.ambience_duck_db == null && r.dialogue_db == null
+    ? { ...r, music_duck_db: 0, dialogue_db: FORWARD_DIALOGUE_DB } : r);
+  const regions = [...(mix.regions ?? []), reg];
+  return { mix: { ...mix, regions }, i: regions.length - 1 };
+}
+
+/** Region `i` changed (a field set to undefined: dropped, the track's own then). Null: no such region, or no change. */
+export function patchRegion(mix: Mix, i: number, patch: Partial<MixRegion>): Mix | null {
+  const was = mix.regions?.[i];
+  if (!was) return null;
+  const merged = { ...was, ...patch } as MixRegion;
+  for (const k of Object.keys(patch) as (keyof MixRegion)[]) if (patch[k] === undefined) delete merged[k];
+  const next = cleanRegion(merged);
+  if (JSON.stringify(next) === JSON.stringify(was)) return null;
+  const regions = mix.regions!.slice();
+  regions[i] = next;
+  return { ...mix, regions };
+}
+
+/** Region `i` made score forward (no music dip, the dialogue lowered) or a custom dip (`music` dB). */
+export function setRegionMode(mix: Mix, i: number, mode: RegionMode, music = DEEPER_DIP_DB): Mix | null {
+  const r = mix.regions?.[i];
+  if (!r) return null;
+  if (mode === "forward") return patchRegion(mix, i, { music_duck_db: 0, dialogue_db: r.dialogue_db ?? FORWARD_DIALOGUE_DB });
+  return patchRegion(mix, i, { music_duck_db: music < 0 ? music : DEEPER_DIP_DB });
+}
+
+export function removeRegion(mix: Mix, i: number): Mix | null {
+  if (!mix.regions?.[i]) return null;
+  const regions = mix.regions.filter((_, k) => k !== i);
+  const out: Mix = { ...mix, regions };
+  if (!regions.length) delete out.regions;
+  return out;
+}
+
+/**
+ * An edge of region `i` set to `at`, kept a frame clear of the other (its shot must be in
+ * the cut). Null when that changes nothing or would leave nothing.
+ */
+export function moveRegionEdge(mix: Mix, i: number, side: "from" | "to", at: Anchor, items: PlayItem[], fps: number): Mix | null {
+  const r = mix.regions?.[i];
+  if (!r || sameAnchor(r[side], at)) return null;
+  const f = fps || 24;
+  const t = anchorTime(items, at, f);
+  const other = anchorTime(items, side === "from" ? r.to : r.from, f);
+  if (t == null || other == null) return null;
+  if (side === "from" ? t > other - 1 / f + 1e-9 : t < other + 1 / f - 1e-9) return null;
+  return patchRegion(mix, i, { [side]: at });
+}
+
+/** The index of the last region (the one that wins) over cut time `t`, or -1. */
+export function regionAt(items: PlayItem[], mix: Mix, t: number, fps: number): number {
+  const regs = mix.regions ?? [];
+  for (let i = regs.length - 1; i >= 0; i--) {
+    const a = anchorTime(items, regs[i].from, fps);
+    const b = anchorTime(items, regs[i].to, fps);
+    if (a != null && b != null && t >= a && t < b) return i;
+  }
+  return -1;
 }
 
 // ---------------------------------------------------------------------------

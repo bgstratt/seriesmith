@@ -4,7 +4,7 @@
 // rate; an item's level follows its volume points as the export's render does.
 import { describe, expect, it } from "vitest";
 import { MixEngine } from "../src/components/MixAudio";
-import { duckTracks, fxPlan, playPlan, pointsDb, type DuckCurve } from "../src/lib/mix";
+import { addRegion, duckTracks, fxPlan, moveRegionEdge, patchRegion, playPlan, pointsDb, setRegionMode, shotsSpan, type DuckCurve } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
 import type { Mix, MixFx, MixTrack } from "../src/types";
 
@@ -139,6 +139,42 @@ describe("Play all's ducking", () => {
     expect(duckGain(c, "dialogue").at(ctxAt(4.5))).toBeCloseTo(1, 6);
     // nothing before the play position is laid
     expect(duckGain(c, "music").ev.every((x) => x.t >= 0.03 - 1e-9)).toBe(true);
+  });
+
+  it("honours a region made in the editor: score forward over a shot, then its own dip, then its edge moved", () => {
+    const res = (mix: Mix) => ({ mix, series: {}, defaults: { duck_db: { effects: 0, ambience: -6, music: -9 } } });
+    const laid = (mix: Mix) => {
+      const { e, ctx } = engine();
+      e.setDucking(duckTracks(res(mix), ITEMS, 24, CURVE, TOTAL));
+      e.play([], TOTAL, 0, 1, gains);
+      const c = ctx();
+      return (track: MixTrack, t: number) => 20 * Math.log10(duckGain(c, track).at(0.03 + t));
+    };
+    // the lane menu's "Duck region here" over sh010: its head to its tail, score forward
+    const span = shotsSpan(ITEMS, ["sh010"], 24)!;
+    expect(span).toEqual({ from: { shot: "sh010", frame: 0 }, to: { shot: "sh010", frame: 96 } });
+    const { mix: forward, i } = addRegion({}, span);
+    expect(forward.regions![i]).toEqual({ ...span, music_duck_db: 0, dialogue_db: -4 });
+    let db = laid(forward);
+    // under the lines in sh010 the music holds, the dialogue sits 4 dB down; sh020 ducks as the track says
+    expect(db("music", 2.5)).toBeCloseTo(0, 4);
+    expect(db("dialogue", 2.5)).toBeCloseTo(-4, 3);
+    expect(db("music", 4.2)).toBeCloseTo(-9 * speech(4.2), 3);
+    expect(db("dialogue", 5)).toBeCloseTo(0, 4);
+    // its menu: its own dip, -20 dB on the music, the ambience the track's
+    const custom = patchRegion(setRegionMode(forward, i, "custom")!, i, { music_duck_db: -20, dialogue_db: undefined })!;
+    expect(custom.regions![i]).toEqual({ ...span, music_duck_db: -20 });
+    db = laid(custom);
+    expect(db("music", 2.5)).toBeCloseTo(-20, 3);
+    expect(db("ambience", 2.5)).toBeCloseTo(-6, 3);
+    expect(db("dialogue", 2.5)).toBeCloseTo(0, 4);
+    // its end dragged to 2 s into sh010: past it, the track's dip again
+    const shorter = moveRegionEdge(custom, i, "to", { shot: "sh010", frame: 48 }, ITEMS, 24)!;
+    db = laid(shorter);
+    expect(db("music", 1.5)).toBeCloseTo(-20 * speech(1.5), 3);
+    expect(db("music", 3)).toBeCloseTo(-9 * speech(3), 3);
+    // an edge can't cross the other
+    expect(moveRegionEdge(shorter, i, "from", { shot: "sh010", frame: 60 }, ITEMS, 24)).toBeNull();
   });
 
   it("an item's level follows its volume points", async () => {

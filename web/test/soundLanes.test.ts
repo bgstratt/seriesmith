@@ -274,6 +274,175 @@ describe("the sound lanes", () => {
     expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(0);
   });
 
+  /** happy-dom lays nothing out: each clip's column 100 px wide, side by side (until afterEach), then the timeline drawn and measured */
+  const columns = async () => {
+    const order = store.get().status[statusKey(EP, "proxy")]!.shots.map((x) => x.shot);
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const i = this.dataset.shot ? order.indexOf(this.dataset.shot) : -1;
+      return (i < 0 ? RECT.call(this) : { left: i * 100, width: 100, top: 0, height: 40, right: i * 100 + 100, bottom: 40, x: i * 100, y: 0 }) as DOMRect;
+    };
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    await act(async () => store.set((s) => ({ zoom: s.zoom + 1 })));
+  };
+
+  it("a block's fade handles: white squares at its top corners, dragged in to set a fade (undoable, Esc cancels)", async () => {
+    await columns();
+    const block = el.querySelector<HTMLElement>(".h3-snd-item.h3-snd-ambience")!;
+    expect(parseFloat(block.style.width)).toBeGreaterThan(100);
+    // no fades yet: both corners' squares, apart from the volume points' dots
+    const handles = block.querySelectorAll<SVGRectElement>("rect.h3-snd-fadeh");
+    expect(handles).toHaveLength(2);
+    expect(handles[1].getAttribute("class")).toContain("h3-snd-fadeh-corner");
+    expect(block.querySelector(".h3-snd-fadeline")).toBeNull();
+
+    const drag = async (side: "in" | "out", dx: number, end: () => void) => {
+      const h = block.querySelector<SVGRectElement>(`rect[data-fade=${side}]`)!;
+      await act(async () => h.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 150, clientY: 2 })));
+      await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 150 + dx, clientY: 2 })));
+      const tip = document.querySelector(".h3-trim-tip")?.textContent ?? "";
+      await act(async () => end());
+      await mixSettled();
+      return tip;
+    };
+    const in0 = currentMix()!.mix.items![0].in;
+    // the tail's square dragged 30 px in: a fade out, one edit
+    const tip = await drag("out", -30, () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    expect(tip).toContain("amb01 · fade out");
+    expect(tip).toContain("new · Esc cancels");
+    const out = currentMix()!.mix.items![0].fade_out!;
+    expect(out).toBeGreaterThan(0);
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("amb01 fade out");
+    expect(block.querySelector(".h3-snd-fadeline")).not.toBeNull();
+    expect(block.querySelector("rect[data-fade=out]")!.getAttribute("class")).not.toContain("corner");
+    expect(currentMix()!.mix.items![0].in).toEqual(in0);
+    // dragged on but Esc: kept as it was
+    expect(await drag("out", -20, () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })))).toContain(`was ${out} f`);
+    expect(currentMix()!.mix.items![0].fade_out).toBe(out);
+    // the head's dragged right: a fade in; then back past its start takes it off
+    await drag("in", 15, () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    expect(currentMix()!.mix.items![0].fade_in).toBeGreaterThan(0);
+    await drag("in", -200, () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    expect(currentMix()!.mix.items![0].fade_in).toBeUndefined();
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("amb01 fade in taken off");
+    // the item's menu still has the numbers
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+    const fields = [...document.querySelectorAll<HTMLInputElement>(".h3-snd-pop input[type=number]")].map((x) => x.value);
+    expect(fields).toContain(String(out));
+  });
+
+  it("a shot's effects take a fade from a handle at the edge of what's heard", async () => {
+    const key = statusKey(EP, "proxy");
+    const shot = store.get().status[key]!.shots[0].shot;
+    await api.putMix(EP, "proxy", { ...currentMix()!.mix, fx: { [shot]: { take: 1, trim_in: 6 } } });
+    await loadMix(EP, "proxy");
+    const it0 = currentPlaylist()[0];
+    const fx = { shot, take: 1, model: "h3_foley", path: `sound/fx/proxy/${shot}/t01.wav`, exists: true,
+                 in: { shot, frame: Math.round(it0.inT * 24) }, out: { shot, frame: Math.round((it0.inT + it0.dur) * 24) }, start: 0, end: it0.dur,
+                 offset: it0.inT, gain_db: 0, mute: false, keep_stale: false, stale: null, heard: true };
+    store.set((s) => ({ mix: { ...s.mix, [key]: { ...s.mix[key]!, fx: [fx] } } }));
+    await columns();
+    const block = el.querySelector<HTMLElement>(".h3-snd-fx")!;
+    const h = block.querySelector<SVGRectElement>("rect[data-fade=in]")!;
+    // the head's square sits in from the trimmed head (the hatched part), not on the block's edge
+    expect(Number(h.getAttribute("x"))).toBeGreaterThan(parseFloat(block.querySelector<HTMLElement>("[data-trim=in]")!.style.width));
+    await act(async () => h.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 30, clientY: 2 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 50, clientY: 2 })));
+    expect(document.querySelector(".h3-trim-tip")?.textContent).toContain(`${shot}'s effects · fade in`);
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await mixSettled();
+    const own = currentMix()!.mix.fx![shot];
+    expect(own.fade_in).toBeGreaterThan(0);
+    expect(own.trim_in).toBe(6);
+    expect(store.get().cutUndo[key]?.undo).toBe(`${shot}'s effects fade in`);
+  });
+
+  it("a duck region from a lane's menu: score forward over the shot, drawn across the lanes; its menu gives it its own dip, then deletes it", async () => {
+    const key = statusKey(EP, "proxy");
+    const shots = store.get().status[key]!.shots;
+    await columns();
+    // right-click the Music lane over the second clip
+    const music = el.querySelectorAll<HTMLElement>(".h3-snd-lane")[4];
+    await act(async () => music.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 150, clientY: 100 })));
+    const add = document.querySelector<HTMLButtonElement>(".h3-snd-pop button[data-region=add]")!;
+    expect(add.textContent).toContain(`Duck region here (${shots[1].shot})`);
+    await act(async () => add.click());
+    await mixSettled();
+    const it1 = currentPlaylist()[1];
+    expect(currentMix()!.mix.regions).toEqual([{
+      from: { shot: shots[1].shot, frame: Math.round(it1.inT * 24) }, to: { shot: shots[1].shot, frame: Math.round((it1.inT + it1.dur) * 24) },
+      music_duck_db: 0, dialogue_db: -4,
+    }]);
+    expect(store.get().cutUndo[key]?.undo).toBe(`Add a duck region at ${shots[1].shot}`);
+    // drawn: a span down the lanes over the clip, a tab on the hits lane that says what it does
+    const span = el.querySelector<HTMLElement>(".h3-snd-region")!;
+    expect(span.className).toContain("h3-snd-region-forward");
+    expect(span.style.left).toBe("100px");
+    expect(span.style.width).toBe("100px");
+    const tab = el.querySelector<HTMLElement>(".h3-snd-region-tab")!;
+    expect(tab.textContent).toBe("Score forward");
+    expect(tab.title).toContain("Score forward: the music doesn't dip under the lines here; the dialogue -4 dB instead");
+
+    // its menu opened with it: its own dip, -20 dB on the music, the dialogue as it is
+    let menu = document.querySelector<HTMLElement>(".h3-snd-regionmenu")!;
+    expect(menu).not.toBeNull();
+    expect(menu.querySelector<HTMLInputElement>("input[data-region-mode=forward]")!.checked).toBe(true);
+    await act(async () => menu.querySelector<HTMLInputElement>("input[data-region-mode=custom]")!.click());
+    const type = async (input: HTMLInputElement, v: string) => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      await act(async () => {
+        set.call(input, v);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    await type(menu.querySelector<HTMLInputElement>("input[data-region-field=music]")!, "-20");
+    await type(menu.querySelector<HTMLInputElement>("input[data-region-field=dialogue]")!, "");
+    await act(async () => [...menu.querySelectorAll("button")].find((b) => b.textContent === "Apply")!.click());
+    await mixSettled();
+    expect(currentMix()!.mix.regions![0]).toMatchObject({ music_duck_db: -20 });
+    expect(currentMix()!.mix.regions![0].dialogue_db).toBeUndefined();
+    expect(store.get().cutUndo[key]?.undo).toBe("Give a duck region its own dip");
+    expect(el.querySelector(".h3-snd-region")!.className).toContain("h3-snd-region-custom");
+    expect(el.querySelector(".h3-snd-region-tab")!.textContent).toBe("Dip -20 dB");
+
+    // its tab's end dragged 50 px left: the region ends halfway through the clip
+    const edge = el.querySelector<HTMLElement>("[data-region-edge=\"0:to\"]")!;
+    await act(async () => edge.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 200, clientY: 5 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 150, clientY: 5 })));
+    expect(document.querySelector(".h3-trim-tip")?.textContent).toContain("the duck region's end");
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await mixSettled();
+    expect(currentMix()!.mix.regions![0].to).toEqual({ shot: shots[1].shot, frame: Math.round((it1.inT + it1.dur / 2) * 24) });
+    expect(store.get().cutUndo[key]?.undo).toBe("Move a duck region's end");
+
+    // the lane menu over it offers it; its menu deletes it
+    await act(async () => music.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 120, clientY: 100 })));
+    const edit = document.querySelector<HTMLButtonElement>(".h3-snd-pop button[data-region=edit]")!;
+    expect(edit.textContent).toContain("Duck region here: Dip -20 dB");
+    await act(async () => edit.click());
+    menu = document.querySelector<HTMLElement>(".h3-snd-regionmenu")!;
+    await act(async () => menu.querySelector<HTMLButtonElement>("button[data-region=delete]")!.click());
+    await mixSettled();
+    expect(currentMix()!.mix.regions).toBeUndefined();
+    expect(el.querySelector(".h3-snd-region")).toBeNull();
+  });
+
+  it("a duck region Shift+dragged on the hits lane", async () => {
+    const shots = store.get().status[statusKey(EP, "proxy")]!.shots;
+    await columns();
+    const hits = el.querySelector<HTMLElement>(".h3-snd-hits")!;
+    await act(async () => hits.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, shiftKey: true, clientX: 50, clientY: 5 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 150, clientY: 5 })));
+    expect(document.querySelector(".h3-trim-tip")?.textContent).toContain("a new duck region");
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await mixSettled();
+    const r = currentMix()!.mix.regions![0];
+    expect(r.from.shot).toBe(shots[0].shot);
+    expect(r.to.shot).toBe(shots[1].shot);
+    expect(r.music_duck_db).toBe(0);
+    expect(document.querySelector(".h3-snd-regionmenu")).not.toBeNull();
+  });
+
   it("every lane has a menu, kept on screen", async () => {
     store.set({ sound: true });
     await act(async () => root.render(createElement(Timeline)));

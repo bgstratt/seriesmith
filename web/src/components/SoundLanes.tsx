@@ -22,10 +22,17 @@
 // by default, and any of its own; each lane head's menu (⋮, or right-click the head)
 // renames it, adds a track, moves it up or down, and deletes it (its items moved to
 // another track or deleted with it, asked there). An item moves to another lane by
-// dragging it up or down, or from its menu.
+// dragging it up or down, or from its menu. An item's or a shot's effects' fades
+// have handles at the block's top corners, white squares as the picture clips'
+// fade handles are white circles (the volume points are pink dots): drag one in
+// to set the fade, Esc cancels. Duck regions (mix.py's `regions`: score forward,
+// or a dip of their own) are tinted spans across the lanes with a tab on the hits
+// lane: right-click a lane for one over the shot (or the shots selected), or
+// Shift+drag on the hits lane; drag a tab's edge to move that edge, right-click
+// or double-click the tab for its mode and Delete.
 
 import {
-  memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
+  Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
   type DragEvent, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import { seekCutAt } from "../cutActions";
@@ -36,6 +43,8 @@ import {
   GAIN_MAX, GAIN_MIN, HIT_KINDS, KINDS, MAX_TRACKS, bedSettings, bedSpan, canDeleteTrack, firstOf, fxAnchor, fxHeard, fxKept, fxSettings, fxSpan, trimFx, HIT_KIND_TITLE, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName,
   itemSpan, itemToTrack, itemsOn, kindOf, labelOf, layout, moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackList, trackState, trimItem, xAnchor, xTime,
   voiceBadge, voicePlays, voicesOnly, type ClipBox, type Lay, type TrackDef,
+  DEEPER_DIP_DB, FADE_MAX, FORWARD_DIALOGUE_DB, REGION_DIP_MIN, addRegion, moveRegionEdge, patchItem, regionLabel, regionMode, regionShort, setFx, shotsSpan, regionAt,
+  type RegionMode,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
 import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
@@ -45,6 +54,7 @@ import {
   makeBed, makeEffects, moveMixPoint, resetMixFx, trimMixFx, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
   loadMix, makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
   setMixItemMute,
+  addMixRegion, deleteMixRegion, moveMixRegionEdge, setMixRegion,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
 import { tn } from "../lib/format";
@@ -56,7 +66,7 @@ import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
 import { openSpotting } from "../spotActions";
-import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixPoint, MixTrack, MixVoices, TrackKind } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixPoint, MixRegion, MixTrack, MixVoices, TrackKind } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -76,6 +86,11 @@ const POINT_HIT = 5;
 const LINE_HIT = 4;
 /** dB per px of a point dragged up or down (the block is too short to put it where the pointer is) */
 const DB_PER_PX = 0.5;
+/** a fade handle: its square's side (px), and where a corner's sits from the block's edge (clear of the trim handle) */
+const FADE_SQ = 6;
+const FADE_CORNER = 11;
+/** a block narrower than this (px) has no fade handles: its menu's numbers */
+const FADE_MIN_W = 28;
 
 const EMPTY: number[] = [];
 
@@ -86,7 +101,8 @@ export function isSoundFile(f: { name: string; type?: string }): boolean {
 
 /** What is being dragged, and the mix it would make (drawn instead of the stored one). */
 interface Drag {
-  what: "move" | "in" | "out" | "hit" | "point" | "fxin" | "fxout" | "fxpoint";
+  what: "move" | "in" | "out" | "hit" | "point" | "fxin" | "fxout" | "fxpoint"
+    | "fadein" | "fadeout" | "fxfadein" | "fxfadeout" | "regfrom" | "regto" | "regnew";
   id: string;
   at: Anchor;
   mix: Mix;
@@ -96,6 +112,19 @@ interface Drag {
   py: number;
   /** a volume point's level */
   db?: number;
+  /** a fade's frames now, and before the drag */
+  frames?: number;
+  was?: number;
+}
+
+/** What a fade handle hands the lanes: whose fade (an item's id, or a shot's effects), which end,
+ * its frames now, frames per px of drag, and its most. */
+export interface FadeGrab {
+  of: { item: string } | { fx: string };
+  side: "in" | "out";
+  frames: number;
+  per: number;
+  max: number;
 }
 
 /** The item or hit menu, at the pointer. */
@@ -104,6 +133,8 @@ type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
 type BedPop = { bed: MixBed; x: number; y: number };
 /** A shot's effects menu, at the pointer. */
 type FxPop = { fx: MixFx; x: number; y: number };
+/** A duck region's menu (`i`: its index in the mix's regions), at the pointer. */
+type RegionPop = { i: number; x: number; y: number };
 
 /** The lane menu (a new cue), at the pointer: `at` where it was asked. */
 /** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
@@ -131,6 +162,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [bedPop, setBedPop] = useState<BedPop | null>(null);
   const [fxPop, setFxPop] = useState<FxPop | null>(null);
   const [trackPop, setTrackPop] = useState<TrackPop | null>(null);
+  const [regionPop, setRegionPop] = useState<RegionPop | null>(null);
   const suppress = useRef(false);
   // the episode's cues: which music blocks open the cue window (fetched again with the mix)
   const cueIds = useApp((s) => s.cues[ep]?.map((c) => `${c.spec.id}:${c.spec.kind ?? "score"}`).join(" ") ?? "");
@@ -331,6 +363,99 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     if (lay.length) void addMixPoint({ fx: f.shot }, fxAnchor(items, f, xTime(lay, xOf(e.clientX)), fps));
   };
 
+  // ---- fades: a handle at a block's top corner dragged in (an item's, or a shot's effects' at its kept span) ----
+  const onFadeDown = (e: RPointerEvent<Element>, g: FadeGrab) => {
+    if (e.button !== 0 || !res) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const base = res.mix;
+    const key = g.side === "in" ? "fade_in" : "fade_out";
+    const id = "item" in g.of ? g.of.item : g.of.fx;
+    const make = (n: number) => ("item" in g.of ? patchItem(base, g.of.item, { [key]: n }) : setFx(base, g.of.fx, { [key]: n }));
+    const anchor = "item" in g.of ? base.items?.find((x) => x.id === id)?.in : { shot: id, frame: 0 };
+    if (!anchor) return;
+    const what: Drag["what"] = "item" in g.of ? (g.side === "in" ? "fadein" : "fadeout") : (g.side === "in" ? "fxfadein" : "fxfadeout");
+    const x0 = e.clientX;
+    let n = g.frames;
+    let moved = false;
+    trackPointer((ev) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 2) return;
+      moved = true;
+      // inward from its own end: right for a fade in, left for a fade out
+      const dx = (ev.clientX - x0) * (g.side === "in" ? 1 : -1);
+      n = Math.max(0, Math.min(g.max, FADE_MAX, Math.round(g.frames + dx * g.per)));
+      setDrag({ what, id, at: anchor, mix: make(n) ?? base, px: ev.clientX, py: ev.clientY, frames: n, was: g.frames });
+    }, (cancelled) => {
+      setDrag(null);
+      if (!moved) return;
+      endDrag();
+      if (cancelled || n === g.frames) return;
+      const how = `${g.side === "in" ? "fade in" : "fade out"}${n ? "" : " taken off"}`;
+      if ("item" in g.of) void setMixItem(g.of.item, { [key]: n }, `${id} ${how}`);
+      else void setMixFx(g.of.fx, { [key]: n }, `${id}'s effects ${how}`);
+    });
+  };
+
+  // ---- duck regions: an edge dragged (on the hits lane), or a new one Shift+dragged there ----
+  const onRegionEdgeDown = (e: RPointerEvent<HTMLElement>, i: number, side: "from" | "to") => {
+    if (e.button !== 0 || !res) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const base = res.mix;
+    const r = base.regions?.[i];
+    const t = r ? anchorTime(items, r[side], fps) : null;
+    if (t == null) return;
+    const from = timeX(lay, t);
+    const x0 = e.clientX;
+    let at: Anchor | null = null;
+    trackPointer((ev) => {
+      if (!at && Math.abs(ev.clientX - x0) < 3) return;
+      at = xAnchor(lay, from + ev.clientX - x0, fps);
+      if (at) setDrag({ what: side === "from" ? "regfrom" : "regto", id: String(i), at, mix: moveRegionEdge(base, i, side, at, items, fps) ?? base, px: ev.clientX, py: ev.clientY });
+    }, (cancelled) => {
+      setDrag(null);
+      if (!at) return;
+      endDrag();
+      if (!cancelled) void moveMixRegionEdge(i, side, at);
+    });
+  };
+  const onHitsDown = (e: RPointerEvent<HTMLElement>) => {
+    if (e.button !== 0 || !e.shiftKey || !res || !lay.length) return;
+    const a0 = xAnchor(lay, xOf(e.clientX), fps);
+    const t0 = a0 ? anchorTime(items, a0, fps) : null;
+    if (!a0 || t0 == null) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const base = res.mix;
+    const x0 = e.clientX;
+    let span: { from: Anchor; to: Anchor } | null = null;
+    let px = x0;
+    let py = e.clientY;
+    trackPointer((ev) => {
+      if (!span && Math.abs(ev.clientX - x0) < 3) return;
+      const a1 = xAnchor(lay, xOf(ev.clientX), fps);
+      const t1 = a1 ? anchorTime(items, a1, fps) : null;
+      if (!a1 || t1 == null) return;
+      span = t1 >= t0 ? { from: a0, to: a1 } : { from: a1, to: a0 };
+      px = ev.clientX;
+      py = ev.clientY;
+      const long = Math.abs(t1 - t0) >= 1 / (fps || 24);
+      setDrag({ what: "regnew", id: "", at: a1, mix: long ? addRegion(base, span).mix : base, px, py });
+    }, (cancelled) => {
+      setDrag(null);
+      const s = span as { from: Anchor; to: Anchor } | null;
+      if (!s) return;
+      endDrag();
+      const a = anchorTime(items, s.from, fps) ?? 0;
+      const b = anchorTime(items, s.to, fps) ?? 0;
+      if (cancelled || b - a < 1 / (fps || 24)) return;
+      void addMixRegion(s.from, s.to).then((i) => i != null && setRegionPop({ i, x: px, y: py }));
+    });
+  };
+
   // ---- a click on a lane seeks; a double-click on the hits lane adds a hit there ----
   const onLaneClick = (e: RMouseEvent<HTMLElement>) => {
     if (suppress.current || !lay.length) return;
@@ -384,12 +509,20 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const bedOn = firstOf(mix, "ambience");
   const fxOn = firstOf(mix, "effects");
   const beats = mixBeats && lay.length ? cutBeats(items, mix, mixBeats, fps, baseIn(st)) : [];
+  // the duck regions on the track (one whose shots aren't in the cut, or that ends before it starts, not drawn)
+  const regs = lay.length ? (mix.regions ?? []).flatMap((r, i) => {
+    const a = anchorTime(items, r.from, fps);
+    const b = anchorTime(items, r.to, fps);
+    return a == null || b == null || b <= a ? [] : [{ r, i, x0: timeX(lay, a), x1: timeX(lay, b) }];
+  }) : [];
+  const regionOn = (i: number) => regionPop?.i === i || ((drag?.what === "regfrom" || drag?.what === "regto") && drag.id === String(i));
 
   return (
     <div className="h3-snd" style={{ height: lanesH(lanes.length) }}>
       <div className="h3-snd-lane h3-snd-hits" style={{ height: HITS_H }} onClick={onLaneClick} onDoubleClick={(e) => void onHitsDouble(e)}
+        onPointerDown={onHitsDown}
         onContextMenu={(e) => onLaneMenu(e, null)}
-        title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete · right-click the lane: a new cue">
+        title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete · right-click the lane: a new cue, a duck region · Shift+drag: a duck region over that stretch">
         <div className="h3-snd-head" style={{ width: HEAD_W }}>
           <span>Hits</span>
           {err && <i className="pi pi-exclamation-triangle h3-err" title={`The mix didn't load: ${err}`} />}
@@ -401,6 +534,28 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             void addMixHit().then((id) => id && setPop({ kind: "hit", id, x, y }));
           }}><i className="pi pi-plus" /></button>
         </div>
+        {regs.map(({ r, i, x0, x1 }) => (
+          <Fragment key={`rg${i}`}>
+            <div className={`h3-snd-region-tab h3-snd-region-${regionMode(r)}${regionOn(i) ? " h3-on" : ""}`} data-region-tab={i}
+              style={{ left: x0, maxWidth: Math.max(0, x1 - x0) }}
+              title={`${regionLabel(r)}\nfrom ${r.from.shot} frame ${r.from.frame} to ${r.to.shot} frame ${r.to.frame}: anchored to those shots, it moves with the cut\ndrag an edge: move it · right-click or double-click: score forward or its own dip, delete`}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setRegionPop({ i, x: e.clientX, y: e.clientY });
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setRegionPop({ i, x: e.clientX, y: e.clientY });
+              }}>
+              {x1 - x0 > 30 ? regionShort(r) : ""}
+            </div>
+            <div className="h3-snd-region-edge" style={{ left: x0 - 3 }} data-region-edge={`${i}:from`} title="Drag: where the duck region starts (Esc cancels)"
+              onPointerDown={(e) => onRegionEdgeDown(e, i, "from")} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} />
+            <div className="h3-snd-region-edge" style={{ left: x1 - 3 }} data-region-edge={`${i}:to`} title="Drag: where the duck region ends (Esc cancels)"
+              onPointerDown={(e) => onRegionEdgeDown(e, i, "to")} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} />
+          </Fragment>
+        ))}
         {hitXs.map(({ h, x }) => x != null && (
           <div key={h.id} className={`h3-snd-hit h3-hit-${h.kind ?? "accent"}${h.must === false ? " h3-hit-may" : ""}${drag?.what === "hit" && drag.id === h.id ? " h3-on" : ""}`}
             style={{ left: x }}
@@ -438,7 +593,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               const t = e.target as HTMLElement;
               if (t === e.currentTarget || t.closest(".h3-snd-own")) openSpotting();
             }}
-            title={`${def.label}${def.label !== TRACK_LABEL[kind] ? ` (${kind})` : ""}: drop a sound file here to lay it from where it falls · click: seek · double-click: Scoring · right-click: ${kind === "music" ? "a new cue here" : track === "dialogue" ? "the shot's sound, voices only" : kind === "effects" ? "make effects" : "this place's bed"}, a sound file, Scoring · its head's ⋮: rename, add a track, move, delete`}>
+            title={`${def.label}${def.label !== TRACK_LABEL[kind] ? ` (${kind})` : ""}: drop a sound file here to lay it from where it falls · click: seek · double-click: Scoring · right-click: ${kind === "music" ? "a new cue here" : track === "dialogue" ? "the shot's sound, voices only" : kind === "effects" ? "make effects" : "this place's bed"}, a sound file, a duck region, Scoring · its head's ⋮: rename, add a track, move, delete`}>
             <LaneHead track={def} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res}
               series={res?.series?.tracks?.[track]?.gain_db ?? null} fallback={defaultGain(res, track)}
               own={res?.mix.tracks?.[track]?.gain_db != null}
@@ -468,24 +623,49 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             {track === fxOn && (res?.fx ?? []).map((f) => (
               <FxBlock key={f.shot} ep={ep} fx={f} mix={mix} lay={lay} items={items} fps={fps}
                 onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })}
-                onTrim={onFxTrim} onPointDown={onFxPointDown} onAddPoint={onFxAddPoint}
+                onTrim={onFxTrim} onPointDown={onFxPointDown} onAddPoint={onFxAddPoint} onFade={onFadeDown}
+                fading={drag?.what === "fxfadein" && drag.id === f.shot ? "in" : drag?.what === "fxfadeout" && drag.id === f.shot ? "out" : null}
                 onPointMenu={(fx, i) => void deleteMixPoint({ fx: fx.shot }, i)} />
             ))}
             {kind === "music" && beats.length > 0 && <BeatTicks beats={beats} lay={lay} />}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
               <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={kind === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && (drag.what === "move" || drag.what === "in" || drag.what === "out") && drag.id === it.id}
-                onDown={onItemDown} onPointDown={onPointDown} onAddPoint={onAddPoint}
+                onDown={onItemDown} onPointDown={onPointDown} onAddPoint={onAddPoint} onFade={onFadeDown}
+                fading={drag?.what === "fadein" && drag.id === it.id ? "in" : drag?.what === "fadeout" && drag.id === it.id ? "out" : null}
                 onPointMenu={(i) => void deleteMixPoint(it.id, i)}
                 onMenu={(e) => setPop({ kind: "item", id: it.id, x: e.clientX, y: e.clientY })} />
             ))}
           </div>
         );
       })}
+      {regs.map(({ r, i, x0, x1 }) => (
+        <div key={`rgo${i}`} className={`h3-snd-region h3-snd-region-${regionMode(r)}${regionOn(i) ? " h3-on" : ""}`} data-region={i}
+          style={{ left: x0, width: Math.max(2, x1 - x0) }} aria-hidden="true" />
+      ))}
       {hitXs.map(({ h, x }) => x != null && (
         <div key={h.id} className={`h3-snd-hitline h3-hit-${h.kind ?? "accent"}`} style={{ left: x, top: HITS_H }} />
       ))}
-      {drag && (
+      {drag && drag.frames != null && (
+        <div className="h3-trim-tip" style={{ left: drag.px + 14, top: drag.py - 34 }}>
+          {drag.what === "fxfadein" || drag.what === "fxfadeout" ? `${drag.id}'s effects` : drag.id} · {drag.what.endsWith("in") ? "fade in" : "fade out"}{" "}
+          {drag.frames ? framesLabel(drag.frames, fps) : "off"}
+          <br />
+          <span className="h3-muted">{drag.was ? `was ${framesLabel(drag.was, fps)}` : "new"} · Esc cancels</span>
+        </div>
+      )}
+      {drag && (drag.what === "regfrom" || drag.what === "regto" || drag.what === "regnew") && (
+        <div className="h3-trim-tip" style={{ left: drag.px + 14, top: drag.py - 34 }}>
+          {drag.what === "regnew" ? "a new duck region" : `the duck region's ${drag.what === "regfrom" ? "start" : "end"}`} · {drag.at.shot} frame {drag.at.frame}
+          {(() => {
+            const t = anchorTime(items, drag.at, fps);
+            return t == null ? null : <> · {fmtClock(t)}</>;
+          })()}
+          <br />
+          <span className="h3-muted">{drag.what === "regnew" ? "score forward when let go (its menu changes it)" : "anchored to the shot: it moves with the cut"} · Esc cancels</span>
+        </div>
+      )}
+      {drag && drag.frames == null && drag.what !== "regfrom" && drag.what !== "regto" && drag.what !== "regnew" && (
         <div className="h3-trim-tip" style={{ left: drag.px + 14, top: drag.py - 34 }}>
           {drag.what === "hit" ? `hit ${drag.id}` : drag.what === "point" ? `${drag.id} volume point ${(drag.db ?? 0) > 0 ? "+" : ""}${drag.db ?? 0} dB`
             : drag.what === "fxpoint" ? `${drag.id}'s effects volume point ${(drag.db ?? 0) > 0 ? "+" : ""}${drag.db ?? 0} dB`
@@ -501,7 +681,10 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
         </div>
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
-      {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
+      {laneMenu && <LaneMenu menu={laneMenu} items={items} fps={fps} onRegion={(i, x, y) => setRegionPop({ i, x, y })} onClose={() => setLaneMenu(null)} />}
+      {regionPop && res?.mix.regions?.[regionPop.i] && (
+        <RegionMenu key={`${regionPop.i}:${regionPop.x}:${regionPop.y}`} pop={regionPop} region={res.mix.regions[regionPop.i]} onClose={() => setRegionPop(null)} />
+      )}
       {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
       {fxPop && <FxMenu ep={ep} pop={fxPop} mix={res?.mix ?? {}} onClose={() => setFxPop(null)} />}
       {trackPop && <TrackMenu pop={trackPop} mix={res?.mix ?? {}} voices={res?.voices} onClose={() => setTrackPop(null)} />}
@@ -801,8 +984,12 @@ function GainLine({ width, x0, x1, pts, points, onPointDown, onPointMenu }: {
 }
 
 /** An item: a block from its in to its out (or its file's end), with its waveform. */
-const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDown, onMenu, onPointDown, onAddPoint, onPointMenu }: {
+const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDown, onMenu, onPointDown, onAddPoint, onPointMenu, onFade, fading }: {
   ep: string; it: MixItem; lay: Lay[]; items: PlayItem[]; fps: number; dragging: boolean;
+  /** a fade handle picked up */
+  onFade: (e: RPointerEvent<Element>, g: FadeGrab) => void;
+  /** its fade being dragged (that end) */
+  fading: "in" | "out" | null;
   /** a music cue's kind (null: not a cue): a double-click opens its window */
   cue: CueKind | null;
   onDown: (e: RPointerEvent<HTMLElement>, it: MixItem, what: "move" | "in" | "out", fileSecs: number | null) => void;
@@ -842,6 +1029,7 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
     info && !info.ok ? `can't read it: ${info.error}` : "",
     `${cue ? `music cue ${it.id}: double-click opens it (its sections, arc and takes) · ` : ""}drag: move (it stays on the shot it starts in) · drag an edge: trim · right-click: gain, fades, loop, label, delete`,
     "the line: its volume points (dB on its gain) · double-click on the line: a point · drag a point: up and down its dB, along its shot and frame · right-click a point: delete it",
+    "the white squares at its top corners: its fades, dragged in",
   ].filter(Boolean).join("\n");
   // the gain line: its points over the block, the first held to its head, the last to its tail
   const pts = timedPoints(items, it, fps).map((p) => ({ ...p, x: timeX(lay, p.t) - start }));
@@ -867,6 +1055,11 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
       {fadeW(it.fade_out) > 0 && <div className="h3-snd-fade h3-r" style={{ width: fadeW(it.fade_out) }} />}
       <GainLine width={width} x0={0} x1={width} pts={pts} points={it.points ?? []}
         onPointDown={(e, i) => onPointDown(e, it, i, fileSecs)} onPointMenu={onPointMenu} />
+      <FadeHandles name={it.label || it.id} x0={0} x1={width} wIn={fadeW(it.fade_in)} wOut={fadeW(it.fade_out)} fadeIn={it.fade_in ?? 0} fadeOut={it.fade_out ?? 0}
+        fps={fps} active={fading} onDown={(e, side) => onFade(e, {
+          of: { item: it.id }, side, frames: (side === "in" ? it.fade_in : it.fade_out) ?? 0,
+          per: (fps || 24) * Math.max(0.01, secs) / Math.max(1, width), max: Math.max(0, Math.round(secs * (fps || 24))),
+        })} />
       {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />}{cue && <i className="pi pi-volume-up" />} {cue ? cueTitle({ id: it.id, kind: cue, label: it.label }) : label}</span>}
       <div className="h3-trim-h h3-l" title="Drag: where it starts (the sound stays where it was)" onPointerDown={(e) => onDown(e, it, "in", fileSecs)} />
       <div className="h3-trim-h h3-r" title="Drag: where it stops" onPointerDown={(e) => onDown(e, it, "out", fileSecs)} />
@@ -996,8 +1189,12 @@ function BedMenu({ pop, mix, onClose }: { pop: BedPop; mix: Mix; onClose: () => 
  * span's edges, its gain line and points as an item's. Right-click: level, trims, fades,
  * reset, mute, keep, its takes, make again.
  */
-const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, onTrim, onPointDown, onAddPoint, onPointMenu }: {
+const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, onTrim, onPointDown, onAddPoint, onPointMenu, onFade, fading }: {
   ep: string; fx: MixFx; mix: Mix; lay: Lay[]; items: PlayItem[]; fps: number;
+  /** a fade handle picked up */
+  onFade: (e: RPointerEvent<Element>, g: FadeGrab) => void;
+  /** its fade being dragged (that end) */
+  fading: "in" | "out" | null;
   onMenu: (e: RMouseEvent<HTMLElement>) => void;
   /** an edge picked up: its trim */
   onTrim: (e: RPointerEvent<HTMLElement>, fx: MixFx, side: "in" | "out") => void;
@@ -1035,6 +1232,7 @@ const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, on
      own?.points.length ? `${own.points.length} level points` : ""].filter(Boolean).join(" · "),
     "made from the take the cut plays; laid at its clip, trimmed with it · drag an edge: trim it (the block stays put, what's trimmed is silent) · right-click: level, fades, trims, mute, its takes, make again",
     "the line: its volume points (dB on its level) · double-click on the line: a point · drag a point: up and down its dB, along its frame · right-click a point: delete it",
+    "the white squares at its top corners: its fades, dragged in (at the edges of what's heard)",
   ].filter(Boolean).join("\n");
   return (
     <div ref={box} className={`h3-snd-item h3-snd-effects h3-snd-fx${heard ? "" : " h3-snd-silent"}${stale ? " h3-snd-fx-stale" : ""}`}
@@ -1059,6 +1257,13 @@ const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, on
       {own && (
         <GainLine width={width} x0={kx0} x1={kx1} pts={pts} points={own.points}
           onPointDown={(e, i) => onPointDown(e, fx, i)} onPointMenu={(i) => onPointMenu(fx, i)} />
+      )}
+      {own && (
+        <FadeHandles name={`${fx.shot}'s effects`} x0={kx0} x1={kx1} wIn={fadeW(own.fade_in)} wOut={fadeW(own.fade_out)} fadeIn={own.fade_in} fadeOut={own.fade_out}
+          fps={fps} active={fading} onDown={(e, side) => onFade(e, {
+            of: { fx: fx.shot }, side, frames: side === "in" ? own.fade_in : own.fade_out,
+            per: (fps || 24) / Math.max(0.01, pps), max: Math.max(0, Math.round((kept.end - kept.start) * (fps || 24))),
+          })} />
       )}
       {width > 30 && (
         <span className="h3-snd-label">
@@ -1368,7 +1573,12 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
 /** A lane's menu at the pointer (kept on screen: the lanes sit at the window's foot): a sound
  * file from this computer onto it; on music and hits, a new cue; on dialogue, the shot's own
  * sound (its Sound card, Replace audio); on effects and ambience, what will make them. */
-function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
+function LaneMenu({ menu, items, fps, onRegion, onClose }: {
+  menu: LaneMenu; items: PlayItem[]; fps: number;
+  /** a duck region's menu opened (`i`: its index), at the pointer */
+  onRegion: (i: number, x: number, y: number) => void;
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   // a mix fetched from an older server (the page loaded before it restarted) has no places for
   // the Ambience lane's bed items: fetched again as the menu opens
@@ -1511,11 +1721,159 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
           <i className="pi pi-upload" /> Add a sound file here…
         </button>
       )}
+      {at && (() => {
+        // a duck region over the shot under the pointer (or the shots selected), and the one already here
+        const span = shotsSpan(items, shots, fps);
+        const t = anchorTime(items, at, fps);
+        const here = t == null || !lanesMix ? -1 : regionAt(items, lanesMix, t, fps);
+        const r = here >= 0 ? lanesMix?.regions?.[here] : undefined;
+        return (
+          <>
+            {r && (
+              <button data-region="edit" title={`${regionLabel(r)}: its mode, its dips, delete it`}
+                onClick={run(() => onRegion(here, menu.x, menu.y))}>
+                <i className="pi pi-sliders-h" /> Duck region here: {regionShort(r)}…
+              </button>
+            )}
+            <button data-region="add" disabled={!span}
+              title={`A stretch where the ducking changes, ${shots.length > 1 ? `over the ${shots.length} shots selected` : `over ${at.shot} to its end`}: score forward (the music doesn't dip under the lines; the dialogue is lowered instead), or a dip of its own. It moves with the shots`}
+              onClick={run(() => span && void addMixRegion(span.from, span.to).then((i) => i != null && onRegion(i, menu.x, menu.y)))}>
+              <i className="pi pi-sliders-h" /> {shots.length > 1 ? `Duck region over the ${shots.length} shots selected…` : `Duck region here (${at.shot})…`}
+            </button>
+          </>
+        );
+      })()}
       <div className="h3-menu-sep" />
       <button title="Scoring, on its Spotting tab: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it (or double-click an empty spot on a lane)"
         onClick={run(() => openSpotting())}>
         <i className="pi pi-map" /> Scoring (spotting)…
       </button>
+    </div>
+  );
+}
+
+/**
+ * A block's fade handles: a white square at each top corner of what's heard (`x0`..`x1`),
+ * at the inner end of its fade when it has one (the ramp drawn white over the block, as a
+ * picture clip's fade curve), else tucked in from the corner and shown on hover. Dragged
+ * in, it sets the fade (the lanes' onFadeDown). Squares, not the volume points' pink dots,
+ * and above the gain line, so the line's points never grab one.
+ */
+function FadeHandles({ name, x0, x1, wIn, wOut, fadeIn, fadeOut, fps, active, onDown }: {
+  name: string; x0: number; x1: number;
+  /** each fade's width (px) and frames */
+  wIn: number; wOut: number; fadeIn: number; fadeOut: number;
+  fps: number; active: "in" | "out" | null;
+  onDown: (e: RPointerEvent<Element>, side: "in" | "out") => void;
+}) {
+  if (x1 - x0 < FADE_MIN_W) return null;
+  const h = BLOCK_H + 1;
+  const half = FADE_SQ / 2;
+  const handle = (side: "in" | "out") => {
+    const frames = side === "in" ? fadeIn : fadeOut;
+    const w = side === "in" ? wIn : wOut;
+    const corner = !frames && active !== side;
+    const raw = side === "in" ? x0 + (frames ? w : FADE_CORNER) : x1 - (frames ? w : FADE_CORNER);
+    const x = Math.max(x0 + half, Math.min(x1 - half, raw));
+    const what = side === "in" ? "fade in" : "fade out";
+    return (
+      <rect key={side} data-fade={side} className={`h3-snd-fadeh${corner ? " h3-snd-fadeh-corner" : ""}${active === side ? " h3-on" : ""}`}
+        x={x - half} y={0} width={FADE_SQ} height={FADE_SQ}
+        onPointerDown={(e) => onDown(e, side)}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}>
+        <title>{frames ? `${name}: ${what} ${framesLabel(frames, fps)} · drag to change, to the ${side === "in" ? "start" : "end"} to take it off`
+          : `${name}: drag ${side === "in" ? "right" : "left"} for a ${what}`}</title>
+      </rect>
+    );
+  };
+  return (
+    <svg className="h3-snd-fades" width={x1} height={h}>
+      {wIn > 0 && <path className="h3-snd-fadeline" d={`M${x0},${h} L${x0 + wIn},0`} />}
+      {wOut > 0 && <path className="h3-snd-fadeline" d={`M${x1 - wOut},0 L${x1},${h}`} />}
+      {handle("in")}
+      {handle("out")}
+    </svg>
+  );
+}
+
+/**
+ * A duck region's menu: score forward (the music doesn't dip under the lines here; the
+ * dialogue lowered instead, by how much) or a dip of its own (music, ambience: empty is the
+ * track's own), its dialogue level; Apply (or Enter) is one edit, Delete another.
+ */
+function RegionMenu({ pop, region, onClose }: { pop: RegionPop; region: MixRegion; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<RegionMode>(regionMode(region));
+  const str = (v: number | undefined) => (v == null ? "" : String(v));
+  const [music, setMusic] = useState(str(regionMode(region) === "forward" ? DEEPER_DIP_DB : region.music_duck_db));
+  const [amb, setAmb] = useState(str(region.ambience_duck_db));
+  const [dial, setDial] = useState(str(region.dialogue_db ?? (regionMode(region) === "forward" ? FORWARD_DIALOGUE_DB : undefined)));
+  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(pop.x, pop.y, r));
+  }, [pop, mode]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? undefined : Math.min(0, Number(v)));
+  const apply = () => {
+    const patch: Partial<MixRegion> = mode === "forward"
+      ? { music_duck_db: 0, ambience_duck_db: num(amb), dialogue_db: num(dial) }
+      : { music_duck_db: num(music) ?? DEEPER_DIP_DB, ambience_duck_db: num(amb), dialogue_db: num(dial) };
+    const label = mode !== regionMode(region) ? (mode === "forward" ? "Make a duck region score forward" : "Give a duck region its own dip") : "Change a duck region";
+    void setMixRegion(pop.i, patch, label);
+    onClose();
+  };
+  const field = (label: string, key: string, v: string, set: (v: string) => void, title: string, lo: number, placeholder = "") => (
+    <label className="h3-snd-field" title={title}>
+      <span>{label}</span>
+      <input className="h3-in" type="number" step={0.5} min={lo} max={0} value={v} placeholder={placeholder} data-region-field={key} onChange={(e) => set(e.target.value)} />
+    </label>
+  );
+  const t = (a: { shot: string; frame: number }) => `${a.shot} frame ${a.frame}`;
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop h3-snd-regionmenu" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT" && (e.target as HTMLInputElement).type !== "radio") apply();
+      }}>
+      <div className="h3-menu-head">Duck region · {t(region.from)} to {t(region.to)}</div>
+      <div className="h3-muted h3-small" style={{ padding: "0 8px 4px", maxWidth: 320 }}>
+        Under the lines the music and ambience dip (the Music fader's duck, -9 dB by default). Here they do this instead; it moves with its shots.
+      </div>
+      <label className="h3-snd-field h3-snd-region-mode" title="The music doesn't dip under the lines here: it carries the scene, and the dialogue is lowered instead">
+        <input type="radio" name="h3-region-mode" data-region-mode="forward" checked={mode === "forward"} onChange={() => setMode("forward")} />
+        <span><b>Score forward</b>: the music doesn't dip under the lines here</span>
+      </label>
+      <label className="h3-snd-field h3-snd-region-mode" title="The music (and the ambience) dip by as much as you say under the lines here: deeper than the track's, or less">
+        <input type="radio" name="h3-region-mode" data-region-mode="custom" checked={mode === "custom"} onChange={() => setMode("custom")} />
+        <span><b>Its own dip</b>: how far the music and ambience dip here</span>
+      </label>
+      {mode === "custom" && field("Music dip dB", "music", music, setMusic, `How far the music tracks dip under the lines here (0: not at all, ${REGION_DIP_MIN} at most)`, REGION_DIP_MIN)}
+      {field("Ambience dip dB", "ambience", amb, setAmb, `How far the ambience tracks dip under the lines here (empty: the track's own, -6 dB by default; ${REGION_DIP_MIN} at most)`, REGION_DIP_MIN, "the track's")}
+      {field("Dialogue dB", "dialogue", dial, setDial, mode === "forward" ? "The dialogue lowered here, so the score sits over it (empty or 0: as it is)" : "The dialogue lowered here (empty or 0: as it is)", -60, "as it is")}
+      <div className="h3-row" style={{ gap: 6, padding: "4px 8px" }}>
+        <button className="h3-btn h3-primary" style={{ width: "auto" }} onClick={apply}>Apply</button>
+        <span className="h3-grow" />
+        <button className="h3-btn" style={{ width: "auto" }} data-region="delete" onClick={() => {
+          void deleteMixRegion(pop.i);
+          onClose();
+        }}><i className="pi pi-trash" /> Delete</button>
+      </div>
+      <div className="h3-muted h3-small" style={{ padding: "0 8px 4px" }}>Play all and the export both follow it.</div>
     </div>
   );
 }
