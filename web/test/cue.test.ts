@@ -578,10 +578,10 @@ describe("the cue window", () => {
     expect(side.textContent).toContain("The fit");
     expect(side.textContent).toContain("From the script");
     expect(side.querySelector("pre")!.textContent).toBe(res.plan!.prompt.prompt);
-    // the three tabs, Score open
-    const tabs = [...side.ownerDocument.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")].slice(0, 3);
-    expect(tabs.map((b) => [b.textContent, b.disabled, b.classList.contains("h3-on")])).toEqual([
-      ["Score", false, true], ["Arc", false, false], ["Orchestration & takes", false, false],
+    // the scoring window's tabs: Spotting, then the cue's three, Score open
+    const tabs = [...side.ownerDocument.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")].slice(0, 4);
+    expect(tabs.map((b) => [b.textContent!.trim(), b.disabled, b.classList.contains("h3-on")])).toEqual([
+      ["Spotting", false, false], ["Score", false, true], ["Arc", false, false], ["Orchestration & takes", false, false],
     ]);
   });
 

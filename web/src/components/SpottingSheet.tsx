@@ -29,23 +29,15 @@ import {
 } from "../spotActions";
 import { statusKey, store, useApp, type ViewerState } from "../store";
 import type { CueResult, CueSummary, Pass } from "../types";
-import { FloatingWindow, type Rect } from "./FloatingWindow";
+import { FloatingWindow } from "./FloatingWindow";
+import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
 import { SCORING_URL } from "./CueWindow";
 import { CutStage, FullscreenButton, useCutEngine } from "./Viewer";
 
-export const SPOT_RECT_KEY = "seriesmith.spotting.rect";
 /** its help strip, open or closed, kept in this browser */
 export const SPOT_HELP_KEY = "seriesmith.spotting.help";
 const EMPTY_CUES: CueSummary[] = [];
 
-/** Most of the page: the sheet is the episode's view. */
-function defaultSpotRect(): Rect {
-  const W = window.innerWidth || 1280;
-  const H = window.innerHeight || 800;
-  const w = Math.max(640, Math.min(1500, W - 48));
-  const h = Math.max(480, Math.min(980, H - 80));
-  return { x: Math.max(0, (W - w) / 2), y: 48, w, h };
-}
 
 const HELP_STEPS = [
   "Watch the cut with its sound and decide where music goes and where silence is stronger. Stop on a frame (, and . step one) and + Hit marks a moment the music must answer; ◀ Hit / Hit ▶ jump between them.",
@@ -114,7 +106,8 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const head = (
     <>
       <i className="pi pi-map" style={{ color: "var(--h3-arc)" }} />
-      <b>Spotting</b>
+      <b>Scoring</b>
+      <ScoringTabs active="spot" cue={v.cue ?? null} />
       <span className="h3-muted h3-small">{pass} · {cues.length} cue{cues.length === 1 ? "" : "s"} · {hits.length} hit{hits.length === 1 ? "" : "s"} · {fmtClock(total)}</span>
       <button className={`h3-btn h3-icon${help ? " h3-on" : ""}`} title="How to use the spotting sheet" aria-label="How to use the spotting sheet" aria-pressed={help}
         onClick={() => showHelp(!help)}><i className="pi pi-question" /></button>

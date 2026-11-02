@@ -64,11 +64,11 @@ export function selectSpotCue(cue: string | null) {
   if (cue) void loadCue(s.ep, s.pass, cue);
 }
 
-/** The cue window, from the sheet (its head goes back to the sheet). */
-export function openCueFromSpot(cue: string) {
+/** The cue window on `tab`, from the sheet (the scoring window's Spotting tab goes back there). */
+export function openCueFromSpot(cue: string, tab: "score" | "arc" | "orch" = "score") {
   const s = get();
   if (!s.ep) return;
-  set({ viewer: { kind: "cue", shot: "", pass: s.pass, a: null, b: null, mode: "single", target: "a", cue, back: "spot" }, menu: null, audition: null,
+  set({ viewer: { kind: "cue", shot: "", pass: s.pass, a: null, b: null, mode: "single", target: "a", cue, back: "spot", cueTab: tab }, menu: null, audition: null,
         cutPlay: { ...s.cutPlay, playing: false } });
 }
 

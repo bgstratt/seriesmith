@@ -95,6 +95,8 @@ export interface ViewerState {
   spot?: boolean;
   /** cue mode: opened from the spotting sheet (its head goes back there) */
   back?: "spot";
+  /** cue mode: the scoring window's tab it opens on (Score when none) */
+  cueTab?: "score" | "arc" | "orch";
 }
 
 /** A cue's take played in the cue's place under the picture, in the preview only (the spotting sheet's audition). */

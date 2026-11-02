@@ -20,7 +20,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEv
 import { closeViewer, currentPlaylist } from "../actions";
 import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
-import { openSpotting } from "../spotActions";
 import { api, host } from "../host";
 import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
@@ -36,7 +35,8 @@ import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import { useApp, statusKey, type ViewerState } from "../store";
 import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Target } from "../types";
-import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
+import { FloatingWindow } from "./FloatingWindow";
+import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect, type CueTab } from "./ScoringTabs";
 import { trackPointer, useSize } from "./hooks";
 import { mediaStyle } from "./Thumb";
 import { onScreen } from "./SoundLanes";
@@ -44,7 +44,6 @@ import { FullscreenButton } from "./Viewer";
 import { PeaksCanvas, usePeaks } from "./Waveform";
 
 // the viewer's place (the standalone page docks it in the middle)
-const RECT_KEY = "seriesmith.viewer.rect.v2";
 /** the lanes' labels, stuck to the left */
 const LAB_W = 76;
 const PIC_H = 38;
@@ -69,7 +68,7 @@ export const SCORING_URL = "https://docs.seriesmith.com/scoring";
 /** each tab's help strip, open or closed, kept in this browser */
 export const HELP_KEY = "seriesmith.cue.help";
 
-export type CueTab = "score" | "arc" | "orch";
+export type { CueTab } from "./ScoringTabs";
 type ArcMode = "draw" | "points";
 
 /** How to use each tab: a few steps from docs/SCORING.md, and the section of it that has the rest. */
@@ -184,7 +183,11 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
   const err = useApp((s) => s.cueError[key]);
   const winRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<number | null>(null);
-  const [tab, setTab] = useState<CueTab>("score");
+  const [tab, setTab] = useState<CueTab>(opened.cueTab ?? "score");
+  // a tab asked for again from the scoring window's tabs (the spotting sheet's)
+  useEffect(() => {
+    if (opened.cueTab) setTab(opened.cueTab);
+  }, [opened.cueTab, id]);
   const [brush, setBrush] = useState(ORCH_STEP);
   const [help, setHelp] = useState<Record<CueTab, boolean>>(() => ({ score: helpOpen("score"), arc: helpOpen("arc"), orch: helpOpen("orch") }));
   const showHelp = (on: boolean) => {
@@ -218,31 +221,22 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
     return () => el.removeEventListener("keydown", h);
   }, [sel, tab]);
 
-  const tabBtn = (name: string, t: CueTab, title: string) => (
-    <button className={tab === t ? "h3-on" : ""} title={title} onClick={() => setTab(t)}>{name}</button>
-  );
   const head = (
     <>
       <i className="pi pi-volume-up" style={{ color: "var(--h3-arc)" }} />
       <b>{id}</b>
       <span className="h3-muted h3-small">{res ? cueTitle(res.spec) : ""} · {v.pass}</span>
-      <span className="h3-seg" title="The cue window's views">
-        {tabBtn("Score", "score", "Everything on one bar grid: the picture, hits, sections, the arc and the takes")}
-        {tabBtn("Arc", "arc", "The intensity lane large: draw it, shape it from a preset, snap its peaks to hits, cut sections from it")}
-        {tabBtn("Orchestration & takes", "orch", "Who plays in each bar; the takes, where bars are comped from another take or lowered")}
-      </span>
+      <ScoringTabs active={tab} cue={id || null} onCueTab={setTab} />
       <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
         onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
-      {opened.back === "spot"
-        ? <button className="h3-btn" title="Back to the spotting sheet, on this cue" onClick={() => openSpotting(id)}><i className="pi pi-arrow-left" /> Spotting</button>
-        : <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>}
+      <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>
     </>
   );
   return (
-    <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef} className="h3-cue-win">
+    <FloatingWindow storageKey={SPOT_RECT_KEY} defaultRect={defaultSpotRect} head={head} winRef={winRef} className="h3-cue-win">
       {!res ? (
         <div className="h3-empty-state">{err ? <span className="h3-err">{id}: {err}</span> : <><i className="pi pi-spin pi-spinner" /> {id}…</>}</div>
       ) : (

@@ -990,7 +990,7 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
       {track === "music" && (
         <button title="The spotting sheet: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it"
           onClick={run(() => openSpotting())}>
-          <i className="pi pi-map" /> Spotting sheet…
+          <i className="pi pi-map" /> Scoring (spotting)…
         </button>
       )}
       {track === "dialogue" && at && (

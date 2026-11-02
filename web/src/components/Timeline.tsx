@@ -622,9 +622,9 @@ export function Timeline() {
             <i className="pi pi-volume-up" /> Sound
           </button>
           <button className={`h3-btn${spotting ? " h3-on" : ""}`} disabled={!st?.shots.length}
-            title="Spotting: the episode's music map (cues, ambience, effects and hits by sequence) under a large picture of the cut with its mix; jump between hits, mark new ones, see each cue's hits, tempo and takes, and play a take against the picture"
+            title="Scoring, opening on Spotting: the episode's music map (cues, ambience, effects and hits by sequence) under a large picture of the cut with its mix; jump between hits, mark new ones, see each cue's hits, tempo and takes, and play a take against the picture"
             onClick={() => (spotting ? closeViewer() : openSpotting())}>
-            <i className="pi pi-map" /> Spotting
+            <i className="pi pi-map" /> Scoring
           </button>
         </span>
         {pos != null && <span className="h3-mono h3-muted">{fmtClock(pos)}</span>}
