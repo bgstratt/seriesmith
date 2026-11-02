@@ -354,10 +354,23 @@ Each phase is tested live on local ComfyUI before the next starts.
          (2026-11-01; `GET /seriesmith/mix/duck`, `lib/mix.ts` duckTracks / pointsDb,
          `web/test/mixAudio.test.ts`). Regions are applied but not drawn or edited yet
          (kept as they are)
+   - [x] the editor draws and edits the regions and the fades (2026-11-02): a duck region is a
+         striped span down the lanes with a tab on the hits lane (score forward green, a dip
+         of its own blue), made from any lane's menu ("Duck region here", over the shot under
+         the pointer or the shots selected; new ones are score forward, `music_duck_db` 0 and
+         `dialogue_db` -4) or by Shift+dragging the hits lane, its edges dragged there, its
+         menu score forward / its own dip (music, ambience, dialogue dB) and Delete; the
+         spotting map's Music rows show them. A region is named by its index (mix.json's
+         order: the later wins where two overlap); no id was added to the shape. An item's and
+         a shot's effects' fades have handles at the block's top corners (white squares, apart
+         from the volume points' pink dots and above them), dragged in, the ramp drawn white
+         as a picture clip's fade (`lib/mix.ts` regions, `SoundLanes.tsx` FadeHandles /
+         RegionMenu; `web/test/soundLanes.test.ts`, `mixAudio.test.ts`)
    - [x] docs/API.md, COMMANDS.md and the user docs (checked 2026-11-02: API.md "The mix"
          (GET / PUT /seriesmith/mix, /mix/duck), COMMANDS.md's assemble (the mix, the stems,
          `--no-mix`, `--xml`'s tracks), EDITOR.md "Sound: the episode's mix", SCORING.md
-         "Levels"; the regions are still only in the mix's shape, unedited in the editor)
+         "Levels"; the regions drawn and edited since: EDITOR.md "Duck regions", SCORING.md
+         "Score forward")
 2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
    the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape
    checking; refit and stale. Then the windows, in this order:

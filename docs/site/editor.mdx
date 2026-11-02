@@ -1343,6 +1343,14 @@ with stems beside it.
   volume points**, or Delete. **Plays in the mix** unticked mutes it where it is (saved at once,
   undone with Ctrl+Z): drawn faint, silent in Play all and the export (its stem and the loudness
   too), and laid switched off in the Premiere / Resolve XML; tick it to hear it again.
+- **Fade handles**: a block's fades have a small **white square** at each of its top corners,
+  as a picture clip's fades have white circles (the volume points are pink dots, so the two
+  don't mix up). A block with no fade shows its squares when you hover it, tucked in from the
+  corners; **drag one inwards** for a fade in or a fade out, with a tip saying how long (frames
+  and seconds) and what it was; **Esc** cancels. With a fade on, the square sits at its inner
+  end and a white ramp is drawn over the block: drag it further in or back out, and to the
+  block's edge to take the fade off. A shot's effects have them too, at the edges of what's
+  heard (inside a trim). Each drag is one undoable edit; the menu's numbers stay.
 - **Volume points** shape a block's level: the pink line across it (dB on its gain; a faint line
   marks 0 dB; drawn -24 to +12). **Double-click on the line** for a point there, at the line's
   level; **drag a point** up or down for its dB (0.5 dB a step, half a dB per pixel moved) and
@@ -1412,6 +1420,21 @@ in the XML as the clip trimmed to what's heard.
   playhead, a **double-click** on the hits lane adds one there; drag it to move it,
   right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the
   marker's colour) and whether it must land.
+- **Duck regions** change the ducking for a stretch. **Right-click any lane ▸ Duck region
+  here** makes one over the shot under the pointer, head to tail (with several clips
+  selected, **Duck region over the N shots selected**); or **Shift+drag** along the hits lane
+  for one over just that stretch. A new region is **score forward**: the music doesn't dip
+  under the lines there (it carries the scene) and the dialogue is lowered 4 dB instead. It's
+  drawn as a striped span down all the lanes, green for score forward and blue for a dip of
+  its own, with a tab on the hits lane saying what it does ("Score forward", "Dip -18 dB";
+  hover it for the whole of it). **Drag the tab's edges** to move where it starts and ends;
+  **right-click or double-click the tab** (or right-click a lane over it ▸ **Duck region
+  here: …**) for its menu: **Score forward** or **Its own dip** (how far the music dips under
+  the lines there: deeper than the track's -9 dB for a busy scene, or less), the ambience's
+  dip (empty: the track's own) and how far the dialogue is lowered; **Apply**, or **Delete**.
+  Its edges are anchored to shots, as everything here is, so it moves with the cut. Play all
+  and the export both follow it; where two overlap, the one made later wins. The spotting
+  sheet's map shows them on its Music rows.
 - Everything on the lanes is anchored to **a shot and a frame of its take**, not to a time: a
   trim or a reorder carries it with its shot, so a hit stays on its action. Moving a block
   re-anchors it to the shot it now starts in. An item whose shot leaves the cut drops out
@@ -1423,7 +1446,7 @@ in the XML as the clip trimmed to what's heard.
   fader, mute and solo, and the music and ambience **ducked under speech as the export ducks
   them**: the server works out where someone is speaking from the clips' own sound (fetched with
   the mix, again when the cut or a take changes) and each lane dips by its duck depth there
-  (music -9 dB, ambience -6 dB by default; a region of the mix changes it for a stretch). The
+  (music -9 dB, ambience -6 dB by default; a duck region changes it for a stretch). The
   dialogue fader turns the clips' own sound down (not up: a video plays at most at its own
   level), as does a region that lowers the dialogue. With **Voices only**, a clip playing its
   stem is muted and the stem plays in its place, on the dialogue fader.

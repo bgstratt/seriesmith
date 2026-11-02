@@ -269,6 +269,17 @@ On **Orchestration & takes**, drag across bars on a take:
   level with them on the swell.
 - **Ducking**: music dips 9 dB (ambience 6) whenever someone speaks, automatically, in Play all
   and in the export alike.
+- **Score forward**, where the music should carry the scene over the lines (a reveal, a
+  montage with a voice-over, the swell under the last line): right-click a lane over the shot
+  (or select the shots first) ▸ **Duck region here**. In that stretch the music doesn't dip
+  under the lines; the dialogue is lowered 4 dB instead. It shows as a green striped span down
+  the lanes with a "Score forward" tab on the hits lane; drag the tab's edges to fit it,
+  right-click the tab to change how far the dialogue is lowered, to give it **its own dip**
+  instead (a deeper one, say -18 dB, where a busy cue fights the lines), or to delete it.
+  **Shift+drag** along the hits lane makes one over just the stretch you drag. It follows its
+  shots when the cut changes.
+- **Fades**: drag the white square at a block's top corner inwards (the menu's numbers do the
+  same).
 - **Volume points**: the pink line on a block. Drag a point up or down, double-click to add,
   right-click to delete. Picking a take adds them (the fit to the arc); the block's menu clears
   them. A crescendo the music doesn't have can't be made with points; that's what the arc and the
@@ -347,6 +358,9 @@ span, so a trim inside its span makes it stale (above).
 | One section fewer | right-click it: Merge with previous / next |
 | The sections from the hits again | right-click a section: Reset sections from the hits |
 | It's too loud | the Music fader (it starts at -12), or volume points |
+| The music over the lines, not under them | right-click a lane ▸ **Duck region here** (score forward) |
+| The music further down under busy lines | a duck region, **Its own dip** (-18 dB, say) |
+| A fade in or out on a block | drag the white square at its top corner inwards |
 | Most of a take is right | Comp the bad bars from another take |
 | A song | Kind: Song; lyrics on its sections (YuE2 needs them) |
 | Where a song's verse and chorus land | the take's plan: its line and the strip along its waveform |
