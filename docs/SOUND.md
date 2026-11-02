@@ -424,9 +424,40 @@ Each phase is tested live on local ComfyUI before the next starts.
    diner sequences (second by second -39.6 to -34.6: the bed ducked 6 dB under the song, and
    the mix's -2.6 dB loudness gain), silence (no sample above zero) over the other two, and the
    0.5 s fades at the cuts (-41 -> -48 -> -64 dB out of sq01, the mirror into sq04).
-4. **Effects.** The `foley` kind; H3 FL2VA at 256x160 the default (the take's frames
-   anchored, only the sound decoded), LTX-2.3 Foley and Hunyuan XL beside it; effects stale when the pick changes; optionally Demucs to split a take's voice from
-   its effects.
+4. **Effects.** A shot's sync sound (footsteps, a door, the cups) made from the frames of the
+   take the cut uses. Decided 2026-11-01:
+   - **Asked for, never automatic.** Many takes already carry the model's own effects in their
+     sound (the Dialogue track: H3 makes picture and sound together), so effects are made only
+     for the shots you ask (a clip's Sound menu, a selection, the CLI); a shot dubbed or cloned
+     (its sound only the voice), or a picture model with no sound, is where they're wanted.
+   - **The `foley` kind**: `h3_foley` the default (H3 FL2VA at 256x160, the take's frames
+     anchored from frame 0 with `MiniMaxH3AddGuide`, 20 steps res_multistep, only the sound
+     decoded), `ltx23_foley` (the LTX-2.3 Foley LoRA, STG off) and `hunyuan_xl_foley` beside
+     it; graphs as measured (Measured: foley). The prompt is the shot's `sound:` line (else its
+     action) and "No dialogue, no voices, no singing, no music."; the length is the take's,
+     all of it, so the cut's trims trim the effects with the picture.
+   - **A shot's effects takes**: `<ep>/sound/fx/<pass>/<shot>/tNN.wav` + `tNN.json` (the model,
+     the prompt, the seed, and the take it was made from: its number and its mp4's size and
+     mtime), several per shot, one picked.
+   - **Laid from the cut, as the beds are**: each shot in the cut with a picked effects take
+     gets it on the Effects track at its clip, anchored to the take's frame 0, trimmed with the
+     clip; nothing stored as items. The mix keeps `fx: {shot: {take, gain_db, mute}}` (the pick
+     is the pass's mix's).
+   - **Stale when the picture changes**: effects made from another take than the cut's (or a
+     take re-rendered since) are flagged and left out of the mix until made again, or kept
+     on purpose (`fx: {shot: {keep_stale: true}}`): sound that doesn't match its picture is
+     worse than none.
+   - **Shown on the Effects lane** as a block per shot (its id, the model, stale marked),
+     read-only but for a menu: level, mute, its takes (play, pick), make again (the model),
+     keep as it is when stale.
+   - [ ] the `foley` kind: `h3_foley`, `ltx23_foley`, `hunyuan_xl_foley` (target.json, files
+         and downloads for Features, the graphs)
+   - [ ] a shot's effects takes, made on the queue (`seriesmith fx`, `POST /seriesmith/fx/render`
+         for shots or a selection), stale against the cut's take
+   - [ ] the mix: effects from the cut (render, Play all, stems and M&E, XML), `fx` in mix.json
+   - [ ] the editor: the Effects lane's blocks and menu, a clip's Sound ▸ Make effects
+         (the selection), the takes
+   - [ ] docs: API, EDITOR, COMMANDS, the guide; live: CupsMV's cup shots on local ComfyUI
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
 6. **Tracks of your own.** Dialogue, effects, ambience and music become the default tracks
