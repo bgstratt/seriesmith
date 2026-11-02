@@ -139,6 +139,20 @@ class PlanTest(unittest.TestCase):
         self.assertIn(f"{p['fit']['ask_bpm']} BPM", p["prompt"]["prompt"])
         self.assertAlmostEqual(p["ask_seconds"], p["seconds"] * p["fit"]["stretch"], places=2)
 
+    def test_plan_offers_other_tempos(self):
+        p = CU.plan(self.root, "final", self.spec(), {})
+        self.assertEqual(p["hits"][0]["at"], anchor("sh020", 12))      # each hit's anchor
+        alts = p["alternatives"]
+        self.assertEqual(len(alts), CU.ALTERNATIVES)
+        self.assertEqual((alts[0]["bpm"], alts[0]["worst_must"]), (p["fit"]["bpm"], p["fit"]["worst_must"]))
+        for a in alts:
+            self.assertTrue(92 * 0.92 - 1e-6 <= a["bpm"] <= 92 * 1.08 + 1e-6)
+            self.assertEqual(set(a), {"bpm", "preroll", "worst_must", "total"})
+        # a fixed tempo is kept, and the others near it still offered
+        fixed = CU.plan(self.root, "final", self.spec(fixed_tempo=True), {})
+        self.assertEqual(fixed["fit"]["bpm"], 92)
+        self.assertEqual([a["bpm"] for a in fixed["alternatives"]], [a["bpm"] for a in alts])
+
     def test_fixed_tempo_and_given_sections(self):
         p = CU.plan(self.root, "final", self.spec(
             fixed_tempo=True, model="ace_step15",
@@ -386,6 +400,34 @@ class RouteTest(unittest.TestCase):
         why = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"][0]["stale"]
         self.assertIn("door moved -24 frames", why)
         self.assertTrue(any("1.0 s shorter" in w for w in why), why)
+
+    def test_cues_listed_against_a_pass(self):
+        MX.save(self.ep, {"final": {"hits": [{"id": "h1", "name": "door", "at": anchor("sh020", 12)}]}})
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60), "bpm": 92}})
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m02", "in": anchor("sh090"),
+                                                     "out": anchor("sh090", 60)}})
+        self.call(A.post_cue_render, {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 2})
+        for n in (1, 2):
+            CU.update(self.ep, "m01", n, status="ok")
+        # take 2 is the one in the mix
+        mix = MX.check(MX.load(self.ep)["final"])
+        mix["items"] = [{"id": "m01", "track": "music", "path": "sound/m01/t02.wav",
+                         "in": anchor("sh010"), "out": anchor("sh020", 60)}]
+        MX.save(self.ep, {"final": mix})
+        plain = self.call(A.get_cues, {"ep": self.ep})["cues"]
+        self.assertNotIn("stale", plain[0])                            # no pass: not planned
+        rows = {c["spec"]["id"]: c for c in self.call(A.get_cues, {"ep": self.ep, "pass": "final"})["cues"]}
+        self.assertEqual((rows["m01"]["in_mix"], rows["m01"]["stale"], rows["m01"]["stale_takes"]), (2, [], []))
+        self.assertIsInstance(rows["m01"]["bpm"], float)
+        self.assertIn("sh090", rows["m02"]["plan_error"])
+        self.assertEqual(rows["m02"]["stale"], [])
+        T.save_cut(self.ep, {"final": [{"shot": "sh010", "trim_out": 24}, {"shot": "sh020"},
+                                       {"shot": "sh030"}], "proxy": []})
+        m01 = self.call(A.get_cues, {"ep": self.ep, "pass": "final"})["cues"][0]
+        self.assertEqual(m01["stale_takes"], [1, 2])
+        self.assertIn("door moved -24 frames", m01["stale"])
+        self.call(A.get_cues, {"ep": self.ep, "pass": "draft"}, 400)
 
 
 if __name__ == "__main__":

@@ -2631,7 +2631,7 @@ def put_mix(ctx: Context, body):
 
 def _plan_summary(p: dict) -> dict:
     """What a cue's plan says, for the window (cue.plan, without the spec it came from)."""
-    return {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "bars", "bar", "preroll",
+    return {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "bars", "bar", "preroll",
                               "seconds", "ask_seconds", "sections", "arc", "prompt")}
 
 
@@ -2649,15 +2649,47 @@ def _cue_spec(ep: str, cid) -> dict:
 @handler
 def get_cues(ctx: Context, query: dict):
     """The episode's music cues (cue.py): each its spec and how many takes it has,
-    finished and picked."""
+    finished and picked. With `pass`, each is also planned against that pass's cut (the
+    spotting sheet's list): `bpm` (the fitted tempo), `in_mix` (the take its item in the
+    pass's mix plays, or null), `stale` (what has moved under that take since it was
+    rendered, in words; [] when nothing has or none is in the mix), `stale_takes` (the
+    finished takes something has moved under) and `plan_error` (its anchors aren't in
+    the cut: null otherwise)."""
     ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query["pass"]) if query.get("pass") is not None else None
+    items = {}
+    if pass_:
+        try:
+            items = {i["id"]: i for i in MX.check(MX.load(ep).get(pass_)).get("items") or []}
+        except ValueError:
+            items = {}
     out = []
     for spec in CU.list_cues(ep):
         takes = CU.list_takes(ep, spec["id"])
-        out.append({"spec": spec, "takes": len(takes),
-                    "ok": sum(1 for t in takes if t.get("status") == "ok"),
-                    "placed": sorted({t["placed"] for t in takes if t.get("placed")})})
+        row = {"spec": spec, "takes": len(takes),
+               "ok": sum(1 for t in takes if t.get("status") == "ok"),
+               "placed": sorted({t["placed"] for t in takes if t.get("placed")})}
+        if pass_:
+            row.update(_cue_state(ep, pass_, spec, takes, items.get(spec["id"])))
+        out.append(row)
     return 200, {"cues": out}
+
+
+def _cue_state(ep: str, pass_: str, spec: dict, takes: list[dict], item: dict | None) -> dict:
+    """A cue against the pass's cut, for get_cues: its fitted tempo, the take its mix item
+    plays, and what is stale."""
+    in_mix = None
+    if item:
+        m = re.fullmatch(rf"{CU.SOUND_DIR}/{re.escape(spec['id'])}/t(\d{{2,3}})\.wav", item.get("path") or "")
+        in_mix = int(m.group(1)) if m else None
+    try:
+        p = CU.plan(ep, pass_, spec)
+    except CU.CueError as e:
+        return {"bpm": None, "in_mix": in_mix, "stale": [], "stale_takes": [], "plan_error": str(e)}
+    done = [t for t in takes if t.get("status") == "ok"]
+    placed = next((t for t in done if t["take"] == in_mix), None)
+    return {"bpm": p["fit"]["bpm"], "in_mix": in_mix, "stale": CU.stale(placed, p) if placed else [],
+            "stale_takes": [t["take"] for t in done if CU.stale(t, p)], "plan_error": None}
 
 
 @handler

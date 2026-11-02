@@ -81,6 +81,8 @@ KINDS = ("score", "song")
 KIND_MODEL = {"score": ("music_model", None), "song": ("song_model", "ace_step15")}
 TAKES_MAX = 16
 STRETCH_MAX = 0.08                     # how far a take is stretched to its tempo, either way
+FIT_SPREAD = 0.08                      # how far the fit moves the asked tempo, either way
+ALTERNATIVES = 4                       # the tempos a plan offers (score.alternatives)
 # a tempo heard this close to the asked one is the model's drift, and believed; further off
 # it is most likely the beat tracker lost in soft music (measured 81-108 on a 93 bpm cue),
 # and the plan's stretch is used
@@ -429,7 +431,8 @@ def orchestrate(sections: list[dict], orchestra: dict) -> list[dict]:
 def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
-    "t"}], "fit": {...}, "bars", "bar", "preroll", "seconds", "ask_seconds", "sections",
+    "t", "at"}], "fit": {...}, "alternatives" (the best few tempos within FIT_SPREAD of
+    the asked one, the fit's first unless the tempo is fixed: score.alternatives), "bars", "bar", "preroll", "seconds", "ask_seconds", "sections",
     "arc", "cue" (what the prompt writer gets), "prompt"}. CueError when its anchors
     aren't in the cut."""
     series = series if series is not None else (J.series_config(root) or {})
@@ -452,7 +455,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
         if want is None and not a <= f <= b:
             continue
         hit = {"id": h["id"], "name": h.get("name") or h["id"], "kind": h.get("kind", "accent"),
-               "must": h.get("must", True), "t": round((f - a) / fps, 4)}
+               "must": h.get("must", True), "t": round((f - a) / fps, 4), "at": h["at"]}
         # a drop on the cue's out point is its end: the music is cut there, whatever the bar,
         # so it isn't fitted to a bar line and there is nothing in the music to measure
         if hit["kind"] == "drop" and f >= b - 2:
@@ -461,8 +464,11 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     meter = meter_beats(spec)
     asked = spec.get("bpm") or DEFAULT_BPM
     fitted = [h for h in hits if not h.get("ends")]
-    fit = SC.fit_tempo([(h["t"], h["must"], h["kind"] == "accent") for h in fitted], asked, fps, meter,
-                       spread=0.0 if spec.get("fixed_tempo") else 0.08)
+    to_fit = [(h["t"], h["must"], h["kind"] == "accent") for h in fitted]
+    fit = SC.fit_tempo(to_fit, asked, fps, meter, spread=0.0 if spec.get("fixed_tempo") else FIT_SPREAD)
+    # the best few tempos near the asked one, a fixed tempo's too (the spotting sheet offers them)
+    alts = [{"bpm": x.bpm, "preroll": x.preroll, "worst_must": x.worst_must, "total": x.total}
+            for x in SC.alternatives(to_fit, asked, fps, meter, spread=FIT_SPREAD, count=ALTERNATIVES)]
     # the fit's errors for every hit, in order: an end has none (None)
     errs = iter(fit.errors)
     fit_errors = [None if h.get("ends") else next(errs) for h in hits]
@@ -513,6 +519,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             "span": round(span, 3), "hits": hits, "notes": notes,
             "fit": {"bpm": fit.bpm, "ask_bpm": fit.ask_bpm, "stretch": fit.stretch,
                     "errors": fit_errors, "worst_must": fit.worst_must},
+            "alternatives": alts,
             "bars": bars, "bar": round(bar, 5), "preroll": preroll, "seconds": seconds,
             "ask_seconds": cue["seconds"], "sections": sections, "arc": arc, "cue": cue,
             "prompt": brief}

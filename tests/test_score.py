@@ -56,5 +56,38 @@ class FitTempoTest(unittest.TestCase):
         self.assertLess(f.worst_must, 0.1)
 
 
+class AlternativesTest(unittest.TestCase):
+    def test_no_hits_none(self):
+        self.assertEqual(S.alternatives([], 92, FPS), [])
+
+    def test_the_first_is_the_fit(self):
+        hits = [(3.0, True), (8.0, True), (13.7, True), (6.1, False, True)]
+        f = S.fit_tempo(hits, 100, FPS)
+        alts = S.alternatives(hits, 100, FPS)
+        self.assertEqual((alts[0].bpm, alts[0].preroll, alts[0].worst_must), (f.bpm, f.preroll, f.worst_must))
+
+    def test_best_first_apart_and_in_the_spread(self):
+        hits = [(3.0, True), (8.0, True), (13.7, True)]
+        alts = S.alternatives(hits, 100, FPS, count=5, apart=1.5)
+        self.assertEqual(len(alts), 5)
+        for a in alts:
+            self.assertTrue(92 - 1e-6 <= a.bpm <= 108 + 1e-6)
+        for a, b in zip(alts, alts[1:]):
+            self.assertLessEqual(a.worst_must, b.worst_must)
+        for i, a in enumerate(alts):
+            for b in alts[i + 1:]:
+                self.assertGreaterEqual(abs(a.bpm - b.bpm), 1.5 - 0.01)
+
+    def test_a_known_grid_and_its_neighbours(self):
+        # hits on bars of a 93.4 bpm grid: that tempo first, landed; the others worse
+        bar = 60 / 93.4 * 4
+        hits = [(n * bar - 0.3, True) for n in (3, 7, 12)]
+        alts = S.alternatives(hits, 92, FPS, count=3)
+        self.assertAlmostEqual(alts[0].bpm, 93.4, delta=0.05)
+        self.assertLess(alts[0].worst_must, 0.1)
+        self.assertTrue(all(a.worst_must >= alts[0].worst_must for a in alts[1:]))
+        self.assertTrue(all(a.total >= a.worst_must - 1e-6 for a in alts))
+
+
 if __name__ == "__main__":
     unittest.main()
