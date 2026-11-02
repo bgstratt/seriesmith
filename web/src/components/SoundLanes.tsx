@@ -537,7 +537,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
         {regs.map(({ r, i, x0, x1 }) => (
           <Fragment key={`rg${i}`}>
             <div className={`h3-snd-region-tab h3-snd-region-${regionMode(r)}${regionOn(i) ? " h3-on" : ""}`} data-region-tab={i}
-              style={{ left: x0, maxWidth: Math.max(0, x1 - x0) }}
+              style={{ left: x0, width: Math.max(0, x1 - x0) }}
               title={`${regionLabel(r)}\nfrom ${r.from.shot} frame ${r.from.frame} to ${r.to.shot} frame ${r.to.frame}: anchored to those shots, it moves with the cut\ndrag an edge: move it · right-click or double-click: score forward or its own dip, delete`}
               onDoubleClick={(e) => {
                 e.stopPropagation();
@@ -550,9 +550,9 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               }}>
               {x1 - x0 > 30 ? regionShort(r) : ""}
             </div>
-            <div className="h3-snd-region-edge" style={{ left: x0 - 3 }} data-region-edge={`${i}:from`} title="Drag: where the duck region starts (Esc cancels)"
+            <div className={`h3-snd-region-edge h3-snd-region-${regionMode(r)}`} style={{ left: x0 - 3 }} data-region-edge={`${i}:from`} title="Drag: where the duck region starts (Esc cancels)"
               onPointerDown={(e) => onRegionEdgeDown(e, i, "from")} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} />
-            <div className="h3-snd-region-edge" style={{ left: x1 - 3 }} data-region-edge={`${i}:to`} title="Drag: where the duck region ends (Esc cancels)"
+            <div className={`h3-snd-region-edge h3-snd-region-${regionMode(r)}`} style={{ left: x1 - 3 }} data-region-edge={`${i}:to`} title="Drag: where the duck region ends (Esc cancels)"
               onPointerDown={(e) => onRegionEdgeDown(e, i, "to")} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} />
           </Fragment>
         ))}

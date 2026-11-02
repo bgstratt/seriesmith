@@ -738,6 +738,13 @@
 }
 .h3-snd-region-tab.h3-on { box-shadow: 0 0 0 1px var(--h3-fg); }
 .h3-snd-region-edge { position: absolute; top: 0; height: 100%; width: 6px; z-index: 3; cursor: ew-resize; }
+/* a grip at each end, always shown: two short bars in the region's colour, so the edges read as draggable */
+.h3-snd-region-edge::after {
+  content: ""; position: absolute; left: 1px; top: 15%; height: 70%; width: 1px;
+  border-left: 1px solid color-mix(in srgb, var(--h3-region, var(--h3-fg)) 90%, #000);
+  border-right: 1px solid color-mix(in srgb, var(--h3-region, var(--h3-fg)) 90%, #000);
+  background: var(--h3-region, var(--h3-fg)); border-radius: 1px; width: 2px;
+}
 .h3-snd-region-edge:hover { background: color-mix(in srgb, var(--h3-accent) 60%, transparent); }
 .h3-snd-regionmenu { min-width: 280px; }
 .h3-snd-region-mode { align-items: flex-start; }
