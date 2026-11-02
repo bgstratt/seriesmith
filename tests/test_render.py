@@ -809,6 +809,150 @@ def queue_generate(fake, *args, **kw):
     settle(fake.runner)
     return out
 
+# ---------------------------------------------------------------------------
+# `seriesmith render` and a `continuous: first` chain
+# ---------------------------------------------------------------------------
+
+class CommandLineChainTest(unittest.TestCase):
+    """`seriesmith render` plans the episode first, then its continuity: the
+    shots that run are the batch, so a `continuous: first` shot after one
+    rendering in this run opens on that new take (its first frame cut as its
+    render starts), and one after a shot that doesn't run opens on the take
+    the cut uses. On the continuous fixture (sh010 H3 Ref2VA, sh020 and sh030
+    H3 FL2VA, each continuing the one before), a fake backend whose takes are
+    real mp4s of a colour of their own."""
+
+    COLOURS = ("red", "lime", "blue", "yellow", "cyan", "magenta", "white", "orange")
+
+    def setUp(self):
+        from seriesmith import ff as FF
+        if not (FF.have("ffmpeg") and FF.have("ffprobe")):
+            self.skipTest("needs ffmpeg and ffprobe")
+        import shutil
+        from seriesmith import edit as E
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.ep = os.path.join(self._tmp.name, "ct01")
+        os.makedirs(self.ep)
+        fx = os.path.join(HERE, "fixtures", "continuous")
+        shutil.copy(os.path.join(fx, "series.json"), self.ep)
+        shutil.copy(os.path.join(fx, "script.md"), os.path.join(self.ep, "ct01.md"))
+        self.assertTrue(E.build_episode(self.ep)["ok"])
+        stub_refs(self.ep)
+        self.addCleanup(setattr, T, "MANAGED", None)
+        self.addCleanup(setattr, T, "QUEUE", None)
+        self.made = 0
+
+    def render(self, *args, outputs=None):
+        """`seriesmith render <ep> *args` on the fake backend: (exit code, what
+        it printed, the backend)."""
+        from fakes import render_fake, saver_outputs
+        from seriesmith import ff as FF
+
+        def coloured(g):
+            colour = self.COLOURS[self.made % len(self.COLOURS)]
+            self.made += 1
+            with tempfile.TemporaryDirectory() as d:
+                p = os.path.join(d, "t.mp4")
+                subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
+                                f"color=c={colour}:size=64x48:rate=24", "-frames:v", "5",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p", p],
+                               check=True, capture_output=True)
+                with open(p, "rb") as fh:
+                    return saver_outputs(g, mp4=fh.read())
+        return render_fake(self.ep, *args, backend=FakeBackend(
+            "deployment", "deployment", outputs=outputs or coloured))
+
+    def opens_on(self, shot: str) -> tuple[str, int]:
+        """The take `shot`'s live first frame was cut from, checked against
+        that take's last frame, pixel for pixel."""
+        from seriesmith import ff as FF
+        from seriesmith import refs as R
+        src = R.keyframe_freshness(R.load_series(self.ep), shot, "first", "final")["cut_from"]
+        live = os.path.join(self.ep, "refs", "shots", shot, "first.png")
+
+        def rgb(path, last=False):
+            r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-f", "rawvideo",
+                                "-pix_fmt", "rgb24", "-"], check=True, capture_output=True)
+            n = 64 * 48 * 3
+            return r.stdout[-n:] if last else r.stdout[:n]
+        t = T.get_take(self.ep, "final", src["shot"], src["take"])
+        self.assertEqual(rgb(live), rgb(t.paths.mp4, last=True))
+        return src["shot"], src["take"]
+
+    CHAIN = ("--only", "sh010,sh020,sh030")
+
+    def test_a_new_chain_and_a_redo_each_open_on_the_take_before(self):
+        rc, out, _ = self.render(*self.CHAIN, "--list")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("sh020: opens on sh010's new take in this run", out)
+        self.assertIn("sh030: opens on sh020's new take in this run", out)
+        self.assertNotIn("!!", out)
+        # nothing rendered yet: the whole chain in one run, each after the one before
+        rc, out, _ = self.render(*self.CHAIN)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.opens_on("sh020"), self.opens_on("sh030")),
+                         (("sh010", 1), ("sh020", 1)))
+        # --redo: each opens on the new take of the shot before, not its old one
+        rc, out, _ = self.render(*self.CHAIN, "--redo", "--dry-run")
+        self.assertIn("sh030: opens on sh020's new take in this run", out)
+        self.assertNotIn("would cut", out)
+        rc, out, _ = self.render(*self.CHAIN, "--redo")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual((self.opens_on("sh020"), self.opens_on("sh030")),
+                         (("sh010", 2), ("sh020", 2)))
+        self.assertIn("first frame cut from sh010 final t02", out)
+        sc = T.get_take(self.ep, "final", "sh030", 2).sidecar
+        self.assertEqual(sc["continuity"], {"shot": "sh020", "take": 2, "pass": "final"})
+
+    def test_without_redo_only_the_shot_with_no_take_renders(self):
+        rc, out, _ = self.render(*self.CHAIN)
+        self.assertEqual(rc, 0, out)
+        T.update_sidecar(T.get_take(self.ep, "final", "sh020", 1).paths.sidecar, status="failed")
+        rc, out, _ = self.render(*self.CHAIN, "--list")
+        self.assertIn("1 to render, 2 done", out)
+        self.assertNotIn("new take in this run", out)
+        rc, out, fb = self.render(*self.CHAIN)
+        self.assertEqual((rc, len(fb.submitted)), (0, 1), out)
+        # sh020 opens on its finished neighbour; nothing else renders again
+        self.assertEqual(self.opens_on("sh020"), ("sh010", 1))
+        self.assertEqual([t.take for t in T.list_takes(self.ep, "final", "sh010")], [1])
+        self.assertEqual([t.take for t in T.list_takes(self.ep, "final", "sh030")], [1])
+
+    def test_only_and_a_picked_take_start_from_the_cut(self):
+        from seriesmith import edit as E
+        rc, out, _ = self.render(*self.CHAIN)
+        self.assertEqual(rc, 0, out)
+        rc, out, _ = self.render("--only", "sh020", "--redo")
+        self.assertEqual(rc, 0, out)
+        # --only sh030: it opens on sh020's take the cut uses (its latest, t02)
+        rc, out, _ = self.render("--only", "sh030", "--redo")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.opens_on("sh030"), ("sh020", 2))
+        # the cut picks sh020 t01: --only sh030 opens on that
+        E.pick_take(self.ep, "final", "sh020", 1)
+        rc, out, _ = self.render("--only", "sh030", "--redo")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.opens_on("sh030"), ("sh020", 1))
+        self.assertIn("sh030: opens on sh020 final t01, the take its cut entry is picked on", out)
+        # ... and so in a run that renders sh020 again: the pick, said so
+        rc, out, _ = self.render("--only", "sh020,sh030", "--redo", "--list")
+        self.assertIn("sh030: opens on sh020 final t01, the take its cut entry is picked on "
+                      "(not this run's new take)", out)
+        self.assertNotIn("sh020's new take", out)
+
+    def test_a_shot_after_one_that_failed_isnt_rendered(self):
+        from fakes import saver_outputs
+        rc, out, fb = self.render(*self.CHAIN,
+                                  outputs=lambda g: saver_outputs(g, status="failed"))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("ct01/sh020: not rendered: it continues sh010, which failed", out)
+        self.assertIn("ct01/sh030: not rendered: it continues sh020, which failed", out)
+        self.assertEqual(len(fb.submitted), 1)
+
+
 class WorkflowLookupTest(unittest.TestCase):
     def test_order(self):
         comfy = FakeComfy()

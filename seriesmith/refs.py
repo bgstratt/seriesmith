@@ -2362,12 +2362,15 @@ def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False,
     previous shot is in the same batch or has a take rendering is `wait`: cut
     at start. An error only when there is nothing to start from, now or coming.
     Returns {"live": {shot: {after, pass}}, "cut": [{shot, from, why}], "wait":
-    [{shot, after, take?}], "errors": [{shot, error}]}; a dry run cuts nothing.
+    [{shot, after, take?}], "errors": [{shot, error}], "picked": [{shot, after,
+    take, pass}]}; a dry run cuts nothing. `picked`: the previous shot's cut
+    entry is picked or locked on a take (or plays the other pass's): the shot
+    starts from that take, not one rendering now, so it doesn't wait.
     `cut_at_start`: the render cuts the first frame itself as it starts, before its
     inputs are staged (seriesmith's queue, runner.enqueue_render), so a shot whose
     previous shot has its first take coming in this run waits for it instead of
     being held for want of a frame to wire now."""
-    out = {"live": {}, "cut": [], "wait": [], "errors": []}
+    out = {"live": {}, "cut": [], "wait": [], "errors": [], "picked": []}
     batch = set(shots) if shots else None
     for (shot, which), need in keyframe_needs(s.ep).items():
         if which != "first" or need["method"] != "continuity" or not need["reads"]:
@@ -2383,7 +2386,14 @@ def refresh_continuity(s: Series, pass_: str, shots=None, dry_run: bool = False,
         out["live"][shot] = {"after": prev.shot, "pass": pass_}
         f = keyframe_freshness(s, shot, which, pass_)
         pending = None
-        if batch is not None and prev.shot in batch:
+        if prev.take is not None or prev.placeholder:
+            # the cut's entry is picked (or locked) on a take, or plays the other
+            # pass's: a new take of it in this run isn't what the cut uses, so the
+            # chain starts from that pick, whatever renders
+            if f["wants"] is not None:
+                out["picked"].append({"shot": shot, "after": prev.shot,
+                                      "take": f["wants"]["take"], "pass": f["wants"]["pass"]})
+        elif batch is not None and prev.shot in batch:
             pending = {"shot": shot, "after": prev.shot}
         else:
             busy = [t for t in T.list_takes(s.ep, prev.pass_, prev.shot) if t.status == "queued"]

@@ -30,7 +30,9 @@ Backends
     against its loaders. Each take is a job on this process's own queue
     (runner.Runner), run one at a time: its inputs are staged as it starts, so
     a `continuous: latent` shot holds the take rendered just before it, on any
-    backend.
+    backend, and a `continuous: first` one opens on it (its first frame cut
+    as it starts). The shots that run are the batch: one after a shot that
+    doesn't run opens on the take the cut uses (a pick, else the latest).
 
 Takes and seeds
     A shot with a finished take (or one still queued) is skipped. --redo
@@ -123,35 +125,50 @@ def as_json(value):
     return json.loads(json.dumps(value, default=lambda f: {"File": f.path}))
 
 
-def continuity_before_render(root: str, pass_: str, only, dry_run: bool = False):
-    """Each `first: continuity` / `continuous: latent` shot of the render made to
-    start from the take the cut uses now (refs.refresh_continuity, as the
-    editor's render does: a missing or stale keyframe is cut again), said on
-    the console. Returns (the shots to render: `only` less any with nothing to
-    start from, None for all; the shots whose first frame is cut again as
-    their render starts, for RenderRequest.continuity)."""
+def continuity_before_render(root: str, pass_: str, jobs: list, dry_run: bool = False) -> dict:
+    """The planned `jobs` of an episode, their continuity worked out as the
+    editor's render does (refs.refresh_continuity, `cut_at_start`): the shots
+    that will actually run are the batch, so a `continuous: first` shot after
+    one rendering in this run opens on that new take (its first frame is cut as
+    its render starts), and a `continuous: latent` one holds it; a shot after
+    one that doesn't run starts from the take the cut uses (a missing or stale
+    first frame cut now). Each running job gets its `continuity`; one with
+    nothing to start from, now or coming, becomes an error saying why. Said on
+    the console; returns refresh_continuity's answer (empty without a series
+    config or with nothing to run)."""
     from seriesmith import refs as R
+    none = {"live": {}, "cut": [], "wait": [], "errors": [], "picked": []}
+    batch = [j.id for j in jobs if j.runs]
+    if not batch:
+        return none
     try:
         s = R.load_series(root)
     except Exception:                                     # noqa: BLE001  no series config
-        return only, {}
-    res = R.refresh_continuity(s, pass_, sorted(only) if only else None, dry_run=dry_run)
+        return none
+    res = R.refresh_continuity(s, pass_, batch, dry_run=dry_run, cut_at_start=True)
+    waiting = {w["shot"] for w in res["wait"]}
     for c in res["cut"]:
-        print(f"  {'would cut' if dry_run else 'cut'} {c['shot']}'s first frame from {c['from']} "
-              f"({c['why']})")
+        if c["shot"] not in waiting:                      # its wait line says what it opens on
+            print(f"  {'would cut' if dry_run else 'cut'} {c['shot']}'s first frame from "
+                  f"{c['from']} ({c['why']})")
     for w in res["wait"]:
         what = (f"{w['after']} t{w['take']:02d}, still rendering" if w.get("take")
                 else f"{w['after']}'s new take in this run")
         if w.get("chain"):
             print(f"  .. {w['shot']}: continues {what} (its latent, else its last frames)")
         else:
-            print(f"  .. {w['shot']}: its first frame is cut from {what} when its render starts")
-    for e in res["errors"]:
-        print(f"  !! {e['shot']}: {e['error']}")
-    held = {e["shot"] for e in res["errors"]}
-    if held:
-        only = {x for x in (only if only is not None else J.built_order(root, pass_)) if x not in held}
-    return only, res["live"]
+            print(f"  .. {w['shot']}: opens on {what} (its first frame cut as its render starts)")
+    for p in res["picked"]:
+        print(f"  .. {p['shot']}: opens on {p['after']} {p['pass']} t{p['take']:02d}, the take "
+              f"its cut entry is picked on" + (" (not this run's new take)"
+                                               if p["after"] in batch else ""))
+    errors = {e["shot"]: e["error"] for e in res["errors"]}
+    for j in jobs:
+        if j.id in errors and j.runs:
+            j.action, j.error = "error", errors[j.id]
+        elif j.runs:
+            j.continuity = res["live"].get(j.id)
+    return res
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -202,21 +219,25 @@ def main(argv: list[str] | None = None) -> int:
     listing = None
     cloud_listing: dict = {}                      # a cloud backend's name -> its model_lister
     plans = []
+    waits: dict[str, set] = {}                    # root -> shots opening on a take of this run
     where: dict[int, str] = {}                    # id(job) -> backend name
     total_frames = 0
     for root in roots:
-        # continuity first, as the editor's render does: a shot with nothing
-        # to start from isn't planned (it would render without its first frame)
-        only_r, live = continuity_before_render(root, pass_, only, args.dry_run or args.list)
-        template.continuity = live or None
-        if only_r is not None and not only_r:
-            print(f"\n  {os.path.basename(root)}  ·  nothing to render")
-            continue
         try:
-            jobs = J.plan_episode(root, pass_, default=template, only=only_r)
+            jobs = J.plan_episode(root, pass_, default=template, only=only)
         except FileNotFoundError as e:
             print(f"  ! {e}")
             continue
+        # then the continuity, as the editor's render does: the shots that run
+        # are the batch (a shot with nothing to start from, now or coming, is
+        # an error: it would render without its first frame)
+        cont = continuity_before_render(root, pass_, jobs, args.dry_run or args.list)
+        waits[root] = {w["shot"] for w in cont["wait"] if not w.get("take")}
+        if cont["live"]:
+            # a chain runs in cut order: each shot after the one it continues
+            from seriesmith import edit as E
+            order = {e.shot: n for n, e in enumerate(E.cut_entries(root, pass_))}
+            jobs.sort(key=lambda j: order.get(j.id, len(order)))
         ov = T.load_overrides(root)
         for j in jobs:
             t = J.job_target(j)
@@ -322,10 +343,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for root, jobs in plans:
             ep = os.path.basename(root)
+            lost: set[str] = set()                # shots of this episode that failed in this run
             for j in (j for j in jobs if j.runs):
                 t0 = shown["t0"] = time.time()
                 label = f"{ep}/{j.id}"
                 target = J.job_target(j)
+                after = (j.continuity or {}).get("after")
+                if after in lost and j.id in waits.get(root, ()):
+                    # it would open on the take that failed, or on an older one
+                    failed += 1
+                    failures.append(label)
+                    lost.add(j.id)
+                    print(f"  !! {label}: not rendered: it continues {after}, which failed "
+                          f"in this run", flush=True)
+                    continue
                 try:
                     if HO.is_hold(target):
                         take, qid = runner.enqueue_hold(j, continuity=j.continuity)
@@ -339,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
                 except (J.NotPortable, BackendError, ValueError, OSError, RuntimeError) as e:
                     failed += 1
                     failures.append(label)
+                    lost.add(j.id)
                     print(f"  !! {label}: {e}", flush=True)
                     continue
                 label = f"{ep}/{j.id} t{take.take:02d}"
@@ -352,11 +384,12 @@ def main(argv: list[str] | None = None) -> int:
                 print("\r" + " " * 60 + "\r", end="", flush=True)
                 take = T.get_take(root, pass_, j.id, take.take) or take
                 for line in runner.queue.jobs[qid].log:
-                    if line.startswith("holds "):
+                    if line.startswith(("holds ", "first frame ")):
                         print(f"     {line}")
                 if take.status != "ok":
                     failed += 1
                     failures.append(label)
+                    lost.add(j.id)
                     print(f"  !! {label}: {(take.sidecar or {}).get('save_notes') or take.status}",
                           flush=True)
                     if args.stop_on_error:

@@ -253,8 +253,18 @@ seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the
   a job, with the shot and its reference pictures as uploads; the files that come back are
   written into the take. A hosted target (Seedance, Kling, Veo, hosted H3, …) is one Router
   call, and its takes are marked `reproducible: false`. Each take is a job on this command's own
-  queue, run one at a time and waited for; a `continuous: latent` shot holds the take
-  rendered just before it.
+  queue, run one at a time and waited for, a chain in cut order.
+- **Continuous chains.** The episode is planned first, then its continuity: the shots that
+  will actually run (after `--only`, `--redo` and the skips) are the batch. A
+  `continuous: first` shot after one rendering in this run opens on that new take: its first
+  frame is cut from it as its render starts (the take's record keeps which). A
+  `continuous: latent` shot holds the take rendered just before it. A shot after one that
+  doesn't run opens on the take the cut uses: without `--redo`, only the shots with no take
+  render, each opening on its finished neighbour; `--only sh030` opens on sh020's take in the
+  cut. When the previous shot's cut entry is picked or locked on a take, the chain starts from
+  that pick, even when the previous shot renders again in the run. `--list` and `--dry-run`
+  say it (`sh020: opens on sh010's new take in this run`, `sh030: opens on sh020 final t01,   the take its cut entry is picked on`). A shot with nothing to start from, now or coming,
+  isn't rendered, and nor is one after a shot that failed in this run.
 - It runs anywhere the episode folder is: the backend never reads it. It checks the render
   folders to skip finished shots, so Ctrl-C (which cancels the running job) and re-running
   resumes where it stopped.
