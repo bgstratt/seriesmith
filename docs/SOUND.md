@@ -487,6 +487,35 @@ that must sit on a bpm, where its integer `bpm` input is the surer tempo.
 3. **A better model or more steps**, measured the same way before any is the default: XL SFT
    at 50 steps, MiniMax Music 3 (installed), and ACE-Step's timbre reference.
 
+## Measured: ambience beds (2026-11-01, local)
+
+Four places with different kinds of sound (a quiet country-house hall, a park by day, a tar
+rooftop in heavy rain, a diner at night), each written as what's heard there and "No music, no
+voices, no speech.", two seeds each on Stable Audio 3 Medium (30 s, its 8-step LCM settings)
+and MMAudio large 44k v2 with no video (10 s, 25 steps, cfg 4.5, negative "music, melody,
+singing, speech, talking, voices"). The files are in `ComfyProjects\_ambience_test`, each also
+looped to 60 s.
+
+- **The loop's crossfade was linear and dipped 2-3 dB at every seam** on a steady bed (rain,
+  hum): a linear fade between two unalike signals loses 3 dB halfway. `mix.looped` now fades at
+  equal power (sine/cosine); the steady beds' seams measured within 1 dB after.
+- **The ends aren't the bed.** Stable Audio 3 started its diner beds ~9 dB above where they
+  settled and let most beds trail off in the last second; one MMAudio hall bed faded in from
+  near silence. A bed is the middle: its first and last second or two are dropped before it
+  loops.
+- **Levels differ by model and seed:** Stable Audio 3 -23 to -41 LUFS, MMAudio -17 to -22. A
+  bed is brought to one level when it's made, so the Ambience fader means the same for
+  every place.
+- **Steadiness:** MMAudio's diner, rooftop and park held within 0.5-1.8 dB second to second;
+  Stable Audio 3's beds moved 2-5 dB (more events, more life, harder to loop). The quiet hall
+  moved most on both (7-8 dB), as a room of clock ticks and creaks should.
+- **A place, not a picture.** A series' locations are often variants of one place (a reverse
+  angle, golden hour, the bokeh behind a close-up: Ballroom has 24 locations and five places).
+  A bed belongs to the place, so variants share one; how a variant names its place is the
+  design's open question.
+
+Listening, the user's verdict: (to come).
+
 ## Scored: Ballroom ep03 "Choice" (2026-11-01)
 
 The first episode scored end to end (57 s, deadpan comedy played straight, wall-to-wall

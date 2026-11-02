@@ -481,21 +481,24 @@ def _db(x):
 
 
 def looped(src, n: int):
-    """`src` repeated to `n` samples, each repeat crossfaded into the next."""
+    """`src` repeated to `n` samples, each repeat crossfaded into the next at equal power:
+    a bed's tail and head are unalike (room tone, rain), and a linear fade between two
+    unalike signals dips 3 dB at every seam (docs/SOUND.md "Measured: ambience beds")."""
     np = _np()
     if len(src) >= n or len(src) == 0:
         return src[:n]
     xf = int(min(LOOP_XFADE_S * RATE, len(src) // 4))
     out = np.zeros((n, 2), dtype=np.float32)
-    ramp = np.linspace(0.0, 1.0, xf, dtype=np.float32)[:, None] if xf else None
+    t = np.linspace(0.0, np.pi / 2, xf, dtype=np.float32)[:, None] if xf else None
+    fade_in, fade_out = (np.sin(t), np.cos(t)) if xf else (None, None)
     pos, step = 0, len(src) - xf
     while pos < n:
         seg = src[: min(len(src), n - pos)].copy()
         if pos and xf:
             k = min(xf, len(seg))
-            seg[:k] *= ramp[:k]
+            seg[:k] *= fade_in[:k]
         if pos + len(src) < n and xf:
-            seg[-xf:] *= ramp[::-1]
+            seg[-xf:] *= fade_out
         out[pos: pos + len(seg)] += seg
         pos += step
     return out

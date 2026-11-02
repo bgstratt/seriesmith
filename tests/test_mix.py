@@ -151,11 +151,16 @@ class CurveTest(unittest.TestCase):
 
     def test_loop_fills_with_crossfades(self):
         np = MX._np()
-        src = np.ones((MX.RATE, 2), dtype=np.float32)
-        out = MX.looped(src, MX.RATE * 3)
-        self.assertEqual(len(out), MX.RATE * 3)
-        # a crossfade of two ones is one: no dip and no bump at the seams
-        self.assertTrue(np.allclose(out[MX.RATE // 4: -MX.RATE // 4], 1.0, atol=1e-3))
+        src = np.random.default_rng(7).standard_normal((MX.RATE * 2, 2)).astype(np.float32) * 0.1
+        out = MX.looped(src, MX.RATE * 6)
+        self.assertEqual(len(out), MX.RATE * 6)
+        # a bed (noise: its tail and head unalike) holds its level through the seams, where a
+        # linear crossfade dipped 3 dB
+        rms = lambda a: 20 * np.log10(np.sqrt(np.mean(a ** 2)))
+        whole = rms(src)
+        xf = int(MX.LOOP_XFADE_S * MX.RATE) if MX.LOOP_XFADE_S * MX.RATE <= len(src) // 4 else len(src) // 4
+        seam = len(src) - xf // 2
+        self.assertAlmostEqual(rms(out[seam - xf // 4: seam + xf // 4]), whole, delta=0.6)
 
 
 @unittest.skipUnless(HAVE_FF, "ffmpeg/ffprobe not on PATH")
