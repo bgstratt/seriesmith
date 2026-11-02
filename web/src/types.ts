@@ -1494,6 +1494,9 @@ export interface RefDefaults {
   /** Phase 9c-B: the audio target voice refs generate with */
   voice_target?: string | null;
   voice_target_source?: RefDefaultSource | null;
+  /** the video model a dub track renders on: the voice model when it's one, else H3 Ref2VA */
+  dub_target?: string | null;
+  dub_target_source?: RefDefaultSource | null;
 }
 
 export interface Ref {
@@ -1966,6 +1969,8 @@ export interface Target {
     voice_reference?: boolean;
     /** it can dub a track of its own: a take's sound, a dub track */
     dubs_tracks?: boolean;
+    /** it can make a dub track (a voice model beside the audio targets: refs.voice_target) */
+    dub_track?: boolean;
     subject_refs?: boolean;
     prompt?: string;
     negative_prompt?: boolean;

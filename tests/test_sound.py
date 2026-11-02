@@ -106,6 +106,12 @@ class SoundTest(unittest.TestCase):
         # another voice model, at its own size
         job = self.plan("sh020", dub_track=True, target="fasth3_omni")
         self.assertEqual((job.target, job.folder), ("fasth3_omni", T.DUB_FOLDER))
+        # the series' voice model, when it renders dub tracks, is the one a request
+        # without a target gets
+        ov = T.load_overrides(self.root)
+        T.set_episode_field(ov, "voice_target", "fasth3_omni", "ep")
+        T.save_overrides(self.root, ov)
+        self.assertEqual(self.plan("sh020", dub_track=True).target, "fasth3_omni")
 
     # -- generate / clone --------------------------------------------------
 

@@ -540,6 +540,37 @@ class VoiceDefaultsTest(Episode):
         with self.assertRaises(R.RefError):
             R.set_image_defaults(self.ep, {"voice_target": "krea2"})
 
+    def test_one_list_of_voice_models(self):
+        """The voice model is one list (TG.voice_targets): the audio targets and the video
+        targets whose target.json says they render a dub track. A video one is the dub
+        track's model and leaves voice samples on the default audio target."""
+        ids = {t.id: t.kind for t in TG.voice_targets()}
+        for tid in (VOICE, "minimax_h3_ref2va", "fasth3_omni", "ltx2"):
+            self.assertIn(tid, ids)
+        for tid in ("wan22_i2v", "minimax_h3_fl2va", "krea2"):
+            self.assertNotIn(tid, ids)
+        self.assertTrue(TG.load_target("fasth3_omni").capabilities()["dub_track"])
+        self.assertFalse(TG.load_target("wan22_i2v").capabilities()["dub_track"])
+        cfg = {"refs": {"voice_target": "fasth3_omni"}}
+        self.assertEqual(TG.refs_block(cfg)["voice_target"], "fasth3_omni")
+        self.assertEqual(TG.audio_target(cfg).id, TG.DEFAULT_AUDIO_TARGET)   # samples: audio
+        self.assertEqual(TG.dub_target(cfg), "fasth3_omni")
+        self.assertEqual(TG.dub_target({"refs": {"voice_target": VOICE}}), TG.DEFAULT_DUB_TARGET)
+        with self.assertRaises(ValueError):
+            TG.refs_block({"refs": {"voice_target": "wan22_i2v"}})          # no dub track
+        # the defaults: an audio choice is the samples', a video one the dub track's
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["dub_target"], d["dub_target_source"]), (TG.DEFAULT_DUB_TARGET, "default"))
+        R.set_image_defaults(self.ep, {"voice_target": "ltx2"})
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["voice_target"], d["voice_target_source"]), (VOICE, "default"))
+        self.assertEqual((d["dub_target"], d["dub_target_source"]), ("ltx2", "editor"))
+        self.assertEqual(J.dub_target(self.ep), "ltx2")
+        with self.assertRaises(R.RefError):
+            R.set_image_defaults(self.ep, {"voice_target": "wan22_i2v"})
+        R.set_image_defaults(self.ep, {"voice_target": None})
+        self.assertEqual(J.dub_target(self.ep), J.VOICE_TARGET)
+
     def test_per_ref_override(self):
         ref = R.find_ref(self.s, "voice:ada")
         ov = R.load_overrides(ref.home)

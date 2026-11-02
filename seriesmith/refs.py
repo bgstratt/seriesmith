@@ -540,8 +540,11 @@ def image_defaults(s: Series, ready=None) -> dict:
     episode.voice_target, PUT /seriesmith/refs/defaults), "series" (the series
     config's `refs` block) or "default" (krea2; flux2_klein_edit for
     keyframes when `ready(target)` says it can render here, else the refs
-    target; ltx2_voice for voices). RefError for a name that isn't a target
-    of the right kind."""
+    target; ltx2_voice for voices). The voice model is one choice of two kinds
+    (TG.voice_targets): an audio one is `voice_target` (what voice samples are
+    made on) and leaves `dub_target` (what a dub track renders on) at H3
+    Ref2VA; a video one is `dub_target` and leaves `voice_target` at
+    ltx2_voice. RefError for a name that isn't a target of the right kind."""
     ov = T.load_overrides(s.ep)
     try:
         block = TG.refs_block(s.series_cfg)
@@ -566,14 +569,22 @@ def image_defaults(s: Series, ready=None) -> dict:
             out.update(keyframe_target=kt, keyframe_target_source="default")
         out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
                    ambience_target_source="series" if block.get("ambience_target") else "default")
-        heard = {t.id for t in TG.list_targets("audio")}
+        kinds = {t.id: t.kind for t in TG.voice_targets()}
         ev = T.episode_field(ov, "voice_target")
-        if ev and ev in heard:
-            out.update(voice_target=ev, voice_target_source="editor")
+        if ev and ev in kinds:
+            chosen, source = ev, "editor"
         elif block.get("voice_target"):
-            out.update(voice_target=block["voice_target"], voice_target_source="series")
+            chosen, source = block["voice_target"], "series"
+        else:
+            chosen, source = None, "default"
+        if chosen and kinds.get(chosen) == "audio":
+            out.update(voice_target=chosen, voice_target_source=source)
         else:
             out.update(voice_target=TG.DEFAULT_AUDIO_TARGET, voice_target_source="default")
+        if chosen and kinds.get(chosen) == "video":
+            out.update(dub_target=chosen, dub_target_source=source)
+        else:
+            out.update(dub_target=TG.DEFAULT_DUB_TARGET, dub_target_source="default")
         return out
     except (TG.TargetError, ValueError) as e:
         raise RefError(str(e)) from None
@@ -629,7 +640,12 @@ def set_image_defaults(ep: str, fields: dict) -> dict:
         if key not in fields:
             continue
         v = fields[key]
-        if v:
+        if v and key == "voice_target":
+            # a voice model: an audio target, or a video one that renders a dub track
+            if TG.voice_kind(v) is None:
+                raise RefError(f"{v!r} is not a voice model (known: "
+                               f"{', '.join(t.id for t in TG.voice_targets())})")
+        elif v:
             try:
                 TG.load_target(v, kind)
             except TG.TargetError as e:

@@ -5,6 +5,10 @@
   "default_rank": 15,
   "short": "Omni",
   "code": "compile.py",
+  "capabilities": {
+    "_note": "dub_track: it renders a dub track (the Sound dialog's \"Generate a dub track\", jobs.RenderRequest.dub_track): the shot at a tiny size with its voices cloned from their samples, kept for its sound. So it is offered as a voice model (the series config's refs.voice_target) beside the audio targets.",
+    "dub_track": true
+  },
   "template": {
     "_note": "H3 renders 17k+5 frames, at most 3592; width and height must be multiples of 32.",
     "fps": 24,

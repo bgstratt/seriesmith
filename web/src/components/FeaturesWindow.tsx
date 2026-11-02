@@ -62,7 +62,11 @@ function FeaturesBody() {
   const focus = useApp((s) => s.featuresFocus);
   const [lit, setLit] = useState<string | null>(null);
   useEffect(() => {
-    const f = focus ? features.find((x) => x.id === focus) : undefined;
+    // a feature by its id, or "target:<id>": the first feature with that target's files
+    const tid = focus?.startsWith("target:") ? focus.slice(7) : null;
+    const f = !focus ? undefined
+      : tid ? features.find((x) => x.items.some((i) => i.target === tid))
+      : features.find((x) => x.id === focus);
     if (!f) return;
     store.set({ featuresFocus: null });
     setOpenRows((rows) => new Set(rows).add(f.id));

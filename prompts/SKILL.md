@@ -507,7 +507,9 @@ voices), or name others:
 ```
 
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
-`sa3_sfx_ambience`.)
+`sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,
+`minimax_h3_ref2va`, `fasth3_omni` or `ltx2`: the editor's dub tracks then start on it, and
+voice samples stay on `ltx2_voice`.)
 
 The picture models, and what each needs installed, are in `docs/FULL_SETUP.md`
 (**Pictures**). Two things matter when writing:

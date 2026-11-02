@@ -3187,6 +3187,15 @@ other. Each half writes its own "as built" section.
 - **Defaults:** `PUT /seriesmith/refs/defaults` and `GET /seriesmith/refs`'s `defaults` gain
   `voice_target` / `voice_target_source`; the series config's `refs.voice_target` and a
   per-ref `target` override layer as for images.
+- **[changed 2026-11-02] The voice model is one list** (`targets.voice_targets`): the audio
+  targets and the video targets whose target.json sets `capabilities.dub_track` (H3 Ref2VA,
+  FastH3 Omni, LTX-2.5; `GET /seriesmith/targets` says it as `capabilities.dub_track`).
+  `refs.voice_target` and `PUT /seriesmith/refs/defaults`' `voice_target` take any of them.
+  An audio one is `defaults.voice_target` (what voice samples are made on); a video one is
+  the new `defaults.dub_target` / `dub_target_source` (what a dub track renders on when the
+  request names no target, and the Sound dialog's default), and voice samples then stay on
+  `ltx2_voice` (`voice_target_source: "default"`): a video model makes dub tracks, not
+  samples. Without a video choice `dub_target` is H3 Ref2VA (`"default"`).
 - **CLI:** `kreagen` (and `seriesmith refs`) generate voice refs too, with `--voice-target` and
   `--from-take SHOT:TAKE:START-END`.
 - **UI:** a voice ref row gets Generate (count, prompt, seconds), a candidate list with a

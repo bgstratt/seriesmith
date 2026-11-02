@@ -110,6 +110,9 @@ TIERS = ("required", "accelerator", "optional")
 DEFAULT_VIDEO_TARGET = "minimax_h3_ref2va"
 DEFAULT_IMAGE_TARGET = "krea2"
 DEFAULT_AUDIO_TARGET = "ltx2_voice"
+# a dub track's model when the series names none of its own (jobs.VOICE_TARGET; measured
+# live 2026-10-28: the line word for word in the speaker's voice at 64x64)
+DEFAULT_DUB_TARGET = "minimax_h3_ref2va"
 DEFAULT_MUSIC_TARGET = "stable_audio3"
 DEFAULT_AMBIENCE_TARGET = "mmaudio_ambience"
 DEFAULT_FOLEY_TARGET = "h3_foley"
@@ -844,6 +847,8 @@ class Target:
                 "voice_reference": bool(r.get("voice_slots")) or "clone" in self.policies,
                 # it can dub a file: a take's sound, a dub track (jobs.apply_sound)
                 "dubs_tracks": self.supports("DUB_BY_FILE"),
+                # it can make a dub track (a voice model: refs.voice_target)
+                "dub_track": renders_dub_track(self),
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),
@@ -1384,6 +1389,29 @@ REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image",
                      "voice_target": "audio", "ambience_target": "ambience"}
 
 
+def renders_dub_track(t: "Target") -> bool:
+    """A video target that renders a dub track (target.json `capabilities.dub_track`): the
+    shot tiny, its voices cloned, kept for its sound (jobs.RenderRequest.dub_track)."""
+    return t.kind == "video" and bool((t.spec.get("capabilities") or {}).get("dub_track"))
+
+
+def voice_targets() -> list["Target"]:
+    """What can voice a line, the one list the series config's `refs.voice_target` takes:
+    the audio targets (a voice sample from a description) and the video targets that
+    render a dub track. A voice sample is made on an audio one (audio_target), a dub track
+    on a video one (dub_target): each falls back to its default when the series names the
+    other kind."""
+    return list_targets("audio") + [t for t in list_targets("video") if renders_dub_track(t)]
+
+
+def voice_kind(tid: str) -> str | None:
+    """"audio" or "video" for an id voice_targets has, else None."""
+    for t in voice_targets():
+        if t.id == tid:
+            return t.kind
+    return None
+
+
 def refs_block(series_cfg: dict | None) -> dict:
     """The series config's `refs` block ({"target", "keyframe_target",
     "voice_target", "ambience_target"}), validated: the first two must name an
@@ -1399,9 +1427,14 @@ def refs_block(series_cfg: dict | None) -> dict:
         v = raw.get(k)
         if v in (None, ""):
             continue
-        known = [t.id for t in list_targets(kind)]
+        if k == "voice_target":
+            known = [t.id for t in voice_targets()]
+            what = "an audio target or a video target that renders a dub track"
+        else:
+            known = [t.id for t in list_targets(kind)]
+            what = f"an {kind} target"
         if not isinstance(v, str) or v not in known:
-            raise ValueError(f"series.json refs.{k}: {v!r} is not an {kind} target "
+            raise ValueError(f"series.json refs.{k}: {v!r} is not {what} "
                              f"(known: {', '.join(known)})")
         out[k] = v
     return out
@@ -1417,9 +1450,19 @@ def image_target(series_cfg: dict | None = None) -> Target:
 
 def audio_target(series_cfg: dict | None = None) -> Target:
     """The audio target that makes this series' voice samples: the series
-    config's `refs.voice_target`, else ltx2_voice."""
-    return load_target(refs_block(series_cfg).get("voice_target") or DEFAULT_AUDIO_TARGET,
-                       "audio")
+    config's `refs.voice_target` when it's an audio target, else ltx2_voice (a
+    video voice model makes dub tracks, not samples: dub_target)."""
+    v = refs_block(series_cfg).get("voice_target")
+    return load_target(v if v and voice_kind(v) == "audio" else DEFAULT_AUDIO_TARGET, "audio")
+
+
+def dub_target(series_cfg: dict | None = None, chosen: str | None = None) -> str:
+    """The video target a dub track renders on: `chosen` (the editor's episode choice) or
+    the series config's `refs.voice_target` when it renders one, else H3 Ref2VA."""
+    for v in (chosen, refs_block(series_cfg).get("voice_target")):
+        if v and voice_kind(v) == "video":
+            return v
+    return DEFAULT_DUB_TARGET
 
 
 def keyframe_target(series_cfg: dict | None = None, ready=None) -> Target:

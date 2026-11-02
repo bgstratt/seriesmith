@@ -4330,7 +4330,8 @@ def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
     episode.refs_target / episode.keyframe_target / episode.voice_target):
     `target` for series refs, `keyframe_target` for shot keyframes,
-    `voice_target` for voices (an audio target); null clears one, a key left
+    `voice_target` for the voice model (an audio target, or a video target
+    that renders a dub track: TG.voice_targets); null clears one, a key left
     out is kept. Never writes series.json. Returns the defaults as GET
     /seriesmith/refs gives them."""
     body = body_dict(body)
@@ -4342,7 +4343,7 @@ def put_refs_defaults(ctx: Context, body):
         if k in body:
             v = body[k]
             if v is not None and (not isinstance(v, str)):
-                raise ApiError(400, f"{k} must be an {kind} target id or null")
+                raise ApiError(400, f"{k} must be a target id or null")
             fields[k] = v or None
     if not fields:
         raise ApiError(400, "give target, keyframe_target and/or voice_target (a target id "

@@ -303,9 +303,11 @@ under the shot.
   - **Dub to** (Dub only): **the recording** (its aligned window, when the episode has a
     recorded track and the shot was aligned), **a dub track**, or **a take's sound** (any
     finished take, either pass: a proxy's delivery for the final), each playable. **Generate
-    a dub track** renders the shot for its sound only, on H3 Ref2VA at 64x64 (or FastH3 Omni,
-    or LTX-2.5: the model beside it), its voices cloned, in about 15 seconds once the model is
-    loaded; dub tracks are kept apart from the takes (`<episode>/dub/<shot>/`). **Keep the
+    a dub track** renders the shot for its sound only, at 64x64 on the model beside it, its
+    voices cloned, in about 15 seconds once the model is loaded; dub tracks are kept apart from
+    the takes (`<episode>/dub/<shot>/`). The models offered are the ones whose target says they
+    render a dub track (H3 Ref2VA, FastH3 Omni, LTX-2.5); it starts on the series' voice model
+    (Series settings, **Voices**) when that is one of them, else on H3 Ref2VA. **Keep the
     model's sound effects under the voice** (on), or the voice alone.
   - **In the cut:** what the cut plays for it: its take's own sound, a dub track or a take's
     sound in its place, or silence. This changes no render (the mouths don't follow it);

@@ -1635,7 +1635,7 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       (CupsMV), the vocal stem offered (optional, off by default: H3 lip-synced as well to the
       whole song) and the guide written (docs/MUSIC_VIDEO.md) 2026-11-02
 
-## To fix: the voice model is two lists (noted 2026-11-01)
+## Fixed: the voice model is two lists (noted 2026-11-01)
 
 The series settings' **voice model** (`voice_target`, refs.py / SeriesForm) offers only audio
 targets, so LTX-2.5 audio-only is the one choice, while a **dub track** (the Sound dialog's
@@ -1644,6 +1644,18 @@ FastH3 Omni, and could be on H3 FL2VA, H3 Singularity or any H3-compatible model
 what can voice a line (audio targets and the video targets that render a dub track), the same
 in Settings and the Sound dialog, read from the targets (a capability, not a list in the
 editor), with the series' choice as the Sound dialog's default.
+
+- [x] One list (2026-11-02): `capabilities.dub_track` in target.json (H3 Ref2VA, FastH3 Omni,
+      LTX-2.5: the three the editor listed, each with a clone path a dub track already uses;
+      H3 FL2VA left out, since its clone lines are LTX-2.5 audio-only's, and Singularity,
+      untried), `targets.voice_targets` (the audio targets and those), the series config's
+      `refs.voice_target` and the episode's choice taking any of them, Series settings'
+      **Voices** offering them, the Sound dialog's models read from the targets
+      (`VOICE_TARGETS` gone) and starting on the series' choice. Each consumer keeps its
+      kind: voice samples are made on an audio target (a video choice leaves them on
+      ltx2_voice: `defaults.voice_target`), a dub track on a video one (an audio choice
+      leaves it on H3 Ref2VA: `defaults.dub_target`; jobs.dub_target for a request without
+      a target). Docs: EDITOR, AUTHORING, API
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

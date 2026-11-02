@@ -20,7 +20,7 @@ import { discardRefText, discardTakeText, fileKindProblem, missingResultText } f
 import { passesFilter, usedBy, viewLabel, type RefFilter } from "./lib/refs";
 import { filesFromDrag } from "./lib/dropped";
 import { sharedWarning } from "./lib/shared";
-import { VOICE_TARGET, VOICE_TARGETS, cantDub, dubTrackBlock, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
+import { cantDub, dubTrackBlock, dubTrackDefault, folderPath, isMissingFileSkip, readinessOf, skipMissingFiles } from "./lib/readiness";
 import { overrideTargetValue, seriesDefaultTarget, shotTarget } from "./lib/targets";
 import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, trackFileProblem, trackName } from "./lib/track";
 import {
@@ -856,9 +856,11 @@ export function clearMulti() {
 /** A dub track of each shot: the shot rendered for its sound only on a voice model
  * (H3 Ref2VA at 64x64 unless another is chosen), its voices cloned, kept apart from
  * its takes to dub the shot with (the Sound dialog). */
-export function generateDubTracks(shots: string[], target: string = VOICE_TARGET, thenRender = false) {
+export function generateDubTracks(shots: string[], target: string | null = null, thenRender = false) {
   const s = get();
   if (!s.ep || !shots.length) return;
+  // the series' voice model when it renders dub tracks, else H3 Ref2VA
+  target = target ?? dubTrackDefault(s.refDefaults[s.ep]);
   if (thenRender) {
     // a shot whose own model can't dub a track would make one for nothing
     const st = s.status[statusKey(s.ep, s.pass)];
@@ -873,7 +875,7 @@ export function generateDubTracks(shots: string[], target: string = VOICE_TARGET
   }
   // the voice model isn't installed here: show it in Features, ticked to install
   if (dubTrackBlock(s.targets, target)) {
-    return openFeatures(true, VOICE_TARGETS.find((v) => v.id === target)?.feature ?? null);
+    return openFeatures(true, `target:${target}`);
   }
   if (shots.length > 8 && !confirm(`Queue ${shots.length} dub tracks${thenRender ? `, each then dubbed and rendered` : ""}?`)) return;
   void queueRender({ ...baseRender(s.ep, s.pass, shots, false, target), redo: true, dub_track: true,

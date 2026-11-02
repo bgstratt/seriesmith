@@ -5,7 +5,7 @@
 // Pure functions; the components call them.
 
 import type {
-  EpisodeStatus, EpisodeTargetSource, MissingFile, Readiness, RenderSkip, RequirementTier, Resolution, ShotStatus, Target,
+  EpisodeStatus, EpisodeTargetSource, MissingFile, Readiness, RefDefaults, RenderSkip, RequirementTier, Resolution, ShotStatus, Target,
   TargetList,
 } from "../types";
 import { shortName } from "./format";
@@ -294,21 +294,35 @@ export function isMissingFileSkip(x: RenderSkip): boolean {
 }
 
 
-/** The models a dub track can be made on (the voice, cloned, at a tiny size), the
- * default first (jobs.VOICE_TARGET), and each one's Features entry. */
-export const VOICE_TARGETS: { id: string; label: string; feature: string }[] = [
-  { id: "minimax_h3_ref2va", label: "H3 Ref2VA", feature: "video.h3" },
-  { id: "fasth3_omni", label: "FastH3 Omni", feature: "video.fasth3_omni" },
-  { id: "ltx2", label: "LTX-2.5", feature: "video.ltx2" },
-];
-export const VOICE_TARGET = VOICE_TARGETS[0].id;
+/** A dub track's model when the series names none of its own (jobs.VOICE_TARGET). */
+export const VOICE_TARGET = "minimax_h3_ref2va";
+
+/** A model that can voice a line: an audio target (a voice sample from a description), or
+ * a video target that renders a dub track (target.json's `capabilities.dub_track`). The one
+ * list the series settings' voice model offers (TG.voice_targets). */
+export function isVoiceModel(t: Target): boolean {
+  return t.kind === "audio" || (t.kind === "video" && !!t.capabilities?.dub_track);
+}
+
+/** The video models a dub track can be made on (the voice, cloned, at a tiny size), read
+ * from the targets: the voice models of video kind. */
+export function dubTrackModels(list: TargetList | null | undefined): Target[] {
+  return (list?.targets ?? []).filter((t) => t.kind === "video" && isVoiceModel(t) && !t.draft);
+}
+
+/** The model "Generate a dub track" starts on: the series' voice model when it renders dub
+ * tracks (GET /seriesmith/refs `defaults.dub_target`), else H3 Ref2VA. */
+export function dubTrackDefault(served?: RefDefaults | null): string {
+  return served?.dub_target || VOICE_TARGET;
+}
 
 /** Why a dub track can't be made on `target` on this ComfyUI (not installed), or null
  * (ready, degraded, or not known: the server says then). */
 export function dubTrackBlock(list: TargetList | null | undefined, target: string = VOICE_TARGET): string | null {
   const r = readinessOf(list, target);
   if (r?.status !== "not_ready") return null;
-  const name = VOICE_TARGETS.find((v) => v.id === target)?.label ?? target;
+  const t = list?.targets.find((x) => x.id === target);
+  const name = t?.label ?? target;
   const files = r.missing.filter((m) => m.tier === "required").map((m) => m.want).filter(Boolean);
   return `A dub track on ${name} needs it installed on this ComfyUI`
     + (files.length ? ` (missing: ${files.join(", ")})` : "")
