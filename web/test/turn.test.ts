@@ -7,7 +7,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ImageModelBar, TurnButton } from "../src/components/RefsTab";
+import { ImageModelBar, TurnButton, TurnModelPick } from "../src/components/RefsTab";
 import { TURN_TARGET, turnChoices, turnPlan } from "../src/lib/turn";
 import { initialState, store } from "../src/store";
 import { setApi, setHost, type Host } from "../src/host";
@@ -105,6 +105,31 @@ describe("Turns with in Made with", () => {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(sent).toEqual({ turn_target: "flux_kontext" });
+    act(() => root.unmount());
+    el.remove();
+  });
+});
+
+describe("Turn with, on a character", () => {
+  it("is the same choice as Turns with, where the Turn buttons are", async () => {
+    let sent: unknown = null;
+    setApi({ putRefDefaults: async (_ep: string, f: unknown) => { sent = f; return { defaults: { turn_target: TURN_TARGET, turn_target_source: "editor" } }; },
+      refs: async () => ({ refs: [ADA], defaults: {} }) } as unknown as Api);
+    setHost({ toast: () => {}, on: () => () => {} } as unknown as Host);
+    store.set({ ...initialState(), ep: "C:/ep02", targets: listWith(true), refs: { "C:/ep02": [ADA] },
+      refDefaults: { "C:/ep02": { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext", edit_target_source: "editor" } } });
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+    act(() => root.render(createElement(TurnModelPick)));
+    const select = el.querySelector("#sm-turn-model") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.options[0].textContent).toBe("Automatic: Qwen 2.1 + angles if installed, else the Edits model (Flux Kontext)");
+    await act(async () => {
+      select.value = TURN_TARGET;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(sent).toEqual({ turn_target: TURN_TARGET });
     act(() => root.unmount());
     el.remove();
   });

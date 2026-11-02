@@ -20,6 +20,7 @@ import {
 import { fmtWhen, shortName, tn } from "../lib/format";
 import { isKeyframeRef, keyframeSource } from "../lib/keyframes";
 import { regenerateRequest } from "../lib/refSettings";
+import { useZoom } from "../lib/zoom";
 import { PANO_VIEW, TOUR_VIEW, groupOf, pickedOf, takesOf, viewLabel } from "../lib/refs";
 import { stripStyle } from "../lib/strip";
 import { TAKE_MIME, encodeTakeDrag, type TakeDrag } from "../lib/takeDrop";
@@ -652,6 +653,11 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
   }, [ep, around.join("|")]);
   const busy = useApp((s) => !!s.busy[`refpick|${r.id}`]);
   const genBusy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
+  // the wheel zooms the picture (and the live one beside it alike); another picture is seen whole
+  const [zA, setZA] = useState<HTMLImageElement | null>(null);
+  const [zB, setZB] = useState<HTMLImageElement | null>(null);
+  useZoom(zA, "gallery-ref", ["load"]);
+  useZoom(zB, "gallery-ref", ["load"]);
   const url = api().refFileUrl(ep, item.file);
   // another episode's candidate is read-only here: each episode keeps its own
   const mine = !item.episode && !item.outside;
@@ -669,12 +675,12 @@ function RefViewer({ ep, item, n, of, compare, setCompare, step, around }: {
         <div className={`h3-gal-stage${side ? " h3-gal-side" : ""}`}>
           <div className="h3-gal-pane">
             {side && <span className="h3-pane-label">{tn(t.take)}</span>}
-            <img src={url} alt={refLabel(item)} draggable={false} />
+            <img ref={setZA} src={url} alt={refLabel(item)} draggable={false} />
           </div>
           {side && (
             <div className="h3-gal-pane">
               <span className="h3-pane-label">live · {tn(liveTake!.take)}</span>
-              <img src={api().refFileUrl(ep, liveTake!.image!)} alt="the live picture" draggable={false} />
+              <img ref={setZB} src={api().refFileUrl(ep, liveTake!.image!)} alt="the live picture" draggable={false} />
             </div>
           )}
           <NavButtons n={n} of={of} step={step} />
@@ -804,6 +810,8 @@ function ShotViewer({ ep, pass, item, n, of, compare, setCompare, step }: {
   const { list: targets } = useTargets();
   const [aEl, setAEl] = useState<HTMLVideoElement | null>(null);
   const [bEl, setBEl] = useState<HTMLVideoElement | null>(null);
+  useZoom(aEl, "gallery-shot", ["loadstart"]);
+  useZoom(bEl, "gallery-shot", ["loadstart"]);
   const [audio, setAudio] = useState<"a" | "b" | "off">("a");
   const cutTake = !item.cut && s.cut.pass === pass ? s.takes.find((x) => x.take === s.cut.take && x.mp4) : undefined;
   const side = compare && !!cutTake;

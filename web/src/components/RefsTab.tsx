@@ -963,6 +963,33 @@ ${plan.warn.text}` : ""}`
   );
 }
 
+/**
+ * "↻ Turn with: [model]" above a character's views: the episode's Turn model
+ * (the same choice as Made with's Turns with), where the Turn buttons are.
+ */
+export function TurnModelPick() {
+  const { list } = useTargets();
+  const defaults = useRefDefaults();
+  const busy = useApp((s) => !!s.busy["refdefaults|turns"]);
+  const choices = imageTargets(list).filter(isEditTarget);
+  if (!choices.length) return null;
+  const { target: cur } = defaultOf(defaults, "turns");
+  const plan = turnPlan(list, defaults.turns, defaults.edits);
+  return (
+    <div className="h3-row h3-small" style={{ gap: 6 }}>
+      <span className="h3-muted h3-nowrap">↻ Turn with</span>
+      <select id="sm-turn-model" className="h3-in" value={cur} disabled={busy}
+        title={`The model ↻ Turn draws a view on, for this episode: ${plan.uses}. ${TURN_ANGLES_LABEL} turns a figure best; any other edit model is told the turn in words.`}
+        onChange={(e) => void setRefDefault("turns", e.target.value || null)}>
+        <option value="">Automatic: {TURN_ANGLES_LABEL} if installed, else the Edits model{defaults.edits ? ` (${targetLabel(list, defaults.edits)})` : ""}</option>
+        <ModelOptions targets={choices} text={(x) => x.id === TURN_TARGET
+          ? `${targetOptionText({ ...x, label: TURN_ANGLES_LABEL })} (best for turning)` : targetOptionText(x)} />
+      </select>
+      {plan.warn && <span className={plan.warn.severity === "err" ? "h3-err" : "h3-warn"} title={plan.warn.text}>{plan.warn.severity === "err" ? "not ready" : "degraded"}</span>}
+    </div>
+  );
+}
+
 /** The kind a group's + adds. */
 /** + Add at the top of the tab: a new character, group, prop, vehicle, location
  * or voice, on its card (the same as a group's +, without finding the group). */
@@ -1089,6 +1116,7 @@ export function RefDetail({ ep, r }: { ep: string; r: Ref }) {
           {missingViews.length > 0 && missingViews.length < 4 && (
             <div className="h3-small h3-muted">The sheet is stitched when every view has a pick: {missingViews.map(viewLabel).join(", ")} still to pick.</div>
           )}
+          <TurnModelPick />
           <div className="h3-views">
             {VIEWS.map((v) => {
               const rv = viewOf(r, v.view);

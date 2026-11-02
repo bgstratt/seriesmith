@@ -16,6 +16,7 @@ import { RECORDING_IGNORES_AUDIO, clipsWithAudio } from "../lib/audioSource";
 import { anyOutOfOrder } from "../lib/cutEdit";
 import { fmtClock, realStale, tn } from "../lib/format";
 import { frameAt } from "../lib/keyframes";
+import { useZoom } from "../lib/zoom";
 import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
@@ -258,6 +259,9 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
   const [audio, setAudio] = useState<"a" | "b" | "off">("a");
   const [aEl, setAEl] = useState<HTMLVideoElement | null>(null);
   const [bEl, setBEl] = useState<HTMLVideoElement | null>(null);
+  // the wheel zooms A and B alike, a drag looks round
+  useZoom(aEl, "viewer-take", ["loadstart"]);
+  useZoom(bEl, "viewer-take", ["loadstart"]);
   const winRef = useRef<HTMLDivElement>(null);
   const { list: targets, seriesDefault } = useTargets();
   const shotCurrent = shotTarget(shot, seriesDefault);
@@ -810,6 +814,12 @@ export type CutEngine = ReturnType<typeof useCutEngine>;
  */
 export function CutStage({ ep, e, pass, className = "" }: { ep: string; e: CutEngine; pass: Pass; className?: string }) {
   const { cp, v0, v1, au, cur, shown, cutFilter, veil, items, speed, recording, track } = e;
+  // both <video>s zoom alike, so the framing holds from shot to shot
+  const [z0, setZ0] = useState<HTMLVideoElement | null>(null);
+  const [z1, setZ1] = useState<HTMLVideoElement | null>(null);
+  useEffect(() => { setZ0(v0.current); setZ1(v1.current); }, [v0, v1]);
+  useZoom(z0, "cut");
+  useZoom(z1, "cut");
   return (
     <>
       <div
@@ -951,6 +961,11 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
   const tA = takes.find((t) => t.take === v.a);
   const tB = mode !== "single" ? takes.find((t) => t.take === v.b) : undefined;
   const src = (t: RefTake | undefined) => (t?.image ? api().refFileUrl(ep, t.image) : undefined);
+  // the wheel zooms A and B alike (a new picture is seen whole)
+  const [sA, setSA] = useState<HTMLImageElement | null>(null);
+  const [sB, setSB] = useState<HTMLImageElement | null>(null);
+  useZoom(sA, "viewer-still", ["load"]);
+  useZoom(sB, "viewer-still", ["load"]);
 
   const load = (t: RefTake, toB: boolean) => {
     if (!t.image) return;
@@ -967,7 +982,7 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
         {t?.source === "imported" ? " · imported" : ""}
       </span>
       {t?.image ? (
-        <img className="h3-still" src={src(t)} alt={`${tn(t.take)}`} draggable={false} />
+        <img ref={which === "a" ? setSA : setSB} className="h3-still" src={src(t)} alt={`${tn(t.take)}`} draggable={false} />
       ) : (
         <div className="h3-empty-state" style={{ color: "#aaa" }}>
           {t ? `${tn(t.take)} has no image (${t.status})` : which === "b" ? "Ctrl/⌘-click a candidate below to load B" : "Click a candidate below"}
@@ -1001,7 +1016,7 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
             without it the four panels arrive at full size and run off the edge. */}
         <div className="h3-stage h3-single">
           <div className="h3-pane">
-            <img className="h3-still" src={api().refFileUrl(ep, v.file)} alt={v.file}
+            <img ref={setSA} className="h3-still" src={api().refFileUrl(ep, v.file)} alt={v.file}
                  draggable={false} />
           </div>
         </div>
