@@ -28,8 +28,11 @@ runs it; the sound that comes back is fitted to the picture's length (finish_tak
 
 **Laid from the cut, as the beds are (ambience.py), never stored as items** (laid): each shot
 in the cut whose pass's mix picks one of its effects takes (`fx: {shot: {take, gain_db, mute,
-keep_stale}}`, mix.check) gets it on the Effects track at its clip, its sample 0 at the take's
-frame 0, trimmed with the clip. **Stale** (stale_why) when the picture changed: made from
+keep_stale, trim_in, trim_out, fade_in, fade_out, points}}`, mix.check) gets it on the Effects
+track at its clip, its sample 0 at the take's frame 0, trimmed with the clip. Its own trims
+silence frames at the clip's head and tail (voices creeping in at a take's end) without moving
+or shortening the block: only the kept span is heard, faded in and out at its edges, its level
+shaped by its points as an item's is (kept_span, render_fx, fx_lanes). **Stale** (stale_why) when the picture changed: made from
 another take than the cut plays for the shot (its number or pass), or that take's mp4 has been
 written since (its size or mtime). A stale take is left out of the mix and said so, unless
 `keep_stale`: sound that doesn't match its picture is worse than none.
@@ -379,7 +382,7 @@ def collect(root: str, pass_: str, shot: str, n: int, run, status: str) -> dict:
 
 
 def pick_new(root: str, pass_: str, shot: str, n: int) -> bool:
-    """Take `n`, just made, into the pass's mix (its level and mute kept): made and asked for,
+    """Take `n`, just made, into the pass's mix (its level, mute, trims, fades and points kept): made and asked for,
     it's heard and shown (the lane and the Refs tab list what's picked); an earlier take is a
     pick away. A mix that doesn't read is left alone. True when picked."""
     try:
@@ -429,8 +432,8 @@ def picked(mix: dict, shot: str) -> dict:
 
 
 def pick(root: str, pass_: str, shot: str, n: int | None) -> dict:
-    """Take `n` of the shot's effects into the pass's mix (`fx`), its level and mute kept, a
-    keep_stale dropped (a new pick is judged afresh); None takes the shot's effects out.
+    """Take `n` of the shot's effects into the pass's mix (`fx`), its level, mute, trims,
+    fades and points kept (MX.FX_KEEP), a keep_stale dropped (a new pick is judged afresh); None takes the shot's effects out.
     FxError for a take that isn't finished. Returns the mix as written."""
     mix = MX.check(MX.load(root).get(pass_))
     fx = dict(mix.get("fx") or {})
@@ -440,7 +443,7 @@ def pick(root: str, pass_: str, shot: str, n: int | None) -> dict:
         sc = get_take(root, pass_, shot, n)
         if sc is None or sc.get("status") != "ok":
             raise FxError(f"{shot} has no finished effects take {n}")
-        own = {k: v for k, v in (fx.get(shot) or {}).items() if k in ("gain_db", "mute")}
+        own = {k: v for k, v in (fx.get(shot) or {}).items() if k in MX.FX_KEEP}
         fx[shot] = {"take": n, **own}
     mix["fx"] = fx
     if not fx:
@@ -500,7 +503,8 @@ def laid(root: str, pass_: str, layout: list[dict], mix: dict | None) -> list[di
     "path" (absolute), "rel", "exists", "origin" (the cut frame of the take's frame 0),
     "start", "end" (cut frames: the clip), "in" / "out" (anchors), "gain_db", "mute",
     "keep_stale", "stale" (why, or None), "heard" (exists, not muted, and not stale unless
-    kept)}]. Nothing decoded: cheap enough for every GET of the mix."""
+    kept), "trim_in", "trim_out", "fade_in", "fade_out" (frames), "points" ([(cut frame,
+    dB)], in time order)}]. Nothing decoded: cheap enough for every GET of the mix."""
     own = (mix or {}).get("fx") or {}
     if not own or not layout:
         return []
@@ -526,15 +530,26 @@ def laid(root: str, pass_: str, layout: list[dict], mix: dict | None) -> list[di
                     "out": {"shot": x["id"], "frame": x["trim_in"] + x["used"]},
                     "gain_db": float(s.get("gain_db") or 0.0), "mute": mute,
                     "keep_stale": keep, "stale": why,
-                    "heard": exists and not mute and (why is None or keep)})
+                    "heard": exists and not mute and (why is None or keep),
+                    **{k: int(s.get(k) or 0) for k in MX.FX_FRAMES},
+                    "points": sorted((o["origin"] + p["at"]["frame"], p["db"])
+                                     for p in s.get("points") or [])})
     return out
+
+
+def kept_span(f: dict) -> tuple[int, int]:
+    """The cut frames a laid effects take is heard over: its clip less its trims (empty,
+    start >= end, when they meet)."""
+    return f["start"] + f.get("trim_in", 0), f["end"] - f.get("trim_out", 0)
 
 
 def render_fx(fx: list[dict], total: int, fps: float, log=print):
     """The laid effects as one stereo buffer of the cut's length at mix.RATE: each heard
-    one from its clip's first frame of the take to its last, at its gain, its ends ramped
-    over EDGE_S. A stale one (not kept), a muted one, or one not there is left out (the
-    last said so)."""
+    one from its clip's first frame of the take to its last, silent outside its kept span
+    (its trims), at its gain shaped by its points (as an item's: dB at anchors, linear
+    between, held beyond), faded in and out over its fades at the kept span's edges, and
+    those edges ramped over EDGE_S. A stale one (not kept), a muted one, or one not there
+    is left out (the last said so)."""
     np = MX._np()
     n = round(total / fps * MX.RATE)
     out = np.zeros((n, 2), dtype=np.float32)
@@ -554,12 +569,34 @@ def render_fx(fx: list[dict], total: int, fps: float, log=print):
         k = min(len(src), s1 - s0)
         if k <= 0:
             continue
-        env = np.full(k, MX._db(f["gain_db"]), dtype=np.float32)
-        e = min(edge, k // 2)
+        # the kept span, in samples from the clip's first (the trims silent)
+        a, b = kept_span(f)
+        ka = max(0, round(a / fps * MX.RATE) - s0) if f.get("trim_in") else 0
+        kb = min(k, round(b / fps * MX.RATE) - s0) if f.get("trim_out") else k
+        if kb <= ka:
+            continue
+        m = kb - ka
+        if f.get("points"):
+            xs = [round(pf / fps * MX.RATE) - s0 - ka for pf, _ in f["points"]]
+            db = f["gain_db"] + np.interp(np.arange(m), xs, [d for _, d in f["points"]])
+            kept = MX._db(db).astype(np.float32)
+        else:
+            kept = np.full(m, MX._db(f["gain_db"]), dtype=np.float32)
+        for key, head in (("fade_in", True), ("fade_out", False)):
+            nf = min(m, round(f.get(key, 0) / fps * MX.RATE))
+            if nf > 0:
+                ramp = np.linspace(0.0, 1.0, nf, dtype=np.float32)
+                if head:
+                    kept[:nf] *= ramp
+                else:
+                    kept[-nf:] *= ramp[::-1]
+        e = min(edge, m // 2)
         if e:
             ramp = np.linspace(0.0, 1.0, e, dtype=np.float32)
-            env[:e] *= ramp
-            env[-e:] *= ramp[::-1]
+            kept[:e] *= ramp
+            kept[-e:] *= ramp[::-1]
+        env = np.zeros(k, dtype=np.float32)
+        env[ka:kb] = kept
         skip = max(0, -s0)                                 # before the cut's first frame
         if skip < k:
             out[s0 + skip: s0 + k] += src[skip:k] * env[skip:, None]
@@ -568,8 +605,10 @@ def render_fx(fx: list[dict], total: int, fps: float, log=print):
 
 def fx_lanes(fx: list[dict], length) -> list[dict]:
     """The heard effects as clips on the XML's effects lane (mix.placed's shape, without the
-    track's fader): each its file from the clip's first frame of the take. `length(path)`:
-    a file's length in the cut's frames (None: unreadable)."""
+    track's fader): each its file from the clip's first frame of the take, the clip trimmed
+    to its kept span (its trims: an editor sees a shorter clip whose handles hold the rest),
+    its fades and its points (those in the span) as an item's. `length(path)`: a file's
+    length in the cut's frames (None: unreadable)."""
     out = []
     for f in fx:
         if not f["heard"]:
@@ -577,13 +616,17 @@ def fx_lanes(fx: list[dict], length) -> list[dict]:
         n = length(f["path"]) if os.path.isfile(f["path"]) else None
         if not n:
             continue
-        first = f["start"] - f["origin"]
-        end = min(f["end"], f["start"] + max(0, n - first))
-        if end <= f["start"]:
+        start, end = kept_span(f)
+        first = start - f["origin"]
+        end = min(end, start + max(0, n - first))
+        if end <= start:
             continue
         out.append({"id": f"fx_{f['shot']}", "label": f"{f['shot']} effects", "path": f["path"],
-                    "start": f["start"], "end": end, "in": first, "frames": n,
-                    "gain_db": f["gain_db"], "points": [], "fade_in": 0, "fade_out": 0})
+                    "start": start, "end": end, "in": first, "frames": n,
+                    "gain_db": f["gain_db"],
+                    "points": [(pf, d) for pf, d in f.get("points") or [] if start <= pf < end],
+                    "fade_in": min(f.get("fade_in", 0), end - start),
+                    "fade_out": min(f.get("fade_out", 0), end - start)})
     return out
 
 

@@ -25,7 +25,9 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
        "duck": {"threshold_db": -45, "attack_ms": 60, "release_ms": 450},
        "loudness": {"target_lufs": -16, "true_peak_db": -1},
        "beds": {"diner": {"gain_db": -3}, "platform": {"mute": true}},
-       "fx": {"sh010": {"take": 2, "gain_db": -4}, "sh030": {"take": 1, "keep_stale": true}},
+       "fx": {"sh010": {"take": 2, "gain_db": -4, "trim_out": 30, "fade_out": 12,
+                        "points": [{"at": {"shot": "sh010", "frame": 40}, "db": -6}]},
+              "sh030": {"take": 1, "keep_stale": true}},
        "voices": {"sh070": {"voices_only": false}},
        "track_list": [{"id": "dialogue", "kind": "dialogue"}, {"id": "effects", "kind": "effects"},
                       {"id": "ambience", "kind": "ambience"},
@@ -75,8 +77,11 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
 - **Effects** (docs/SOUND.md phase 4, fx.py): a shot's effects take, made from the frames of
   the take the cut plays, is laid from the cut at its clip, never stored as an item; `fx`
   keeps which take each shot plays (`take`), its `gain_db`, `mute`, and `keep_stale` (play it
-  though its picture has changed). They sit on the effects track (its fader applies):
-  `effects`, else the first of that kind (fx_track).
+  though its picture has changed), and its shaping: `trim_in` / `trim_out` (frames silent
+  from the clip's head and tail: the effects keep their place and length, only less of them
+  is heard), `fade_in` / `fade_out` (frames, at the kept span's edges) and `points` (as an
+  item's, each on the shot). They sit on the effects track (its fader applies): `effects`,
+  else the first of that kind (fx_track).
 - **Loudness**: the mix is brought to `target_lufs` (default -16) by one gain, measured by
   ffmpeg's loudnorm, and held LOSSY_MARGIN_DB under `true_peak_db` (default -1) by a true-peak
   limiter (oversampled) when the gain would push it past that: the AAC it's muxed as overshoots
@@ -142,7 +147,14 @@ MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", 
               "voices")
 TRACK_LIST_FIELDS = ("id", "kind", "label")
 BED_FIELDS = ("gain_db", "mute")
-FX_FIELDS = ("take", "gain_db", "mute", "keep_stale")
+FX_FIELDS = ("take", "gain_db", "mute", "keep_stale", "trim_in", "trim_out", "fade_in", "fade_out",
+             "points")
+# a shot's effects' trims (frames silent from its clip's head and tail: the block keeps its
+# place and length) and fades (frames, at the kept span's edges)
+FX_FRAMES = ("trim_in", "trim_out", "fade_in", "fade_out")
+# what a shot's effects keep when another take is picked: the user's level and shaping
+# (keep_stale isn't: a new pick is judged afresh)
+FX_KEEP = ("gain_db", "mute", *FX_FRAMES, "points")
 VOICE_FIELDS = ("voices_only",)
 # the track whose clips are the takes' own sound: the one voices_only plays from their stems
 TAKES_TRACK = "dialogue"
@@ -189,6 +201,23 @@ def _id(v, what: str) -> str:
     return v
 
 
+def check_points(raw, what: str, shot: str | None = None) -> list[dict]:
+    """Volume points in their stored form: [{"at": anchor, "db"}] (`shot`: each anchor must
+    be on it, as a shot's effects' are). ValueError says what's wrong."""
+    if not isinstance(raw, list):
+        raise ValueError(f"{what}'s points must be a list")
+    pts = []
+    for i, p in enumerate(raw):
+        if not isinstance(p, dict) or set(p) - {"at", "db"}:
+            raise ValueError(f"{what}'s point {i + 1} must be {{\"at\", \"db\"}}")
+        at = check_anchor(p.get("at"), f"{what}'s point {i + 1}")
+        if shot is not None and at["shot"] != shot:
+            raise ValueError(f"{what}'s point {i + 1} is on {at['shot']}: its points are on {shot}")
+        pts.append({"at": at, "db": _num(p.get("db"), f"{what}'s point {i + 1}'s db",
+                                         GAIN_MIN, GAIN_MAX)})
+    return pts
+
+
 def check_item(raw, tracks=TRACKS) -> dict:
     """One item in its stored form (defaults dropped), on one of `tracks` (ids). ValueError
     says what's wrong."""
@@ -218,16 +247,7 @@ def check_item(raw, tracks=TRACKS) -> dict:
         if v:
             out[k] = v
     if raw.get("points"):
-        if not isinstance(raw["points"], list):
-            raise ValueError(f"item {out['id']}'s points must be a list")
-        pts = []
-        for i, p in enumerate(raw["points"]):
-            if not isinstance(p, dict) or set(p) - {"at", "db"}:
-                raise ValueError(f"item {out['id']}'s point {i + 1} must be {{\"at\", \"db\"}}")
-            pts.append({"at": check_anchor(p.get("at"), f"item {out['id']}'s point {i + 1}"),
-                        "db": _num(p.get("db"), f"item {out['id']}'s point {i + 1}'s db",
-                                   GAIN_MIN, GAIN_MAX)})
-        out["points"] = pts
+        out["points"] = check_points(raw["points"], f"item {out['id']}")
     if raw.get("loop"):
         out["loop"] = True
     if isinstance(raw.get("label"), str) and raw["label"].strip():
@@ -444,6 +464,12 @@ def check(raw) -> dict:
                 raise ValueError(f"effects {shot}'s {k} is true or false")
             if f.get(k):
                 o[k] = True
+        for k in FX_FRAMES:
+            v = _frames(f.get(k), f"effects {shot}'s {k}")
+            if v:
+                o[k] = v
+        if f.get("points"):
+            o["points"] = check_points(f["points"], f"effects {shot}", shot)
         fx[shot] = o
     if fx:
         out["fx"] = fx

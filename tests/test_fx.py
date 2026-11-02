@@ -126,6 +126,22 @@ class MixFxTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 MX.check({"fx": bad})
 
+    def test_check_trims_fades_points(self):
+        # all optional, dropped when 0 / empty; frames whole and in range; points on the shot
+        pt = {"at": {"shot": "sh010", "frame": 30}, "db": -6}
+        self.assertEqual(MX.check({"fx": {"sh010": {"take": 1, "trim_in": 0, "trim_out": 0, "fade_in": 0,
+                                                    "fade_out": 0, "points": []}}}),
+                         {"fx": {"sh010": {"take": 1}}})
+        self.assertEqual(MX.check({"fx": {"sh010": {"take": 1, "trim_out": 20, "fade_out": 6, "points": [pt]}}}),
+                         {"fx": {"sh010": {"take": 1, "trim_out": 20, "fade_out": 6,
+                                           "points": [{"at": {"shot": "sh010", "frame": 30}, "db": -6.0}]}}})
+        for bad in ({"take": 1, "trim_in": -1}, {"take": 1, "trim_out": 1.5}, {"take": 1, "fade_in": True},
+                    {"take": 1, "fade_out": MX.FADE_MAX + 1}, {"take": 1, "points": {"at": 1}},
+                    {"take": 1, "points": [{"at": {"shot": "sh020", "frame": 3}, "db": 0}]},
+                    {"take": 1, "points": [{"at": {"shot": "sh010", "frame": 3}, "db": 99}]}):
+            with self.assertRaises(ValueError, msg=bad):
+                MX.check({"fx": {"sh010": bad}})
+
 
 class PlanTest(unittest.TestCase):
     def setUp(self):
@@ -237,6 +253,42 @@ class LaidTest(unittest.TestCase):
         lanes = FX.fx_lanes(fx, lambda p: 48)
         self.assertEqual([(x["start"], x["end"], x["in"]) for x in lanes], [(0, 24, 24), (24, 72, 0)])
 
+    def test_trimmed_faded_and_pointed(self):
+        # sh010's effects: a steady tone over its 48-frame clip; the last 18 frames trimmed
+        # (silent, the clip keeps its place and length), 12 at the head too, a point drops
+        # the level 12 dB from frame 24 on
+        n = finished(self.root, "sh010", 2.0)
+        lay = [{"id": "sh010", "trim_in": 0, "used": 48, "dissolve_in": 0},
+               {"id": "sh020", "trim_in": 0, "used": 48, "dissolve_in": 0}]
+        pts = [{"at": {"shot": "sh010", "frame": 23}, "db": 0}, {"at": {"shot": "sh010", "frame": 24}, "db": -12}]
+        mix = MX.check({"fx": {"sh010": {"take": n, "trim_in": 12, "trim_out": 18, "points": pts}}})
+        fx = FX.laid(self.root, "final", lay, mix)
+        self.assertEqual((fx[0]["start"], fx[0]["end"], fx[0]["trim_in"], fx[0]["trim_out"], fx[0]["points"]),
+                         (0, 48, 12, 18, [(23, 0.0), (24, -12.0)]))
+        self.assertEqual(FX.kept_span(fx[0]), (12, 30))
+        buf = FX.render_fx(fx, 96, 24.0, log=lambda *_: None)
+        self.assertLess(self.level(buf, 0.0, 0.49), -100)                    # trimmed head: silence
+        on = self.level(buf, 0.55, 0.95)
+        self.assertGreater(on, -20)
+        self.assertAlmostEqual(self.level(buf, 1.02, 1.24), on - 12, delta=0.5)   # the point
+        self.assertLess(self.level(buf, 1.26, 2.0), -100)                    # trimmed tail: silence
+        # the XML: the clip trimmed to the kept span, its points there
+        lanes = FX.fx_lanes(fx, lambda p: 48)
+        self.assertEqual([(x["start"], x["end"], x["in"], x["points"]) for x in lanes],
+                         [(12, 30, 12, [(23, 0.0), (24, -12.0)])])
+        # fades at the kept span's edges: a fade out over its last 6 frames
+        mix["fx"]["sh010"].update(fade_out=6, points=[])
+        fx = FX.laid(self.root, "final", lay, MX.check(mix))
+        buf = FX.render_fx(fx, 96, 24.0, log=lambda *_: None)
+        self.assertLess(self.level(buf, 1.125, 1.25), on - 4)                # fading
+        self.assertAlmostEqual(self.level(buf, 0.55, 0.95), on, delta=0.1)
+        self.assertEqual(FX.fx_lanes(fx, lambda p: 48)[0]["fade_out"], 6)
+        # trims that meet: nothing heard, nothing laid in the XML
+        mix["fx"]["sh010"].update(trim_in=30, trim_out=18)
+        fx = FX.laid(self.root, "final", lay, MX.check(mix))
+        self.assertLess(self.level(FX.render_fx(fx, 96, 24.0), 0, 4), -100)
+        self.assertEqual(FX.fx_lanes(fx, lambda p: 48), [])
+
     def test_stale_left_out_unless_kept(self):
         n = finished(self.root, "sh010", 2.0)
         FX.update(self.root, "final", "sh010", n, source={"pass": "final", "take": 7, "size": 1, "mtime": 0})
@@ -258,6 +310,13 @@ class LaidTest(unittest.TestCase):
         n2 = finished(self.root, "sh010", 2.0)
         mix = FX.pick(self.root, "final", "sh010", n2)
         self.assertEqual(mix["fx"], {"sh010": {"take": n2, "gain_db": -3.0}})   # level kept, keep_stale not
+        # the trims, fades and points are the user's, kept too
+        pts = [{"at": {"shot": "sh010", "frame": 30}, "db": -6.0}]
+        MX.write(self.root, "final", {"fx": {"sh010": {"take": n2, "trim_out": 20, "fade_out": 4,
+                                                       "trim_in": 2, "fade_in": 3, "points": pts}}})
+        self.assertEqual(FX.pick(self.root, "final", "sh010", n)["fx"],
+                         {"sh010": {"take": n, "trim_in": 2, "trim_out": 20, "fade_in": 3, "fade_out": 4,
+                                    "points": pts}})
         self.assertNotIn("fx", FX.pick(self.root, "final", "sh010", None))
         info = FX.shot_takes(self.root, "final", "sh010")
         self.assertEqual([t["take"] for t in info["takes"]], [n2, n])
@@ -391,6 +450,15 @@ class AssembleFxTest(unittest.TestCase):
             off = buf[int(1.05 * MX.RATE): int(1.95 * MX.RATE)]
             self.assertGreater(float(np.sqrt(np.mean(on ** 2))), 0.01, name)
             self.assertEqual(float(np.abs(off).max()), 0.0, name)
+
+    def test_trimmed_effects_stem(self):
+        # sh010's effects trimmed: its last 12 frames silent in the effects stem, the rest heard
+        MX.save(self.root, {"final": {"fx": {"sh010": {"take": self.n, "trim_out": 12, "fade_out": 2}}}})
+        self.assemble()
+        np = MX._np()
+        buf = MX.decode(os.path.join(self.root, "renders", "ep01_stems", "effects.wav"))
+        self.assertGreater(float(np.sqrt(np.mean(buf[int(0.05 * MX.RATE): int(0.4 * MX.RATE)] ** 2))), 0.01)
+        self.assertEqual(float(np.abs(buf[int(0.5 * MX.RATE):]).max()), 0.0)
 
     def test_stale_is_no_mix(self):
         FX.update(self.root, "final", "sh010", self.n, source={"pass": "final", "take": 9})
