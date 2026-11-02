@@ -377,6 +377,18 @@ class AssembleTest(unittest.TestCase):
         self.assertGreater(band(dia, 0.1, 0.9, 300), band(dia, 0.1, 0.9, 1000) + 30)
         self.assertGreater(band(dia, 2.1, 2.9, 1000), band(dia, 2.1, 2.9, 300) + 30)
 
+    def test_every_clip_a_stem_or_silent(self):
+        # nothing is copied with its own sound: the stems and the made-up silence share one
+        # layout, or the concat drops the sound after the first change (Ballroom ep02)
+        split(self.takes["sh020"], hz=1000)
+        MX.save(self.root, {"final": ON})
+        self.assemble()
+        dia = MX.decode(os.path.join(self.stems, "dialogue.wav"))
+        for a in (0.1, 1.1):
+            self.assertGreater(band(dia, a, a + 0.8, 1000), band(dia, a, a + 0.8, 300) + 30)
+            self.assertGreater(rms(dia, a, a + 0.8), -30)
+        self.assertLess(rms(dia, 2.1, 2.9), -60)
+
     def test_stale_plays_whole(self):
         MX.save(self.root, {"final": ON})
         now = time.time() + 5

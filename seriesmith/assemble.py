@@ -1282,8 +1282,11 @@ def main(argv: list[str] | None = None) -> int:
                        and p["sound"] == p["path"]), None)
         if not copied:
             # nothing copied keeps its sound: one layout for the re-encoded and
-            # the remuxed clips alike (conform's own, 44.1 kHz stereo)
-            return (44100, 2) if reencode and sel is not None else None
+            # the remuxed clips alike (conform's own, 44.1 kHz stereo); with voices
+            # only, the stems (44.1 kHz stereo) and the silent clips' made-up track
+            # too, or the concat sees two layouts and drops the sound after the first
+            # change (Ballroom ep02: every clip a stem or silence)
+            return (44100, 2) if (reencode and sel is not None) or voices else None
         return sigs[id(copied)][1] if id(copied) in sigs else audio_format(copied["path"])
 
     def make(i: int, p: dict, sel, layout, tmp: str) -> str:
