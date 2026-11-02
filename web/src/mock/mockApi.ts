@@ -1379,6 +1379,43 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       emit("seriesmith.episode", { ep: EP });
       return { take: clone(t) };
     },
+    async repaintCue(req) {
+      await wait();
+      need(req.ep);
+      const spec = cueSpecs.get(req.cue);
+      if (!spec) throw new MockError(`no cue ${req.cue}`, 404);
+      const list = cueTakes.get(req.cue) ?? [];
+      const base = list.find((x) => x.take === req.take);
+      if (!base || base.status !== "ok" || !base.measured) throw new MockError(`cue ${req.cue} has no finished take ${req.take}`, 409);
+      if (!MUSIC_TARGETS.find((x) => x.id === base.target)?.capabilities?.repaint) {
+        throw new MockError(`${base.target} can't make bars of a take again (docs/SOUND.md 'Measured: repaint'): comp them from another take instead`, 409);
+      }
+      const p = cuePlan(spec, req.pass);
+      const [a, b] = req.bars;
+      if (!(Number.isInteger(a) && Number.isInteger(b) && 0 <= a && a < b && b <= p.bars)) throw new MockError(`bars ${a}-${b} aren't inside cue ${req.cue}'s ${p.bars}`, 409);
+      const take = Math.max(0, ...list.map((t) => t.take)) + 1;
+      const seed = req.seed ?? (spec.seed ?? 5000) + list.length;
+      const codes = req.fresh ? seed : base.repaint?.codes ?? base.seed;
+      const t: CueTake = {
+        take, status: "queued", seed, target: base.target, pass: base.pass ?? req.pass, created: new Date().toISOString(),
+        repaint: { from: req.take, bars: [a, b], ...(codes != null ? { codes } : {}), fresh: !!req.fresh },
+      };
+      list.push(t);
+      cueTakes.set(req.cue, list);
+      setTimeout(() => {
+        if (!cueSpecs.has(req.cue)) return;
+        // its bars made again (a little louder or softer), the rest the take's own
+        const m = clone(base.measured!);
+        m.levels = m.levels.map((lv, k) => (k >= a && k < b ? Math.round((lv + 1.5 - 3 * ((seed + k) % 2)) * 100) / 100 : lv));
+        Object.assign(t, { status: "ok", measured: m, file: cueFile(req.cue, take), finished: new Date().toISOString(), stale: [],
+          repaint_check: { beats: (b - a) * 4, on: (b - a) * 4 - (req.fresh ? 1 : 0), on_before: (b - a) * 4, median_ms: 3 } });
+        clipFiles.set(t.file!, makeVoice(`cue|${req.cue}|${take}`, p.seconds + m.downbeat));
+        emit("seriesmith.cue", { ep: EP, cue: req.cue, take, status: "ok" });
+        emit("seriesmith.episode", { ep: EP });
+      }, (opts.latency ?? 120) * 4 + 400);
+      emit("seriesmith.episode", { ep: EP });
+      return { queued: { take, job: `cue-${req.cue}-${take}`, seed } };
+    },
     async cutReset(ep, pass, what) {
       await wait();
       need(ep);

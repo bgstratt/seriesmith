@@ -17,7 +17,7 @@ import {
   applyPreset, editableSections, gridOf, mergeSections, nextSectionName, presetBars, presetGroups, presetReplaces, presetShape, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
   snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
-  songBlocks, songSummary, themeLabel, themeModel, themeTakes, themeUseText,
+  songBlocks, songSummary, themeLabel, themeModel, themeTakes, themeUseText, repaintLabel, repaintWhy,
 } from "../src/lib/cue";
 import { MUSIC_TARGETS } from "../src/mock/mockCue";
 import { lowerStretch } from "../src/lib/mix";
@@ -262,6 +262,17 @@ describe("takes", () => {
   it("a take's loudness per bar lies on the arc's scale", () => {
     expect(levelsAsEnergy([-30, -20, -10, -80])).toEqual([1, 3, 5, 1]);
     expect(levelsAsEnergy([-80])).toEqual([1]);
+  });
+});
+
+describe("a repaint", () => {
+  it("is offered on a finished take of a model that can repaint, and noted in the list", () => {
+    expect(repaintWhy({ status: "ok", target: "ace_step15", measured: {} }, MUSIC_TARGETS)).toBe("");
+    expect(repaintWhy({ status: "ok", target: "yue2", measured: {} }, MUSIC_TARGETS)).toMatch(/^YuE2 .* can't make bars of a take again/);
+    expect(repaintWhy({ status: "queued", target: "ace_step15" }, MUSIC_TARGETS)).toBe("Only a finished take");
+    expect(repaintWhy({ status: "ok", target: "gone", measured: {} }, MUSIC_TARGETS)).toBe("Its model (gone) isn't here");
+    expect(repaintLabel({ from: 2, bars: [2, 4] })).toBe("repainted bars 3-4 from t02");
+    expect(repaintLabel({ from: 12, bars: [0, 1], fresh: true })).toBe("freshly repainted bar 1 from t12");
   });
 });
 
@@ -824,10 +835,10 @@ describe("the cue window", () => {
     await select();
     const fixes = q(".h3-cue-fixes")[0];
     expect(fixes.textContent).toContain("Bars 1-3");
-    // not in the mix yet: no breakpoints; repaint isn't measured
+    // not in the mix yet: no breakpoints; a Stable Audio 3 take can't be repainted
     expect(button(/^Lower bars 1-3/)!.disabled).toBe(true);
-    expect(button(/^Repaint/)!.disabled).toBe(true);
-    expect(button(/^Repaint/)!.title).toBe("not measured yet (docs/SOUND.md 'Fixing part of a take')");
+    expect(button(/^Repaint bars 1-3/)!.disabled).toBe(true);
+    expect(button(/^Repaint bars 1-3/)!.parentElement!.title).toMatch(/^Stable Audio 3 Medium can't make bars of a take again/);
     const src = Number(fixes.querySelector<HTMLSelectElement>("[aria-label='Comp from take']")!.value);
     await act(async () => button(/^Comp bars 1-3/)!.click());
     await settle();
@@ -849,6 +860,50 @@ describe("the cue window", () => {
     const item = currentMix()!.mix.items!.find((i) => i.id === "m01")!;
     expect(item.points!.length).toBeGreaterThanOrEqual(3);
     expect(Math.min(...item.points!.map((p) => p.db))).toBe(-6);
+  });
+
+  it("Orchestration & takes: bars of an ACE-Step take repainted, a new take queued and noted in the list", async () => {
+    await open();
+    // the cue on ACE-Step, one take of it rendered and landed
+    await act(async () => {
+      await saveCue({ ...res().spec, model: "ace_step15" });
+    });
+    await settle();
+    await act(async () => {
+      await api.renderCue({ ep: EP, pass: "proxy", cue: "m01", takes: 1 });
+      await new Promise((r) => setTimeout(r, 600));
+      await loadCue(EP, "proxy", "m01");
+    });
+    const ace = res().takes.find((t) => t.target === "ace_step15" && t.status === "ok")!;
+    expect(ace).toBeDefined();
+    await tab("Orchestration & takes");
+    const barPx = res().plan!.bar * 4;
+    const row = q(".h3-cue-take").findIndex((r) => r.textContent!.includes(`t${String(ace.take).padStart(2, "0")}`));
+    const wave = q(".h3-cue-take .h3-cue-lane")[row];
+    await act(async () => wave.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: barPx + 1 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 2 * barPx + 1 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    expect(q(".h3-cue-fixes")[0].textContent).toContain("Bars 2-3");
+    const repaint = button(/^Repaint bars 2-3/)!;
+    expect(repaint.disabled).toBe(false);
+    const spy = vi.spyOn(api, "repaintCue");
+    // new music asked for
+    await act(async () => (q(".h3-cue-fixes input[aria-label='Repaint with new music']")[0] as HTMLInputElement).click());
+    await act(async () => repaint.click());
+    await settle();
+    expect(spy).toHaveBeenCalledWith({ ep: EP, pass: "proxy", cue: "m01", take: ace.take, bars: [1, 3], fresh: true });
+    const made = res().takes.find((t) => t.repaint)!;
+    expect(made.repaint).toMatchObject({ from: ace.take, bars: [1, 3], fresh: true });
+    expect(made.status).toBe("queued");
+    expect(q(".h3-cue-fixes")).toHaveLength(0);
+    // it lands: measured, with its note and its beat check
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 600));
+      await loadCue(EP, "proxy", "m01");
+    });
+    const notes = q(".h3-cue-comp").map((x) => x.textContent);
+    expect(notes).toContain(`freshly repainted bars 2-3 from t${String(ace.take).padStart(2, "0")}`);
+    expect(q(".h3-cue-take")[0].ownerDocument.body.textContent).toMatch(/on the beat 7\/8 \(8\)/);
   });
 
   it("a new cue from the music lane takes the next id and opens", async () => {

@@ -1942,6 +1942,8 @@ export interface Target {
     structure?: "story" | "sections" | "plan";
     /** music targets: it sings a section's lyrics */
     lyrics?: boolean;
+    /** music targets: bars of a take can be made again (POST /seriesmith/cue/repaint; ACE-Step) */
+    repaint?: boolean;
     /** music targets: a song on it must have lyrics (YuE2 sings words) */
     needs_lyrics?: boolean;
     /** music targets: how it hears a cue's theme: sung as its melody (YuE2), as its timbre (ACE-Step), or not at all */
@@ -2898,6 +2900,12 @@ export interface CueTake {
   stale?: string[];
   /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
   comp?: { base: number; from: number; bars: [number, number] };
+  /** a repaint (POST /seriesmith/cue/repaint): take `from` with the cue's bars [a, b) made again
+   * (`codes`: the seed its music was written from; `fresh`: new music there; `span`: the bars in
+   * seconds of the take's file) */
+  repaint?: { from: number; bars: [number, number]; codes?: number; fresh?: boolean; span?: [number, number] };
+  /** a repaint's bars against the take's beat: of `beats` beats, the onsets within 40 ms, in the new bars and the take's */
+  repaint_check?: { beats: number; on: number; on_before: number; median_ms: number | null };
   /** a song's plan (YuE2): its sections against the cue, its length against the take's */
   song?: CueSong;
   /** the theme it was rendered with, and how its model heard it */

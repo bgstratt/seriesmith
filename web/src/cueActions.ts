@@ -215,6 +215,29 @@ export async function compCueTake(take: number, from: number, bars: [number, num
 }
 
 /**
+ * A repaint: take `take`'s bars [a, b) made again on its own model, the rest of it kept, as a
+ * new take queued (POST /seriesmith/cue/repaint); `fresh` asks for new music there rather than
+ * the same music played again. Returns its number (null: refused).
+ */
+export async function repaintCueTake(take: number, bars: [number, number], fresh = false): Promise<number | null> {
+  const o = openCueRef();
+  if (!o) return null;
+  await cueSettled();
+  const tn = (n: number) => `t${String(n).padStart(2, "0")}`;
+  let made: number;
+  try {
+    made = (await api().repaintCue({ ep: o.ep, pass: o.pass, cue: o.cue, take, bars, ...(fresh ? { fresh } : {}) })).queued.take;
+  } catch (e) {
+    report(`Couldn't repaint ${barsLabel(bars)} of ${o.cue} ${tn(take)}`, e);
+    return null;
+  }
+  host().toast("info", `${o.cue}: ${tn(made)} queued, ${tn(take)} with ${barsLabel(bars)} made again`,
+    "The rest is the take's own; it's measured and ranked with the others when it lands.");
+  await Promise.all([loadCue(o.ep, o.pass, o.cue), loadCues(o.ep)]);
+  return made;
+}
+
+/**
  * A preset's fields on the open cue (lib/cue.ts applyPreset). Its sections are
  * whole bars of the cue, and the bars follow the tempo and meter: when those
  * change, they're saved first and the sections fitted to the plan that comes back.

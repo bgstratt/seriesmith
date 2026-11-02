@@ -859,6 +859,19 @@ export function barSpan(g: Grid, x0: number, x1: number, pps: number): [number, 
 export const barsLabel = ([a, b]: [number, number]) => (b - a === 1 ? `bar ${a + 1}` : `bars ${a + 1}-${b}`);
 
 /** A comp's label: "comp of t03 + t01 bars 5-8". */
+/** A repaint's note in the takes list: "repainted bars 3-4 from t02" (new music: "freshly"). */
+export const repaintLabel = (r: { from: number; bars: [number, number]; fresh?: boolean }) =>
+  `${r.fresh ? "freshly " : ""}repainted ${barsLabel(r.bars)} from t${String(r.from).padStart(2, "0")}`;
+
+/** Why a take's bars can't be repainted ("" when they can): its model can't, or it isn't finished. */
+export function repaintWhy(t: { status: string; target?: string; measured?: unknown }, targets: { id: string; label: string; capabilities?: { repaint?: boolean } }[]): string {
+  if (t.status !== "ok" || !t.measured) return "Only a finished take";
+  const tg = targets.find((x) => x.id === t.target);
+  if (!tg) return `Its model (${t.target ?? "unknown"}) isn't here`;
+  if (!tg.capabilities?.repaint) return `${tg.label} can't make bars of a take again (measured: docs/SOUND.md 'Measured: repaint'): comp them from another take`;
+  return "";
+}
+
 export const compLabel = (c: { base: number; from: number; bars: [number, number] }) =>
   `comp of t${String(c.base).padStart(2, "0")} + t${String(c.from).padStart(2, "0")} ${barsLabel(c.bars)}`;
 

@@ -194,6 +194,8 @@ export interface Api {
   pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
   /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
   compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
+  /** POST /seriesmith/cue/repaint: a new take queued, take `take` with the cue's bars [a, b) made again on its own model (`fresh`: new music there), the rest kept. */
+  repaintCue(req: { ep: string; pass: Pass; cue: string; take: number; bars: [number, number]; seed?: number; fresh?: boolean; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number } }>;
   /** Phase 9b: POST /seriesmith/cut/reset: script order and/or zero trims (picks, locks, notes kept). */
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
@@ -648,6 +650,7 @@ export function createHttpApi(t: Transport): Api {
     renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
     pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
+    repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
     peaks: async (ep, path, bins, start, end) => {

@@ -24,7 +24,7 @@ export const MUSIC_TARGETS: Target[] = [
   },
   {
     id: "ace_step15", kind: "music", label: "ACE-Step 1.5 XL", short: "ACE-Step 1.5",
-    capabilities: { mode: "t2m", tempo: "bpm", structure: "sections", lyrics: true, theme: "timbre", max_seconds: 600 },
+    capabilities: { mode: "t2m", tempo: "bpm", structure: "sections", lyrics: true, theme: "timbre", repaint: true, max_seconds: 600 },
     presets: { final: { takes: 8 }, proxy: { takes: 8 } },
   },
   {

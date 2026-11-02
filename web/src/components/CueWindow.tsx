@@ -18,11 +18,11 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
-import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
+import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, repaintCueTake, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
-  ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
+  ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, repaintLabel, repaintWhy, cueStart,
   cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
   meterText, mergeSections, moveEdge,
   movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
@@ -63,7 +63,6 @@ const TAKES_DEFAULT = 8;
 const LOWER_DB = -6;
 const EMPTY: number[] = [];
 const LEVELS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
-const REPAINT_TITLE = "not measured yet (docs/SOUND.md 'Fixing part of a take')";
 /** the user's guide to the cue window (docs/SCORING.md on the docs site) */
 export const SCORING_URL = "https://docs.seriesmith.com/scoring";
 /** each tab's help strip, open or closed, kept in this browser */
@@ -97,7 +96,7 @@ const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
     steps: [
       "Paint who plays in each bar. Step (the default) moves a clicked cell up a level, Shift-click down, and a drag gives every cell the first one's new level; or pick a level and paint it. Keys 1-5 pick the brush; Family adds a row.",
       "It becomes each section's words, loudest first (\"solo horn present, strings under\"); a change inside a section is hatched: the strongest level wins.",
-      "On a take, drag across bars to select them: comp them from another take, or lower them in the mix with breakpoints (the take in the mix).",
+      "On a take, drag across bars to select them: repaint them (made again on its model, the rest kept: ACE-Step), comp them from another take, or lower them in the mix with breakpoints (the take in the mix).",
     ],
   },
 };
@@ -985,14 +984,14 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
   const label = (
     <span className="h3-col" style={{ gap: 0 }}>
       <b>{rank != null ? `#${rank} ` : ""}{name}</b>
-      <span className={`h3-small ${t.status === "failed" ? "h3-err" : "h3-muted"}`}>{t.status === "ok" ? (placed ? "in the mix" : t.comp ? "comp" : "") : t.status}</span>
+      <span className={`h3-small ${t.status === "failed" ? "h3-err" : "h3-muted"}`}>{t.status === "ok" ? (placed ? "in the mix" : t.comp ? "comp" : t.repaint ? "repaint" : "") : t.status === "queued" && t.repaint ? "repaint queued" : t.status}</span>
     </span>
   );
   return (
     <div className={`h3-cue-take${placed ? " h3-on" : ""}`}>
       <Lane label={label} h={TAKE_H} W={W} cls={`h3-cue-wave${select && ok ? " h3-cue-selectable" : ""}`}
         onPointerDown={select && ok ? select.onDown : undefined}
-        title={ok ? `${name}: its waveform from its first bar line, its loudness per bar (white) over the arc${select ? ". Drag across bars to select them: comp them from another take, or lower them in the mix" : ""}` : t.error ?? t.status}>
+        title={ok ? `${name}: its waveform from its first bar line, its loudness per bar (white) over the arc${select ? ". Drag across bars to select them: repaint them, comp them from another take, or lower them in the mix" : ""}` : t.error ?? t.status}>
         {ok && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={W} height={TAKE_H - 4} />}
         {ok && (
           <svg width={W} height={TAKE_H} className="h3-cue-svg">
@@ -1012,6 +1011,13 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
               <i className={`pi ${playing ? "pi-pause" : "pi-play"}`} />
             </button>
             {t.comp && <span className="h3-small h3-cue-comp" title="spliced on bar lines from two takes (both at the cue's tempo)">{compLabel(t.comp)}</span>}
+            {t.repaint && <span className="h3-small h3-cue-comp" title={`those bars made again on its model (${t.repaint.fresh ? "new music there" : "the same music played again"}); the rest is the take's own, spliced at the bar lines`}>{repaintLabel(t.repaint)}</span>}
+            {t.repaint_check && t.repaint_check.beats > 0 && (
+              <span className={`h3-small ${t.repaint_check.on < t.repaint_check.on_before - 1 ? "h3-warn" : "h3-muted"}`}
+                title="the repainted bars against the take's beat: onsets within 40 ms of its beats, the new bars' and (in brackets) the take's own there">
+                on the beat {t.repaint_check.on}/{t.repaint_check.beats} ({t.repaint_check.on_before})
+              </span>
+            )}
             {t.song && <SongLine song={t.song} />}
             {t.theme && <span className="h3-small h3-muted" title="the theme it was rendered with, and how its model heard it">theme {t.theme.label}{t.theme.use ? ` (${t.theme.use})` : " (left out)"}</span>}
             <span className="h3-small h3-muted">hits</span>
@@ -1042,13 +1048,16 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
   );
 }
 
-/** What can be done to a take's bars: comp them from another take, lower them in the mix, repaint them (not yet). */
+/** What can be done to a take's bars: repaint them, comp them from another take, lower them in the mix. */
 function BarFixes({ t, bars, g, plan, placed, sel, viewW }: {
   t: CueTake; bars: [number, number]; g: Grid; plan: CuePlan; placed: boolean; sel: TakeSelect; viewW: number;
 }) {
   const others = sel.takes.filter((x) => x.take !== t.take && x.status === "ok" && !!x.measured);
   const [from, setFrom] = useState<number | null>(null);
   const [db, setDb] = useState(LOWER_DB);
+  const [fresh, setFresh] = useState(false);
+  const targets = useMusicTargets();
+  const repaintNo = repaintWhy(t, targets);
   const src = others.some((x) => x.take === from) ? from : others[0]?.take ?? null;
   const what = barsLabel(bars);
   const span = barsInSpan(g, bars, plan.span);
@@ -1080,7 +1089,15 @@ function BarFixes({ t, bars, g, plan, placed, sel, viewW }: {
           onChange={(e) => setDb(Math.max(-24, Math.min(6, Number(e.target.value) || 0)))} />
         <span className="h3-small h3-muted">dB</span>
       </span>
-      <span title={REPAINT_TITLE}><button className="h3-btn" style={{ width: "auto" }} disabled title={REPAINT_TITLE}>Repaint {what}</button></span>
+      <span className="h3-row" style={{ gap: 4 }} title={repaintNo || `A new take: ${tn(t.take)} with ${what} made again on its model, the rest of it its own (spliced at the bar lines), measured and ranked`}>
+        <button className="h3-btn" style={{ width: "auto" }} disabled={!!repaintNo}
+          onClick={() => void repaintCueTake(t.take, bars, fresh).then((n) => n != null && sel.clear())}>
+          Repaint {what}
+        </button>
+        <label className="h3-row h3-small" style={{ gap: 2 }} title="New music in those bars, not the same music played again: more change, but over four bars or more it can leave the beat (checked on the take)">
+          <input type="checkbox" aria-label="Repaint with new music" checked={fresh} disabled={!!repaintNo} onChange={(e) => setFresh(e.target.checked)} /> new music
+        </label>
+      </span>
       <span className="h3-grow" />
       <button className="h3-btn h3-icon" title="Clear the selection" onClick={sel.clear}><i className="pi pi-times" /></button>
     </div>
