@@ -211,6 +211,62 @@ describe("the sound lanes", () => {
     expect(music.some((t) => t.includes("New cue")) && music.some((t) => t.includes("Add a sound file"))).toBe(true);
   });
 
+  it("tracks of your own: a lane head's menu adds, renames and deletes a track (its items moved)", async () => {
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    const headMenu = async (i: number) => {
+      const btn = el.querySelectorAll<HTMLButtonElement>(".h3-snd-head button[aria-label$='track menu']")[i];
+      await act(async () => btn.click());
+      return document.querySelector<HTMLElement>(".h3-snd-trackmenu")!;
+    };
+    const type = async (input: HTMLInputElement, v: string) => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      await act(async () => {
+        set.call(input, v);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    const button = (m: HTMLElement, f: (t: string) => boolean) => [...m.querySelectorAll("button")].find((b) => f(b.textContent ?? ""))!;
+    // a music track called Song, from the Music lane's menu
+    let m = await headMenu(3);
+    expect(m.querySelector<HTMLSelectElement>("select")!.value).toBe("music");
+    await type(m.querySelectorAll<HTMLInputElement>("input")[1], "Song");
+    await act(async () => button(m, (t) => t.includes("Add")).click());
+    await mixSettled();
+    expect(currentMix()!.mix.track_list?.map((t) => t.id)).toEqual(["dialogue", "effects", "ambience", "music", "song"]);
+    expect([...el.querySelectorAll(".h3-snd-name")].map((x) => x.textContent)).toEqual(["Dialogue", "Effects", "Ambience", "Music", "Song"]);
+    expect(el.querySelectorAll(".h3-snd-lane")).toHaveLength(6);
+
+    // Music renamed Score
+    m = await headMenu(3);
+    await type(m.querySelectorAll<HTMLInputElement>("input")[0], "Score");
+    await act(async () => button(m, (t) => t === "Rename").click());
+    await mixSettled();
+    expect(currentMix()!.mix.track_list?.[3]).toEqual({ id: "music", kind: "music", label: "Score" });
+
+    // Ambience deleted: its loop asks, and moves to the track chosen
+    m = await headMenu(2);
+    await act(async () => button(m, (t) => t.includes("Delete Ambience")).click());
+    expect(m.textContent).toContain("has 1 item on it");
+    const selects = m.querySelectorAll<HTMLSelectElement>("select");
+    const to = selects[selects.length - 1];
+    await act(async () => {
+      to.value = "song";
+      to.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => button(m, (t) => t.startsWith("Move it to")).click());
+    await mixSettled();
+    const mix = currentMix()!.mix;
+    expect(mix.track_list?.map((t) => t.id)).toEqual(["dialogue", "effects", "music", "song"]);
+    expect(mix.items?.[0].track).toBe("song");
+    expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Delete Ambience (1 item to Song)");
+
+    // the dialogue track can be renamed, not deleted
+    m = await headMenu(0);
+    expect([...m.querySelectorAll("button")].some((b) => (b.textContent ?? "").includes("Delete"))).toBe(false);
+    expect(m.textContent).toContain("can be renamed, not deleted");
+  });
+
   it("a menu near the window's foot opens above the click", async () => {
     const { onScreen } = await import("../src/components/SoundLanes");
     const H = window.innerHeight;

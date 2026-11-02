@@ -8,7 +8,9 @@ import {
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
 import { newCue } from "../cueActions";
-import { makeEffects, pickSoundFile, toggleSound } from "../mixActions";
+import { currentMix, makeEffects, pickSoundFile, toggleSound } from "../mixActions";
+import { firstOf } from "../lib/mix";
+import { host } from "../host";
 import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
@@ -273,7 +275,12 @@ export function ContextMenu() {
       {(["music", "effects", "ambience"] as const).map((t) => (
         <button key={t} disabled={!cutShot || !!cutShot.cut.out}
           title={`A wav, mp3, flac, ogg or m4a from this computer, on the ${t} lane from ${menu.shot}'s first frame in the cut (it moves with the shot)`}
-          onClick={run(() => pickSoundFile(t, clipStart))}>
+          // onto the default track of that kind, else the first of it (the mix's own tracks)
+          onClick={run(() => {
+            const to = firstOf(currentMix()?.mix, t);
+            if (to) pickSoundFile(to, clipStart);
+            else host().toast("warn", `No ${t} track`, `Add one from a lane head's ⋮ under the timeline.`);
+          })}>
           <i className="pi pi-upload" /> Add {t === "music" ? "music" : t === "effects" ? "an effect" : "ambience"} from a file…
         </button>
       ))}

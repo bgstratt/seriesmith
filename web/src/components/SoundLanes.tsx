@@ -16,7 +16,11 @@
 // Effects lane shows each shot's picked effects at its clip (`fx`): read-only
 // blocks (the shot, the model, a stale mark) whose menu sets the level, mute,
 // keeps a stale one, plays and picks its takes (fetched when the menu opens),
-// and makes them again.
+// and makes them again. The lanes are the mix's tracks (docs/SOUND.md phase 6): the four
+// by default, and any of its own; each lane head's menu (⋮, or right-click the head)
+// renames it, adds a track, moves it up or down, and deletes it (its items moved to
+// another track or deleted with it, asked there). An item moves to another lane by
+// dragging it up or down, or from its menu.
 
 import {
   memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
@@ -27,14 +31,15 @@ import { framesLabel } from "../lib/cutEdit";
 import { fmtClock } from "../lib/format";
 import { dragHasFiles } from "../lib/lookback";
 import {
-  GAIN_MAX, GAIN_MIN, HIT_KINDS, bedSettings, bedSpan, fxHeard, fxSettings, fxSpan, HIT_KIND_TITLE, TRACKS, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName, itemSpan, layout,
-  moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackState, trimItem, xAnchor, xTime, type ClipBox, type Lay,
+  GAIN_MAX, GAIN_MIN, HIT_KINDS, KINDS, MAX_TRACKS, bedSettings, bedSpan, canDeleteTrack, firstOf, fxHeard, fxSettings, fxSpan, HIT_KIND_TITLE, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName,
+  itemSpan, itemToTrack, itemsOn, kindOf, labelOf, layout, moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackList, trackState, trimItem, xAnchor, xTime,
+  type ClipBox, type Lay, type TrackDef,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
 import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
 import { cutBeats, type Beat } from "../lib/beats";
 import {
-  addMixHit, addMixPoint, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, dropOnLane, moveMixHit, moveMixItem,
+  addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
@@ -46,7 +51,7 @@ import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
 import { openSpotting } from "../spotActions";
-import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack, TrackKind } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -56,8 +61,9 @@ export const HITS_H = 16;
 export const LANE_H = 22;
 /** the lanes' heads (sticky, on the left) */
 export const HEAD_W = 184;
-/** all of it, gaps included */
-export const LANES_H = HITS_H + TRACKS.length * (LANE_H + 1) + 1;
+/** all of it, gaps included, for a mix of `tracks` tracks (four by default) */
+export const lanesH = (tracks = 4) => HITS_H + tracks * (LANE_H + 1) + 1;
+export const LANES_H = lanesH();
 /** a block's inside, where its waveform and gain line are drawn */
 const BLOCK_H = LANE_H - 6;
 /** px from a volume point that pick it up; from the gain line that a double-click adds one */
@@ -79,6 +85,8 @@ interface Drag {
   id: string;
   at: Anchor;
   mix: Mix;
+  /** a block dragged onto another lane: that track */
+  track?: MixTrack;
   px: number;
   py: number;
   /** a volume point's level */
@@ -95,6 +103,8 @@ type FxPop = { fx: MixFx; x: number; y: number };
 /** The lane menu (a new cue), at the pointer: `at` where it was asked. */
 /** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
 type LaneMenu = { x: number; y: number; track: MixTrack | null; at: Anchor | null };
+/** A lane head's menu (the track itself: rename, add, move, delete), at the pointer. */
+type TrackPop = { track: TrackDef; x: number; y: number };
 
 const NO_CUES: [string, string][] = [];
 
@@ -115,6 +125,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [laneMenu, setLaneMenu] = useState<LaneMenu | null>(null);
   const [bedPop, setBedPop] = useState<BedPop | null>(null);
   const [fxPop, setFxPop] = useState<FxPop | null>(null);
+  const [trackPop, setTrackPop] = useState<TrackPop | null>(null);
   const suppress = useRef(false);
   // the episode's cues: which music blocks open the cue window (fetched again with the mix)
   const cueIds = useApp((s) => s.cues[ep]?.map((c) => `${c.spec.id}:${c.spec.kind ?? "score"}`).join(" ") ?? "");
@@ -165,19 +176,28 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     const from = what === "out" ? timeX(lay, span.end ?? span.start) : timeX(lay, span.start);
     let at: Anchor | null = null;
     let moved = false;
+    // dragged up or down onto another lane: the track under the pointer
+    let onto: MixTrack | undefined;
+    const y0 = e.clientY;
     trackPointer((ev) => {
-      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      if (!moved && Math.abs(ev.clientX - x0) < 3 && Math.abs(ev.clientY - y0) < 6) return;
       moved = true;
       at = xAnchor(lay, from + ev.clientX - x0, fps);
       if (!at) return;
-      const next = what === "move" ? moveItem(base, it.id, at, items, fps) : trimItem(base, it.id, what, at, items, fps, fileSecs);
-      setDrag({ what, id: it.id, at, mix: next ?? base, px: ev.clientX, py: ev.clientY });
+      if (what === "move") {
+        const lane = (document.elementsFromPoint?.(ev.clientX, ev.clientY) ?? [])
+          .map((el) => (el as HTMLElement).dataset?.track).find((x) => !!x);
+        onto = lane && lane !== it.track ? lane : undefined;
+      }
+      let next = what === "move" ? moveItem(base, it.id, at, items, fps) ?? base : trimItem(base, it.id, what, at, items, fps, fileSecs) ?? base;
+      if (onto) next = itemToTrack(next, it.id, onto) ?? next;
+      setDrag({ what, id: it.id, at, mix: next, px: ev.clientX, py: ev.clientY, track: onto });
     }, (cancelled) => {
       setDrag(null);
       if (!moved) return;
       endDrag();
       if (cancelled || !at) return;
-      if (what === "move") void moveMixItem(it.id, at);
+      if (what === "move") void moveMixItem(it.id, at, onto);
       else void trimMixItem(it.id, what, at, fileSecs);
     });
   };
@@ -290,11 +310,15 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     const t = anchorTime(items, h.at, fps);
     return { h, x: t == null ? null : timeX(lay, t) };
   });
-  const soloed = TRACKS.some((t) => trackState(res, t).solo);
+  // the lanes: the mix's tracks (the one being dragged onto shows the block there)
+  const lanes = trackList(mix);
+  const soloed = lanes.some((t) => trackState(res, t.id).solo);
+  const bedOn = firstOf(mix, "ambience");
+  const fxOn = firstOf(mix, "effects");
   const beats = mixBeats && lay.length ? cutBeats(items, mix, mixBeats, fps, baseIn(st)) : [];
 
   return (
-    <div className="h3-snd" style={{ height: LANES_H }}>
+    <div className="h3-snd" style={{ height: lanesH(lanes.length) }}>
       <div className="h3-snd-lane h3-snd-hits" style={{ height: HITS_H }} onClick={onLaneClick} onDoubleClick={(e) => void onHitsDouble(e)}
         onContextMenu={(e) => onLaneMenu(e, null)}
         title="Hits: the moments a cue lands on. Double-click: a hit here · the + adds one at the Play all playhead · drag a hit to move it · right-click or double-click it: name, kind, delete · right-click the lane: a new cue">
@@ -328,20 +352,24 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
           </div>
         ))}
       </div>
-      {TRACKS.map((track) => {
+      {lanes.map((def) => {
+        const track = def.id;
+        const kind = def.kind;
         const ts = trackState(res, track);
         const silent = ts.mute || (soloed && !ts.solo);
         return (
-          <div key={track} className={`h3-snd-lane${over === track ? " h3-drop-onto" : ""}${silent ? " h3-snd-silent" : ""}`} style={{ height: LANE_H }}
+          <div key={track} data-track={track}
+            className={`h3-snd-lane${over === track || (drag?.track === track) ? " h3-drop-onto" : ""}${silent ? " h3-snd-silent" : ""}`} style={{ height: LANE_H }}
             onClick={onLaneClick}
             onDragOver={(e) => onDragOver(e, track)}
             onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
             onDrop={(e) => onDrop(e, track)}
             onContextMenu={(e) => onLaneMenu(e, track)}
-            title={`${TRACK_LABEL[track]}: drop a sound file here to lay it from where it falls · click: seek · right-click: ${track === "music" ? "a new cue here, a sound file" : track === "dialogue" ? "the shot's sound, a sound file" : "a sound file"}`}>
-            <LaneHead track={track} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res}
+            title={`${def.label}${def.label !== TRACK_LABEL[kind] ? ` (${kind})` : ""}: drop a sound file here to lay it from where it falls · click: seek · right-click: ${kind === "music" ? "a new cue here, a sound file" : track === "dialogue" ? "the shot's sound, a sound file" : "a sound file"} · its head's ⋮: rename, add a track, move, delete`}>
+            <LaneHead track={def} gain={ts.gain_db} mute={ts.mute} solo={ts.solo} ready={!!res}
               series={res?.series?.tracks?.[track]?.gain_db ?? null} fallback={defaultGain(res, track)}
-              own={res?.mix.tracks?.[track]?.gain_db != null} />
+              own={res?.mix.tracks?.[track]?.gain_db != null}
+              onMenu={(x, y) => setTrackPop({ track: def, x, y })} />
             {track === "dialogue" && lay.map((l) => {
               const s = st.shots.find((x) => x.shot === l.shot);
               const it = items.find((x) => x.shot === l.shot);
@@ -351,17 +379,17 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
                 </div>
               );
             })}
-            {track === "ambience" && (res?.beds ?? []).map((b, i) => (
+            {track === bedOn && (res?.beds ?? []).map((b, i) => (
               <BedBlock key={`${b.place}:${i}`} ep={ep} bed={b} mix={mix} lay={lay} items={items} fps={fps}
                 onMenu={(e) => setBedPop({ bed: b, x: e.clientX, y: e.clientY })} />
             ))}
-            {track === "effects" && (res?.fx ?? []).map((f) => (
+            {track === fxOn && (res?.fx ?? []).map((f) => (
               <FxBlock key={f.shot} ep={ep} fx={f} mix={mix} lay={lay} items={items} fps={fps}
                 onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })} />
             ))}
-            {track === "music" && beats.length > 0 && <BeatTicks beats={beats} lay={lay} />}
+            {kind === "music" && beats.length > 0 && <BeatTicks beats={beats} lay={lay} />}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
-              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
+              <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={kind === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && drag.what !== "hit" && drag.what !== "point" && drag.id === it.id}
                 onDown={onItemDown} onPointDown={onPointDown} onAddPoint={onAddPoint}
                 onPointMenu={(i) => void deleteMixPoint(it.id, i)}
@@ -382,13 +410,14 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             return t == null ? null : <> · {fmtClock(t)}</>;
           })()}
           <br />
-          <span className="h3-muted">anchored to {drag.at.shot}: it moves with the shot · Esc cancels</span>
+          <span className="h3-muted">{drag.track ? `onto ${labelOf(mix, drag.track)} · ` : ""}anchored to {drag.at.shot}: it moves with the shot · Esc cancels</span>
         </div>
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
       {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
       {fxPop && <FxMenu ep={ep} pop={fxPop} mix={res?.mix ?? {}} onClose={() => setFxPop(null)} />}
+      {trackPop && <TrackMenu pop={trackPop} mix={res?.mix ?? {}} onClose={() => setTrackPop(null)} />}
     </div>
   );
 });
@@ -424,13 +453,17 @@ const BeatTicks = memo(function BeatTicks({ beats, lay }: { beats: Beat[]; lay: 
  * the mix's own, kept as given (0 on music too: its default is -12); a
  * double-click drops it, back to the series config's or the default.
  */
-function LaneHead({ track, gain, mute, solo, ready, series, fallback, own }: {
-  track: MixTrack; gain: number; mute: boolean; solo: boolean; ready: boolean;
+function LaneHead({ track: def, gain, mute, solo, ready, series, fallback, own, onMenu }: {
+  track: TrackDef; gain: number; mute: boolean; solo: boolean; ready: boolean;
   /** the series config's level (null: none), and the default under it */
   series: number | null; fallback: number;
   /** the mix sets its own */
   own: boolean;
+  /** the track's menu, at the pointer */
+  onMenu: (x: number, y: number) => void;
 }) {
+  const track = def.id;
+  const name = def.label;
   const under = series ?? fallback;
   const db = (x: number) => `${x > 0 ? "+" : ""}${x} dB`;
   const [v, setV] = useState(gain);
@@ -445,11 +478,16 @@ function LaneHead({ track, gain, mute, solo, ready, series, fallback, own }: {
   };
   return (
     <div className="h3-snd-head" style={{ width: HEAD_W }} onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}>
-      <span className="h3-snd-name">{TRACK_LABEL[track]}</span>
+      onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onMenu(e.clientX, e.clientY);
+      }}>
+      <span className="h3-snd-name" title={`${name}: a ${def.kind} track${def.id !== def.kind ? "" : " (a default)"} · right-click or ⋮: rename, add a track, move, delete`}>{name}</span>
       <input type="range" className="h3-snd-fader" min={GAIN_MIN} max={GAIN_MAX} step={0.5} value={v} disabled={!ready}
-        aria-label={`${TRACK_LABEL[track]} fader`}
-        title={`${TRACK_LABEL[track]}: ${db(v)}${own ? "" : series != null ? " (the series config's)" : " (the default)"} · double-click: ${db(under)}, ${series != null ? "the series config's" : "the default"}${track === "dialogue" ? "\nThe clips' own sound, and anything put on this lane" : ""}`}
+        aria-label={`${name} fader`}
+        title={`${name}: ${db(v)}${own ? "" : series != null ? " (the series config's)" : " (the default)"} · double-click: ${db(under)}, ${series != null ? "the series config's" : "the default"}${track === "dialogue" ? "\nThe clips' own sound, and anything put on this lane" : ""}`}
         onPointerDown={() => (held.current = true)}
         onChange={(e) => {
           setV(Number(e.target.value));
@@ -468,6 +506,124 @@ function LaneHead({ track, gain, mute, solo, ready, series, fallback, own }: {
         onClick={() => void setTrackMix(track, { mute: !mute })}>M</button>
       <button className={`h3-snd-btn${solo ? " h3-on h3-snd-solo" : ""}`} disabled={!ready} title={solo ? "Unsolo" : "Solo: hear only the soloed tracks"}
         onClick={() => void setTrackMix(track, { solo: !solo })}>S</button>
+      <button className="h3-snd-btn" disabled={!ready} title={`${name}: rename, add a track, move it, delete it`} aria-label={`${name} track menu`}
+        onClick={(e) => onMenu(e.clientX, e.clientY)}>⋮</button>
+    </div>
+  );
+}
+
+/**
+ * A lane head's menu: the track renamed (Enter or Apply), a new track added below the
+ * lanes (its kind and name), moved up or down, or deleted; a track with items asks here
+ * where they go: onto another track (one of its kind first), or deleted with it. The
+ * dialogue track (the takes' own sound) can't be deleted.
+ */
+function TrackMenu({ pop, mix, onClose }: { pop: TrackPop; mix: Mix; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const def = pop.track;
+  const list = trackList(mix);
+  const others = list.filter((t) => t.id !== def.id);
+  const n = itemsOn(mix, def.id).length;
+  const [name, setName] = useState(def.label);
+  const [kind, setKind] = useState<TrackKind>(def.kind === "dialogue" ? "music" : def.kind);
+  const [newName, setNewName] = useState("");
+  const [moveTo, setMoveTo] = useState<string>(() => (others.find((t) => t.kind === def.kind) ?? others[0])?.id ?? "");
+  const [asking, setAsking] = useState(false);
+  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(pop.x, pop.y, r));
+  }, [pop, asking]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const i = list.findIndex((t) => t.id === def.id);
+  const run = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
+  const rename = () => {
+    if (name.trim() !== def.label) void renameMixTrack(def.id, name);
+    onClose();
+  };
+  const add = () => {
+    void addMixTrack(kind, newName.trim());
+    onClose();
+  };
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop h3-snd-trackmenu" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}>
+      <div className="h3-menu-head">{def.label} · a {def.kind} track{n ? ` · ${n} item${n === 1 ? "" : "s"}` : ""}</div>
+      <label className="h3-snd-field" title={`Its name on the lane (empty: ${TRACK_LABEL[def.id as TrackKind] ?? def.id}). Its id, ${def.id}, names its stem: ${def.id}.wav`}>
+        <span>Name</span>
+        <input className="h3-in" autoFocus value={name} maxLength={40} onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && rename()} />
+        <button className="h3-btn" style={{ width: "auto" }} disabled={name.trim() === def.label} onClick={rename}>Rename</button>
+      </label>
+      <div className="h3-row" style={{ gap: 4, padding: "2px 8px" }}>
+        <button className="h3-btn" style={{ width: "auto" }} disabled={i <= 0} title="One lane up (and one pair earlier in the XML)" onClick={run(() => void moveMixTrack(def.id, -1))}>
+          <i className="pi pi-arrow-up" /> Up
+        </button>
+        <button className="h3-btn" style={{ width: "auto" }} disabled={i >= list.length - 1} title="One lane down" onClick={run(() => void moveMixTrack(def.id, 1))}>
+          <i className="pi pi-arrow-down" /> Down
+        </button>
+      </div>
+      <div className="h3-menu-sep" />
+      <div className="h3-menu-head">A new track, below the lanes</div>
+      <label className="h3-snd-field" title="Its kind: its default level and how far it dips under speech (music -12 dB and -9 dB, ambience -6 dB), what a region reaches, and whether it joins the M&E stem (all but dialogue)">
+        <span>Kind</span>
+        <select className="h3-in" value={kind} onChange={(e) => setKind(e.target.value as TrackKind)}>
+          {KINDS.map((k) => <option key={k} value={k}>{TRACK_LABEL[k]}</option>)}
+        </select>
+      </label>
+      <label className="h3-snd-field" title="Its name: a song under the score, walla, ADR…">
+        <span>Name</span>
+        <input className="h3-in" value={newName} maxLength={40} placeholder={`${TRACK_LABEL[kind]} ${list.filter((t) => t.kind === kind).length + 1}`}
+          onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+        <button className="h3-btn" style={{ width: "auto" }} disabled={list.length >= MAX_TRACKS} title={list.length >= MAX_TRACKS ? `A mix has at most ${MAX_TRACKS} tracks` : "Add it"} onClick={add}>
+          <i className="pi pi-plus" /> Add
+        </button>
+      </label>
+      <div className="h3-menu-sep" />
+      {!canDeleteTrack(def.id) ? (
+        <div className="h3-muted" style={{ padding: "2px 8px", maxWidth: 300 }}>The dialogue track is the takes' own sound: it can be renamed, not deleted.</div>
+      ) : !asking ? (
+        <button title={n ? `Asks where its ${n} item${n === 1 ? "" : "s"} go` : "Take the track out of the mix"}
+          onClick={() => (n ? setAsking(true) : run(() => void deleteMixTrack(def.id, null))())}>
+          <i className="pi pi-trash" /> Delete {def.label}…
+        </button>
+      ) : (
+        <div className="h3-col" style={{ gap: 4, padding: "2px 8px" }}>
+          <span>{def.label} has {n} item{n === 1 ? "" : "s"} on it.</span>
+          {others.length > 0 && (
+            <div className="h3-row" style={{ gap: 4 }}>
+              <button className="h3-btn" style={{ width: "auto" }} disabled={!moveTo} onClick={run(() => void deleteMixTrack(def.id, moveTo))}>
+                Move {n === 1 ? "it" : "them"} to
+              </button>
+              <select className="h3-in" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                {others.map((t) => <option key={t.id} value={t.id}>{t.label}{t.kind !== def.kind ? ` (${t.kind})` : ""}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="h3-row" style={{ gap: 4 }}>
+            <button className="h3-btn" style={{ width: "auto" }} onClick={run(() => void deleteMixTrack(def.id, null))}>
+              <i className="pi pi-trash" /> Delete {n === 1 ? "it" : "them"} with the track
+            </button>
+            <button className="h3-btn" style={{ width: "auto" }} onClick={() => setAsking(false)}>Keep the track</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -943,6 +1099,14 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
           {field("Fade in", <input className="h3-in" type="number" min={0} max={2400} value={f.fadeIn} onChange={(e) => setF({ ...f, fadeIn: e.target.value })} />, `frames (${framesLabel(frames(f.fadeIn), fps)})`)}
           {field("Fade out", <input className="h3-in" type="number" min={0} max={2400} value={f.fadeOut} onChange={(e) => setF({ ...f, fadeOut: e.target.value })} />, `frames (${framesLabel(frames(f.fadeOut), fps)})`)}
           {field("Loop", <input type="checkbox" checked={f.loop} onChange={(e) => setF({ ...f, loop: e.target.checked })} />, "Play the file again, crossfaded, until its out")}
+          {field("Track", (
+            <select className="h3-in" value={item.track} onChange={(e) => {
+              void moveItemToTrack(item.id, e.target.value);
+              onClose();
+            }}>
+              {trackList(mix).map((t) => <option key={t.id} value={t.id}>{t.label}{t.label !== TRACK_LABEL[t.kind] ? ` (${t.kind})` : ""}</option>)}
+            </select>
+          ), "Move it to another lane (or drag it up or down there): that track's fader, ducking and stem")}
           {!!item.points?.length && (
             <button title={`Its ${item.points.length} volume point${item.points.length === 1 ? "" : "s"} taken out: it plays at its gain throughout`}
               onClick={() => {
@@ -1005,20 +1169,23 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
   const over = multi.length > 1;
   const at = menu.at;
   const track = menu.track;
+  const lanesMix = useApp((s) => currentMix(s)?.mix);
+  const kind = track ? kindOf(lanesMix, track) : null;
+  const name = track ? labelOf(lanesMix, track) : "Hits";
   const run = (fn: () => void) => () => {
     onClose();
     fn();
   };
   return (
     <div ref={ref} className="h3-menu h3-snd-pop" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-      <div className="h3-menu-head">{track ? TRACK_LABEL[track] : "Hits"} · {at ? `${at.shot} frame ${at.frame}` : "outside the cut"} · {store.get().pass}</div>
-      {(track === "music" || !track) && (
+      <div className="h3-menu-head">{name} · {at ? `${at.shot} frame ${at.frame}` : "outside the cut"} · {store.get().pass}</div>
+      {(kind === "music" || !track) && (
         <button disabled={!over && !at} title="A cue: its sections, arc and takes in the cue window, written to the hits in its span"
           onClick={run(() => void newCue(at))}>
           <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${at?.shot ?? "the shot"})…`}
         </button>
       )}
-      {track === "music" && (
+      {kind === "music" && (
         <button title="The spotting sheet: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it"
           onClick={run(() => openSpotting())}>
           <i className="pi pi-map" /> Scoring (spotting)…
@@ -1034,12 +1201,12 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
           </button>
         </>
       )}
-      {track === "effects" && (
+      {kind === "effects" && (
         <button disabled title="Coming (docs/SOUND.md phase 4): the shot's effects made from its take by a foley model">
           <i className="pi pi-bolt" /> Effects from {at?.shot ?? "the shot"}'s take…
         </button>
       )}
-      {track === "ambience" && (
+      {kind === "ambience" && (
         <button title="The places' ambience beds (the Refs tab's Ambience): a location's room tone or air, made once from its `ambience` words and looped under its shots"
           onClick={run(() => {
             const s = store.get();
@@ -1051,7 +1218,7 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
         </button>
       )}
       {track && (
-        <button disabled={!at} title={`A wav, mp3, flac, ogg or m4a from this computer, laid on ${TRACK_LABEL[track].toLowerCase()} from here (or drop one on the lane)`}
+        <button disabled={!at} title={`A wav, mp3, flac, ogg or m4a from this computer, laid on ${name} from here (or drop one on the lane)`}
           onClick={run(() => at && pickSoundFile(track, at))}>
           <i className="pi pi-upload" /> Add a sound file here…
         </button>

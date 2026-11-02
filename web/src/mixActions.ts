@@ -9,13 +9,14 @@ import { currentPlaylist, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
-  TRACK_LABEL, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  addTrack, deleteTrack, itemToTrack, itemsOn, kindOf, labelOf, moveTrack, renameTrack, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
+import { trackList as trackListOf } from "./lib/mix";
 import { statusKey, store, type AppState } from "./store";
 import { tn } from "./lib/format";
-import type { Anchor, Mix, MixBedSettings, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
+import type { Anchor, Mix, MixBedSettings, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -87,7 +88,8 @@ async function loadDuck(ep: string, pass: Pass): Promise<void> {
 /** What the pass's beats are fetched for: its music items' files and the recording (null: nothing to cut to). */
 export function beatsSig(s: AppState, ep: string, pass: Pass): string | null {
   const key = statusKey(ep, pass);
-  const music = (s.mix[key]?.mix.items ?? []).filter((i) => i.track === "music").map((i) => `${i.id}=${i.path}`);
+  const m = s.mix[key]?.mix;
+  const music = (m?.items ?? []).filter((i) => kindOf(m, i.track) === "music").map((i) => `${i.id}=${i.path}`);
   const rec = s.status[key]?.track;
   const track = rec?.exists !== false && rec?.path ? rec.path : "";
   return music.length || track ? JSON.stringify([music, track]) : null;
@@ -203,12 +205,71 @@ const fps = () => {
 };
 
 export function setTrackMix(track: MixTrack, patch: TrackPatch, label?: string): Promise<boolean> {
-  const name = TRACK_LABEL[track];
+  const name = labelOf(currentMix()?.mix, track);
   const text = label ?? (patch.gain_db === null ? `${name} fader to its default`
     : patch.gain_db != null ? `${name} fader ${patch.gain_db > 0 ? "+" : ""}${patch.gain_db} dB`
     : patch.mute != null ? `${patch.mute ? "Mute" : "Unmute"} ${name.toLowerCase()}`
       : patch.solo != null ? `${patch.solo ? "Solo" : "Unsolo"} ${name.toLowerCase()}` : `${name} track`);
   return editMix(text, (m) => setTrack(m, track, patch));
+}
+
+// ---- tracks of your own (docs/SOUND.md phase 6) ----
+
+/** A track added at the foot of the lanes, of `kind`, named `label`; its id, or null. */
+export async function addMixTrack(kind: TrackKind, label: string): Promise<string | null> {
+  let id: string | null = null;
+  const ok = await editMix(`Add the ${label || kind} track`, (m) => {
+    const r = addTrack(m, kind, label);
+    if (!r) {
+      host().toast("warn", "No more tracks", "A mix has at most 16.");
+      return null;
+    }
+    id = r.id;
+    return r.mix;
+  });
+  return ok ? id : null;
+}
+
+export function renameMixTrack(track: MixTrack, label: string): Promise<boolean> {
+  return editMix(`Rename ${labelOf(currentMix()?.mix, track)} to ${label || "its default"}`, (m) => renameTrack(m, track, label));
+}
+
+export function moveMixTrack(track: MixTrack, by: -1 | 1): Promise<boolean> {
+  return editMix(`Move ${labelOf(currentMix()?.mix, track)} ${by < 0 ? "up" : "down"}`, (m) => moveTrack(m, track, by));
+}
+
+/**
+ * A track taken out, after asking when it has items: they move to another track (OK names
+ * which) or go with it. The dialogue track can't be. Returns whether it was taken out.
+ */
+export async function deleteMixTrack(track: MixTrack, moveTo?: MixTrack | null): Promise<boolean> {
+  const m = currentMix()?.mix;
+  if (!m) return false;
+  const name = labelOf(m, track);
+  const n = itemsOn(m, track).length;
+  let to: MixTrack | null = moveTo ?? null;
+  if (n && moveTo === undefined) {
+    // the first other track of its kind, else none: asked
+    const same = trackListOf(m).find((t) => t.id !== track && t.kind === kindOf(m, track));
+    const ask = same
+      ? `${name} has ${n} item${n === 1 ? "" : "s"} on it.
+
+OK: move ${n === 1 ? "it" : "them"} to ${same.label}.
+Cancel: keep the track.`
+      : `${name} has ${n} item${n === 1 ? "" : "s"} on it and no other track is of its kind.
+
+OK: delete ${n === 1 ? "it" : "them"} with the track.
+Cancel: keep the track.`;
+    if (!confirm(ask)) return false;
+    to = same?.id ?? null;
+  }
+  return editMix(n ? `Delete ${name} (${n} item${n === 1 ? "" : "s"} ${to ? `to ${labelOf(m, to)}` : "with it"})` : `Delete ${name}`,
+    (mm) => deleteTrack(mm, track, to));
+}
+
+/** An item moved to another track (its menu's "Move to"). */
+export function moveItemToTrack(id: string, track: MixTrack): Promise<boolean> {
+  return editMix(`Move ${id} to ${labelOf(currentMix()?.mix, track)}`, (m) => itemToTrack(m, id, track));
 }
 
 /** A place's ambience bed: its level (dB, 0 the bed's own) or mute, the mix's `beds`. */
@@ -258,8 +319,13 @@ export function openBedRef(place: string) {
   host().show("refs");
 }
 
-export function moveMixItem(id: string, at: Anchor): Promise<boolean> {
-  return editMix(`Move ${id}`, (m) => moveItem(m, id, at, currentPlaylist(), fps()));
+/** An item moved to start at `at` (and onto `track`, dragged to another lane): one edit. */
+export function moveMixItem(id: string, at: Anchor, track?: MixTrack): Promise<boolean> {
+  return editMix(track ? `Move ${id} to ${labelOf(currentMix()?.mix, track)}` : `Move ${id}`, (m) => {
+    const moved = moveItem(m, id, at, currentPlaylist(), fps()) ?? m;
+    const out = track ? itemToTrack(moved, id, track) ?? moved : moved;
+    return out === m ? null : out;
+  });
 }
 
 export function trimMixItem(id: string, side: "in" | "out", at: Anchor, fileSecs: number | null): Promise<boolean> {
@@ -322,9 +388,10 @@ export async function dropOnLane(track: MixTrack, file: File, at: Anchor): Promi
     return false;
   }
   if (get().ep !== ep) return false;
-  const ok = await editMix(`Add ${file.name} to ${TRACK_LABEL[track].toLowerCase()}`, (m) =>
+  const lane = labelOf(currentMix()?.mix, track);
+  const ok = await editMix(`Add ${file.name} to ${lane}`, (m) =>
     addItem(m, { id: newItemId(m, track), track, path, in: at, label: file.name.replace(/\.[^.]+$/, "") }));
-  if (ok) host().toast("success", `${file.name} on ${TRACK_LABEL[track].toLowerCase()}`, `From ${at.shot} frame ${at.frame}, to the file's end (drag its tail to stop it sooner).`);
+  if (ok) host().toast("success", `${file.name} on ${lane}`, `From ${at.shot} frame ${at.frame}, to the file's end (drag its tail to stop it sooner).`);
   return ok;
 }
 

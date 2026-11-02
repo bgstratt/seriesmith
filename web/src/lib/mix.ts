@@ -7,11 +7,14 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
+import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackDef, MixTrackSettings, MixResult, TrackKind } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
-export const TRACKS: MixTrack[] = ["dialogue", "effects", "ambience", "music"];
-export const TRACK_LABEL: Record<MixTrack, string> = { dialogue: "Dialogue", effects: "Effects", ambience: "Ambience", music: "Music" };
+/** the default tracks, each its own kind (the kinds a track can be) */
+export const TRACKS: TrackKind[] = ["dialogue", "effects", "ambience", "music"];
+export const KINDS: TrackKind[] = TRACKS;
+/** the default tracks' names, and a kind's in words */
+export const TRACK_LABEL: Record<TrackKind, string> = { dialogue: "Dialogue", effects: "Effects", ambience: "Ambience", music: "Music" };
 export const HIT_KINDS: HitKind[] = ["accent", "arrive", "drop", "turn"];
 export const HIT_KIND_TITLE: Record<HitKind, string> = {
   accent: "a sting or a downbeat on the frame",
@@ -20,9 +23,9 @@ export const HIT_KIND_TITLE: Record<HitKind, string> = {
   turn: "a change of key or mood",
 };
 /** each track's fader when nothing sets it (mix.py's GAIN_DEFAULT; the server's `defaults.gain_db`) */
-export const GAIN_DEFAULT: Record<MixTrack, number> = { dialogue: 0, effects: 0, ambience: 0, music: -12 };
+export const GAIN_DEFAULT: Record<TrackKind, number> = { dialogue: 0, effects: 0, ambience: 0, music: -12 };
 /** how far each track dips under speech when nothing sets it (mix.py's DUCK_DEFAULT) */
-export const DUCK_DEFAULT: Partial<Record<MixTrack, number>> = { effects: 0, ambience: -6, music: -9 };
+export const DUCK_DEFAULT: Partial<Record<TrackKind, number>> = { effects: 0, ambience: -6, music: -9 };
 export const GAIN_MIN = -60;
 export const GAIN_MAX = 12;
 export const FADE_MAX = 2400;
@@ -36,6 +39,145 @@ export function dbToGain(db: number): number {
 }
 
 export const clampDb = (db: number) => Math.round(Math.min(GAIN_MAX, Math.max(GAIN_MIN, Number.isFinite(db) ? db : 0)) * 10) / 10;
+
+// ---------------------------------------------------------------------------
+// the mix's tracks (docs/SOUND.md phase 6): its own list (`track_list`), else the four
+// defaults; a track's kind decides its default fader and duck depth, what a region
+// reaches and whether it joins the M&E (mix.py's track_list / kinds / first_of)
+// ---------------------------------------------------------------------------
+
+/** a mix has at most this many tracks (mix.py's MAX_TRACKS) */
+export const MAX_TRACKS = 16;
+/** ids a track can't have: its stem would be one of these (mix.py's RESERVED_IDS) */
+const RESERVED = new Set(["me", "mix", "con", "prn", "aux", "nul", ...[1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((i) => [`com${i}`, `lpt${i}`])]);
+
+export interface TrackDef {
+  id: MixTrack;
+  kind: TrackKind;
+  label: string;
+}
+
+const DEFAULT_LIST: MixTrackDef[] = TRACKS.map((k) => ({ id: k, kind: k }));
+
+/** The mix's tracks in lane order, each named. */
+export function trackList(mix: Mix | undefined): TrackDef[] {
+  return (mix?.track_list?.length ? mix.track_list : DEFAULT_LIST)
+    .map((t) => ({ id: t.id, kind: t.kind, label: t.label || TRACK_LABEL[t.id as TrackKind] || t.id }));
+}
+
+/** A track's kind (an id not in the list: a default's own, else music). */
+export function kindOf(mix: Mix | undefined, id: MixTrack): TrackKind {
+  return trackList(mix).find((t) => t.id === id)?.kind ?? (TRACKS.includes(id as TrackKind) ? (id as TrackKind) : "music");
+}
+
+/** A track's name. */
+export function labelOf(mix: Mix | undefined, id: MixTrack): string {
+  return trackList(mix).find((t) => t.id === id)?.label ?? TRACK_LABEL[id as TrackKind] ?? id;
+}
+
+/** The track things of `kind` go on when nothing says which: the default of that name, else the
+ * first of that kind (null: none left). The beds go on the ambience one, the effects on the effects one. */
+export function firstOf(mix: Mix | undefined, kind: TrackKind): MixTrack | null {
+  const list = trackList(mix);
+  if (list.some((t) => t.id === kind && t.kind === kind)) return kind;
+  return list.find((t) => t.kind === kind)?.id ?? null;
+}
+
+/** A list stored as mix.json keeps it: labels that are the default's dropped, and none at all
+ * when it's the four defaults as they are. */
+function storeList(list: TrackDef[] | MixTrackDef[]): MixTrackDef[] | undefined {
+  const out = list.map((t) => {
+    const o: MixTrackDef = { id: t.id, kind: t.kind };
+    const label = (t.label ?? "").split(/\s+/).filter(Boolean).join(" ").slice(0, 40);
+    if (label && label !== (TRACK_LABEL[t.id as TrackKind] ?? t.id)) o.label = label;
+    return o;
+  });
+  return JSON.stringify(out) === JSON.stringify(DEFAULT_LIST) ? undefined : out;
+}
+
+function withList(mix: Mix, list: TrackDef[] | MixTrackDef[]): Mix {
+  const out: Mix = { ...mix };
+  const stored = storeList(list);
+  if (stored) out.track_list = stored;
+  else delete out.track_list;
+  return out;
+}
+
+/** A new track's id from its name: its letters and digits (a kind and a number when that's taken or empty). */
+export function newTrackId(label: string, kind: TrackKind, taken: Iterable<string>): string {
+  const used = new Set([...taken].map((x) => x.toLowerCase()));
+  const slug = label.toLowerCase().normalize("NFKD").replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
+  if (slug && !used.has(slug) && !RESERVED.has(slug) && ID.test(slug)) return slug;
+  for (let n = 2; ; n++) {
+    const id = `${kind}${n}`;
+    if (!used.has(id)) return id;
+  }
+}
+
+/** A track added at the end of the lanes (null: the mix has as many as it can). */
+export function addTrack(mix: Mix, kind: TrackKind, label: string): { mix: Mix; id: string } | null {
+  const list = trackList(mix);
+  if (list.length >= MAX_TRACKS) return null;
+  const id = newTrackId(label, kind, list.map((t) => t.id));
+  const name = label.trim() || `${TRACK_LABEL[kind]} ${list.filter((t) => t.kind === kind).length + 1}`;
+  return { mix: withList(mix, [...list, { id, kind, label: name }]), id };
+}
+
+/** A track renamed (an empty name: its default's; null: nothing changes). */
+export function renameTrack(mix: Mix, id: MixTrack, label: string): Mix | null {
+  const list = trackList(mix);
+  const i = list.findIndex((t) => t.id === id);
+  if (i < 0) return null;
+  const next = list.slice();
+  next[i] = { ...list[i], label: label.trim() || (TRACK_LABEL[id as TrackKind] ?? id) };
+  const out = withList(mix, next);
+  return JSON.stringify(out) === JSON.stringify(mix) ? null : out;
+}
+
+/** A track moved one lane up (-1) or down (+1); null at either end. */
+export function moveTrack(mix: Mix, id: MixTrack, by: -1 | 1): Mix | null {
+  const list = trackList(mix);
+  const i = list.findIndex((t) => t.id === id);
+  const j = i + by;
+  if (i < 0 || j < 0 || j >= list.length) return null;
+  const next = list.slice();
+  [next[i], next[j]] = [next[j], next[i]];
+  return withList(mix, next);
+}
+
+/** Whether a track can be taken out: any but the dialogue one (the takes' own sound). */
+export const canDeleteTrack = (id: MixTrack) => id !== "dialogue";
+
+/** The items on a track. */
+export const itemsOn = (mix: Mix, id: MixTrack) => (mix.items ?? []).filter((x) => x.track === id);
+
+/**
+ * A track taken out: its items moved to `moveTo` (another track), or taken out with it (null),
+ * its levels with it. Null for the dialogue track, or a track that isn't there.
+ */
+export function deleteTrack(mix: Mix, id: MixTrack, moveTo: MixTrack | null): Mix | null {
+  const list = trackList(mix);
+  if (!canDeleteTrack(id) || !list.some((t) => t.id === id) || moveTo === id) return null;
+  if (moveTo != null && !list.some((t) => t.id === moveTo)) return null;
+  let out = withList(mix, list.filter((t) => t.id !== id));
+  const items = (mix.items ?? []).flatMap((x) => (x.track !== id ? [x] : moveTo != null ? [{ ...x, track: moveTo }] : []));
+  if (items.length) out.items = items;
+  else delete out.items;
+  if (out.tracks?.[id]) {
+    const tracks = { ...out.tracks };
+    delete tracks[id];
+    out = { ...out, tracks };
+    if (!Object.keys(tracks).length) delete out.tracks;
+  }
+  return out;
+}
+
+/** An item moved to another track (a dialogue-kind track's level and ducking, say); null: nothing changes. */
+export function itemToTrack(mix: Mix, itemId: string, track: MixTrack): Mix | null {
+  const it = mix.items?.find((x) => x.id === itemId);
+  if (!it || it.track === track || !trackList(mix).some((t) => t.id === track)) return null;
+  return patchItem(mix, itemId, { track });
+}
 
 // ---------------------------------------------------------------------------
 // anchors on the cut's clock
@@ -389,28 +531,29 @@ export function regionSpans(items: PlayItem[], mix: Mix, fps: number): RegionSpa
   return out;
 }
 
-const regionDepth = (r: RegionSpan, name: MixTrack) => (name === "music" ? r.music : name === "ambience" ? r.ambience : undefined);
+const regionDepth = (r: RegionSpan, kind: TrackKind) => (kind === "music" ? r.music : kind === "ambience" ? r.ambience : undefined);
 
-/** How far a track dips under speech: the mix's, the series config's, else the default (the dialogue: 0). */
+/** How far a track dips under speech: the mix's, the series config's, else its kind's default (the dialogue kind: 0). */
 export function duckDepth(res: TrackSource | undefined, name: MixTrack): number {
-  if (name === "dialogue") return 0;
-  return res?.mix?.tracks?.[name]?.duck_db ?? res?.series?.tracks?.[name]?.duck_db ?? res?.defaults?.duck_db?.[name] ?? DUCK_DEFAULT[name] ?? 0;
+  const kind = kindOf(res?.mix, name);
+  if (kind === "dialogue") return 0;
+  return res?.mix?.tracks?.[name]?.duck_db ?? res?.series?.tracks?.[name]?.duck_db ?? res?.defaults?.duck_db?.[kind] ?? DUCK_DEFAULT[kind] ?? 0;
 }
 
 /**
  * A track's dip at cut time `t` in dB, `speech` the curve there: its depth
- * (a region's, the later one winning) times the curve; for the dialogue, the
- * regions' dialogue_db added up.
+ * (a region's for its kind, the later one winning) times the curve; for the
+ * dialogue kind, the regions' dialogue_db added up.
  */
-export function duckDbAt(name: MixTrack, depth: number, spans: RegionSpan[], speech: number, t: number): number {
-  let d = name === "dialogue" ? 0 : depth;
+export function duckDbAt(kind: TrackKind, depth: number, spans: RegionSpan[], speech: number, t: number): number {
+  let d = kind === "dialogue" ? 0 : depth;
   for (const r of spans) {
     if (t < r.start || t >= r.end) continue;
-    if (name === "dialogue") d += r.dialogue ?? 0;
-    else d = regionDepth(r, name) ?? d;
+    if (kind === "dialogue") d += r.dialogue ?? 0;
+    else d = regionDepth(r, kind) ?? d;
   }
   // (no dip is 0, not -0)
-  return (name === "dialogue" ? d : d * speech) || 0;
+  return (kind === "dialogue" ? d : d * speech) || 0;
 }
 
 /** The dialogue's dB at cut time `t` from the regions over it (0: none). */
@@ -426,12 +569,12 @@ export function duckTracks(res: TrackSource | undefined, items: PlayItem[], fps:
   const n = Math.max(0, Math.ceil(total / step)) + 1;
   const curve = duck?.curve ?? [];
   const db = {} as Record<MixTrack, number[] | null>;
-  for (const name of TRACKS) {
+  for (const { id: name, kind } of trackList(res?.mix)) {
     const depth = duckDepth(res, name);
     const out: number[] = new Array(n);
     let any = false;
     for (let i = 0; i < n; i++) {
-      out[i] = duckDbAt(name, depth, spans, curve[i] ?? 0, i * step);
+      out[i] = duckDbAt(kind, depth, spans, curve[i] ?? 0, i * step);
       if (out[i]) any = true;
     }
     db[name] = any ? out : null;
@@ -452,9 +595,10 @@ export interface TrackState {
 /** What a track's settings come from: the mix, over the series config's, over the defaults. */
 export type TrackSource = Pick<MixResult, "mix" | "series"> & { defaults?: Partial<MixResult["defaults"]> };
 
-/** A track's fader when neither the mix nor the series config sets it (music: -12 dB). */
+/** A track's fader when neither the mix nor the series config sets it: its kind's (music: -12 dB). */
 export function defaultGain(res: TrackSource | undefined, name: MixTrack): number {
-  return res?.defaults?.gain_db?.[name] ?? GAIN_DEFAULT[name];
+  const kind = kindOf(res?.mix, name);
+  return res?.defaults?.gain_db?.[kind] ?? GAIN_DEFAULT[kind];
 }
 
 export function trackState(res: TrackSource | undefined, name: MixTrack): TrackState {
@@ -465,9 +609,10 @@ export function trackState(res: TrackSource | undefined, name: MixTrack): TrackS
 
 /** What each track sounds at: its fader, silenced when muted or another is soloed. */
 export function trackGains(res: TrackSource | undefined): Record<MixTrack, number> {
-  const st = Object.fromEntries(TRACKS.map((t) => [t, trackState(res, t)])) as Record<MixTrack, TrackState>;
-  const soloed = TRACKS.some((t) => st[t].solo);
-  return Object.fromEntries(TRACKS.map((t) => {
+  const ids = trackList(res?.mix).map((t) => t.id);
+  const st = Object.fromEntries(ids.map((t) => [t, trackState(res, t)])) as Record<MixTrack, TrackState>;
+  const soloed = ids.some((t) => st[t].solo);
+  return Object.fromEntries(ids.map((t) => {
     const x = st[t];
     return [t, x.mute || (soloed && !x.solo) ? 0 : dbToGain(x.gain_db)];
   })) as Record<MixTrack, number>;
@@ -500,7 +645,7 @@ export function setTrack(mix: Mix, name: MixTrack, patch: TrackPatch): Mix {
 // items
 // ---------------------------------------------------------------------------
 
-const PREFIX: Record<MixTrack, string> = { dialogue: "d", effects: "fx", ambience: "amb", music: "m" };
+const PREFIX: Record<TrackKind, string> = { dialogue: "d", effects: "fx", ambience: "amb", music: "m" };
 
 /** A new id: `prefix` and the next free two-digit number. */
 export function newId(prefix: string, taken: Iterable<string>): string {
@@ -511,7 +656,7 @@ export function newId(prefix: string, taken: Iterable<string>): string {
   }
 }
 
-export const newItemId = (mix: Mix, track: MixTrack) => newId(PREFIX[track], (mix.items ?? []).map((i) => i.id));
+export const newItemId = (mix: Mix, track: MixTrack) => newId(PREFIX[kindOf(mix, track)], (mix.items ?? []).map((i) => i.id));
 export const newHitId = (mix: Mix) => newId("h", (mix.hits ?? []).map((h) => h.id));
 
 /** An item with its defaults dropped. */
@@ -684,6 +829,8 @@ export function bedSpan(items: PlayItem[], bed: MixBed, fps: number): { start: n
 export function bedPlan(items: PlayItem[], beds: MixBed[] | undefined, mix: Mix, fps: number): PlayEntry[] {
   const total = totalDuration(items);
   const out: PlayEntry[] = [];
+  const track = firstOf(mix, "ambience");
+  if (!track) return out;
   const half = BED_XFADE / 2;
   (beds ?? []).forEach((b, i) => {
     const own = bedSettings(mix, b.place);
@@ -693,7 +840,7 @@ export function bedPlan(items: PlayItem[], beds: MixBed[] | undefined, mix: Mix,
     const head = start > 1e-6;
     const tail = end < total - 1e-6;
     out.push({
-      id: `bed:${b.place}:${i}`, track: "ambience", path: b.path,
+      id: `bed:${b.place}:${i}`, track, path: b.path,
       start: head ? start - half : start, end: tail ? end + half : end, offset: 0,
       gain: dbToGain(own.gain_db), points: [], fadeIn: head ? BED_XFADE : 0, fadeOut: tail ? BED_XFADE : 0, loop: true,
     });
@@ -757,12 +904,14 @@ export function fxSpan(items: PlayItem[], f: MixFx, fps: number): { start: numbe
 /** The effects Play all plays: each heard one at its clip, from the clip's first frame of the take. */
 export function fxPlan(items: PlayItem[], fx: MixFx[] | undefined, mix: Mix, fps: number): PlayEntry[] {
   const out: PlayEntry[] = [];
+  const track = firstOf(mix, "effects");
+  if (!track) return out;
   for (const f of fx ?? []) {
     if (!fxHeard(mix, f)) continue;
     const { start, end } = fxSpan(items, f, fps);
     if (!(end > start)) continue;
     out.push({
-      id: `fx:${f.shot}`, track: "effects", path: f.path, start, end, offset: f.in.frame / (fps || 24),
+      id: `fx:${f.shot}`, track, path: f.path, start, end, offset: f.in.frame / (fps || 24),
       gain: dbToGain(fxSettings(mix, f.shot)?.gain_db ?? 0), points: [], fadeIn: 0, fadeOut: 0, loop: false,
     });
   }

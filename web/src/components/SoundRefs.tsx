@@ -14,7 +14,8 @@ import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
 import { currentMix, deleteMixItem, loadMix, makeEffects, pickMixFx, setMixBed, setMixFx, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
-import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, Ref } from "../types";
+import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, Ref, TrackKind } from "../types";
+import { kindOf } from "../lib/mix";
 import { useTargets } from "./Targets";
 import { VoiceCandidate, VoiceLive } from "./VoiceRef";
 
@@ -336,7 +337,8 @@ export function SoundRefsSections({ ep }: { ep: string }) {
   const items = mix?.mix.items ?? [];
   const { beds, error: bedsError } = useBeds(ep);
   const fxShots = useFxShots(ep, pass);
-  const on = (t: string) => items.filter((x) => x.track === t);
+  // the files on every track of that kind (the mix's own tracks too, docs/SOUND.md phase 6)
+  const on = (kind: TrackKind) => items.filter((x) => kindOf(mix?.mix, x.track) === kind);
   return (
     <>
       <Section label="Music" count={cues?.length ?? 0}

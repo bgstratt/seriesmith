@@ -12,7 +12,7 @@
 // region's dialogue_db: a video only goes down).
 
 import { useEffect, useRef } from "react";
-import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, TRACKS, type PlayEntry } from "../lib/mix";
+import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, type PlayEntry } from "../lib/mix";
 import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
@@ -52,15 +52,24 @@ export class MixEngine {
     const AC = this.AC ?? (typeof window !== "undefined" ? (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) : undefined);
     if (!AC) return null;
     this.ctx = new AC();
-    for (const t of TRACKS) {
-      const g = this.ctx.createGain();
-      const d = this.ctx.createGain();
+    return this.ctx;
+  }
+
+  /** A track's fader, its ducking after it (made the first time the track is heard: the
+   * mix's own tracks as well as the four, docs/SOUND.md phase 6). */
+  private fader(t: MixTrack): GainNode | null {
+    const ctx = this.ctx;
+    if (!ctx) return null;
+    let g = this.tracks[t];
+    if (!g) {
+      g = ctx.createGain();
+      const d = ctx.createGain();
       g.connect(d);
-      d.connect(this.ctx.destination);
+      d.connect(ctx.destination);
       this.tracks[t] = g;
       this.ducks[t] = d;
     }
-    return this.ctx;
+    return g;
   }
 
   /** A file decoded once (null: it can't be). */
@@ -83,7 +92,9 @@ export class MixEngine {
   setGains(g: Record<MixTrack, number>) {
     const ctx = this.ctx;
     if (!ctx) return;
-    for (const t of TRACKS) this.tracks[t]?.gain.setTargetAtTime(g[t], ctx.currentTime, 0.02);
+    for (const t of Object.keys(g)) this.fader(t)?.gain.setTargetAtTime(g[t], ctx.currentTime, 0.02);
+    // a track no longer in the mix: silent
+    for (const t of Object.keys(this.tracks)) if (!(t in g)) this.tracks[t]?.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
   }
 
   /** The ducking changed: laid again from where the audio is, if it's playing. */
@@ -103,7 +114,7 @@ export class MixEngine {
     if (!ctx) return;
     const from = Math.max(this.pos0, this.now());
     const when = Math.max(ctx.currentTime, this.ctxAt(from));
-    for (const t of TRACKS) {
+    for (const t of Object.keys(this.ducks)) {
       const g = this.ducks[t]?.gain;
       if (!g) continue;
       g.cancelScheduledValues(0);
@@ -187,7 +198,9 @@ export class MixEngine {
     gain.gain.setValueAtTime(entryLevel(e, at, end), when);
     for (const t of entryMarks(e, at, end)) gain.gain.linearRampToValueAtTime(entryLevel(e, t, end), ctxAt(t));
     src.connect(gain);
-    gain.connect(this.tracks[e.track]!);
+    const fader = this.fader(e.track);
+    if (!fader) return;
+    gain.connect(fader);
     src.start(when, fileAt);
     src.stop(ctxAt(end));
     this.live.push({ src, gain });

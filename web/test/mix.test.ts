@@ -404,3 +404,59 @@ describe("the mix in the editor", () => {
     expect(currentMix()!.mix).toEqual(before);
   });
 });
+
+describe("tracks of your own (docs/SOUND.md phase 6)", () => {
+  const song = { id: "s1", track: "song", path: "audio/song.wav", in: { shot: "sh010", frame: 0 } };
+
+  it("adds, renames, moves and deletes tracks, the defaults when none of its own", async () => {
+    const { addTrack, deleteTrack, itemToTrack, kindOf, labelOf, moveTrack, newTrackId, renameTrack, trackList } = await import("../src/lib/mix");
+    expect(trackList({}).map((t) => t.id)).toEqual(["dialogue", "effects", "ambience", "music"]);
+    const r = addTrack({}, "music", "Song")!;
+    expect(r.id).toBe("song");
+    expect(r.mix.track_list).toEqual([{ id: "dialogue", kind: "dialogue" }, { id: "effects", kind: "effects" },
+      { id: "ambience", kind: "ambience" }, { id: "music", kind: "music" }, { id: "song", kind: "music", label: "Song" }]);
+    expect(kindOf(r.mix, "song")).toBe("music");
+    expect(newTrackId("Song", "music", ["song"])).toBe("music2");
+    expect(newTrackId("Mix", "music", [])).toBe("music2");                 // a stem's name: not an id
+    expect(newTrackId("Walla walla!", "ambience", [])).toBe("walla_walla");
+    // a rename to the default's own name drops the label
+    const renamed = renameTrack(r.mix, "music", "Score")!;
+    expect(labelOf(renamed, "music")).toBe("Score");
+    expect(renameTrack(renamed, "music", "")!.track_list?.[3]).toEqual({ id: "music", kind: "music" });
+    expect(moveTrack(r.mix, "song", -1)!.track_list?.map((t) => t.id)).toEqual(["dialogue", "effects", "ambience", "song", "music"]);
+    expect(moveTrack(r.mix, "song", 1)).toBeNull();
+    // the four defaults again is no list of its own
+    const withItem: Mix = { ...r.mix, items: [song], tracks: { song: { gain_db: 0 } } };
+    const moved = deleteTrack(withItem, "song", "music")!;
+    expect(moved.track_list).toBeUndefined();
+    expect(moved.items?.[0].track).toBe("music");
+    expect(moved.tracks).toBeUndefined();
+    expect(deleteTrack(withItem, "song", null)!.items).toBeUndefined();
+    expect(deleteTrack(withItem, "dialogue", null)).toBeNull();
+    expect(itemToTrack(withItem, "s1", "music")!.items?.[0].track).toBe("music");
+    expect(itemToTrack(withItem, "s1", "nope")).toBeNull();
+  });
+
+  it("a track's kind gives its default level and ducking; beds and effects go on their kind's track", async () => {
+    const { bedPlan, defaultGain, duckDepth, firstOf, fxPlan, trackGains } = await import("../src/lib/mix");
+    const mix: Mix = {
+      track_list: [{ id: "dialogue", kind: "dialogue" }, { id: "adr", kind: "dialogue" }, { id: "walla", kind: "ambience" }, { id: "song", kind: "music" }],
+      tracks: { song: { solo: true } },
+    };
+    const res = { mix, series: {} };
+    expect(defaultGain(res, "song")).toBe(-12);
+    expect(duckDepth(res, "song")).toBe(-9);
+    expect(duckDepth(res, "adr")).toBe(0);
+    expect(duckDepth(res, "walla")).toBe(-6);
+    expect(Object.keys(trackGains(res))).toEqual(["dialogue", "adr", "walla", "song"]);
+    expect(trackGains(res).walla).toBe(0);                                  // the song is soloed
+    expect(firstOf(mix, "ambience")).toBe("walla");
+    expect(firstOf(mix, "effects")).toBeNull();
+    const bed = { place: "diner", label: "Diner", path: "a.wav", exists: true, words: "", shots: ["sh010"],
+                  in: { shot: "sh010", frame: 0 }, out: { shot: "sh020", frame: 0 }, start: 0, end: 2, gain_db: 0, mute: false };
+    expect(bedPlan(ITEMS, [bed], mix, 24)[0].track).toBe("walla");
+    const fx = { shot: "sh010", take: 1, model: "h3_foley", path: "x.wav", exists: true, in: { shot: "sh010", frame: 0 }, out: { shot: "sh010", frame: 48 },
+                 start: 0, end: 2, offset: 0, gain_db: 0, mute: false, keep_stale: false, stale: null, heard: true };
+    expect(fxPlan(ITEMS, [fx], { ...mix, fx: { sh010: { take: 1 } } }, 24)).toEqual([]);     // no effects track
+  });
+});

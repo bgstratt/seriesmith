@@ -2460,7 +2460,18 @@ export interface PromoteResult {
 // the episode's mix (docs/SOUND.md; seriesmith/mix.py's docstring has the shape)
 // ---------------------------------------------------------------------------
 
-export type MixTrack = "dialogue" | "effects" | "ambience" | "music";
+/** What a track is (docs/SOUND.md phase 6): its default fader and duck depth, what a region
+ * reaches, whether it joins the M&E. The four default tracks are each their own kind. */
+export type TrackKind = "dialogue" | "effects" | "ambience" | "music";
+/** A track's id: one of the defaults ("dialogue", "effects", "ambience", "music") or one of the mix's own. */
+export type MixTrack = string;
+
+/** A track in the mix's own list (`track_list`): its id, kind and name (none: the default's, or its id). */
+export interface MixTrackDef {
+  id: MixTrack;
+  kind: TrackKind;
+  label?: string;
+}
 
 /** A shot and a frame of its take at the cut's rate, counted from the take's
  * first frame before any trim: a trim or a reorder moves it with its shot. */
@@ -2538,6 +2549,8 @@ export interface Mix {
   beds?: Record<string, MixBedSettings>;
   /** a shot's picked effects take (docs/SOUND.md phase 4), its level, mute, kept though stale */
   fx?: Record<string, MixFxSettings>;
+  /** the mix's own tracks in lane order (docs/SOUND.md phase 6); none: the four defaults */
+  track_list?: MixTrackDef[];
 }
 
 export interface MixFxSettings {
@@ -2671,8 +2684,12 @@ export interface MixResult {
   fx?: MixFx[];
   /** the series config's `sound` defaults the mix sits on */
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
+  /** the mix's tracks in lane order, each named (the server's; the editor works it out from `mix` too) */
+  track_list?: (MixTrackDef & { label: string })[];
   defaults: {
     tracks: MixTrack[];
+    /** the default tracks' names */
+    labels?: Record<TrackKind, string>;
     /** each track's fader when neither the mix nor the series config sets it (music -12) */
     gain_db: Record<MixTrack, number>;
     duck_db: Partial<Record<MixTrack, number>>;

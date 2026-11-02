@@ -3,7 +3,7 @@
 // page and the tests to round-trip a mix.
 
 import type { PlayItem } from "../lib/playlist";
-import type { Anchor, Mix, MixHit, MixItem, MixRegion, MixTrack, MixTrackSettings } from "../types";
+import type { Anchor, Mix, MixHit, MixItem, MixRegion, MixTrack, MixTrackDef, MixTrackSettings, TrackKind } from "../types";
 
 export class MixError extends Error {
   constructor(message: string, public status = 400) {
@@ -12,7 +12,29 @@ export class MixError extends Error {
 }
 
 const TRACKS: MixTrack[] = ["dialogue", "effects", "ambience", "music"];
-const DUCK_DEFAULT: Partial<Record<MixTrack, number>> = { effects: 0, ambience: -6, music: -9 };
+const DUCK_DEFAULT: Partial<Record<TrackKind, number>> = { effects: 0, ambience: -6, music: -9 };
+const LABELS: Record<string, string> = { dialogue: "Dialogue", effects: "Effects", ambience: "Ambience", music: "Music" };
+
+/** mix.py's check_track_list: the mix's own tracks, none when it's the four defaults. */
+function trackList(raw: unknown): MixTrackDef[] | undefined {
+  if (raw == null) return undefined;
+  if (!Array.isArray(raw) || !raw.length) throw new MixError("track_list is a list of tracks");
+  const seen = new Set<string>();
+  const out = raw.map((t: MixTrackDef) => {
+    const tid = id(t?.id, "a track's");
+    if (["me", "mix"].includes(tid.toLowerCase())) throw new MixError(`a track can't be called ${tid}`);
+    if (seen.has(tid)) throw new MixError(`two tracks are called ${tid}`);
+    seen.add(tid);
+    if (!(TRACKS as string[]).includes(t.kind)) throw new MixError(`track ${tid}'s kind must be one of ${TRACKS.join(", ")}`);
+    if ((TRACKS as string[]).includes(tid) && t.kind !== tid) throw new MixError(`the ${tid} track is of kind ${tid}`);
+    const o: MixTrackDef = { id: tid, kind: t.kind };
+    const label = (t.label ?? "").split(/\s+/).filter(Boolean).join(" ").slice(0, 40);
+    if (label && label !== (LABELS[tid] ?? tid)) o.label = label;
+    return o;
+  });
+  if (!seen.has("dialogue")) throw new MixError("the dialogue track (the takes' own sound) can't be taken out");
+  return JSON.stringify(out) === JSON.stringify(TRACKS.map((k) => ({ id: k, kind: k }))) ? undefined : out;
+}
 const HIT_KINDS = ["accent", "arrive", "drop", "turn"];
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const ITEM_FIELDS = ["id", "track", "path", "in", "out", "offset", "gain_db", "fade_in", "fade_out", "points", "loop", "label"];
@@ -36,7 +58,7 @@ function id(v: unknown, what: string): string {
   return v;
 }
 
-function item(raw: MixItem): MixItem {
+function item(raw: MixItem, TRACKS: MixTrack[]): MixItem {
   const unknown = Object.keys(raw).filter((k) => !ITEM_FIELDS.includes(k));
   if (unknown.length) throw new MixError(`unknown item field(s) ${unknown.join(", ")}`);
   const out: MixItem = { id: id(raw.id, "an item's"), track: raw.track, path: "", in: anchor(raw.in, `item ${raw.id}'s in`) };
@@ -63,25 +85,28 @@ export function checkMix(raw: Mix | null | undefined): Mix {
   if (raw == null) return {};
   if (typeof raw !== "object") throw new MixError("a mix must be an object");
   const out: Mix = {};
+  const own = trackList(raw.track_list);
+  const kinds = new Map((own ?? TRACKS.map((k) => ({ id: k, kind: k as TrackKind }))).map((t) => [t.id, t.kind]));
+  const ids = [...kinds.keys()];
   const tracks: Partial<Record<MixTrack, MixTrackSettings>> = {};
   for (const [name, t] of Object.entries(raw.tracks ?? {}) as [MixTrack, MixTrackSettings][]) {
-    if (!TRACKS.includes(name)) throw new MixError(`unknown track ${name}`);
+    if (!kinds.has(name)) throw new MixError(`unknown track ${name}`);
     const o: MixTrackSettings = {};
     // a fader is kept as given, 0 too: it overrides the series config's and the default (music -12)
     if (t.gain_db != null) o.gain_db = num(t.gain_db, `track ${name}'s gain_db`, -60, 12);
     if (t.mute) o.mute = true;
     if (t.solo) o.solo = true;
     if (t.duck_db != null) {
-      if (name === "dialogue") throw new MixError("the dialogue track doesn't duck");
+      if (kinds.get(name) === "dialogue") throw new MixError(`the ${name} track is dialogue: it doesn't duck`);
       const d = num(t.duck_db, `track ${name}'s duck_db`, -40, 0);
-      if (d !== DUCK_DEFAULT[name]) o.duck_db = d;
+      if (d !== DUCK_DEFAULT[kinds.get(name)!]) o.duck_db = d;
     }
     if (Object.keys(o).length) tracks[name] = o;
   }
   if (Object.keys(tracks).length) out.tracks = tracks;
   const seen = new Set<string>();
   const items = (raw.items ?? []).map((r) => {
-    const it = item(r);
+    const it = item(r, ids);
     if (seen.has(it.id)) throw new MixError(`two items are called ${it.id}`);
     seen.add(it.id);
     return it;
@@ -125,6 +150,7 @@ export function checkMix(raw: Mix | null | undefined): Mix {
     fx[shot] = o;
   }
   if (Object.keys(fx).length) out.fx = fx;
+  if (own) out.track_list = own;
   return out;
 }
 

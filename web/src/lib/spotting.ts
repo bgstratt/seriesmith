@@ -7,7 +7,7 @@
 // the actions (spotActions.ts) use them.
 
 import { barBeat, gridOf, ranks } from "./cue";
-import { anchorTime } from "./mix";
+import { anchorTime, firstOf } from "./mix";
 import type { PlayItem } from "./playlist";
 import type { Audition } from "../store";
 import type { Anchor, CuePlan, CueSpec, CueSummary, CueTake, HitKind, Mix, MixBed, MixFx, MixItem } from "../types";
@@ -242,7 +242,7 @@ export function auditionOf(ep: string, pass: Audition["pass"], spec: CueSpec, pl
 export function auditionMix(mix: Mix, a: Audition): Mix {
   const was = mix.items?.find((i) => i.id === a.cue);
   const item: MixItem = {
-    id: a.cue, track: "music", path: a.path, in: a.in, out: a.out,
+    id: a.cue, track: was?.track ?? firstOf(mix, "music") ?? "music", path: a.path, in: a.in, out: a.out,
     offset: a.offset, fade_out: a.fadeOut, label: a.label,
     ...(was?.gain_db != null ? { gain_db: was.gain_db } : {}),
   };

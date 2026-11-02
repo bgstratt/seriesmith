@@ -30,8 +30,9 @@ import { useTargets } from "./Targets";
 import { Badges, Progress, mediaStyle, useScrub } from "./Thumb";
 import { AudioBadge } from "./ClipAudio";
 import { audioBadgeOf } from "../lib/audioSource";
-import { HEAD_W, LANES_H, SoundLanes } from "./SoundLanes";
-import { toggleSound } from "../mixActions";
+import { HEAD_W, SoundLanes, lanesH } from "./SoundLanes";
+import { trackList } from "../lib/mix";
+import { currentMix, toggleSound } from "../mixActions";
 import { openSpotting } from "../spotActions";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
@@ -334,6 +335,8 @@ export function Timeline() {
   const progress = useApp((s) => s.progress);
   // the sound lanes (the mix) under the clips: the waveforms, each clip's own sound on the dialogue lane
   const sound = useApp((s) => s.sound);
+  // the mix's tracks: the lanes' height
+  const LANES_H = lanesH(useApp((s) => trackList(currentMix(s)?.mix).length));
   // Phase 9d: the recording overrides every clip's own audio source
   const recording = useApp((s) => s.cutAudio === "recording");
   const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
