@@ -76,6 +76,7 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
+from seriesmith import checks as CK  # noqa: E402
 from seriesmith import color as COL  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import mix as MX  # noqa: E402
@@ -544,6 +545,24 @@ def conform(src: str, dst: str, audio: str | None, fps: float, frames: int,
                            f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
 
 
+def held_take(sc: dict) -> bool:
+    """Whether a take's sidecar says it was rendered by `hold` (a picture held still)."""
+    try:
+        from seriesmith import hold as H
+        from seriesmith import targets as TG
+        return H.is_hold(TG.load_target(sc.get("target") or ""))
+    except Exception:                                    # noqa: BLE001  no target, or gone
+        return False
+
+
+def check_clips(plan: list[dict], fps: float) -> list[dict]:
+    """The plan's clips where they lie in the cut, for checks.check: {"id", "a", "b"
+    (seconds), "fade_in", "fade_out" (seconds, as laid), "held"}."""
+    return [{"id": p["id"], "a": p["cut_in"] / fps, "b": (p["cut_in"] + p["used"]) / fps,
+             "fade_in": p["fade_in"] / fps, "fade_out": p["fade_out"] / fps, "held": p.get("held", False)}
+            for p in plan]
+
+
 def lay_transitions(plan: list[dict]) -> dict:
     """Each plan item's fades and dissolve (`asked`: its cut entry's) fitted to
     the clips. A dissolve of n frames takes the clip before's last n (`tail`)
@@ -806,6 +825,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--size", default=None, metavar="WxH",
                     help="the cut's size (every clip scaled, letterboxed if its aspect "
                          "differs), e.g. 1920x1080")
+    ap.add_argument("--no-checks", action="store_true",
+                    help="don't check the export's picture for black and frozen runs and "
+                         "flashes (<cut>_checks.json; they never change the cut)")
     args = ap.parse_args(argv)
 
     pass_ = args.pass_ or ("proxy" if "_proxy" in os.path.basename(args.shotlist)
@@ -960,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
              # this clip's audio source (cut.json's `audio`), and the file it
              # plays: None for silence, or for a source that isn't there
              "audio_spec": e.audio, "audio_src": audio_src,
+             # a still on purpose (the `hold` target): the export's checks don't call it frozen
+             "held": held_take(sc),
              "wav": t.paths.h3_wav if os.path.isfile(t.paths.h3_wav) else None,
              "expected": s["length"], "policy": s.get("audio_policy", "?"),
              "src_fps": src_fps, "convert": convert,
@@ -1032,6 +1056,7 @@ def main(argv: list[str] | None = None) -> int:
         d = p["dissolve_in"]
         total -= d
         p["start"] = (total + d / 2) / fps
+        p["cut_in"] = total                  # its first frame in the cut
         total += p["used"]
     windowed = [p for p in plan if p["keep"]]
     trimmed = [p for p in plan if p["trim_in"] or p["trim_out"]]
@@ -1440,6 +1465,30 @@ def main(argv: list[str] | None = None) -> int:
                   f"{lc['verdict']}"
                   + ("" if lc["mixed"] or lc["on_target"] else
                      "; the cut's own sound, as it came (no mix brings it to the target)"))
+
+    # the picture's checks (checks.py): black and frozen runs and flashes, reported beside
+    # the cut and here; the cut is never changed by them
+    side = os.path.splitext(out_path)[0] + CK.SUFFIX
+    if args.no_checks:
+        if os.path.isfile(side):
+            os.remove(side)
+    else:
+        from seriesmith.core import fileio as FIO
+        say(args.progress, "checks", text="checking the picture")
+        try:
+            ck = CK.check(out_path, check_clips(plan, fps), fps, total / fps)
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+            print(f"  ! checks: the picture couldn't be read ({str(e).strip()[-200:]})")
+            if os.path.isfile(side):
+                os.remove(side)
+        else:
+            FIO.write_json(side, ck)
+            print(f"  {'' if ck['ok'] else '! '}checks: {ck['verdict']}")
+            for kind in ("black", "frozen", "flashes"):
+                for r in ck[kind]:
+                    print(f"    {kind:8} {tc(r['start'])}-{tc(r['end'])}  {r['seconds']:.2f} s  "
+                          f"{', '.join(r['shots'])}"
+                          + (f"  ({r['flashes']} flashes in a second)" if kind == "flashes" else ""))
 
     # ---- shot boundary list, for finding things in the timeline ----------
     edl = os.path.splitext(out_path)[0] + "_shots.txt"

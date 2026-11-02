@@ -945,6 +945,31 @@ export interface AssembleResult {
   /** the loudness check on the export (docs/SOUND.md phase 5; `<cut>_loudness.json`): measured
    * against the mix's target, never changing it. Null: no sound, the XML, or an older server */
   loudness?: LoudnessCheck | null;
+  /** the picture's checks on the export (docs/FINISHING.md "The export's checks"; `<cut>_checks.json`):
+   * black and frozen runs and flashes, never changing it. Null: skipped, the XML, or an older server */
+  checks?: ExportChecks | null;
+}
+
+/** A run the export's checks found: seconds in the cut, and the shots playing then. */
+export interface ExportCheckRun {
+  start: number;
+  end: number;
+  seconds: number;
+  shot: string | null;
+  shots: string[];
+  /** a flashing run: the most flashes in any one second */
+  flashes?: number;
+}
+
+/** The export's picture checked (checks.check): what the cut's own fades and held shots explain is left out. */
+export interface ExportChecks {
+  black: ExportCheckRun[];
+  frozen: ExportCheckRun[];
+  flashes: ExportCheckRun[];
+  explained: { black: number; frozen: number };
+  ok: boolean;
+  /** in words */
+  verdict: string;
 }
 
 /** An export's loudness against its target (mix.loudness_check). */

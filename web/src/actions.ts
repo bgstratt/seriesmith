@@ -1711,12 +1711,15 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
       host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}
 Open it in Premiere (File ▸ Import) or Resolve (File ▸ Import ▸ Timeline).`);
     } else if (r.ok) {
-      // the loudness check on the export (assemble measured it; nothing changed)
+      // the loudness check and the picture's checks on the export (assemble made them; nothing changed)
       const lc = r.loudness;
       const off = lc && (!lc.on_target || lc.over_peak);
-      host().toast(off ? "warn" : "success", pub ? "Published" : "Assembled",
+      const ck = r.checks;
+      host().toast(off || (ck && !ck.ok) ? "warn" : "success", pub ? "Published" : "Assembled",
         absPath(s.ep, r.output) + (lc ? `
-Loudness: ${lc.verdict}${off && !lc.mixed ? " (no mix brings the cut's own sound to the target)" : ""}` : ""));
+Loudness: ${lc.verdict}${off && !lc.mixed ? " (no mix brings the cut's own sound to the target)" : ""}` : "")
+        + (ck ? `
+Checks: ${ck.verdict}` : ""));
     }
     else if (pub && r.cut) host().toast("error", "Assembled, but publishing failed", r.error || r.report.slice(-400));
     else host().toast("error", xml ? "The XML failed" : "Assemble failed", r.report.slice(-400));

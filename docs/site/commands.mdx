@@ -360,6 +360,13 @@ seriesmith assemble Shows\ep05 --xml             # the cut as a Premiere / Resol
   it's more than 1 LU off the target or over the ceiling. It's kept beside the cut as
   `<cut>_loudness.json`. It never changes the sound: a cut with no mix is measured as it came
   (a mastered song under `--audio master` reads far louder than -16, and says so).
+- **The picture's checks** (FINISHING.md "The export's checks"): black runs (half a second or
+  more), frozen runs (two seconds or more) and flashes (more than three in any second, the
+  common photosensitivity guideline, on the whole frame's average), each with its times and
+  shot, reported under the loudness line (`checks: no black, frozen or flashing runs`, `!` in
+  front when it found any) and kept as `<cut>_checks.json`. Black or frozen frames inside a
+  clip's own fade, or a held shot (`hold`), are left out. It never changes the cut;
+  `--no-checks` skips it.
 - This is a review cut. Mix the final audio in Resolve.
 
 ### Effects: fx

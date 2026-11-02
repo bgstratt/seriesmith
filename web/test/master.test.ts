@@ -35,6 +35,9 @@ describe("master job in words", () => {
     expect(at({ stage: "clips", done: 0 })).toBeCloseTo(0.1);
     expect(at({ stage: "clips" })).toBeGreaterThan(at({ stage: "clips", done: 100 }));
     expect(at({ stage: "verify", done: null, total: null })).toBeGreaterThan(at({ stage: "clips", done: 323 }));
+    // the export's checks (after the loudness): where the loudness is, not back to 0
+    expect(at({ stage: "checks", done: null, total: null })).toBe(at({ stage: "loudness", done: null, total: null }));
+    expect(masterStageText({ ...JOB, stage: "checks" })).toMatch(/Checking the picture/);
     expect(at({ step: "titles", stage: "reencode", done: 31933, total: 31933 })).toBe(1);
     expect(masterFraction({ ...JOB, state: "done" })).toBeNull();
   });

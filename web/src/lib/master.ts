@@ -12,6 +12,7 @@ const ASSEMBLE: Record<string, string> = {
   join: "Joining the clips",
   prores: "Writing the ProRes .mov",
   loudness: "Measuring the loudness",
+  checks: "Checking the picture",
   verify: "Counting the master's frames",
 };
 
@@ -70,6 +71,7 @@ export function masterFraction(job: MasterJob): number | null {
     case "join": return 0.8;
     case "prores":
     case "loudness":
+    case "checks":
     case "verify": return 0.82;
     default: return 0;
   }

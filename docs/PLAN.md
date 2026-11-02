@@ -1432,10 +1432,23 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       all dims a fade (`fadeLevel`) and cuts a dissolve at its middle; the clip menu toggles
       each at 12 frames, the inspector sets the frames. Tests: test_assemble's three,
       test_api's `test_cut_fades_and_dissolves`, web/test/joins.test.ts. Not yet live.
-- [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
-      frozen runs, flashes), reported, never changing it. The loudness part is done
-      (2026-11-02, docs/SOUND.md phase 5: `<cut>_loudness.json`, assemble's report, Export's
-      toast); black and frozen runs and flashes are still to do.
+- [x] Checks on the exported cut (integrated loudness and true peak, black and frozen runs,
+      flashes), reported, never changing it. The loudness part 2026-11-02 (docs/SOUND.md
+      phase 5: `<cut>_loudness.json`, assemble's report, Export's toast); the picture's the
+      same day (`seriesmith/checks.py`, docs/FINISHING.md "The export's checks"): one ffmpeg
+      pass, scaled to 256 wide, `blackdetect` (0.5 s, 10 % luma, 98 % of the picture),
+      `freezedetect` (2 s, -60 dB) and each frame's mean luma for flashes (WCAG 2.3.1's rule
+      on the whole frame: more than three pairs of opposing 10 % changes in relative
+      luminance, the darker below 0.80, in any second), each run with its shot; black and
+      frozen runs inside a clip's own fade or a held (`hold`) shot left out and counted.
+      Kept as a sibling `<cut>_checks.json` (not inside the loudness file: that one is the
+      sound's and keeps its shape), printed under the loudness line, returned from
+      `POST /seriesmith/assemble` as `checks`, a **Checks:** line in Export's toast;
+      `--no-checks`. Tests: tests/test_export_checks.py (each detector on a synthetic cut,
+      the explained runs, the flash rule's edges, the report's shape), test_assemble's
+      progress steps. Measured on CupsMV ep01's proxy (2 min, 33 shots, a
+      scratch name, deleted after): 25.0 s assembled with the checks, 23.8 s without (the scan
+      1.2 s; 0.8 s a minute at 1080p, 2.4 s at 4K, synthetic); it found nothing there.
 
 ## H3 Singularity, and continuous shots that keep their model (2026-10-29)
 

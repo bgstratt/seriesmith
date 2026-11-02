@@ -2080,7 +2080,7 @@ def _master_fraction(job: dict) -> float:
     if job.get("step") == "titles":
         return 0.85 + 0.15 * part if job.get("stage") == "reencode" else 0.85
     return {"probe": 0.1 * part, "clips": 0.1 + 0.7 * part, "join": 0.8, "prores": 0.82,
-            "loudness": 0.82, "verify": 0.82}.get(job.get("stage") or "", 0.0)
+            "loudness": 0.82, "checks": 0.82, "verify": 0.82}.get(job.get("stage") or "", 0.0)
 
 
 def _master_task(ctx: Context, params: dict):
@@ -4252,6 +4252,7 @@ def post_assemble(ctx: Context, body):
     pub = E.publish_episode(ep, res["output"])
     return 200, {"ok": pub["ok"], "output": pub["output"] if pub["ok"] else res["output"],
                  "cut": res["output"], "published": pub["output"], "loudness": res.get("loudness"),
+                 "checks": res.get("checks"),
                  "report": res["report"] + "\n" + pub["report"], "error": pub["error"]}
 
 # ---------------------------------------------------------------------------

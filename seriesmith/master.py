@@ -943,6 +943,7 @@ def master_episode(root: str, args, comfy, runner) -> int:
 
 STAGE_WORDS = {"probe": "reading the clips", "clips": "writing the clips", "join": "joining",
                "prores": "the ProRes .mov", "loudness": "measuring the loudness",
+               "checks": "checking the picture",
                "verify": "checking", "titles": "encoding the",
                "reencode": "re-encoding the whole cut"}
 

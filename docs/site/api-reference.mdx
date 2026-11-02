@@ -936,6 +936,11 @@ range and true peak (EBU R128, loudnorm's measurement) against the target (the p
 else the series config's `sound.loudness`, else -16 LUFS / -1 dBTP). `on_target`: within 1 LU;
 `mixed`: the mix brought it there (false: the cut's own sound, as it came). It never changes
 the sound. Null for the XML, a cut with no sound (`--audio none`), or an older server.
+`checks` is the picture's checks on the same mp4 (2026-11-02, docs/FINISHING.md "The export's
+checks"), as `<cut>_checks.json` keeps it: `{black, frozen, flashes, explained, rules, ok, verdict}`, each run `{start, end, seconds, shot, shots}` (seconds in the cut; a flash run also
+`flashes`, the most in any one second), `explained` `{black, frozen}` the runs the cut's own
+fades and held shots explain (left out). It never changes the cut. Null for the XML, when
+skipped, or from an older server. With `"publish": true` both are the assembled cut's.
 Phase 13 adds `"upscaled": true` (either pass): each clip plays its take's
 fresh upscale, the cut is the upscales' size and is written as `<ep>_up.mp4`, and clips
 without one are scaled up (the report names them). `"size": "1920x1080"` sets the cut's
