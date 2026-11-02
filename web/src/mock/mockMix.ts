@@ -146,7 +146,7 @@ export function checkMix(raw: Mix | null | undefined): Mix {
     if (Object.keys(o).length) beds[place] = o;
   }
   if (Object.keys(beds).length) out.beds = beds;
-  // a shot's effects: its take, level, mute, kept though stale; defaults dropped
+  // a shot's effects: its take, level, mute, kept though stale, trims, fades, points; defaults dropped
   const fx: NonNullable<Mix["fx"]> = {};
   for (const [shot, f] of Object.entries(raw.fx ?? {})) {
     if (!f || !Number.isInteger(f.take) || f.take < 1) throw new MixError(`effects ${shot}'s take is a take number`);
@@ -154,6 +154,19 @@ export function checkMix(raw: Mix | null | undefined): Mix {
     if (f.gain_db) o.gain_db = num(f.gain_db, `effects ${shot}'s gain_db`, -60, 12);
     if (f.mute) o.mute = true;
     if (f.keep_stale) o.keep_stale = true;
+    for (const k of ["trim_in", "trim_out", "fade_in", "fade_out"] as const) {
+      const v = f[k];
+      if (v == null || v === 0) continue;
+      if (!Number.isInteger(v) || v < 0 || v > 2400) throw new MixError(`effects ${shot}'s ${k} is a whole number of frames, 0 to 2400`);
+      o[k] = v;
+    }
+    if (f.points?.length) {
+      o.points = f.points.map((p, i) => {
+        const at = anchor(p.at, `effects ${shot}'s point ${i + 1}`);
+        if (at.shot !== shot) throw new MixError(`effects ${shot}'s point ${i + 1} is on ${at.shot}: its points are on ${shot}`);
+        return { at, db: num(p.db, `effects ${shot}'s point ${i + 1}'s db`, -60, 12) };
+      });
+    }
     fx[shot] = o;
   }
   if (Object.keys(fx).length) out.fx = fx;

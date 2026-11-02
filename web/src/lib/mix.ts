@@ -396,8 +396,8 @@ export interface TimedPoint {
   i: number;
 }
 
-/** An item's points on the cut's clock, in time order (one whose shot isn't in the cut left out, as mix.py does). */
-export function timedPoints(items: PlayItem[], it: MixItem, fps: number): TimedPoint[] {
+/** An item's (or a shot's effects') points on the cut's clock, in time order (one whose shot isn't in the cut left out, as mix.py does). */
+export function timedPoints(items: PlayItem[], it: { points?: MixPoint[] }, fps: number): TimedPoint[] {
   const out: TimedPoint[] = [];
   (it.points ?? []).forEach((p, i) => {
     const t = anchorTime(items, p.at, fps);
@@ -435,38 +435,55 @@ export const yDb = (y: number, h: number) => POINT_DB_HI - (y / Math.max(1, h)) 
 /** dB snapped to 0.5, in the fader's range. */
 export const snapDb = (db: number) => Math.round(Math.min(GAIN_MAX, Math.max(GAIN_MIN, Number.isFinite(db) ? db : 0)) * 2) / 2;
 
-/** An item's points replaced, in time order (null: nothing changes). */
-export function setPoints(mix: Mix, id: string, points: MixPoint[], items: PlayItem[], fps: number): Mix | null {
-  const it = mix.items?.find((x) => x.id === id);
-  if (!it) return null;
+/** Whose volume points: an item (its id), or a shot's effects (`{ fx: shot }`): the same line, the same edits. */
+export type PointsOf = string | { fx: string };
+
+/** The points of `of` (null: no such item, or no effects picked for the shot). */
+function pointsOf(mix: Mix, of: PointsOf): MixPoint[] | null {
+  if (typeof of === "string") {
+    const it = mix.items?.find((x) => x.id === of);
+    return it ? it.points ?? [] : null;
+  }
+  const f = mix.fx?.[of.fx];
+  return f ? f.points ?? [] : null;
+}
+
+function withPoints(mix: Mix, of: PointsOf, points: MixPoint[]): Mix | null {
+  return typeof of === "string" ? patchItem(mix, of, { points }) : setFx(mix, of.fx, { points });
+}
+
+/** An item's (or a shot's effects') points replaced, in time order (null: nothing changes). */
+export function setPoints(mix: Mix, of: PointsOf, points: MixPoint[], items: PlayItem[], fps: number): Mix | null {
+  const cur = pointsOf(mix, of);
+  if (!cur) return null;
   const t = (p: MixPoint) => anchorTime(items, p.at, fps) ?? Infinity;
   const next = points.map((p) => ({ at: p.at, db: snapDb(p.db) })).sort((a, b) => t(a) - t(b));
-  if (JSON.stringify(next) === JSON.stringify(it.points ?? [])) return null;
-  return patchItem(mix, id, { points: next });
+  if (JSON.stringify(next) === JSON.stringify(cur)) return null;
+  return withPoints(mix, of, next);
 }
 
 /** A point added at `at`: at `db`, else at the line's level there (so nothing sounds different yet). */
-export function addPoint(mix: Mix, id: string, at: Anchor, items: PlayItem[], fps: number, db?: number): Mix | null {
-  const it = mix.items?.find((x) => x.id === id);
+export function addPoint(mix: Mix, of: PointsOf, at: Anchor, items: PlayItem[], fps: number, db?: number): Mix | null {
+  const cur = pointsOf(mix, of);
   const t = anchorTime(items, at, fps);
-  if (!it || t == null || (it.points ?? []).some((p) => sameAnchor(p.at, at))) return null;
-  return setPoints(mix, id, [...(it.points ?? []), { at, db: db ?? pointsDb(timedPoints(items, it, fps), t) }], items, fps);
+  if (!cur || t == null || cur.some((p) => sameAnchor(p.at, at))) return null;
+  return setPoints(mix, of, [...cur, { at, db: db ?? pointsDb(timedPoints(items, { points: cur }, fps), t) }], items, fps);
 }
 
 /** Point `i` moved to `at` and `db`. */
-export function movePoint(mix: Mix, id: string, i: number, at: Anchor, db: number, items: PlayItem[], fps: number): Mix | null {
-  const it = mix.items?.find((x) => x.id === id);
-  if (!it?.points?.[i]) return null;
-  const next = it.points.slice();
+export function movePoint(mix: Mix, of: PointsOf, i: number, at: Anchor, db: number, items: PlayItem[], fps: number): Mix | null {
+  const cur = pointsOf(mix, of);
+  if (!cur?.[i]) return null;
+  const next = cur.slice();
   next[i] = { at, db };
-  return setPoints(mix, id, next, items, fps);
+  return setPoints(mix, of, next, items, fps);
 }
 
-/** Point `i` taken out (the last one leaves the item without points). */
-export function removePoint(mix: Mix, id: string, i: number): Mix | null {
-  const it = mix.items?.find((x) => x.id === id);
-  if (!it?.points?.[i]) return null;
-  return patchItem(mix, id, { points: it.points.filter((_, k) => k !== i) });
+/** Point `i` taken out (the last one leaves it without points). */
+export function removePoint(mix: Mix, of: PointsOf, i: number): Mix | null {
+  const cur = pointsOf(mix, of);
+  if (!cur?.[i]) return null;
+  return withPoints(mix, of, cur.filter((_, k) => k !== i));
 }
 
 /**
@@ -858,13 +875,23 @@ export function bedPlan(items: PlayItem[], beds: MixBed[] | undefined, mix: Mix,
 // at once
 // ---------------------------------------------------------------------------
 
+/** a shot's effects' trims (frames silent from its clip's head and tail) and fades (frames, at the kept span's edges) */
+export const FX_FRAMES = ["trim_in", "trim_out", "fade_in", "fade_out"] as const;
+
 /** A shot's settings in the mix (null: no effects picked). */
-export function fxSettings(mix: Mix, shot: string): { take: number; gain_db: number; mute: boolean; keep_stale: boolean } | null {
+export function fxSettings(mix: Mix, shot: string): {
+  take: number; gain_db: number; mute: boolean; keep_stale: boolean;
+  trim_in: number; trim_out: number; fade_in: number; fade_out: number; points: MixPoint[];
+} | null {
   const f = mix.fx?.[shot];
-  return f ? { take: f.take, gain_db: f.gain_db ?? 0, mute: !!f.mute, keep_stale: !!f.keep_stale } : null;
+  return f ? {
+    take: f.take, gain_db: f.gain_db ?? 0, mute: !!f.mute, keep_stale: !!f.keep_stale,
+    trim_in: f.trim_in ?? 0, trim_out: f.trim_out ?? 0, fade_in: f.fade_in ?? 0, fade_out: f.fade_out ?? 0, points: f.points ?? [],
+  } : null;
 }
 
-/** A shot's level, mute or keep_stale changed (its take kept); defaults dropped, as mix.json keeps them. */
+/** A shot's level, mute, keep_stale, trims, fades or points changed (its take kept); defaults
+ * dropped, as mix.json keeps them. */
 export function setFx(mix: Mix, shot: string, patch: Partial<Omit<MixFxSettings, "take">>): Mix {
   const was = mix.fx?.[shot];
   if (!was) return mix;
@@ -873,17 +900,30 @@ export function setFx(mix: Mix, shot: string, patch: Partial<Omit<MixFxSettings,
   else f.gain_db = clampDb(f.gain_db);
   if (!f.mute) delete f.mute;
   if (!f.keep_stale) delete f.keep_stale;
+  for (const k of FX_FRAMES) {
+    const v = Math.max(0, Math.min(FADE_MAX, Math.round(f[k] ?? 0)));
+    if (v) f[k] = v;
+    else delete f[k];
+  }
+  if (!f.points?.length) delete f.points;
   return { ...mix, fx: { ...(mix.fx ?? {}), [shot]: f } };
 }
 
-/** A shot's effects take picked (its level and mute kept, a keep_stale dropped: a new pick is
- * judged afresh), or taken out (null). */
+/** A shot's effects back to its whole clip at its level: its trims, fades and points taken out. */
+export function resetFxShape(mix: Mix, shot: string): Mix {
+  return setFx(mix, shot, { trim_in: 0, trim_out: 0, fade_in: 0, fade_out: 0, points: [] });
+}
+
+/** A shot's effects take picked (its level, mute, trims, fades and points kept, a keep_stale
+ * dropped: a new pick is judged afresh), or taken out (null). */
 export function pickFxTake(mix: Mix, shot: string, take: number | null): Mix {
   const fx = { ...(mix.fx ?? {}) };
   if (take == null) delete fx[shot];
   else {
-    const was = fx[shot];
-    fx[shot] = { take, ...(was?.gain_db ? { gain_db: was.gain_db } : {}), ...(was?.mute ? { mute: true } : {}) };
+    const own: Partial<MixFxSettings> = { ...fx[shot] };
+    delete own.take;
+    delete own.keep_stale;
+    fx[shot] = { take, ...own };
   }
   const out: Mix = { ...mix, fx };
   if (!Object.keys(fx).length) delete out.fx;
@@ -904,18 +944,55 @@ export function fxSpan(items: PlayItem[], f: MixFx, fps: number): { start: numbe
   return { start: Math.max(0, s ?? f.start), end: e ?? f.end };
 }
 
-/** The effects Play all plays: each heard one at its clip, from the clip's first frame of the take. */
+/** What of a shot's effects is heard on the cut's clock: its clip less its trims (end <= start: nothing). */
+export function fxKept(items: PlayItem[], f: MixFx, mix: Mix, fps: number): { start: number; end: number } {
+  const r = fps || 24;
+  const { start, end } = fxSpan(items, f, fps);
+  const own = mix.fx?.[f.shot];
+  return { start: start + (own?.trim_in ?? 0) / r, end: end - (own?.trim_out ?? 0) / r };
+}
+
+/** The anchor on a shot's effects at cut time `t` (always on its own shot, as its points must be). */
+export function fxAnchor(items: PlayItem[], f: MixFx, t: number, fps: number): Anchor {
+  const r = fps || 24;
+  return { shot: f.shot, frame: Math.max(0, f.in.frame + Math.round((t - fxSpan(items, f, fps).start) * r)) };
+}
+
+/**
+ * An edge of a shot's effects trimmed to cut time `t`: its head's `trim_in` or its tail's
+ * `trim_out`, in frames from the clip's edge (the block doesn't move; the trimmed part is
+ * silent), each kept a frame clear of the other. Null when nothing changes.
+ */
+export function trimFx(mix: Mix, shot: string, side: "in" | "out", t: number, items: PlayItem[], f: MixFx, fps: number): Mix | null {
+  const own = mix.fx?.[shot];
+  if (!own) return null;
+  const r = fps || 24;
+  const { start, end } = fxSpan(items, f, fps);
+  const frames = Math.round((end - start) * r);
+  const other = side === "in" ? own.trim_out ?? 0 : own.trim_in ?? 0;
+  const want = Math.round((side === "in" ? t - start : end - t) * r);
+  const v = Math.max(0, Math.min(FADE_MAX, frames - other - 1, want));
+  const key = side === "in" ? "trim_in" : "trim_out";
+  if (v === (own[key] ?? 0)) return null;
+  return setFx(mix, shot, { [key]: v });
+}
+
+/** The effects Play all plays: each heard one at its clip, from the clip's first frame of the take,
+ * its kept span (its trims silent) at its gain, points and fades, as an item's. */
 export function fxPlan(items: PlayItem[], fx: MixFx[] | undefined, mix: Mix, fps: number): PlayEntry[] {
   const out: PlayEntry[] = [];
   const track = firstOf(mix, "effects");
   if (!track) return out;
+  const r = fps || 24;
   for (const f of fx ?? []) {
     if (!fxHeard(mix, f)) continue;
-    const { start, end } = fxSpan(items, f, fps);
+    const own = fxSettings(mix, f.shot)!;
+    const clip = fxSpan(items, f, fps);
+    const { start, end } = fxKept(items, f, mix, fps);
     if (!(end > start)) continue;
     out.push({
-      id: `fx:${f.shot}`, track, path: f.path, start, end, offset: f.in.frame / (fps || 24),
-      gain: dbToGain(fxSettings(mix, f.shot)?.gain_db ?? 0), points: [], fadeIn: 0, fadeOut: 0, loop: false,
+      id: `fx:${f.shot}`, track, path: f.path, start, end, offset: f.in.frame / r + (start - clip.start),
+      gain: dbToGain(own.gain_db), points: timedPoints(items, own, r), fadeIn: own.fade_in / r, fadeOut: own.fade_out / r, loop: false,
     });
   }
   return out;

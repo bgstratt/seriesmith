@@ -1,7 +1,7 @@
 // A shot's effects in the editor (docs/SOUND.md phase 4): what the mix keeps of them (the
 // take, a level, mute, kept though stale), whether one is heard, and what Play all plays.
 import { describe, expect, it } from "vitest";
-import { dbToGain, fxHeard, fxPlan, fxSettings, fxSpan, pickFxTake, setFx } from "../src/lib/mix";
+import { addPoint, dbToGain, entryLevel, fxAnchor, fxHeard, fxKept, fxPlan, fxSettings, fxSpan, pickFxTake, removePoint, resetFxShape, setFx, trimFx } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
 import type { MixFx } from "../src/types";
 
@@ -34,6 +34,49 @@ describe("what the mix keeps", () => {
     expect(setFx(m, "sh010", { gain_db: 0 }).fx).toEqual({ sh010: { take: 3 } });
     expect(pickFxTake(m, "sh010", null)).toEqual({});
     expect(setFx({}, "sh010", { mute: true })).toEqual({});        // nothing picked: nothing to set
+  });
+
+  it("keeps its trims, fades and points when another take is picked; Reset takes them out", () => {
+    const at = { shot: "sh010", frame: 30 };
+    let m = setFx(pickFxTake({}, "sh010", 1), "sh010", { trim_out: 20.4, fade_out: 6, trim_in: 0, points: [{ at, db: -6 }] });
+    expect(m.fx).toEqual({ sh010: { take: 1, trim_out: 20, fade_out: 6, points: [{ at, db: -6 }] } });
+    m = pickFxTake(m, "sh010", 2);
+    expect(m.fx).toEqual({ sh010: { take: 2, trim_out: 20, fade_out: 6, points: [{ at, db: -6 }] } });
+    expect(resetFxShape(m, "sh010").fx).toEqual({ sh010: { take: 2 } });
+  });
+});
+
+describe("trimmed and levelled within its clip", () => {
+  const f = laid("sh010", 0, 48);
+
+  it("an edge dragged sets its trim (the clip's span unchanged), a frame clear of the other", () => {
+    let m = pickFxTake({}, "sh010", 1);
+    m = trimFx(m, "sh010", "out", 1.5, ITEMS, f, 24)!;
+    expect(m.fx!.sh010).toEqual({ take: 1, trim_out: 12 });
+    expect(fxSpan(ITEMS, f, 24)).toEqual({ start: 0, end: 2 });
+    expect(fxKept(ITEMS, f, m, 24)).toEqual({ start: 0, end: 1.5 });
+    expect(trimFx(m, "sh010", "out", 1.5, ITEMS, f, 24)).toBeNull();               // nothing changes
+    m = trimFx(m, "sh010", "in", 1.9, ITEMS, f, 24)!;                               // past the other: a frame clear
+    expect(m.fx!.sh010.trim_in).toBe(35);
+    expect(trimFx(m, "sh010", "in", -1, ITEMS, f, 24)!.fx!.sh010.trim_in).toBeUndefined();
+  });
+
+  it("its points go on its own shot, as an item's", () => {
+    const m = pickFxTake({}, "sh010", 1);
+    expect(fxAnchor(ITEMS, f, 1, 24)).toEqual({ shot: "sh010", frame: 24 });
+    const p = addPoint(m, { fx: "sh010" }, fxAnchor(ITEMS, f, 1, 24), ITEMS, 24, -3)!;
+    expect(p.fx!.sh010.points).toEqual([{ at: { shot: "sh010", frame: 24 }, db: -3 }]);
+    expect(removePoint(p, { fx: "sh010" }, 0)!.fx!.sh010).toEqual({ take: 1 });
+    expect(addPoint({}, { fx: "sh010" }, { shot: "sh010", frame: 2 }, ITEMS, 24)).toBeNull();   // no effects picked
+  });
+
+  it("Play all plays only the kept span, faded, at its points", () => {
+    const mix = { fx: { sh010: { take: 1, gain_db: -2, trim_in: 6, trim_out: 12, fade_out: 6, points: [{ at: { shot: "sh010", frame: 24 }, db: -6 }] } } };
+    const [e] = fxPlan(ITEMS, [f], mix, 24);
+    expect([e.start, e.end, e.offset, e.fadeOut]).toEqual([0.25, 1.5, 0.25, 0.25]);
+    expect(20 * Math.log10(entryLevel(e, 1, e.end!))).toBeCloseTo(-8, 5);
+    expect(entryLevel(e, 1.5, e.end!)).toBe(0);
+    expect(fxPlan(ITEMS, [f], { fx: { sh010: { take: 1, trim_in: 24, trim_out: 24 } } }, 24)).toEqual([]);   // nothing left
   });
 });
 

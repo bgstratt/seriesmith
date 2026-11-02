@@ -6,7 +6,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { refreshEpisode } from "../src/actions";
+import { currentPlaylist, refreshEpisode } from "../src/actions";
 import { Timeline } from "../src/components/Timeline";
 import { resetCutHistory } from "../src/cutActions";
 import { setApi, setHost, type Host } from "../src/host";
@@ -111,6 +111,90 @@ describe("the sound lanes", () => {
     await act(async () => keep.click());
     await mixSettled();
     expect(currentMix()!.mix.fx).toEqual({ [shot]: { take: 1, keep_stale: true } });
+  });
+
+  it("a shot's effects: an edge dragged trims it where it is, a point added on its line, the menu's numbers and Reset", async () => {
+    const key = statusKey(EP, "proxy");
+    const shots = store.get().status[key]!.shots;
+    const shot = shots[0].shot;
+    await api.putMix(EP, "proxy", { ...currentMix()!.mix, fx: { [shot]: { take: 1, gain_db: -2 } } });
+    await loadMix(EP, "proxy");
+    // the clip's own span, so the block fills its 100 px column
+    const it0 = currentPlaylist()[0];
+    const f0 = Math.round(it0.inT * 24);
+    const f1 = Math.round((it0.inT + it0.dur) * 24);
+    const fx = { shot, take: 1, model: "h3_foley", path: `sound/fx/proxy/${shot}/t01.wav`, exists: true,
+                 in: { shot, frame: f0 }, out: { shot, frame: f1 }, start: 0, end: it0.dur, offset: it0.inT, gain_db: -2, mute: false,
+                 keep_stale: false, stale: null, heard: true };
+    store.set((s) => ({ mix: { ...s.mix, [key]: { ...s.mix[key]!, fx: [fx] } } }));
+    store.set({ sound: true });
+    const order = shots.map((s) => s.shot);
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const i = this.dataset.shot ? order.indexOf(this.dataset.shot) : -1;
+      return (i < 0 ? RECT.call(this) : { left: i * 100, width: 100, top: 0, height: 40, right: i * 100 + 100, bottom: 40, x: i * 100, y: 0 }) as DOMRect;
+    };
+    await act(async () => root.render(createElement(Timeline)));
+    await act(async () => store.set((s) => ({ zoom: s.zoom + 1 })));
+    const block = el.querySelector<HTMLElement>(".h3-snd-fx")!;
+    const where = () => [block.style.left, block.style.width];
+    const was = where();
+    expect(was[1]).toBe("100px");
+    expect(block.querySelector("[data-trim]")).toBeNull();
+
+    // drag its right edge 20 px left: trim_out, the block where it was and as long, the tail hatched
+    const handle = block.querySelector<HTMLElement>(".h3-trim-h.h3-r")!;
+    await act(async () => handle.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 99, clientY: 5 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 79, clientY: 5 })));
+    expect(document.querySelector(".h3-trim-tip")?.textContent).toContain(`${shot}'s effects tail trimmed`);
+    expect(block.querySelector("[data-trim=out]")).not.toBeNull();
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await mixSettled();
+    const want = Math.round(0.2 * it0.dur * 24);
+    const own = currentMix()!.mix.fx![shot];
+    expect(Math.abs(own.trim_out! - want)).toBeLessThanOrEqual(1);
+    expect(own.trim_in).toBeUndefined();
+    expect(own.gain_db).toBe(-2);
+    expect(store.get().cutUndo[key]?.undo).toBe(`Trim ${shot}'s effects tail`);
+    expect(where()).toEqual(was);
+    const cut = block.querySelector<HTMLElement>("[data-trim=out]")!;
+    expect(Math.abs(parseFloat(cut.style.width) - 20)).toBeLessThan(5);
+
+    // a double-click on the line (no points: held at 0 dB, y 5.3 of 16 below the border) adds a point on the shot
+    await act(async () => block.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 40, clientY: 6 })));
+    await mixSettled();
+    const pts = currentMix()!.mix.fx![shot].points!;
+    expect(pts).toHaveLength(1);
+    expect(pts[0]).toEqual({ at: { shot, frame: expect.any(Number) }, db: 0 });
+    expect(store.get().cutUndo[key]?.undo).toBe(`Add a volume point to ${shot}'s effects`);
+    expect(block.querySelectorAll(".h3-snd-pt")).toHaveLength(1);
+    // dragged down 8 px: -4 dB
+    const pt = block.querySelector(".h3-snd-pt-hit")!;
+    await act(async () => pt.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 40, clientY: 6 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointermove", { clientX: 40, clientY: 14 })));
+    await act(async () => window.dispatchEvent(new PointerEvent("pointerup", {})));
+    await mixSettled();
+    expect(currentMix()!.mix.fx![shot].points![0].db).toBe(-4);
+
+    // the menu: its numbers (a fade out), then Reset trims and levels (its level stays)
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));
+    const fade = document.querySelector<HTMLInputElement>(".h3-snd-pop input[data-fx-field=fade_out]")!;
+    expect(document.querySelector<HTMLInputElement>(".h3-snd-pop input[data-fx-field=trim_out]")!.value).toBe(String(own.trim_out));
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      set.call(fade, "6");
+      fade.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const apply = [...document.querySelectorAll<HTMLButtonElement>(".h3-snd-pop button")].find((b) => b.textContent === "Apply")!;
+    await act(async () => apply.click());
+    await mixSettled();
+    expect(currentMix()!.mix.fx![shot].fade_out).toBe(6);
+    expect(block.querySelector(".h3-snd-fade.h3-r")).not.toBeNull();
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));
+    const reset = [...document.querySelectorAll<HTMLButtonElement>(".h3-snd-pop button")].find((b) => b.textContent?.includes("Reset trims and levels"))!;
+    await act(async () => reset.click());
+    await mixSettled();
+    expect(currentMix()!.mix.fx).toEqual({ [shot]: { take: 1, gain_db: -2 } });
+    expect(block.querySelector("[data-trim]")).toBeNull();
   });
 
   it("the music fader shows its -12 dB default", async () => {

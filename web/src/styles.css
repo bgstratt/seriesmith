@@ -684,11 +684,16 @@
 .h3-snd-item.h3-snd-bed { z-index: 0; cursor: context-menu; border-style: dashed; background: color-mix(in srgb, var(--h3-snd-c) 12%, var(--h3-bg)); }
 .h3-snd-item.h3-snd-bed-missing { background: transparent; opacity: 0.6; }
 .h3-snd-item.h3-snd-bed.h3-snd-silent { opacity: 0.35; }
-/* a shot's effects at its clip (laid from the cut: read-only); stale ones marked and dimmed */
+/* a shot's effects at its clip (laid from the cut: not moved, its edges trim it); stale ones marked and dimmed */
 .h3-snd-item.h3-snd-fx { z-index: 0; cursor: context-menu; background: color-mix(in srgb, var(--h3-snd-c) 14%, var(--h3-bg)); }
 .h3-snd-item.h3-snd-fx.h3-snd-silent { opacity: 0.4; }
 .h3-snd-item.h3-snd-fx-stale { border-style: dashed; border-color: var(--h3-warn, #e0a040); }
 .h3-snd-fxmenu { min-width: 260px; }
+/* a shot's effects trimmed at its head or tail: the block keeps its place, the trimmed ends hatched (silent) */
+.h3-snd-fx-cut {
+  position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0 3px, rgba(0, 0, 0, 0.3) 3px 6px);
+}
 .h3-snd-music { --h3-snd-c: #8a6ce0; }
 .h3-snd-dialogue { --h3-snd-c: #4a90d9; }
 .h3-snd-label {

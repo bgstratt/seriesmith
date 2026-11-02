@@ -10,14 +10,14 @@ import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
   addTrack, deleteTrack, itemToTrack, itemsOn, kindOf, labelOf, moveTrack, renameTrack, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
-  setShotVoices, setVoicesOnly,
+  setShotVoices, setVoicesOnly, resetFxShape, trimFx, type PointsOf,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { trackList as trackListOf } from "./lib/mix";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
-import type { Anchor, Mix, MixBedSettings, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass, TrackKind } from "./types";
+import type { Anchor, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -406,18 +406,31 @@ export function deleteMixItem(id: string): Promise<boolean> {
   return editMix(`Delete ${id}`, (m) => removeItem(m, id));
 }
 
-/** A volume point on an item at `at`, at the level its line has there. */
-export function addMixPoint(id: string, at: Anchor): Promise<boolean> {
-  return editMix(`Add a volume point to ${id}`, (m) => addPoint(m, id, at, currentPlaylist(), fps()));
+/** Whose points, in an edit's label: an item's id, or "sh010's effects". */
+const whose = (of: PointsOf) => (typeof of === "string" ? of : `${of.fx}'s effects`);
+
+/** A volume point on an item (or a shot's effects: `{ fx: shot }`) at `at`, at the level its line has there. */
+export function addMixPoint(of: PointsOf, at: Anchor): Promise<boolean> {
+  return editMix(`Add a volume point to ${whose(of)}`, (m) => addPoint(m, of, at, currentPlaylist(), fps()));
 }
 
-/** Point `i` of an item moved (a finished drag: one edit). */
-export function moveMixPoint(id: string, i: number, at: Anchor, db: number): Promise<boolean> {
-  return editMix(`Move a volume point of ${id}`, (m) => movePoint(m, id, i, at, db, currentPlaylist(), fps()));
+/** Point `i` of an item (or a shot's effects) moved (a finished drag: one edit). */
+export function moveMixPoint(of: PointsOf, i: number, at: Anchor, db: number): Promise<boolean> {
+  return editMix(`Move a volume point of ${whose(of)}`, (m) => movePoint(m, of, i, at, db, currentPlaylist(), fps()));
 }
 
-export function deleteMixPoint(id: string, i: number): Promise<boolean> {
-  return editMix(`Delete a volume point of ${id}`, (m) => removePoint(m, id, i));
+export function deleteMixPoint(of: PointsOf, i: number): Promise<boolean> {
+  return editMix(`Delete a volume point of ${whose(of)}`, (m) => removePoint(m, of, i));
+}
+
+/** An edge of a shot's effects dragged to cut time `t`: its trim there (the block stays put; what's trimmed is silent). */
+export function trimMixFx(shot: string, side: "in" | "out", t: number, f: MixFx): Promise<boolean> {
+  return editMix(`Trim ${shot}'s effects ${side === "in" ? "head" : "tail"}`, (m) => trimFx(m, shot, side, t, currentPlaylist(), f, fps()));
+}
+
+/** A shot's effects' trims, fades and points taken out: its whole clip at its level again. */
+export function resetMixFx(shot: string): Promise<boolean> {
+  return editMix(`Reset ${shot}'s effects trims and levels`, (m) => resetFxShape(m, shot));
 }
 
 export function clearMixPoints(id: string): Promise<boolean> {

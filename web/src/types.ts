@@ -2628,6 +2628,14 @@ export interface MixFxSettings {
   mute?: boolean;
   /** play it though the cut's picture changed under it */
   keep_stale?: boolean;
+  /** frames silent from the clip's head and tail: the block keeps its place and length */
+  trim_in?: number;
+  trim_out?: number;
+  /** frames, at the kept span's edges */
+  fade_in?: number;
+  fade_out?: number;
+  /** its volume points (dB on its gain at anchors on the shot), as an item's */
+  points?: MixPoint[];
 }
 
 /** A shot's picked effects laid at its clip (GET /seriesmith/mix `fx`: worked out from the

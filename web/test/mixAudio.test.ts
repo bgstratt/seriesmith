@@ -4,9 +4,9 @@
 // rate; an item's level follows its volume points as the export's render does.
 import { describe, expect, it } from "vitest";
 import { MixEngine } from "../src/components/MixAudio";
-import { duckTracks, playPlan, pointsDb, type DuckCurve } from "../src/lib/mix";
+import { duckTracks, fxPlan, playPlan, pointsDb, type DuckCurve } from "../src/lib/mix";
 import type { PlayItem } from "../src/lib/playlist";
-import type { Mix, MixTrack } from "../src/types";
+import type { Mix, MixFx, MixTrack } from "../src/types";
 
 type Ev = { kind: "set" | "ramp"; v: number; t: number };
 
@@ -166,5 +166,28 @@ describe("Play all's ducking", () => {
       const want = -2 + pointsDb(pts, t);
       expect(Math.abs(20 * Math.log10(g.at(0.03 + t)) - want)).toBeLessThan(0.05);
     }
+  });
+
+  it("a shot's effects play only their kept span: started after the trimmed head, stopped at the trimmed tail, faded", async () => {
+    const { e, ctx } = engine();
+    const fx: MixFx = { shot: "sh010", take: 1, model: "h3_foley", path: "fx.wav", exists: true, in: { shot: "sh010", frame: 0 },
+                        out: { shot: "sh010", frame: 96 }, start: 0, end: 4, offset: 0, gain_db: 0, mute: false, keep_stale: false, stale: null, heard: true };
+    const mix: Mix = { fx: { sh010: { take: 1, trim_in: 12, trim_out: 24, fade_out: 12 } } };
+    const plan = fxPlan(ITEMS, [fx], mix, 24);
+    const c0 = (e as unknown as { context(): FakeContext }).context();
+    const calls: { start?: [number, number]; stop?: number } = {};
+    const src = { buffer: null, playbackRate: new Param(), loop: false, connect() {}, disconnect() {},
+                  start(w: number, at: number) { calls.start = [w, at]; }, stop(w: number) { calls.stop = w; } };
+    (c0 as unknown as { createBufferSource(): unknown }).createBufferSource = () => src;
+    (e as unknown as { buffers: Map<string, Promise<AudioBuffer>> }).buffers.set("fx.wav", Promise.resolve({ duration: 4 } as AudioBuffer));
+    e.play(plan, TOTAL, 0, 1, gains);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls.start![0]).toBeCloseTo(0.03 + 0.5);                 // after the 12 trimmed frames
+    expect(calls.start![1]).toBeCloseTo(0.5);                        // from that point of the file
+    expect(calls.stop).toBeCloseTo(0.03 + 3);                        // before the 24 trimmed frames
+    const g = ctx().gains[ctx().gains.length - 1].gain;
+    expect(g.at(0.03 + 2)).toBeCloseTo(1);
+    expect(g.at(0.03 + 2.75)).toBeCloseTo(0.5);                      // halfway through its fade out
   });
 });

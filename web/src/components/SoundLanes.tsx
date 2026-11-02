@@ -13,10 +13,12 @@
 // for a new cue there (cueActions). The Ambience lane also shows the places'
 // ambience beds the server lays from the cut (GET /seriesmith/mix `beds`):
 // read-only blocks, each with a menu for its level, mute and its ref. The
-// Effects lane shows each shot's picked effects at its clip (`fx`): read-only
-// blocks (the shot, the model, a stale mark) whose menu sets the level, mute,
-// keeps a stale one, plays and picks its takes (fetched when the menu opens),
-// and makes them again. The lanes are the mix's tracks (docs/SOUND.md phase 6): the four
+// Effects lane shows each shot's picked effects at its clip (`fx`): blocks that
+// stay where the clip is (the shot, the model, a stale mark); drag an edge to
+// trim it (the trimmed end hatched and silent, the block not moving), its gain
+// line takes volume points as an item's does; its menu sets the level, the
+// trims and fades (and resets them), mute, keeps a stale one, plays and picks
+// its takes (fetched when the menu opens), and makes them again. The lanes are the mix's tracks (docs/SOUND.md phase 6): the four
 // by default, and any of its own; each lane head's menu (⋮, or right-click the head)
 // renames it, adds a track, moves it up or down, and deletes it (its items moved to
 // another track or deleted with it, asked there). An item moves to another lane by
@@ -31,7 +33,7 @@ import { framesLabel } from "../lib/cutEdit";
 import { fmtClock } from "../lib/format";
 import { dragHasFiles } from "../lib/lookback";
 import {
-  GAIN_MAX, GAIN_MIN, HIT_KINDS, KINDS, MAX_TRACKS, bedSettings, bedSpan, canDeleteTrack, firstOf, fxHeard, fxSettings, fxSpan, HIT_KIND_TITLE, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName,
+  GAIN_MAX, GAIN_MIN, HIT_KINDS, KINDS, MAX_TRACKS, bedSettings, bedSpan, canDeleteTrack, firstOf, fxAnchor, fxHeard, fxKept, fxSettings, fxSpan, trimFx, HIT_KIND_TITLE, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName,
   itemSpan, itemToTrack, itemsOn, kindOf, labelOf, layout, moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackList, trackState, trimItem, xAnchor, xTime,
   voiceBadge, voicePlays, voicesOnly, type ClipBox, type Lay, type TrackDef,
 } from "../lib/mix";
@@ -40,7 +42,7 @@ import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
 import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
-  makeBed, makeEffects, moveMixPoint, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  makeBed, makeEffects, moveMixPoint, resetMixFx, trimMixFx, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
   loadMix, makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
   setMixItemMute,
 } from "../mixActions";
@@ -54,7 +56,7 @@ import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
 import { openSpotting } from "../spotActions";
-import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack, MixVoices, TrackKind } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixPoint, MixTrack, MixVoices, TrackKind } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -84,7 +86,7 @@ export function isSoundFile(f: { name: string; type?: string }): boolean {
 
 /** What is being dragged, and the mix it would make (drawn instead of the stored one). */
 interface Drag {
-  what: "move" | "in" | "out" | "hit" | "point";
+  what: "move" | "in" | "out" | "hit" | "point" | "fxin" | "fxout" | "fxpoint";
   id: string;
   at: Anchor;
   mix: Mix;
@@ -266,6 +268,69 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     const at = lay.length ? xAnchor(lay, xOf(e.clientX), fps) : null;    if (at) void addMixPoint(it.id, at);
   };
 
+  // ---- a shot's effects: its edges trimmed (the block stays put), its volume points as an item's ----
+  const onFxTrim = (e: RPointerEvent<HTMLElement>, f: MixFx, side: "in" | "out") => {
+    if (e.button !== 0 || !res) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const base = res.mix;
+    const kept = fxKept(items, f, base, fps);
+    const from = timeX(lay, side === "in" ? kept.start : kept.end);
+    const x0 = e.clientX;
+    let t: number | null = null;
+    let moved = false;
+    trackPointer((ev) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3) return;
+      moved = true;
+      t = xTime(lay, from + ev.clientX - x0);
+      const next = trimFx(base, f.shot, side, t, items, f, fps) ?? base;
+      const k = fxKept(items, f, next, fps);
+      setDrag({ what: side === "in" ? "fxin" : "fxout", id: f.shot, at: fxAnchor(items, f, side === "in" ? k.start : k.end, fps), mix: next, px: ev.clientX, py: ev.clientY });
+    }, (cancelled) => {
+      setDrag(null);
+      if (!moved) return;
+      endDrag();
+      if (!cancelled && t != null) void trimMixFx(f.shot, side, t, f);
+    });
+  };
+  const onFxPointDown = (e: RPointerEvent<Element>, f: MixFx, i: number) => {
+    if (e.button !== 0 || !res) return;
+    e.stopPropagation();
+    e.preventDefault();
+    focusSurface();
+    const base = res.mix;
+    const p = base.fx?.[f.shot]?.points?.[i];
+    const t = p ? anchorTime(items, p.at, fps) : null;
+    if (!p || t == null) return;
+    const kept = fxKept(items, f, base, fps);
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const from = timeX(lay, t);
+    const lo = timeX(lay, kept.start);
+    const hi = timeX(lay, Math.max(kept.start, kept.end));
+    const of = { fx: f.shot };
+    let at: Anchor = p.at;
+    let db = p.db;
+    let moved = false;
+    trackPointer((ev) => {
+      if (!moved && Math.abs(ev.clientX - x0) < 3 && Math.abs(ev.clientY - y0) < 3) return;
+      moved = true;
+      // along: the frame of its shot under it, kept on the heard span (a nudge leaves it where it was)
+      at = Math.abs(ev.clientX - x0) < 3 ? p.at : fxAnchor(items, f, xTime(lay, Math.min(hi, Math.max(lo, from + ev.clientX - x0))), fps);
+      db = snapDb(p.db - (ev.clientY - y0) * DB_PER_PX);
+      setDrag({ what: "fxpoint", id: f.shot, at, db, mix: movePoint(base, of, i, at, db, items, fps) ?? base, px: ev.clientX, py: ev.clientY });
+    }, (cancelled) => {
+      setDrag(null);
+      if (!moved) return;
+      endDrag();
+      if (!cancelled) void moveMixPoint(of, i, at, db);
+    });
+  };
+  const onFxAddPoint = (e: RMouseEvent<HTMLElement>, f: MixFx) => {
+    if (lay.length) void addMixPoint({ fx: f.shot }, fxAnchor(items, f, xTime(lay, xOf(e.clientX)), fps));
+  };
+
   // ---- a click on a lane seeks; a double-click on the hits lane adds a hit there ----
   const onLaneClick = (e: RMouseEvent<HTMLElement>) => {
     if (suppress.current || !lay.length) return;
@@ -402,12 +467,14 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             ))}
             {track === fxOn && (res?.fx ?? []).map((f) => (
               <FxBlock key={f.shot} ep={ep} fx={f} mix={mix} lay={lay} items={items} fps={fps}
-                onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })} />
+                onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })}
+                onTrim={onFxTrim} onPointDown={onFxPointDown} onAddPoint={onFxAddPoint}
+                onPointMenu={(fx, i) => void deleteMixPoint({ fx: fx.shot }, i)} />
             ))}
             {kind === "music" && beats.length > 0 && <BeatTicks beats={beats} lay={lay} />}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
               <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={kind === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
-                dragging={!!drag && drag.what !== "hit" && drag.what !== "point" && drag.id === it.id}
+                dragging={!!drag && (drag.what === "move" || drag.what === "in" || drag.what === "out") && drag.id === it.id}
                 onDown={onItemDown} onPointDown={onPointDown} onAddPoint={onAddPoint}
                 onPointMenu={(i) => void deleteMixPoint(it.id, i)}
                 onMenu={(e) => setPop({ kind: "item", id: it.id, x: e.clientX, y: e.clientY })} />
@@ -421,13 +488,16 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
       {drag && (
         <div className="h3-trim-tip" style={{ left: drag.px + 14, top: drag.py - 34 }}>
           {drag.what === "hit" ? `hit ${drag.id}` : drag.what === "point" ? `${drag.id} volume point ${(drag.db ?? 0) > 0 ? "+" : ""}${drag.db ?? 0} dB`
+            : drag.what === "fxpoint" ? `${drag.id}'s effects volume point ${(drag.db ?? 0) > 0 ? "+" : ""}${drag.db ?? 0} dB`
+            : drag.what === "fxin" || drag.what === "fxout" ? `${drag.id}'s effects ${drag.what === "fxin" ? "head" : "tail"} trimmed ${drag.mix.fx?.[drag.id]?.[drag.what === "fxin" ? "trim_in" : "trim_out"] ?? 0} frames`
             : `${drag.id} ${drag.what === "move" ? "start" : drag.what === "in" ? "head" : "tail"}`} · {drag.at.shot} frame {drag.at.frame}
           {(() => {
             const t = anchorTime(items, drag.at, fps);
             return t == null ? null : <> · {fmtClock(t)}</>;
           })()}
           <br />
-          <span className="h3-muted">{drag.track ? `onto ${labelOf(mix, drag.track)} · ` : ""}anchored to {drag.at.shot}: it moves with the shot · Esc cancels</span>
+          <span className="h3-muted">{drag.what === "fxin" || drag.what === "fxout" ? "the block stays where it is: what's trimmed is silent · Esc cancels"
+            : <>{drag.track ? `onto ${labelOf(mix, drag.track)} · ` : ""}anchored to {drag.at.shot}: it moves with the shot · Esc cancels</>}</span>
         </div>
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
@@ -692,6 +762,44 @@ export function VoicesSection({ mix, voices, onClose }: { mix: Mix; voices?: Mix
   );
 }
 
+/**
+ * A block's gain line (an item's, or a shot's effects'): the 0 dB line across it, its volume
+ * points (`pts`: x in the block, dB, index into `points`) joined over `x0`..`x1`, the first
+ * held to x0 and the last to x1; drag a point, right-click one to delete it.
+ */
+function GainLine({ width, x0, x1, pts, points, onPointDown, onPointMenu }: {
+  width: number; x0: number; x1: number; pts: { x: number; db: number; i: number }[]; points: MixPoint[];
+  onPointDown: (e: RPointerEvent<Element>, i: number) => void;
+  onPointMenu: (i: number) => void;
+}) {
+  return (
+    <svg className="h3-snd-gain" width={width} height={BLOCK_H}>
+      <line className="h3-snd-zero" x1={0} x2={width} y1={dbY(0, BLOCK_H)} y2={dbY(0, BLOCK_H)} />
+      {pts.length > 0 && (
+        <>
+          <polyline className="h3-snd-gainline"
+            points={[`${x0},${dbY(pts[0].db, BLOCK_H)}`, ...pts.map((p) => `${p.x},${dbY(p.db, BLOCK_H)}`), `${x1},${dbY(pts[pts.length - 1].db, BLOCK_H)}`].join(" ")} />
+          {pts.map((p) => (
+            <g key={p.i}>
+              <circle className="h3-snd-pt" cx={p.x} cy={dbY(p.db, BLOCK_H)} r={2.5} />
+              <circle className="h3-snd-pt-hit" cx={p.x} cy={dbY(p.db, BLOCK_H)} r={POINT_HIT}
+                onPointerDown={(e) => onPointDown(e, p.i)}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPointMenu(p.i);
+                }}>
+                <title>{`${p.db > 0 ? "+" : ""}${p.db} dB at ${points[p.i]?.at.shot} frame ${points[p.i]?.at.frame} · drag: its level and place · right-click: delete`}</title>
+              </circle>
+            </g>
+          ))}
+        </>
+      )}
+    </svg>
+  );
+}
+
 /** An item: a block from its in to its out (or its file's end), with its waveform. */
 const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDown, onMenu, onPointDown, onAddPoint, onPointMenu }: {
   ep: string; it: MixItem; lay: Lay[]; items: PlayItem[]; fps: number; dragging: boolean;
@@ -757,30 +865,8 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
       {q && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={Math.max(1, (Math.min(fileEnd, offset + secs) - offset) / Math.max(0.01, secs) * width)} height={LANE_H - 6} />}
       {fadeW(it.fade_in) > 0 && <div className="h3-snd-fade h3-l" style={{ width: fadeW(it.fade_in) }} />}
       {fadeW(it.fade_out) > 0 && <div className="h3-snd-fade h3-r" style={{ width: fadeW(it.fade_out) }} />}
-      <svg className="h3-snd-gain" width={width} height={BLOCK_H}>
-        <line className="h3-snd-zero" x1={0} x2={width} y1={dbY(0, BLOCK_H)} y2={dbY(0, BLOCK_H)} />
-        {pts.length > 0 && (
-          <>
-            <polyline className="h3-snd-gainline"
-              points={[`0,${dbY(pts[0].db, BLOCK_H)}`, ...pts.map((p) => `${p.x},${dbY(p.db, BLOCK_H)}`), `${width},${dbY(pts[pts.length - 1].db, BLOCK_H)}`].join(" ")} />
-            {pts.map((p) => (
-              <g key={p.i}>
-                <circle className="h3-snd-pt" cx={p.x} cy={dbY(p.db, BLOCK_H)} r={2.5} />
-                <circle className="h3-snd-pt-hit" cx={p.x} cy={dbY(p.db, BLOCK_H)} r={POINT_HIT}
-                  onPointerDown={(e) => onPointDown(e, it, p.i, fileSecs)}
-                  onDoubleClick={(e) => e.stopPropagation()}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onPointMenu(p.i);
-                  }}>
-                  <title>{`${p.db > 0 ? "+" : ""}${p.db} dB at ${it.points![p.i].at.shot} frame ${it.points![p.i].at.frame} · drag: its level and place · right-click: delete`}</title>
-                </circle>
-              </g>
-            ))}
-          </>
-        )}
-      </svg>
+      <GainLine width={width} x0={0} x1={width} pts={pts} points={it.points ?? []}
+        onPointDown={(e, i) => onPointDown(e, it, i, fileSecs)} onPointMenu={onPointMenu} />
       {width > 30 && <span className="h3-snd-label">{it.loop && <i className="pi pi-replay" />}{cue && <i className="pi pi-volume-up" />} {cue ? cueTitle({ id: it.id, kind: cue, label: it.label }) : label}</span>}
       <div className="h3-trim-h h3-l" title="Drag: where it starts (the sound stays where it was)" onPointerDown={(e) => onDown(e, it, "in", fileSecs)} />
       <div className="h3-trim-h h3-r" title="Drag: where it stops" onPointerDown={(e) => onDown(e, it, "out", fileSecs)} />
@@ -903,14 +989,23 @@ function BedMenu({ pop, mix, onClose }: { pop: BedPop; mix: Mix; onClose: () => 
 
 /**
  * A shot's picked effects at its clip: laid by the server from the cut and the mix's `fx`,
- * so it can't be dragged (it follows the clip and its trims); its waveform from the clip's
+ * so it can't be moved (it follows the clip and its trims); its waveform from the clip's
  * first frame of the take, the shot and the model, a stale mark when the cut's picture has
- * changed under it (left out of the mix unless kept). Right-click: level, mute, keep, its
- * takes, make again.
+ * changed under it (left out of the mix unless kept). Its edges drag its own trims (the
+ * trimmed ends hatched and silent, the block where it was), its fades drawn at the kept
+ * span's edges, its gain line and points as an item's. Right-click: level, trims, fades,
+ * reset, mute, keep, its takes, make again.
  */
-const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu }: {
+const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, onTrim, onPointDown, onAddPoint, onPointMenu }: {
   ep: string; fx: MixFx; mix: Mix; lay: Lay[]; items: PlayItem[]; fps: number;
   onMenu: (e: RMouseEvent<HTMLElement>) => void;
+  /** an edge picked up: its trim */
+  onTrim: (e: RPointerEvent<HTMLElement>, fx: MixFx, side: "in" | "out") => void;
+  /** a volume point picked up (`i`: its index in the shot's effects' points) */
+  onPointDown: (e: RPointerEvent<Element>, fx: MixFx, i: number) => void;
+  /** a double-click on the gain line: a point there */
+  onAddPoint: (e: RMouseEvent<HTMLElement>, fx: MixFx) => void;
+  onPointMenu: (fx: MixFx, i: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const seen = useSeen(box);
@@ -924,26 +1019,57 @@ const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu }: 
   const own = fxSettings(mix, fx.shot);
   const heard = fxHeard(mix, fx);
   const stale = !!fx.stale;
+  // what's heard: the clip less its trims (the block keeps its place; the trimmed ends are drawn hatched, silent)
+  const kept = fxKept(items, fx, mix, fps);
+  const kx0 = Math.min(width, Math.max(0, timeX(lay, Math.min(t1, kept.start)) - left));
+  const kx1 = Math.max(kx0, Math.min(width, timeX(lay, Math.max(kept.start, Math.min(t1, kept.end))) - left));
+  const fadeW = (frames: number) => (frames ? Math.min(kx1 - kx0, (frames / (fps || 24)) * pps) : 0);
+  const pts = own ? timedPoints(items, own, fps).map((p) => ({ ...p, x: timeX(lay, p.t) - left })) : [];
+  const lineY = (x: number) => dbY(pointsDb(pts.map((p) => ({ t: p.x, db: p.db })), x), BLOCK_H);
   const title = [
     `${fx.shot}'s effects · ${tn(fx.take)} on ${fx.model || "?"} · ${fx.path}${fx.exists ? "" : " (not there)"}`,
     stale ? `stale: ${fx.stale}. ${own?.keep_stale ? "Kept as it is: it plays." : "Left out of the mix until made again, or kept as it is."}` : "",
-    [own?.gain_db ? `${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : "", own?.mute ? "muted" : ""].filter(Boolean).join(" · "),
-    "made from the take the cut plays; laid at its clip, trimmed with it · right-click: level, mute, its takes, make again",
+    [own?.gain_db ? `${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : "", own?.mute ? "muted" : "",
+     own?.trim_in ? `head trimmed ${framesLabel(own.trim_in, fps)}` : "", own?.trim_out ? `tail trimmed ${framesLabel(own.trim_out, fps)}` : "",
+     own?.fade_in ? `fade in ${framesLabel(own.fade_in, fps)}` : "", own?.fade_out ? `fade out ${framesLabel(own.fade_out, fps)}` : "",
+     own?.points.length ? `${own.points.length} level points` : ""].filter(Boolean).join(" · "),
+    "made from the take the cut plays; laid at its clip, trimmed with it · drag an edge: trim it (the block stays put, what's trimmed is silent) · right-click: level, fades, trims, mute, its takes, make again",
+    "the line: its volume points (dB on its level) · double-click on the line: a point · drag a point: up and down its dB, along its frame · right-click a point: delete it",
   ].filter(Boolean).join("\n");
   return (
     <div ref={box} className={`h3-snd-item h3-snd-effects h3-snd-fx${heard ? "" : " h3-snd-silent"}${stale ? " h3-snd-fx-stale" : ""}`}
       style={{ left, width }} title={title}
       onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - r.left - 1;
+        if (own && x >= kx0 && x <= kx1 && Math.abs(e.clientY - r.top - 1 - lineY(x)) <= LINE_HIT) onAddPoint(e, fx);
+      }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onMenu(e);
       }}>
       {q && peaks?.ok && <PeaksCanvas peaks={peaks.data.peaks} width={width} height={LANE_H - 6} />}
+      {kx0 > 0 && <div className="h3-snd-fx-cut h3-l" style={{ left: 0, width: kx0 }} data-trim="in" />}
+      {kx1 < width && <div className="h3-snd-fx-cut h3-r" style={{ left: kx1, width: width - kx1 }} data-trim="out" />}
+      {own && fadeW(own.fade_in) > 0 && <div className="h3-snd-fade h3-l" style={{ left: kx0, width: fadeW(own.fade_in) }} />}
+      {own && fadeW(own.fade_out) > 0 && <div className="h3-snd-fade h3-r" style={{ left: kx1 - fadeW(own.fade_out), right: "auto", width: fadeW(own.fade_out) }} />}
+      {own && (
+        <GainLine width={width} x0={kx0} x1={kx1} pts={pts} points={own.points}
+          onPointDown={(e, i) => onPointDown(e, fx, i)} onPointMenu={(i) => onPointMenu(fx, i)} />
+      )}
       {width > 30 && (
         <span className="h3-snd-label">
           {stale && <i className="pi pi-exclamation-triangle" />} {fx.shot} · {fx.model.replace(/_foley$/, "")}{own?.gain_db ? ` ${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : ""}
         </span>
+      )}
+      {own && (
+        <>
+          <div className="h3-trim-h h3-l" style={{ left: kx0 }} title="Drag: trim its head (the block stays put; what's trimmed is silent)" onPointerDown={(e) => onTrim(e, fx, "in")} />
+          <div className="h3-trim-h h3-r" style={{ left: Math.max(0, kx1 - 7), right: "auto" }} title="Drag: trim its tail (the block stays put; what's trimmed is silent)" onPointerDown={(e) => onTrim(e, fx, "out")} />
+        </>
       )}
     </div>
   );
@@ -956,6 +1082,12 @@ function FxMenu({ ep, pop, mix, onClose }: { ep: string; pop: FxPop; mix: Mix; o
   const shot = pop.fx.shot;
   const own = fxSettings(mix, shot);
   const [gain, setGain] = useState(String(own?.gain_db ?? 0));
+  // its trims and fades, frames (Apply or Enter, with the level: one edit)
+  const [shape, setShape] = useState(() => ({
+    trim_in: String(own?.trim_in ?? 0), trim_out: String(own?.trim_out ?? 0), fade_in: String(own?.fade_in ?? 0), fade_out: String(own?.fade_out ?? 0),
+  }));
+  const shaped = !!own && (own.trim_in > 0 || own.trim_out > 0 || own.fade_in > 0 || own.fade_out > 0 || own.points.length > 0);
+  const fps = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)]?.fps : 0) || 24);
   const [pos, setPos] = useState({ left: pop.x, top: pop.y });
   const [info, setInfo] = useState<FxShot | null>(null);
   const [why, setWhy] = useState<string | null>(null);
@@ -1000,9 +1132,22 @@ function FxMenu({ ep, pop, mix, onClose }: { ep: string; pop: FxPop; mix: Mix; o
     };
   }, [onClose]);
   const apply = () => {
-    void setMixFx(shot, { gain_db: clampDb(Number(gain)) }, `Change ${shot}'s effects level`);
+    const n = (v: string) => Math.max(0, Math.round(Number(v) || 0));
+    // the trims kept a frame clear of each other on the clip (as a drag keeps them)
+    const frames = Math.max(1, Math.round((pop.fx.end - pop.fx.start) * fps));
+    const trim_in = Math.min(n(shape.trim_in), frames - 1);
+    const trim_out = Math.min(n(shape.trim_out), frames - 1 - trim_in);
+    const patch = { gain_db: clampDb(Number(gain)), trim_in, trim_out, fade_in: n(shape.fade_in), fade_out: n(shape.fade_out) };
+    const onlyLevel = own && trim_in === own.trim_in && trim_out === own.trim_out && patch.fade_in === own.fade_in && patch.fade_out === own.fade_out;
+    void setMixFx(shot, patch, onlyLevel ? `Change ${shot}'s effects level` : `Change ${shot}'s effects`);
     onClose();
   };
+  const frameField = (label: string, key: keyof typeof shape, title: string) => (
+    <label className="h3-snd-field" title={`${title} (${framesLabel(Math.max(0, Math.round(Number(shape[key]) || 0)), fps)})`}>
+      <span>{label}</span>
+      <input className="h3-in" type="number" min={0} max={2400} step={1} data-fx-field={key} value={shape[key]} onChange={(e) => setShape({ ...shape, [key]: e.target.value })} />
+    </label>
+  );
   const play = (t: FxTake) => {
     const a = audio.current ?? (audio.current = new Audio());
     if (playing === t.take) {
@@ -1031,6 +1176,19 @@ function FxMenu({ ep, pop, mix, onClose }: { ep: string; pop: FxPop; mix: Mix; o
         <span>Level dB</span>
         <input className="h3-in" autoFocus type="number" step={0.5} min={GAIN_MIN} max={GAIN_MAX} value={gain} onChange={(e) => setGain(e.target.value)} />
       </label>
+      {frameField("Trim head", "trim_in", "Frames silent from the clip's start: the block stays where it is, only less of it is heard (or drag its left edge)")}
+      {frameField("Trim tail", "trim_out", "Frames silent before the clip's end (voices creeping in at the end): the block stays where it is (or drag its right edge)")}
+      {frameField("Fade in", "fade_in", "Frames it fades in over, from where it's heard")}
+      {frameField("Fade out", "fade_out", "Frames it fades out over, to where it stops")}
+      {shaped && (
+        <button title="Its whole clip heard again at its level: the trims, fades and volume points taken out (its level and mute stay)"
+          onClick={() => {
+            void resetMixFx(shot);
+            onClose();
+          }}>
+          <i className="pi pi-eraser" /> Reset trims and levels
+        </button>
+      )}
       <button title={own?.mute ? "Hear the shot's effects again" : "Silence the shot's effects in this pass's mix"}
         onClick={() => {
           void setMixFx(shot, { mute: !own?.mute }, `${own?.mute ? "Unmute" : "Mute"} ${shot}'s effects`);
