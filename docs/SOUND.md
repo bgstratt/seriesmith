@@ -625,6 +625,32 @@ that must sit on a bpm, where its integer `bpm` input is the surer tempo.
 3. **A better model or more steps**, measured the same way before any is the default: XL SFT
    at 50 steps, MiniMax Music 3 (installed), and ACE-Step's timbre reference.
 
+## Measured: YuE2 (2026-11-01, local)
+
+`yue2_3b_int8_convrot` with the core nodes as the `audio_yue2_text2music` template wires them
+(`YuE2GenerateABC` -> `YuE2GenerateMusic` -> `EmptyYuE2LatentAudio` from its seconds ->
+KSampler 32 steps dpm_2 sgm_uniform cfg 1 -> `VAEDecodeAudio`), a warm acoustic pop style
+asking 96 BPM, four sections of original lyrics, three seeds, three ways: **A** the tempo in the
+style words only (no plan), **B** YuE2's own ABC plan, **C** that plan with its `Q:` line set
+to `1/4=96`. Files in `ComfyProjects\_yue2_test`.
+
+- **The plan comes first and is real structure**: ABC in ~23 s with `M:` (2/4 or 4/4), `Q:`
+  (93-94, near the asked 96), `K:`, a vocal and an instrumental voice, and the sections as
+  `% intro` / `% verse` / `% chorus` / `% outro` comments over whole bars.
+- **Tempo: C holds it exactly.** Heard 96.0 / 96.1 / 96.0 (A drifted -4 to -20 %: 91.8, 88.1,
+  77.0; B played each plan's own tempo: 93.1, 94.1, 94.0 against Q 93, 94, 94). The ABC's `Q:`
+  drives it; the style words barely do. A song cue sets the fitted tempo in the plan.
+- **Length follows the plan's bars**: every take 1.2-3.6 s short of its plan's bars at its
+  tempo (~2 %), the shortfall seemingly at the start (the first sung bar early by 1.75 and
+  4.1 s; the end of singing measured from the end of the song 0.9 and 3.2 s off). Sections
+  land within a few seconds of the plan, not to the frame: a song is measured and ranked as a
+  score cue is. (The bar counts here are a rough reading of the ABC; the target needs a real
+  one: pickups, ties, multi-bar rests.)
+- **Fast**: a 2-2.5 minute song in 18-22 s on the 5090, the plan included.
+- So a `yue2` song cue: the plan first (or one carried over: the leitmotif), its `Q:` set to
+  the fitted tempo, its sections' bar counts read to place them on the cue's bars; then the
+  song, measured against the plan. Heard by the user: (to come).
+
 ## Measured: ambience beds (2026-11-01, local)
 
 Four places with different kinds of sound (a quiet country-house hall, a park by day, a tar
