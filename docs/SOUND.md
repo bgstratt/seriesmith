@@ -395,8 +395,9 @@ Each phase is tested live on local ComfyUI before the next starts.
          bars 3-4 at its codes, t04 in 2.3 s, the beat 6 of 7 as the take's 6, the levels of the
          other six bars the take's to 0.02 dB; bars 7-8 with new music, t05 in 3.5 s, 6 of 7.
          This ComfyUI hadn't been restarted to load the new node, so the live check swapped in
-         KJNodes' `LTXVAudioVideoMask` with the same span, as the probe did; the node itself is
-         to be checked live on the next ComfyUI restart)
+         KJNodes' `LTXVAudioVideoMask` with the same span, as the probe did. After the restart
+         (2026-11-02), through the server and `SeriesmithAudioSpanMask`: m03 t02 bars 4-6 at its
+         codes, t06, the beat 6 of 7 as the take's 6, median 27 ms)
    - [x] `yue2`: YuE2 as a song target beside ACE-Step (lyrics by section, the tempo in its ABC
          header), measured as ACE-Step and Stable Audio 3 were before it's offered (2026-11-01;
          `targets/music/yue2/`, the song default; `core/abc.py` reads a plan: its sections in
@@ -658,7 +659,11 @@ Each phase is tested live on local ComfyUI before the next starts.
          scratch copy of ep01 (large-v3 on the CPU: this venv's CUDA has no cublas, 3 min)
          heard 241 words and matched all 30 sung lines 100 %; with dub_from on, sh050's render
          (dry run) uploads `song.wav.vocals.wav`. ComfyUI must restart once to load the node
-         (a backend without it is told so before anything is sent)
+         (a backend without it is told so before anything is sent). After the restart
+         (2026-11-02), end to end: `POST /seriesmith/vocals` on CupsMV ep01 queued the job, the
+         stem written back in 4.2 s, the same as the one-off's (correlation 1.0); with
+         `nvidia-cublas-cu12` Whisper runs on the GPU: align --vocals (dry run) large-v3 28 s,
+         all 30 lines 100 %; large-v3-turbo 11 s, 27 of 30 (three at 67-88 %)
    - [x] whether a singing shot lip-syncs better to the vocal stem than to the full song
          (the window sent the model could be the stem's, the episode's sound the song's)
    - [x] shots that don't sing (the band, b-roll) get their window with no lips to sync
