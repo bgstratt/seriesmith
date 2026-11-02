@@ -656,7 +656,9 @@ seconds), "gain_db", "mute"}]`, one per run. `fx` the shots' picked effects laid
 (anchors: the clip's first frame of the take, the frame after its last), "start", "end" (cut
 seconds: the clip), "offset" (seconds into the file at `start`: the clip's trim), "gain_db",
 "mute", "keep_stale", "stale" (why it no longer matches the cut's picture, or null), "heard"
-(there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick. `voices`
+(there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick (its own
+trims, fades and points are the mix's `fx`: the block is the clip, what's heard of it the
+clip less its trims). `voices`
 the Dialogue track's voices only (below): `{"voices_only" (the track's), "split", "of", "queued"
 (of the cut's shots that can be split, how many are, and how many are being), "shots": [{"shot",
 "pass", "take", "path" (the take's voice stem, relative to the episode; null without a take),
@@ -730,7 +732,10 @@ episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import`
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
 An item takes `mute` (true or false; stored only when true): silent where it is, in the export,
 its stem, the loudness and Play all, laid disabled in the FCP7 XML. `beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
-(-60 to 12), `mute` and `keep_stale`. `track_list` takes the mix's own tracks, `[{"id", "kind",
+(-60 to 12), `mute`, `keep_stale`, `trim_in` and `trim_out` (frames silent from the clip's head
+and tail: it keeps its place and length), `fade_in` and `fade_out` (frames, at the kept span's
+edges; each 0 to 2400, whole) and `points` (an item's form, `[{"at": {"shot", "frame"}, "db"}]`,
+each on the shot itself: 400 for one on another). `track_list` takes the mix's own tracks, `[{"id", "kind",
 "label"}]` in lane order (stored only when it isn't the four defaults as they are; a label
 only when it isn't the default's): 400 for one without `dialogue` (the takes' sound), a
 default id of another kind (`music` is music), an id twice or one a stem can't have (`me`,
@@ -785,8 +790,13 @@ was made from, its mp4 as it was), video: {frames, fps, seconds, width, height},
 error, measured: {seconds, came, peak_db, rms_db}}`.
 
 The mix lays them, never stores them as items: each shot in the cut with a pick in the pass's
-`mix.json` `fx` (`{"sh010": {"take": 2, "gain_db": -4, "mute": true, "keep_stale": true}}`) gets
-it on the effects track at its clip, trimmed with the clip. **Stale** when the cut plays another
+`mix.json` `fx` (`{"sh010": {"take": 2, "gain_db": -4, "mute": true, "keep_stale": true,
+"trim_out": 30, "fade_out": 12, "points": [{"at": {"shot": "sh010", "frame": 40}, "db": -6}]}}`)
+gets it on the effects track at its clip, trimmed with the clip. Its own `trim_in` / `trim_out`
+silence that many frames at the clip's head and tail without moving it; `fade_in` / `fade_out`
+fade the kept span's edges and `points` shape its level, as an item's: heard so in the export,
+its stems and loudness and Play all; the XML lays the clip trimmed to the kept span (the rest
+of the file as handles), its fades and points as an item's. **Stale** when the cut plays another
 take of the shot (its number or pass) than the effects were made from, or that take's mp4 has
 been written since (its size or mtime): left out of the mix and said so (assemble's report,
 `stale` in `GET /seriesmith/mix`), unless `keep_stale`. A heard one makes a mix by itself: the
@@ -815,8 +825,8 @@ A shot's first finished take is picked into the mix when it has none (as a place
 is); later takes wait to be picked.
 
 ### `POST /seriesmith/fx/pick`
-Body `{"ep", "pass", "shot", "take"}`: the take into the pass's mix (`fx`), the shot's level
-and mute kept, `keep_stale` dropped; `take: null` takes the shot's effects out. Answers
+Body `{"ep", "pass", "shot", "take"}`: the take into the pass's mix (`fx`), the shot's level,
+mute, trims, fades and points kept, `keep_stale` dropped; `take: null` takes the shot's effects out. Answers
 `{"mix"}`; 409 for a take that isn't finished.
 
 ## Music cues (2026-11-01)

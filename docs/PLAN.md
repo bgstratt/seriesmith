@@ -1628,7 +1628,10 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       2026-11-01; the Demucs split built as **voices only** 2026-11-02 (`voices.py`: each take
       the cut plays split into `<take>.voice.wav`, the Dialogue track playing the voices alone,
       a shot with no lines silent; live on Ballroom ep02's 11 shots, SOUND.md "Measured: voices
-      only"; not yet heard by the user nor looked at in a browser)
+      only"; not yet heard by the user nor looked at in a browser); a shot's effects trimmed,
+      faded and levelled within its clip 2026-11-02 (mix.json `fx` `trim_in` / `trim_out` /
+      `fade_in` / `fade_out` / `points`: the block stays put, the trimmed ends silent; the XML
+      clip trimmed to what's heard; not yet looked at in a browser)
 - [x] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
       2026-11-02 (the snapping still to be looked at in a browser)
 - [x] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)

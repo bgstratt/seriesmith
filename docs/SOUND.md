@@ -534,13 +534,31 @@ Each phase is tested live on local ComfyUI before the next starts.
      gets it on the Effects track at its clip, anchored to the take's frame 0, trimmed with the
      clip; nothing stored as items. The mix keeps `fx: {shot: {take, gain_db, mute}}` (the pick
      is the pass's mix's).
+   - **Trimmed and levelled within its clip** (2026-11-02): a take often has voices creeping in
+     at its end where it should die away, so a shot's effects take their own `trim_in` /
+     `trim_out` (frames silent from the clip's head and tail), `fade_in` / `fade_out` (frames,
+     at the kept span's edges) and `points` (volume breakpoints, an item's form, each on the
+     shot: `{"at": {"shot", "frame"}, "db"}`). The block never moves or shortens: it's sound
+     under the picture, laid at its clip; only less of it is heard. All optional, dropped when
+     0 or empty (old mix.json files unchanged), checked like the rest (`mix.check`), and kept
+     when another take is picked (`mix.FX_KEEP`: a new take of the same shot keeps the user's
+     shaping; `keep_stale` alone is dropped). Heard everywhere the effects are: the render
+     and the effects stem (silent outside the kept span, the EDGE_S ramp at its edges so a
+     trim doesn't click, the fades and points as an item's), the loudness, Play all (the
+     entry an item's: starts after the trimmed head, stops at the trimmed tail), and the FCP7
+     XML, where **the clip itself is trimmed to the kept span** (its in and out moved, the
+     file's frames beyond them left as handles an editor can drag back out), its fades as
+     transitions and its points as Audio Levels keyframes: a clip with silent keyframes at
+     -inf would hide what was cut and still play its room tone through a fade.
    - **Stale when the picture changes**: effects made from another take than the cut's (or a
      take re-rendered since) are flagged and left out of the mix until made again, or kept
      on purpose (`fx: {shot: {keep_stale: true}}`): sound that doesn't match its picture is
      worse than none.
    - **Shown on the Effects lane** as a block per shot (its id, the model, stale marked),
-     read-only but for a menu: level, mute, its takes (play, pick), make again (the model),
-     keep as it is when stale.
+     not moved (it follows its clip), with a menu: level, trims, fades, Reset trims and
+     levels, mute, its takes (play, pick), make again (the model), keep as it is when stale.
+     Its edges drag its trims (the trimmed ends hatched, silent), and its gain line takes
+     volume points as an item's (double-click the line, drag a point, right-click to delete).
    - [x] the `foley` kind: `h3_foley`, `ltx23_foley`, `hunyuan_xl_foley` (target.json, files
          and downloads for Features, the graphs) (2026-11-01; `targets/foley/`. The take goes up
          as a file through ComfyUI's own `LoadVideo` / `GetVideoComponents`, made the model's
@@ -566,6 +584,12 @@ Each phase is tested live on local ComfyUI before the next starts.
          mix edit; not yet looked at in a browser)
    - [x] docs: API, EDITOR, COMMANDS, FULL_SETUP; live: CupsMV's cup shots on local ComfyUI
          (2026-11-01, below)
+   - [x] a shot's effects trimmed, faded and levelled within its clip (2026-11-02; mix.json
+         `fx` `trim_in` / `trim_out` / `fade_in` / `fade_out` / `points`, `fx.kept_span`,
+         `render_fx`, `fx_lanes` (the XML clip trimmed to the kept span); the editor's FxBlock
+         edges and gain line, FxMenu's numbers and Reset trims and levels, `lib/mix.ts`
+         fxKept / trimFx / fxAnchor, the volume-point edits shared with items (`PointsOf`).
+         Not yet heard by the user, nor looked at in a browser)
    - [x] **voices only** (2026-11-02; `seriesmith/voices.py`, "Measured: voices only" below):
          each take the cut plays split by the vocal stem's job (`SeriesmithVocals`, phase 7) into
          `<shot>_tNN.voice.wav` and its `.voice.json` (what it was split from: stale when the

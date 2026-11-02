@@ -1371,13 +1371,23 @@ with stems beside it.
   ("…looks up, about to sing" gets a voice). The job shows in the Jobs list, and a toast says
   when it lands; each new take is picked into the mix as it lands (its level and mute kept); an earlier one is a pick away.
 - **A shot's effects** sit on the Effects lane at its clip, named for the shot and the model,
-  laid from the cut so they follow its trims and can't be dragged. **Right-click** one for its
-  **level** (dB, on the Effects fader), **Mute**, **No effects for** the shot, its **takes**
+  laid from the cut so they follow its trims and can't be moved. **Drag an edge** to trim it
+  (voices creeping in at the end of a take, where it should just die away): the block stays
+  where it is and as long, the trimmed end is drawn hatched and is **silent**; the tip says how
+  many frames, **Esc** cancels. Its **volume line** works as an item's: **double-click** on the
+  line for a point, drag a point up or down (its dB) or along (its frame), **right-click** a
+  point to delete it. **Right-click** the block for its
+  **level** (dB, on the Effects fader), **Trim head** and **Trim tail** (frames), **Fade in** and
+  **Fade out** (frames, at the edges of what's heard: Apply or Enter), **Reset trims and levels**
+  (its whole clip heard again, its points gone; its level stays), **Mute**, **No effects for** the shot, its **takes**
   (fetched when the menu opens: ▶ to hear one alone, **Pick** to put it in the mix; the newest
   first) and **Make again** on the model chosen beside it. When the cut plays another take of
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
-  plays them anyway. A new take (Make again) is picked as it lands; the earlier ones stay in the menu to pick back.
+  plays them anyway. A new take (Make again) is picked as it lands, keeping the level, trims,
+fades and points you gave the shot; the earlier ones stay in the menu to pick back. Every
+change is one undoable edit (Ctrl+Z), heard in Play all, the export and its effects stem, and
+in the XML as the clip trimmed to what's heard.
 - **Voices only** (right-click the Dialogue lane, or its head's **⋮**, or the Refs tab's Dialogue): each clip plays its take's **voice stem**,
   its sound with the model's own music and room tone split off (Hybrid Demucs on local
   ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
