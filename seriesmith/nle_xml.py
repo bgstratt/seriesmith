@@ -17,7 +17,8 @@ assemble counts it; its file carries its own rate and the editor conforms it).
                         first frame sits, from the clip's first used frame),
                         "gain"} | None}]
     recording: {"path", "channels", "frames", "at" (from the cut's start)} | None
-    sound: {"effects" | "ambience" | "music": [{"label", "path", "channels", "frames",
+    sound: {track id (the mix's, in its order: "effects", "ambience", "music", one of its
+             own): [{"label", "path", "channels", "frames",
              "start", "end" (the cut's frames), "in" (the file's frame at start),
              "gain_db", "points": [(cut frame, dB)], "fade_in", "fade_out"}]}
     hits: [{"name", "at" (the cut's frame)}]
@@ -26,8 +27,8 @@ A dissolve of n frames on a clip is a centred Cross Dissolve on its join: the
 edit at the clip before's frame used - n + n//2, the frames either side its
 handles, the frames assemble's xfade uses. A fade is a Cross Dissolve from or to
 black at the clip's own head or tail. Clip sound is on A1/A2 (a mono file A1
-alone), the recording on the next pair, then the mix's effects, ambience and music
-(mix.py), a pair each, their levels as Audio Levels keyframes (`when` counted in the
+alone), the recording on the next pair, then the mix's tracks in its order (effects,
+ambience, music, and any of its own; mix.py), a pair each, their levels as Audio Levels keyframes (`when` counted in the
 clip's source frames, as FCP7 writes them). The hits are sequence markers.
 """
 
@@ -211,7 +212,9 @@ def write(name: str, fps: float, size: tuple[int, int] | None, clips: list[dict]
     asc = _sub(_sub(audio, "format"), "samplecharacteristics")
     _sub(asc, "depth", 16)
     _sub(asc, "samplerate", SAMPLE_RATE)
-    lanes = [k for k in ("effects", "ambience", "music") if (sound or {}).get(k)]
+    # the mix's tracks in its order, a pair each (the default dialogue track's items aren't
+    # carried: the clips' own sound is on A1/A2)
+    lanes = [k for k, v in (sound or {}).items() if k != "dialogue" and v]
     a_tracks = [_sub(audio, "track")
                 for _ in range(2 + (2 if recording else 0) + 2 * len(lanes))]
 

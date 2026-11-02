@@ -122,6 +122,64 @@ class CheckTest(unittest.TestCase):
             self.assertEqual(got["loudness"], {"target_lufs": -14})
 
 
+class TrackListTest(unittest.TestCase):
+    """Tracks of your own (docs/SOUND.md phase 6): the mix's own list, the four by default."""
+
+    SONG = [{"id": "dialogue", "kind": "dialogue"}, {"id": "effects", "kind": "effects"},
+            {"id": "ambience", "kind": "ambience"}, {"id": "music", "kind": "music", "label": "Score"},
+            {"id": "song", "kind": "music", "label": "Song"}]
+
+    def test_defaults_when_none(self):
+        self.assertEqual(MX.track_ids({}), list(MX.TRACKS))
+        self.assertEqual(MX.track_list({})[3], {"id": "music", "kind": "music", "label": "Music"})
+        # the defaults written out are no list of its own
+        self.assertEqual(MX.check({"track_list": [{"id": k, "kind": k, "label": MX.LABELS[k]}
+                                                  for k in MX.TRACKS]}), {})
+
+    def test_own_list_kept_and_used(self):
+        got = MX.check({"track_list": self.SONG, "tracks": {"song": {"gain_db": 0, "duck_db": -3}},
+                        "items": [{"id": "s1", "track": "song", "path": "a.wav", "in": anchor("sh010")}]})
+        self.assertEqual(got["track_list"], self.SONG)
+        self.assertEqual(MX.kinds(got)["song"], "music")
+        self.assertEqual(MX.fader(got["tracks"], "song", "music"), 0)
+        self.assertEqual(MX.fader({}, "song", "music"), -12.0)        # its kind's default
+        # a renamed default, a track list without effects: the effects go nowhere
+        got = MX.check({"track_list": [{"id": "dialogue", "kind": "dialogue", "label": "Lines"},
+                                       {"id": "walla", "kind": "ambience"},
+                                       {"id": "music", "kind": "music"}]})
+        self.assertEqual(MX.track_list(got)[0]["label"], "Lines")
+        self.assertIsNone(MX.fx_track(got))
+        self.assertEqual(MX.bed_track(got), "walla")                  # the first of its kind
+
+    def test_refusals(self):
+        for bad, said in (
+                ([{"id": "music", "kind": "music"}], "can't be taken out"),
+                ([{"id": "dialogue", "kind": "dialogue"}, {"id": "me", "kind": "music"}], "me.wav"),
+                ([{"id": "dialogue", "kind": "dialogue"}, {"id": "music", "kind": "effects"}], "of kind music"),
+                ([{"id": "dialogue", "kind": "dialogue"}, {"id": "x", "kind": "score"}], "kind must be"),
+                ([{"id": "dialogue", "kind": "dialogue"}, {"id": "x", "kind": "music"},
+                  {"id": "x", "kind": "music"}], "two tracks"),
+                ([{"id": "dialogue", "kind": "dialogue", "gain_db": 0}], "a track takes"),
+                ([], "a list of tracks")):
+            with self.subTest(said=said), self.assertRaises(ValueError) as e:
+                MX.check({"track_list": bad})
+            self.assertIn(said, str(e.exception))
+        own = {"track_list": [{"id": "dialogue", "kind": "dialogue"}, {"id": "adr", "kind": "dialogue"}]}
+        with self.assertRaises(ValueError) as e:
+            MX.check({**own, "tracks": {"adr": {"duck_db": -3}}})
+        self.assertIn("doesn't duck", str(e.exception))
+        with self.assertRaises(ValueError) as e:                       # its items' track is gone
+            MX.check({**own, "items": [{"id": "m1", "track": "music", "path": "a.wav", "in": anchor("sh010")}]})
+        self.assertIn("track must be one of dialogue, adr", str(e.exception))
+
+    def test_series_levels_for_its_own_tracks(self):
+        with tempfile.TemporaryDirectory() as root:
+            MX.save(root, {"final": {"track_list": self.SONG}})
+            got = MX.for_pass(root, "final", {"sound": {"tracks": {"song": {"gain_db": -3},
+                                                                   "nope": {"gain_db": 1}}}})
+            self.assertEqual(got["tracks"], {"song": {"gain_db": -3}})
+
+
 class AnchorTest(unittest.TestCase):
     def test_origins_follow_trims_and_dissolves(self):
         plan = [{"id": "sh010", "trim_in": 0, "used": 48},
@@ -339,6 +397,43 @@ class AssembleMixTest(unittest.TestCase):
         names = [m.findtext("name") for m in doc.findall("./sequence/marker")]
         self.assertIn("the door", names)
 
+    def test_tracks_of_its_own(self):
+        """docs/SOUND.md phase 6: a second music track under the score and an ADR track of the
+        dialogue kind, each its own stem; the M&E all but the dialogue kind; the XML a pair
+        each in the mix's order."""
+        import xml.etree.ElementTree as ET
+        stems = os.path.join(self.root, "renders", "ep01_stems")
+        os.makedirs(stems, exist_ok=True)
+        with open(os.path.join(stems, "old.wav"), "wb") as fh:      # a track that's gone
+            fh.write(b"RIFF")
+        song = self.music(id="s1", track="song", out=anchor("sh010", 24))
+        adr = self.music(id="d1", track="adr", **{"in": anchor("sh020"), "out": anchor("sh020", 24)})
+        mix = {"track_list": [{"id": "dialogue", "kind": "dialogue"}, {"id": "adr", "kind": "dialogue"},
+                              {"id": "music", "kind": "music"}, {"id": "song", "kind": "music"}],
+               "tracks": {"song": {"gain_db": 0}}, "items": [self.music(), song, adr]}
+        MX.save(self.root, {"final": mix})
+        self.assemble()
+        self.assertEqual(sorted(os.listdir(stems)),
+                         ["adr.wav", "dialogue.wav", "me.wav", "mix.wav", "music.wav", "song.wav"])
+        song_stem, adr_stem, me = self.stem("song"), self.stem("adr"), self.stem("me")
+        self.assertGreater(self.level(song_stem, 0.1, 0.9), -40)     # under sh010
+        self.assertLess(self.level(song_stem, 1.1, 1.9), -80)
+        self.assertGreater(self.level(adr_stem, 1.1, 1.9), -40)
+        # the M&E: the two music tracks, not the ADR
+        music = self.stem("music")
+        np = MX._np()
+        self.assertLess(float(np.max(np.abs(me - (music + song_stem)))), 1e-3)
+        # the XML: A1/A2 the clips, then adr, music, song a pair each
+        out = self.assemble("--xml")
+        self.assertIn("3 item(s) on their own tracks", out)
+        doc = ET.parse(os.path.join(self.root, "renders", "ep01.xml")).getroot()
+        tracks = doc.findall("./sequence/media/audio/track")
+        self.assertEqual(len(tracks), 8)
+        # (the tone is mono: the first of each pair)
+        self.assertEqual([len(t.findall("clipitem")) for t in tracks[2:]], [1, 0, 1, 0, 1, 0])
+        self.assertEqual((tracks[2].find("clipitem").findtext("start"),
+                          tracks[6].find("clipitem").findtext("end")), ("24", "24"))
+
     def test_music_fader_defaults_to_minus_12(self):
         MX.save(self.root, {"final": {"items": [self.music()], "tracks": {"music": {"gain_db": 0}}}})
         # against the dialogue: the stems carry the mix's loudness gain, which moves with it
@@ -438,6 +533,23 @@ class RouteTest(ApiTest):
         self.assertTrue(any(f.startswith(MX.MIX_FILE) for f in os.listdir(hist)))
         back = self.ok(A.get_mix(self.ctx, {"ep": self.ep, "pass": "final"}))["mix"]
         self.assertEqual(back["items"][0]["gain_db"], -6)
+
+    def test_track_list_through_the_routes(self):
+        own = [{"id": "dialogue", "kind": "dialogue"}, {"id": "music", "kind": "music", "label": "Score"},
+               {"id": "song", "kind": "music", "label": "Song"}]
+        got = self.put({"track_list": own, "items": [self.item(track="song")]})
+        self.assertEqual(got["track_list"], own)
+        res = self.ok(A.get_mix(self.ctx, {"ep": self.ep, "pass": "final"}))
+        self.assertEqual([t["id"] for t in res["track_list"]], ["dialogue", "music", "song"])
+        self.assertEqual(res["track_list"][1]["label"], "Score")
+        self.assertEqual(res["defaults"]["labels"]["effects"], "Effects")
+        # a track taken out with its items still on it: refused, nothing written
+        self.assertIn("track must be one of", self.put({"track_list": own[:2], "items": [self.item(track="song")]}, 400))
+        self.assertEqual(MX.load(self.ep)["final"]["track_list"], own)
+        # a cue placed again keeps the track it was moved to
+        from seriesmith import cue as CU
+        self.assertEqual(CU.MX.first_of({"track_list": own}, "music"), "music")
+        self.assertIsNone(CU.MX.first_of({"track_list": own[:1]}, "music"))
 
     def test_put_refusals(self):
         self.assertIn("track must be one of", self.put({"items": [self.item(track="x")]}, 400))

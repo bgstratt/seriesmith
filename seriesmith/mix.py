@@ -1,5 +1,5 @@
 """
-mix.py — an episode's sound beyond the takes: four tracks, their items, a mix.
+mix.py — an episode's sound beyond the takes: its tracks (four by default), their items, a mix.
 
 docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass:
 
@@ -23,13 +23,24 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
        "duck": {"threshold_db": -45, "attack_ms": 60, "release_ms": 450},
        "loudness": {"target_lufs": -16, "true_peak_db": -1},
        "beds": {"diner": {"gain_db": -3}, "platform": {"mute": true}},
-       "fx": {"sh010": {"take": 2, "gain_db": -4}, "sh030": {"take": 1, "keep_stale": true}}},
+       "fx": {"sh010": {"take": 2, "gain_db": -4}, "sh030": {"take": 1, "keep_stale": true}},
+       "track_list": [{"id": "dialogue", "kind": "dialogue"}, {"id": "effects", "kind": "effects"},
+                      {"id": "ambience", "kind": "ambience"},
+                      {"id": "music", "kind": "music", "label": "Score"},
+                      {"id": "song", "kind": "music", "label": "Song"}]},
      "proxy": {}}
 
 - **Tracks**: dialogue (the cut's own sound, each clip's take as assemble joins it, plus
-  any items put on it), effects, ambience, music. Each has a fader (`gain_db`; GAIN_DEFAULT
-  when nothing sets it: music -12 dB), `mute`,
-  `solo`, and (all but dialogue) `duck_db`, how far it dips while someone speaks.
+  any items put on it), effects, ambience, music: the defaults. `track_list` (docs/SOUND.md
+  phase 6) is the mix's own list when it has one: each track an `id` (what items, `tracks`
+  and the stem's file name say), a `kind` (dialogue, effects, ambience or music: its default
+  fader and duck depth, what a region's `music_duck_db` / `ambience_duck_db` reach, and
+  whether it joins the M&E) and a `label`. A second music track for a song under the score,
+  a walla track. The four default ids keep their kinds and can be renamed; `dialogue` (the
+  takes' sound) is always there. No `track_list`: the four defaults. Each track has a fader
+  (`gain_db`; GAIN_DEFAULT of its kind when nothing sets it: music -12 dB), `mute`, `solo`,
+  and (all but the dialogue kind) `duck_db`, how far it dips while someone speaks; the
+  speech it dips under is every dialogue track's.
 - **An anchor** is a shot and a frame of it: a frame of the shot's take at the cut's rate,
   counted from the take's first frame, before any trim. A trim or a reorder moves it with its
   shot, and a hit stays on the action it marks. One whose shot isn't in the cut is dropped
@@ -49,11 +60,13 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
 - **Beds** (docs/SOUND.md phase 3, ambience.py): a place's ambience bed is laid under its
   shots from the cut and the series config, never stored as an item; `beds` keeps only what
   you change of one place's: its `gain_db` and `mute`. The beds sit on the ambience track
-  (its fader and ducking apply; its items play over them).
+  (its fader and ducking apply; its items play over them): `ambience`, else the first track
+  of that kind (bed_track).
 - **Effects** (docs/SOUND.md phase 4, fx.py): a shot's effects take, made from the frames of
   the take the cut plays, is laid from the cut at its clip, never stored as an item; `fx`
   keeps which take each shot plays (`take`), its `gain_db`, `mute`, and `keep_stale` (play it
-  though its picture has changed). They sit on the effects track (its fader applies).
+  though its picture has changed). They sit on the effects track (its fader applies):
+  `effects`, else the first of that kind (fx_track).
 - **Loudness**: the mix is brought to `target_lufs` (default -16) by one gain, measured by
   ffmpeg's loudnorm, and held under `true_peak_db` (default -1) by a limiter when the gain
   would push it over. The stems take the same gain, so they sum to the mix but for the
@@ -76,7 +89,15 @@ from seriesmith.core import fileio as F
 
 MIX_FILE = "mix.json"
 PASSES = ("final", "proxy")
+# the default tracks, and the kinds a track can be (each default is its own kind)
 TRACKS = ("dialogue", "effects", "ambience", "music")
+KINDS = TRACKS
+LABELS = {"dialogue": "Dialogue", "effects": "Effects", "ambience": "Ambience", "music": "Music"}
+# a track's id names its stem (<id>.wav): these are the M&E and the mix's, or a name Windows
+# keeps for a device
+RESERVED_IDS = {"me", "mix", "con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
+                *(f"lpt{i}" for i in range(1, 10))}
+MAX_TRACKS = 16
 RATE = 48000
 
 # how far each track dips while someone speaks, dB; the dialogue never ducks
@@ -102,7 +123,8 @@ HIT_FIELDS = ("id", "name", "at", "kind", "must")
 # the frame, the peak arriving there, the music cutting out or thinning, a change of key
 # or mood; accent is the default
 HIT_KINDS = ("accent", "arrive", "drop", "turn")
-MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx")
+MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx", "track_list")
+TRACK_LIST_FIELDS = ("id", "kind", "label")
 BED_FIELDS = ("gain_db", "mute")
 FX_FIELDS = ("take", "gain_db", "mute", "keep_stale")
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
@@ -148,16 +170,17 @@ def _id(v, what: str) -> str:
     return v
 
 
-def check_item(raw) -> dict:
-    """One item in its stored form (defaults dropped). ValueError says what's wrong."""
+def check_item(raw, tracks=TRACKS) -> dict:
+    """One item in its stored form (defaults dropped), on one of `tracks` (ids). ValueError
+    says what's wrong."""
     if not isinstance(raw, dict):
         raise ValueError("an item must be an object")
     unknown = set(raw) - set(ITEM_FIELDS)
     if unknown:
         raise ValueError(f"unknown item field(s) {', '.join(sorted(unknown))}")
     out: dict = {"id": _id(raw.get("id"), "an item's")}
-    if raw.get("track") not in TRACKS:
-        raise ValueError(f"item {out['id']}: track must be one of {', '.join(TRACKS)}, "
+    if raw.get("track") not in tracks:
+        raise ValueError(f"item {out['id']}: track must be one of {', '.join(tracks)}, "
                          f"not {raw.get('track')!r}")
     out["track"] = raw["track"]
     path = raw.get("path")
@@ -193,6 +216,84 @@ def check_item(raw) -> dict:
     return out
 
 
+def check_track_list(raw) -> list[dict] | None:
+    """A mix's own track list in its stored form: [{"id", "kind", "label"?}] in lane order, a
+    label kept only when it isn't its default (a default track's own name, else its id);
+    None when it is the four defaults as they are. ValueError for one that isn't: an id
+    twice or not an id (or one a stem can't be named: RESERVED_IDS), a kind that isn't one,
+    a default id of another kind, no `dialogue` track (the takes' sound), more than
+    MAX_TRACKS."""
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("track_list is a list of tracks: [{\"id\", \"kind\", \"label\"}]")
+    if len(raw) > MAX_TRACKS:
+        raise ValueError(f"a mix has at most {MAX_TRACKS} tracks, not {len(raw)}")
+    out, seen = [], set()
+    for t in raw:
+        if not isinstance(t, dict) or set(t) - set(TRACK_LIST_FIELDS):
+            raise ValueError(f"a track takes {', '.join(TRACK_LIST_FIELDS)}")
+        tid = _id(t.get("id"), "a track's")
+        if tid.lower() in RESERVED_IDS:
+            raise ValueError(f"a track can't be called {tid}: its stem would be {tid}.wav")
+        if tid in seen:
+            raise ValueError(f"two tracks are called {tid}")
+        seen.add(tid)
+        kind = t.get("kind")
+        if kind not in KINDS:
+            raise ValueError(f"track {tid}'s kind must be one of {', '.join(KINDS)}, not {kind!r}")
+        if tid in TRACKS and kind != tid:
+            raise ValueError(f"the {tid} track is of kind {tid}")
+        o = {"id": tid, "kind": kind}
+        label = t.get("label")
+        if label is not None and not isinstance(label, str):
+            raise ValueError(f"track {tid}'s label is text")
+        label = " ".join((label or "").split())[:40]
+        if label and label != LABELS.get(tid, tid):
+            o["label"] = label
+        out.append(o)
+    if "dialogue" not in seen:
+        raise ValueError("the dialogue track (the takes' own sound) can't be taken out")
+    return None if out == [{"id": k, "kind": k} for k in TRACKS] else out
+
+
+def track_list(mix: dict | None) -> list[dict]:
+    """A mix's tracks in lane order, each {"id", "kind", "label"}: its own `track_list`, else
+    the four defaults."""
+    own = (mix or {}).get("track_list") or [{"id": k, "kind": k} for k in TRACKS]
+    return [{"id": t["id"], "kind": t["kind"], "label": t.get("label") or LABELS.get(t["id"], t["id"])}
+            for t in own]
+
+
+def track_ids(mix: dict | None) -> list[str]:
+    return [t["id"] for t in track_list(mix)]
+
+
+def kinds(mix: dict | None) -> dict[str, str]:
+    """{track id: its kind}, in lane order."""
+    return {t["id"]: t["kind"] for t in track_list(mix)}
+
+
+def first_of(mix: dict | None, kind: str) -> str | None:
+    """The track things of `kind` go on when nothing says which: the default of that name,
+    else the first track of that kind, else None (none left: the default was taken out and
+    no other of its kind added)."""
+    ks = kinds(mix)
+    if ks.get(kind) == kind:
+        return kind
+    return next((t for t, k in ks.items() if k == kind), None)
+
+
+def bed_track(mix: dict | None) -> str | None:
+    """The track the places' ambience beds are laid on."""
+    return first_of(mix, "ambience")
+
+
+def fx_track(mix: dict | None) -> str | None:
+    """The track the shots' picked effects are laid on."""
+    return first_of(mix, "effects")
+
+
 def check(raw) -> dict:
     """A pass's mix in its stored form (defaults dropped, so an empty mix is {}; a track's
     values are kept as given, to override the series config's). ValueError for anything
@@ -206,14 +307,17 @@ def check(raw) -> dict:
         raise ValueError(f"unknown mix field(s) {', '.join(sorted(unknown))}: one of "
                          f"{', '.join(MIX_FIELDS)}")
     out: dict = {}
+    own_list = check_track_list(raw.get("track_list"))
+    ks = kinds({"track_list": own_list})
+    ids = tuple(ks)
     tracks = {}
     for name, t in (raw.get("tracks") or {}).items():
-        if name not in TRACKS:
-            raise ValueError(f"unknown track {name!r}: one of {', '.join(TRACKS)}")
+        if name not in ks:
+            raise ValueError(f"unknown track {name!r}: one of {', '.join(ids)}")
         if not isinstance(t, dict) or set(t) - set(TRACK_FIELDS):
             raise ValueError(f"track {name} takes {', '.join(TRACK_FIELDS)}")
-        if name == "dialogue" and t.get("duck_db") is not None:
-            raise ValueError("the dialogue track doesn't duck")
+        if ks[name] == "dialogue" and t.get("duck_db") is not None:
+            raise ValueError(f"the {name} track is dialogue: it doesn't duck")
         # a track's values are kept when given, defaults or not: a 0 dB fader or an
         # unmute here overrides the series config's `sound.tracks`
         o: dict = {}
@@ -224,7 +328,7 @@ def check(raw) -> dict:
                 if not isinstance(t[k], bool):
                     raise ValueError(f"track {name}'s {k} is true or false")
                 o[k] = t[k]
-        if name != "dialogue" and t.get("duck_db") is not None:
+        if ks[name] != "dialogue" and t.get("duck_db") is not None:
             o["duck_db"] = _num(t["duck_db"], f"track {name}'s duck_db", -40.0, 0.0)
         if o:
             tracks[name] = o
@@ -232,7 +336,7 @@ def check(raw) -> dict:
         out["tracks"] = tracks
     items, seen = [], set()
     for raw_item in raw.get("items") or []:
-        it = check_item(raw_item)
+        it = check_item(raw_item, ids)
         if it["id"] in seen:
             raise ValueError(f"two items are called {it['id']}")
         seen.add(it["id"])
@@ -330,6 +434,8 @@ def check(raw) -> dict:
                     o[k] = v
         if o:
             out[key] = o
+    if own_list is not None:
+        out["track_list"] = own_list
     return out
 
 
@@ -370,7 +476,8 @@ def for_pass(root: str, pass_: str, series: dict | None = None) -> dict:
     snd = (series or {}).get("sound") or {}
     out = dict(mix)
     if isinstance(snd.get("tracks"), dict):
-        merged = {k: dict(v) for k, v in snd["tracks"].items() if k in TRACKS}
+        ids = track_ids(mix)
+        merged = {k: dict(v) for k, v in snd["tracks"].items() if k in ids}
         for k, v in (mix.get("tracks") or {}).items():
             merged.setdefault(k, {}).update(v)
         out["tracks"] = merged
@@ -379,10 +486,11 @@ def for_pass(root: str, pass_: str, series: dict | None = None) -> dict:
     return out
 
 
-def fader(tracks: dict, name: str) -> float:
-    """A track's fader in dB: the mix's (or the series config's), else GAIN_DEFAULT."""
+def fader(tracks: dict, name: str, kind: str | None = None) -> float:
+    """A track's fader in dB: the mix's (or the series config's), else GAIN_DEFAULT of its
+    kind (`kind`; a default track's is its name)."""
     v = (tracks.get(name) or {}).get("gain_db")
-    return float(GAIN_DEFAULT[name] if v is None else v)
+    return float(GAIN_DEFAULT[kind or name] if v is None else v)
 
 
 def active(mix: dict) -> bool:
@@ -446,18 +554,20 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
     effects lane, each heard one at its clip. Ducking isn't here: it's computed, and a
     timeline has no place for it."""
     tracks = mix.get("tracks") or {}
-    lanes: dict[str, list[dict]] = {t: [] for t in TRACKS}
+    ks = kinds(mix)
+    lanes: dict[str, list[dict]] = {t: [] for t in ks}
     dropped = []
-    if beds and length:
+    bt, ft = bed_track(mix), fx_track(mix)
+    if beds and length and bt:
         from seriesmith import ambience as AMB
         for b in AMB.bed_lanes(beds, length):
-            b["gain_db"] += fader(tracks, "ambience")
-            lanes["ambience"].append(b)
-    if fx and length:
+            b["gain_db"] += fader(tracks, bt, ks[bt])
+            lanes[bt].append(b)
+    if fx and length and ft:
         from seriesmith import fx as FXM
         for f in FXM.fx_lanes(fx, length):
-            f["gain_db"] += fader(tracks, "effects")
-            lanes["effects"].append(f)
+            f["gain_db"] += fader(tracks, ft, ks[ft])
+            lanes[ft].append(f)
     for item in mix.get("items") or []:
         s = place(item["in"], origins)
         e = place(item["out"], origins) if item.get("out") else None
@@ -476,7 +586,7 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
         if e <= s:
             dropped.append(f"{item['id']}: nothing of it falls in the cut")
             continue
-        gain = item.get("gain_db", 0.0) + fader(tracks, item["track"])
+        gain = item.get("gain_db", 0.0) + fader(tracks, item["track"], ks[item["track"]])
         pts = sorted((f, p["db"]) for p in item.get("points") or []
                      for f in [place(p["at"], origins)] if f is not None)
         at, src_in, k = s, first, 0
@@ -737,11 +847,12 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
            stems_dir: str, log=print, beds: list[dict] | None = None,
            fx: list[dict] | None = None) -> str:
     """Render a pass's mix for a cut of `total` frames: each track as a stem in
-    `stems_dir` (dialogue.wav, effects.wav, ambience.wav, music.wav, and me.wav: all but
-    the dialogue), the mix as mix.wav, brought to the loudness target. `dialogue_src` is
-    the assembled cut, whose own sound is the dialogue track. `beds` (ambience.laid) are
-    laid on the ambience track under its items, `fx` (fx.laid) on the effects track.
-    Returns mix.wav's path."""
+    `stems_dir` named for its id (dialogue.wav, effects.wav, ambience.wav, music.wav, and a
+    track of the mix's own as <id>.wav), me.wav (every track but the dialogue kind's: the
+    M&E), the mix as mix.wav, brought to the loudness target. `dialogue_src` is the
+    assembled cut, whose own sound is the dialogue track. `beds` (ambience.laid) are laid
+    on the ambience track (bed_track) under its items, `fx` (fx.laid) on the effects track
+    (fx_track). Returns mix.wav's path."""
     np = _np()
     n = round(total / fps * RATE)
     tracks = mix.get("tracks") or {}
@@ -753,16 +864,24 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         t = tracks.get(name) or {}
         return not t.get("mute") and (not solo or name in solo)
 
-    bufs = {name: np.zeros((n, 2), dtype=np.float32) for name in TRACKS}
+    ks = kinds(mix)
+    bufs = {name: np.zeros((n, 2), dtype=np.float32) for name in ks}
     own = decode(dialogue_src)
     bufs["dialogue"][: min(n, len(own))] = own[:n]
     del own
+    bt, ft = bed_track(mix), fx_track(mix)
     if beds:
-        from seriesmith import ambience as AMB
-        bufs["ambience"] += AMB.render_beds(beds, total, fps, log)[:n]
+        if bt:
+            from seriesmith import ambience as AMB
+            bufs[bt] += AMB.render_beds(beds, total, fps, log)[:n]
+        else:
+            log("  ! sound: no ambience track for the places' beds; left out")
     if fx:
-        from seriesmith import fx as FXM
-        bufs["effects"] += FXM.render_fx(fx, total, fps, log)[:n]
+        if ft:
+            from seriesmith import fx as FXM
+            bufs[ft] += FXM.render_fx(fx, total, fps, log)[:n]
+        else:
+            log("  ! sound: no effects track for the shots' effects; left out")
     for item in mix.get("items") or []:
         s0, got = render_item(item, origins, total, fps, root)
         if s0 is None:
@@ -772,9 +891,14 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         if end > s0:
             bufs[item["track"]][s0:end] += got[: end - s0]
 
-    # ducking and regions, from the dialogue as its fader leaves it
-    dial_gain = _db(fader(tracks, "dialogue"))
-    speech = _per_sample(speech_curve(bufs["dialogue"] * dial_gain, duck), n)
+    # ducking and regions, from the dialogue as its faders leave it (every dialogue track's)
+    talk = [name for name, k in ks.items() if k == "dialogue"]
+    if talk == ["dialogue"]:
+        heard = bufs["dialogue"] * _db(fader(tracks, "dialogue"))
+    else:
+        heard = sum(bufs[name] * _db(fader(tracks, name, "dialogue")) for name in talk)
+    speech = _per_sample(speech_curve(heard, duck), n)
+    del heard
     region_db = {k: np.full(n, np.nan, dtype=np.float32) for k in ("music", "ambience")}
     dial_db = np.zeros(n, dtype=np.float32)
     for r in mix.get("regions") or []:
@@ -790,22 +914,27 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         if r.get("dialogue_db"):
             dial_db[sa:sb] += r["dialogue_db"]
 
-    for name in TRACKS:
+    for name, kind in ks.items():
         t = tracks.get(name) or {}
-        g = np.full(n, fader(tracks, name), dtype=np.float32)
-        if name == "dialogue":
+        g = np.full(n, fader(tracks, name, kind), dtype=np.float32)
+        if kind == "dialogue":
             g += dial_db
         else:
-            depth = np.full(n, t.get("duck_db", DUCK_DEFAULT[name]), dtype=np.float32)
-            if name in region_db:
-                depth = np.where(np.isnan(region_db[name]), depth, region_db[name])
+            depth = np.full(n, t.get("duck_db", DUCK_DEFAULT[kind]), dtype=np.float32)
+            if kind in region_db:
+                depth = np.where(np.isnan(region_db[kind]), depth, region_db[kind])
             g += depth * speech
         bufs[name] *= _db(g)[:, None]
         if not audible(name):
             bufs[name][:] = 0.0
 
-    mixed = sum(bufs[name] for name in TRACKS)
+    mixed = sum(bufs[name] for name in ks)
     os.makedirs(stems_dir, exist_ok=True)
+    # a stem of a track that's gone (taken out, or its id changed) would be mistaken for one
+    for name in os.listdir(stems_dir):
+        stem, ext = os.path.splitext(name)
+        if ext.lower() == ".wav" and stem not in ks and stem not in ("me", "mix"):
+            os.remove(os.path.join(stems_dir, name))
     raw_mix = os.path.join(stems_dir, "mix.wav")
     write_wav(raw_mix, mixed)
     m = measure(raw_mix, loud["target_lufs"], loud["true_peak_db"])
@@ -813,10 +942,11 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
     if m and math.isfinite(m.get("input_i", float("-inf"))) and m["input_i"] > -70:
         gain = loud["target_lufs"] - m["input_i"]
     lin = _db(gain)
-    for name in TRACKS:
+    for name in ks:
         write_wav(os.path.join(stems_dir, f"{name}.wav"), bufs[name] * lin)
+    me = [name for name, k in ks.items() if k != "dialogue"]
     write_wav(os.path.join(stems_dir, "me.wav"),
-              (bufs["effects"] + bufs["ambience"] + bufs["music"]) * lin)
+              (sum(bufs[name] for name in me) if me else bufs["dialogue"] * 0.0) * lin)
     peak = (m["input_tp"] + gain) if m else None
     if peak is not None and peak > loud["true_peak_db"]:
         # the gain pushes it over the true peak: limited, a little under the ceiling

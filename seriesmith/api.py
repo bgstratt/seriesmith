@@ -2574,7 +2574,9 @@ def get_mix(ctx: Context, query: dict):
           for f in FXM.laid(ep, pass_, layout, mix)]
     return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx,
                  "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
-                 "defaults": {"tracks": list(MX.TRACKS), "gain_db": MX.GAIN_DEFAULT,
+                 "track_list": MX.track_list(mix),
+                 "defaults": {"tracks": list(MX.TRACKS), "labels": MX.LABELS, "kinds": list(MX.KINDS),
+                              "gain_db": MX.GAIN_DEFAULT,
                               "duck_db": MX.DUCK_DEFAULT,
                               "duck": MX.DUCK, "loudness": MX.LOUDNESS}}
 
@@ -2636,8 +2638,9 @@ def get_mix_beats(ctx: Context, query: dict):
             grids[full] = CU.beat_grid(ep, full, rel) if os.path.isfile(full) else None
         return grids[full]
     items = []
+    kinds = MX.kinds(mix)
     for it in mix.get("items") or []:
-        if it["track"] != "music":
+        if kinds.get(it["track"]) != "music":
             continue
         full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
         items.append({"id": it["id"], "path": it["path"], "grid": grid(full, it["path"])})

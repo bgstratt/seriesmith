@@ -1276,7 +1276,13 @@ def place(root: str, pass_: str, cid: str, n: int, gain: bool = True) -> dict:
     m = sc["measured"]
     layout, fps = cut_layout(root, pass_)
     origins = MX.shot_origins(layout)
-    item = {"id": cid, "track": "music", "path": take_paths(root, cid, n)["rel"],
+    mix = MX.check(MX.load(root).get(pass_))
+    # the track its item is on (moved to a music track of the mix's own), else the music one
+    was = next((i for i in mix.get("items") or [] if i["id"] == cid), None)
+    track = was["track"] if was else MX.first_of(mix, "music")
+    if track is None:
+        raise CueError("the mix has no music track to put the cue on: add one")
+    item = {"id": cid, "track": track, "path": take_paths(root, cid, n)["rel"],
             "in": spec["in"], "out": spec["out"], "offset": max(0.0, round(m["offset"], 3)),
             "fade_out": max(1, round(p["bar"] * fps)), "label": spec.get("label") or cid}
     if gain:
@@ -1291,7 +1297,6 @@ def place(root: str, pass_: str, cid: str, n: int, gain: bool = True) -> dict:
                 pts.append({"at": at, "db": db})
         if any(x["db"] for x in pts):
             item["points"] = pts
-    mix = MX.check(MX.load(root).get(pass_))
     items = [i for i in mix.get("items") or [] if i["id"] != cid] + [item]
     mix["items"] = items
     out = MX.write(root, pass_, mix)
