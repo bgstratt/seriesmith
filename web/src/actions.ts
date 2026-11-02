@@ -2543,12 +2543,14 @@ export async function setRefDefault(kind: RefTargetKind, target: string | null):
   if (!ep) return false;
   return withBusy(`refdefaults|${kind}`, async () => {
     try {
-      const fields = kind === "keyframes" ? { keyframe_target: target } : kind === "voices" ? { voice_target: target } : { target };
+      const fields = kind === "keyframes" ? { keyframe_target: target } : kind === "edits" ? { edit_target: target }
+        : kind === "voices" ? { voice_target: target } : { target };
       const r = await api().putRefDefaults(ep, fields);
       set((s) => ({ refDefaults: { ...s.refDefaults, [ep]: r.defaults ?? null } }));
-      const what = kind === "keyframes" ? "Keyframes" : kind === "voices" ? "Voices" : "Refs";
+      const what = kind === "keyframes" ? "Keyframes" : kind === "edits" ? "Edits" : kind === "voices" ? "Voices" : "Refs";
       const label = (id: string | null | undefined) => get().targets?.targets.find((t) => t.id === id)?.label ?? id ?? "";
-      const now = kind === "keyframes" ? r.defaults?.keyframe_target : kind === "voices" ? r.defaults?.voice_target : r.defaults?.target;
+      const now = kind === "keyframes" ? r.defaults?.keyframe_target : kind === "edits" ? r.defaults?.edit_target
+        : kind === "voices" ? r.defaults?.voice_target : r.defaults?.target;
       host().toast(
         "success",
         target ? `${what} now generate with ${label(target)}` : `${what} are back on ${label(now)}`,

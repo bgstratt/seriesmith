@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createHttpApi } from "../src/api";
 import { ESTIMATE_TITLE, fmtShotSeconds, lengthEstimated } from "../src/lib/format";
 import {
-  editRefsFor, editRefsText, imageModeText, refDefaults, refTargetOf, refsSnippet,
+  defaultOf, editRefsFor, editRefsText, imageModeText, refDefaults, refTargetOf, refsSnippet,
 } from "../src/lib/imageTargets";
 import {
   clearKeyframeText, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeWanted, methodLabel, needLabel,
@@ -135,6 +135,18 @@ describe("image targets for refs", () => {
     expect(refDefaults(list, null)).toMatchObject({ refs: "krea2", keyframes: "krea2", refsSource: "default", keyframesSource: "default" });
     expect(imageModeText(list.targets[1])).toBe("edit, up to 2 references");
     expect(imageModeText(list.targets[0])).toBe("text to image");
+  });
+
+  it("the Edits model: the server's, else the first of keyframes and refs that can edit", () => {
+    expect(refDefaults(list, { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext", edit_target_source: "editor" }))
+      .toMatchObject({ edits: "flux_kontext", editsSource: "editor" });
+    // an older server with no edit_target: worked out as the server does
+    expect(refDefaults(list, { target: "krea2", keyframe_target: "flux2_klein_edit" })).toMatchObject({ edits: "flux2_klein_edit", editsSource: "default" });
+    expect(refDefaults(list, { target: "flux2_klein_edit", keyframe_target: "krea2" }).edits).toBe("flux2_klein_edit");
+    expect(refDefaults(list, { target: "krea2", keyframe_target: "krea2" }).edits).toBe("");
+    expect(defaultOf(refDefaults(list, { edit_target: "flux_kontext", edit_target_source: "series" }), "edits"))
+      .toEqual({ target: "flux_kontext", source: "series" });
+    expect(refsSnippet("edits", "flux_kontext")).toBe('"refs": {"edit_target": "flux_kontext"}');
   });
 
   it("a ref's image target: its own override, else what the server says it uses, else the default", () => {
@@ -280,6 +292,8 @@ describe("mock: Phase 8.5", () => {
     const { refs, defaults } = await api.refs(ep);
     expect(defaults).toEqual({
       target: "krea2", target_source: "default", keyframe_target: "flux2_klein_edit", keyframe_target_source: "default",
+      // the model that edits a picture (Edit, Relight, Turn)
+      edit_target: "flux2_klein_edit", edit_target_source: "default",
       // Phase 9c-B: the audio target voices generate with
       voice_target: "ltx2_voice", voice_target_source: "default",
       // the dub track's model (the voice model when it's a video one)

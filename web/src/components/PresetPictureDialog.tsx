@@ -12,6 +12,7 @@ import { targetOptionText } from "../lib/readiness";
 import { useApp } from "../store";
 import { Dialog } from "./Dialogs";
 import { ModelOptions, useTargets } from "./Targets";
+import { useRefDefaults } from "./hooks";
 
 export function PresetPictureDialog() {
   const ask = useApp((s) => s.presetPictureAsk);
@@ -23,7 +24,10 @@ function Body({ kind, id, label }: { kind: "look" | "relight"; id: string; label
   const { list } = useTargets();
   // a look is drawn from words; a relight is an edit of the sample street or the woman on it
   const models = useMemo(() => imageTargets(list).filter((t) => kind === "look" || isEditTarget(t)), [list, kind]);
-  const [target, setTarget] = useState("");
+  const [picked, setTarget] = useState("");
+  // a relight's picture is an edit: the episode's Edits model unless another is picked
+  const editsDefault = useRefDefaults().edits;
+  const target = picked || (kind === "relight" && models.some((t) => t.id === editsDefault) ? editsDefault : "");
   const [time, setTime] = useState("1");
   const [busy, setBusy] = useState(false);
   const ep = useApp((s) => s.ep);

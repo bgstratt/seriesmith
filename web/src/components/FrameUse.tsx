@@ -19,6 +19,7 @@ import { FloatingWindow } from "./FloatingWindow";
 import { usePictureBrowse } from "./Picture";
 import { Row } from "./ShotForm";
 import { ModelOptions } from "./Targets";
+import { useRefDefaults } from "./hooks";
 
 type Make = "character" | "place" | "existing";
 
@@ -140,6 +141,7 @@ function FrameUse({ ep, take: src, video0 }: {
   }, [ep]);
 
   const edits = (targets?.targets ?? []).filter((t) => t.kind === "image" && !t.draft && t.capabilities?.mode === "edit");
+  const editsDefault = useRefDefaults(ep).edits;
   const pickable = (refs ?? []).filter((r) => (r.kind === "character" && !r.of) || r.kind === "location");
   const target = existing ? pickable.find((r) => r.id === existing) : undefined;
   const isChar = make === "character" || (make === "existing" && target?.kind === "character");
@@ -260,7 +262,7 @@ function FrameUse({ ep, take: src, video0 }: {
             ? "Cuts them out onto a plain background, then draws their other views from that."
             : "Takes the people out, leaving the place."}>
             <select className="h3-in" value={chosen} onChange={(e) => setModel(e.target.value)}>
-              <option value="">the series' edit model</option>
+              <option value="">{editsDefault ? `the episode's Edits model (${targets?.targets.find((t) => t.id === editsDefault)?.label ?? editsDefault})` : "the episode's Edits model"}</option>
               <ModelOptions targets={edits} />
             </select>
           </Row>

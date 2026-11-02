@@ -773,10 +773,13 @@ script call for is listed here.
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
   series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
   **+ Voice** does); **Series** opens Series settings.
-- **Made with** names the models that make refs, keyframes and voice samples; **Change**
-  opens their pickers: **Refs render with:**, **Keyframes with:** and **Voices with:** (a
-  choice here is this episode's, kept in `overrides.json`, with the `series.json` line to
-  make it the series default); a ref with its own model keeps it.
+- **Made with** names the models that make refs, keyframes, edits and voice samples;
+  **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
+  with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
+  with the `series.json` line to make it the series default); a ref with its own model
+  keeps it. **Edits with:** lists only the models that can edit a picture: it is what
+  Edit, Relight and Turn (when Qwen-Image 2.1 + the angles LoRA isn't installed) start on,
+  unless you pick another in their own dialog.
 - **this episode / all / missing** filters the list; **List / Board** (remembered in this
   browser) shows the refs as rows that open to their candidates, or as a grid of their
   pictures, each group ending in an add tile. A click on a picture opens that ref in the
@@ -888,9 +891,13 @@ script call for is listed here.
   shots' `plate:` lines, so the next render uses them. Pick the takes in Refs as usual.
 - **Turn** (**↻ Turn** at the top of a view's column: side, back or face) draws that view
   from one the character already has, the three-quarter if it's picked, by turning the
-  camera around them on Qwen-Image 2.1 with the multi-angle LoRA
-  ([FULL_SETUP.md](/full-setup), "360s and turned views"). A new candidate, not picked:
-  the same character from another side, rather than four views drawn apart.
+  camera around them. It runs on Qwen-Image 2.1 with the multi-angle LoRA when that is
+  installed ([FULL_SETUP.md](/full-setup), "360s and turned views"), which turns a figure
+  most surely; else on the episode's Edits model, told the turn in words. The **▾** beside
+  it chooses: Automatic, Qwen 2.1 + angles, or any edit model (marked when one isn't ready).
+  The choice is yours, kept in this browser for every Turn button, and the button's tooltip
+  names the model it will use. A new candidate, not picked: the same character from another
+  side, rather than four views drawn apart.
 - **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
   Open it to look around and save a view as a new angle of the place.
 - A character's sheet is stitched automatically once all four views are picked — or you

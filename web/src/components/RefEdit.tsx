@@ -15,6 +15,8 @@ import type { Ref, RefEditRecord, RefEditWith } from "../types";
 import { LoraEditor } from "./Fields";
 import { PresetPicker, useRelightTiles } from "./PresetPicker";
 import { ModelOptions, useTargets } from "./Targets";
+import { useRefDefaults } from "./hooks";
+import { targetLabel } from "../lib/targets";
 
 const EXAMPLES = [
   "replace the coat with a grey wool hoodie",
@@ -43,6 +45,7 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : null));
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const edits = useMemo(() => imageTargets(list).filter(isEditTarget), [list]);
+  const editsDefault = useRefDefaults().edits;
   const [text, setText] = useState("");
   // relight presets (seriesmith/presets/relight.json) in this ref's wording: a plate's, or a figure's
   const relights = useRelightTiles(r.kind);
@@ -107,8 +110,8 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
         onChange={(e) => setText(e.target.value)}
       />
       <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-        <select className="h3-in" value={target} onChange={(e) => setTarget(e.target.value)} title="The edit model. The default is this ref's own model if it can edit, else the episode's keyframe model.">
-          <option value="">(the episode's edit model)</option>
+        <select className="h3-in" value={target} onChange={(e) => setTarget(e.target.value)} title="The edit model. The default is this ref's own model if it can edit, else the episode's Edits model (Refs tab, Made with).">
+          <option value="">{editsDefault ? `(the episode's Edits model: ${targetLabel(list, editsDefault)})` : "(the episode's Edits model)"}</option>
           <ModelOptions targets={edits} text={(x) => {
             const n = x.capabilities?.max_refs;
             return `${targetOptionText(x)}${n ? ` · up to ${n} picture${n === 1 ? "" : "s"}` : ""}`;

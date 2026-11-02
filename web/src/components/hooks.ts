@@ -1,7 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadRefs } from "../actions";
+import { refDefaults, type ResolvedRefDefaults } from "../lib/imageTargets";
 import { detailKey, statusKey, useApp } from "../store";
 import type { EpisodeStatus, Pass, Ref, ShotDetail, ShotStatus } from "../types";
+
+/** The episode's models for refs, keyframes, edits and voices (GET /seriesmith/refs `defaults`). */
+export function useRefDefaults(ep?: string | null): ResolvedRefDefaults {
+  const list = useApp((s) => s.targets);
+  const served = useApp((s) => {
+    const e = ep === undefined ? s.ep : ep;
+    return e ? s.refDefaults[e] : null;
+  });
+  return useMemo(() => refDefaults(list, served), [list, served]);
+}
 
 export function useStatus(pass?: Pass): EpisodeStatus | undefined {
   return useApp((s) => (s.ep ? s.status[statusKey(s.ep, pass ?? s.pass)] : undefined));

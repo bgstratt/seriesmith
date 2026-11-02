@@ -1593,6 +1593,9 @@ export interface RefDefaults {
   /** the image target keyframes generate with */
   keyframe_target?: string | null;
   keyframe_target_source?: RefDefaultSource | null;
+  /** the image target an edit of a picture uses (one that can edit; null when none can) */
+  edit_target?: string | null;
+  edit_target_source?: RefDefaultSource | null;
   /** Phase 9c-B: the audio target voice refs generate with */
   voice_target?: string | null;
   voice_target_source?: RefDefaultSource | null;

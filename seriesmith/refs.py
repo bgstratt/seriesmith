@@ -535,12 +535,15 @@ def ref_shot(ref: Ref) -> tuple[str, str]:
 def image_defaults(s: Series, ready=None) -> dict:
     """The episode's ref-target defaults (GET /seriesmith/refs `defaults`):
     {"target", "target_source", "keyframe_target", "keyframe_target_source",
-    "voice_target", "voice_target_source"}, each source "editor"
-    (overrides.json's episode.refs_target / episode.keyframe_target /
-    episode.voice_target, PUT /seriesmith/refs/defaults), "series" (the series
-    config's `refs` block) or "default" (krea2; flux2_klein_edit for
-    keyframes when `ready(target)` says it can render here, else the refs
-    target; ltx2_voice for voices). The voice model is one choice of two kinds
+    "edit_target", "edit_target_source", "voice_target", "voice_target_source"},
+    each source "editor" (overrides.json's episode.refs_target /
+    episode.keyframe_target / episode.edit_target / episode.voice_target, PUT
+    /seriesmith/refs/defaults), "series" (the series config's `refs` block) or
+    "default" (krea2; flux2_klein_edit for keyframes when `ready(target)` says
+    it can render here, else the refs target; for edits the first of the
+    keyframe and refs targets that can edit, None when neither can; ltx2_voice
+    for voices). An edit target that can't edit (a model changed since it was
+    chosen) is passed over. The voice model is one choice of two kinds
     (TG.voice_targets): an audio one is `voice_target` (what voice samples are
     made on) and leaves `dub_target` (what a dub track renders on) at H3
     Ref2VA; a video one is `dub_target` and leaves `voice_target` at
@@ -567,6 +570,15 @@ def image_defaults(s: Series, ready=None) -> dict:
             t = TG.load_target(TG.DEFAULT_KEYFRAME_TARGET, "image")
             kt = t.id if (ready is None or ready(t)) else out["target"]
             out.update(keyframe_target=kt, keyframe_target_source="default")
+        editors = {t.id for t in TG.list_targets("image") if is_edit_target(t)}
+        ee = T.episode_field(ov, "edit_target")
+        if ee and ee in editors:
+            out.update(edit_target=ee, edit_target_source="editor")
+        elif block.get("edit_target"):
+            out.update(edit_target=block["edit_target"], edit_target_source="series")
+        else:
+            first = next((x for x in (out["keyframe_target"], out["target"]) if x in editors), None)
+            out.update(edit_target=first, edit_target_source="default")
         out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
                    ambience_target_source="series" if block.get("ambience_target") else "default")
         kinds = {t.id: t.kind for t in TG.voice_targets()}
@@ -621,13 +633,15 @@ def image_target_for(s: Series, ref: Ref, requested: str | None = None,
 
 DEFAULT_FIELDS = (("target", "refs_target", "image"),
                   ("keyframe_target", "keyframe_target", "image"),
+                  ("edit_target", "edit_target", "image"),
                   ("voice_target", "voice_target", "audio"))
 
 
 def set_image_defaults(ep: str, fields: dict) -> dict:
     """Set (or with None clear) the episode's ref-target choices in
     overrides.json (episode.refs_target from `target`, episode.keyframe_target
-    from `keyframe_target`, episode.voice_target from `voice_target`).
+    from `keyframe_target`, episode.edit_target from `edit_target`: an image
+    target that can edit, episode.voice_target from `voice_target`).
     RefError for a name that isn't a target of that kind. series.json is
     never written."""
     ov = T.load_overrides(ep)
@@ -647,9 +661,12 @@ def set_image_defaults(ep: str, fields: dict) -> dict:
                                f"{', '.join(t.id for t in TG.voice_targets())})")
         elif v:
             try:
-                TG.load_target(v, kind)
+                t = TG.load_target(v, kind)
             except TG.TargetError as e:
                 raise RefError(str(e)) from None
+            if key == "edit_target" and not is_edit_target(t):
+                raise RefError(f"{t.short} draws from text only and can't edit a picture: the "
+                               f"edit model must be one that can ({', '.join(edit_target_ids())})")
         T.set_episode_field(ov, field_, v or None, name or os.path.basename(os.path.normpath(ep)))
     T.save_overrides(ep, ov)
     return ov
@@ -2856,8 +2873,7 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
 
 def is_edit_target(t) -> bool:
     """Can this image target edit a picture (it reads reference images)?"""
-    c = t.capabilities() if t is not None else {}
-    return c.get("mode") == "edit" and int(c.get("max_refs") or 0) >= 1
+    return TG.can_edit(t)
 
 
 def edit_target_ids() -> list[str]:
@@ -2867,9 +2883,11 @@ def edit_target_ids() -> list[str]:
 def edit_target_for(s: Series, ref: Ref, requested: str | None = None,
                     ov_data: dict | None = None, ready=None, defaults: dict | None = None):
     """The image target an edit uses: the request's, else the first of the
-    ref's own target, the episode's keyframe target and its refs target that
-    can edit (is_edit_target). RefError when it is none of them, or the
-    requested one only draws from text."""
+    ref's own target, the episode's edit target (image_defaults' `edit_target`:
+    the editor's choice, the series config's `refs.edit_target`, else the
+    first of the next two that can edit), its keyframe target and its refs
+    target that can edit (is_edit_target). RefError when it is none of them,
+    or the requested one only draws from text."""
     if requested:
         try:
             t = TG.load_target(requested, "image")
@@ -2881,7 +2899,7 @@ def edit_target_for(s: Series, ref: Ref, requested: str | None = None,
         return t
     d = defaults if defaults is not None else image_defaults(s, ready)
     ov = ref_override(ov_data if ov_data is not None else load_overrides(ref.home), ref.id)
-    for tid in (ov.get("target"), d.get("keyframe_target"), d.get("target")):
+    for tid in (ov.get("target"), d.get("edit_target"), d.get("keyframe_target"), d.get("target")):
         if not tid:
             continue
         try:
@@ -2937,7 +2955,9 @@ EDIT_FIELDS = ("take", "with", "wrap", "from_view", "turn")
 # the camera round a single figure well (and makes a diorama of a whole scene,
 # so it is for subjects, not plates). The phrase per sheet view, the camera
 # orbiting the subject: the three-quarter view faces the viewer's left, the
-# side view the viewer's right (krea2 VIEWS).
+# side view the viewer's right (krea2 VIEWS). Any other edit model is told the
+# same in words (VIEW_TURNS_PROSE), with no LoRA: less sure of the angle, but
+# it runs on whatever edits pictures here.
 TURN_TARGET = "qwen_image_21"
 TURN_LORA = "angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors"
 # in models/loras/, where the Features installer gets it
@@ -2950,6 +2970,44 @@ VIEW_TURNS = {
     "03_back": "<mva> back view, eye-level shot",
     "04_face": "<mva> front view, eye-level shot close-up",
 }
+_TURN_KEEP = "same face, hair and clothes, same lighting and plain background"
+VIEW_TURNS_PROSE = {
+    "01_threequarter": ("Turn the camera around this same character to show them in a three-quarter "
+                        "view, turned slightly toward the viewer's left: full body from head to feet, "
+                        f"standing straight, arms relaxed at the sides; {_TURN_KEEP}."),
+    "02_side": ("Turn the camera around this same character to show them in a direct side profile, "
+                "facing the viewer's right: full body from head to feet, standing straight, arms "
+                f"relaxed at the sides; {_TURN_KEEP}."),
+    "03_back": ("Turn the camera around this same character to show them from directly behind: "
+                "full body from head to feet, standing straight, arms relaxed at the sides, the face "
+                "not visible; same hair and clothes, same lighting and plain background."),
+    "04_face": ("Zoom in on this same character's face: a front-on head-and-shoulders close-up, "
+                f"facing the viewer, neutral expression; {_TURN_KEEP}."),
+}
+
+
+def turn_ready(ready=None) -> bool:
+    """Can a turn run on Qwen-Image 2.1 + the Multiple-Angles LoRA here?
+    `ready` is target_ready's (None: can't tell, so yes): Qwen 2.1's own files
+    and the LoRA must be among what ComfyUI offers."""
+    if ready is None:
+        return True
+    try:
+        t = TG.load_target(TURN_TARGET, "image")
+    except (TG.TargetError, ValueError):
+        return False
+    if not ready(t):
+        return False
+    listing = getattr(ready, "listing", None)
+    if listing is None:
+        return True
+    try:
+        wanted = dict(TG.wanted_files(t, "final"),
+                      loras=[{"name": TURN_LORA, "strength": TURN_STRENGTH}])
+        r = TG.resolve_models(t, "final", wanted, listing, slot=TG.lora_slot(t, "final"))
+        return not r["blocked"]
+    except Exception:
+        return True
 
 
 def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = None,
@@ -2996,20 +3054,30 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
     if not isinstance(turn, bool):
         raise RefError("edit.turn must be true or false")
     loras = req.loras
+    ov_data = overrides if overrides is not None else load_overrides(ref.home)
     if turn:
         if not ref.has_views or view not in VIEW_TURNS:
             raise RefError("edit.turn draws one of a character's views from another")
-        req = dataclasses.replace(req, target=req.target or TURN_TARGET,
-                                  prompt=req.prompt or VIEW_TURNS[view])
+        # the request's model, else Qwen 2.1 + the angles LoRA when it is
+        # installed, else the episode's edit model, told the turn in words
+        tid = req.target
+        if not tid:
+            if turn_ready(ready):
+                tid = TURN_TARGET
+            else:
+                defaults = defaults if defaults is not None else image_defaults(s, ready)
+                tid = edit_target_for(s, ref, None, ov_data, ready, defaults).id
+        angles = tid == TURN_TARGET
+        req = dataclasses.replace(req, target=tid, prompt=req.prompt or (
+            VIEW_TURNS if angles else VIEW_TURNS_PROSE)[view])
         wrap = False
-        if loras is None:
+        if loras is None and angles:
             loras = [{"name": TURN_LORA, "strength": TURN_STRENGTH}]
     instruction = (req.prompt or "").strip()
     if not instruction:
         raise RefError("an edit needs an instruction (prompt): what to change")
     if not isinstance(req.count, int) or isinstance(req.count, bool) or not 1 <= req.count <= 16:
         raise RefError("count must be a whole number from 1 to 16")
-    ov_data = overrides if overrides is not None else load_overrides(ref.home)
     target = edit_target_for(s, ref, req.target, ov_data, ready, defaults)
     refs = [_picture_of(s, ref, from_view or view, take, "the picture to edit")]
     refs[0]["role"] = "source"
@@ -3420,6 +3488,7 @@ def target_ready(listing):
             except Exception:
                 cache[t.id] = True
         return cache[t.id]
+    ready.listing = listing          # turn_ready asks it for the angles LoRA too
     return ready
 
 

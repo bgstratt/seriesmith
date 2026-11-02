@@ -405,6 +405,13 @@ class Phase85ApiTest(ApiTest):
         self.ok(A.put_refs_defaults(self.ctx, {"ep": self.ep, "target": None}))
         self.assertEqual(self.ok(A.get_refs(self.ctx, {"ep": self.ep}))["defaults"]["target"],
                          "krea2")
+        # the edit model: one that can edit, else refused
+        got = self.ok(A.put_refs_defaults(self.ctx, {"ep": self.ep, "edit_target": "flux_kontext"}))
+        self.assertEqual((got["defaults"]["edit_target"], got["defaults"]["edit_target_source"]),
+                         ("flux_kontext", "editor"))
+        self.assertEqual(T.load_overrides(self.ep)["episode"]["edit_target"], "flux_kontext")
+        self.err(A.put_refs_defaults(self.ctx, {"ep": self.ep, "edit_target": "krea2"}), 400)
+        self.ok(A.put_refs_defaults(self.ctx, {"ep": self.ep, "edit_target": None}))
         self.err(A.put_refs_defaults(self.ctx, {"ep": self.ep, "target": "ltx2"}), 400)
         self.err(A.put_refs_defaults(self.ctx, {"ep": self.ep}), 400)
         # the episode's video target is kept beside them

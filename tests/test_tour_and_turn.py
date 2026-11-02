@@ -248,6 +248,50 @@ class TurnTest(Base):
         self.assertEqual(job.edit["view"], "01_threequarter")
         self.assertTrue(job.edit["turn"])
 
+    def turn(self, target=None, ready=None):
+        req = R.GenRequest("subject:ada", "03_back", target=target,
+                           edit={"take": None, "from_view": "01_threequarter", "turn": True})
+        (job,) = R.plan_generate(self.s, req, rng=random.Random(0), ready=ready)
+        return job
+
+    def test_any_edit_model_turns_in_words(self):
+        job = self.turn("flux2_klein_edit")
+        self.assertEqual(job.target.id, "flux2_klein_edit")
+        self.assertEqual(job.prompt, R.VIEW_TURNS_PROSE["03_back"])
+        self.assertIsNone(job.loras)
+        self.assertEqual(job.edit["view"], "01_threequarter")
+        self.assertTrue(job.edit["turn"])
+        self.assertNotIn("<mva>", " ".join(R.VIEW_TURNS_PROSE.values()))
+        self.assertEqual(set(R.VIEW_TURNS_PROSE), set(R.VIEW_TURNS))
+        # Qwen 2.1 named: the angles LoRA and its phrase, as before
+        job = self.turn(R.TURN_TARGET)
+        self.assertEqual(job.prompt, R.VIEW_TURNS["03_back"])
+        self.assertEqual(job.loras, [{"name": R.TURN_LORA, "strength": R.TURN_STRENGTH}])
+
+    def test_with_no_model_named_qwen_when_ready_else_the_edit_model(self):
+        self.assertEqual(self.turn(ready=lambda t: True).target.id, R.TURN_TARGET)
+        job = self.turn(ready=lambda t: t.id != R.TURN_TARGET)
+        self.assertEqual(job.target.id, "flux2_klein_edit")      # the episode's edit model
+        self.assertIsNone(job.loras)
+        self.assertEqual(job.prompt, R.VIEW_TURNS_PROSE["03_back"])
+        R.set_image_defaults(self.ep, {"edit_target": "flux_kontext"})
+        self.assertEqual(self.turn(ready=lambda t: t.id != R.TURN_TARGET).target.id,
+                         "flux_kontext")
+
+    def test_turn_ready_needs_the_angles_lora(self):
+        def ready_with(loras):
+            def ready(t):
+                return True
+            # other folders: can't tell (left alone); the LoRAs as given
+            ready.listing = lambda spec: loras if spec.get("folder") == "loras" else None
+            return ready
+        self.assertTrue(R.turn_ready(None))
+        self.assertTrue(R.turn_ready(ready_with([R.TURN_LORA])))
+        self.assertFalse(R.turn_ready(ready_with(["something_else.safetensors"])))
+        self.assertFalse(R.turn_ready(lambda t: False))
+        job = self.turn(ready=ready_with([]))
+        self.assertNotEqual(job.target.id, R.TURN_TARGET)
+
     def test_turning_is_for_a_characters_views(self):
         with self.assertRaisesRegex(R.RefError, "no views"):
             R.plan_generate(self.s, R.GenRequest("location:kitchen", prompt="x",

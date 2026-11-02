@@ -420,7 +420,8 @@ make, once per series ([COMMANDS.md](COMMANDS.md)).
 ## 360s and turned views
 
 The Refs tab's **Make 360** and a character's **Turn** each use a LoRA in `models/loras/`.
-Only the button that uses one needs it:
+Only the button that uses one needs it (Turn also runs on any edit model without it, told
+the turn in words, chosen in the **▾** beside the button):
 
 | File | Used by | Download |
 |---|---|---|

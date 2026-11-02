@@ -19,9 +19,10 @@ import { errText } from "../api";
 import { api } from "../host";
 import { shortName, tn } from "../lib/format";
 import {
-  defaultOf, editRefsFor, editRefsText, imageModeText, imageTargets, isEditTarget, refDefaultSourceLabel, refDefaults,
-  refTargetKind, refTargetOf, refsSnippet, type RefTargetKind, type ResolvedRefDefaults,
+  defaultOf, editRefsFor, editRefsText, imageModeText, imageTargets, isEditTarget, refDefaultSourceLabel,
+  refTargetKind, refTargetOf, refsSnippet, type RefTargetKind,
 } from "../lib/imageTargets";
+import { TURN_ANGLES_LABEL, TURN_TARGET, turnChoices, turnPlan, useTurnModel } from "../lib/turn";
 import { audioTargets, voiceCapNotes, voiceModeText } from "../lib/voice";
 import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
@@ -39,7 +40,7 @@ import { store, useApp } from "../store";
 import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
 import { sizeRule } from "../lib/size";
 import { knobFields, knobsOf, takeSettings, type Knobs } from "../lib/refSettings";
-import { useStatus } from "./hooks";
+import { useRefDefaults, useStatus } from "./hooks";
 import { ModelOptions, ModelsButton, useTargets } from "./Targets";
 import { OverrideFields } from "./OverrideFields";
 import { EpisodeHead, PassToggle } from "./ShotsTab";
@@ -61,37 +62,33 @@ const FILTERS: { id: RefFilter; label: string; title: string }[] = [
 export const KEYFRAMES_EMPTY = "No shot's target reads keyframes. Use a previous shot's frame (right-click a shot) or import one";
 const NO_FILE = "series.json names no file for this (e.g. a voice-only character has no sheet)";
 
-/** The episode's image targets for refs and keyframes (GET /seriesmith/refs `defaults`). */
-function useRefDefaults(): ResolvedRefDefaults {
-  const list = useApp((s) => s.targets);
-  const served = useApp((s) => (s.ep ? s.refDefaults[s.ep] : null));
-  return useMemo(() => refDefaults(list, served), [list, served]);
-}
-
 /**
- * "Refs render with: Krea 2 ✓ · Keyframes with: Flux 2 Klein edit ✓". Each is
- * a picker over the image targets. A choice is the episode's (PUT
+ * "Refs render with: Krea 2 ✓ · Keyframes with: Flux 2 Klein edit ✓ · Edits
+ * with: …". Each is a picker over the image targets (Edits: only those that can
+ * edit). A choice is the episode's (PUT
  * /seriesmith/refs/defaults, kept in overrides.json); the first option goes back to
  * the series config's (or the built-in) default. An episode choice offers the
  * series.json snippet that makes it permanent.
  */
-function ImageModelBar() {
+export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
   const { list } = useTargets();
   const defaults = useRefDefaults();
   const busy = useApp((s) => s.busy);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(open0);
   const images = imageTargets(list);
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
   const row = (kind: RefTargetKind, label: string) => {
-    const choices = kind === "voices" ? voices : images;
+    const choices = kind === "voices" ? voices : kind === "edits" ? images.filter(isEditTarget) : images;
     if (!choices.length) return null;
     const { target: cur, source: src } = defaultOf(defaults, kind);
     const t = findTarget(list, cur);
     const warn = pickWarning(targetLabel(list, cur), t?.readiness);
     const badge = readinessBadge(t?.readiness);
     const editor = src === "editor";
-    const what = kind === "voices" ? voiceModeText(t) || "audio model" : imageModeText(t) || "image model";
+    const what = kind === "voices" ? voiceModeText(t) || "audio model"
+      : kind === "edits" ? `The model that edits a picture: Edit, Relight, Turn (when Qwen 2.1 + angles isn't installed or another is chosen beside it), an angle (of:) from its place. ${imageModeText(t) || ""}`.trim()
+      : imageModeText(t) || "image model";
     // what the voice model can and can't do, kept on the label's mouseover
     const notes = kind === "voices" && t ? `${targetLabel(list, t.id)}: ${voiceModeText(t)}.\n${voiceCapNotes(t).join("\n")}` : "";
     return (
@@ -104,20 +101,20 @@ function ImageModelBar() {
           title={`${what}${badge ? ` · ${badge.title}` : ""}\nNow: ${targetLabel(list, cur)} (${refDefaultSourceLabel(src)}). A choice here is this episode's; a ref with its own model keeps it.`}
           onChange={(e) => void setRefDefault(kind, e.target.value || null)}
         >
-          <option value="">{editor ? "(back to the series config's default)" : `${targetLabel(list, cur)} (${refDefaultSourceLabel(src)})`}</option>
-          <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind === "voices" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
+          <option value="">{editor ? "(back to the series config's default)" : `${cur ? targetLabel(list, cur) : "none can edit"} (${refDefaultSourceLabel(src)})`}</option>
+          <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind === "voices" || kind === "edits" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
         </select>
         <ModelsButton />
         {warn && <span className={warn.severity === "err" ? "h3-err h3-small" : "h3-warn h3-small"} title={warn.text}>{warn.severity === "err" ? "not ready" : "degraded"}</span>}
       </span>
     );
   };
-  const custom = (["refs", "keyframes", "voices"] as RefTargetKind[]).filter((k) => defaultOf(defaults, k).source === "editor");
-  const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", voices: "voice samples" };
-  // folded: the three models in a line, and whether one isn't ready
-  const kinds = (["refs", "keyframes", "voices"] as RefTargetKind[])
-    .filter((k) => (k === "voices" ? voices : images).length > 0);
-  const names = kinds.map((k) => targetLabel(list, defaultOf(defaults, k).target));
+  const ALL: RefTargetKind[] = ["refs", "keyframes", "edits", "voices"];
+  const custom = ALL.filter((k) => defaultOf(defaults, k).source === "editor");
+  const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", edits: "edits", voices: "voice samples" };
+  // folded: the four models in a line, and whether one isn't ready
+  const kinds = ALL.filter((k) => (k === "voices" ? voices : k === "edits" ? images.filter(isEditTarget) : images).length > 0);
+  const names = kinds.map((k) => targetLabel(list, defaultOf(defaults, k).target) || "none");
   const warns = kinds.map((k) => {
     const cur = defaultOf(defaults, k).target;
     return pickWarning(targetLabel(list, cur), findTarget(list, cur)?.readiness);
@@ -142,6 +139,7 @@ function ImageModelBar() {
         <div className="h3-col" style={{ gap: 6 }}>
           {row("refs", "Refs render with:")}
           {row("keyframes", "Keyframes with:")}
+          {row("edits", "Edits with:")}
           {row("voices", "Voices with:")}
         </div>
       )}
@@ -923,28 +921,73 @@ function KnobFields({ knobs, set, eff, target }: { knobs: Knobs; set: (k: Partia
 
 /**
  * P5: draw a character's view from another view it has, by turning the camera
- * round it (Qwen 2.1 + the multi-angle LoRA): the three-quarter body if that is
- * picked, else the first picked view. A new candidate, not picked.
+ * round it: the three-quarter body if that is picked, else the first picked
+ * view. A new candidate, not picked. It runs on Qwen 2.1 + the multi-angle LoRA
+ * when that is installed, else the episode's Edits model told the turn in
+ * words, or on the model chosen in the ▾ beside it (this viewer's choice, kept
+ * in this browser, for every Turn button).
  */
-function TurnButton({ r, view, label }: { r: Ref; view: string; label: string }) {
+export function TurnButton({ r, view, label }: { r: Ref; view: string; label: string }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
+  const { list } = useTargets();
+  const defaults = useRefDefaults();
+  const [chosen, setChosen] = useTurnModel();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: globalThis.MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("keydown", esc); };
+  }, [open]);
   const picked = VIEWS.map((v) => v.view).filter((v) => v !== view && pickedOf(r, v) != null);
   const from = picked.includes("01_threequarter") ? "01_threequarter" : picked[0];
+  const plan = turnPlan(list, chosen, defaults.edits);
+  const qwen = findTarget(list, TURN_TARGET);
+  const others = turnChoices(list);
+  const pick = (id: string) => { setChosen(id); setOpen(false); };
+  const item = (id: string, text: string, title: string) => (
+    <button key={id || "auto"} className={`h3-btn${(chosen || "") === id ? " h3-on" : ""}`} style={{ justifyContent: "flex-start" }}
+      title={title} onClick={() => pick(id)}>{text}</button>
+  );
   return (
-    <button
-      className="h3-btn"
-      disabled={!from || busy}
-      title={from
-        ? `Turn: draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name} (Qwen 2.1 + the multi-angle LoRA): a new candidate`
-        : "Pick another view first: this one is drawn from it"}
-      onClick={() => from && void generateRef({
-        ref: r.id, view, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
-        loras: null, steps: null, note: `turned from ${viewLabel(from)}`,
-        edit: { take: null, from_view: from, turn: true },
-      })}
-    >
-      ↻ Turn
-    </button>
+    <span ref={box} className="h3-row" style={{ gap: 0, position: "relative" }}>
+      <button
+        className="h3-btn"
+        disabled={!from || busy}
+        title={from
+          ? `Turn: draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name}, on ${plan.uses}: a new candidate${plan.warn ? `
+${plan.warn.text}` : ""}`
+          : "Pick another view first: this one is drawn from it"}
+        onClick={() => from && void generateRef({
+          ref: r.id, view, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
+          loras: null, steps: null, note: `turned from ${viewLabel(from)}`,
+          target: plan.target, edit: { take: null, from_view: from, turn: true },
+        })}
+      >
+        ↻ Turn
+      </button>
+      <button className={`h3-btn${plan.warn ? plan.warn.severity === "err" ? " h3-err" : " h3-warn" : ""}`} aria-expanded={open}
+        aria-label="The model Turn runs on" style={{ padding: "0 3px" }}
+        title={`Turn runs on ${plan.uses}${plan.warn ? `
+${plan.warn.text}` : ""}. Choose another (kept in this browser, for every Turn)`}
+        onClick={() => setOpen(!open)}>▾</button>
+      {open && (
+        <div className="h3-col sm-add-menu" style={{
+          position: "absolute", top: "100%", right: 0, marginTop: 4, zIndex: 50, minWidth: 220, padding: 4, gap: 2,
+          background: "var(--h3-bg2)", border: "1px solid var(--h3-border)", borderRadius: 4, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+        }}>
+          {item("", "Automatic", `${TURN_ANGLES_LABEL} when the angles LoRA is installed, else the episode's Edits model`)}
+          {qwen && item(TURN_TARGET, `${targetOptionText({ ...qwen, label: TURN_ANGLES_LABEL })} (best for turning)`,
+            pickWarning(TURN_ANGLES_LABEL, qwen.readiness)?.text ?? "Qwen-Image 2.1 with the multiple-angles LoRA: turns a figure most surely")}
+          {others.length > 0 && <div style={{ borderTop: "1px solid var(--h3-border)", margin: "2px 0" }} />}
+          {others.map((t) => item(t.id, targetOptionText(t),
+            pickWarning(targetLabel(list, t.id), t.readiness)?.text ?? `${targetLabel(list, t.id)}, told the turn in words (no LoRA)`))}
+        </div>
+      )}
+    </span>
   );
 }
 

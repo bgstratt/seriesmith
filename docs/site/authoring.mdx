@@ -482,9 +482,13 @@ model, a character's voice sample by an audio model. Leave the block out for the
 voices), or name others:
 
 ```json
-"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "voice_target": "ltx2_voice",
-         "ambience_target": "mmaudio_ambience"}
+"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "edit_target": "qwen_image_21",
+         "voice_target": "ltx2_voice", "ambience_target": "mmaudio_ambience"}
 ```
+
+(`edit_target` is the model that edits a picture you already have: the editor's Edit,
+Relight and Turn. It must be one that reads reference images; left out, it's the first of
+`keyframe_target` and `target` that can.)
 
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
 `sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,

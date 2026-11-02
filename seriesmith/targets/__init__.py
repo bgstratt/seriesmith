@@ -1385,8 +1385,15 @@ def first_target(series_cfg: dict | None = None) -> str | None:
 DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs target
 
 
-REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image",
+REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image", "edit_target": "image",
                      "voice_target": "audio", "ambience_target": "ambience"}
+
+
+def can_edit(t: "Target | None") -> bool:
+    """An image target that edits a picture: it reads at least one reference
+    image (target.json capabilities `mode: "edit"`, `max_refs` >= 1)."""
+    c = t.capabilities() if t is not None else {}
+    return c.get("mode") == "edit" and int(c.get("max_refs") or 0) >= 1
 
 
 def renders_dub_track(t: "Target") -> bool:
@@ -1414,9 +1421,10 @@ def voice_kind(tid: str) -> str | None:
 
 def refs_block(series_cfg: dict | None) -> dict:
     """The series config's `refs` block ({"target", "keyframe_target",
-    "voice_target", "ambience_target"}), validated: the first two must name an
-    image target, `voice_target` an audio one, `ambience_target` an ambience one
-    (a place's bed). ValueError otherwise."""
+    "edit_target", "voice_target", "ambience_target"}), validated: the first
+    two must name an image target, `edit_target` an image target that can edit
+    a picture (can_edit), `voice_target` an audio one, `ambience_target` an
+    ambience one (a place's bed). ValueError otherwise."""
     raw = (series_cfg or {}).get("refs") or {}
     if not isinstance(raw, dict):
         raise ValueError("series.json `refs` must be an object: {\"target\": \"<image target>\", "
@@ -1430,6 +1438,9 @@ def refs_block(series_cfg: dict | None) -> dict:
         if k == "voice_target":
             known = [t.id for t in voice_targets()]
             what = "an audio target or a video target that renders a dub track"
+        elif k == "edit_target":
+            known = [t.id for t in list_targets("image") if can_edit(t)]
+            what = "an image target that can edit a picture (one that reads reference images)"
         else:
             known = [t.id for t in list_targets(kind)]
             what = f"an {kind} target"

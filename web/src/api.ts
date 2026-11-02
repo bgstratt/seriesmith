@@ -415,10 +415,11 @@ export interface Api {
 /** A ref override route's answer: the (effective) override values, plus `stale`. */
 export type RefOverrideResult = NonNullable<RefOverrideInfo["values"]> & { stale?: boolean };
 
-/** PUT /seriesmith/refs/defaults: any of the three; null clears one. */
+/** PUT /seriesmith/refs/defaults: any of the four; null clears one. */
 export interface RefDefaultFields {
   target?: string | null;
   keyframe_target?: string | null;
+  edit_target?: string | null;
   voice_target?: string | null;
 }
 

@@ -1707,8 +1707,16 @@ Queues one candidate per call. It returns without waiting, like `/render`.
 **Turning a character's view (P5).** An edit can start from another of the same character's
 views and land on `view`: `edit.from_view`. Add `edit.turn: true` to draw the view by
 turning the camera round the figure:
-- It runs on Qwen-Image 2.1 with the Multiple-Angles LoRA (`refs.TURN_LORA` at 0.9).
-- The prompt is that view's `<mva> …` phrase (`refs.VIEW_TURNS`), sent as typed.
+- On Qwen-Image 2.1 (`target: "qwen_image_21"`) it runs with the Multiple-Angles LoRA
+  (`refs.TURN_LORA` at 0.9) and the prompt is that view's `<mva> …` phrase
+  (`refs.VIEW_TURNS`), sent as typed.
+- On any other edit target there is no LoRA, and the prompt is that view's plain-language
+  instruction (`refs.VIEW_TURNS_PROSE`: three-quarter turned toward the viewer's left, side
+  profile facing the viewer's right, back, face close-up), sent as typed.
+- With no `target`, Qwen-Image 2.1 + the LoRA when both are among ComfyUI's model lists
+  (`refs.turn_ready`; when they can't be read, assumed so), else the episode's Edits model
+  (`edit_target`). The request's `target` always wins. The editor's ▾ beside the button
+  sends the viewer's choice (kept in the browser) as `target`, or nothing for Automatic.
 - The editor's ↻ on a view column turns it from the picked three-quarter view, else from
   the first picked view.
 - The LoRA renders a whole scene as a diorama, so turning is for characters, not plates.
@@ -2595,11 +2603,21 @@ here too) or **[settled]** (the contract left it open).
   `seriesmith/<sha1>.png`. A character with no picked view gets that panel cut out of its live
   sheet (`h3_refsheet.py`, PIL).
 - **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":
-  {"target", "target_source", "keyframe_target", "keyframe_target_source"}}`, sources
-  `"editor"` | `"series"` | `"default"`. **`PUT /seriesmith/refs/defaults`** `{ep, target?,
-  keyframe_target?}` (null clears; a key left out is kept) stores `overrides.json`
-  `episode.refs_target` / `episode.keyframe_target` beside the video `episode.target` and
-  returns `{"defaults": ...}`; 400 for a non-image target or a body with neither key.
+  {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",
+  "edit_target_source"}}`, sources `"editor"` | `"series"` | `"default"`. **`PUT
+  /seriesmith/refs/defaults`** `{ep, target?, keyframe_target?, edit_target?}` (null clears;
+  a key left out is kept) stores `overrides.json` `episode.refs_target` /
+  `episode.keyframe_target` / `episode.edit_target` beside the video `episode.target` and
+  returns `{"defaults": ...}`; 400 for a non-image target, an `edit_target` that can't edit
+  a picture, or a body with none of the keys.
+- **[added 2026-11] The Edits model.** `edit_target` is the image target an edit of a
+  picture uses (Edit, Relight, a frame's cut-out, a Turn without Qwen 2.1 + angles): the
+  editor's episode choice, else the series config's `refs.edit_target` (an image target
+  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else the
+  first of `keyframe_target` and `target` that can edit (`null` when neither can). An edit
+  with no `target` (`refs.edit_target_for`) takes the ref's own model if it can edit, then
+  `edit_target`, then the keyframe model, then the refs model. Promote moves an episode's
+  `edit_target` to `refs.edit_target`.
   Precedence: request, then the ref's override (`target` in `refs/_overrides.json`, now a
   `PUT /seriesmith/refs/override` field), then the episode's, then the series config's `refs`,
   then built-in. "Ready" for the built-in keyframe default means every required file of

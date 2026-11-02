@@ -22,8 +22,9 @@ with the reason):
     episode `target`               -> series config `series.target` (not while its
                                       `series` / `proxy` blocks set model, LoRA or
                                       steps: those would then apply to the new target)
-    episode `refs_target` / `keyframe_target`
+    episode `refs_target` / `keyframe_target` / `edit_target`
                                    -> series config `refs.target` / `refs.keyframe_target`
+                                      / `refs.edit_target`
     a ref's prompt override        -> the subject's `design` / the location's
                                       `description`, when the override is the built
                                       prompt with only that sentence changed (a
@@ -67,7 +68,8 @@ from seriesmith import targets as TG  # noqa: E402
 SHOT_LINE = {"target": "target", "model": "model", "loras": "lora", "steps": "steps"}
 PASS_PROMOTE = ("model", "loras", "steps")
 EPISODE_DEST = {"target": ("series", "target"), "refs_target": ("refs", "target"),
-                "keyframe_target": ("refs", "keyframe_target")}
+                "keyframe_target": ("refs", "keyframe_target"),
+                "edit_target": ("refs", "edit_target")}
 PASS_BLOCK_KEYS = ("model", "lora", "steps")
 
 SHOT_LEFT = {

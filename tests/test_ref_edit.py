@@ -105,6 +105,60 @@ class EditTest(unittest.TestCase):
         (job,) = self.plan(target=None)
         self.assertTrue(R.is_edit_target(job.target))
 
+    def test_the_edit_model_is_a_setting_of_its_own(self):
+        # nothing chosen: the first of the keyframe and refs targets that can edit
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["edit_target"], d["edit_target_source"]),
+                         ("flux2_klein_edit", "default"))
+        # the series config's refs.edit_target
+        cfg_path = os.path.join(self.ep, "series.json")
+        with open(cfg_path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        cfg["refs"] = {"edit_target": "qwen_image_21"}
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        self.s = R.load_series(self.ep)
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["edit_target"], d["edit_target_source"]), ("qwen_image_21", "series"))
+        (job,) = self.plan(target=None)
+        self.assertEqual(job.target.id, "qwen_image_21")
+        # the episode's choice beats it
+        R.set_image_defaults(self.ep, {"edit_target": "flux_kontext"})
+        d = R.image_defaults(self.s)
+        self.assertEqual((d["edit_target"], d["edit_target_source"]), ("flux_kontext", "editor"))
+        self.assertEqual(self.plan(target=None)[0].target.id, "flux_kontext")
+        # a model that only draws from text is refused, in the episode and the series config
+        with self.assertRaisesRegex(R.RefError, "can't edit a picture"):
+            R.set_image_defaults(self.ep, {"edit_target": "krea2"})
+        cfg["refs"] = {"edit_target": "krea2"}
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        with self.assertRaisesRegex(R.RefError, "refs.edit_target.*can edit a picture"):
+            R.image_defaults(R.load_series(self.ep))
+        R.set_image_defaults(self.ep, {"edit_target": None})
+        from seriesmith import takes as T
+        self.assertIsNone(T.episode_field(T.load_overrides(self.ep), "edit_target"))
+
+    def test_edit_target_for_order(self):
+        ref = R.find_ref(self.s, "location:kitchen")
+        R.set_image_defaults(self.ep, {"edit_target": "qwen_image_21",
+                                       "keyframe_target": "flux_kontext"})
+        # the episode's edit model before its keyframe model
+        self.assertEqual(R.edit_target_for(self.s, ref).id, "qwen_image_21")
+        # the request's beats everything
+        self.assertEqual(R.edit_target_for(self.s, ref, "flux2_klein_edit").id, "flux2_klein_edit")
+        # the ref's own model, when it can edit, beats the episode's
+        ov = R.set_ref_override(R.load_overrides(self.s.home), ref, None,
+                                {"target": "flux_kontext"}, None)
+        self.assertEqual(R.edit_target_for(self.s, ref, None, ov).id, "flux_kontext")
+        # one that draws from text only is passed over
+        ov = R.set_ref_override(R.load_overrides(self.s.home), ref, None,
+                                {"target": "krea2"}, None)
+        self.assertEqual(R.edit_target_for(self.s, ref, None, ov).id, "qwen_image_21")
+        # no edit model chosen: the keyframe model, then the refs model
+        R.set_image_defaults(self.ep, {"edit_target": None})
+        self.assertEqual(R.edit_target_for(self.s, ref).id, "flux_kontext")
+
     def test_what_is_refused(self):
         bad = [
             ({"prompt": "  "}, "instruction"),

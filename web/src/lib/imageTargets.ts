@@ -1,6 +1,6 @@
 // The targets refs generate with (docs/API.md "Phase 8.5 as built": image
 // defaults; "Phase 9c-B as built": `voice_target`): which model series refs,
-// shot keyframes and voices generate with (the episode's choice, the series
+// shot keyframes, edits of a picture and voices generate with (the episode's choice, the series
 // config's `refs` block, the built-in default, or a per-ref override), and
 // which reference images an edit target gets with a keyframe. Pure functions.
 
@@ -12,9 +12,10 @@ import { VOICE_DEFAULT } from "./voice";
 /** The built-in refs target (Phase 7). */
 export const REFS_DEFAULT = "krea2";
 
-/** The three kinds of ref target: series refs and keyframes take an image
- * target, a voice takes an audio one (Phase 9c-B). */
-export type RefTargetKind = "refs" | "keyframes" | "voices";
+/** The four kinds of ref target: series refs and keyframes take an image
+ * target, edits (Edit, Relight, Turn, variants) an image target that can edit,
+ * a voice an audio one (Phase 9c-B). */
+export type RefTargetKind = "refs" | "keyframes" | "edits" | "voices";
 
 export function imageTargets(list: TargetList | null | undefined): Target[] {
   // a one-job target (`mode: "pano"`, klein_erp_360: a location's 360) is never offered
@@ -37,17 +38,21 @@ export function imageModeText(t: Pick<Target, "capabilities"> | undefined): stri
 export interface ResolvedRefDefaults {
   refs: string;
   keyframes: string;
+  /** the image target an edit of a picture uses (Edit, Relight, Turn, variants); "" when none can edit */
+  edits: string;
   /** Phase 9c-B: the audio target voices generate with */
   voices: string;
   /** where each comes from: set in the editor for this episode, the series config, built in */
   refsSource: RefDefaultSource;
   keyframesSource: RefDefaultSource;
+  editsSource: RefDefaultSource;
   voicesSource: RefDefaultSource;
 }
 
 /** The field of ResolvedRefDefaults a kind reads. */
 export function defaultOf(d: ResolvedRefDefaults, kind: RefTargetKind): { target: string; source: RefDefaultSource } {
   if (kind === "keyframes") return { target: d.keyframes, source: d.keyframesSource };
+  if (kind === "edits") return { target: d.edits, source: d.editsSource };
   if (kind === "voices") return { target: d.voices, source: d.voicesSource };
   return { target: d.refs, source: d.refsSource };
 }
@@ -68,12 +73,17 @@ export function refDefaults(list: TargetList | null | undefined, served?: RefDef
     || (list?.targets ?? []).find((t) => t.kind === "audio")?.id
     || VOICE_DEFAULT;
   const refs = served?.target || fallback;
+  const keyframes = served?.keyframe_target || refs;
+  // the server's (the first of the keyframe and refs models that can edit, when none is chosen)
+  const canEdit = (id: string) => isEditTarget((list?.targets ?? []).find((t) => t.id === id));
   return {
     refs,
-    keyframes: served?.keyframe_target || refs,
+    keyframes,
+    edits: served?.edit_target || [keyframes, refs].find(canEdit) || "",
     voices: served?.voice_target || voiceFallback,
     refsSource: source(served?.target_source),
     keyframesSource: source(served?.keyframe_target_source),
+    editsSource: source(served?.edit_target_source),
     voicesSource: source(served?.voice_target_source),
   };
 }
@@ -104,7 +114,7 @@ export function refTargetOf(
 
 /** The series.json snippet that makes a choice permanent. */
 export function refsSnippet(kind: RefTargetKind, id: string): string {
-  const key = kind === "keyframes" ? "keyframe_target" : kind === "voices" ? "voice_target" : "target";
+  const key = kind === "keyframes" ? "keyframe_target" : kind === "edits" ? "edit_target" : kind === "voices" ? "voice_target" : "target";
   return `"refs": {${JSON.stringify(key)}: ${JSON.stringify(id)}}`;
 }
 
