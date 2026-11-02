@@ -6,13 +6,17 @@ description: "An edit from Premiere, Resolve or Final Cut 7 (an FCP7 XML) as a n
 {/* Generated from docs/IMPORT_XML.md by tools/make_site_docs.py: edit that file, not this one. */}
 
 An edit cut somewhere else (Premiere Pro, DaVinci Resolve, Final Cut 7, or seriesmith's own
-**Premiere / Resolve XML** export) comes into seriesmith as a **new show and episode**: a
+**Premiere / Resolve XML** export) comes into seriesmith as a **new show and episode**, or as
+the **next episode of a show you have**: a
 shot per clip, its footage the shot's take, the cut's trims, dissolves and fades kept, and
 the rest of the sound in the episode's mix. From there it is an episode like any other: write
 what happens in a shot and render it again on a model, add music cues, effects and
 ambience, re-cut it, master it.
 
 ## Exporting the XML
+
+The format is **FCP7 XML** (a `.xml` file). Final Cut Pro X's `.fcpxml` is a different format
+and isn't read yet: export the FCP7 kind.
 
 - **Premiere Pro**: select the sequence, **File › Export › Final Cut Pro XML…**
 - **DaVinci Resolve**: **File › Export › Timeline…**, format **FCP 7 XML V5 Files**
@@ -24,10 +28,19 @@ holds that media; a file that moved is looked for beside the XML too.
 
 ## Importing it
 
-In the editor: **Project folders**, pick the folder your shows live in, **New series/project…**,
-then **From an edit (FCP7 XML)…** at the top of the wizard. Pick the `.xml` (or give its path
-on the machine seriesmith runs on), choose how its footage comes in (below), and name the
-show (its sequence's name by default). The wizard reads the edit as you change these and
+In the editor, **Project folders** (the episode browser):
+
+- **A new show**: go to the folder your shows live in, then **Import…** › **An edit (FCP7
+  XML)…** (or **New series/project…** › **From an edit (FCP7 XML)…** at the top of the wizard).
+- **The next episode of a show**: go into the show's folder, then **New episode…** › **From an
+  edit (FCP7 XML)…**. It is the show's next episode (ep03 after ep02), its series config the
+  newest episode's, so the cast, look and voices carry over; the episode itself is at the
+  edit's frame rate and size, on `hold`, with the `footage` location added (the summary says
+  so when the show's rate or size differs).
+
+Pick the `.xml` (or give its path on the machine seriesmith runs on: the media is then looked
+for beside it too), choose how its footage comes in (below), and name the show (or title the
+episode; the sequence's name by default). The wizard reads the edit as you change these and
 says what it will make: the shots, the takes, the sounds, and anything that doesn't come
 through. **Import** makes the show, builds it and opens it; the footage is made on the queue
 (**Jobs**: a job per source file), each shot's take appearing as it's done.
@@ -38,6 +51,7 @@ From a terminal:
 seriesmith import-xml cut.xml --into C:\Shows --dry-run          # what it would make
 seriesmith import-xml cut.xml --into C:\Shows --name "The Pier"   # handles, 1 s
 seriesmith import-xml cut.xml --into C:\Shows --media proxies
+seriesmith import-xml cut.xml --into C:\Shows\The_Pier --episode  # The_Pier's next episode
 ```
 
 ## How the footage comes in

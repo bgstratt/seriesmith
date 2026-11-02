@@ -314,6 +314,36 @@ class ImportTest(unittest.TestCase):
         s = self.make("handles", run=False, name="Another go")
         self.assertTrue(s["ep"].endswith(os.path.join("Another_go", "ep01")))
 
+    def test_a_shows_next_episode(self):
+        # the first import makes the show; the second, into it, is its ep02 with ep01's cast
+        show = os.path.dirname(self.make("handles", run=False)["ep"])
+        cfg_path = os.path.join(show, "ep01", "series.json")
+        with open(cfg_path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        cfg["subjects"] = {"mara": {"name": "Mara", "design": "a lighthouse keeper in a yellow oilskin"}}
+        cfg["series"].update(fps=24, width=1920, height=1080, target="ltx2")
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        dry = XI.public(XI.plan(self.text, show, "premiere_edit.xml", name="Night shift", in_show=True))
+        self.assertEqual((dry["episode"], dry["ep"]), ("ep02", os.path.join(show, "ep02")))
+        self.assertFalse(os.path.exists(dry["ep"]))
+        self.assertIn("the show is 1920x1080 at 24 fps", "\n".join(dry["warnings"]))
+        s = XI.make(self.text, show, "premiere_edit.xml", name="Night shift", in_show=True)
+        self.assertTrue(s["build"]["ok"], s["build"])
+        with open(os.path.join(s["ep"], "series.json"), encoding="utf-8") as fh:
+            got = json.load(fh)
+        self.assertEqual(got["subjects"], {"mara": {"name": "Mara", "design": "a lighthouse keeper in a yellow oilskin"}})
+        self.assertEqual((got["series"]["fps"], got["series"]["width"], got["series"]["target"]),
+                         (23.976, 64, "hold"))
+        self.assertIn("footage", got["locations"])
+        with open(os.path.join(s["ep"], "ep02.md"), encoding="utf-8") as fh:
+            self.assertTrue(fh.read().startswith("= ep02  Night shift"))
+        # a folder with no episode yet: the edit's own series config
+        empty = os.path.join(self.shows, "Empty")
+        os.mkdir(empty)
+        s = XI.public(XI.plan(self.text, empty, "premiere_edit.xml", in_show=True))
+        self.assertEqual((s["episode"], s["from"]), ("ep01", None))
+
     def test_bad_options(self):
         for kw in ({"media": "copy"}, {"handles": -1}, {"handles": "x"}):
             with self.assertRaises(XI.XmlImportError):

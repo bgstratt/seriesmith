@@ -5423,8 +5423,8 @@ def get_align_job(ctx: Context, query: dict):
 def post_import_xml(ctx: Context, body):
     """An edit (FCP7 XML) into a new show and episode (xmlimport.make): `{parent?, path
     | file (multipart), name?, media?: "handles" | "reference" | "proxies", handles?:
-    seconds, dry_run?}`. `parent` is the folder of shows (default the first project
-    root). A dry run answers what it would make and writes nothing. Otherwise the
+    seconds, in_show?, dry_run?}`. `parent` is the folder of shows (default the first
+    project root); with `in_show`, a show's folder, the edit its next episode. A dry run answers what it would make and writes nothing. Otherwise the
     show is written and built at once, and its media (each source's clips, the gaps'
     black) queued on the "cpu" lane, a job each (`jobs`), the takes appearing as they
     finish; without a queue they are made before it answers."""
@@ -5461,9 +5461,10 @@ def post_import_xml(ctx: Context, body):
     handles = body.get("handles", XI.HANDLES_S)
     if handles in (None, ""):
         handles = XI.HANDLES_S
+    in_show = _flag(body.get("in_show"))
     if _flag(body.get("dry_run")):
-        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base))
-    res = XI.make(text, parent, xml_name, name, media, handles, base)
+        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show))
+    res = XI.make(text, parent, xml_name, name, media, handles, base, in_show)
     episode_event(ctx, res["ep"])
     res["jobs"] = [_start_local(ctx, "xmlmedia", {"ep": res["ep"], "index": g["index"]}).id
                    for g in res["groups"]]

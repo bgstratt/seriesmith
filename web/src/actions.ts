@@ -2921,7 +2921,7 @@ export function openShotForm(form: ShotFormOpen | null) {
 
 /** The new episode wizard: an episode in `parent`, or a new series in a show
  * folder made inside it (null closes it). */
-export function openWizard(w: { parent: string; newSeries: boolean } | null) {
+export function openWizard(w: { parent: string; newSeries: boolean; from?: "write" | "xml" } | null) {
   set({ wizard: w, menu: null });
 }
 

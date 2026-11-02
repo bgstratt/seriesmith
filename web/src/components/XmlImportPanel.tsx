@@ -1,6 +1,7 @@
 // The new episode wizard's "From an edit (FCP7 XML)": an XML picked (uploaded) or named by
 // its path on the server's machine, how its footage comes in, a dry run's summary of what
-// it makes, then the show made and opened (POST /seriesmith/import/xml; lib/xmlImport.ts).
+// it makes, then the show (or, `inShow`, the show's next episode) made and opened
+// (POST /seriesmith/import/xml; lib/xmlImport.ts).
 
 import { useEffect, useRef, useState } from "react";
 import { loadEpisodes, openEpisodeAt, openWizard } from "../actions";
@@ -9,7 +10,7 @@ import { MEDIA_CHOICES, doneMessage, handlesOf, summaryLines } from "../lib/xmlI
 import type { XmlImportMedia, XmlImportSummary } from "../types";
 import { Row } from "./ShotForm";
 
-export function XmlImportPanel({ parent }: { parent: string }) {
+export function XmlImportPanel({ parent, inShow = false }: { parent: string; inShow?: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   const [path, setPath] = useState("");
   const [media, setMedia] = useState<XmlImportMedia>("handles");
@@ -25,7 +26,7 @@ export function XmlImportPanel({ parent }: { parent: string }) {
   const have = !!file || !!path.trim();
 
   function send(dry: boolean): Promise<XmlImportSummary> {
-    const opts = { parent, media, handles: handles ?? 1, name: name.trim() || null, dry_run: dry };
+    const opts = { parent, media, handles: handles ?? 1, name: name.trim() || null, in_show: inShow, dry_run: dry };
     return file
       ? api().uploadXml({ ...opts, file, filename: file.name })
       : api().importXml({ ...opts, path: path.trim() });
@@ -46,7 +47,7 @@ export function XmlImportPanel({ parent }: { parent: string }) {
         .finally(() => { if (n === asked.current) setChecking(false); });
     }, 300);
     return () => window.clearTimeout(t);
-  }, [file, path, media, handles, name, parent]);
+  }, [file, path, media, handles, name, parent, inShow]);
 
   async function make() {
     setBusy(true);
@@ -68,13 +69,13 @@ export function XmlImportPanel({ parent }: { parent: string }) {
     <div id="sm-xml-import" className="h3-col" style={{ gap: 10 }}>
       <div className="h3-small h3-muted">
         An edit made in Premiere, DaVinci Resolve or Final Cut 7, exported as an FCP7 XML (File › Export ›
-        Final Cut Pro XML), becomes a new show in {parent}: a shot per clip on V1, its footage the shot's take,
+        Final Cut Pro XML), becomes {inShow ? `the next episode in ${parent}, its cast and look the last episode's` : `a new show in ${parent}`}: a shot per clip on V1, its footage the shot's take,
         the cut's trims, dissolves and fades kept, the other sound in the mix. Each shot's description is its
         clip's name until you write one.
       </div>
       <Row label="The XML" help="Pick the .xml file, or give its path on the machine seriesmith runs on. Its media is found where the XML says (or beside the XML).">
         <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-          <input id="sm-xml-file" type="file" accept=".xml,text/xml,application/xml"
+          <input id="sm-xml-file" type="file" accept=".xml,.fcpxml,text/xml,application/xml"
             onChange={(e) => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) setPath(""); }} />
           <input id="sm-xml-path" className="h3-in h3-mono h3-grow" value={path} placeholder="or C:\Edits\cut.xml"
             onChange={(e) => { setPath(e.target.value); if (e.target.value) setFile(null); }} />
@@ -98,7 +99,7 @@ export function XmlImportPanel({ parent }: { parent: string }) {
           {handles == null && <span className="h3-small h3-err"> 0 to 60 seconds</span>}
         </Row>
       )}
-      <Row label="Show" help="The new show's name; its folder is made from it. Empty: the sequence's name.">
+      <Row label={inShow ? "Title" : "Show"} help={inShow ? "The episode's title. Empty: the sequence's name." : "The new show's name; its folder is made from it. Empty: the sequence's name."}>
         <input id="sm-xml-name" className="h3-in" value={name} placeholder={summary?.sequence ?? "the sequence's name"}
           onChange={(e) => setName(e.target.value)} />
       </Row>
@@ -122,7 +123,7 @@ export function XmlImportPanel({ parent }: { parent: string }) {
       <div className="h3-row" style={{ justifyContent: "flex-end" }}>
         <button id="sm-xml-go" className="h3-btn h3-primary" disabled={!summary || busy || checking || handles == null}
           onClick={() => void make()}>
-          {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-file-import" />} Import {summary?.show ?? ""}
+          {busy ? <i className="pi pi-spin pi-spinner" /> : <i className="pi pi-file-import" />} Import {summary ? (summary.in_show ? summary.episode : summary.show) : ""}
         </button>
       </div>
     </div>

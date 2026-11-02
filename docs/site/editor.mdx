@@ -120,7 +120,7 @@ starts the series wizard.
 The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
 series above it), its name a dropdown of every episode, whose last choice, **Browse and
 add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
-New series/project…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
+New series/project…, Import…). Beside it on the Shots tab, **Rescan the project roots**
 (after adding an episode folder outside the editor) and **Simple / Advanced**. The
 timeline keeps a small dropdown of its own, with the same choices.
 
@@ -214,7 +214,8 @@ which is the next thing to do (the Refs tab). The paths are `../refs/...`: **one
 folder beside the episodes, shared by all of them**, while each episode keeps its own
 config. That is the layout to want: shared references, per episode cast lists.
 
-**From an edit (FCP7 XML)…**, at the top of the wizard for a new series, makes the series
+**From an edit (FCP7 XML)…**, at the top of the wizard (and **Import…** › **An edit (FCP7
+XML)…** in **Project folders**), makes the series
 from an edit cut elsewhere instead (Premiere, Resolve, Final Cut 7, or seriesmith's own XML
 export): pick the `.xml` (or give its path on this machine), choose how its footage comes in
 (**Used part + handles**, **Reference in place**, or **Reference in place + playable
@@ -1014,7 +1015,8 @@ candidate and read the **drawn** row: `edited from Dana (three-quarter)`, or `fr
 
 ## Importing a series
 
-**Import series…** (in **Project folders**, beside New series/project… and New episode…) brings a
+**Import…** (in **Project folders**, beside New series/project… and New episode…) asks which:
+**An edit (FCP7 XML)…** (above: the wizard's From an edit), or a seriesmith series, which brings a
 whole season in at once:
 pick the scripts (`Files…`) or a folder of them (`Folder…`), with one series config for the
 lot or one per episode (a `series.json` beside a script, or named after it). Each script

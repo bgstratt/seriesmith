@@ -2605,7 +2605,7 @@ function mockXmlImport(dry: boolean, media: XmlImportMedia, name: string | null)
   const title = name || "The Lighthouse (rough cut)";
   const show = title.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
   return {
-    sequence: "The Lighthouse (rough cut)", title, show, ep: `C:\Shows\${show}\ep01`, fps: 23.976,
+    sequence: "The Lighthouse (rough cut)", title, show, episode: "ep01", in_show: false, from: null, ep: `C:\Shows\${show}\ep01`, fps: 23.976,
     size: [1920, 1080], media, handles: media === "handles" ? 1 : null, shots: 3, black: 1, takes: 2,
     missing: [], sequences: ["sq01"], audio_items: 1, hits: 0, tracks: ["music"],
     proxies: media === "proxies" ? ["sh010"] : [], unplayable: media === "reference" ? ["sh010"] : [],

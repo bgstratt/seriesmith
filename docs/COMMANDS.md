@@ -12,7 +12,7 @@ failed exits 1.
 | Command | What it does |
 |---|---|
 | `seriesmith new <show>\<name>` | A new episode (`series.json` + script) that builds, from the newest episode beside it, else `examples/starter/` (`--title`, `--series-id`) |
-| `seriesmith import-xml <file.xml>` | An edit (FCP7 XML: Premiere, Resolve, Final Cut 7, `assemble --xml`) as a new show and episode: a shot per clip, its footage the take (`--into`, `--name`, `--media handles\|reference\|proxies`, `--handles`, `--dry-run`; [IMPORT_XML.md](IMPORT_XML.md)) |
+| `seriesmith import-xml <file.xml>` | An edit (FCP7 XML: Premiere, Resolve, Final Cut 7, `assemble --xml`) as a new show and episode: a shot per clip, its footage the take (`--into`, `--episode`: `--into` is a show and the edit its next episode, `--name`, `--media handles\|reference\|proxies`, `--handles`, `--dry-run`; [IMPORT_XML.md](IMPORT_XML.md)) |
 | `seriesmith build <episode>` | The script and series config compiled into the shotlists and `refs_todo` (final and proxy) |
 | `seriesmith check <episode>` | `build --check` and `--pace`: errors, warnings, crammed lines; writes nothing |
 | `seriesmith refs <episode>` | Reference pictures (and with `--voices`, voice samples): kreagen |
@@ -464,6 +464,7 @@ seriesmith discard  Shows\ep05 sh020 2          # take 2 goes to renders\_trash\
 seriesmith import-xml cut.xml --into Shows --dry-run           # what it would make, nothing written
 seriesmith import-xml cut.xml --into Shows --name "The Pier"    # Shows\The_Pier\ep01, 1 s handles
 seriesmith import-xml cut.xml --into Shows --media proxies      # sources linked, proxies to play
+seriesmith import-xml cut.xml --into Shows\The_Pier --episode  # The_Pier's next episode
 ```
 
 An FCP7 XML (Premiere, Resolve, Final Cut 7, or `assemble --xml`) becomes a new show in

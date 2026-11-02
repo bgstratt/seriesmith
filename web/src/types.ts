@@ -749,12 +749,15 @@ export type XmlImportMedia = "handles" | "reference" | "proxies";
 
 /** POST /seriesmith/import/xml (JSON: an XML on the server's machine). */
 export interface XmlImportRequest {
-  /** the folder of shows the new show goes in (default: the first project root) */
+  /** the folder of shows the new show goes in (default: the first project root); with
+   *  `in_show`, the show's folder the edit becomes the next episode of */
   parent?: string | null;
   path: string;
+  /** the show's name; with `in_show`, the episode's title */
   name?: string | null;
   media?: XmlImportMedia;
   handles?: number;
+  in_show?: boolean;
   dry_run?: boolean;
 }
 
@@ -786,7 +789,12 @@ export interface XmlImportClip {
 export interface XmlImportSummary {
   sequence: string;
   title: string;
-  show: string;
+  show: string | null;
+  /** the episode's folder name (ep01 for a new show; the next one in a show) */
+  episode: string;
+  in_show: boolean;
+  /** the episode whose series config it copies (in a show), or null */
+  from: string | null;
   ep: string;
   fps: number;
   size: [number, number];

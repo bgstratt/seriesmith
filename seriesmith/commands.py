@@ -375,9 +375,10 @@ def backends_cmd(argv: list[str]) -> int:
 _TABLE = [
     Command("new", "<show>\\<name> [--title T] [--series-id ID]",
             "a new episode (series.json + script) that builds", _new),
-    Command("import-xml", "<file.xml> [--into FOLDER] [--name Show] [--media handles|reference|proxies] "
+    Command("import-xml", "<file.xml> [--into FOLDER] [--episode] [--name Show] [--media handles|reference|proxies] "
             "[--handles 1.0] [--dry-run]",
-            "an edit (FCP7 XML: Premiere, Resolve, Final Cut 7) as a new show and episode",
+            "an edit (FCP7 XML: Premiere, Resolve, Final Cut 7) as a new show and episode "
+            "(--episode: a show's next episode)",
             _import_xml, own_help=True),
     Command("build", "<episode>... [--each] [--proxy]  |  series.json ep01.md -o <folder>",
             "the script and series config into the shotlists and refs_todo (final and proxy)",

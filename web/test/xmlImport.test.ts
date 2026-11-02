@@ -18,7 +18,8 @@ import type { XmlImportRequest, XmlImportSummary, XmlImportUpload } from "../src
 
 const SUMMARY: XmlImportSummary = {
   sequence: "The Lighthouse (rough cut)", title: "The Lighthouse (rough cut)", show: "The_Lighthouse_rough_cut",
-  ep: "C:\\Shows\\The_Lighthouse_rough_cut\\ep01", fps: 23.976, size: [1920, 1080], media: "handles", handles: 1,
+  episode: "ep01", in_show: false, from: null,
+  ep:"C:\\Shows\\The_Lighthouse_rough_cut\\ep01", fps: 23.976, size: [1920, 1080], media: "handles", handles: 1,
   shots: 5, black: 1, takes: 4, missing: ["sh050"], sequences: ["Arrival", "sq02"], audio_items: 3, hits: 1,
   tracks: ["effects", "music", "music2"], proxies: [], unplayable: [], warnings: ["V2: Logo bug at 00:00:00.000 isn't imported"],
   clips: [{ shot: "sh050", name: "Pickup", source: null, dur: 1, trim_in: 0, trim_out: 0, missing: "its file isn't there" }],
@@ -104,8 +105,8 @@ describe("the wizard's From an edit", () => {
 
     type(host.querySelector("#sm-xml-path") as HTMLInputElement, "C:\\Edits\\cut.xml");
     await wait(400);
-    expect(sent).toEqual([{ parent: "C:\\Shows", media: "handles", handles: 1, name: null, dry_run: true,
-      path: "C:\\Edits\\cut.xml" }]);
+    expect(sent).toEqual([{ parent: "C:\\Shows", media: "handles", handles: 1, name: null, in_show: false,
+      dry_run: true, path: "C:\\Edits\\cut.xml" }]);
     expect(host.querySelector("#sm-xml-summary")!.textContent).toContain("5 shots (1 black, for gaps)");
     expect(host.querySelector("#sm-xml-summary")!.textContent).toContain("sh050 (Pickup): its file isn't there");
 
@@ -134,5 +135,21 @@ describe("the wizard's From an edit", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ filename: "cut.xml", dry_run: true, media: "handles" });
     expect((sent[0] as XmlImportUpload).file).toBe(file);
+  });
+
+  it("is a choice for a new episode too: the edit is the show's next episode", async () => {
+    act(() => openWizard({ parent: "C:\\Shows\\Lighthouse", newSeries: false }));
+    expect(host.querySelector("#sm-xml-import")).toBeNull();
+    act(() => (host.querySelector("#sm-wizard-xml") as HTMLButtonElement).click());
+    expect(host.textContent).toContain("New episode from an edit");
+    type(host.querySelector("#sm-xml-path") as HTMLInputElement, "C:\\Edits\\cut.xml");
+    await wait(400);
+    expect(sent.at(-1)).toMatchObject({ parent: "C:\\Shows\\Lighthouse", in_show: true, dry_run: true });
+  });
+
+  it("opens on the edit when asked to (the episode browser's Import…)", async () => {
+    act(() => openWizard({ parent: "C:\\Shows", newSeries: true, from: "xml" }));
+    expect(host.querySelector("#sm-xml-import")).not.toBeNull();
+    expect(host.textContent).toContain("New series from an edit");
   });
 });

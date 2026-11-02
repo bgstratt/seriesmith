@@ -41,12 +41,12 @@ function defaultRect(): Rect {
 export function NewEpisodeWizard() {
   const w = useApp((s) => s.wizard);
   if (!w) return null;
-  return <Wizard key={`${w.parent}|${w.newSeries}`} parent={w.parent} startNew={w.newSeries} />;
+  return <Wizard key={`${w.parent}|${w.newSeries}|${w.from ?? ""}`} parent={w.parent} startNew={w.newSeries} startFrom={w.from} />;
 }
 
 const FIELD = (p: string): Field => SECTIONS.flatMap((s) => s.fields).find((f) => f.path.join(".") === p)!;
 
-function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
+function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boolean; startFrom?: "write" | "xml" }) {
   const targets = useApp((s) => s.targets);
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");           // the series' (a new one)
@@ -66,9 +66,10 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const [placeText, setPlaceText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // a new series: written here, or an edit made elsewhere imported (XmlImportPanel)
-  const [from, setFrom] = useState<"write" | "xml">("write");
-  const fromXml = startNew && from === "xml";
+  // written here, or an edit made elsewhere imported (XmlImportPanel): a new show, or
+  // the next episode of the show in `parent`
+  const [from, setFrom] = useState<"write" | "xml">(startFrom ?? "write");
+  const fromXml = from === "xml";
 
   useEffect(() => {
     void loadTargets();
@@ -182,7 +183,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
   const head = (
     <>
       <i className="pi pi-file-plus" />
-      <span className="h3-grow">{fromXml ? "New series from an edit" : startNew && isNewSeries ? "New series" : "New episode"}</span>
+      <span className="h3-grow">{fromXml ? (startNew ? "New series from an edit" : "New episode from an edit") : startNew && isNewSeries ? "New series" : "New episode"}</span>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
         if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
         openWizard(null);
@@ -203,7 +204,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={420} minH={360}>
-      {startNew && (
+      {(
         <div id="sm-wizard-from" className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
           <span className="h3-small h3-muted">Start from</span>
           <button className={`h3-btn${from === "write" ? " h3-on" : ""}`} onClick={() => setFrom("write")}>A first shot I write</button>
@@ -212,7 +213,7 @@ function Wizard({ parent, startNew }: { parent: string; startNew: boolean }) {
       )}
       {fromXml ? (
         <div className="h3-col" style={{ padding: 10, overflow: "auto", flex: 1, minHeight: 0 }}>
-          <XmlImportPanel parent={parent} />
+          <XmlImportPanel parent={parent} inShow={!startNew} />
         </div>
       ) : (<>
       <div className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>

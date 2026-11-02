@@ -336,8 +336,11 @@ edit (xmeml, as Premiere, Resolve, Final Cut 7 and `assemble --xml` write it) in
 show and episode (`xmlimport.py`; the rules in IMPORT_XML.md). JSON `{"path"` (the XML's
 absolute path on this machine; its media is looked for where it says, else beside it)`}`,
 or multipart with `file` (the XML picked in the browser), plus `"parent"?` (the folder of
-shows the new show goes in, inside a root; default the first root), `"name"?` (the show's;
-default the sequence's), `"media"?` (`"handles"`, the default: each clip's span plus
+shows the new show goes in, inside a root; default the first root), `"in_show"?` (true:
+`parent` is a show's folder and the edit its next episode, `ep03` after `ep02`, its series
+config the newest episode's at the edit's rate and size, on `hold`; the answer's `episode`,
+`in_show` and `from`, the episode copied), `"name"?` (the show's, or with `in_show` the
+episode's title; default the sequence's), `"media"?` (`"handles"`, the default: each clip's span plus
 `"handles"?` seconds, 1 by default, either side, H.264 at master quality; `"reference"`: each
 source whole, hard-linked where the volume allows else copied, never re-encoded;
 `"proxies"`: reference, with an H.264 proxy of each source the editor can't play, in

@@ -811,11 +811,34 @@ def _groups(shots: list[dict], probes: dict, mode: str, size: tuple[int, int],
     return out
 
 
+def _next_series(raw: dict, fps: float, size: tuple[int, int], warnings: list[str]) -> dict:
+    """A next episode's series config: its neighbour's (the cast, look, voices carry over)
+    at the edit's rate and size, on `hold`, with the footage's location."""
+    raw = json.loads(json.dumps(raw))
+    fresh = _series("", "", fps, size)
+    s = raw["series"]
+    was = (s.get("fps"), s.get("width"), s.get("height"))
+    for k in ("fps", "width", "height", "target"):
+        s[k] = fresh["series"][k]
+    if was[0] is not None and was != (s["fps"], s["width"], s["height"]):
+        warnings.append(f"the show is {was[1]}x{was[2]} at {was[0]} fps; this episode is the "
+                        f"edit's, {s['width']}x{s['height']} at {s['fps']} fps")
+    raw["proxy"] = dict(raw.get("proxy") or {}, **fresh["proxy"])
+    locs = raw.get("locations")
+    if not isinstance(locs, dict):
+        locs = raw["locations"] = {}
+    locs.setdefault(LOCATION, fresh["locations"][LOCATION])
+    return raw
+
+
 def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = None,
-         media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None) -> dict:
+         media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None,
+         in_show: bool = False) -> dict:
     """The import worked out, nothing written: the summary (what make answers), with
-    `_shots`, `_files` etc. for make. XmlImportError for an XML or an option that can't
-    be."""
+    `_shots`, `_files` etc. for make. `in_show`: `parent` is a show's folder and the edit
+    its next episode (ep03 after ep02), the series config its newest episode's (else the
+    edit's own); `name` then titles the episode. XmlImportError for an XML or an option
+    that can't be."""
     if media not in MEDIA:
         raise XmlImportError(f"media must be one of {', '.join(MEDIA)}, not {media!r}")
     try:
@@ -852,9 +875,17 @@ def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
     mix = _mix(rest, shots, hits, fps, files, warnings)
     cut = _cut(shots, files, fps)
     title = " ".join((name or ed["name"]).split())
-    show = show_folder(title)
-    if not show:
-        raise XmlImportError("name the show: letters or digits")
+    if in_show:
+        from seriesmith import source as S
+        tpl = S.episode_template(parent) if parent else {"name": EPISODE, "series": None, "from": None}
+        episode, show = tpl["name"], os.path.basename(os.path.normpath(parent or "")) or None
+        ep = os.path.join(os.path.abspath(parent), episode) if parent else None
+    else:
+        tpl, episode = None, EPISODE
+        show = show_folder(title)
+        if not show:
+            raise XmlImportError("name the show: letters or digits")
+        ep = os.path.join(os.path.abspath(parent), show, EPISODE) if parent else None
     silent = [s["id"] for s in shots if not s["black"] and not s.get("missing") and s.get("sound") is None]
     if silent:
         warnings.append(f"{len(silent)} clip(s) have no sound in the XML, so their shots play "
@@ -877,10 +908,12 @@ def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
                 row["note"] = (f"{pr.get('codec')} in {os.path.splitext(s['path'])[1] or 'its file'}: "
                                f"it won't play in the editor (assemble and the XML export still read it)")
         clips.append(row)
-    ident = re.sub(r"[^a-z0-9_]+", "_", show.lower()).strip("_") or "imported"
+    ident = re.sub(r"[^a-z0-9_]+", "_", (show or "").lower()).strip("_") or "imported"
+    series = _next_series(json.loads(tpl["series"]), fps, size, warnings) \
+        if tpl and tpl.get("series") else _series(title, ident, fps, size)
     out = {
-        "sequence": ed["name"], "title": title, "show": show,
-        "ep": os.path.join(os.path.abspath(parent), show, EPISODE) if parent else None,
+        "sequence": ed["name"], "title": title, "show": show, "episode": episode,
+        "in_show": bool(in_show), "from": tpl.get("from") if tpl else None, "ep": ep,
         "fps": fps, "size": list(size), "media": media, "handles": handles if media == "handles" else None,
         "shots": len(shots), "black": sum(1 for s in shots if s["black"]),
         "takes": sum(len(g["clips"]) for g in groups),
@@ -893,8 +926,8 @@ def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
         "unplayable": [c["shot"] for c in clips if c.get("plays") is False],
         "clips": clips, "warnings": warnings,
         "_shots": shots, "_seqs": seqs, "_files": files, "_mix": mix, "_cut": cut,
-        "_groups": groups, "_series": _series(title, ident, fps, size),
-        "_script": _script(title, EPISODE, xml_name, seqs, shots, fps), "_xml_name": xml_name,
+        "_groups": groups, "_series": series,
+        "_script": _script(title, episode, xml_name, seqs, shots, fps), "_xml_name": xml_name,
     }
     return out
 
@@ -909,22 +942,28 @@ def public(summary: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def make(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = None,
-         media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None) -> dict:
-    """The show and its episode written and built: series config, script, cut.json,
+         media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None,
+         in_show: bool = False) -> dict:
+    """The show and its episode (`in_show`: the show's next episode) written and built:
+    series config, script, cut.json,
     mix.json (both passes), the mix's files in audio/, the XML kept in _import/, the media
     plan (_import/xml_media.json) whose `groups` are still to run (run_group). The
     summary, with `groups` (each {"index", "kind", "source", "clips"}) and `build`.
-    SourceError 409 when the show's folder is already there."""
+    SourceError 409 when the show's (or the episode's) folder is already there."""
     from seriesmith import edit as E
     from seriesmith import source as S
     if not parent or not os.path.isdir(parent):
         raise XmlImportError(f"no folder at {parent!r} to import into")
-    p = plan(text, parent, xml_name, name, media, handles, base_dir)
-    show = S.check_name(p["show"])
-    if os.path.exists(os.path.join(parent, show)):
-        raise S.SourceError(409, f"there is already a {show} folder in {parent}")
-    S.new_episode(parent, EPISODE, title=p["title"], show=show,
-                  series=json.dumps(p["_series"], indent=2), script=p["_script"])
+    p = plan(text, parent, xml_name, name, media, handles, base_dir, in_show)
+    if in_show:
+        S.new_episode(parent, p["episode"], title=p["title"],
+                      series=json.dumps(p["_series"], indent=2), script=p["_script"])
+    else:
+        show = S.check_name(p["show"])
+        if os.path.exists(os.path.join(parent, show)):
+            raise S.SourceError(409, f"there is already a {show} folder in {parent}")
+        S.new_episode(parent, EPISODE, title=p["title"], show=show,
+                      series=json.dumps(p["_series"], indent=2), script=p["_script"])
     ep = p["ep"]
     fileio.write_text(os.path.join(ep, IMPORT_DIR, os.path.basename(xml_name) or "edit.xml"),
                       text if isinstance(text, str) else text.decode("utf-8", "replace"))
@@ -1097,7 +1136,7 @@ def _print_summary(s: dict) -> None:
 
 
 def cmd_import_xml(argv: list[str]) -> int:
-    """`seriesmith import-xml <file.xml> [--into FOLDER] [--name Show] [--media
+    """`seriesmith import-xml <file.xml> [--into FOLDER] [--episode] [--name Show] [--media
     handles|reference|proxies] [--handles 1.0] [--dry-run]`."""
     import argparse
     ap = argparse.ArgumentParser(prog="seriesmith import-xml",
@@ -1105,7 +1144,11 @@ def cmd_import_xml(argv: list[str]) -> int:
     ap.add_argument("xml", help="the FCP7 XML (Premiere, Resolve, Final Cut 7, assemble --xml)")
     ap.add_argument("--into", default=".", help="the folder of shows the new show goes in "
                                                 "(default: here)")
-    ap.add_argument("--name", default=None, help="the show's name (default: the sequence's)")
+    ap.add_argument("--name", default=None, help="the show's name (default: the sequence's); "
+                                                 "with --episode, the episode's title")
+    ap.add_argument("--episode", action="store_true",
+                    help="--into is a show's folder: the edit becomes its next episode, "
+                         "the series config its newest episode's")
     ap.add_argument("--media", choices=MEDIA, default="handles",
                     help="handles: each clip's span and handles, H.264 (default); reference: "
                          "each source whole, linked or copied, never re-encoded; proxies: "
@@ -1125,12 +1168,12 @@ def cmd_import_xml(argv: list[str]) -> int:
     try:
         if args.dry_run:
             s = public(plan(text, os.path.abspath(args.into), os.path.basename(args.xml),
-                            args.name, args.media, args.handles, base))
+                            args.name, args.media, args.handles, base, args.episode))
             _print_summary(s)
             print(f"\n  (dry run) would make {s['ep']}")
             return 0
         s = make(text, os.path.abspath(args.into), os.path.basename(args.xml), args.name,
-                 args.media, args.handles, base)
+                 args.media, args.handles, base, args.episode)
     except (XmlImportError, S.SourceError) as e:
         print(f"  !! {e}")
         return 1
