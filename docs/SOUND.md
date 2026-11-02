@@ -377,6 +377,12 @@ Each phase is tested live on local ComfyUI before the next starts.
          fitted to its bars at the preset's tempo, with who plays in each; it asks before
          replacing the cue's own sections, style or orchestration
    - [ ] Repaint, once it's measured (Fixing part of a take)
+   - [ ] `yue2`: YuE2 as a song target beside ACE-Step (lyrics by section, the tempo in its ABC
+         header), measured as ACE-Step and Stable Audio 3 were before it's offered
+   - [ ] the leitmotif reference (after `yue2`): a cue names a theme (another cue's take, or one
+         in the gallery); ACE-Step hears it as its timbre reference (`ReferenceTimbreAudio`),
+         YuE2 as its melody (SheetSage2's ABC of it, `melody` mode); Stable Audio 3 takes none,
+         so a cue with a theme is on one of those; the spotting sheet shows and sets it
 3. **Ambience.** A place's bed under every sequence set there, from the cut, looping across
    its cuts. Decided 2026-11-01 (Measured: ambience beds):
    - **A place, by `of`.** A location's place is its root: follow `of` (a relit or reverse
