@@ -62,7 +62,7 @@ between cues:
   want) for **New cue here** (to the end of that shot), **New cue over** the row's sequence,
   **New cue from here to the end of** it, **Mark a hit here**, **Make effects for** the
   sequence, and its place's ambience bed. Right-click a cue for **Open in Score**, its arc, its
-  orchestration and takes, or **Render its takes**.
+  orchestration and takes, **Render its takes**, **Plays in the mix** or **Delete cue…** (below).
 
 In ep03: the map lays *1M1*, *1M2* and *1M3* over their shots with the four hits on them in
 their colours, and the gaps between the cues are the silences the comedy wants.
@@ -287,6 +287,26 @@ The export (**Export**) mixes everything to -16 LUFS and writes the stems (dialo
 ambience, music, and music-and-effects) beside it; the **Premiere / Resolve XML** puts each
 track on its own audio tracks with the levels.
 
+## Muting or deleting a cue
+
+Two ways to take a cue out, for two different wishes:
+
+- **Mute it** to try the scene without it, or keep it for later: untick **plays in the mix** on
+  its row in the Refs tab's Music, in its block's menu on the Music lane, or in its menu on the
+  spotting map. It stays where it is, its take and its levels kept, drawn faint; Play all and
+  the export leave it silent (the music stem and the loudness too, and the Premiere / Resolve
+  XML lays it switched off). Ctrl+Z undoes it, like any mix edit; tick it to hear it again.
+  It's per pass: muting it in the proxy mix leaves the final as it was. Picking a take in the
+  cue window puts it back in the mix playing.
+- **Delete it** when it's not wanted at all: **Delete cue…** (the trash in the cue window's
+  head, on its Refs tab row, or its menu on the spotting map). It asks first, saying what goes
+  ("m03 and its 5 takes go to the episode's _history folder; it's taken out of the proxy and
+  final mixes"), then moves the cue's folder, its spec and every take, to the episode's
+  `_history/cue-m03.<date-time>/` and takes it out of both passes' mixes. **Ctrl+Z can't bring
+  it back**: to restore it, move that folder back to `sound/m03/` and pick its take again. A
+  cue with a take still queued or rendering can't be deleted (cancel it in Jobs), nor one
+  another cue uses as its theme (give that cue another theme first).
+
 ## 8. When the cut changes
 
 A cue follows its shots. If the cut moves under it, its takes say what changed (the span is
@@ -333,3 +353,5 @@ span, so a trim inside its span makes it stale (above).
 | To hear a take under the picture | the spotting sheet: ▶ beside the take |
 | Another tempo that lands the hits | the spotting sheet: a tempo under **The tempo** |
 | The cues the cut has moved under | the spotting sheet's **Stale cues** |
+| To hear the scene without a cue | untick its **plays in the mix** (Ctrl+Z undoes) |
+| To be rid of a cue | **Delete cue…** (its folder to `_history/`, out of both mixes) |

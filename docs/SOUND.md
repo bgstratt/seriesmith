@@ -62,7 +62,13 @@ shot's head is trimmed; a change to a cue's span is a refit (below). The playhea
 converts to an anchor and back through the cut, as the timeline already does for trims.
 
 - An **item** has an in-anchor and an out-anchor (where it starts and stops in the cut), an
-  offset into its source (where in the take it starts playing) and fades.
+  offset into its source (where in the take it starts playing) and fades. Its fields in
+  `mix.json`: `id`, `track`, `path` (relative to the episode), `in`, `out`, `offset` (seconds),
+  `gain_db`, `fade_in` / `fade_out` (frames), `points` (`[{at, db}]`), `loop`, `label`, and
+  `mute` (true: silent where it is; absent when it plays, so a mix from before it reads the
+  same). A muted item is left out of the render, its stem and the loudness, laid in the FCP7
+  XML with `<enabled>FALSE</enabled>` (there, switched off), silent in Play all and drawn faint
+  on its lane; a mix whose only items are muted is no mix (the cut keeps its own sound).
 - A **hit point** is a named anchor ("the door bursts", "reveal", "the cut to the bridge"),
   placed on the timeline on a marker lane above the sound lanes. A cue lists the hits it must
   land: the frame in the cut and the beat of the cue that lands on it (a downbeat by default).
@@ -182,6 +188,14 @@ written, so a trim inside the span makes the cue stale rather than leaving a sec
 wrong place. Its takes are `tNN.wav` with a sidecar each: the tempo and downbeats measured,
 each hit's error, the loudness per bar and the shape error against the arc, what it was asked.
 
+A cue is taken out two ways. **Muting** its item (`mute`, "plays in the mix" in the editor) keeps
+everything where it is, silent, and is a mix edit like any other (undoable). **Deleting** it
+(`DELETE /seriesmith/cue`) moves the whole folder to `<ep>/_history/cue-<id>.<YYYYmmdd-HHMMSS>/`
+(never pruned; moved back to `sound/<id>/` by hand it is the cue again) and takes its items out
+of every pass's mix, each a mix write with its `_history` copy; refused while a take of it is on
+the queue, or while another cue takes it as its theme. A picked take is placed with no `mute`:
+picking one again in the cue window is hearing it.
+
 ### Checking a take against the arc
 
 Beside the beats (an onset envelope), a take's **loudness per bar** (short-term LUFS) is
@@ -238,8 +252,8 @@ take's own codes by default. Comping from another take at bar lines works on any
 - **FCP7 XML**: A1-A2 the clips' own sound, the recording on the next pair when there is one,
   then effects, ambience and music a pair each, each item a clip of its file with its level
   (the track's fader folded in) and its breakpoints as Audio Levels keyframes, its fades as
-  audio transitions, a loop as its file laid again end to end, the hits as sequence markers.
-  The ducking is computed, so it stays in seriesmith's render. Items on the dialogue track
+  audio transitions, a loop as its file laid again end to end, a muted item laid disabled
+  (`<enabled>FALSE</enabled>`), the hits as sequence markers. The ducking is computed, so it stays in seriesmith's render. Items on the dialogue track
   aren't carried yet.
 - **A single take's download** is the take: its own sound, nothing from the mix.
 

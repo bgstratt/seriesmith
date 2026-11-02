@@ -728,7 +728,8 @@ one that doesn't check (an unknown field, a track or anchor that isn't one, a le
 loudness out of range, two items or hits with one id), or an item whose `path` leaves the
 episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
-`beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
+An item takes `mute` (true or false; stored only when true): silent where it is, in the export,
+its stem, the loudness and Play all, laid disabled in the FCP7 XML. `beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
 (-60 to 12), `mute` and `keep_stale`. `track_list` takes the mix's own tracks, `[{"id", "kind",
 "label"}]` in lane order (stored only when it isn't the four defaults as they are; a label
 only when it isn't the default's): 400 for one without `dialogue` (the takes' sound), a
@@ -881,6 +882,16 @@ tempo), at (seconds from the cue's in point), bars, beats, cue_bars}]}`. 404 for
 ### `PUT /seriesmith/cue`
 Body `{"ep", "cue"}`: writes the spec; 400 for one that doesn't check (an unknown field, a
 model that isn't a music target, a bpm, meter, tail, level or take count out of range).
+
+### `DELETE /seriesmith/cue?ep=…&cue=…`
+Deletes a cue: its folder (`sound/<cue>/`: the spec, every take and sidecar) moves whole to
+`<ep>/_history/cue-<cue>.<YYYYmmdd-HHMMSS>/` (to put back by hand: move it to `sound/<cue>/`), and
+its items (id the cue's, or a file of its folder) come out of every pass's mix, each a mix write
+with the old `mix.json` copied to `_history/`. Answers `{"cue", "moved_to"` (relative to the
+episode)`, "takes", "mixes"` (the passes it was taken out of)`}`. 404 for no such cue; 409 while a
+take of it is queued or rendering on seriesmith's queue (cancel it in Jobs), when another cue
+takes it as its theme, or when a pass's `mix.json` doesn't read (nothing is changed). To silence
+a cue but keep it, set its item's `mute` with `PUT /seriesmith/mix` instead.
 
 ### `POST /seriesmith/cue/render`
 Body `{"ep", "pass", "cue", "takes"?, "backend"?}`: plans the cue and queues `takes` takes

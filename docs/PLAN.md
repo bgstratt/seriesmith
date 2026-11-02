@@ -1637,6 +1637,11 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       recorded dub is (`audio.mode: source_track`, each shot its window); one real song tried
       (CupsMV), the vocal stem offered (optional, off by default: H3 lip-synced as well to the
       whole song) and the guide written (docs/MUSIC_VIDEO.md) 2026-11-02
+- [x] Taking a cue out (2026-11-02): an item's `mute` (silent in the export, stems, loudness and
+      Play all, disabled in the XML; "plays in the mix" on the Refs tab's Music row, an item's
+      menu, the spotting map's cue menu) and `DELETE /seriesmith/cue` (its folder to
+      `_history/cue-<id>.<stamp>/`, out of both mixes; "Delete cue…" there and in the cue
+      window's head); not yet looked at in a browser
 
 ## Fixed: the voice model is two lists (noted 2026-11-01)
 

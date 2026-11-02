@@ -797,7 +797,9 @@ script call for is listed here.
   voice stems** and how many are split, then every shot in the cut: what the track plays for it
   (whole, voices, silent), **Whole** and **Voices** to hear each side alone, its own way
   (**Track's**, **Whole**, **Voices**) and **Split again**. **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
-  mix; a row opens the cue window. **Effects** lists every shot with effects made in this pass
+  mix; a row opens the cue window. A cue in the mix has **plays in the mix**: untick it to
+  silence the cue in this pass's mix and Play all without taking it out (Ctrl+Z undoes it).
+  The **trash** button deletes the cue (below). **Effects** lists every shot with effects made in this pass
   (picked or not): its takes, which one plays and whether it's stale. A row opens to its takes
   (fetched then): play one alone, **Pick** it, **Make again** (on a model of your choice),
   **Mute**, or **No effects**. Then the files on that lane of the pass's mix, where each starts
@@ -1335,7 +1337,10 @@ with stems beside it.
   copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
 - **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head
   keeps the sound where it was, as a clip's trim does); **Esc** cancels. **Right-click** it
-  for its gain (dB), fades in and out (frames), loop, label, **Clear the volume points**, or Delete.
+  for its gain (dB), fades in and out (frames), loop, label, **Plays in the mix**, **Clear the
+  volume points**, or Delete. **Plays in the mix** unticked mutes it where it is (saved at once,
+  undone with Ctrl+Z): drawn faint, silent in Play all and the export (its stem and the loudness
+  too), and laid switched off in the Premiere / Resolve XML; tick it to hear it again.
 - **Volume points** shape a block's level: the pink line across it (dB on its gain; a faint line
   marks 0 dB; drawn -24 to +12). **Double-click on the line** for a point there, at the line's
   level; **drag a point** up or down for its dB (0.5 dB a step, half a dB per pixel moved) and
@@ -1437,7 +1442,8 @@ under the picture as Play all plays it, and every Play all key works in it.
   end of <sequence>**, **Mark a hit here**, **Make effects for <sequence>** and, when its shots
   share a place, **Make <place>'s bed** (or its dialog when the place has no words); a new cue
   opens on the Score tab. **Right-click a cue** for **Open in Score**, its arc, its
-  orchestration and takes, or **Render its takes**.
+  orchestration and takes, **Render its takes**, **Plays in the mix** (when it's in the mix: a
+  muted cue's block is faint and tagged *muted*) or **Delete cue…**.
 - **The selected cue** (on the right): its **hits table** (name, kind, must, anchor, the cut's
   timecode, the bar and beat it lands on, how far the fit leaves it off its line, and each
   measured take's error in frames, best take first, the one in the mix marked ●; orange past
@@ -1461,6 +1467,17 @@ New cue over the shots selected…**, or right-click where it should start for *
 here**, which runs to the end of that shot. A cue's block on the Music lane shows a note
 icon; **double-click it** to open the cue. The window takes the viewer's place; **Timeline**
 or **Esc** goes back, and the pass toggle switches it with the rest of the editor.
+
+**Muting or deleting a cue.** To stop hearing a cue but keep it, untick **plays in the mix**
+(the Refs tab's Music row, its block's menu on the Music lane, or its menu on the spotting map):
+it stays where it is, faint, silent in Play all and the export, and Ctrl+Z brings it back. To
+be rid of it, **Delete cue…** (the trash in the cue window's head, on its Refs tab row, or its
+menu on the spotting map) asks first ("m03 and its 5 takes go to the episode's _history folder;
+it's taken out of the proxy and final mixes"), then moves its folder (its spec and every take)
+to the episode's `_history/cue-m03.<date-time>/` and takes it out of both passes' mixes. Ctrl+Z
+can't bring that back: move the folder back to `sound/m03/` by hand. It's refused while a take
+of it is still queued or rendering (cancel it in Jobs) and while another cue uses it as its
+theme. The cue window showing it goes back to the spotting sheet.
 
 The **Score** tab lays everything on one bar grid at the cue's tempo, from its pre-roll (the
 bars before its in point, hatched) through its tail, scrolling together:
