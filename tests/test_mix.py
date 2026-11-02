@@ -355,6 +355,39 @@ class RouteTest(ApiTest):
         self.assertEqual(got["step"], MX.SPEECH_STEP)
         self.assertIsInstance(got["curve"], list)
 
+    def test_beats_of_the_music(self):
+        """GET /seriesmith/mix/beats: a cue take's grid from its sidecar, a song's measured
+        and kept beside it (docs/SOUND.md phase 5)."""
+        from test_beats import clicks
+        from seriesmith import cue as CU
+        from seriesmith.core import fileio as FIO
+        song = os.path.join(self.ep, "audio", "song.wav")
+        os.makedirs(os.path.dirname(song), exist_ok=True)
+        MX.write_wav(song, clicks(120.0, 12, offset=0.5))
+        d = CU.cue_dir(self.ep, "m02")
+        os.makedirs(d, exist_ok=True)
+        steps_wav(os.path.join(d, "t01.wav"), [6000])
+        FIO.write_json(os.path.join(d, "t01.json"), {"status": "ok", "plan": {"fit": {"bpm": 96.0}},
+                                                     "measured": {"downbeat": 1.4}})
+        self.put({"items": [
+            {"id": "song", "track": "music", "path": "audio/song.wav", "in": anchor("sh010")},
+            {"id": "m02", "track": "music", "path": "sound/m02/t01.wav", "in": anchor("sh010")},
+            {"id": "a01", "track": "ambience", "path": self.score(), "in": anchor("sh010")}]})
+        got = self.ok(A.get_mix_beats(self.ctx, {"ep": self.ep, "pass": "final"}))
+        self.assertEqual([i["id"] for i in got["items"]], ["song", "m02"])     # music only
+        g = got["items"][0]["grid"]
+        self.assertEqual(g["source"], "measured")
+        self.assertAlmostEqual(g["bpm"], 120.0, delta=0.5)
+        self.assertAlmostEqual(g["downbeat"], 0.5, delta=1 / 24)
+        self.assertTrue(os.path.isfile(song + ".beats.json"))
+        cue = got["items"][1]["grid"]
+        self.assertEqual(cue["source"], "cue")
+        self.assertEqual(cue["bpm"], 96.0)
+        self.assertEqual(cue["downbeat"], 1.4)
+        self.assertAlmostEqual(cue["first"], 1.4 - 2 * 0.625, places=4)    # two beats before it
+        self.assertEqual(got["recording"]["path"], "audio/ks01_mix.wav")       # the recording, whose
+        self.assertFalse((got["recording"]["grid"] or {}).get("steady"))    # tone has no beat
+
     def test_get_empty_with_defaults(self):
         got = self.ok(A.get_mix(self.ctx, {"ep": self.ep, "pass": "final"}))
         self.assertEqual(got["defaults"]["gain_db"]["music"], -12.0)

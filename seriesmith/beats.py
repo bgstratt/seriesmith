@@ -10,6 +10,8 @@ Plain numpy on float32 stereo at mix.RATE (mix.decode reads a file so):
     bar_levels(buf, bpm, start, beats_per_bar, bars) -> dB per bar (RMS)
     hit_errors(hits, bpm, start, fps)                -> each hit's distance to its beat, frames
     shape_error(levels, arc)       -> 0 (the arc) .. 1, how far the level per bar strays
+    file_grid(path)                -> a plain file's beat grid (a song on the Music track, the
+                                      episode's recording), measured once and kept beside it
 
 A take is never more than a cue's length (minutes), so everything is computed whole.
 """
@@ -116,8 +118,15 @@ def grid(env, bpm: float, buf=None, beats_per_bar: int = 4,
     first = phase * dt + LATENCY
     if buf is None:
         return first, first
+    return first, downbeat_of(buf, first, period * dt, beats_per_bar, rate)
+
+
+def downbeat_of(buf, first: float, beat_s: float, beats_per_bar: int = 4,
+                rate: int = RATE) -> float:
+    """The first downbeat of a steady grid from `first` every `beat_s` seconds: the beat
+    of the bar with the most sound just after it, summed over the whole take."""
+    np = _np()
     x = mono(buf)
-    beat_s = period * dt
     win = int(min(0.08, beat_s / 2) * rate)
     weight = [0.0] * beats_per_bar
     t, k = first, 0
@@ -125,7 +134,7 @@ def grid(env, bpm: float, buf=None, beats_per_bar: int = 4,
         a = max(0, int(t * rate))
         weight[k % beats_per_bar] += float(np.sqrt(np.mean(x[a: a + win] ** 2)))
         t, k = t + beat_s, k + 1
-    return first, first + beat_s * int(np.argmax(weight))
+    return first + beat_s * int(np.argmax(weight))
 
 
 def bar_levels(buf, bpm: float, start: float, beats_per_bar: int, bars: int,
@@ -183,3 +192,123 @@ def shape_error(levels: list[float], arc: list[float]) -> float | None:
     lv = (lv - lv.min()) / np.ptp(lv)
     a = (a - a.min()) / np.ptp(a)
     return round(float(np.mean(np.abs(lv - a))), 3)
+
+
+# ---------------------------------------------------------------------------
+# a plain file's beats (docs/SOUND.md phase 5: cutting to music): a song laid on the
+# Music track, or the episode's recording when it is a song, has no take sidecar to
+# say where its beats are, so they are measured once and kept beside the file
+# ---------------------------------------------------------------------------
+
+GRID_SUFFIX = ".beats.json"
+GRID_VERSION = 1
+# a grid is trusted for snapping when its tempo's comb (comb_tempo) is this strong and the
+# file this long: a song with a pulse reads 0.8-2.8, soft score and speech 0.2-0.5, and a
+# clip of a few seconds can read anything
+STEADY_MIN = 0.5
+STEADY_SECONDS = 8.0
+
+
+def comb_tempo(env, lo: float = 70.0, hi: float = 180.0, step: float = 0.25,
+               rate: int = RATE) -> tuple[float | None, float]:
+    """(beats per minute, strength) of a file with no asked tempo: each tempo from `lo`
+    to `hi` scored by the envelope's autocorrelation (as a share of its own power) at one,
+    two, three and four beats summed, so a tempo whose bars line up too beats one that only
+    fits a single lag (a 3:4 or swung sub-beat: tempo() took an ACE-Step cue heard at 98 for
+    130). The strength is that sum: how much of a pulse there is. (None, 0) for silence."""
+    np = _np()
+    if len(env) < 8 or not env.any():
+        return None, 0.0
+    e = env - env.mean()
+    ac = np.correlate(e, e, mode="full")[len(e) - 1:]
+    if ac[0] <= 0:
+        return None, 0.0
+    ac = ac / ac[0]
+    dt = hop_s(rate)
+    best, at = -np.inf, None
+    for bpm in np.arange(lo, hi + 1e-9, step):
+        lag = 60.0 / bpm / dt
+        s = 0.0
+        for m in (1, 2, 3, 4):
+            x = m * lag
+            i = int(x)
+            if i + 1 >= len(ac):
+                break
+            s += ac[i] + (ac[i + 1] - ac[i]) * (x - i)
+        if s > best:
+            best, at = s, float(bpm)
+    return at, float(max(0.0, best))
+
+
+def refine(env, bpm: float, first: float, seconds: float, rate: int = RATE,
+           rounds: int = 2) -> tuple[float, float]:
+    """(bpm, first beat) of a steady grid fitted to the onsets near its beats: each beat
+    moved to the strongest onset within a sixth of a beat, then a straight line through
+    them (least squares), twice. A tempo off by a tenth of a bpm drifts a beat's width
+    over a song; the line takes that out. The grid as given when too few beats have one."""
+    np = _np()
+    for _ in range(rounds):
+        beat = 60.0 / bpm
+        ks, ts = [], []
+        k = 0
+        while first + k * beat < seconds:
+            at, strength = onset_near(env, first + k * beat, beat / 6, rate)
+            if at is not None and strength >= 0.1:
+                ks.append(k)
+                ts.append(at)
+            k += 1
+        if len(ks) < 8:
+            break
+        slope, icpt = np.polyfit(np.array(ks, dtype=float), np.array(ts, dtype=float), 1)
+        if not slope > 0:
+            break
+        # the line's beat 0 is the grid's first (at or after the music starts)
+        bpm, first = 60.0 / float(slope), float(icpt)
+        if first < 0:
+            first += 60.0 / bpm
+    return bpm, first
+
+
+def measure_grid(buf, beats_per_bar: int = 4, rate: int = RATE) -> dict | None:
+    """A file's steady beat grid: {"bpm", "first" (the first beat, s), "downbeat" (the
+    first downbeat, s), "beats_per_bar", "seconds", "strength" (comb_tempo's), "steady"
+    (strong and long enough to snap to: STEADY_MIN, STEADY_SECONDS)}; None when it has
+    no tempo to find. The meter isn't heard: four beats a bar."""
+    env = onsets(buf, rate)
+    bpm, strength = comb_tempo(env, rate=rate)
+    if bpm is None:
+        return None
+    seconds = len(buf) / rate
+    first, _ = grid(env, bpm, None, beats_per_bar, rate)
+    bpm, first = refine(env, bpm, first, seconds, rate)
+    down = downbeat_of(buf, first, 60.0 / bpm, beats_per_bar, rate)
+    return {"bpm": round(bpm, 4), "first": round(first, 4), "downbeat": round(down, 4),
+            "beats_per_bar": beats_per_bar, "seconds": round(seconds, 4),
+            "strength": round(strength, 3),
+            "steady": strength >= STEADY_MIN and seconds >= STEADY_SECONDS}
+
+
+def file_grid(path: str) -> dict | None:
+    """`path`'s beat grid (measure_grid), from `<path>.beats.json` when that was made from
+    the file as it is now (its size and mtime), else measured and kept there (a folder that
+    can't be written is measured again next time). None for a file with no sound or no
+    tempo."""
+    import os
+    from seriesmith import mix as MX
+    from seriesmith.core import fileio as F
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    stamp = {"size": st.st_size, "mtime": round(st.st_mtime, 3), "version": GRID_VERSION}
+    side = path + GRID_SUFFIX
+    kept = F.read_json_or(side, None, dict)
+    if kept and kept.get("of") == stamp:
+        return kept.get("grid")
+    buf = MX.decode(path)
+    g = measure_grid(buf) if len(buf) else None
+    try:
+        F.write_json(side, {"of": stamp, "grid": g})
+    except OSError:
+        pass
+    return g

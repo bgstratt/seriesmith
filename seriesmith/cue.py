@@ -1197,6 +1197,49 @@ def song_record(sung: str, written: str | None, raw: str, m: dict, p: dict, rel:
 
 
 # ---------------------------------------------------------------------------
+# beats to cut to (docs/SOUND.md phase 5)
+# ---------------------------------------------------------------------------
+
+_TAKE_WAV = re.compile(rf"^{SOUND_DIR}/([A-Za-z0-9_-]{{1,40}})/t(\d{{2,3}})\.wav$")
+
+
+def take_grid(root: str, rel: str) -> dict | None:
+    """The beat grid of a cue's take from its sidecar, when `rel` (relative to the episode)
+    is one (`sound/<cue>/tNN.wav`, finished and measured): the take is stretched to the
+    cue's tempo, so its beats are every 60 / bpm seconds through its measured downbeat
+    (the first bar line). {"bpm", "first", "downbeat", "beats_per_bar", "seconds" (None:
+    not read), "steady": True, "source": "cue"}; None for anything else."""
+    m = _TAKE_WAV.match(rel or "")
+    if not m:
+        return None
+    sc = F.read_json_or(os.path.join(cue_dir(root, m.group(1)), f"t{int(m.group(2)):02d}.json"), None, dict)
+    meas = (sc or {}).get("measured") or {}
+    bpm = (((sc or {}).get("plan") or {}).get("fit") or {}).get("bpm")
+    if sc is None or sc.get("status") != "ok" or meas.get("downbeat") is None or not bpm:
+        return None
+    try:
+        per = meter_beats(load_spec(root, m.group(1)))
+    except (OSError, CueError, ValueError):
+        per = 4
+    beat = 60.0 / float(bpm)
+    down = float(meas["downbeat"])
+    first = down - beat * math.floor(down / beat + 1e-9)
+    return {"bpm": round(float(bpm), 4), "first": round(first, 4), "downbeat": round(down, 4),
+            "beats_per_bar": per, "seconds": None, "steady": True, "source": "cue"}
+
+
+def beat_grid(root: str, full: str, rel: str | None = None) -> dict | None:
+    """A sound file's beat grid to cut to: a cue take's from its sidecar (take_grid), any
+    other file's measured once and kept beside it (beats.file_grid, `"source": "measured"`).
+    None when it has none."""
+    g = take_grid(root, rel) if rel else None
+    if g is not None:
+        return g
+    g = B.file_grid(full)
+    return {**g, "source": "measured"} if g else None
+
+
+# ---------------------------------------------------------------------------
 # into the mix
 # ---------------------------------------------------------------------------
 

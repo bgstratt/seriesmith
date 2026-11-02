@@ -2612,6 +2612,45 @@ def get_mix_duck(ctx: Context, query: dict):
 
 
 @handler
+def get_mix_beats(ctx: Context, query: dict):
+    """The beats to cut to (docs/SOUND.md phase 5): each music item's file's beat grid and
+    the episode's recording's, for the timeline to snap trims to and draw. `items`: [{"id",
+    "path", "grid"}] for the pass's mix's items on the music track; `recording`: {"path",
+    "grid"} or null (no recording, or not there). A grid is {"bpm", "first" (the first beat,
+    seconds into the file), "downbeat" (the first downbeat), "beats_per_bar", "seconds",
+    "steady" (a pulse to snap to: a measured file may have none), "source": "cue" (a cue
+    take's, from its sidecar) | "measured" (any other file's, measured once and kept beside it
+    as `<file>.beats.json`)}, or null when the file has no sound or no tempo. Asked for when
+    the timeline needs them (the mix's music files changed), never polled: measuring a song
+    the first time takes about a second a minute of it."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    grids: dict = {}
+
+    def grid(full: str, rel: str | None):
+        if full not in grids:
+            grids[full] = CU.beat_grid(ep, full, rel) if os.path.isfile(full) else None
+        return grids[full]
+    items = []
+    for it in mix.get("items") or []:
+        if it["track"] != "music":
+            continue
+        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        items.append({"id": it["id"], "path": it["path"], "grid": grid(full, it["path"])})
+    rec = None
+    track = E.episode_track(ep)
+    if track and track.get("exists"):
+        p = track["path"]
+        full = os.path.normpath(p if os.path.isabs(p) else os.path.join(ep, *p.split("/")))
+        rec = {"path": p, "grid": grid(full, None)}
+    return 200, {"items": items, "recording": rec}
+
+
+@handler
 def put_mix(ctx: Context, body):
     """Replace a pass's mix: `{ep, pass, mix}`. 400 for one that doesn't check (an
     unknown field, a track or anchor that isn't one, a level out of range). Items name
@@ -5348,6 +5387,7 @@ ROUTES = [
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
     ("GET", "/seriesmith/mix/duck", get_mix_duck, "query"),
+    ("GET", "/seriesmith/mix/beats", get_mix_beats, "query"),
     ("GET", "/seriesmith/cues", get_cues, "query"),
     ("GET", "/seriesmith/cue", get_cue, "query"),
     ("PUT", "/seriesmith/cue", put_cue, "body"),

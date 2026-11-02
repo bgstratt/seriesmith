@@ -78,5 +78,56 @@ class BeatsTest(unittest.TestCase):
         self.assertEqual(beat, 0.5)
 
 
+@unittest.skipIf(np is None, "numpy isn't installed")
+class FileGridTest(unittest.TestCase):
+    """A plain file's beats (docs/SOUND.md phase 5: a song on the Music track, the recording)."""
+
+    def test_measured_with_no_asked_tempo(self):
+        # 98 bpm, the tempo tempo() alone took for 130 on an ACE-Step cue: the comb finds it
+        for bpm, offset in ((98.0, 0.4), (128.0, 1.1), (75.0, 0.25)):
+            with self.subTest(bpm=bpm):
+                g = B.measure_grid(clicks(bpm, 12, offset=offset))
+                self.assertAlmostEqual(g["bpm"], bpm, delta=bpm * 0.003)
+                self.assertAlmostEqual(g["first"], offset, delta=1 / 24)
+                self.assertAlmostEqual(g["downbeat"], offset, delta=1 / 24)
+                self.assertTrue(g["steady"])
+                self.assertEqual(g["beats_per_bar"], 4)
+
+    def test_no_pulse_isnt_steady(self):
+        rng = np.random.default_rng(1)
+        x = np.zeros(int(20 * B.RATE), dtype=np.float32)
+        # bursts at random times, as speech is
+        for t in rng.uniform(0, 19.5, 40):
+            a = int(t * B.RATE)
+            x[a: a + 2400] += rng.normal(0, 0.3, 2400).astype(np.float32)
+        g = B.measure_grid(np.stack([x, x], axis=1))
+        self.assertFalse(g and g["steady"])
+        # a few seconds of clicks is too short to trust
+        self.assertFalse(B.measure_grid(clicks(120.0, 2))["steady"])
+
+    def test_kept_beside_the_file_until_it_changes(self):
+        import tempfile
+        from seriesmith import mix as MX
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "song.wav")
+        MX.write_wav(path, clicks(110.0, 12))
+        g = B.file_grid(path)
+        self.assertAlmostEqual(g["bpm"], 110.0, delta=0.5)
+        side = path + B.GRID_SUFFIX
+        self.assertTrue(os.path.isfile(side))
+        calls = []
+        real = B.measure_grid
+        B.measure_grid = lambda *a, **k: calls.append(1) or real(*a, **k)
+        try:
+            self.assertEqual(B.file_grid(path), g)               # from beside it
+            self.assertEqual(calls, [])
+            MX.write_wav(path, clicks(90.0, 12))                 # changed: measured again
+            self.assertAlmostEqual(B.file_grid(path)["bpm"], 90.0, delta=0.5)
+            self.assertEqual(calls, [1])
+        finally:
+            B.measure_grid = real
+        self.assertIsNone(B.file_grid(os.path.join(d, "none.wav")))
+
+
 if __name__ == "__main__":
     unittest.main()
