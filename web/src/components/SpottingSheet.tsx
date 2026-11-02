@@ -102,13 +102,15 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const hits = useMemo(() => cutHits(res?.mix, items, fps), [res?.mix, items, fps]);
   const stale = useMemo(() => staleCues(cues), [cues]);
   const offCut = cues.filter((c) => !blocks.some((b) => b.id === c.spec.id));
+  // the cue the cue tabs open: the selected one, else the one under the playhead, else the first
+  const tabCue = sel ?? (blocks.find((b) => cp.pos >= b.start && cp.pos < b.end) ?? blocks[0])?.id ?? cues[0]?.spec.id ?? null;
 
 
   const head = (
     <>
       <i className="pi pi-map" style={{ color: "var(--h3-arc)" }} />
       <b>Scoring</b>
-      <ScoringTabs active="spot" cue={v.cue ?? null} />
+      <ScoringTabs active="spot" cue={tabCue} />
       <span className="h3-muted h3-small">{pass} · {cues.length} cue{cues.length === 1 ? "" : "s"} · {hits.length} hit{hits.length === 1 ? "" : "s"} · {fmtClock(total)}</span>
       <button className={`h3-btn h3-icon${help ? " h3-on" : ""}`} title="How to use the spotting sheet" aria-label="How to use the spotting sheet" aria-pressed={help}
         onClick={() => showHelp(!help)}><i className="pi pi-question" /></button>

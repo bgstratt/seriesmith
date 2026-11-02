@@ -27,7 +27,7 @@ const CUE_TABS: [CueTab, string, string][] = [
 ];
 
 /**
- * `active` the tab showing; `cue` the cue the cue tabs open (null: none selected, they wait);
+ * `active` the tab showing; `cue` the cue the cue tabs open (null: the episode has none, they wait);
  * `onCueTab` switches between the cue tabs in place (the cue window), else they open it.
  */
 export function ScoringTabs({ active, cue, onCueTab }: { active: ScoringTab; cue: string | null; onCueTab?: (t: CueTab) => void }) {
@@ -39,7 +39,7 @@ export function ScoringTabs({ active, cue, onCueTab }: { active: ScoringTab; cue
       </button>
       {CUE_TABS.map(([t, name, title]) => (
         <button key={t} className={active === t ? "h3-on" : ""} disabled={!cue}
-          title={cue ? `${title} (${cue})` : `${title}. Select a cue on the map first`}
+          title={cue ? `${title} (${cue})` : `${title}. Add a cue first`}
           onClick={() => {
             if (!cue || active === t) return;
             if (onCueTab && active !== "spot") onCueTab(t);

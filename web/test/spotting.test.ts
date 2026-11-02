@@ -336,14 +336,12 @@ describe("the spotting sheet", () => {
     expect([store.get().viewer?.kind, store.get().viewer?.spot, store.get().viewer?.cue]).toEqual(["cut", true, "m01"]);
   });
 
-  it("the scoring window's tabs: the cue tabs wait for a cue, then open the cue window on theirs", async () => {
+  it("the scoring window's tabs: with no cue selected the cue tabs open the first, on their tab", async () => {
     await open();
     const tab = (name: string) => [...document.querySelectorAll<HTMLButtonElement>(".h3-spot-win .h3-seg button")].find((b) => b.textContent!.trim() === name)!;
     store.set((s) => ({ viewer: { ...s.viewer!, cue: undefined } }));
     await act(async () => {});
-    expect([tab("Spotting").classList.contains("h3-on"), tab("Score").disabled, tab("Arc").disabled]).toEqual([true, true, true]);
-    await act(async () => q(".h3-spot-cue")[0].dispatchEvent(new MouseEvent("click", { bubbles: true })));
-    expect(tab("Arc").disabled).toBe(false);
+    expect([tab("Spotting").classList.contains("h3-on"), tab("Score").disabled, tab("Arc").disabled]).toEqual([true, false, false]);
     await act(async () => tab("Arc").click());
     expect([store.get().viewer?.kind, store.get().viewer?.cue, store.get().viewer?.cueTab]).toEqual(["cue", "m01", "arc"]);
     const on = [...document.querySelectorAll<HTMLButtonElement>(".h3-cue-win .h3-seg button")].find((b) => b.classList.contains("h3-on"))!;
