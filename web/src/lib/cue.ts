@@ -378,10 +378,14 @@ export function clipsOver(items: PlayItem[], t0: number, g: Grid): { it: PlayIte
 
 const tnum = (n: number) => `t${String(n).padStart(2, "0")}`;
 
-/** A theme as the server says it: "m01 t02", or the file's path. */
-export function themeLabel(th: CueTheme | null | undefined): string {
+/** A theme as the server says it: "m01 t02", or the file's path; one that follows another cue's
+ * pick is the take the plan found (`resolved`, the plan's label: "m01 t03 (in the mix)"), else its cue. */
+export function themeLabel(th: CueTheme | null | undefined, resolved?: Pick<CuePlanTheme, "label" | "from"> | null): string {
   if (!th) return "";
-  return "cue" in th ? `${th.cue} ${tnum(th.take)}` : th.file;
+  if (!("cue" in th)) return th.file;
+  if (th.take != null) return `${th.cue} ${tnum(th.take)}`;
+  if (resolved?.from) return `${resolved.label} (${resolved.from === "mix" ? "in the mix" : "its best take: none in the mix"})`;
+  return `${th.cue} (the take in the mix)`;
 }
 
 /** How the plan's model hears the theme, in words ("" when it doesn't: the plan's warning says why). */

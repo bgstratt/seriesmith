@@ -427,6 +427,35 @@ class RepaintTest(TakeTest):
         self.assertEqual(by_class(g, "TextEncodeAceStepAudio1.5")["seed"], 5)
 
     @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
+    def test_a_followed_theme_is_the_one_it_was_made_with(self):
+        # cue m09 with two finished takes; m01 follows its pick, made when t01 was picked
+        CU.save_spec(self.root, {"id": "m09", "in": anchor("sh010"), "out": anchor("sh020", 60)})
+        for _ in range(2):
+            k = CU.reserve(self.root, "m09", {"pass": "final"})
+            CU.update(self.root, "m09", k, status="ok")
+            MX.write_wav(CU.take_paths(self.root, "m09", k)["wav"], MX._np().zeros((4800, 2), dtype="float32"))
+        spec = CU.save_spec(self.root, self.spec(model="ace_step15", theme={"cue": "m09"}))
+        CU.update(self.root, "m09", 1, measured={"score": 1.0})
+        p = CU.plan(self.root, "final", spec, {})
+        self.assertEqual(p["theme"]["label"], "m09 t01")
+        n = CU.reserve(self.root, "m01", {"pass": "final", "target": "ace_step15", "seed": 5,
+                                          "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
+                                          "plan": {"fit": p["fit"]}, "theme": CU.theme_record(p["theme"])})
+        CU.finish_take(self.root, "m01", n, self.make_take(p), p)
+        # m09's t02 picked since: m01's take is stale, and a repaint of it still hears t01
+        mix = MX.check(MX.load(self.root).get("final"))
+        mix["items"] = [{"id": "m09", "track": "music", "path": "sound/m09/t02.wav",
+                         "in": anchor("sh010"), "out": anchor("sh020", 60)}]
+        MX.write(self.root, "final", mix)
+        self.assertEqual(CU.stale(CU.list_takes(self.root, "m01")[0], CU.plan(self.root, "final", spec, {})),
+                         ["the theme is m09 t02, not m09 t01"])
+        g, _, n2 = CU.repaint(self.root, "final", "m01", n, (3, 5))
+        refs = [v["inputs"]["audio"].path for v in g.values() if v["class_type"] == "LoadAudio"]
+        self.assertIn(CU.take_paths(self.root, "m09", 1)["wav"], refs)
+        self.assertNotIn(CU.take_paths(self.root, "m09", 2)["wav"], refs)
+        self.assertEqual(CU.list_takes(self.root, "m01")[1]["theme"], {"label": "m09 t01", "use": "timbre", "from": "best"})
+
+    @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
     def test_refusals(self):
         p, n = self.ace_take()
         with self.assertRaises(CU.CueError):

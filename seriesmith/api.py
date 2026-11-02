@@ -2691,12 +2691,13 @@ def put_mix(ctx: Context, body):
 
 def _plan_summary(p: dict) -> dict:
     """What a cue's plan says, for the window (cue.plan, without the spec it came from): and
-    `theme` (how its model hears the cue's theme: {spec, label, use, warning}), `warnings`,
+    `theme` (how its model hears the cue's theme: {spec, label, use, warning, from}: `label`
+    names the take a theme that follows another cue's pick is now, `from` "mix" or "best"), `warnings`,
     `blocked` (why it can't render) and `song` (a theme's plan's sections) when it has them."""
     out = {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "direction", "bars", "bar", "preroll",
                              "seconds", "ask_seconds", "sections", "arc", "prompt")}
     if p.get("theme"):
-        out["theme"] = {k: p["theme"][k] for k in ("spec", "label", "use", "warning")}
+        out["theme"] = {k: p["theme"][k] for k in ("spec", "label", "use", "warning", "from")}
     for k in ("warnings", "blocked", "song"):
         if p.get(k):
             out[k] = p[k]
@@ -2746,10 +2747,7 @@ def get_cues(ctx: Context, query: dict):
 def _cue_state(ep: str, pass_: str, spec: dict, takes: list[dict], item: dict | None) -> dict:
     """A cue against the pass's cut, for get_cues: its fitted tempo, the take its mix item
     plays, and what is stale."""
-    in_mix = None
-    if item:
-        m = re.fullmatch(rf"{CU.SOUND_DIR}/{re.escape(spec['id'])}/t(\d{{2,3}})\.wav", item.get("path") or "")
-        in_mix = int(m.group(1)) if m else None
+    in_mix = CU.item_take(item, spec["id"])
     try:
         p = CU.plan(ep, pass_, spec)
     except CU.CueError as e:
@@ -2852,8 +2850,7 @@ def post_cue_render(ctx: Context, body):
                                         "plan": {
                                             k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
                                                                  "seconds", "ask_seconds")},
-                                        **({"theme": {"label": p["theme"]["label"], "use": p["theme"]["use"]}}
-                                           if p.get("theme") else {})})
+                                        **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
         queued.append({"take": k, "job": job, "seed": seed})
     episode_event(ctx, ep)

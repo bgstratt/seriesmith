@@ -457,6 +457,17 @@ Each phase is tested live on local ComfyUI before the next starts.
          13 s, heard 95.7. Whether ACE-Step's timbre reference is heard is for the ear: with a
          reference its conditioning drops the LM's audio codes and treats the reference as a
          cover's source (model_base `is_covers`))
+   - [x] a theme that follows the pick (2026-11-02): `{"cue"}` with no take, the editor's
+         default when a cue is picked as the theme ("the take in the mix"). Chosen over
+         `take: "picked"` because a pinned theme names its take and a followed one names only
+         its cue, as a spec's `hits: null` means "every hit of the mix"; `take` stays a number.
+         Resolved when the cue is planned (`cue.theme_take`): the take that cue's item in the
+         pass's mix plays (muted still counts: muting isn't unpicking), else its best finished
+         take (`ranked`: the best measured, else the first finished), else none (the plan's
+         warning, rendered without it). The plan's `theme.label` names the take ("m01 t03"),
+         its `from` how it was found ("mix", "best"); the take's sidecar keeps both, and since
+         the fingerprint is the label, a new pick there makes this cue's takes stale like any
+         refit. A repaint hears the take its source was made with, not the one picked now
 3. **Ambience.** A place's bed under every sequence set there, from the cut, looping across
    its cuts. Decided 2026-11-01 (Measured: ambience beds):
    - **A place, by `of`.** A location's place is its root: follow `of` (a relit or reverse

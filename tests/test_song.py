@@ -52,14 +52,16 @@ class _Base(unittest.TestCase):
         return CU.check_spec({"id": "m02", "in": anchor("sh010"), "out": anchor("sh030", 100),
                               "bpm": 96, "kind": "song", "sections": LYRICS, **kw})
 
-    def theme_take(self, plan: bool = True, status: str = "ok") -> None:
-        """Cue m01 with a finished take 1 (a wav, and its plan when `plan`)."""
+    def theme_take(self, plan: bool = True, status: str = "ok", score: float | None = None) -> int:
+        """Cue m01 with a finished take (a wav, and its plan when `plan`; `score` its measured
+        rank, lower better), the next number: 1 first."""
         CU.save_spec(self.root, {"id": "m01", "in": anchor("sh010"), "out": anchor("sh020", 60)})
         n = CU.reserve(self.root, "m01", {"pass": "final"})
-        CU.update(self.root, "m01", n, status=status)
+        CU.update(self.root, "m01", n, status=status, **({"measured": {"score": score}} if score is not None else {}))
         MX.write_wav(CU.take_paths(self.root, "m01", n)["wav"], MX._np().zeros((4800, 2), dtype="float32"))
         if plan:
-            F.write_text(os.path.join(CU.cue_dir(self.root, "m01"), "t01.abc"), ABC.set_tempo(plan_text(), 90))
+            F.write_text(os.path.join(CU.cue_dir(self.root, "m01"), f"t{n:02d}.abc"), ABC.set_tempo(plan_text(), 90))
+        return n
 
 
 class Yue2Test(_Base):
@@ -143,7 +145,9 @@ class ThemeSpecTest(_Base):
         self.assertEqual(self.spec(theme={"cue": "m01", "take": 2})["theme"], {"cue": "m01", "take": 2})
         self.assertEqual(self.spec(theme={"file": "audio\\theme.wav"})["theme"], {"file": "audio/theme.wav"})
         self.assertEqual(self.spec(theme={"file": "../refs/gallery/hum.flac"})["theme"]["file"], "../refs/gallery/hum.flac")
-        for bad in ({"cue": "m02", "take": 1}, {"cue": "m01"}, {"cue": "m01", "take": 0},
+        # a cue alone: whichever of its takes is in the mix
+        self.assertEqual(self.spec(theme={"cue": "m01"})["theme"], {"cue": "m01"})
+        for bad in ({"cue": "m02", "take": 1}, {"cue": "m02"}, {"cue": "m01", "take": 0}, {"cue": "m01", "take": None},
                     {"file": "C:/x/theme.wav"}, {"file": "/x/theme.wav"}, {"file": "theme.txt"},
                     {"cue": "m01", "take": 1, "file": "a.wav"}, "m01"):
             with self.subTest(bad=bad), self.assertRaises(CU.CueError):
@@ -222,6 +226,38 @@ class ThemeTest(_Base):
         self.assertIn("takes no theme", p["warnings"][0])
         self.assertNotIn("blocked", p)
 
+    def test_a_theme_follows_the_pick(self):
+        """{"cue"} alone: the take of that cue in the pass's mix, else its best finished one;
+        resolved when planned, named in the take's sidecar, and a new pick makes it stale."""
+        spec = self.spec(model="ace_step15", theme={"cue": "m01"})
+        p = CU.plan(self.root, "final", spec, {})
+        self.assertIn("has no finished take", p["warnings"][0])
+        self.assertEqual((p["theme"]["label"], p["theme"]["use"]), ("m01", None))
+        self.theme_take(score=3.0)
+        self.theme_take(score=1.0)                      # t02 the best measured
+        p = CU.plan(self.root, "final", spec, {})
+        self.assertEqual((p["theme"]["label"], p["theme"]["from"], p["theme"]["use"]), ("m01 t02", "best", "timbre"))
+        self.assertTrue(p["theme"]["audio"].endswith("t02.wav"))
+        self.assertEqual(CU.theme_record(p["theme"]), {"label": "m01 t02", "use": "timbre", "from": "best"})
+        # t01 picked into the mix (the item as cue.place writes it): the theme is t01 now
+        mix = MX.check(MX.load(self.root).get("final"))
+        mix["items"] = [{"id": "m01", "track": "music", "path": "sound/m01/t01.wav",
+                         "in": anchor("sh010"), "out": anchor("sh020", 60)}]
+        MX.write(self.root, "final", mix)
+        self.assertEqual(CU.mix_take(self.root, "final", "m01"), 1)
+        p1 = CU.plan(self.root, "final", spec, {})
+        self.assertEqual((p1["theme"]["label"], p1["theme"]["from"]), ("m01 t01", "mix"))
+        self.assertEqual(CU.stale({"rendered_for": CU.fingerprint(p)}, p1), ["the theme is m01 t01, not m01 t02"])
+        # muted it is still the pick; another pass's mix isn't this one's
+        mix["items"][0]["mute"] = True
+        MX.write(self.root, "final", mix)
+        self.assertEqual(CU.plan(self.root, "final", spec, {})["theme"]["label"], "m01 t01")
+        self.assertEqual(CU.theme_take(self.root, "proxy", "m01"), (2, "best"))
+        # naming the take the mix has is the same sound: not stale
+        p2 = CU.plan(self.root, "final", self.spec(model="ace_step15", theme={"cue": "m01", "take": 1}), {})
+        self.assertEqual(CU.stale({"rendered_for": CU.fingerprint(p1)}, p2), [])
+        self.assertIsNone(p2["theme"]["from"])
+
     def test_missing_theme_warns(self):
         p = CU.plan(self.root, "final", self.spec(theme={"file": "audio/none.wav"}), {})
         self.assertIsNone(p["theme"]["use"])
@@ -279,7 +315,7 @@ class RouteTest(unittest.TestCase):
         self.call(A.put_cue, {"ep": self.ep, "cue": {**spec, "id": "m02", "theme": {"cue": "m01", "take": 1}}})
         got = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m02"})
         self.assertEqual(got["spec"]["theme"], {"cue": "m01", "take": 1})
-        self.assertEqual(set(got["plan"]["theme"]), {"spec", "label", "use", "warning"})
+        self.assertEqual(set(got["plan"]["theme"]), {"spec", "label", "use", "warning", "from"})
         self.assertIn("isn't finished", got["plan"]["warnings"][0])
 
 

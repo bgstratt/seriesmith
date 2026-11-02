@@ -549,6 +549,11 @@ describe("a song's plan and a cue's theme", () => {
     expect(themeLabel({ cue: "m01", take: 2 })).toBe("m01 t02");
     expect(themeLabel({ file: "audio/hum.wav" })).toBe("audio/hum.wav");
     expect(themeLabel(null)).toBe("");
+    // a theme that follows another cue's pick: the take the plan found
+    expect(themeLabel({ cue: "m01" })).toBe("m01 (the take in the mix)");
+    expect(themeLabel({ cue: "m01" }, { label: "m01 t03", from: "mix" })).toBe("m01 t03 (in the mix)");
+    expect(themeLabel({ cue: "m01" }, { label: "m01 t01", from: "best" })).toContain("best take");
+    expect(themeLabel({ cue: "m01", take: 2 }, { label: "m01 t02", from: null })).toBe("m01 t02");
     expect(themeUseText({ use: "plan" }, "YuE2")).toContain("the take's own plan");
     expect(themeUseText({ use: "timbre" }, "ACE-Step")).toContain("timbre");
     expect(themeUseText({ use: null }, "Stable Audio 3")).toBe("");

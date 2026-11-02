@@ -2811,8 +2811,9 @@ export interface CueArcPoint {
 /** A cue's spec (`<ep>/sound/<cue>/spec.json`), defaults left out. */
 export type CueKind = "score" | "song";
 
-/** A cue's theme: another cue's take in the episode, or a file relative to it (a gallery item, a recording). */
-export type CueTheme = { cue: string; take: number } | { file: string };
+/** A cue's theme: another cue's take in the episode (`take`; without one, whichever take that cue
+ * has in the pass's mix, else its best finished one), or a file relative to it (a gallery item, a recording). */
+export type CueTheme = { cue: string; take?: number } | { file: string };
 
 /** How the plan's model hears the cue's theme (cue.theme_for): "plan" (YuE2 sings a YuE2 take's own
  * plan), "transcribe" (YuE2 sings SheetSage2's transcription), "timbre" (ACE-Step), or null and a
@@ -2822,6 +2823,9 @@ export interface CuePlanTheme {
   label: string;
   use: "plan" | "transcribe" | "timbre" | null;
   warning: string | null;
+  /** a theme that follows another cue's pick: how its take was found ("mix": the one in the pass's
+   * mix; "best": none there, its best finished take); `label` names that take. null otherwise */
+  from?: "mix" | "best" | null;
 }
 
 /** A section of a song's plan (YuE2's ABC, read by core/abc.py) where a take puts it. */
@@ -3037,7 +3041,7 @@ export interface CueTake {
   /** a song's plan (YuE2): its sections against the cue, its length against the take's */
   song?: CueSong;
   /** the theme it was rendered with, and how its model heard it */
-  theme?: { label: string; use: CuePlanTheme["use"] };
+  theme?: { label: string; use: CuePlanTheme["use"]; from?: "mix" | "best" };
   finished?: string;
   created?: string;
 }

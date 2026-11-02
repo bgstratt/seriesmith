@@ -793,8 +793,10 @@ picked one as its item on the music track of the pass's mix. A cue's `kind` is `
 default: instrumental, under the picture) or `song` (sung: its sections' lyrics); with no
 `model`, a song is made on one that sings (the series config's `sound.song_model`, else
 `yue2`) and score on `sound.music_model`, else `stable_audio3`. A song on a model that
-can't sing is 400. A cue's `theme` (the leitmotif) is `{"cue", "take"}` (another cue's take in
-the episode, not its own) or `{"file"}` (a sound file relative to the episode: .wav, .flac, .mp3,
+can't sing is 400. A cue's `theme` (the leitmotif) is `{"cue"}` (whichever take of another cue
+in the episode is in the pass's mix, muted or not, else that cue's best finished take: the best
+measured, else the first finished; resolved each time the cue is planned), `{"cue", "take"}`
+(another cue's given take, not its own) or `{"file"}` (a sound file relative to the episode: .wav, .flac, .mp3,
 .ogg, .m4a, .aac, .opus or a video); a cue that isn't in the episode is 400 when the spec is
 written, a take or file that isn't there is the plan's warning. A cue is planned against the
 pass's cut each time it's asked: its anchors become seconds, the mix's hits in its span are
@@ -826,7 +828,9 @@ core/score.alternatives), `direction` (the series config's score direction, `sou
 put before the cue's style in the prompt; `""` when none), `bars`,
 `bar` (seconds), `preroll`, `seconds`, `ask_seconds`, `sections`, `arc` (an energy per bar) and
 `prompt` (`{prompt, negative, values}` as the target writes it), and when they apply: `theme`
-(`{spec, label, use, warning}`: how its model hears the theme, `use` "plan" (YuE2 sings a YuE2
+(`{spec, label, use, warning, from}`: how its model hears the theme; `label` the take or file
+("m01 t03": for `{"cue"}` the take it resolved to, the cue alone when it has none finished),
+`from` "mix" or "best" for a `{"cue"}` theme (how its take was found), else null; `use` "plan" (YuE2 sings a YuE2
 take's own plan), "transcribe" (YuE2 sings SheetSage2's transcription of it, in the same job),
 "timbre" (ACE-Step's timbre reference) or null with `warning`: it isn't there, or the model
 takes none (Stable Audio 3), and it renders without it), `warnings` (in words), `blocked` (why
@@ -835,7 +839,10 @@ theme's plan, known before it renders, its sections as a take's `song` has them)
 `plan_error` when its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,
 `target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch, downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels (dB per bar), shape_error, score}`, and `stale`: what has moved in the cut since it was
 rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme), in words,
-`[]` when nothing has. A take rendered with a theme has `theme` (`{label, use}`); a YuE2 take
+`[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
+rendered with is stale: "the theme is m01 t03, not m01 t02"). A take rendered with a theme has
+`theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
+take was found; a repaint of it hears the same take, whatever is picked since); a YuE2 take
 has `song`: `{file (its plan as sung, tNN.abc), source ("planned", "theme plan", "theme transcribed"), tempo_written (the plan's own Q: tempo, before the cue's was set), tempo, meter, key, bars (the plan's, in its meter), plan_seconds (its beats at the tempo asked), raw_seconds (the take as it came), short (plan_seconds - raw_seconds), first_note (the plan's first sung note, seconds into the take), sections: [{name, start, seconds (in the take, at the cue's tempo), at (seconds from the cue's in point), bars, beats, cue_bars}]}`. 404 for no such cue.
 
 ### `PUT /seriesmith/cue`

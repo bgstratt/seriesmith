@@ -1,5 +1,6 @@
 // A cue's theme, the leitmotif (docs/SOUND.md phase 2; seriesmith/cue.py theme_for): none,
-// another cue's finished take, or a sound file relative to the episode. The cue inspector
+// another cue's take (by default the one that cue has in the mix, followed as it's picked again;
+// or a given finished take), or a sound file relative to the episode. The cue inspector
 // and the spotting sheet's selected cue both set it here. The other cue's takes are fetched
 // when it's picked (GET /seriesmith/cue), never for the whole list. Beside it, how the cue's
 // model hears it, and when it can't (Stable Audio 3), an offer of the model that does.
@@ -67,17 +68,23 @@ export function ThemeField({ ep, pass, spec, plan, target, targets, save }: {
       </select>
       {mode === "take" && (
         <span className="h3-row" style={{ gap: 4 }}>
-          <select className="h3-in h3-grow" aria-label="Theme cue" value={cue} onChange={(e) => setCue(e.target.value)}>
+          <select className="h3-in h3-grow" aria-label="Theme cue" value={cue} onChange={(e) => {
+            setCue(e.target.value);
+            // a cue picked: the take it has in the mix, until a take is named
+            if (e.target.value) set({ cue: e.target.value });
+          }}>
             <option value="">{cues ? (others.length ? "a cue…" : "no other cue has a finished take") : "…"}</option>
             {others.map((c) => <option key={c.spec.id} value={c.spec.id}>{c.spec.label ? `${c.spec.id} · ${c.spec.label}` : c.spec.id}</option>)}
             {cue && !others.some((c) => c.spec.id === cue) && <option value={cue}>{cue}</option>}
           </select>
           <select className="h3-in" aria-label="Theme take" style={{ width: "auto" }} disabled={!cue}
-            value={th && "cue" in th && th.cue === cue ? String(th.take) : ""}
-            onChange={(e) => e.target.value && set({ cue, take: Number(e.target.value) })}>
-            <option value="">{takes == null ? (cue ? "…" : "take") : takes.length ? "take…" : "none finished"}</option>
+            title="The take in the mix: whichever take that cue has in this pass's mix (its best finished one while none is), followed when another is picked (this cue's takes go stale then). A take number: that take, whatever is picked"
+            value={th && "cue" in th && th.cue === cue ? (th.take != null ? String(th.take) : "mix") : ""}
+            onChange={(e) => e.target.value && set(e.target.value === "mix" ? { cue } : { cue, take: Number(e.target.value) })}>
+            {!(th && "cue" in th && th.cue === cue) && <option value="">{cue ? "…" : "take"}</option>}
+            <option value="mix">the take in the mix</option>
             {(takes ?? []).map((n) => <option key={n} value={n}>{tn(n)}</option>)}
-            {th && "cue" in th && th.cue === cue && takes && !takes.includes(th.take) && <option value={th.take}>{tn(th.take)}</option>}
+            {th && "cue" in th && th.cue === cue && th.take != null && takes && !takes.includes(th.take) && <option value={th.take}>{tn(th.take)}</option>}
           </select>
         </span>
       )}
@@ -91,7 +98,7 @@ export function ThemeField({ ep, pass, spec, plan, target, targets, save }: {
           <button type="button" className="h3-btn" title="Pick a sound file in the folder browser (inside the episode, or the show's folder)" onClick={browse}>Browse…</button>
         </span>
       )}
-      {th && plan?.theme && plan.theme.use && <span className="h3-small h3-muted">{themeLabel(th)}: {themeUseText(plan.theme, model)}</span>}
+      {th && plan?.theme && plan.theme.use && <span className="h3-small h3-muted">{themeLabel(th, plan.theme)}: {themeUseText(plan.theme, model)}</span>}
       {th && plan?.theme?.warning && <span className="h3-small h3-cue-offtext">{plan.theme.warning}</span>}
       {swap && (
         <button className="h3-btn" style={{ width: "auto", alignSelf: "flex-start" }}

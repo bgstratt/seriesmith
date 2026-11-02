@@ -141,12 +141,12 @@ export function checkCue(raw: CueSpec): CueSpec {
   if (raw.hits != null) out.hits = [...raw.hits];
   if (raw.theme) {
     const th = raw.theme as Record<string, unknown>;
-    if (typeof th.cue === "string" && Number.isInteger(th.take)) {
+    if (typeof th.cue === "string" && (th.take == null || Number.isInteger(th.take))) {
       if (th.cue === raw.id) throw new CueError(`cue ${raw.id}'s theme can't be one of its own takes`);
-      out.theme = { cue: th.cue, take: th.take as number };
+      out.theme = th.take == null ? { cue: th.cue } : { cue: th.cue, take: th.take as number };
     } else if (typeof th.file === "string" && th.file.trim() && !/^([A-Za-z]:|\/)/.test(th.file.trim())) {
       out.theme = { file: th.file.trim().replace(/\\/g, "/") };
-    } else throw new CueError(`cue ${raw.id}'s theme is {"cue", "take"} (another cue's take) or {"file"}`);
+    } else throw new CueError(`cue ${raw.id}'s theme is {"cue"} (another cue's take in the mix), {"cue", "take"} (another cue's take) or {"file"}`);
   }
   if (raw.takes != null) {
     if (!Number.isInteger(raw.takes) || raw.takes < 1 || raw.takes > 16) throw new CueError(`cue ${raw.id}'s takes is a whole number up to 16`);
@@ -230,11 +230,13 @@ export function orchestrate<S extends CueSection & { bars: number }>(sections: S
 }
 
 /** What a cue is asked against the cut (cue.plan, simplified). Throws a CueError when its anchors aren't in it. */
-/** How a model hears a theme, as cue.theme_for says it (the mock has no files: a take theme is there, a file isn't checked). */
+/** How a model hears a theme, as cue.theme_for says it (the mock has no files: a take theme is there, a file isn't
+ * checked; one that follows a cue's pick is its t01, as if it were its best). */
 function themeMock(spec: NonNullable<CueSpec["theme"]>, how: "melody" | "timbre" | null, label: string): NonNullable<CuePlan["theme"]> {
-  const name = "cue" in spec ? `${spec.cue} t${String(spec.take).padStart(2, "0")}` : spec.file;
+  const name = "cue" in spec ? `${spec.cue} t${String(spec.take ?? 1).padStart(2, "0")}` : spec.file;
   const use = how === "melody" ? "transcribe" as const : how === "timbre" ? "timbre" as const : null;
-  return { spec, label: name, use, warning: use ? null : `${label} takes no theme: rendered without it (ACE-Step hears a theme as its timbre, YuE2 sings its melody)` };
+  return { spec, label: name, use, from: "cue" in spec && spec.take == null ? "best" : null,
+    warning: use ? null : `${label} takes no theme: rendered without it (ACE-Step hears a theme as its timbre, YuE2 sings its melody)` };
 }
 
 export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}, direction = ""): CuePlan {

@@ -15,7 +15,8 @@ A cue lives in `<ep>/sound/<cue id>/`:
                                "from": 1, "to": 1, "lyrics": ""}, ...],
                  "arc": [{"at": {"shot", "frame"}, "level": 1-5}, ...],
                  "hits": null (every hit of the mix in its span) | ["h1", ...],
-                 "theme": null | {"cue": "m01", "take": 2} | {"file": "audio/theme.wav"},
+                 "theme": null | {"cue": "m01"} (the take of m01 in the mix) |
+                          {"cue": "m01", "take": 2} | {"file": "audio/theme.wav"},
                  "takes": null (the model's preset) | 8, "seed": null (from the ids)}
     tNN.wav     a take, stretched to the cue's exact tempo (tNN_raw.<ext> as it came)
     tNN.abc     a song's plan as it was sung (YuE2: its sections and bars, the cue's tempo)
@@ -44,7 +45,10 @@ A take is stale (`stale`) when the cut has moved under it since it was rendered:
 a hit, the tempo, the theme; each said in words.
 
 A theme (the leitmotif: `theme`, docs/SOUND.md phase 2) is another cue's take or a file, and
-each model hears it its own way (`theme_for`): YuE2 sings its melody (the take's own plan when
+each model hears it its own way. Another cue's take is a given one (`take`) or, without one,
+whichever that cue has in the pass's mix (else its best finished take: theme_take), resolved
+when a take is planned and named in its sidecar, so a new pick there makes this cue's takes
+stale (`theme_for`): YuE2 sings its melody (the take's own plan when
 it is a YuE2 take, else SheetSage2's transcription of its sound, in the same job), ACE-Step
 takes its sound as its timbre reference, Stable Audio 3 takes none (the plan warns, and it
 renders without it).
@@ -242,14 +246,17 @@ def check_spec(raw) -> dict:
 
 
 def check_theme(th, cid: str) -> dict:
-    """A cue's theme in its stored form: {"cue": id, "take": n} (another cue's take in the
-    episode) or {"file": a path relative to the episode}. Whether it is there is the plan's
-    to say (save_spec checks the cue)."""
-    if isinstance(th, dict) and set(th) == {"cue", "take"}:
+    """A cue's theme in its stored form: {"cue": id} (whichever take of another cue in the
+    episode is in the pass's mix: theme_take), {"cue": id, "take": n} (that take) or {"file":
+    a path relative to the episode}. Whether it is there is the plan's to say (save_spec
+    checks the cue)."""
+    if isinstance(th, dict) and set(th) in ({"cue"}, {"cue", "take"}):
         if not isinstance(th["cue"], str) or not MX._ID.match(th["cue"]):
             raise CueError(f"cue {cid}'s theme names a cue by its id, not {th['cue']!r}")
         if th["cue"] == cid:
             raise CueError(f"cue {cid}'s theme can't be one of its own takes")
+        if "take" not in th:
+            return {"cue": th["cue"]}
         n = th["take"]
         if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 999:
             raise CueError(f"cue {cid}'s theme take is a take number, not {n!r}")
@@ -264,14 +271,18 @@ def check_theme(th, cid: str) -> dict:
         if os.path.splitext(f)[1].lower() not in THEME_EXTS:
             raise CueError(f"cue {cid}'s theme is a sound file ({', '.join(THEME_EXTS)}), not {f!r}")
         return {"file": f}
-    raise CueError("cue " + cid + "'s theme is {\"cue\", \"take\"} (another cue's take) or {\"file\"}")
+    raise CueError("cue " + cid + "'s theme is {\"cue\"} (another cue's take in the mix), {\"cue\", "
+                   "\"take\"} (another cue's take) or {\"file\"}")
 
 
 def theme_text(th: dict | None) -> str | None:
-    """A theme in words, for a take's fingerprint and the window: "m01 t02", "audio/x.wav"."""
+    """A theme in words, for a take's fingerprint and the window: "m01 t02", "audio/x.wav";
+    a theme that follows the mix's pick is its cue alone ("m01") until it is resolved."""
     if not th:
         return None
-    return f"{th['cue']} t{th['take']:02d}" if th.get("cue") else th.get("file")
+    if th.get("cue"):
+        return f"{th['cue']} t{th['take']:02d}" if th.get("take") else th["cue"]
+    return th.get("file")
 
 
 def parse_meter(m) -> tuple[int, int]:
@@ -505,17 +516,56 @@ def model_for(spec: dict, series: dict) -> str:
     return ((series.get("sound") or {}).get(key)) or default or TG.DEFAULT_MUSIC_TARGET
 
 
-def theme_for(root: str, spec: dict, target) -> dict | None:
+def item_take(item: dict | None, cid: str) -> int | None:
+    """The take of cue `cid` a mix item plays (`sound/<cid>/tNN.wav`), None for anything else."""
+    m = _TAKE_WAV.match((item or {}).get("path") or "")
+    return int(m.group(2)) if m and m.group(1) == cid else None
+
+
+def mix_take(root: str, pass_: str, cid: str) -> int | None:
+    """The take cue `cid`'s item in the pass's mix plays (muted or not), None when it has none
+    there (or the mix doesn't read)."""
+    try:
+        items = MX.check(MX.load(root).get(pass_)).get("items") or []
+    except ValueError:
+        return None
+    return item_take(next((i for i in items if i.get("id") == cid), None), cid)
+
+
+def theme_take(root: str, pass_: str | None, cid: str) -> tuple[int | None, str | None]:
+    """The take of cue `cid` a theme that follows it is: (n, "mix") the take its item in the
+    pass's mix plays; else (n, "best") its best finished take (ranked: the best measured,
+    else the first finished); (None, None) when it has none finished."""
+    n = mix_take(root, pass_, cid) if pass_ else None
+    if n is not None:
+        return n, "mix"
+    done = [t for t in ranked(list_takes(root, cid)) if t.get("status") == "ok"]
+    return (done[0]["take"], "best") if done else (None, None)
+
+
+def theme_for(root: str, spec: dict, target, pass_: str | None = None,
+              pin: tuple[int, str] | None = None) -> dict | None:
     """How the cue's theme reaches its model (None without one): {"spec", "label", "use",
-    "audio", "abc", "warning"}. `use`: "plan" (YuE2 sings the theme take's own plan, `abc`:
-    its melody), "transcribe" (YuE2 sings SheetSage2's transcription of `audio`), "timbre"
-    (ACE-Step's timbre reference, `audio`), or None with `warning` saying why it is left out
-    (the take or file isn't there, or the model takes no theme)."""
+    "audio", "abc", "warning", "from"}. `use`: "plan" (YuE2 sings the theme take's own plan,
+    `abc`: its melody), "transcribe" (YuE2 sings SheetSage2's transcription of `audio`),
+    "timbre" (ACE-Step's timbre reference, `audio`), or None with `warning` saying why it is
+    left out (the take or file isn't there, or the model takes no theme). A theme that follows
+    another cue's pick ({"cue"} alone) is resolved here (theme_take, in `pass_`'s mix; `pin`
+    (take, from) to use instead: a repaint's, the take its source was made with), `label` naming the take ("m01 t03") and `from` how it
+    was found ("mix", "best"; None for a theme that names its take or file)."""
     th = spec.get("theme")
     if not th:
         return None
-    out = {"spec": th, "label": theme_text(th), "use": None, "audio": None, "abc": None, "warning": None}
+    out = {"spec": th, "label": theme_text(th), "use": None, "audio": None, "abc": None, "warning": None,
+           "from": None}
     plan_file = None
+    if th.get("cue") and not th.get("take"):
+        n, how = pin if pin is not None else theme_take(root, pass_, th["cue"])
+        if n is None:
+            out["warning"] = f"the theme {th['cue']} has no finished take: rendered without it"
+            return out
+        th = {"cue": th["cue"], "take": n}
+        out["label"], out["from"] = theme_text(th), how
     if th.get("cue"):
         sc = next((t for t in list_takes(root, th["cue"]) if t["take"] == th["take"]), None)
         wav = take_paths(root, th["cue"], th["take"])["wav"]
@@ -547,6 +597,12 @@ def theme_for(root: str, spec: dict, target) -> dict | None:
         out["warning"] = (f"{target.label} takes no theme: rendered without it (ACE-Step hears a "
                           f"theme as its timbre, YuE2 sings its melody)")
     return out
+
+
+def theme_record(th: dict) -> dict:
+    """A plan's theme as a take's sidecar keeps it: {"label" (the take or file it was: "m01
+    t03"), "use"}, and "from" ("mix", "best") when it followed another cue's pick."""
+    return {"label": th["label"], "use": th["use"], **({"from": th["from"]} if th.get("from") else {})}
 
 
 def song_sections(info: dict, bpm: float, offset: float, bar: float) -> list[dict]:
@@ -661,7 +717,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             if origins[x["id"]]["origin"] + x["trim_in"] < b
             and origins[x["id"]]["origin"] + x["trim_in"] + x["used"] > a]
     notes = script_notes(root, over)
-    theme = theme_for(root, spec, target)
+    theme = theme_for(root, spec, target, pass_)
     kind = spec.get("kind", "score")
     cue = {"kind": kind, "style": style or ("cinematic orchestral film score" if kind == "score" else "song"),
            "bpm": fit.ask_bpm,
@@ -1126,10 +1182,15 @@ def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
         seed = seeds(root, spec, 1, len(takes))[0]
     if fresh or codes is None:
         codes = seed
-    # the take's theme, when the cue still has it (ACE-Step: its timbre reference)
+    # the take's theme, when the cue still has it (ACE-Step: its timbre reference); a theme
+    # that follows another cue's pick is the take this one was made with, whatever is picked now
     theme = None
     if sc.get("theme"):
-        th = theme_for(root, spec, target)
+        own = spec.get("theme") or {}
+        follows = own.get("cue") if not own.get("take") else None
+        m = re.fullmatch(rf"{re.escape(follows)} t(\d{{2,3}})", sc["theme"].get("label") or "") if follows else None
+        pin = (int(m.group(1)), sc["theme"].get("from") or "mix") if m else None
+        th = theme_for(root, spec, target, take_pass, pin)
         if not th or th.get("label") != sc["theme"].get("label") or not th.get("audio"):
             raise CueError(f"t{n:02d} was made with the theme {sc['theme'].get('label')}, which the cue "
                            f"no longer has: render the cue again instead")

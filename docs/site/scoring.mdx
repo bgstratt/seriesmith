@@ -141,9 +141,15 @@ chorus land against your hits. YuE2's weights are for **non-commercial** use (CC
 ACE-Step (MIT) is the one for a commercial song.
 
 **Carrying a theme.** A cue can carry another's melody, the way a film's love theme comes back
-in a later scene: the inspector's **Theme** is *none*, *another cue's take* (pick the cue, then
-one of its finished takes) or *a sound file* (inside the episode or the show's folder: a gallery
-item, a recording; type its path or **Browse…**). Each model hears it its own way:
+in a later scene: the inspector's **Theme** is *none*, *another cue's take* (pick the cue; its
+take is **the take in the mix** unless you name one of its finished takes) or *a sound file*
+(inside the episode or the show's folder: a gallery item, a recording; type its path or
+**Browse…**). **The take in the mix** follows that cue: whichever of its takes is in this pass's
+mix (picked, muted or not) when a take of this cue is rendered, else its best finished take
+(the best measured, else the first finished) while none is picked. Each take of this cue says
+which it heard ("theme m02 t03"), and picking another take of the theme's cue makes this cue's
+takes stale, so the leitmotif can be re-rendered to match. Name a take instead to keep it fixed
+whatever is picked. Each model hears it its own way:
 
 - **YuE2** sings its melody to this cue's lyrics and tempo. A YuE2 take's own plan is used as it
   is; any other sound is transcribed first (SheetSage2, in the same job; it needs
@@ -154,7 +160,8 @@ item, a recording; type its path or **Browse…**). Each model hears it its own 
   **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song).
 
 The spotting sheet's selected cue shows and sets its theme too. Changing the theme makes the
-cue's takes stale (hover the badge: "the theme is m02 t01").
+cue's takes stale (hover the badge: "the theme is m02 t01"), and so does a new pick in the
+theme's cue when the theme is the take in the mix ("the theme is m02 t03, not m02 t01").
 
 In ep03: *1M1 The Selection* (sh010 to sh030, 72 bpm, D major), *1M2 The Departure* (sh080 to the
 door, 96 bpm), *1M3 Chosen* (sh120 to the end, 66 bpm); no music under sh040-sh070 or sh110.
