@@ -28,6 +28,8 @@ export type HostEvent =
   | "seriesmith.cue"
   /** a shot's effects take landed ({ep, pass, shot, take, status}) */
   | "seriesmith.fx"
+  /** a recording's vocal stem made or failed ({ep, recording, status, error}) */
+  | "seriesmith.vocals"
   /** seriesmith: a job of its queue changed (standalone page) */
   | "seriesmith.job"
   /** seriesmith: the queue's lanes changed (an order, a pause) */

@@ -78,7 +78,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Reference pictures and keyframes | | Krea 2's 3 files; FLUX.2 Klein's 3 | |
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
-| Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
+| Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley`; seriesmith's node pack for the vocal stem (optional) |
 | Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
@@ -290,6 +290,11 @@ their own words. The voice comes out close, not identical: listen before you pic
   window names the one it found and prints the exact `pip install` line for it.
 - `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
   `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+- The **vocal stem** of a song (optional: `align --vocals`, and dub shots that hear the
+  singing alone) is made on your ComfyUI by seriesmith's own node pack with torchaudio,
+  which ComfyUI already has: nothing to install. Its weights (`hdemucs_high_trained.pt`,
+  320 MB) download once the first time; the Features window's **Vocal stem** puts them in
+  `models/demucs/` ahead of time.
 
 **Music** cues use ComfyUI's own nodes. Score's default, `stable_audio3`, needs
 `stable_audio_3_medium.safetensors` in `checkpoints` and `t5gemma_b_b_ul2.safetensors` in

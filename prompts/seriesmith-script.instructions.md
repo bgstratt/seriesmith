@@ -302,6 +302,9 @@ any other.
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
   `audio.default_policy` forces one policy for every dialogue shot, and `audio.retention`
   sets the dub `retention:` default. A target that can't do a mode says so and generates.
+  For a song as the recording, `audio.dub_from: "vocals"` sends each dub shot's window from
+  the song's vocal stem instead of the whole mix (optional; off by default; see
+  `docs/RECORDED_DIALOGUE.md`).
 - `series.width` / `height` and the `proxy` block: **Render size and delivery** below.
 - `steps`, `lora` and `model` are optional per pass (the model's own otherwise). `lora`
   takes one LoRA or a chain, as the script's `lora:` line does

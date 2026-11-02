@@ -3300,6 +3300,19 @@ contract named changes shape except where marked [differs].
   runs. Stopped by a restart it is listed failed for Retry; one still waiting is queued
   again. Without a queue (a ComfyUI whose queue didn't start) it runs in the request and
   answers as before.
+- **[added 2026-11-02] `vocals: true`** (default false) runs `align --vocals`: the
+  recording's vocal stem is transcribed and cut instead of the mix. When no fresh stem
+  sits beside the recording, the job first queues one (a `vocals` job on the local
+  backend's lane, below) and waits for it; its progress says `stage: "vocals"`. The 409's
+  "a transcript is already there" reads the stem's (`<recording>.vocals.wav.words.json`).
+- **[added 2026-11-02] The vocal stem** (vocals.py, docs/SOUND.md phase 7; optional, off
+  by default). **`POST /seriesmith/vocals`** `{ep, redo?}` queues the episode recording's
+  stem on the local backend (`kind: "vocals"`: LoadAudio -> `SeriesmithVocals` ->
+  SaveAudio, written as `<recording>.vocals.wav`) and answers `{"job": id, "stem": null}`,
+  or `{"job": null, "stem": name}` when a fresh one is already there and `redo` isn't set;
+  409 without a recording. **`seriesmith.vocals`** `{ep, recording, status: "ok" |   "failed", error}` says how it ended. **`POST /seriesmith/track/dub_from`** `{ep,   dub_from: "vocals" | "recording", pass?}` writes the series config's `audio.dub_from`
+  (`recording`, the default, takes the key out), rebuilds, and answers as `POST   /seriesmith/track`. The `track` object (episode status, these routes) gains `vocals`
+  (a fresh stem is there), `vocals_words` (the stem's transcript) and `dub_from`.
 
 **align itself**
 - **[settled] No more `.bak`.** The script and the series config are written through

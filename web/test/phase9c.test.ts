@@ -5,7 +5,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { attachTrack, clearTrack, loadAlignReady, loadRefs, pickRef, refreshEpisode, runAlign, voiceFromTake } from "../src/actions";
+import { attachTrack, clearTrack, loadAlignReady, loadRefs, makeVocals, pickRef, refreshEpisode, runAlign, setDubFrom, voiceFromTake } from "../src/actions";
 import { RefsTab } from "../src/components/RefsTab";
 import { TrackLine, TrackWindow } from "../src/components/Track";
 import { VoiceClipWindow } from "../src/components/VoiceRef";
@@ -579,6 +579,38 @@ describe("the Phase 9c surfaces render", () => {
     expect(html).toContain("Ready.");
     expect(html).toContain("Align");
     expect(html).toContain("Dry run");
+  });
+
+  it("the vocal stem is offered, off by default, and the dub shots hear it only when asked", async () => {
+    const st = () => store.get().status[statusKey(EP, "proxy")];
+    store.set({ trackPanel: { ep: EP }, alignReady: READY });
+    let html = renderToString(createElement(TrackWindow));
+    expect(html).toContain("Vocal stem");
+    expect(html).toContain("not made");
+    expect(html).toContain("from the vocal stem");
+    // both boxes start unticked: align hears the recording, the dub shots its windows
+    expect(html).not.toMatch(/checked=""[^>]*\/> from the vocal stem/);
+    expect(st().track).toMatchObject({ vocals: false, dub_from: "recording" });
+    expect(await makeVocals()).toBe(true);
+    await refreshEpisode(EP, "proxy");
+    expect(st().track!.vocals).toBe(true);
+    expect(await setDubFrom("vocals")).toBe(true);
+    await refreshEpisode(EP, "proxy");
+    expect(st().track!.dub_from).toBe("vocals");
+    html = renderToString(createElement(TrackWindow));
+    expect(html).toContain("Make it again");
+    expect(await setDubFrom("recording")).toBe(true);
+    await refreshEpisode(EP, "proxy");
+    expect(st().track!.dub_from).toBe("recording");
+  });
+
+  it("align asks for the stem only when the box is ticked", async () => {
+    const seen: unknown[] = [];
+    const align = api.align.bind(api);
+    api.align = async (req) => { seen.push(req.vocals ?? false); return align(req); };
+    await runAlign({ dryRun: true });
+    await runAlign({ dryRun: true, vocals: true });
+    expect(seen).toEqual([false, true]);
   });
 
   it("with no transcript it names the packages and the Python", async () => {

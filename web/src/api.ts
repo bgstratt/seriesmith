@@ -18,7 +18,7 @@ import type {
   ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
-  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult,
+  RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult, VocalsResult,
   MasterJob, MasterResult, UpscaleOptions, UpscaleRequest, UpscaleResult,
   PostOptions, PostRequest, PostResult,
   CustomTargetResult, Limits, SharedField, Target, TargetProposal, VoiceFromTakeRequest, VoiceFromTakeResult,
@@ -332,6 +332,10 @@ export interface Api {
   clearTrack(ep: string, pass?: Pass): Promise<TrackResult>;
   /** POST /seriesmith/align: run align (a 409's ApiError.data is an AlignMissing). */
   align(req: AlignRequest): Promise<AlignResult | { job: AlignJob }>;
+  /** POST /seriesmith/vocals: make the recording's vocal stem (queued on local ComfyUI). */
+  makeVocals(ep: string, redo?: boolean): Promise<VocalsResult>;
+  /** POST /seriesmith/track/dub_from: where each dub shot's window is cut from. */
+  setDubFrom(ep: string, dubFrom: "recording" | "vocals", pass?: Pass): Promise<TrackResult>;
   /** GET /seriesmith/align/job: the episode's align on the queue (or the last one), null: none */
   alignJob(ep: string): Promise<{ job: AlignJob | null }>;
   putRefOverride(req: RefOverrideRequest): Promise<{ override: RefOverrideResult }>;
@@ -789,9 +793,12 @@ export function createHttpApi(t: Transport): Api {
       if (req.model) body.model = req.model;
       if (req.snap === false) body.snap = false;
       if (req.dry_run) body.dry_run = true;
+      if (req.vocals) body.vocals = true;
       if (req.pass) body.pass = req.pass;
       return call("POST", "/seriesmith/align", body);
     },
+    makeVocals: (ep, redo) => call("POST", "/seriesmith/vocals", redo ? { ep, redo: true } : { ep }),
+    setDubFrom: (ep, dubFrom, pass) => call("POST", "/seriesmith/track/dub_from", pass ? { ep, dub_from: dubFrom, pass } : { ep, dub_from: dubFrom }),
     alignJob: (ep) => get(`/seriesmith/align/job?${qs({ ep })}`),
     refsImport: ({ pick, ...req }) => call("POST", "/seriesmith/refs/import", pick ? { ...req, pick: true } : req),
     refsUpload: (req, onProgress) => {

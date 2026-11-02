@@ -206,6 +206,7 @@ def catalog() -> list[Feature]:
     from seriesmith import refs as R
     from seriesmith import upscale as U
     from seriesmith import targets as TG
+    from seriesmith import vocals as V
 
     def target_feature(fid, group, tid, label, about, extra=()):
         items = _target_items(tid)
@@ -291,6 +292,13 @@ def catalog() -> list[Feature]:
                 "faster-whisper, for align and the Recording window, in the Python align runs on.",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),
                  Item("pip", "numpy", where="align", module="numpy")]),
+        Feature("sound.vocals", "sound", "Vocal stem (Hybrid Demucs)",
+                "A song's singing split from the band, for align --vocals and an episode that "
+                "dubs from the stem (optional; off by default): seriesmith's node pack and "
+                "torchaudio's Hybrid Demucs weights (torchaudio downloads them itself if "
+                "they aren't here).",
+                [OWN_PACK, Item("model", V.WEIGHTS_FILE, folder=V.WEIGHTS_FOLDER,
+                                url=V.WEIGHTS_URL)], restart=True),
         Feature("sound.demucs", "sound", "Keep H3's foley under your vocal",
                 "demucs in ComfyUI's Python, for the dub_keep_foley audio policy.",
                 [Item("pip", "demucs", where="comfyui", module="demucs")]),

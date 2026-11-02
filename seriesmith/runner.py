@@ -38,12 +38,12 @@ def asked() -> dict | None:
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
 LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
-          "tour": 3600, "cue": 1800, "fx": 1800}
+          "tour": 3600, "cue": 1800, "fx": 1800, "vocals": 1800}
 
 # The least free disk a job needs where its files land (GB): a take is a few
 # hundred MB with its latent and frames, a 4K upscale or post a few GB.
 ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2,
-           "fx": 0.2}
+           "fx": 0.2, "vocals": 0.5}
 
 
 def room(folder: str, kind: str) -> None:
@@ -687,6 +687,48 @@ class Runner:
         # that had started again after a restart)
         FX.update(root, pass_, shot, n, backend=backend.name, queue_id=qjob.id,
                   comfy_prompt_id=qjob.id, queue=self.queue.name)
+        self._submit(qjob)
+        return qjob.id
+
+    def enqueue_vocals(self, recording: str, backend_name: str = "local",
+                       ep: str | None = None) -> str:
+        """A recording's vocal stem (vocals.py) queued: split on the backend's ComfyUI by
+        seriesmith's SeriesmithVocals node, written beside it as <recording>.vocals.wav.
+        `ep` (the episode it's for) is said in the job and its event. Returns the queue's
+        job id."""
+        import os
+
+        from seriesmith import vocals as VOC
+
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, os.path.dirname(os.path.abspath(recording)), "vocals")
+        name = os.path.basename(recording)
+
+        def event(status: str, error: str = "") -> None:
+            self._emit("seriesmith.vocals", {"ep": ep, "recording": recording,
+                                             "status": status, "error": error})
+
+        def work(qjob: QJob, report) -> str:
+            try:
+                VOC.check_backend(backend)
+                run = backend.submit(VOC.graph(recording))
+                self.started(qjob, run, backend, report)
+                status = run.watch(on_progress=progress_to(report))
+                stem = VOC.collect(recording, run, status)
+                report(line=f"vocal stem ok: {os.path.basename(stem)}")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the stem fails
+                qjob.error = str(e)[:800]
+                result = "canceled" if qjob.cancel_asked else "failed"
+            event("ok" if result == "succeeded" else "failed", qjob.error or "")
+            return result
+
+        info = {"recording": recording, "backend": backend.name}
+        if ep:
+            info["ep"] = ep
+        qjob = QJob(kind="vocals", lane=backend.name,
+                    title=f"{_ep_name(ep) + ' ' if ep else ''}{name} vocal stem", work=work,
+                    info=info, limit=LIMITS["vocals"])
         self._submit(qjob)
         return qjob.id
 

@@ -640,8 +640,25 @@ Each phase is tested live on local ComfyUI before the next starts.
    source_track`, each shot an `audio: in-out` window of it, `retention: fully_copy` so a
    singer's lips follow their window, and `assemble --audio master` for the song unbroken
    under the cut. Most of it exists; what's left to find out on one real song:
-   - [ ] align with the lyrics as the script's lines (faster-whisper on a sung vocal; the
+   - [x] align with the lyrics as the script's lines (faster-whisper on a sung vocal; the
          vocal stem from Demucs, as RECORDED_DIALOGUE says for a recording with music)
+         (2026-11-02; vocals.py, comfy_nodes/audio.py `SeriesmithVocals`): **opt-in, off by
+         default**, since H3's lip-sync was as good to the full song as to the stem (below).
+         The stem is made on local ComfyUI as a queued `vocals` job (LoadAudio ->
+         SeriesmithVocals -> SaveAudio: torchaudio's HDEMUCS_HIGH_MUSDB_PLUS, 10 s chunks
+         faded over 1 s, as torchaudio's tutorial; nothing installed, the weights read from
+         models/demucs/ (Features: Vocal stem) or downloaded once by torchaudio), kept as
+         `<recording>.vocals.wav` while it's as new as the recording. `align --vocals` (the
+         Recording window's "from the vocal stem") transcribes and cuts from it, the series
+         config still the song; `audio.dub_from: "vocals"` ("dub shots hear the vocal stem")
+         has build write the shotlist's `defaults.dub_track`, which every dub window is cut
+         from (held_audio.dub_recording), the episode's sound still the song. Live: the node's
+         function in ComfyUI's own Python on CupsMV's song split the 2:07 in 5.1 s on the 5090,
+         the same stem as the one-off script's (correlation 0.99999996); align --vocals on a
+         scratch copy of ep01 (large-v3 on the CPU: this venv's CUDA has no cublas, 3 min)
+         heard 241 words and matched all 30 sung lines 100 %; with dub_from on, sh050's render
+         (dry run) uploads `song.wav.vocals.wav`. ComfyUI must restart once to load the node
+         (a backend without it is told so before anything is sent)
    - [x] whether a singing shot lip-syncs better to the vocal stem than to the full song
          (the window sent the model could be the stem's, the episode's sound the song's)
    - [x] shots that don't sing (the band, b-roll) get their window with no lips to sync

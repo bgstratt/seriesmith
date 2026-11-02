@@ -25,7 +25,7 @@ failed exits 1.
 | `seriesmith takes` / `pick` / `override` / `keyframe` / `discard` / `cut` | Takes, the cut and per-shot tweaks (below) |
 | `seriesmith promote <episode>` | Overrides moved into the script or the series config |
 | `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note>`, `--export`, `--clear`, `--resolve <id>`) |
-| `seriesmith align <episode> <recording>` | The script timed against a dialogue recording |
+| `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
 | `seriesmith assemble <episode>` | The review cut |
 | `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
 | `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
@@ -593,6 +593,8 @@ seriesmith assemble Shows\ep05 --proxy --audio master          # picture over th
   [INSTALL.md](/install#1-requirements) if it picks the wrong one.
 - align transcribes the recording with word timings, matches it to the script, and cuts it
   into one continuous run of windows with cuts at the quietest point of each pause.
+  `--vocals` hears the recording's vocal stem instead (a song: made on local ComfyUI first,
+  kept as `<recording>.vocals.wav`; off by default).
 - It writes `audio: in-out` on every shot, points the series config at the recording, keeps the
   old copy of each in `<episode>\_history\` (the editor's history), and writes `align_report.md`.
 - Speaking shots then default to `dub_keep_foley`: H3 lip-syncs to your line and keeps its own

@@ -330,6 +330,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   let trackPath: string | null = TRACK_PATH;
   /** a transcript sits beside the recording (re-aligning then needs no Whisper) */
   let trackWords = true;
+  /** the recording's vocal stem sits beside it; the series config's audio.dub_from */
+  let trackVocals = false;
+  let dubFrom: "recording" | "vocals" = "recording";
 
   function round3(n: number) {
     return Math.round(n * 1000) / 1000;
@@ -367,6 +370,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     e.track = trackPath
       ? {
         path: trackPath, duration: track.duration, rate: TRACK_RATE, exists: true, words: trackWords,
+        vocals: trackVocals, vocals_words: false, dub_from: dubFrom,
         aligned: e.shots.filter((s) => windows[s.shot]).length,
       }
       : null;
@@ -759,6 +763,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     const shots = status[pass]?.shots ?? [];
     return {
       path: trackPath, duration: track.duration, rate: TRACK_RATE, exists: true, words: trackWords,
+        vocals: trackVocals, vocals_words: false, dub_from: dubFrom,
       aligned: shots.filter((s) => windows[s.shot]).length,
     };
   }
@@ -783,7 +788,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     const same = path === trackPath;
     trackPath = path;
     // a recording the editor just attached has no transcript beside it yet
-    if (!same) trackWords = false;
+    if (!same) { trackWords = false; trackVocals = false; }
     emit("seriesmith.episode", { ep: EP });
     return {
       track: trackInfo(pass),
@@ -2457,6 +2462,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!trackPath) throw new MockError("the series config names no recording", 400);
       trackPath = null;
       trackWords = false;
+      trackVocals = false;
+      dubFrom = "recording";
       emit("seriesmith.episode", { ep: EP });
       return { track: null, hash: mockHash(files.series.text + "|no-track"), build: await api.build(ep), path: null, copied: false, reformatted: false };
     },
@@ -2466,6 +2473,22 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const build = req.dry_run ? null : await api.build(req.ep);
       if (!req.dry_run) emit("seriesmith.episode", { ep: EP });
       return { ...r, track: trackInfo(req.pass ?? "proxy"), build };
+    },
+    async makeVocals(ep) {
+      await wait(150);
+      need(ep);
+      if (!trackPath) throw new MockError("the episode has no recording (attach one first)", 409);
+      trackVocals = true;
+      emit("seriesmith.vocals", { ep: EP, recording: trackPath, status: "ok", error: "" });
+      return { job: "vocals-1", stem: null };
+    },
+    async setDubFrom(ep, value, pass) {
+      await wait(150);
+      need(ep);
+      if (value !== "recording" && value !== "vocals") throw new MockError("dub_from must be one of recording, vocals", 400);
+      dubFrom = value;
+      emit("seriesmith.episode", { ep: EP });
+      return { track: trackInfo(pass ?? "proxy"), hash: mockHash(files.series.text + "|dub_from=" + value), build: await api.build(ep) };
     },
     // ---- Phase 9c-B: a line from a take as a voice sample ----
     async refsVoiceFromTake(req) {

@@ -116,10 +116,24 @@ def compile_groups(story: ir.Episode, series_cfg: dict, pass_: str,
     check_story(story, series_cfg)
     multishot = TG.multishot_check(story, series_cfg)     # raises for a group no target renders
     built = [(t, *t.compile_episode(story, series_cfg, pass_, only=ids)) for t, ids in groups]
+    for _, doc, _ in built:
+        with_dub_track(doc, series_cfg)
     if built:
         built[0][2]["warnings"] = (list(built[0][2].get("warnings") or [])
                                    + story_warnings(story, series_cfg) + multishot)
     return built
+
+
+def with_dub_track(doc: dict, series_cfg: dict) -> None:
+    """`audio.dub_from: "vocals"`: the shotlist's `defaults.dub_track`, the recording's vocal
+    stem (vocals.py: `<recording>.vocals.wav`), which every dub shot's window is then cut
+    from (held_audio.dub_recording); `master_track` stays the recording, the episode's
+    sound. Nothing is added otherwise, so a shotlist is what it was."""
+    if (series_cfg.get("audio") or {}).get("dub_from") != "vocals":
+        return
+    d = doc.get("defaults")
+    if isinstance(d, dict) and d.get("master_track"):
+        d["dub_track"] = d["master_track"] + ".vocals.wav"
 
 
 def check_story(story: ir.Episode, series_cfg: dict) -> None:

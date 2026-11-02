@@ -32,8 +32,12 @@ recording from the first window's start is the episode's dialogue track.
 
 Recording tips
     Record lines in script order, dry (no music), with real pauses where the
-    script has silent shots. Mixed-in music buries the voice for H3: run
-    `python -m demucs --two-stems vocals file.wav` and use the vocals stem.
+    script has silent shots. A recording with music under it (a song: a
+    music video) can be aligned from its vocal stem: --vocals (off by default)
+    splits it on this machine's ComfyUI first (seriesmith's SeriesmithVocals
+    node, Hybrid Demucs; kept beside it as <recording>.vocals.wav) and
+    transcribes and cuts from the stem. The series config still points at the
+    recording itself.
 
 Needs
     ffmpeg on PATH, numpy, and one of:
@@ -421,6 +425,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--script", help="script .md, if the folder holds more than one")
     ap.add_argument("--words", help="word-timing JSON to use instead of transcribing")
     ap.add_argument("--retranscribe", action="store_true", help="ignore the cached transcript")
+    ap.add_argument("--vocals", action="store_true",
+                    help="transcribe (and find the pauses in) the recording's vocal stem, "
+                         "made on local ComfyUI first if it isn't beside it "
+                         "(<recording>.vocals.wav); off by default")
     ap.add_argument("--model", default="medium.en",
                     help="Whisper model (tiny.en, base.en, small.en, medium.en, large-v3)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
@@ -486,9 +494,22 @@ def main(argv: list[str] | None = None) -> int:
                 lines.append(ln)
             shots.append(entry)
 
+    # what's heard: the recording, or with --vocals its vocal stem (made first if need be)
+    heard = rec_abs
+    if args.vocals:
+        from seriesmith import vocals as VOC
+        if not VOC.fresh(rec_abs):
+            progress(prog, "vocals", 5, f"making the vocal stem of {os.path.basename(rec_abs)} "
+                                        f"on local ComfyUI")
+        try:
+            heard = VOC.ensure(rec_abs)
+        except RuntimeError as e:
+            sys.exit(f"  !! {e}")
+        print(f"  hearing the vocal stem {heard}")
+
     # transcript
-    cache = rec_abs + ".words.json"
-    cached = None if args.words or args.retranscribe else cached_words(cache, rec_abs)
+    cache = heard + ".words.json"
+    cached = None if args.words or args.retranscribe else cached_words(cache, heard)
     if args.words:
         progress(prog, "transcribe", 10, f"reading {os.path.basename(args.words)}")
         with open(args.words, encoding="utf-8") as fh:
@@ -499,17 +520,17 @@ def main(argv: list[str] | None = None) -> int:
         words = cached
         print(f"  using cached transcript {cache}")
     else:
-        progress(prog, "transcribe", 10, f"transcribing {os.path.basename(rec_abs)} with "
+        progress(prog, "transcribe", 10, f"transcribing {os.path.basename(heard)} with "
                                          f"Whisper {args.model} (this takes a while)")
         prompt = " ".join(l["text"] for l in lines)[:600]
-        words = transcribe(rec_abs, args.model, args.device, args.language, prompt)
+        words = transcribe(heard, args.model, args.device, args.language, prompt)
         T.write_json(cache, words)
         print(f"  cached transcript -> {cache}")
     if not words:
         sys.exit("  !! the transcript is empty")
     progress(prog, "match", 65, f"matching {len(words)} words to {len(lines)} lines")
 
-    pcm = load_pcm(rec_abs)
+    pcm = load_pcm(heard)
     duration = len(pcm) / SR
     align_lines(lines, words)
     notes: list[str] = []
@@ -552,7 +573,7 @@ def main(argv: list[str] | None = None) -> int:
                        rows, notes, lines)
     result = {"ok": True, "episode": os.path.abspath(ep), "script": md_p,
               "series": series_cfg_p, "recording": rec_rel, "duration": round(duration, 3),
-              "words": len(words), "dry_run": bool(args.dry_run),
+              "words": len(words), "dry_run": bool(args.dry_run), "vocals": heard != rec_abs,
               "changes": changes_json(shots, notes), "notes": notes, "report": report,
               "report_path": None, "script_hash": None, "series_hash": None}
 

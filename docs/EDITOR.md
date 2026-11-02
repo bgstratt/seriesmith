@@ -131,7 +131,7 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 | file-edit | **Edit the episode's script** — opens the Script window |
 | cog | **Series settings** — the series config as a form |
 | book | **Edit the series config** (`series.json`) as text |
-| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one |
+| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
 | play | **Play all** — the cut, played from its takes, no export needed |
 | film | **Open the timeline** |
 | speech bubble | **Issues** — the pass's notes (below), with how many are open |

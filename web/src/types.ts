@@ -312,6 +312,12 @@ export interface Track {
   /** Phase 9c: how many of the pass's shots carry a dialogue window (0 until
    * the script has `audio:` lines and the episode is rebuilt). */
   aligned?: number;
+  /** the recording's vocal stem sits beside it (`<rec>.vocals.wav`, newer than it) */
+  vocals?: boolean;
+  /** the stem has a transcript of its own (`<rec>.vocals.wav.words.json`) */
+  vocals_words?: boolean;
+  /** the series config's `audio.dub_from`: where each dub shot's window is cut from */
+  dub_from?: "recording" | "vocals";
 }
 
 /** Phase 9b: GET /seriesmith/peaks. */
@@ -408,7 +414,23 @@ export interface AlignRequest {
   /** snap the windows to the frame grid (default true) */
   snap?: boolean;
   dry_run?: boolean;
+  /** hear the recording's vocal stem (align --vocals; made first when it isn't there) */
+  vocals?: boolean;
   pass?: Pass;
+}
+
+/** POST /seriesmith/vocals: the stem queued (`job`), or already there (`stem`). */
+export interface VocalsResult {
+  job: string | null;
+  stem: string | null;
+}
+
+/** The `seriesmith.vocals` event: a vocal stem made, or not. */
+export interface VocalsEvent {
+  ep: string | null;
+  recording: string;
+  status: "ok" | "failed";
+  error?: string;
 }
 
 /** One shot in an align report: null times mean it keeps its `dur:`. */

@@ -29,6 +29,7 @@ from seriesmith.core import framing, ir
 from seriesmith.core.ir import stable_seed
 from seriesmith.core.series_config import members, variant_of
 from seriesmith.core.speech import RATE_CEILING, SPEECH_RATE, forced_rate, pacing, speech_seconds
+from seriesmith.targets import held_audio as HA
 
 from . import first_frame as FF
 from .prompt import build_multishot_prompt, build_prompt
@@ -872,8 +873,8 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
             out.append({"slot": slot, "kind": "audio",
                         "subject": r.get("subject", ""), "path": r.get("sample", "")})
     elif policy in ("dub", "dub_keep_foley"):
-        out.append({"slot": voice_slots[0], "kind": "audio", "path": shot.get("audio_file")
-                    or doc.get("defaults", {}).get("master_track", "")})
+        out.append({"slot": voice_slots[0], "kind": "audio",
+                    "path": HA.dub_recording(doc, shot)})
     return out + FF.keyframe_slots(shot)
 
 

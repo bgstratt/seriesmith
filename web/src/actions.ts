@@ -29,7 +29,7 @@ import {
   type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
-  AlignEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
+  AlignEvent, VocalsEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
   Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
@@ -2061,6 +2061,13 @@ export function wireEvents() {
     if (f.status === "failed") host().toast("error", `${f.shot}'s effects${t} failed`, "Its block's menu on the Effects lane says why.");
     fxEvents.forEach((fn) => fn(f));
   });
+  h.on("seriesmith.vocals", (d) => {
+    const v = (d ?? {}) as VocalsEvent;
+    if (!v.ep || !sameEp(v.ep, get().ep)) return;
+    if (v.status === "ok") host().toast("success", "The vocal stem is made", `${v.recording.replace(/\\/g, "/").split("/").pop()}.vocals.wav`);
+    if (v.status === "failed") host().toast("error", "The vocal stem wasn't made", v.error || undefined);
+    void refreshEpisode(v.ep, get().pass);
+  });
   h.on("seriesmith.master", (d) => {
     const j = (d ?? null) as MasterJob | null;
     if (!j || !sameEp(j.ep, get().ep)) return;
@@ -3371,13 +3378,14 @@ export async function clearTrack(ask = true): Promise<boolean> {
  * as `seriesmith.align` events while it runs; a 409 means a dependency is missing
  * (the panel then says what to install, and into which Python).
  */
-export async function runAlign(opts: { dryRun?: boolean; model?: string | null; snap?: boolean } = {}): Promise<boolean> {
+export async function runAlign(opts: { dryRun?: boolean; model?: string | null; snap?: boolean; vocals?: boolean } = {}): Promise<boolean> {
   const ep = get().ep;
   if (!ep) return false;
   const dryRun = !!opts.dryRun;
   const req: AlignRequest = { ep, pass: get().pass, dry_run: dryRun };
   if (opts.model) req.model = opts.model;
   if (opts.snap === false) req.snap = false;
+  if (opts.vocals) req.vocals = true;
   set({
     alignRun: { ep, busy: true, dryRun, stage: "transcribe", pct: 0, text: dryRun ? "starting (dry run)" : "starting", error: null },
   });
@@ -3409,6 +3417,49 @@ export async function runAlign(opts: { dryRun?: boolean; model?: string | null; 
     }
     return false;
   }
+}
+
+/** POST /seriesmith/vocals: the recording's vocal stem made on local ComfyUI (optional:
+ * for align from the stem, or an episode that dubs from it). `seriesmith.vocals` says when
+ * it lands. */
+export async function makeVocals(redo = false): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  return withBusy("track", async () => {
+    try {
+      const r = await api().makeVocals(ep, redo);
+      if (r.job) host().toast("info", "Making the vocal stem", "Queued on local ComfyUI (Jobs shows it).");
+      else {
+        host().toast("success", "The vocal stem is there", r.stem ?? undefined);
+        await refreshEpisode(ep, get().pass);
+      }
+      return true;
+    } catch (e) {
+      report("Couldn't make the vocal stem", e);
+      return false;
+    }
+  });
+}
+
+/** POST /seriesmith/track/dub_from: each dub shot's window cut from the recording's vocal
+ * stem ("vocals") or the recording ("recording", the default). The stem is made when it
+ * isn't there yet. */
+export async function setDubFrom(dubFrom: "recording" | "vocals"): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  const st = get().status[statusKey(ep, get().pass)];
+  const ok = await withBusy("track", async () => {
+    try {
+      const r = await api().setDubFrom(ep, dubFrom, get().pass);
+      afterTrack(ep, r, dubFrom === "vocals" ? "Dub shots now hear the vocal stem" : "Dub shots now hear the recording");
+      return true;
+    } catch (e) {
+      report("Couldn't change where the dub shots' windows come from", e);
+      return false;
+    }
+  });
+  if (ok && dubFrom === "vocals" && !st?.track?.vocals) await makeVocals();
+  return ok;
 }
 
 /** The page follows an align on the queue (just asked for, or found running). */

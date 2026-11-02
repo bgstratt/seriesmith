@@ -5189,13 +5189,14 @@ def post_align(ctx: Context, body):
         raise ApiError(400, "model must be a Whisper model name, e.g. medium.en")
     snap = body.get("snap", True)
     dry = body.get("dry_run", False)
-    for name, v in (("snap", snap), ("dry_run", dry)):
+    vocals = body.get("vocals", False)
+    for name, v in (("snap", snap), ("dry_run", dry), ("vocals", vocals)):
         if not isinstance(v, bool):
             raise ApiError(400, f"{name} must be true or false")
 
-    K.check_align(ep, track)
+    K.check_align(ep, track, vocals=vocals)
     params = {"ep": ep, "pass": pass_, "track": track, "model": (model or "").strip() or None,
-              "snap": snap, "dry_run": dry}
+              "snap": snap, "dry_run": dry, "vocals": vocals}
     with _LOCAL_GUARD:
         live = _live(ctx, "align", ep)
         if live is not None:
@@ -5234,8 +5235,11 @@ def _align_task(ctx: Context, params: dict):
         run.update(stage="start", text="starting (dry run)" if dry else "starting")
         tell()
         try:
+            if params.get("vocals"):
+                _vocals_first(ctx, ep, params["track"], progress)
             res = K.align(ep, track=params["track"], model=params["model"], snap=params["snap"],
-                          dry_run=dry, progress=progress, check_deps=False, stop=stop)
+                          dry_run=dry, progress=progress, check_deps=False, stop=stop,
+                          vocals=bool(params.get("vocals")))
         except Exception as e:                           # noqa: BLE001  the job fails
             why = "canceled" if qjob.cancel_asked else str(e)
             run.update(state="failed", error=why, finished=T.now(),
@@ -5257,6 +5261,76 @@ def _align_task(ctx: Context, params: dict):
         return "succeeded"
 
     return title, {"ep": ep, "pass": pass_, "dry_run": dry}, run, work
+
+
+def _vocals_first(ctx: Context, ep: str, track: str | None, progress) -> None:
+    """align --vocals from the editor: the recording's vocal stem made first, as a job on
+    the local backend's lane (so Jobs shows it and it waits its turn behind the renders),
+    when it isn't beside the recording; align then finds it."""
+    from seriesmith import vocals as VOC
+    rec = K.recording_path(ep, track)
+    if not rec or VOC.fresh(rec):
+        return
+    progress({"stage": "vocals", "pct": 2,
+              "text": f"making the vocal stem of {os.path.basename(rec)} on local ComfyUI"})
+    VOC.ensure(rec, runner=ctx.runner, log=None)
+
+
+@handler
+def post_vocals(ctx: Context, body):
+    """Make the episode's recording's vocal stem (vocals.py): queued on the local backend,
+    `seriesmith.vocals` sent as it ends. {"job"} (the queue's id), or {"stem"} when a fresh
+    one is already beside the recording (`redo` makes it again)."""
+    from seriesmith import vocals as VOC
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    redo = body.get("redo", False)
+    if not isinstance(redo, bool):
+        raise ApiError(400, "redo must be true or false")
+    rec = K.recording_path(ep, None)
+    if not rec:
+        raise ApiError(409, "the episode has no recording (attach one first)")
+    if VOC.fresh(rec) and not redo:
+        return 200, {"job": None, "stem": os.path.basename(VOC.stem_path(rec))}
+    if ctx.runner is None:
+        try:
+            if redo:
+                VOC.make(_local_backend(), rec)
+            else:
+                VOC.ensure(rec, log=None)
+        except RuntimeError as e:
+            raise ApiError(502, str(e)) from None
+        return 200, {"job": None, "stem": os.path.basename(VOC.stem_path(rec))}
+    try:
+        job = ctx.runner.enqueue_vocals(rec, "local", ep=ep)
+    except ValueError as e:
+        raise ApiError(409, str(e)) from None
+    return 200, {"job": job, "stem": None}
+
+
+def _local_backend():
+    from seriesmith.backends import available
+    b = available().get("local")
+    if b is None:
+        raise RuntimeError("no local ComfyUI is set up on this machine")
+    return b
+
+
+@handler
+def post_dub_from(ctx: Context, body):
+    """The series config's `audio.dub_from` ("vocals" or "recording"): where each dub
+    shot's window is sent from. Rebuilt, as a change to the series config is."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    value = body.get("dub_from")
+    if not isinstance(value, str):
+        raise ApiError(400, "dub_from must be \"vocals\" or \"recording\"")
+    res = K.set_dub_from(ep, value)
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    return 200, {"track": E.track_info(ep, pass_), "hash": res["hash"], "build": build,
+                 "dub_from": res["dub_from"]}
 
 
 @handler
@@ -5461,4 +5535,6 @@ ROUTES = [
     ("POST", "/seriesmith/audio/import", post_audio_import, "form"),
     ("POST", "/seriesmith/align", post_align, "body"),
     ("GET", "/seriesmith/align/job", get_align_job, "query"),
+    ("POST", "/seriesmith/vocals", post_vocals, "body"),
+    ("POST", "/seriesmith/track/dub_from", post_dub_from, "body"),
 ]
