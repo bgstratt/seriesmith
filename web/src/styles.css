@@ -714,6 +714,12 @@
 .h3-snd-hit.h3-hit-may { background: color-mix(in srgb, var(--h3-hit) 45%, transparent); color: var(--h3-fg); }
 .h3-snd-hit.h3-on { box-shadow: 0 0 0 1px var(--h3-fg); }
 .h3-snd-hitline { position: absolute; bottom: 0; width: 0; margin-left: -1px; border-left: 1px dashed var(--h3-hit); pointer-events: none; z-index: 3; }
+/* the music's beats on the Music lane (docs/SOUND.md phase 5): faint, under its blocks; where a trim snaps */
+.h3-snd-beats { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; }
+.h3-snd-beat { stroke: var(--h3-fg); stroke-width: 1; opacity: 0.12; }
+.h3-snd-downbeat { stroke: var(--h3-fg); stroke-width: 1; opacity: 0.28; }
+.h3-trim-beat { color: var(--h3-hit, #f2c94c); }
+.h3-trim-beat.h3-down { font-weight: 600; }
 .h3-hit-accent { --h3-hit: #f2c94c; }
 .h3-hit-arrive { --h3-hit: #eb5757; }
 .h3-hit-drop { --h3-hit: #56ccf2; }

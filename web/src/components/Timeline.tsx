@@ -13,7 +13,8 @@ import {
   ESTIMATE_TITLE, fmtClock, fmtSeconds, fmtShotSeconds, groupBySequence, lengthEstimated, shotBadges, shotSeconds, tn,
 } from "../lib/format";
 import { missingRefsSummary } from "../lib/missingRefs";
-import { clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
+import { baseIn, clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
+import { SNAP_DOWN_PX, SNAP_PX, beatLabel, cutBeats, fixedBeats, snapTrim, type Beat } from "../lib/beats";
 import { passProgress, progressLine, progressTitle } from "../lib/progress";
 import { seriesDefaultTarget, shotTarget, targetBadges } from "../lib/targets";
 import { HOLD_TARGET } from "../lib/takeDrop";
@@ -61,6 +62,10 @@ export interface TrimPreview {
   trimOut: number;
   px: number;
   py: number;
+  /** the beat of the music the cut was snapped to (Alt held: none), and which one in words */
+  beat?: { t: number; down: boolean; label: string } | null;
+  /** there are beats it could snap to (the tip says Alt turns it off) */
+  beats?: boolean;
   /** a held picture: the edge sets its length (frames), not a trim */
   held?: number;
 }
@@ -269,8 +274,8 @@ const Clip = memo(function Clip({
       {progress && <Progress value={progress.value} max={progress.max} />}
       {trimmable && !locked && (
         <>
-          <div className="h3-trim-h h3-l" title="Drag to trim the head (frame by frame)" onPointerDown={(e) => onEdgeDown(e, s, "in")} onClick={(e) => e.stopPropagation()} />
-          <div className="h3-trim-h h3-r" title="Drag to trim the tail (frame by frame)" onPointerDown={(e) => onEdgeDown(e, s, "out")} onClick={(e) => e.stopPropagation()} />
+          <div className="h3-trim-h h3-l" title="Drag to trim the head (frame by frame; the cut at the clip's end snaps to the music's beats, Alt: no snap)" onPointerDown={(e) => onEdgeDown(e, s, "in")} onClick={(e) => e.stopPropagation()} />
+          <div className="h3-trim-h h3-r" title="Drag to trim the tail (frame by frame; the cut snaps to the music's beats, Alt: no snap)" onPointerDown={(e) => onEdgeDown(e, s, "out")} onClick={(e) => e.stopPropagation()} />
         </>
       )}
     </div>
@@ -535,11 +540,27 @@ export function Timeline() {
     }
     let a = a0;
     let b = b0;
-    const place = (ev: { clientX: number; clientY: number }) => {
+    // the beats of the music in the mix (or the recording) that stay put while this edge
+    // moves: the cut at the clip's end snaps to them (docs/SOUND.md phase 5); Alt: no snap
+    const key = statusKey(app.ep ?? "", app.pass);
+    const list = currentPlaylist();
+    const all: Beat[] = cutBeats(list, app.mix[key]?.mix ?? {}, app.mixBeats[key]?.beats, f, baseIn(st));
+    const beats = fixedBeats(all, list, s.shot, side);
+    const place = (ev: { clientX: number; clientY: number; altKey?: boolean }) => {
       const d = pxToFrames(ev.clientX - x0, z, f);
       if (side === "in") a = clampTrim("in", a0 + d, total, 0, b0);
       else b = clampTrim("out", b0 - d, total, a0, 0);
-      setTrim({ shot: s.shot, side, trimIn: a, trimOut: b, px: ev.clientX, py: ev.clientY });
+      let beat: TrimPreview["beat"] = null;
+      if (beats.length && !ev.altKey && z > 0) {
+        const r = snapTrim({
+          it, side, total, a0, b0, a, b, beats, fps: f, tol: SNAP_PX / z, downTol: SNAP_DOWN_PX / z,
+          clamp: (sd, want, other) => (sd === "in" ? clampTrim("in", want, total, 0, other) : clampTrim("out", want, total, other, 0)),
+        });
+        a = r.a;
+        b = r.b;
+        if (r.beat) beat = { t: r.beat.t, down: r.beat.down, label: beatLabel(r.beat, all) };
+      }
+      setTrim({ shot: s.shot, side, trimIn: a, trimOut: b, px: ev.clientX, py: ev.clientY, beat, beats: beats.length > 0 });
     };
     place(e);
     track(place, (cancelled) => {
@@ -751,10 +772,13 @@ export function Timeline() {
         <div className="h3-trim-tip" style={{ left: trim.px + 14, top: trim.py - 34 }}>
           {trim.held != null ? `${trim.shot} · held ${framesLabel(trim.held, fps)}`
             : `${trim.shot} · ${trim.side === "in" ? "head" : "tail"} trim ${framesLabel(trim.side === "in" ? trim.trimIn : trim.trimOut, fps)}`}
+          {trim.held == null && trim.beat && (
+            <span className={`h3-trim-beat${trim.beat.down ? " h3-down" : ""}`}> · cuts on {trim.beat.down ? "the downbeat" : "the beat"}, {trim.beat.label} ({fmtClock(trim.beat.t)})</span>
+          )}
           <br />
           <span className="h3-muted">
             {trim.held != null ? `a held picture: as long as you drag it (was ${fmtSeconds((trimItem.total ?? 0) / fps)})`
-              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`} · Esc cancels
+              : `clip ${fmtSeconds(Math.max(1, (trimItem.total ?? 0) - trim.trimIn - trim.trimOut) / fps)} of ${fmtSeconds((trimItem.total ?? 0) / fps)}`}{trim.held == null && trim.beats ? " · snaps to the music's beats (hold Alt: frame by frame)" : ""} · Esc cancels
           </span>
         </div>
       )}

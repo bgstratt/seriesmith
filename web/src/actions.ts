@@ -1708,7 +1708,14 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
     if (r.ok && xml) {
       host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}
 Open it in Premiere (File ▸ Import) or Resolve (File ▸ Import ▸ Timeline).`);
-    } else if (r.ok) host().toast("success", pub ? "Published" : "Assembled", absPath(s.ep, r.output));
+    } else if (r.ok) {
+      // the loudness check on the export (assemble measured it; nothing changed)
+      const lc = r.loudness;
+      const off = lc && (!lc.on_target || lc.over_peak);
+      host().toast(off ? "warn" : "success", pub ? "Published" : "Assembled",
+        absPath(s.ep, r.output) + (lc ? `
+Loudness: ${lc.verdict}${off && !lc.mixed ? " (no mix brings the cut's own sound to the target)" : ""}` : ""));
+    }
     else if (pub && r.cut) host().toast("error", "Assembled, but publishing failed", r.error || r.report.slice(-400));
     else host().toast("error", xml ? "The XML failed" : "Assemble failed", r.report.slice(-400));
   } catch (e) {

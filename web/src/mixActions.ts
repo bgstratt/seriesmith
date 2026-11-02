@@ -53,6 +53,7 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
         && JSON.stringify(was.fx ?? []) === JSON.stringify(r.fx ?? []);
       return same ? { mixError } : { mix: { ...s.mix, [key]: r }, mixError };
     });
+    void loadBeats(ep, pass);
     return r;
   } catch (e) {
     set((s) => ({ mixError: { ...s.mixError, [key]: errText(e) } }));
@@ -82,6 +83,43 @@ async function loadDuck(ep: string, pass: Pass): Promise<void> {
     return same ? {} : { mixDuck: { ...s.mixDuck, [key]: r } };
   });
 }
+
+/** What the pass's beats are fetched for: its music items' files and the recording (null: nothing to cut to). */
+export function beatsSig(s: AppState, ep: string, pass: Pass): string | null {
+  const key = statusKey(ep, pass);
+  const music = (s.mix[key]?.mix.items ?? []).filter((i) => i.track === "music").map((i) => `${i.id}=${i.path}`);
+  const rec = s.status[key]?.track;
+  const track = rec?.exists !== false && rec?.path ? rec.path : "";
+  return music.length || track ? JSON.stringify([music, track]) : null;
+}
+
+/** The pass's beats (the timeline snaps trims to them, the Music lane draws them): fetched
+ * only when the mix's music files or the recording have changed since the last fetch. */
+export async function loadBeats(ep: string, pass: Pass): Promise<void> {
+  const key = statusKey(ep, pass);
+  const sig = beatsSig(get(), ep, pass);
+  const was = get().mixBeats[key];
+  if (sig == null) {
+    if (was) set((s) => {
+      const mixBeats = { ...s.mixBeats };
+      delete mixBeats[key];
+      return { mixBeats };
+    });
+    return;
+  }
+  if (was?.sig === sig || beatsAsked.get(key) === sig) return;
+  beatsAsked.set(key, sig);
+  try {
+    const beats = await api().getMixBeats?.(ep, pass);
+    if (beats) set((s) => ({ mixBeats: { ...s.mixBeats, [key]: { sig, beats } } }));
+  } catch (e) {
+    console.warn("seriesmith mix: no beats", e);
+  } finally {
+    if (beatsAsked.get(key) === sig) beatsAsked.delete(key);
+  }
+}
+/** a fetch in flight, by statusKey: what it was for */
+const beatsAsked = new Map<string, string>();
 
 onStatusLoaded((ep, pass) => {
   const s = get();

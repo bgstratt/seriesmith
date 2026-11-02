@@ -9,6 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
+import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
   MatchBy,
@@ -168,6 +169,8 @@ export interface Api {
   putMix(ep: string, pass: Pass, mix: Mix): Promise<{ mix: Mix }>;
   /** GET /seriesmith/mix/duck: how much someone is speaking, 0..1 per `step` seconds of the cut (Play all ducks with it). */
   getMixDuck(ep: string, pass: Pass): Promise<{ step: number; curve: number[] }>;
+  /** GET /seriesmith/mix/beats: each music item's beat grid and the recording's (the timeline snaps trims to them). */
+  getMixBeats?(ep: string, pass: Pass): Promise<MixBeats>;
   /** GET /seriesmith/ambience: every place's ambience bed (a ref each), without its takes. */
   ambience?(ep: string): Promise<{ beds: AmbienceBed[]; target: string | null }>;
   /** GET /seriesmith/refs/one: one ref with its takes (an ambience bed's row, when it opens). */
@@ -637,6 +640,10 @@ export function createHttpApi(t: Transport): Api {
     getMixDuck: async (ep, pass) => {
       const r = await get<Partial<{ step: number; curve: number[] }>>(`/seriesmith/mix/duck?${qs({ ep, pass })}`);
       return { step: typeof r?.step === "number" && r.step > 0 ? r.step : 0.05, curve: Array.isArray(r?.curve) ? r.curve : [] };
+    },
+    getMixBeats: async (ep, pass) => {
+      const r = await get<Partial<MixBeats>>(`/seriesmith/mix/beats?${qs({ ep, pass })}`);
+      return { items: Array.isArray(r?.items) ? r.items : [], recording: r?.recording ?? null };
     },
     cues: async (ep, pass) => {
       const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);

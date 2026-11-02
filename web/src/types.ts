@@ -920,6 +920,28 @@ export interface AssembleResult {
   /** with `publish`: the assembled cut, and the published file (null if publishing failed) */
   cut?: string;
   published?: string | null;
+  /** the loudness check on the export (docs/SOUND.md phase 5; `<cut>_loudness.json`): measured
+   * against the mix's target, never changing it. Null: no sound, the XML, or an older server */
+  loudness?: LoudnessCheck | null;
+}
+
+/** An export's loudness against its target (mix.loudness_check). */
+export interface LoudnessCheck {
+  integrated_lufs: number;
+  range_lu: number;
+  true_peak_dbtp: number;
+  target_lufs: number;
+  /** the true peak's ceiling */
+  true_peak_db: number;
+  /** integrated minus target, LU */
+  off_lu: number;
+  /** within 1 LU of the target */
+  on_target: boolean;
+  over_peak: boolean;
+  /** the mix brought it to the target (false: the cut's own sound as it came) */
+  mixed: boolean;
+  /** in words */
+  verdict: string;
 }
 
 /** Phase 13: POST /seriesmith/assemble's extras. `upscaled` (final pass): each clip

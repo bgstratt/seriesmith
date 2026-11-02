@@ -2,6 +2,7 @@
 // root, but they all live in one bundle, so they all see this module.
 
 import { useSyncExternalStore } from "react";
+import type { MixBeats } from "./lib/beats";
 import type { ToastAction } from "./host";
 import type { ExportProblem, ExportRun } from "./lib/exportCheck";
 import type { ShotColor } from "./lib/color";
@@ -466,6 +467,9 @@ export interface AppState {
   mixError: Record<string, string>;
   /** GET /seriesmith/mix/duck of the pass open, by statusKey (fetched with the mix): Play all ducks with it */
   mixDuck: Record<string, { step: number; curve: number[] }>;
+  /** GET /seriesmith/mix/beats of the pass open, by statusKey: fetched when the mix's music files (or the
+   * recording) change, never polled; `sig` is what it was fetched for. The timeline snaps trims to them. */
+  mixBeats: Record<string, { sig: string; beats: MixBeats }>;
   /** GET /seriesmith/cues, by episode (fetched with the mix while the lanes are unfolded, and on opening a cue) */
   cues: Record<string, CueSummary[]>;
   /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
@@ -647,6 +651,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     mix: {},
     mixError: {},
     mixDuck: {},
+    mixBeats: {},
     cues: {},
     cue: {},
     cueError: {},

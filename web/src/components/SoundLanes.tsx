@@ -31,7 +31,8 @@ import {
   moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackState, trimItem, xAnchor, xTime, type ClipBox, type Lay,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
-import { clipTake, type PlayItem } from "../lib/playlist";
+import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
+import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, dropOnLane, moveMixHit, moveMixItem,
   makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
@@ -105,6 +106,8 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
 }) {
   const res = useApp((s) => currentMix(s));
   const err = useApp((s) => s.mixError[statusKey(ep, s.pass)]);
+  // the music's beats (GET /seriesmith/mix/beats, fetched when its files change): faint ticks on the Music lane
+  const mixBeats = useApp((s) => s.mixBeats[statusKey(ep, s.pass)]?.beats);
   const [boxes, setBoxes] = useState<ClipBox[]>([]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [pop, setPop] = useState<Pop | null>(null);
@@ -288,6 +291,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
     return { h, x: t == null ? null : timeX(lay, t) };
   });
   const soloed = TRACKS.some((t) => trackState(res, t).solo);
+  const beats = mixBeats && lay.length ? cutBeats(items, mix, mixBeats, fps, baseIn(st)) : [];
 
   return (
     <div className="h3-snd" style={{ height: LANES_H }}>
@@ -355,6 +359,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
               <FxBlock key={f.shot} ep={ep} fx={f} mix={mix} lay={lay} items={items} fps={fps}
                 onMenu={(e) => setFxPop({ fx: f, x: e.clientX, y: e.clientY })} />
             ))}
+            {track === "music" && beats.length > 0 && <BeatTicks beats={beats} lay={lay} />}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
               <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && drag.what !== "hit" && drag.what !== "point" && drag.id === it.id}
@@ -385,6 +390,32 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
       {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
       {fxPop && <FxMenu ep={ep} pop={fxPop} mix={res?.mix ?? {}} onClose={() => setFxPop(null)} />}
     </div>
+  );
+});
+
+/** the closest ticks are drawn: beats closer than this (px) leave only the downbeats, downbeats closer leave none */
+const TICK_GAP = 5;
+
+/**
+ * The music's beats as faint ticks across the Music lane (downbeats stronger), under
+ * its blocks: where a trim's cut snaps to (docs/SOUND.md phase 5). Thinned out when
+ * zoomed out: the beats go first, then the downbeats.
+ */
+const BeatTicks = memo(function BeatTicks({ beats, lay }: { beats: Beat[]; lay: Lay[] }) {
+  const xs = beats.map((b) => ({ x: timeX(lay, b.t), down: b.down }));
+  const gap = (list: { x: number }[]) => {
+    let m = Infinity;
+    for (let k = 1; k < list.length; k++) m = Math.min(m, list[k].x - list[k - 1].x);
+    return m;
+  };
+  const downs = xs.filter((b) => b.down);
+  const shown = gap(xs) >= TICK_GAP ? xs : gap(downs) >= TICK_GAP ? downs : [];
+  if (!shown.length) return null;
+  const w = Math.ceil(Math.max(...shown.map((b) => b.x))) + 2;
+  return (
+    <svg className="h3-snd-beats" width={w} height={LANE_H} aria-hidden="true">
+      {shown.map((b, k) => <line key={k} className={b.down ? "h3-snd-downbeat" : "h3-snd-beat"} x1={b.x + 0.5} x2={b.x + 0.5} y1={b.down ? 0 : LANE_H * 0.55} y2={LANE_H} />)}
+    </svg>
   );
 });
 
