@@ -44,6 +44,7 @@ import { openSound } from "../actions";
 import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
+import { openSpotting } from "../spotActions";
 import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
@@ -984,6 +985,12 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
         <button disabled={!over && !at} title="A cue: its sections, arc and takes in the cue window, written to the hits in its span"
           onClick={run(() => void newCue(at))}>
           <i className="pi pi-volume-up" /> {over ? `New cue over the ${multi.length} shots selected…` : `New cue here (to the end of ${at?.shot ?? "the shot"})…`}
+        </button>
+      )}
+      {track === "music" && (
+        <button title="The spotting sheet: the episode's music map, every cue, bed, effect and hit by sequence, with the cut playing above it"
+          onClick={run(() => openSpotting())}>
+          <i className="pi pi-map" /> Spotting sheet…
         </button>
       )}
       {track === "dialogue" && at && (

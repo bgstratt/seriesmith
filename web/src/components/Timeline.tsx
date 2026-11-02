@@ -3,7 +3,7 @@ import {
   type DragEvent, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type RefObject,
 } from "react";
 import {
-  clickShot, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
+  clickShot, closeViewer, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
 import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
@@ -31,6 +31,7 @@ import { AudioBadge } from "./ClipAudio";
 import { audioBadgeOf } from "../lib/audioSource";
 import { HEAD_W, LANES_H, SoundLanes } from "./SoundLanes";
 import { toggleSound } from "../mixActions";
+import { openSpotting } from "../spotActions";
 import { dragHasFiles } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake, dropAt } from "../lib/takeDrop";
 import { HOLD_MAX_SECONDS, dropFileBetween, dropTakeBetween, dropFileOnto, dropTakeOnto, holdLength } from "../takeActions";
@@ -334,6 +335,7 @@ export function Timeline() {
   const err = useApp((s) => (s.ep ? s.statusError[statusKey(s.ep, s.pass)] : undefined));
   const playing = useApp((s) => s.viewer?.kind === "cut" && s.cutPlay.playing);
   const playerOpen = useApp((s) => s.viewer?.kind === "cut");
+  const spotting = useApp((s) => s.viewer?.kind === "cut" && !!s.viewer.spot);
   const pos = useApp((s) => (s.viewer?.kind === "cut" ? s.cutPlay.pos : null));
   const items = useApp((s) => currentPlaylist(s));
   const st = useStatus();
@@ -618,6 +620,11 @@ export function Timeline() {
           </button>
           <button className={`h3-btn${sound ? " h3-on" : ""}`} title={sound ? "Fold the sound lanes away" : "Sound: the waveforms and the episode's mix under the clips: hits, then dialogue (each clip's own sound, or the recording's with Play all on it), effects, ambience and music, each with its fader, mute and solo. Drop a sound file on a lane to lay it there; Play all plays the mix"} onClick={() => toggleSound()}>
             <i className="pi pi-volume-up" /> Sound
+          </button>
+          <button className={`h3-btn${spotting ? " h3-on" : ""}`} disabled={!st?.shots.length}
+            title="Spotting: the episode's music map (cues, ambience, effects and hits by sequence) under a large picture of the cut with its mix; jump between hits, mark new ones, see each cue's hits, tempo and takes, and play a take against the picture"
+            onClick={() => (spotting ? closeViewer() : openSpotting())}>
+            <i className="pi pi-map" /> Spotting
           </button>
         </span>
         {pos != null && <span className="h3-mono h3-muted">{fmtClock(pos)}</span>}

@@ -1281,3 +1281,58 @@
 .h3-gal-view-tools {
   flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 8px;
 }
+/* the spotting sheet (docs/SOUND.md): Play all's picture large, the music map under it, the selected cue on the right */
+.h3-spot-body { display: flex; flex: 1 1 auto; min-height: 0; }
+.h3-spot-main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; }
+.h3-spot-picture { position: relative; display: flex; flex: 0 0 auto; height: min(48vh, 460px); min-height: 160px; background: #000; }
+.h3-spot-transport { flex-wrap: wrap; }
+.h3-spot-hitname { font-size: 10px; padding: 0 6px; border-radius: 3px; color: #000; background: var(--h3-hit); }
+.h3-spot-aud {
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 11px;
+  background: color-mix(in srgb, #8a6ce0 18%, var(--h3-bg)); border-bottom: 1px solid var(--h3-border);
+}
+.h3-spot-map { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 10px; }
+.h3-spot-row { border: 1px solid var(--h3-border); border-radius: 4px; padding: 3px 4px 4px; background: var(--h3-bg); }
+.h3-spot-row.h3-on { border-color: color-mix(in srgb, var(--h3-accent) 60%, var(--h3-border)); }
+.h3-spot-rowhead { display: flex; align-items: baseline; gap: 8px; font-size: 11px; padding: 0 2px 2px; }
+.h3-spot-lanes { position: relative; display: flex; flex-direction: column; gap: 1px; }
+.h3-spot-lanerow { display: flex; align-items: stretch; height: 18px; }
+.h3-spot-lab { flex: 0 0 64px; font-size: 9px; color: var(--h3-muted); align-self: center; }
+.h3-spot-lane { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; border-radius: 2px; cursor: pointer;
+  background: color-mix(in srgb, var(--h3-bg2) 70%, transparent); }
+.h3-spot-shot {
+  position: absolute; top: 0; bottom: 0; box-sizing: border-box; padding: 0 3px; font-size: 9px; line-height: 18px; white-space: nowrap; overflow: hidden;
+  border-right: 1px solid var(--h3-border); color: var(--h3-muted); pointer-events: none;
+}
+.h3-root button.h3-spot-hit {
+  position: absolute; top: 1px; bottom: 1px; max-width: 140px; padding: 0 4px 0 3px; margin: 0; font: inherit; font-size: 9px; line-height: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000; background: var(--h3-hit); border: 0;
+  border-left: 2px solid var(--h3-hit); border-radius: 0 3px 3px 0; cursor: pointer; z-index: 2;
+}
+.h3-root button.h3-spot-hit.h3-hit-may { background: color-mix(in srgb, var(--h3-hit) 45%, transparent); color: var(--h3-fg); border-left-style: dashed; }
+.h3-root .h3-spot-blk {
+  position: absolute; top: 1px; bottom: 1px; box-sizing: border-box; display: flex; align-items: center; gap: 4px; padding: 0 4px; margin: 0;
+  font: inherit; font-size: 9px; white-space: nowrap; overflow: hidden; color: var(--h3-fg); border-radius: 3px;
+  background: color-mix(in srgb, var(--h3-snd-c) 24%, var(--h3-bg)); border: 1px solid color-mix(in srgb, var(--h3-snd-c) 70%, transparent);
+}
+.h3-root button.h3-spot-cue { cursor: pointer; }
+.h3-root .h3-spot-blk.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); z-index: 1; }
+.h3-root .h3-spot-blk.h3-spot-unplaced { background: transparent; border-style: dashed; }
+.h3-root .h3-spot-blk.h3-spot-stale { border-color: var(--h3-stale); border-style: dashed; }
+.h3-spot-tag { font-size: 8px; padding: 0 3px; border-radius: 2px; background: color-mix(in srgb, var(--h3-bg) 70%, transparent); }
+.h3-spot-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--h3-fg); pointer-events: none; z-index: 4; }
+.h3-spot-side { flex: 0 0 380px; }
+.h3-spot-tablewrap { overflow: auto; max-height: 260px; border: 1px solid var(--h3-border); border-radius: 4px; }
+.h3-spot-table { border-collapse: collapse; width: 100%; font-size: 10.5px; }
+.h3-spot-table th, .h3-spot-table td { padding: 2px 5px; text-align: left; white-space: nowrap; border-bottom: 1px solid color-mix(in srgb, var(--h3-border) 50%, transparent); }
+.h3-spot-table th { position: sticky; top: 0; background: var(--h3-bg2); font-weight: 600; color: var(--h3-muted); }
+.h3-spot-table th.h3-spot-inmix { color: var(--h3-ok); }
+.h3-spot-hitrow { cursor: pointer; }
+.h3-spot-hitrow:hover { background: var(--h3-bg2); }
+.h3-spot-hitrow.h3-on { background: color-mix(in srgb, var(--h3-accent) 18%, transparent); }
+.h3-spot-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--h3-hit); vertical-align: 0; }
+.h3-spot-err-off { color: var(--h3-stale); font-weight: 700; }
+.h3-spot-err-none { color: var(--h3-muted); }
+.h3-spot-take.h3-on { color: var(--h3-ok); }
+.h3-spot-stalelist { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--h3-border); }
+.h3-root button.h3-linkbtn { font: inherit; padding: 0 2px; margin: 0; color: var(--h3-accent); background: none; border: 0; cursor: pointer; text-decoration: underline; }

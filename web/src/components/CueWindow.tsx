@@ -20,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEv
 import { closeViewer, currentPlaylist } from "../actions";
 import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
+import { openSpotting } from "../spotActions";
 import { api, host } from "../host";
 import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, cueStart,
@@ -233,7 +234,9 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
       <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
         onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
-      <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>
+      {opened.back === "spot"
+        ? <button className="h3-btn" title="Back to the spotting sheet, on this cue" onClick={() => openSpotting(id)}><i className="pi pi-arrow-left" /> Spotting</button>
+        : <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>}
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>
     </>

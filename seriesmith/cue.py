@@ -432,7 +432,8 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
     "t", "at"}], "fit": {...}, "alternatives" (the best few tempos within FIT_SPREAD of
-    the asked one, the fit's first unless the tempo is fixed: score.alternatives), "bars", "bar", "preroll", "seconds", "ask_seconds", "sections",
+    the asked one, the fit's first unless the tempo is fixed: score.alternatives),
+    "direction" (the series config's score direction, `sound.score`; "" when none), "bars", "bar", "preroll", "seconds", "ask_seconds", "sections",
     "arc", "cue" (what the prompt writer gets), "prompt"}. CueError when its anchors
     aren't in the cut."""
     series = series if series is not None else (J.series_config(root) or {})
@@ -520,6 +521,7 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             "fit": {"bpm": fit.bpm, "ask_bpm": fit.ask_bpm, "stretch": fit.stretch,
                     "errors": fit_errors, "worst_must": fit.worst_must},
             "alternatives": alts,
+            "direction": direction,
             "bars": bars, "bar": round(bar, 5), "preroll": preroll, "seconds": seconds,
             "ask_seconds": cue["seconds"], "sections": sections, "arc": arc, "cue": cue,
             "prompt": brief}

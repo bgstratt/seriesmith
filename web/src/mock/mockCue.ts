@@ -216,7 +216,7 @@ export function orchestrate<S extends CueSection & { bars: number }>(sections: S
 }
 
 /** What a cue is asked against the cut (cue.plan, simplified). Throws a CueError when its anchors aren't in it. */
-export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}): CuePlan {
+export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}, direction = ""): CuePlan {
   const a = anchorTime(items, spec.in, fps);
   const b = anchorTime(items, spec.out, fps);
   if (a == null || b == null) throw new CueError(`cue ${spec.id}: ${a == null ? spec.in.shot : spec.out.shot} isn't in the cut`);
@@ -227,7 +227,7 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
   for (const h of mix.hits ?? []) {
     const t = anchorTime(items, h.at, fps);
     if (t == null || (want && !want.has(h.id)) || (!want && (t < a || t > b))) continue;
-    hits.push({ id: h.id, name: h.name || h.id, kind: h.kind ?? "accent", must: h.must !== false, t: Math.round((t - a) * 10000) / 10000 });
+    hits.push({ id: h.id, name: h.name || h.id, kind: h.kind ?? "accent", must: h.must !== false, t: Math.round((t - a) * 10000) / 10000, at: { ...h.at } });
   }
   hits.sort((x, y) => x.t - y.t);
   const meter = meterBeats(spec.meter);
@@ -263,6 +263,24 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
     return Math.round((x - Math.round(x)) * unit * fps * 100) / 100;
   });
   const worst = Math.max(0, ...errors.filter((_, i) => hits[i].must).map(Math.abs));
+  // the best few tempos within 8 % (score.alternatives): the fit's first, then whole bpms a bpm or more from it
+  const worstAt = (cand: number) => {
+    const bb = (60 * meter) / cand;
+    const pre = musts.length ? (bb - (musts[0].t % bb)) % bb : 0;
+    const errs = musts.map((h) => {
+      const unit = h.kind === "accent" ? bb / meter : bb;
+      const x = (h.t + pre) / unit;
+      return Math.abs(x - Math.round(x)) * unit * fps;
+    });
+    return { worst: Math.round(Math.max(0, ...errs) * 100) / 100, total: Math.round(errs.reduce((n, e) => n + e, 0) * 100) / 100, pre: Math.round(pre * 10000) / 10000 };
+  };
+  const others: number[] = [];
+  for (let c = Math.ceil(asked * 0.92); c <= Math.floor(asked * 1.08); c++) if (Math.abs(c - bpm) >= 1) others.push(c);
+  const alternatives = !hits.length ? [] : [bpm, ...others.sort((x, y) => worstAt(x).worst - worstAt(y).worst || Math.abs(x - asked) - Math.abs(y - asked)).slice(0, 3)]
+    .map((c) => {
+      const w = worstAt(c);
+      return { bpm: c, preroll: w.pre, worst_must: w.worst, total: w.total };
+    });
   const tail = spec.tail ?? 2;
   const bars = Math.max(1, Math.ceil((preroll + span + tail) / bar - 1e-6));
   const seconds = Math.round(bars * bar * 1000) / 1000;
@@ -295,6 +313,8 @@ export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix,
   return {
     target, fps, span: Math.round(span * 1000) / 1000, hits,
     fit: { bpm, ask_bpm: ask, stretch, errors, worst_must: worst },
+    alternatives,
+    direction,
     bars, bar: Math.round(bar * 100000) / 100000, preroll, seconds, ask_seconds: values.seconds as number, sections, arc,
     prompt: { prompt: target === "ace_step15" ? head.replace(/, \d+ BPM/, "").replace(/\.$/, "") : head + mood + " " + story, negative: null, values },
     notes: shotNotes,

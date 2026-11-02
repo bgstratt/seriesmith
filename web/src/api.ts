@@ -181,8 +181,9 @@ export interface Api {
     queued: { shot: string; take: number; job: string; seed: number; target: string }[]; skipped: { shot: string; why: string }[] }>;
   /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
-  /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts. */
-  cues(ep: string): Promise<{ cues: CueSummary[] }>;
+  /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
+   * `pass`, each planned against that pass's cut too (its tempo, the take in the mix, what's stale). */
+  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[] }>;
   /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
   getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
   /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
@@ -635,8 +636,8 @@ export function createHttpApi(t: Transport): Api {
       const r = await get<Partial<{ step: number; curve: number[] }>>(`/seriesmith/mix/duck?${qs({ ep, pass })}`);
       return { step: typeof r?.step === "number" && r.step > 0 ? r.step : 0.05, curve: Array.isArray(r?.curve) ? r.curve : [] };
     },
-    cues: async (ep) => {
-      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs({ ep })}`);
+    cues: async (ep, pass) => {
+      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
       return { cues: Array.isArray(r?.cues) ? r.cues : [] };
     },
     getCue: async (ep, pass, cue) => {

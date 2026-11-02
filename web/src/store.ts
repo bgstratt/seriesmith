@@ -10,7 +10,7 @@ import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
   CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
-  TargetList, PresetList } from "./types";
+  TargetList, PresetList, Anchor } from "./types";
 
 // ---------------------------------------------------------------------------
 // a tiny store
@@ -89,8 +89,30 @@ export interface ViewerState {
    * of the four picked views -- so it has no take number to compare by.
    */
   file?: string | null;
-  /** cue mode: the cue's id */
+  /** cue mode: the cue's id; cut mode with `spot`: the spotting sheet's selected cue */
   cue?: string;
+  /** cut mode: the spotting sheet (the cut player with the episode's music map) instead of Play all's window */
+  spot?: boolean;
+  /** cue mode: opened from the spotting sheet (its head goes back there) */
+  back?: "spot";
+}
+
+/** A cue's take played in the cue's place under the picture, in the preview only (the spotting sheet's audition). */
+export interface Audition {
+  ep: string;
+  pass: Pass;
+  cue: string;
+  take: number;
+  /** the take's wav, relative to the episode */
+  path: string;
+  /** seconds into it of the cue's in point (its measured offset) */
+  offset: number;
+  /** frames of its fade out (a bar, as a pick lays it) */
+  fadeOut: number;
+  /** the cue's span and label */
+  in: Anchor;
+  out: Anchor;
+  label: string;
 }
 
 /** The gallery: its scope, and where it is in it. */
@@ -447,6 +469,10 @@ export interface AppState {
   /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
   cue: Record<string, CueResult>;
   cueError: Record<string, string>;
+  /** the cues planned against a pass (GET /seriesmith/cues?pass=: the spotting sheet's), by statusKey(ep, pass) */
+  cueStates: Record<string, CueSummary[]>;
+  /** a take auditioned under the picture in place of its cue's (null: the mix as it is) */
+  audition: Audition | null;
   /** Phase 9b: what Ctrl+Z / Ctrl+Shift+Z would undo / redo, by statusKey */
   cutUndo: Record<string, { undo: string | null; redo: string | null }>;
   /** Phase 9b: the timeline's Cut menu, open at (x, y) */
@@ -622,6 +648,8 @@ export function initialState(prefs: Prefs = {}): AppState {
     cues: {},
     cue: {},
     cueError: {},
+    cueStates: {},
+    audition: null,
     cutUndo: {},
     cutMenu: null,
     exportMenu: null,

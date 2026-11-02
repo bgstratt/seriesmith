@@ -949,7 +949,7 @@ export function updateViewer(patch: Partial<NonNullable<AppState["viewer"]>>) {
 }
 
 export function closeViewer() {
-  set((s) => ({ viewer: null, cutPlay: { ...s.cutPlay, playing: false } }));
+  set((s) => ({ viewer: null, cutPlay: { ...s.cutPlay, playing: false }, audition: null }));
 }
 
 // where focus was when a context menu opened: its keys (space, J/K/L, the
@@ -2158,7 +2158,9 @@ export function playAll(fromShot?: string | null, only: string[] | null = null) 
   const resume = s.viewer?.kind === "cut" && s.cutPlay.pos < totalDuration(items) - 0.05;
   const t = fromShot ? startOf(items, fromShot) ?? 0 : resume ? s.cutPlay.pos : 0;
   set({
-    viewer: { kind: "cut", shot: fromShot ?? items[0].shot, pass: s.pass, a: null, b: null, mode: "single", target: "a" },
+    // the spotting sheet stays the sheet (it is this player)
+    viewer: { kind: "cut", shot: fromShot ?? items[0].shot, pass: s.pass, a: null, b: null, mode: "single", target: "a",
+              ...(s.viewer?.kind === "cut" && s.viewer.spot ? { spot: true, cue: s.viewer.cue } : {}) },
     menu: null,
     cutPlay: { playing: true, pos: t, seek: nextSeek(t) },
   });
@@ -2173,6 +2175,14 @@ export function seekCut(t: number) {
   const total = totalDuration(currentPlaylist(s));
   const c = Math.min(Math.max(0, t), total);
   set({ cutPlay: { ...s.cutPlay, pos: c, seek: nextSeek(c) } });
+}
+
+/** The playhead `d` frames back or on from the frame it's on, paused there. */
+export function stepFrame(d: number, fps: number) {
+  const s = get();
+  const f = Math.round(s.cutPlay.pos * fps + 1e-6);
+  if (s.cutPlay.playing) set({ cutPlay: { ...s.cutPlay, playing: false, rate: 1 } });
+  seekCut((f + d) / fps);
 }
 
 /** Jump the open cut player to a shot. Returns false when the player isn't open. */

@@ -6,7 +6,8 @@
 // gain of its own after the fader, so the preview dips where the export does.
 // It follows the store's cutPlay: started at the playhead on play, stopped on
 // pause, laid again on a seek, a change of the mix or the cut, and when the
-// video's clock and the audio's drift apart. The clips' own sound stays on the
+// video's clock and the audio's drift apart. A take auditioned (the spotting
+// sheet's: store `audition`) plays in its cue's place, in the preview only. The clips' own sound stays on the
 // <video> elements (the Viewer sets their volume from the dialogue fader and a
 // region's dialogue_db: a video only goes down).
 
@@ -16,6 +17,7 @@ import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
 import { currentMix } from "../mixActions";
+import { auditionMix } from "../lib/spotting";
 import type { MixTrack } from "../types";
 
 /** seconds the audio may stray from the picture before it is laid again */
@@ -212,6 +214,7 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
     let bedsSeen: unknown = null;
     let fxSeen: unknown = null;
     let duckSeen: unknown = null;
+    let auditionSeen: unknown = null;
     let itemsSeen: PlayItem[] | null = null;
     let seekN: number | undefined;
     let want = false;
@@ -224,7 +227,9 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
       const open = s.viewer?.kind === "cut";
       let relay = false;
       const duck = s.mixDuck[statusKey(ep, s.pass)];
-      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || its !== itemsSeen || duck !== duckSeen) {
+      const aud = s.audition && s.audition.ep === ep && s.audition.pass === s.pass ? s.audition : null;
+      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || its !== itemsSeen || duck !== duckSeen || aud !== auditionSeen) {
+        auditionSeen = aud;
         mixSeen = res?.mix;
         bedsSeen = res?.beds;
         fxSeen = res?.fx;
@@ -235,7 +240,7 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
         // the items, and the places' ambience beds under them (looped, crossfaded at their runs' cuts)
         // and the shots' picked effects at their clips
         plan = [...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
-                ...playPlan(its, res?.mix ?? {}, fps)];
+                ...playPlan(its, aud ? auditionMix(res?.mix ?? {}, aud) : res?.mix ?? {}, fps)];
         total = totalDuration(its);
         e.setDucking(duckTracks(res, its, fps, duck, total));
         const key = JSON.stringify(plan);

@@ -102,7 +102,11 @@ export function cueSettled(): Promise<void> {
  * dragged edge stays where it was let go), saved, then the cue fetched again.
  */
 export function saveCue(spec: CueSpec, plan?: Partial<CuePlan>): Promise<boolean> {
-  const o = openCueRef();
+  return saveCueAt(openCueRef(), spec, plan);
+}
+
+/** saveCue for cue `o` (the spotting sheet's selected one, which isn't open in the cue window). */
+export function saveCueAt(o: { ep: string; pass: Pass; cue: string; key: string } | null, spec: CueSpec, plan?: Partial<CuePlan>): Promise<boolean> {
   if (!o) return Promise.resolve(false);
   const prev = get().cue[o.key];
   if (prev) set((s) => ({ cue: { ...s.cue, [o.key]: { ...prev, spec, plan: prev.plan && plan ? { ...prev.plan, ...plan } : prev.plan } } }));

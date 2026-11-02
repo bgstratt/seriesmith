@@ -2734,6 +2734,26 @@ export interface CueSummary {
   ok: number;
   /** the passes whose mix it's in */
   placed: Pass[];
+  /** with `pass` asked (GET /seriesmith/cues?pass=): the cue planned against that pass's cut */
+  bpm?: number | null;
+  /** the take its item in the pass's mix plays (null: none) */
+  in_mix?: number | null;
+  /** what has moved under that take since it was rendered ([]: nothing, or none in the mix) */
+  stale?: string[];
+  /** the finished takes something has moved under */
+  stale_takes?: number[];
+  /** its anchors aren't in the cut (null: planned) */
+  plan_error?: string | null;
+}
+
+/** A tempo the cue's hits could be fitted to (core/score.alternatives). */
+export interface CueTempo {
+  bpm: number;
+  preroll: number;
+  /** frames: the must-hits' worst error there */
+  worst_must: number;
+  /** frames: every hit's error added up */
+  total: number;
 }
 
 /** A hit of the cue's plan: seconds from its in point. */
@@ -2743,6 +2763,8 @@ export interface CueHit {
   kind: HitKind;
   must: boolean;
   t: number;
+  /** where it is in the cut (the mix's anchor) */
+  at?: Anchor;
   /** a drop on its out point: the music's end, neither fitted to a bar line nor measured */
   ends?: boolean;
 }
@@ -2756,7 +2778,11 @@ export interface CuePlan {
   hits: CueHit[];
   /** the cue's exact tempo, the whole bpm the model is asked, the stretch
    * between them, each hit's distance to its line (frames), the worst must-hit's */
-  fit: { bpm: number; ask_bpm: number; stretch: number; errors: number[]; worst_must: number };
+  fit: { bpm: number; ask_bpm: number; stretch: number; errors: (number | null)[]; worst_must: number };
+  /** the best few tempos within 8 % of the asked one, best first (the fit's first unless fixed) */
+  alternatives?: CueTempo[];
+  /** the series config's score direction (`sound.score`; "" when none), before the cue's style in the prompt */
+  direction?: string;
   bars: number;
   /** seconds a bar */
   bar: number;

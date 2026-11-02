@@ -148,6 +148,9 @@ class PlanTest(unittest.TestCase):
         for a in alts:
             self.assertTrue(92 * 0.92 - 1e-6 <= a["bpm"] <= 92 * 1.08 + 1e-6)
             self.assertEqual(set(a), {"bpm", "preroll", "worst_must", "total"})
+        self.assertEqual(p["direction"], "")
+        self.assertEqual(CU.plan(self.root, "final", self.spec(), {"sound": {"score": "sparse strings."}})["direction"],
+                         "sparse strings.")
         # a fixed tempo is kept, and the others near it still offered
         fixed = CU.plan(self.root, "final", self.spec(fixed_tempo=True), {})
         self.assertEqual(fixed["fit"]["bpm"], 92)

@@ -29,7 +29,7 @@ import { MIX_DEFAULTS } from "../api";
 import { MixError, checkMix, speechCurve } from "./mockMix";
 import { CUE_PRESETS, CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
-import type { CueSpec, CueTake } from "../types";
+import type { CueSpec, CueSummary, CueTake } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
 import { RefError, createMockRefs } from "./mockRefs";
 import { svgImage, type KeyframeNeedSpec } from "./mockRefs";
@@ -436,7 +436,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   /** the script's music: notes, for a plan's prompt */
   const MUSIC_NOTES: Record<string, string> = { sh020: "tension rises as she looks up", sh030: "swells, full, on the reveal" };
   const cuePlaylist = (pass: Pass) => buildPlaylist(status[pass], status[pass === "proxy" ? "final" : "proxy"]);
-  const cuePlan = (spec: CueSpec, pass: Pass) => planCue(spec, cuePlaylist(pass), st(pass).fps || 24, mixes[pass] ?? {}, MUSIC_NOTES);
+  /** the series config's score direction (sound.score) */
+  const SCORE_DIRECTION = "sincere, never comic: strings and a solo horn";
+  const cuePlan = (spec: CueSpec, pass: Pass) => planCue(spec, cuePlaylist(pass), st(pass).fps || 24, mixes[pass] ?? {}, MUSIC_NOTES, SCORE_DIRECTION);
   const cueFile = (cid: string, n: number) => `sound/${cid}/t${String(n).padStart(2, "0")}.wav`;
   function cueTakeDone(cid: string, t: CueTake, pass: Pass) {
     const spec = cueSpecs.get(cid)!;
@@ -1248,13 +1250,28 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(ep);
       return speechCurve(cuePlaylist(pass));
     },
-    async cues(ep) {
+    async cues(ep, pass) {
       await wait();
       need(ep);
       return { cues: [...cueSpecs.values()].sort((a, b) => a.id.localeCompare(b.id)).map((spec) => {
         const ts = cueTakes.get(spec.id) ?? [];
-        return { spec: clone(spec), takes: ts.length, ok: ts.filter((t) => t.status === "ok").length,
-                 placed: [...new Set(ts.map((t) => t.placed).filter((p): p is Pass => !!p))].sort() };
+        const row: CueSummary = { spec: clone(spec), takes: ts.length, ok: ts.filter((t) => t.status === "ok").length,
+                                  placed: [...new Set(ts.map((t) => t.placed).filter((p): p is Pass => !!p))].sort() };
+        if (!pass) return row;
+        // planned against the pass: its tempo, the take its mix item plays, what's stale (the takes' own stale words)
+        const item = (mixes[pass]?.items ?? []).find((i) => i.id === spec.id);
+        const m = item?.path.match(/^sound\/[^/]+\/t(\d{2,3})\.wav$/);
+        const inMix = m ? Number(m[1]) : null;
+        const done = ts.filter((t) => t.status === "ok");
+        try {
+          row.bpm = cuePlan(spec, pass).fit.bpm;
+          row.plan_error = null;
+        } catch (e) {
+          if (!(e instanceof CueError)) throw e;
+          return { ...row, bpm: null, in_mix: inMix, stale: [], stale_takes: [], plan_error: e.message };
+        }
+        return { ...row, in_mix: inMix, stale: [...(done.find((t) => t.take === inMix)?.stale ?? [])],
+                 stale_takes: done.filter((t) => t.stale?.length).map((t) => t.take) };
       }) };
     },
     async getCue(ep, pass, cue) {
