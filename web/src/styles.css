@@ -675,6 +675,8 @@
 }
 .h3-snd-item canvas { position: absolute; left: 0; top: 1px; display: block; pointer-events: none; }
 .h3-snd-item.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); cursor: grabbing; }
+/* a muted item: where it is, silent (its "plays in the mix" unticked) */
+.h3-snd-item.h3-snd-silent { opacity: 0.35; }
 .h3-snd-item:hover .h3-trim-h { opacity: 0.55; }
 .h3-snd-effects { --h3-snd-c: #e0a040; }
 .h3-snd-ambience { --h3-snd-c: #4fae8a; }
@@ -1324,6 +1326,7 @@
 .h3-root button.h3-spot-cue { cursor: pointer; }
 .h3-root .h3-spot-blk.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); z-index: 1; }
 .h3-root .h3-spot-blk.h3-spot-unplaced { background: transparent; border-style: dashed; }
+.h3-root .h3-spot-blk.h3-snd-silent { opacity: 0.4; }
 .h3-root .h3-spot-blk.h3-spot-stale { border-color: var(--h3-stale); border-style: dashed; }
 .h3-spot-tag { font-size: 8px; padding: 0 3px; border-radius: 2px; background: color-mix(in srgb, var(--h3-bg) 70%, transparent); }
 .h3-spot-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--h3-fg); pointer-events: none; z-index: 4; }

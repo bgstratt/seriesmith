@@ -54,6 +54,9 @@ describe("the music map", () => {
     // by start; the one off the cut left out
     expect(blocks.map((b) => [b.id, b.start, b.end, b.inMix])).toEqual([["m01", 2, 9, 3], ["m02", 9, 14, null]]);
     expect(blocks[0].label).toBe("1M1");
+    expect(blocks.map((b) => b.muted)).toEqual([false, false]);
+    // its item muted: the block says so (drawn faint)
+    expect(cueBlocks(cues, ITEMS, 24, { items: [{ ...mix.items![0], mute: true }] })[0].muted).toBe(true);
     // every finished take stale and none in the mix: stale
     expect(blocks[1].stale.length).toBe(1);
     const [s1, s2, s1b] = sequenceRows(ITEMS, seqOf);

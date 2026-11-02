@@ -8,11 +8,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { currentPlaylist, onFxEvent, pickRef } from "../actions";
-import { loadCues, openCue } from "../cueActions";
+import { deleteCue, loadCues, openCue } from "../cueActions";
 import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
-import { currentMix, deleteMixItem, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
+import { currentMix, deleteMixItem, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setMixItemMute, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
 import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, MixVoice, Ref, TrackKind } from "../types";
 import { kindOf, voicePlays, voicesOnly } from "../lib/mix";
@@ -457,22 +457,37 @@ export function SoundRefsSections({ ep }: { ep: string }) {
         title="The episode's music cues: each written to the hits in its span, its takes ranked in the cue window"
         note="A new cue: + Cue, or right-click a shot (Sound ▸ New music cue), the music lane under the timeline or a row of the spotting map."
         add={{ label: "Cue", title: "A new music cue over a span of the cut: pick its first and last shot, or a sequence", onClick: () => openSoundAdd({ kind: "cue" }) }}>
-        {(cues ?? []).map((c) => (
-          <div key={c.spec.id} className="h3-kf-shot">
-            <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={() => openCue(c.spec.id)}
-              title="Open it in the cue window: its sections, arc and takes">
-              <i className="pi pi-volume-up" />
-              <b>{cueTitle(c.spec)}</b>
-              <span className="h3-muted">{c.spec.in.shot} → {c.spec.out.shot}</span>
-              <span className="h3-grow" />
-              <span className={c.ok ? "" : "h3-muted"}>{c.ok}/{c.takes} take{c.takes === 1 ? "" : "s"}</span>
-              {c.placed.includes(pass)
-                ? <span className="h3-badge h3-b-voice" title={`In the ${pass} pass's mix`}>in the mix</span>
-                : <span className="h3-badge" title={`Not in the ${pass} pass's mix yet: pick a take in the cue window`}>not placed</span>}
-              <button className="h3-btn" onClick={(e) => { e.stopPropagation(); openCue(c.spec.id); }}>Open</button>
+        {(cues ?? []).map((c) => {
+          // its item in this pass's mix (picked in the cue window): muted or heard here
+          const it = items.find((x) => x.id === c.spec.id);
+          return (
+            <div key={c.spec.id} className="h3-kf-shot" data-cue-row={c.spec.id}>
+              <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={() => openCue(c.spec.id)}
+                title="Open it in the cue window: its sections, arc and takes">
+                <i className="pi pi-volume-up" />
+                <b>{cueTitle(c.spec)}</b>
+                <span className="h3-muted">{c.spec.in.shot} → {c.spec.out.shot}</span>
+                <span className="h3-grow" />
+                <span className={c.ok ? "" : "h3-muted"}>{c.ok}/{c.takes} take{c.takes === 1 ? "" : "s"}</span>
+                {it || (!mix && c.placed.includes(pass))
+                  ? <span className="h3-badge h3-b-voice" title={`In the ${pass} pass's mix`}>in the mix</span>
+                  : <span className="h3-badge" title={`Not in the ${pass} pass's mix yet: pick a take in the cue window`}>not placed</span>}
+                {it && (
+                  <label className="h3-row" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}
+                    title={it.mute ? `Muted: silent in the ${pass} pass's mix and Play all, kept where it is. Tick to hear it again.` : `Untick to silence it in the ${pass} pass's mix and Play all without taking it out (undo: Ctrl+Z)`}>
+                    <input type="checkbox" data-cue-plays={c.spec.id} checked={!it.mute} onChange={(e) => void setMixItemMute(it.id, !e.target.checked)} /> plays in the mix
+                  </label>
+                )}
+                <button className="h3-btn" onClick={(e) => { e.stopPropagation(); openCue(c.spec.id); }}>Open</button>
+                <button className="h3-btn h3-icon" data-cue-delete={c.spec.id} aria-label={`Delete cue ${c.spec.id}…`}
+                  title={`Delete cue ${c.spec.id}…: its takes go to the episode's _history folder and it comes out of both passes' mixes (asks first; Ctrl+Z can't bring it back)`}
+                  onClick={(e) => { e.stopPropagation(); void deleteCue(c.spec.id); }}>
+                  <i className="pi pi-trash" />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </Section>
       <Section label="Effects" count={(fxShots?.length ?? 0) + on("effects").length}
         title="Each shot's effects, made from its take by a foley model, and the files on the effects lane of this pass's mix"

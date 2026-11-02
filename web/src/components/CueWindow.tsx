@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
-import { applyCuePreset, compCueTake, cueKey, loadCue, pickCueTake, renderCue, repaintCueTake, saveCue } from "../cueActions";
+import { applyCuePreset, compCueTake, cueKey, deleteCue, loadCue, pickCueTake, renderCue, repaintCueTake, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
@@ -230,6 +230,11 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
       <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
         onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
+      {id && (
+        <button className="h3-btn h3-icon" data-cue-delete={id} aria-label={`Delete cue ${id}…`}
+          title={`Delete cue ${id}…: its takes go to the episode's _history folder and it comes out of both passes' mixes (asks first; Ctrl+Z can't bring it back). To keep it but not hear it, untick "plays in the mix" on the Refs tab's Music row.`}
+          onClick={() => void deleteCue(id)}><i className="pi pi-trash" /></button>
+      )}
       <button className="h3-btn" title="Back to the timeline (Esc)" onClick={closeViewer}><i className="pi pi-arrow-left" /> Timeline</button>
       <FullscreenButton />
       <button className="h3-btn h3-icon" title="Close (Esc)" onClick={closeViewer}><i className="pi pi-times" /></button>

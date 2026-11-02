@@ -10,6 +10,7 @@ import { currentPlaylist, onCueEvent, report } from "./actions";
 import { api, host } from "./host";
 import { applyPreset, barsLabel, meterText, newCueId, newCueSpan, presetBase } from "./lib/cue";
 import { loadMix } from "./mixActions";
+import { loadCueStates, openSpotting, selectSpotCue, spotOpen } from "./spotActions";
 import { statusKey, store, type AppState } from "./store";
 import type { Anchor, CueKind, CuePlan, CuePreset, CueResult, CueSpec, Pass } from "./types";
 
@@ -175,6 +176,61 @@ export async function newCue(at: Anchor | null, opts: NewCueOpts = {}): Promise<
           cutPlay: { ...now.cutPlay, playing: false } });
   } else openCue(id);
   return id;
+}
+
+/** The passes whose mix (as loaded) has cue `cue`'s item, with those its takes say they were placed in. */
+function cueMixes(s: AppState, ep: string, cue: string): Pass[] {
+  const placed = new Set<Pass>((s.cues[ep] ?? []).find((c) => c.spec.id === cue)?.placed ?? []);
+  for (const p of ["proxy", "final"] as Pass[]) {
+    if ((s.mix[statusKey(ep, p)]?.mix.items ?? []).some((i) => i.id === cue || i.path.startsWith(`sound/${cue}/`))) placed.add(p);
+  }
+  return (["proxy", "final"] as Pass[]).filter((p) => placed.has(p));
+}
+
+/** What the delete asks, in words (the confirm's text). */
+export function deleteCueAsk(s: AppState, ep: string, cue: string): string {
+  const n = (s.cues[ep] ?? []).find((c) => c.spec.id === cue)?.takes ?? (s.cue[cueKey(ep, s.pass, cue)]?.takes.length ?? 0);
+  const mixes = cueMixes(s, ep, cue);
+  const what = n ? `${cue} and its ${n} take${n === 1 ? "" : "s"} go` : `${cue} goes`;
+  const out = mixes.length ? `it's taken out of the ${mixes.join(" and ")} mix${mixes.length > 1 ? "es" : ""}` : "it isn't in either pass's mix";
+  return `Delete cue ${cue}?
+
+${what} to the episode's _history folder; ${out}.
+
+Ctrl+Z can't bring it back (move the folder back to sound/${cue}/ by hand). To keep it but not hear it, untick "plays in the mix" instead.`;
+}
+
+/**
+ * Cue `cue` deleted after asking (DELETE /seriesmith/cue): its folder to the episode's
+ * _history, its items out of both passes' mixes. Not undoable here. The cue list, the mix and
+ * the spotting sheet's cues are fetched again; the cue window showing it goes back to Spotting.
+ */
+export async function deleteCue(cue: string): Promise<boolean> {
+  const s = get();
+  const ep = s.ep;
+  if (!ep) return false;
+  if (!confirm(deleteCueAsk(s, ep, cue))) return false;
+  let r: Awaited<ReturnType<ReturnType<typeof api>["deleteCue"]>>;
+  try {
+    r = await api().deleteCue(ep, cue);
+  } catch (e) {
+    report(`Couldn't delete cue ${cue}`, e);
+    return false;
+  }
+  const now = get();
+  if (now.ep === ep) {
+    if (now.viewer?.kind === "cue" && now.viewer.cue === cue) openSpotting(null);
+    else if (spotOpen(now) && now.viewer?.cue === cue) selectSpotCue(null);
+    set((x) => {
+      const cueMap = { ...x.cue };
+      for (const p of ["final", "proxy"] as Pass[]) delete cueMap[cueKey(ep, p, cue)];
+      return { cue: cueMap, ...(x.audition?.cue === cue ? { audition: null } : {}) };
+    });
+  }
+  host().toast("success", `Cue ${cue} deleted`,
+    `${r.takes ? `It and its ${r.takes} take${r.takes === 1 ? "" : "s"}` : "It"} went to ${r.moved_to}${r.mixes.length ? `; taken out of the ${r.mixes.join(" and ")} mix${r.mixes.length > 1 ? "es" : ""}` : ""}.`);
+  await Promise.all([loadCues(ep), loadMix(ep, get().pass), loadCueStates(ep, get().pass)]);
+  return true;
 }
 
 /** Render `takes` takes of the open cue (absent: its model's preset's). */

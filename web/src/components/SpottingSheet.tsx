@@ -15,7 +15,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent } from "react";
 import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
-import { cueKey, newCue, saveCueAt } from "../cueActions";
+import { cueKey, deleteCue, newCue, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
 import { hitChip, cueTitle, withSpec } from "../lib/cue";
 import { HIT_KIND_TITLE, timeAnchor } from "../lib/mix";
@@ -23,7 +23,7 @@ import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
   type CueBlock, type CutHit, type MapRow,
 } from "../lib/spotting";
-import { addMixHit, currentMix, makeBed, makeEffects, openSoundAdd } from "../mixActions";
+import { addMixHit, currentMix, makeBed, makeEffects, openSoundAdd, setMixItemMute } from "../mixActions";
 import {
   auditionTake, jumpToHit, loadCueStates, openCueFromSpot, renderCues, seekToTime, selectSpotCue, setCueTempo, stopAudition,
 } from "../spotActions";
@@ -268,9 +268,9 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
             }}>{h.name}</button>
         )))}
         {lane("Music", "h3-snd-music", inRow(row, blocks).map((c) => (
-          <button key={c.id} className={`h3-spot-blk h3-spot-cue${c.id === sel ? " h3-on" : ""}${c.stale.length ? " h3-spot-stale" : ""}${c.inMix == null ? " h3-spot-unplaced" : ""}`}
+          <button key={c.id} className={`h3-spot-blk h3-spot-cue${c.id === sel ? " h3-on" : ""}${c.stale.length ? " h3-spot-stale" : ""}${c.inMix == null ? " h3-spot-unplaced" : ""}${c.muted ? " h3-snd-silent" : ""}`}
             style={{ left: pct(c.a), width: wid(c.a, c.b) }}
-            title={`${c.label} (${c.kind}) · ${c.inMix != null ? `${tn(c.inMix)} in the mix` : c.ok ? `${c.ok} take${c.ok === 1 ? "" : "s"}, none picked` : "no takes yet"}${c.stale.length ? `\nstale: ${c.stale.join("; ")}` : ""}\nclick: select · double-click: the cue window`}
+            title={`${c.label} (${c.kind}) · ${c.inMix != null ? `${tn(c.inMix)} in the mix` : c.ok ? `${c.ok} take${c.ok === 1 ? "" : "s"}, none picked` : "no takes yet"}${c.muted ? " · muted" : ""}${c.stale.length ? `\nstale: ${c.stale.join("; ")}` : ""}\nclick: select · double-click: the cue window`}
             onClick={(e) => {
               e.stopPropagation();
               selectSpotCue(c.id);
@@ -286,6 +286,7 @@ function MapRowView({ row, blocks, beds, fx, hits, pos, fps, sel, onMenu }: {
             {c.fromBefore ? "… " : ""}{c.label}
             <span className="h3-spot-tag">{c.kind === "song" ? "song" : "score"}</span>
             {c.inMix != null ? <span className="h3-spot-tag">{tn(c.inMix)}</span> : <span className="h3-spot-tag h3-muted">not placed</span>}
+            {c.muted && <span className="h3-spot-tag">muted</span>}
             {c.stale.length > 0 && <span className="h3-spot-tag h3-b-stale">stale</span>}
           </button>
         )))}
@@ -330,6 +331,8 @@ function SpotMenu({ at, fps, onClose }: { at: SpotMenuAt; fps: number; onClose: 
     };
   }, [onClose]);
   const { row, cue } = at;
+  // the cue's item in this pass's mix (picked): its "plays in the mix"
+  const item = cue ? res?.mix.items?.find((i) => i.id === cue) : undefined;
   const seq = row.seq ?? "these shots";
   const shots = row.shots.map((s) => s.shot);
   const last = shots[shots.length - 1];
@@ -360,6 +363,16 @@ function SpotMenu({ at, fps, onClose }: { at: SpotMenuAt; fps: number; onClose: 
           </button>
           <button title="Render its takes again (its model's preset's number), on the queue" onClick={run(() => void renderCues([cue]))}>
             <i className="pi pi-play" /> Render its takes
+          </button>
+          {item && (
+            <button data-spot="plays" title={item.mute ? "Hear it again in this pass's mix and Play all" : "Silence it in this pass's mix and Play all, kept where it is (undo: Ctrl+Z)"}
+              onClick={run(() => void setMixItemMute(item.id, !item.mute))}>
+              <i className={item.mute ? "pi pi-stop" : "pi pi-check-square"} /> Plays in the mix
+            </button>
+          )}
+          <button data-spot="delete-cue" title="Its takes go to the episode's _history folder and it comes out of both passes' mixes (asks first; Ctrl+Z can't bring it back)"
+            onClick={run(() => void deleteCue(cue))}>
+            <i className="pi pi-trash" /> Delete cue {cue}…
           </button>
           <div className="h3-menu-sep" />
         </>

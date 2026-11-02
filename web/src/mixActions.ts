@@ -397,6 +397,11 @@ export function setMixItem(id: string, patch: Partial<MixItem>, label = `Change 
   return editMix(label, (m) => patchItem(m, id, patch));
 }
 
+/** An item muted (silent where it is: the render, its stem, the loudness, Play all) or heard again: one undoable edit. */
+export function setMixItemMute(id: string, mute: boolean): Promise<boolean> {
+  return editMix(`${mute ? "Mute" : "Unmute"} ${id}`, (m) => patchItem(m, id, { mute }));
+}
+
 export function deleteMixItem(id: string): Promise<boolean> {
   return editMix(`Delete ${id}`, (m) => removeItem(m, id));
 }

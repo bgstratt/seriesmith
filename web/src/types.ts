@@ -2541,6 +2541,8 @@ export interface MixItem {
   points?: MixPoint[];
   loop?: boolean;
   label?: string;
+  /** silent where it is: left out of the render, its stem and the loudness, and of Play all (absent: plays) */
+  mute?: boolean;
 }
 
 /** What a hit asks of the music: a sting or downbeat on the frame (accent, the

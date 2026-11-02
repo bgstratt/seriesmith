@@ -42,6 +42,7 @@ import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeBed, makeEffects, moveMixPoint, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
   loadMix, makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
+  setMixItemMute,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
 import { tn } from "../lib/format";
@@ -726,7 +727,7 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
   const label = it.label || fileName(it.path);
   const fadeW = (frames: number | undefined) => (frames ? Math.min(width, (frames / fps) * (width / Math.max(0.01, secs))) : 0);
   const title = [
-    `${label} (${it.id}) · ${it.path}`,
+    `${label} (${it.id}) · ${it.path}${it.mute ? " · muted: silent in the mix (right-click: plays in the mix)" : ""}`,
     `from ${it.in.shot} frame ${it.in.frame}${it.out ? ` to ${it.out.shot} frame ${it.out.frame}` : ", to the file's end"}${offset ? ` · ${offset.toFixed(2)} s into the file` : ""}`,
     [it.gain_db ? `${it.gain_db > 0 ? "+" : ""}${it.gain_db} dB` : "", it.fade_in ? `fade in ${framesLabel(it.fade_in, fps)}` : "",
      it.fade_out ? `fade out ${framesLabel(it.fade_out, fps)}` : "", it.loop ? "loops" : "", it.points?.length ? `${it.points.length} level points` : ""].filter(Boolean).join(" · "),
@@ -738,7 +739,7 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
   const pts = timedPoints(items, it, fps).map((p) => ({ ...p, x: timeX(lay, p.t) - start }));
   const lineY = (x: number) => dbY(pointsDb(pts.map((p) => ({ t: p.x, db: p.db })), x), BLOCK_H);
   return (
-    <div ref={box} className={`h3-snd-item h3-snd-${it.track}${dragging ? " h3-on" : ""}`} style={{ left: start, width }} title={title}
+    <div ref={box} className={`h3-snd-item h3-snd-${it.track}${dragging ? " h3-on" : ""}${it.mute ? " h3-snd-silent" : ""}`} style={{ left: start, width }} title={title}
       onPointerDown={(e) => onDown(e, it, "move", fileSecs)}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => {
@@ -1162,6 +1163,8 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
           {field("Fade in", <input className="h3-in" type="number" min={0} max={2400} value={f.fadeIn} onChange={(e) => setF({ ...f, fadeIn: e.target.value })} />, `frames (${framesLabel(frames(f.fadeIn), fps)})`)}
           {field("Fade out", <input className="h3-in" type="number" min={0} max={2400} value={f.fadeOut} onChange={(e) => setF({ ...f, fadeOut: e.target.value })} />, `frames (${framesLabel(frames(f.fadeOut), fps)})`)}
           {field("Loop", <input type="checkbox" checked={f.loop} onChange={(e) => setF({ ...f, loop: e.target.checked })} />, "Play the file again, crossfaded, until its out")}
+          {field("Plays in the mix", <input type="checkbox" data-item-plays={item.id} checked={!item.mute} onChange={(e) => void setMixItemMute(item.id, !e.target.checked)} />,
+            "Untick: silent where it is (the render, its stem, the loudness, Play all), kept to hear again; saved at once (undo: Ctrl+Z)")}
           {field("Track", (
             <select className="h3-in" value={item.track} onChange={(e) => {
               void moveItemToTrack(item.id, e.target.value);

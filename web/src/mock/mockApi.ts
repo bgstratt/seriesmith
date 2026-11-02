@@ -1339,6 +1339,30 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       emit("seriesmith.episode", { ep: EP });
       return { spec: clone(spec) };
     },
+    async deleteCue(ep, cue) {
+      await wait();
+      need(ep);
+      const spec = cueSpecs.get(cue);
+      if (!spec) throw new MockError(`no cue ${cue}`, 404);
+      const ts = cueTakes.get(cue) ?? [];
+      if (ts.some((t) => t.status === "queued")) throw new MockError(`${cue} has takes queued or rendering: cancel them in Jobs first`, 409);
+      const users = [...cueSpecs.values()].filter((c) => c.id !== cue && c.theme && "cue" in c.theme && c.theme.cue === cue).map((c) => c.id);
+      if (users.length) throw new MockError(`${cue} is the theme of ${users.join(", ")}: give it another theme first`, 409);
+      const changed: Pass[] = [];
+      for (const pass of ["final", "proxy"] as Pass[]) {
+        const items = mixes[pass].items ?? [];
+        const kept = items.filter((i) => i.id !== cue && !i.path.startsWith(`sound/${cue}/`));
+        if (kept.length === items.length) continue;
+        const m: import("../types").Mix = { ...mixes[pass], items: kept };
+        if (!kept.length) delete m.items;
+        mixes[pass] = m;
+        changed.push(pass);
+      }
+      cueSpecs.delete(cue);
+      cueTakes.delete(cue);
+      emit("seriesmith.episode", { ep: EP });
+      return { cue, moved_to: `_history/cue-${cue}.20261102-120000`, takes: ts.length, mixes: changed };
+    },
     async renderCue(req) {
       await wait();
       need(req.ep);

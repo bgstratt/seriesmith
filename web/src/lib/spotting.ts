@@ -52,6 +52,8 @@ export interface CueBlock {
   end: number;
   /** the take its mix item plays (null: none placed on this pass) */
   inMix: number | null;
+  /** its mix item is muted (silent where it is) */
+  muted: boolean;
   /** finished takes */
   ok: number;
   /** what's moved under the take in the mix (or, with none placed, under every finished take: the first's words) */
@@ -82,9 +84,10 @@ export function cueBlocks(cues: CueSummary[], items: PlayItem[], fps: number, mi
     const a = anchorTime(items, c.spec.in, fps);
     const b = anchorTime(items, c.spec.out, fps);
     if (a == null || b == null || b <= a) continue;
-    const inMix = c.in_mix !== undefined ? c.in_mix : takeOfItem(c.spec.id, mix?.items?.find((i) => i.id === c.spec.id));
+    const item = mix?.items?.find((i) => i.id === c.spec.id);
+    const inMix = c.in_mix !== undefined ? c.in_mix : takeOfItem(c.spec.id, item);
     const stale = c.stale?.length ? c.stale : cueIsStale(c) ? ["every finished take: the cut has moved since it was rendered"] : [];
-    out.push({ id: c.spec.id, label: c.spec.label || c.spec.id, kind: c.spec.kind ?? "score", start: a, end: b, inMix, ok: c.ok, stale });
+    out.push({ id: c.spec.id, label: c.spec.label || c.spec.id, kind: c.spec.kind ?? "score", start: a, end: b, inMix, muted: !!item?.mute, ok: c.ok, stale });
   }
   return out.sort((x, y) => x.start - y.start || x.id.localeCompare(y.id));
 }

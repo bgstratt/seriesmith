@@ -334,6 +334,8 @@ export function playPlan(items: PlayItem[], mix: Mix, fps: number): PlayEntry[] 
   const total = totalDuration(items);
   const out: PlayEntry[] = [];
   for (const it of mix.items ?? []) {
+    // a muted item is silent where it is
+    if (it.mute) continue;
     const s = anchorTime(items, it.in, f);
     const e = it.out ? anchorTime(items, it.out, f) : null;
     if (s == null || (it.out && e == null)) continue;
@@ -668,6 +670,7 @@ export function cleanItem(it: MixItem): MixItem {
   for (const k of ["fade_in", "fade_out"] as const) if (o[k] != null) o[k] = Math.max(0, Math.min(FADE_MAX, Math.round(o[k]!)));
   if (o.offset != null) o.offset = Math.round(Math.max(0, o.offset) * 1000) / 1000;
   if (!o.loop) delete o.loop;
+  if (!o.mute) delete o.mute;
   if (!o.label?.trim()) delete o.label;
   else o.label = o.label.trim().slice(0, 120);
   if (!o.points?.length) delete o.points;

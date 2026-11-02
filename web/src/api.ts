@@ -194,6 +194,9 @@ export interface Api {
   getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
   /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
   putCue(ep: string, cue: CueSpec): Promise<{ spec: CueSpec }>;
+  /** DELETE /seriesmith/cue: the cue's folder (spec, takes) moved to the episode's _history/,
+   * its items taken out of every pass's mix; 409 while a take of it is on the queue. */
+  deleteCue(ep: string, cue: string): Promise<{ cue: string; moved_to: string; takes: number; mixes: Pass[] }>;
   /** POST /seriesmith/cue/render: queue `takes` takes (absent: its model's preset's). */
   renderCue(req: { ep: string; pass: Pass; cue: string; takes?: number; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number }[] }>;
   /** POST /seriesmith/cue/pick: a take as the cue's item on the music track (gain: fit its level to the arc). */
@@ -663,6 +666,7 @@ export function createHttpApi(t: Transport): Api {
       return { spec: r.spec, plan: r.plan ?? null, plan_error: r.plan_error ?? null, takes: Array.isArray(r.takes) ? r.takes : [] };
     },
     putCue: (ep, cue) => call("PUT", "/seriesmith/cue", { ep, cue }),
+    deleteCue: (ep, cue) => call("DELETE", `/seriesmith/cue?${qs({ ep, cue })}`),
     renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
     pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),

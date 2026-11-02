@@ -37,7 +37,7 @@ function trackList(raw: unknown): MixTrackDef[] | undefined {
 }
 const HIT_KINDS = ["accent", "arrive", "drop", "turn"];
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
-const ITEM_FIELDS = ["id", "track", "path", "in", "out", "offset", "gain_db", "fade_in", "fade_out", "points", "loop", "label"];
+const ITEM_FIELDS = ["id", "track", "path", "in", "out", "offset", "gain_db", "fade_in", "fade_out", "points", "loop", "label", "mute"];
 
 function num(v: unknown, what: string, lo: number, hi: number): number {
   if (typeof v !== "number" || !Number.isFinite(v)) throw new MixError(`${what} must be a number, not ${JSON.stringify(v)}`);
@@ -77,6 +77,8 @@ function item(raw: MixItem, TRACKS: MixTrack[]): MixItem {
   if (raw.points?.length) out.points = raw.points.map((p, i) => ({ at: anchor(p.at, `point ${i + 1}`), db: num(p.db, `point ${i + 1}'s db`, -60, 12) }));
   if (raw.loop) out.loop = true;
   if (typeof raw.label === "string" && raw.label.trim()) out.label = raw.label.trim().slice(0, 120);
+  if (raw.mute != null && typeof raw.mute !== "boolean") throw new MixError(`item ${out.id}'s mute is true or false`);
+  if (raw.mute) out.mute = true;
   return out;
 }
 
