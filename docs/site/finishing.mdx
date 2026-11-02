@@ -329,6 +329,18 @@ them).
 
 `fit: crop` unless they'd rather keep the whole frame with bars (`pad`).
 
+## The export's loudness
+
+Every exported mp4 is measured as it's written: its integrated loudness (LUFS), loudness range
+(LU) and true peak (dBTP), against the episode's target: the mix's (`mix.json`'s `loudness`),
+else the series config's `sound.loudness`, else **-16 LUFS integrated, -1 dBTP**, a common
+target for streaming. The editor's Export toast says it (a warning when it's more than 1 LU off
+the target or over the ceiling), assemble prints it, and it's kept beside the cut as
+`<cut>_loudness.json`. It only reports: a cut with a mix was brought to the target when it was
+mixed; a cut with none plays its clips' own sound (or the recording) as they came, which is
+what the check is there to tell you. To bring a cut with no mix to the target, give it one: a
+level on any track of the editor's Sound lanes makes a mix, and the mix is normalised.
+
 ## Post-process: the `post` block
 
 A **post** finishes a shot's upscale, at the same size: a clean-up pass over the whole

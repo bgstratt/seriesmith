@@ -1433,7 +1433,9 @@ here is what a cut needs before that, and what a cut that never leaves seriesmit
       each at 12 frames, the inspector sets the frames. Tests: test_assemble's three,
       test_api's `test_cut_fades_and_dissolves`, web/test/joins.test.ts. Not yet live.
 - [ ] Later, maybe: checks on the exported cut (integrated loudness and true peak, black and
-      frozen runs, flashes), reported, never changing it.
+      frozen runs, flashes), reported, never changing it. The loudness part is done
+      (2026-11-02, docs/SOUND.md phase 5: `<cut>_loudness.json`, assemble's report, Export's
+      toast); black and frozen runs and flashes are still to do.
 
 ## H3 Singularity, and continuous shots that keep their model (2026-10-29)
 
@@ -1613,15 +1615,19 @@ forward" regions, loudness to -16 LUFS; stems and the FCP7 export's eight tracks
 the models found on this machine and the phases are docs/SOUND.md. Stable Audio 3 the default
 score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
 
-- [ ] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
+- [x] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
+      2026-11-01 (its docs checked 2026-11-02)
 - [x] Phase 2: music (`music` kind, `ace_step15`, `yue2`, hits -> tempo, the arc -> sections
       -> words, refit); the cue window (Score, Arc, Orchestration & takes tabs) and the
       episode's spotting sheet; the `yue2` song target and the leitmotif reference (a cue's
       theme: ACE-Step's timbre, YuE2's melody) 2026-11-01; repaint (bars of an ACE-Step take
       made again, measured first: SOUND.md "Measured: repaint") 2026-11-02
-- [ ] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
-- [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
-- [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
+- [x] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
+      2026-11-01
+- [x] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
+      2026-11-01
+- [x] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
+      2026-11-02 (the snapping still to be looked at in a browser)
 - [ ] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
 - [ ] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
       recorded dub is (`audio.mode: source_track`, each shot its window); mostly there, so a

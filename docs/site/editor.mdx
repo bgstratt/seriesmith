@@ -1178,7 +1178,13 @@ with their pictures.
 
 The cut as an editable track, along the bottom of the page.
 
-- **Drag a clip** to reorder it; **drag its edges** to trim frame by frame.
+- **Drag a clip** to reorder it; **drag its edges** to trim frame by frame. When the mix has
+  music (a cue, a song on the Music lane) or the episode's recording is a song, the cut at the
+  clip's end **snaps to its beats**, a downbeat from further away than a beat; the tip says
+  which ("cuts on the downbeat, bar 12"). Hold **Alt** while dragging to trim frame by frame.
+  Either edge snaps the cut at the clip's end (a head trim moves it too), to the music that
+  stays put while you drag: music anchored to an earlier clip, or to this one when you trim
+  its tail.
 - **Drop a take from the gallery, or a video file**, onto a clip (that shot's take) or between
   two (a new shot there): [Takes from outside](#takes-from-outside). **Drop a picture** (png,
   jpg, webp) onto a clip or a shot's row and it's that shot's first keyframe, live at once,
@@ -1204,7 +1210,9 @@ The cut as an editable track, along the bottom of the page.
 - **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
   **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
   says what's running (Assembling…, Adding titles…, Writing the XML…).
-  **Export** assembles the pass's review cut into one mp4 (missing shots are skipped).
+  **Export** assembles the pass's review cut into one mp4 (missing shots are skipped); the
+  toast when it's done says its loudness against the target (see FINISHING.md, "The export's
+  loudness"), as a warning when it's off.
   Before anything runs it says what's wrong with the cut: shots with nothing to play (no
   take, a failed one, trims that leave nothing; and whether one is rendering now), takes
   shorter than their dialogue on the recording, and the other pass's takes standing in.
@@ -1327,6 +1335,12 @@ with stems beside it.
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
   plays them anyway. A new take lands unpicked: pick it from the menu.
+- **The music's beats** are drawn faintly across the Music lane (downbeats taller), where a
+  trimmed clip's cut snaps to (above). A cue take's come from its measured downbeat at the
+  cue's tempo; a song or any other file on the lane is measured once (about a second a minute
+  of it) and kept beside it as `<file>.beats.json`; with no music on the lane, the episode's
+  recording's, when it has a steady beat (a song does; speech doesn't). Zoomed out, the beats
+  thin to the downbeats, then to none.
 - **Hits** are the moments a cue lands on ("the door bursts"). **+** adds one at the Play all
   playhead, a **double-click** on the hits lane adds one there; drag it to move it,
   right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the

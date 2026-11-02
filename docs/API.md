@@ -690,6 +690,20 @@ as the cut plays it, by the detector the export ducks with (mix.speech_of, the m
 settings). Play all dips music and ambience by it as the export does. Kept until the cut, a
 take's file or the ducking changes.
 
+### `GET /seriesmith/mix/beats?ep=…&pass=…`
+`{"items", "recording"}`: the beats to cut to (docs/SOUND.md phase 5). `items` is `[{"id",
+"path", "grid"}]` for each of the pass's mix's items on the music track, `recording` `{"path",
+"grid"}` for the episode's recording (`audio.track`) or null. A grid is `{"bpm", "first"
+(seconds into the file of its first beat), "downbeat" (its first downbeat), "beats_per_bar",
+"seconds" (the file's length; null for a cue take), "steady" (a pulse to snap to), "source"}`:
+`"cue"` for a cue's take (`sound/<cue>/tNN.wav`: the cue's tempo through the take's measured
+downbeat, from its sidecar), `"measured"` for any other file (`strength` beside it: the tempo's
+autocorrelation comb), measured once and kept beside the file as `<file>.beats.json` until the
+file changes. Null for a file with no sound or no tempo. Measuring a song the first time takes
+about a second a minute of it; the editor asks when the mix's music files or the recording
+change, never on a timer. The timeline snaps a clip's trimmed edge to these beats and draws
+them on the Music lane. 409 when `mix.json` doesn't read.
+
 ### `PUT /seriesmith/mix`
 Body `{"ep", "pass", "mix"}`: replaces that pass's mix and answers `{"mix"}` as stored. 400 for
 one that doesn't check (an unknown field, a track or anchor that isn't one, a level, fade or
@@ -882,8 +896,18 @@ section's own; a change inside a section can't be followed, so the strongest lev
 Body `{"ep", "pass", "partial": true}`. Runs `assemble` off the loop and returns
 when it's done (can take minutes).
 ```json
-{"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…"}
+{"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…",
+ "loudness": {"integrated_lufs": -16.1, "range_lu": 13.7, "true_peak_dbtp": -4.5,
+              "threshold_lufs": -26.4, "target_lufs": -16, "true_peak_db": -1, "off_lu": -0.1,
+              "on_target": true, "over_peak": false, "mixed": true,
+              "verdict": "-16.1 LUFS integrated (on the -16 target), range 13.7 LU, true peak -4.5 dBTP (under the -1 ceiling)"}}
 ```
+`loudness` is the loudness check assemble made on the mp4 it wrote (2026-11-02, docs/SOUND.md
+phase 5), as it keeps it beside the cut in `<cut>_loudness.json`: integrated loudness, loudness
+range and true peak (EBU R128, loudnorm's measurement) against the target (the pass's mix's,
+else the series config's `sound.loudness`, else -16 LUFS / -1 dBTP). `on_target`: within 1 LU;
+`mixed`: the mix brought it there (false: the cut's own sound, as it came). It never changes
+the sound. Null for the XML, a cut with no sound (`--audio none`), or an older server.
 Phase 13 adds `"upscaled": true` (either pass): each clip plays its take's
 fresh upscale, the cut is the upscales' size and is written as `<ep>_up.mp4`, and clips
 without one are scaled up (the report names them). `"size": "1920x1080"` sets the cut's

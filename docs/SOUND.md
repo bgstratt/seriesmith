@@ -1,6 +1,6 @@
 # The episode's sound: four tracks, cues, a mix
 
-Status (2026-11-01): **building**, on the `sound-tracks` branch (phases 1-4 built, 7 tried). This file is the design
+Status (2026-11-02): **building**, on the `sound-tracks` branch (phases 1-5 built, 7 tried). This file is the design
 record and the checklist; the contracts go into the docstrings, `docs/API.md` and the user
 docs as each phase is built.
 
@@ -324,7 +324,10 @@ Each phase is tested live on local ComfyUI before the next starts.
          (2026-11-01; `GET /seriesmith/mix/duck`, `lib/mix.ts` duckTracks / pointsDb,
          `web/test/mixAudio.test.ts`). Regions are applied but not drawn or edited yet
          (kept as they are)
-   - [ ] docs/API.md, COMMANDS.md and the user docs
+   - [x] docs/API.md, COMMANDS.md and the user docs (checked 2026-11-02: API.md "The mix"
+         (GET / PUT /seriesmith/mix, /mix/duck), COMMANDS.md's assemble (the mix, the stems,
+         `--no-mix`, `--xml`'s tracks), EDITOR.md "Sound: the episode's mix", SCORING.md
+         "Levels"; the regions are still only in the mix's shape, unedited in the editor)
 2. **Music.** The `music` kind; `ace_step15` (default) and `yue2` targets; hits -> tempo,
    the arc and hits -> sections -> words; the cue's spec and takes; beat, hit and shape
    checking; refit and stale. Then the windows, in this order:
@@ -551,6 +554,39 @@ Each phase is tested live on local ComfyUI before the next starts.
    listened to yet; sh030's H3 take is loud (-14 dB RMS) and worth hearing first.
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
+   - [x] the beats (2026-11-02): a cue take's grid from its sidecar (`cue.take_grid`: the cue's
+         tempo through its measured downbeat), any other file's measured once and kept beside
+         it (`beats.file_grid` -> `<file>.beats.json`, by size and mtime: `comb_tempo` scores
+         each tempo by the onset envelope's autocorrelation at one to four beats, as `tempo()`
+         alone read an ACE-Step cue heard at 98 as 130; `refine` fits a line through the
+         onsets near the beats so a song's grid doesn't drift; four beats a bar). `GET
+         /seriesmith/mix/beats`: each music item's grid and the recording's. Measured: the
+         CupsMV song 130.00 bpm (strength 1.72), its accompaniment and vocal stems 130.4 /
+         130.0 (0.52), CupsMV m03 t01 (a YuE2 song cue, 96 asked) 96.16 with the downbeat 21 ms
+         from its sidecar's, the ACE-Step repaint probe's score 97.99 (98 heard); not steady:
+         Ballroom ep03's assembled cut (dialogue under soft score, 0.21) and ep01's (0.22).
+         Measuring the 2:07 song took 1.1 s
+   - [x] trims snap to them (2026-11-02; `web/src/lib/beats.ts`, `Timeline.tsx` onEdgeDown): the
+         cut at a clip's end moves onto the nearest beat within 7 px (a downbeat within 12 px,
+         preferred), either edge (a head trim moves that cut too), to the beats that stay put
+         while it moves (`fixedBeats`: music anchored before the clip, or on it for a tail
+         trim; the recording unless it's the first clip's head); **Alt** bypasses it; the tip
+         says which beat ("bar 12"). The music items' beats, else the recording's when it has
+         a steady one. Fetched when the mix's music files or the recording change
+         (`mixActions.loadBeats`), never polled; drawn faintly on the Music lane, thinned when
+         zoomed out (`BeatTicks`)
+   - [x] the loudness check on export (2026-11-02; `mix.loudness_target` / `loudness_check`,
+         assemble): the mp4 measured (loudnorm's integrated, range and true peak, the picture
+         not decoded) against the mix's target, printed (`!` when more than 1 LU off or over
+         the ceiling), kept as `<cut>_loudness.json`, answered by `POST /seriesmith/assemble`
+         as `loudness` and said in Export's toast; the sound never changed. Live, CupsMV
+         (proxy, 33 shots, 2:07): ep02 with its mix (the song on the Music track at 0 dB) -16.1
+         LUFS integrated, range 13.7 LU, true peak -4.5 dBTP (the mix measured -5.3 before the
+         AAC encode); ep01 with `--audio master` (the mastered song under the cut, no mix)
+         -10.5 LUFS, 13.2 LU, +1.1 dBTP: "5.5 LU over the -16 target ... over the -1 ceiling;
+         the cut's own sound, as it came"
+   - [ ] looked at in a browser: the snapping and the ticks on CupsMV ep02 (the song) and
+         ep01 (the cue m03)
 6. **Tracks of your own.** Dialogue, effects, ambience and music become the default tracks
    rather than the only ones: add, rename and delete tracks (a second music track for a song
    under the score, a walla track), each with its kind (what it ducks under, which stem it
@@ -567,7 +603,10 @@ Each phase is tested live on local ComfyUI before the next starts.
    - [x] whether a singing shot lip-syncs better to the vocal stem than to the full song
          (the window sent the model could be the stem's, the episode's sound the song's)
    - [x] shots that don't sing (the band, b-roll) get their window with no lips to sync
-   - [ ] cutting to the song's beats: phase 5's snaps, on the recording instead of a cue
+   - [x] cutting to the song's beats: phase 5's snaps, on the recording instead of a cue
+         (2026-11-02: the song on the Music track is measured as any file is; with no music
+         on the lane, the recording's beats when it has a steady one (CupsMV ep01: the song as
+         the recording, 130.00 bpm); not yet tried by hand in the editor)
    - [ ] a guide: Making a music video
    Tried 2026-11-01 on a 2:07 pop song (CupsMV, local, H3 Ref2VA proxy, 33 shots, 11:45 a
    pass on the 5090): the vocal stem split by torchaudio's Hybrid Demucs

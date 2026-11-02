@@ -347,6 +347,13 @@ seriesmith assemble Shows\ep05 --xml             # the cut as a Premiere / Resol
   and Music), brought to the loudness target, and the stems written to `<cut>_stems/`
   (`dialogue`, `effects`, `ambience`, `music`, `me`: all but the dialogue, and `mix`).
   `--no-mix` leaves the clips' own sound as it is. `--xml` carries the tracks as lanes.
+- **The loudness check**: the mp4 is measured when it's written (integrated loudness, loudness
+  range, true peak) against the mix's loudness target (the series config's `sound.loudness`,
+  else -16 LUFS and -1 dBTP), and reported: `loudness: -16.1 LUFS integrated (on the -16
+  target), range 13.7 LU, true peak -4.5 dBTP (under the -1 ceiling)`, with `!` in front when
+  it's more than 1 LU off the target or over the ceiling. It's kept beside the cut as
+  `<cut>_loudness.json`. It never changes the sound: a cut with no mix is measured as it came
+  (a mastered song under `--audio master` reads far louder than -16, and says so).
 - This is a review cut. Mix the final audio in Resolve.
 
 ### Effects: fx
