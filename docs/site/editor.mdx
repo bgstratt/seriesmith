@@ -798,7 +798,8 @@ script call for is listed here.
   **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
   mix; a row opens the cue window. **Effects** lists the files on that lane of the pass's mix,
   where each starts (it moves with its shot) and its level, with a button to show the lanes
-  and one to take it out of the mix (the file stays); making effects from a take is coming.
+  and one to take it out of the mix (the file stays). A shot's effects made from its take are
+  on the Effects lane itself (below: **Make effects** on a clip's Sound menu).
   **Ambience** lists each place's **ambience bed** first: the place (a location, with its
   angles and relit versions), its `ambience` words, how many of this episode's shots it plays
   under, its takes and whether it's made. Open a row (its takes are fetched then) to play the
@@ -1281,9 +1282,9 @@ with stems beside it.
 - **Right-click a lane** for its menu (it opens above the click near the window's foot): every
   lane can **Add a sound file here…**; Music and the hits lane make a **New cue**; Dialogue opens
   the shot's own sound (its Sound card, Replace audio); Ambience opens the place's ambience bed
-  under the click (the Refs tab's Ambience); Effects shows what will make them (coming). A
-  clip's own menu has the same under **Sound**: **New music cue…** over it (or
-  the shots selected) and **Add music / an effect / ambience from a file…** at its first frame.
+  under the click (the Refs tab's Ambience). A clip's own menu has the same under **Sound**:
+  **Make effects** (below), **New music cue…** over it (or the shots selected) and **Add music /
+  an effect / ambience from a file…** at its first frame.
 - **Drop a sound file** (wav, mp3, flac, ogg, m4a…) from your computer onto a lane: it's
   copied into the episode's `audio/` and laid from where it fell, playing to the file's end.
 - **Drag a block** to move it, **drag an edge** to set where it starts or stops (the head
@@ -1305,6 +1306,23 @@ with stems beside it.
   the Ambience fader), **Mute this place**, or **Open its ref…**; a **double-click** opens the
   ref too. A file you put on the lane plays over the beds. A location gets a bed from its
   **Ambience** words (its form, or `ambience` in series.json).
+- **Effects from the picture**: a clip's **Sound ▸ Make effects** makes its sync sound
+  (footsteps, a door, the cups on the table) from the frames of the take the cut plays, all of
+  it, on the Effects lane; with several clips selected, one take for each of them. It's never
+  automatic: many takes already have their model's effects in their own sound, so ask only for
+  the shots that need them (a dubbed or cloned shot, a model with no sound). The default model
+  is MiniMax H3 (about 10 s a shot once loaded); **Make effects on…** offers the others
+  installed (LTX-2.3 Foley, HunyuanVideo-Foley XL: a minute or two). The words are the shot's
+  `sound:` line, else its action. The job shows in the Jobs list, and a toast says when it
+  lands.
+- **A shot's effects** sit on the Effects lane at its clip, named for the shot and the model,
+  laid from the cut so they follow its trims and can't be dragged. **Right-click** one for its
+  **level** (dB, on the Effects fader), **Mute**, **No effects for** the shot, its **takes**
+  (fetched when the menu opens: ▶ to hear one alone, **Pick** to put it in the mix; the newest
+  first) and **Make again** on the model chosen beside it. When the cut plays another take of
+  the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
+  warning, left out of the mix and the export until they're made again, or **Keep as it is**
+  plays them anyway. A new take lands unpicked: pick it from the menu.
 - **Hits** are the moments a cue lands on ("the door bursts"). **+** adds one at the Play all
   playhead, a **double-click** on the hits lane adds one there; drag it to move it,
   right-click or double-click it for its name, its kind (accent, arrive, drop, turn: the
@@ -1316,7 +1334,7 @@ with stems beside it.
 - Each change is saved at once and is one step of the timeline's undo (`Ctrl+Z` undoes cut
   and mix edits in the order you made them).
 - **Play all plays the mix**: every item at its gain, fades and volume points, the ambience
-  beds looped under their shots, each lane at its
+  beds looped under their shots, each shot's picked effects at its clip, each lane at its
   fader, mute and solo, and the music and ambience **ducked under speech as the export ducks
   them**: the server works out where someone is speaking from the clips' own sound (fetched with
   the mix, again when the cut or a take changes) and each lane dips by its duck depth there

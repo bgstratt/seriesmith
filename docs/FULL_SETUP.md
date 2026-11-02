@@ -80,6 +80,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
+| Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
@@ -302,6 +303,22 @@ own nodes) needs `stable_audio_3_small_sfx.safetensors` in `checkpoints` and
 `t5gemma_b_b_ul2.safetensors` in `text_encoders`
 ([Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3)). The Features
 window has both under Sound.
+
+**Effects** are a shot's sync sound made from the frames of the take the cut plays (a clip's
+Sound ▸ Make effects, `seriesmith fx`). The default, `h3_foley`, is MiniMax H3 FL2VA asked for
+the sound of the video it's given: H3 FL2VA's model, its text encoder and its two VAEs, the
+files H3 FL2VA shots use (no turbo LoRA), and ComfyUI's own nodes. `ltx23_foley` is Lightricks'
+LTX-2.3 Foley LoRA on the LTX-2.3 dev model: [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo)
+and seven files, about 36 GB (the dev transformer, the text projection and both VAEs from
+[Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy), the distilled LoRA from
+[Comfy-Org/ltx-2.3](https://huggingface.co/Comfy-Org/ltx-2.3), Gemma 3 12B fp8 from
+[Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2), the foley LoRA from
+[Lightricks/LTX-2.3-22b-LoRA-Foley-V2A](https://huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A)).
+`hunyuan_xl_foley` is Tencent's HunyuanVideo-Foley XL through
+[ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) and three
+files in `models/foley` from [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley)
+(the pack fetches SigLIP2 and CLAP the first time); its licence is Tencent's community licence,
+which doesn't apply in some territories. The Features window has all three under Sound.
 
 ## Upscaling
 

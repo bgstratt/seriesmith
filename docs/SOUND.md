@@ -1,6 +1,6 @@
 # The episode's sound: four tracks, cues, a mix
 
-Status (2026-11-01): **building**, on the `sound-tracks` branch (phases 1-3 built, 7 tried). This file is the design
+Status (2026-11-01): **building**, on the `sound-tracks` branch (phases 1-4 built, 7 tried). This file is the design
 record and the checklist; the contracts go into the docstrings, `docs/API.md` and the user
 docs as each phase is built.
 
@@ -450,14 +450,48 @@ Each phase is tested live on local ComfyUI before the next starts.
    - **Shown on the Effects lane** as a block per shot (its id, the model, stale marked),
      read-only but for a menu: level, mute, its takes (play, pick), make again (the model),
      keep as it is when stale.
-   - [ ] the `foley` kind: `h3_foley`, `ltx23_foley`, `hunyuan_xl_foley` (target.json, files
-         and downloads for Features, the graphs)
-   - [ ] a shot's effects takes, made on the queue (`seriesmith fx`, `POST /seriesmith/fx/render`
-         for shots or a selection), stale against the cut's take
-   - [ ] the mix: effects from the cut (render, Play all, stems and M&E, XML), `fx` in mix.json
-   - [ ] the editor: the Effects lane's blocks and menu, a clip's Sound ▸ Make effects
-         (the selection), the takes
-   - [ ] docs: API, EDITOR, COMMANDS, the guide; live: CupsMV's cup shots on local ComfyUI
+   - [x] the `foley` kind: `h3_foley`, `ltx23_foley`, `hunyuan_xl_foley` (target.json, files
+         and downloads for Features, the graphs) (2026-11-01; `targets/foley/`. The take goes up
+         as a file through ComfyUI's own `LoadVideo` / `GetVideoComponents`, made the model's
+         size and frame rate first by `fx.stage` (ffmpeg: 256x160 at 24 fps for H3, 512x288 cut
+         to 8k+1 frames for LTX, 512 wide at the take's rate for Hunyuan), so nothing in the
+         graph reads the episode folder and any backend runs it. LTX-2.3's audio VAE loads
+         through core `VAELoader` (the saved workflow's `VAELoaderKJ` isn't needed). Features:
+         Effects (H3), (LTX-2.3 Foley: ComfyUI-LTXVideo and 7 files), (HunyuanVideo-Foley XL:
+         phazei's pack and 3 files); download URLs listed from the Hugging Face repos)
+   - [x] a shot's effects takes, made on the queue (`seriesmith fx`, `POST /seriesmith/fx/render`
+         for shots or a selection), stale against the cut's take (2026-11-01; `seriesmith/fx.py`,
+         job kind `fx` with cue's limits, picked up again after a restart; the sound fitted to
+         the picture's length as it lands; `GET /seriesmith/fx` a shot's takes with `stale`,
+         `POST /seriesmith/fx/pick`; the series config's `sound.effects_model` names a series'
+         own model; a job whose picture changed between asking and starting fails, saying so)
+   - [x] the mix: effects from the cut (render, Play all, stems and M&E, XML), `fx` in mix.json
+         (2026-11-01; `fx.laid` / `render_fx` / `fx_lanes`, `mix.render(fx=)`,
+         `mix.placed(fx=)`, assemble: a heard one makes a mix by itself, a stale one is named
+         in the report; `GET /seriesmith/mix` `fx`)
+   - [x] the editor: the Effects lane's blocks and menu, a clip's Sound ▸ Make effects
+         (the selection), the takes (2026-11-01; `SoundLanes.tsx` FxBlock / FxMenu, `lib/mix.ts`
+         fxPlan, `mixActions.ts` makeEffects / pickMixFx / setMixFx: a pick is an undoable
+         mix edit; not yet looked at in a browser)
+   - [x] docs: API, EDITOR, COMMANDS, FULL_SETUP; live: CupsMV's cup shots on local ComfyUI
+         (2026-11-01, below)
+
+   Live on local ComfyUI (2026-11-01, CupsMV ep01, proxy pass, RTX 5090): `seriesmith fx
+   --proxy --shots sh010` made one `h3_foley` take in 40 s with H3 loading, then sh020 and
+   sh030 in 21 s for the two (about 10 s a shot); each 5.167 s, the take's 124 frames (the model
+   gave 5.175 s, cut to the picture). Prompted from the action (the script has no `sound:`
+   lines): "The exact video given, with its sound effects only: Close on June's hands on the
+   formica table: she claps twice, taps the upturned plastic cup three times, and lifts it. No
+   dialogue, ...". Picked (`--pick`) and `assemble --proxy`: "effects under 3 shot(s)" beside
+   the diner's two bed runs; the effects stem measured -37.9 / -29.8 / -16.7 dBFS RMS over
+   sh010 / sh020 / sh030 (peaks -9.3 / -3.3 / -6.9; the clips trimmed to their song windows,
+   118, 118 and 109 of 124 frames) and no sample above zero over the other 30 shots. Stale,
+   on the same takes with the cut's take for sh010 seen as t02 (nothing re-rendered): sh010
+   laid as "made from t01; the cut plays t02", not heard (silence over its clip), sh020 and
+   sh030 unchanged; with `keep_stale` it played at -35.1 dBFS. The other two models on sh020:
+   `ltx23_foley` 79 s with loading (121 frames, 5.01 s padded to 5.167; RMS -16.9 dB, peak
+   0.0 dB: it reaches full scale), `hunyuan_xl_foley` 43 s with loading (RMS -31.8 dB). Not
+   listened to yet; sh030's H3 take is loud (-14 dB RMS) and worth hearing first.
 5. **Cutting to music.** Beats as snap points for trims (a montage cut to a cue); the loudness
    check on export (PLAN's "later, maybe").
 6. **Tracks of your own.** Dialogue, effects, ambience and music become the default tracks
