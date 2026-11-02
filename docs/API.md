@@ -635,12 +635,18 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "beds", "fx", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "fx", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
-`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], gain_db, duck_db, duck,
-loudness}` (`gain_db`: each track's fader when nothing sets it, music -12 dB)
+`defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], labels, kinds, gain_db,
+duck_db, duck, loudness}` (`gain_db` and `duck_db` by kind: a track's fader when nothing sets
+it, music -12 dB; `labels` the default tracks' names). `track_list` the mix's tracks in lane
+order, each `{"id", "kind", "label"}`: its own list (mix.json's `track_list`, 2026-11-02, docs/SOUND.md
+phase 6), else the four defaults. A track's `kind` (dialogue, effects, ambience, music) gives
+its default fader and duck depth, what a region's `music_duck_db` / `ambience_duck_db`
+reach, and whether its stem joins the M&E; its id names its stem (`<id>.wav`) and keys
+`tracks` and its items' `track`
 (what a track dips under speech, the detector and the loudness target when nothing says).
 `beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path"
 (relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first
@@ -711,7 +717,13 @@ loudness out of range, two items or hits with one id), or an item whose `path` l
 episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
 `beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
-(-60 to 12), `mute` and `keep_stale`. Emits `seriesmith.episode`.
+(-60 to 12), `mute` and `keep_stale`. `track_list` takes the mix's own tracks, `[{"id", "kind",
+"label"}]` in lane order (stored only when it isn't the four defaults as they are; a label
+only when it isn't the default's): 400 for one without `dialogue` (the takes' sound), a
+default id of another kind (`music` is music), an id twice or one a stem can't have (`me`,
+`mix`, a Windows device name), more than 16, or a `tracks` entry or item on a track not in
+it (so a track with items is deleted by moving or deleting them in the same mix). Emits
+`seriesmith.episode`.
 
 ## Effects (2026-11-01)
 

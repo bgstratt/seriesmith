@@ -1628,7 +1628,8 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       2026-11-01
 - [x] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
       2026-11-02 (the snapping still to be looked at in a browser)
-- [ ] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
+- [x] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)
+      2026-11-02 (mix.json's `track_list`; not yet looked at in a browser)
 - [ ] Phase 7: song-first (a music video): the finished song is the episode's recording, as a
       recorded dub is (`audio.mode: source_track`, each shot its window); mostly there, so a
       guide and one real song tried before anything is built (docs/SOUND.md)

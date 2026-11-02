@@ -1,6 +1,6 @@
 # The episode's sound: four tracks, cues, a mix
 
-Status (2026-11-02): **building**, on the `sound-tracks` branch (phases 1-5 built, 7 tried). This file is the design
+Status (2026-11-02): **building**, on the `sound-tracks` branch (phases 1-6 built, 7 tried). This file is the design
 record and the checklist; the contracts go into the docstrings, `docs/API.md` and the user
 docs as each phase is built.
 
@@ -592,6 +592,44 @@ Each phase is tested live on local ComfyUI before the next starts.
    under the score, a walla track), each with its kind (what it ducks under, which stem it
    joins: M&E or dialogue) and its own stem and XML pair. mix.py's fixed `TRACKS` becomes the
    mix's own list.
+   - [x] mix.json's `track_list` (2026-11-02; `mix.check_track_list`, `track_list` / `kinds` /
+         `first_of`): `[{"id", "kind", "label"}]` in lane order, none for the four defaults (an
+         old mix.json loads and renders as it did: CupsMV ep01 proxy, every stem, the mp4 and
+         the XML byte for byte the same before and after). A track's kind gives its default
+         fader and duck depth, what a region's `music_duck_db` / `ambience_duck_db` reach, and
+         whether it joins the M&E; the speech the mix ducks under is every dialogue-kind
+         track's. The four default ids keep their kinds and can be renamed; `dialogue` (the
+         takes' sound) can't be taken out; an id names its stem, so `me`, `mix` and Windows'
+         device names are refused; at most 16. Beds go on `ambience`, else the first ambience
+         track (none: left out, said); effects likewise; a cue placed again keeps the track
+         it was moved to (`cue.place`). Decided here: a track's kind is fixed once made
+         (delete and add to change it), and the default dialogue track's own items still
+         aren't carried in the XML (another dialogue-kind track's are, a pair of its own)
+   - [x] stems and XML (2026-11-02): `<id>.wav` per track, `me.wav` every track but the
+         dialogue kind's, a stem of a track that's gone removed from `<cut>_stems/`; the XML a
+         pair per track in the list's order after the clips (and the recording)
+   - [x] the API (2026-11-02): `GET /seriesmith/mix` answers `track_list` (named) and the
+         defaults' `labels`; `PUT` checks the list, and refuses an item on a track that isn't
+         in it (so deleting a track with items is the editor's question, never a silent loss)
+   - [x] the editor (2026-11-02; `lib/mix.ts` trackList / addTrack / renameTrack / moveTrack /
+         deleteTrack / itemToTrack, `SoundLanes.tsx` TrackMenu, `MixAudio.ts`): a lane head's
+         ⋮ (or right-click) renames the track, adds one below the lanes (its kind and name),
+         moves it up or down, deletes it: a track with items asks there whether they move to
+         another track (one of its kind first) or go with it; the dialogue track says it can't
+         be deleted. A block dragged up or down onto another lane, or its menu's Track, moves
+         it. Play all makes a fader per track as it's first heard. Not yet looked at in a
+         browser
+   - [x] live (2026-11-02, CupsMV ep01 proxy, the user's mix.json put back byte for byte
+         after): a Song track (music kind, -6 dB) with the song from sh010 under the Score
+         track's cue m03 (Diner reprise). The stems: dialogue, effects, ambience, music, song,
+         me, mix; the M&E the four non-dialogue stems summed to 2e-7 where none clipped; over
+         the cue's span the song -27.9 dBFS RMS against the score's -33.8. The XML: twelve
+         audio tracks, A1/A2 the clips (33 each), A3/A4 the recording, A5/A6 effects (3), A7/A8
+         the diner beds (4), A9/A10 "Diner reprise", A11/A12 "When I'm Gone". The export's
+         loudness check said the AAC-encoded mix peaked at -0.5 dBTP over the -1 ceiling
+         (the mix was limited to -1.5 before encoding); and the stems clip where the loudness
+         gain (+6 dB here) pushes them past full scale (0.08 % of samples: the effects stem),
+         as they did before: only the mix is limited
 7. **Song-first (a music video).** The picture is cut to a finished song, not the music to
    the picture. The song arrives mastered, so nothing of the mix applies: it's the
    episode's recording, as a recorded dub is (docs/RECORDED_DIALOGUE.md): `audio.mode:

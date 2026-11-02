@@ -343,10 +343,12 @@ seriesmith assemble Shows\ep05 --xml             # the cut as a Premiere / Resol
   upscale), letterboxing a clip whose aspect differs.
 - The episode's mix (`mix.json`, the editor's sound lanes; docs/SOUND.md): when it changes
   anything (an item, a track's level, a place's ambience bed, a shot's picked effects), the
-  sound is mixed from four tracks (the clips' own sound as Dialogue, then Effects, Ambience
-  and Music), brought to the loudness target, and the stems written to `<cut>_stems/`
-  (`dialogue`, `effects`, `ambience`, `music`, `me`: all but the dialogue, and `mix`).
-  `--no-mix` leaves the clips' own sound as it is. `--xml` carries the tracks as lanes.
+  sound is mixed from its tracks (by default four: the clips' own sound as Dialogue, then
+  Effects, Ambience and Music; and any the mix adds of its own, a Song or Walla track),
+  brought to the loudness target, and the stems written to `<cut>_stems/`, one per track
+  named for it (`dialogue`, `effects`, `ambience`, `music`, `song`…), `me` (every track but
+  the dialogue kind's: the M&E) and `mix`. `--no-mix` leaves the clips' own sound as it is.
+  `--xml` carries the tracks as lanes, a pair each in the mix's order.
 - **The loudness check**: the mp4 is measured when it's written (integrated loudness, loudness
   range, true peak) against the mix's loudness target (the series config's `sound.loudness`,
   else -16 LUFS and -1 dBTP), and reported: `loudness: -16.1 LUFS integrated (on the -16

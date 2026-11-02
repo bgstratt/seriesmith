@@ -1279,7 +1279,8 @@ next shot starts where this one ended.
 ### Sound: the episode's mix
 
 **Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
-where the waveforms are): a thin **hits** lane, then **Dialogue**, **Effects**, **Ambience** and **Music**.
+where the waveforms are): a thin **hits** lane, then a lane per track: **Dialogue**, **Effects**,
+**Ambience** and **Music** by default, and any you add.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
 +12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
 default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level
@@ -1289,6 +1290,18 @@ each clip's own sound; the other lanes start empty. The mix is the pass's own (`
 beside `cut.json`), and assemble renders it into the export,
 with stems beside it.
 
+- **Tracks of your own**: a lane head's **⋮** (or a right-click on the head) renames the track,
+  adds a new one below the lanes, moves it up or down, or deletes it. A new track has a
+  **kind**: Dialogue, Effects, Ambience or Music, which sets its default level and how far it
+  dips under speech (a music track starts at -12 dB and dips 9 dB), and whether its stem
+  joins the M&E (every kind but dialogue). A second music track for a song under the score, a
+  walla track (ambience), an ADR track (dialogue): each its own fader, mute, solo, stem
+  (`<cut>_stems/<name>.wav`) and pair of tracks in the XML. Deleting a track with something on
+  it asks there: move it to another track (one of its kind is offered first) or delete it
+  with the track. The four default tracks can be renamed; Dialogue (the takes' own sound)
+  can't be deleted. Move a block to another track by **dragging it up or down** onto that
+  lane, or with its menu's **Track**. The ambience beds sit on the Ambience track (else the
+  first ambience track), the shots' effects on Effects (likewise).
 - **Right-click a lane** for its menu (it opens above the click near the window's foot): every
   lane can **Add a sound file here…**; Music and the hits lane make a **New cue**; Dialogue opens
   the shot's own sound (its Sound card, Replace audio); Ambience opens the place's ambience bed
