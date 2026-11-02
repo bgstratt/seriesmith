@@ -157,6 +157,28 @@ def laid(root: str, layout: list[dict], series_cfg: dict | None, mix: dict | Non
     return out
 
 
+def places(root: str, layout: list[dict], series_cfg: dict | None) -> dict[str, dict]:
+    """{shot id: the place whose bed it plays over} for the cut's shots set at a
+    location: {"place" (its bed's id when it has one, else its location's master
+    place, core.series_config.location_master: where its `ambience` words would go),
+    "name", "bed" (the place has a bed: words or a file)}. What the editor asks of a
+    shot's place (make its bed) without working out the series config's angles."""
+    if not series_cfg or not layout:
+        return {}
+    locs = shot_locations(root)
+    cfg_locs = series_cfg.get("locations") or {}
+    out = {}
+    for x in layout:
+        lid = locs.get(x["id"]) or ""
+        if not lid or lid.startswith("_") or not isinstance(cfg_locs.get(lid), dict):
+            continue
+        b = SC.ambience_bed_of(series_cfg, lid)
+        place = b["id"] if b else SC.location_master(series_cfg, lid)
+        e = cfg_locs.get(place) if isinstance(cfg_locs.get(place), dict) else {}
+        out[x["id"]] = {"place": place, "name": str(e.get("name") or place), "bed": b is not None}
+    return out
+
+
 def render_beds(beds: list[dict], total: int, fps: float, log=print):
     """The beds as one stereo buffer of the cut's length at mix.RATE: each run its bed
     looped, at its gain (a muted place silent), faded in and out over RUN_XFADE_S

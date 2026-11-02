@@ -2552,14 +2552,17 @@ def get_mix(ctx: Context, query: dict):
     (the take's voice stem, relative to the episode), "state" (ok | missing | stale | queued |
     failed | sourced | silent), "why", "voices_only" (the shot's, the track's under it),
     "override" (its own: true, false or null), "plays" (voice | whole | silence), "lines",
-    "measured", "seconds"}]} in cut order. Nothing is decoded."""
+    "measured", "seconds"}]} in cut order, and `places` each cut shot's place (ambience.places:
+    {shot: {"place", "name", "bed"}}, the place whose bed it plays over or would). Nothing is
+    decoded."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     try:
         mix = MX.check(MX.load(ep).get(pass_))
     except ValueError as e:
         raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
-    snd = (J.series_config(ep) or {}).get("sound") or {}
+    cfg = J.series_config(ep)
+    snd = (cfg or {}).get("sound") or {}
     # each item's file: its length in seconds (None: not there, or no sound)
     files = {}
     for it in mix.get("items") or []:
@@ -2571,7 +2574,8 @@ def get_mix(ctx: Context, query: dict):
     beds = [{**{k: b[k] for k in ("place", "label", "exists", "words", "shots", "in", "out",
                                   "gain_db", "mute")},
              "path": b["rel"], "start": round(b["start"] / fps, 4), "end": round(b["end"] / fps, 4)}
-            for b in AMB.laid(ep, layout, J.series_config(ep), mix)]
+            for b in AMB.laid(ep, layout, cfg, mix)]
+    places = AMB.places(ep, layout, cfg)
     from seriesmith import fx as FXM
     fx = [{**{k: f[k] for k in ("shot", "take", "model", "exists", "in", "out", "gain_db", "mute",
                                 "keep_stale", "stale", "heard")},
@@ -2581,7 +2585,7 @@ def get_mix(ctx: Context, query: dict):
     from seriesmith import voices as VO
     voices = VO.summary(VO.shots(ep, pass_, mix, VO.alive_of(ctx.runner)), mix)
     return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx, "voices": voices,
-                 "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
+                 "places": places, "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
                  "track_list": MX.track_list(mix),
                  "defaults": {"tracks": list(MX.TRACKS), "labels": MX.LABELS, "kinds": list(MX.KINDS),
                               "gain_db": MX.GAIN_DEFAULT,

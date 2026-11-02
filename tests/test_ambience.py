@@ -56,6 +56,18 @@ class PlaceTest(unittest.TestCase):
             b = SC.ambience_bed_of(cfg, lid)
             self.assertEqual((b["id"], b["path"], b["words"]), ("diner", "../refs/_amb/diner.wav", DINER))
 
+    def test_a_place_without_words_is_its_master(self):
+        cfg = SC.series_config_from(config(
+            hall={"description": "a hall", "name": "The Hall"},
+            hall_door={"description": "the door", "of": "hall"},
+            hall_gold={"description": "golden", "of": "hall", "ambience": "evening birds"}))
+        lay = [{"id": "a"}, {"id": "b"}, {"id": "c"}]
+        from unittest import mock
+        with mock.patch.object(AMB, "shot_locations", return_value={"a": "hall_door", "b": "hall_gold", "c": ""}):
+            self.assertEqual(AMB.places("x", lay, cfg), {
+                "a": {"place": "hall", "name": "The Hall", "bed": False},
+                "b": {"place": "hall_gold", "name": "hall_gold", "bed": True}})
+
     def test_nothing_is_automatic(self):
         self.assertIsNone(SC.ambience_bed_of(self.cfg(), "hall"))
 
@@ -286,6 +298,14 @@ class AssembleBedsTest(unittest.TestCase):
         self.assertEqual([(b["place"], b["shots"], b["rel"], b["in"], b["out"]) for b in beds],
                          [("diner", ["sh010"], "../refs/_amb/diner.wav",
                            {"shot": "sh010", "frame": 0}, {"shot": "sh010", "frame": 24})])
+
+    def test_get_mix_places(self):
+        from seriesmith import cue as CU
+        from seriesmith import jobs as J
+        lay, _ = CU.cut_layout(self.root, "final")
+        self.assertEqual(AMB.places(self.root, lay, J.series_config(self.root)),
+                         {"sh010": {"place": "diner", "name": "diner", "bed": True},
+                          "sh020": {"place": "road", "name": "road", "bed": False}})
 
 
 if __name__ == "__main__":

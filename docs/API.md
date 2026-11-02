@@ -635,7 +635,7 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "beds", "fx", "voices", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "fx", "voices", "places", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
@@ -664,8 +664,11 @@ the Dialogue track's voices only (below): `{"voices_only" (the track's), "split"
 silent: its take has none), "why", "voices_only" (the shot's, the track's under it),
 "override" (its own: true, false or null), "plays" (voice | whole | silence: what the Dialogue
 track plays for it), "lines" (the script gives it one), "measured" ({whole_rms_db,
-voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. Nothing
-is decoded. 409 when `mix.json` is there but doesn't read.
+voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. `places` each
+cut shot's place, by shot (2026-11-02; shots whose sequence has no location left out):
+`{"place" (its bed's place when it has one, else its location's master, the location it is
+`of`: where `ambience` words would give it one), "name", "bed" (the place has a bed)}`, what
+the editor's "Make <place>'s ambience bed" acts on. Nothing is decoded. 409 when `mix.json` is there but doesn't read.
 
 ### Ambience beds (2026-11-01)
 
