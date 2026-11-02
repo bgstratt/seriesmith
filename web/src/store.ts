@@ -188,6 +188,13 @@ export interface PresetPictureAsk {
 }
 
 /** the sequence relight dialog: the sequence whose plates it relights */
+/** The Refs tab's sound "+" dialogs (SoundAdd.tsx): a new cue (opening on `tab`), effects
+ * for shots, an ambience bed for a place. */
+export type SoundAddAsk =
+  | { kind: "cue"; tab?: "score" | "arc" | "orch"; shots?: string[] }
+  | { kind: "fx"; shots?: string[] }
+  | { kind: "bed"; place?: string };
+
 export interface RelightAsk {
   sequence: string;
 }
@@ -391,6 +398,7 @@ export interface AppState {
   postAsk: PostAsk | null;
   masterAsk: MasterAsk | null;
   relightAsk: RelightAsk | null;
+  soundAdd: SoundAddAsk | null;
   presetPictureAsk: PresetPictureAsk | null;
   /** the episode's master job: being assembled, or the last one (null: none known) */
   masterJob: MasterJob | null;
@@ -595,6 +603,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     postAsk: null,
     masterAsk: null,
     relightAsk: null,
+    soundAdd: null,
     presetPictureAsk: null,
     masterJob: null,
     refs: {},

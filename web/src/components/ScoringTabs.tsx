@@ -2,6 +2,7 @@
 // starts, then the selected cue's Score, Arc and Orchestration & takes. One window: the
 // spotting sheet and the cue window share its place and size, and switch on these tabs.
 
+import { openSoundAdd } from "../mixActions";
 import { openCueFromSpot, openSpotting } from "../spotActions";
 import type { Rect } from "./FloatingWindow";
 
@@ -27,7 +28,8 @@ const CUE_TABS: [CueTab, string, string][] = [
 ];
 
 /**
- * `active` the tab showing; `cue` the cue the cue tabs open (null: the episode has none, they wait);
+ * `active` the tab showing; `cue` the cue the cue tabs open (null: the episode has none: they ask
+ * for a new one, SoundAdd's dialog, and open on it);
  * `onCueTab` switches between the cue tabs in place (the cue window), else they open it.
  */
 export function ScoringTabs({ active, cue, onCueTab }: { active: ScoringTab; cue: string | null; onCueTab?: (t: CueTab) => void }) {
@@ -38,10 +40,14 @@ export function ScoringTabs({ active, cue, onCueTab }: { active: ScoringTab; cue
         <i className="pi pi-map" /> Spotting
       </button>
       {CUE_TABS.map(([t, name, title]) => (
-        <button key={t} className={active === t ? "h3-on" : ""} disabled={!cue}
-          title={cue ? `${title} (${cue})` : `${title}. Add a cue first`}
+        <button key={t} className={active === t ? "h3-on" : ""} data-tab={t}
+          title={cue ? `${title} (${cue})` : `${title}. No cue yet: click to make one (its span and kind), then it opens here`}
           onClick={() => {
-            if (!cue || active === t) return;
+            if (!cue) {
+              openSoundAdd({ kind: "cue", tab: t });
+              return;
+            }
+            if (active === t) return;
             if (onCueTab && active !== "spot") onCueTab(t);
             else openCueFromSpot(cue, t);
           }}>

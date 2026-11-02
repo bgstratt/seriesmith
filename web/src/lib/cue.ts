@@ -338,8 +338,14 @@ export const newCueId = (cues: string[], items: string[]) => newId("m", [...cues
  * the last's last), else from `at` to the end of the shot it's in. Null when
  * none of it is in the cut.
  */
-export function newCueSpan(items: PlayItem[], fps: number, shots: string[], at: Anchor | null): { in: Anchor; out: Anchor } | null {
+export function newCueSpan(items: PlayItem[], fps: number, shots: string[], at: Anchor | null, until: string | null = null): { in: Anchor; out: Anchor } | null {
   const f = fps || 24;
+  // from `at` to the end of shot `until` (later in the cut)
+  const last = until && at ? items.find((x) => x.shot === until) : undefined;
+  const first = at ? items.find((x) => x.shot === at.shot) : undefined;
+  if (last && first && last.index >= first.index) {
+    return { in: at!, out: { shot: last.shot, frame: Math.max(last.shot === at!.shot ? at!.frame + 1 : 1, Math.round(last.outT * f)) } };
+  }
   const sel = items.filter((it) => shots.includes(it.shot));
   if (sel.length) {
     const a = sel[0];

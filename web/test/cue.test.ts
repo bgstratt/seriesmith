@@ -353,6 +353,9 @@ describe("a new cue", () => {
     expect(newCueSpan(ITEMS, 24, ["sh020", "sh030"], null)).toEqual({ in: { shot: "sh020", frame: 12 }, out: { shot: "sh030", frame: 96 } });
     expect(newCueSpan(ITEMS, 24, [], { shot: "sh010", frame: 30 })).toEqual({ in: { shot: "sh010", frame: 30 }, out: { shot: "sh010", frame: 96 } });
     expect(newCueSpan(ITEMS, 24, [], null)).toBeNull();
+    // from a frame to the end of a later shot (the spotting map's "to the end of the sequence")
+    expect(newCueSpan(ITEMS, 24, [], { shot: "sh010", frame: 30 }, "sh030")).toEqual({ in: { shot: "sh010", frame: 30 }, out: { shot: "sh030", frame: 96 } });
+    expect(newCueSpan(ITEMS, 24, [], { shot: "sh030", frame: 30 }, "sh010")).toEqual({ in: { shot: "sh030", frame: 30 }, out: { shot: "sh030", frame: 96 } });
   });
 
   it("the picture strip shows the clips over the grid, clipped to it", () => {

@@ -11,7 +11,7 @@ import { api, host } from "./host";
 import { applyPreset, barsLabel, meterText, newCueId, newCueSpan, presetBase } from "./lib/cue";
 import { loadMix } from "./mixActions";
 import { statusKey, store, type AppState } from "./store";
-import type { Anchor, CuePlan, CuePreset, CueResult, CueSpec, Pass } from "./types";
+import type { Anchor, CueKind, CuePlan, CuePreset, CueResult, CueSpec, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -130,18 +130,30 @@ export function saveCueAt(o: { ep: string; pass: Pass; cue: string; key: string 
   return run;
 }
 
+/** How a new cue is asked for beyond its anchor (the "+" dialog, the spotting map's menu). */
+export interface NewCueOpts {
+  /** over these shots (their first frame played to their last), not the selection */
+  shots?: string[];
+  /** from `at` to the end of this shot */
+  until?: string;
+  /** score (the default) or song */
+  kind?: CueKind;
+  /** open it in the scoring window on this tab (from the spotting sheet), not the cue window's first */
+  tab?: "score" | "arc" | "orch";
+}
+
 /**
  * A new cue over the shots selected (several), else from `at` to the end of its shot,
- * saved with the next free id and opened.
+ * saved with the next free id and opened; `opts` says the span (and kind) instead.
  */
-export async function newCue(at: Anchor | null): Promise<string | null> {
+export async function newCue(at: Anchor | null, opts: NewCueOpts = {}): Promise<string | null> {
   const s = get();
   const ep = s.ep;
   if (!ep) return null;
   const fps = s.status[statusKey(ep, s.pass)]?.fps || 24;
-  // several shots selected: over them; else from where it was asked
-  const shots = s.multi.length > 1 ? s.multi : [];
-  const span = newCueSpan(currentPlaylist(s), fps, shots, at);
+  // shots asked for: over them; several shots selected: over them; else from where it was asked
+  const shots = opts.shots?.length ? opts.shots : !opts.until && s.multi.length > 1 ? s.multi : [];
+  const span = newCueSpan(currentPlaylist(s), fps, shots, at, opts.until ?? null);
   if (!span) {
     host().toast("info", "A cue goes over the cut", "Right-click the music lane over a clip, or select the shots it plays over first.");
     return null;
@@ -151,13 +163,17 @@ export async function newCue(at: Anchor | null): Promise<string | null> {
   const items = (s.mix[statusKey(ep, s.pass)]?.mix.items ?? []).map((i) => i.id);
   const id = newCueId(taken, items);
   try {
-    await api().putCue(ep, { id, in: span.in, out: span.out });
+    await api().putCue(ep, { id, ...(opts.kind && opts.kind !== "score" ? { kind: opts.kind } : {}), in: span.in, out: span.out });
   } catch (e) {
     report("Couldn't make the cue", e);
     return null;
   }
   void loadCues(ep);
-  openCue(id);
+  if (opts.tab) {
+    const now = get();
+    set({ viewer: { kind: "cue", shot: "", pass: now.pass, a: null, b: null, mode: "single", target: "a", cue: id, back: "spot", cueTab: opts.tab }, menu: null, audition: null,
+          cutPlay: { ...now.cutPlay, playing: false } });
+  } else openCue(id);
   return id;
 }
 

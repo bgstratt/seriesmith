@@ -40,7 +40,7 @@ import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
 import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
-  makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  makeBed, makeEffects, moveMixPoint, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
   makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
@@ -1306,17 +1306,38 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
           </button>
         </>
       )}
-      {kind === "ambience" && (
-        <button title="The places' ambience beds (the Refs tab's Ambience): a location's room tone or air, made once from its `ambience` words and looped under its shots"
-          onClick={run(() => {
-            const s = store.get();
-            const bed = at && s.ep ? s.mix[statusKey(s.ep, s.pass)]?.beds?.find((b) => b.shots.includes(at.shot)) : undefined;
-            if (bed) openBedRef(bed.place);
-            else host().show("refs");
-          })}>
-          <i className="pi pi-cloud" /> {at ? "This place's ambience bed…" : "The places' ambience beds…"}
-        </button>
-      )}
+      {kind === "ambience" && (() => {
+        // the shot's place's bed: laid (it has words), else the place the server says it's at
+        const laid = at ? lanesRes?.beds?.find((b) => b.shots.includes(at.shot)) : undefined;
+        const place = at ? lanesRes?.places?.[at.shot] : undefined;
+        return (
+          <>
+            {laid && (
+              <>
+                <button data-bed="make" title={laid.exists ? `A new take of ${laid.label}'s bed from its words (“${laid.words}”); pick it in the Refs tab's Ambience`
+                  : `Make ${laid.label}'s bed from its words (“${laid.words}”): its first take is picked, and it plays under every shot set there`}
+                  onClick={run(() => void makeBed(laid.place))}>
+                  <i className="pi pi-sparkles" /> {laid.exists ? `Make ${laid.label}'s bed again` : `Make ${laid.label}'s ambience bed`}
+                </button>
+                <button data-bed="open" title="The Refs tab's Ambience section on it: its words, its takes, render again, pick another"
+                  onClick={run(() => openBedRef(laid.place))}>
+                  <i className="pi pi-cloud" /> Open the bed…
+                </button>
+              </>
+            )}
+            {!laid && at && (
+              <button data-bed="add" title={place ? `${place.name} has no ambience words yet: say what's heard there, and make its bed` : "Make a place's ambience bed: pick the place, say what's heard there"}
+                onClick={run(() => openSoundAdd(place ? { kind: "bed", place: place.place } : { kind: "bed" }))}>
+                <i className="pi pi-cloud" /> {place ? `Make ${place.name}'s ambience bed…` : "Make an ambience bed…"}
+              </button>
+            )}
+            <button title="The places' ambience beds (the Refs tab's Ambience): a location's room tone or air, made once from its `ambience` words and looped under its shots"
+              onClick={run(() => host().show("refs"))}>
+              <i className="pi pi-list" /> The places' ambience beds…
+            </button>
+          </>
+        );
+      })()}
       {track && (
         <button disabled={!at} title={`A wav, mp3, flac, ogg or m4a from this computer, laid on ${name} from here (or drop one on the lane)`}
           onClick={run(() => at && pickSoundFile(track, at))}>

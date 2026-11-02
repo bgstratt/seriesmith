@@ -2742,6 +2742,14 @@ export interface AmbienceBed {
   target: string | null;
 }
 
+/** A cut shot's place (GET /seriesmith/mix `places`): its bed's place, else its location's master. */
+export interface MixPlace {
+  place: string;
+  name: string;
+  /** the place has a bed (words or a file) */
+  bed: boolean;
+}
+
 /** GET /seriesmith/mix */
 export interface MixResult {
   mix: Mix;
@@ -2751,6 +2759,8 @@ export interface MixResult {
   fx?: MixFx[];
   /** the Dialogue track's voices only: each cut shot's voice stem (none: an older server) */
   voices?: MixVoices;
+  /** each cut shot's place: the place whose bed it plays over, or would (none: an older server) */
+  places?: Record<string, MixPlace>;
   /** the series config's `sound` defaults the mix sits on */
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
   /** the mix's tracks in lane order, each named (the server's; the editor works it out from `mix` too) */

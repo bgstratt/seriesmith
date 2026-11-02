@@ -33,6 +33,7 @@ import { FrameUseWindow } from "./components/FrameUse";
 import { NewEpisodeWizard } from "./components/NewEpisodeWizard";
 import { ShotFormWindow } from "./components/ShotForm";
 import { SubjectCardWindow } from "./components/SubjectCard";
+import { SoundAddDialog } from "./components/SoundAdd";
 import { SourceWindows } from "./components/SourceWindow";
 import { Timeline } from "./components/Timeline";
 import { TrackWindow } from "./components/Track";
@@ -187,6 +188,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Before export", ExportCheckDialog],
   ["Sound", SoundDialog],
   ["Relight", RelightDialog],
+  ["New sound", SoundAddDialog],
   ["Preset picture", PresetPictureDialog],
   ["Browse", BrowseDialog],
   ["Supply", SupplyDialog],

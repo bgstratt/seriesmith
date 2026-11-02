@@ -7,12 +7,12 @@
 // but they are what the episode's sound is made from, so they are listed beside them.
 
 import { useEffect, useRef, useState } from "react";
-import { currentPlaylist, generateRef, onFxEvent, pickRef } from "../actions";
+import { currentPlaylist, onFxEvent, pickRef } from "../actions";
 import { loadCues, openCue } from "../cueActions";
 import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
-import { currentMix, deleteMixItem, loadMix, makeEffects, makeVoiceStems, pickMixFx, setMixBed, setMixFx, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
+import { currentMix, deleteMixItem, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
 import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, MixVoice, Ref, TrackKind } from "../types";
 import { kindOf, voicePlays, voicesOnly } from "../lib/mix";
@@ -20,8 +20,10 @@ import { useTargets } from "./Targets";
 import { VoiceCandidate, VoiceLive } from "./VoiceRef";
 
 /** One folding section, as the Refs tab's groups fold. */
-function Section({ label, count, title, note, children }: {
+function Section({ label, count, title, note, add, children }: {
   label: string; count: number; title: string; note?: string; children: React.ReactNode;
+  /** a "+" on the head, as the cast groups' (opens SoundAdd's dialog) */
+  add?: { label: string; title: string; onClick: () => void };
 }) {
   const [folded, setFolded] = useState(false);
   return (
@@ -30,6 +32,15 @@ function Section({ label, count, title, note, children }: {
         <span className="h3-chev">{folded ? "▶" : "▼"}</span>
         <b>{label}</b>
         <span className="h3-muted h3-small">{count}</span>
+        {add && (
+          <>
+            <span className="h3-grow" />
+            <button className="h3-btn h3-add" title={add.title} data-add={label.toLowerCase()}
+              onClick={(e) => { e.stopPropagation(); add.onClick(); }}>
+              <i className="pi pi-plus" /> {add.label}
+            </button>
+          </>
+        )}
       </div>
       {!folded && (
         <>
@@ -122,10 +133,7 @@ function BedRow({ ep, bed }: { ep: string; bed: AmbienceBed }) {
   const toggle = () => store.set((s) => ({ refOpen: { ...s.refOpen, [bed.ref]: !open } }));
   const own = mix?.mix.beds?.[bed.place];
   const takes = (full?.takes ?? []).slice().sort((a, b) => b.take - a.take);
-  const make = () => void generateRef({
-    ref: bed.ref, view: null, count: 1, seed_mode: "auto", seed: null, prompt: null, model: null, loras: null, steps: null,
-    note: "", ...(target ? { target } : {}),
-  });
+  const make = () => void makeBed(bed.place, target || null);
   return (
     <div ref={row} className="h3-kf-shot" data-ref={bed.ref}>
       <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={toggle}
@@ -447,7 +455,8 @@ export function SoundRefsSections({ ep }: { ep: string }) {
       <DialogueSection ep={ep} />
       <Section label="Music" count={cues?.length ?? 0}
         title="The episode's music cues: each written to the hits in its span, its takes ranked in the cue window"
-        note="A new cue: right-click a shot (Sound ▸ New music cue) or the music lane under the timeline.">
+        note="A new cue: + Cue, or right-click a shot (Sound ▸ New music cue), the music lane under the timeline or a row of the spotting map."
+        add={{ label: "Cue", title: "A new music cue over a span of the cut: pick its first and last shot, or a sequence", onClick: () => openSoundAdd({ kind: "cue" }) }}>
         {(cues ?? []).map((c) => (
           <div key={c.spec.id} className="h3-kf-shot">
             <div className="h3-row h3-small" style={{ gap: 8, cursor: "pointer" }} onClick={() => openCue(c.spec.id)}
@@ -467,14 +476,16 @@ export function SoundRefsSections({ ep }: { ep: string }) {
       </Section>
       <Section label="Effects" count={(fxShots?.length ?? 0) + on("effects").length}
         title="Each shot's effects, made from its take by a foley model, and the files on the effects lane of this pass's mix"
-        note="Make a shot's effects: right-click it (Sound ▸ Make effects; on a selection, every selected shot). Its first take is picked; pick another here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
+        add={{ label: "Effects", title: "Make effects for the shots you pick (to start, the cut's shots without any), on a foley model", onClick: () => openSoundAdd({ kind: "fx" }) }}
+        note="Make effects: + Effects, or right-click a shot (Sound ▸ Make effects; on a selection, every selected shot). Its first take is picked; pick another here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
         {fxShots && !fxShots.length && <div className="h3-muted h3-small h3-pad">No shot has effects made in this pass.</div>}
         {(fxShots ?? []).map((x) => <FxRow key={x.shot} ep={ep} pass={pass} s={x} />)}
         <ItemRows items={on("effects")} empty="No files on the effects lane." />
       </Section>
       <Section label="Ambience" count={(beds?.length ?? 0) + on("ambience").length}
         title="Each place's ambience bed, looped under its shots, and the files on the ambience lane of this pass's mix"
-        note="A place's bed is made from its location's `ambience` words (the location's form, or series.json) and plays under every shot set there, its angles and relit versions too. A file of your own: drop one on the Ambience lane; it plays over the beds.">
+        add={{ label: "Bed", title: "Make a place's ambience bed: pick one of the cut's places, say what's heard there if it has no words yet, and make it", onClick: () => openSoundAdd({ kind: "bed" }) }}
+        note="A place's bed is made from its location's `ambience` words (+ Bed, the location's form, or series.json) and plays under every shot set there, its angles and relit versions too. A file of your own: drop one on the Ambience lane; it plays over the beds.">
         {bedsError && <div className="h3-note h3-note-err h3-small">The beds didn't load: {bedsError}</div>}
         {beds && !beds.length && <div className="h3-muted h3-small h3-pad">No place says what's heard there: give a location its `ambience` words.</div>}
         {(beds ?? []).map((b) => <BedRow key={b.ref} ep={ep} bed={b} />)}

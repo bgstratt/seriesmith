@@ -5,7 +5,7 @@
 // the order they were made.
 
 import { errText } from "./api";
-import { currentPlaylist, onStatusLoaded, report } from "./actions";
+import { currentPlaylist, generateRef, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
@@ -15,7 +15,7 @@ import {
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { trackList as trackListOf } from "./lib/mix";
-import { statusKey, store, type AppState } from "./store";
+import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
 import type { Anchor, Mix, MixBedSettings, MixFxSettings, MixHit, MixItem, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
@@ -53,7 +53,8 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
       const same = was && sameMix(was.mix, r.mix) && JSON.stringify(was.series) === JSON.stringify(r.series)
         && JSON.stringify(was.beds ?? []) === JSON.stringify(r.beds ?? [])
         && JSON.stringify(was.fx ?? []) === JSON.stringify(r.fx ?? [])
-        && JSON.stringify(was.voices ?? null) === JSON.stringify(r.voices ?? null);
+        && JSON.stringify(was.voices ?? null) === JSON.stringify(r.voices ?? null)
+        && JSON.stringify(was.places ?? null) === JSON.stringify(r.places ?? null);
       return same ? { mixError } : { mix: { ...s.mix, [key]: r }, mixError };
     });
     void loadBeats(ep, pass);
@@ -352,6 +353,24 @@ export async function makeVoiceStems(shots?: string[], redo = false): Promise<vo
   } catch (e) {
     host().toast("error", "No voice stems were queued", errText(e));
   }
+}
+
+/** The sound "+" dialog (SoundAdd.tsx): a new cue, effects for shots, a place's bed. */
+export function openSoundAdd(ask: SoundAddAsk) {
+  set({ soundAdd: ask, menu: null });
+}
+
+export function closeSoundAdd() {
+  set({ soundAdd: null });
+}
+
+/** A new take of a place's ambience bed (the ref `ambience:<place>`), made from its words as the
+ * Refs tab's Make it does: on `target` (absent: the bed's own or the episode's model). */
+export function makeBed(place: string, target?: string | null): Promise<boolean> {
+  return generateRef({
+    ref: `ambience:${place}`, view: null, count: 1, seed_mode: "auto", seed: null, prompt: null, model: null, loras: null, steps: null,
+    note: "", ...(target ? { target } : {}),
+  });
 }
 
 /** The Refs tab's Ambience section on a place's bed, its row open (its takes, render again). */
