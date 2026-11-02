@@ -46,7 +46,7 @@ seriesmith align    Shows\CupsMV\ep01
 seriesmith build    Shows\CupsMV\ep01
 ```
 
-align writes an `audio: in-out` line on every shot, so the windows run end to end through the song, and writes `align_report.md`. In the editor, use the Recording window's **Dry run** and **Align**. Check the report's coverage column: CupsMV's 30 sung lines all matched 100%. For better transcription of singing, use `--model large-v3` (the Recording window's **Whisper model**).
+align writes an `audio: in-out` line on every shot, so the windows run end to end through the song, and writes `align_report.md`. In the editor, use the Recording window's **Dry run** and **Align**. Check the report's coverage column: CupsMV's 30 sung lines all matched 100%. For better transcription of singing, use `--model large-v3` or the faster `large-v3-turbo` (the Recording window's **Whisper model**).
 
 **The vocal stem** is optional, and off by default. A song's singing can be split from the band on your local ComfyUI (seriesmith's Vocal Stem node, Hybrid Demucs) and kept beside the song as `<recording>.vocals.wav`. It can be used in two places:
 

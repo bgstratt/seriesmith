@@ -287,7 +287,10 @@ their own words. The voice comes out close, not identical: listen before you pic
 
 - `pip install faster-whisper numpy` for `seriesmith align` and the editor's Recording
   window. Install them in seriesmith's Python, or in any Python on PATH; the Recording
-  window names the one it found and prints the exact `pip install` line for it.
+  window names the one it found and prints the exact `pip install` line for it. With an NVIDIA
+  card, `pip install nvidia-cublas-cu12` there too: faster-whisper is built on CUDA 12 and
+  doesn't bring its cuBLAS (ComfyUI's PyTorch has CUDA 13's), so without it Whisper runs on
+  the CPU, minutes instead of seconds.
 - `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
   `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
 - The **vocal stem** of a song (optional: `align --vocals`, and dub shots that hear the

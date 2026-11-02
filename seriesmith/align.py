@@ -119,7 +119,31 @@ def load_pcm(path: str) -> "np.ndarray":
     return np.frombuffer(r.stdout, dtype=np.float32)
 
 
+def cuda_libs() -> None:
+    """CUDA 12's cuBLAS for faster-whisper's CTranslate2 (its wheel brings cuDNN, not cuBLAS):
+    from the `nvidia-cublas-cu12` pip package when it's installed (the Features window's
+    Recorded dialogue), which nothing puts on the DLL / library path by itself. Without it the
+    GPU fails and align transcribes on the CPU."""
+    try:
+        import nvidia.cublas
+    except ImportError:
+        return
+    for d in nvidia.cublas.__path__:
+        if sys.platform == "win32":
+            b = os.path.join(d, "bin")
+            if os.path.isdir(b):
+                os.add_dll_directory(b)
+                os.environ["PATH"] = b + os.pathsep + os.environ.get("PATH", "")
+        else:
+            import ctypes
+            for name in ("libcublasLt.so.12", "libcublas.so.12"):
+                p = os.path.join(d, "lib", name)
+                if os.path.exists(p):
+                    ctypes.CDLL(p, mode=ctypes.RTLD_GLOBAL)
+
+
 def transcribe(path: str, model: str, device: str, language: str, prompt: str) -> list[dict]:
+    cuda_libs()
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -430,7 +454,7 @@ def main(argv: list[str] | None = None) -> int:
                          "made on local ComfyUI first if it isn't beside it "
                          "(<recording>.vocals.wav); off by default")
     ap.add_argument("--model", default="medium.en",
-                    help="Whisper model (tiny.en, base.en, small.en, medium.en, large-v3)")
+                    help="Whisper model (tiny.en, base.en, small.en, medium.en, large-v3, large-v3-turbo)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
                     help="where Whisper runs (default %(default)s)")
     ap.add_argument("--language", default="en",

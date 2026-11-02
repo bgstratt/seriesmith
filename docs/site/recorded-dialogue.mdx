@@ -12,6 +12,7 @@ Use this when you have real recorded lines (actors, you, or TTS) instead of lett
 ```
 cd <your projects folder>
 pip install faster-whisper                                    # once
+pip install nvidia-cublas-cu12                                # an NVIDIA card: Whisper on the GPU
 
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav --dry-run   # look first
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav
@@ -61,7 +62,7 @@ On other models a dub shot works too, without retention: on LTX (`ltx2`, `ltx2_i
 | `--dry-run` | Report only. Changes no files. Always worth running first |
 | `--retranscribe` | Ignore the cached `<recording>.words.json` after replacing the recording |
 | `--words <file>` | Use word timings you already have instead of transcribing |
-| `--model <name>` | Whisper model: `tiny.en`, `base.en`, `small.en`, `medium.en` (default), `large-v3` |
+| `--model <name>` | Whisper model: `tiny.en`, `base.en`, `small.en`, `medium.en` (default), `large-v3`, `large-v3-turbo` (close to large-v3, several times faster) |
 | `--device cuda\|cpu` | Where Whisper runs. `auto` by default |
 | `--script <file>` | Pick the script when the folder holds more than one `.md` |
 | `--no-snap` | Leave windows exactly as measured instead of lengthening them to the target's frame grid |

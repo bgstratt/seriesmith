@@ -289,9 +289,13 @@ def catalog() -> list[Feature]:
                 "(Tencent's community licence: it doesn't apply in some territories).",
                 [_pack("ComfyUI-HunyuanVideo-Foley")] + _target_items("hunyuan_xl_foley"), restart=True),
         Feature("sound.align", "sound", "Recorded dialogue",
-                "faster-whisper, for align and the Recording window, in the Python align runs on.",
+                "faster-whisper, for align and the Recording window, in the Python align runs on; "
+                "with an NVIDIA card, CUDA 12's cuBLAS too, or it transcribes on the CPU (its "
+                "CTranslate2 is built on CUDA 12 and brings cuDNN, not cuBLAS; ComfyUI's PyTorch "
+                "has CUDA 13's, which it can't use).",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),
-                 Item("pip", "numpy", where="align", module="numpy")]),
+                 Item("pip", "numpy", where="align", module="numpy"),
+                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas")]),
         Feature("sound.vocals", "sound", "Vocal stem (Hybrid Demucs)",
                 "A song's singing split from the band, for align --vocals and an episode that "
                 "dubs from the stem (optional; off by default): seriesmith's node pack and "

@@ -92,6 +92,7 @@ Cloud's own nodes, leaving out what a model can do without ([docs/SETUP.md](docs
 | Install | Unlocks |
 |---|---|
 | `pip install faster-whisper numpy` | `seriesmith align` / the editor's Recording window: transcribe a dialogue recording and write `audio:` windows onto every shot |
+| `pip install nvidia-cublas-cu12`, in the same Python | Whisper on an NVIDIA card instead of the CPU (faster-whisper is built on CUDA 12 and brings no cuBLAS) |
 | `pip install demucs`, for the `python` first on **ComfyUI's** PATH | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node shells out to `python -m demucs` |
 | `pip install -e .[test]` | `python -m pytest`, the test suite (six workers in parallel) |
 | Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built pages are committed |
