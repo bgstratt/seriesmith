@@ -451,11 +451,29 @@ class VoicePickTest(Episode):
         self.assertIsNotNone(d.cleared)
         self.assertTrue(d.moved)
 
-    def test_auto_pick_leaves_voices_alone(self):
-        ref = R.find_ref(self.s, "voice:ada")
+    def test_auto_pick_takes_a_voice_with_no_sample(self):
+        # a character with no voice sample named takes its first finished voice, and the
+        # series config gains the line; one with a live sample is left alone
+        rex = R.find_ref(self.s, "voice:rex")
+        self.assertEqual(R.auto_pick(self.s, rex), [])                 # nothing made yet
+        t = self.sample("voice:rex")
+        self.sample("voice:rex")
+        res = R.auto_pick(self.s, rex)
+        self.assertEqual([r.take.take for r in res], [t.take])
+        self.assertTrue(res[0].series_changed)
+        cfg = json.load(open(self.s.config_file, encoding="utf-8"))
+        self.assertEqual(cfg["subjects"]["rex"]["voice_sample"], "refs/voices/rex.wav")
+        rex = R.find_ref(R.load_series(self.ep), "voice:rex")
+        self.assertEqual(R.auto_pick(self.s, rex), [])                 # live now: left alone
+
+    def test_auto_pick_leaves_a_live_or_cleared_voice_alone(self):
+        ada = R.find_ref(self.s, "voice:ada")
+        t = self.sample("voice:ada")
+        R.pick_take(self.s, ada, None, t.take)
         self.sample("voice:ada")
-        # picking a voice can write the series config, so it is never automatic
-        self.assertEqual(R.auto_pick(self.s, ref), [])
+        self.assertEqual(R.auto_pick(self.s, ada), [])                 # its sample is live
+        R.clear_pick(self.s, ada)
+        self.assertEqual(R.auto_pick(self.s, R.find_ref(self.s, "voice:ada")), [])   # cleared: your choice
 
 
 # ---------------------------------------------------------------------------
@@ -630,10 +648,13 @@ class VoiceApiTest(ApiTest):
         self.assertEqual((t["status"], t["source"]), ("ok", "generated"))
         self.assertTrue(t["audio"].endswith(".wav"))
         self.assertIsNone(t["image"])
-        # picking writes the series config
+        # rex had no voice sample: the listing took his first voice and wrote the series
+        # config (auto-pick), so picking it again changes nothing there
+        cfg = json.load(open(os.path.join(self.ep, "series.json"), encoding="utf-8"))
+        self.assertEqual(cfg["subjects"]["rex"]["voice_sample"], "refs/voices/rex.wav")
         out = self.ok(A.put_refs_pick(self.ctx, {"ep": self.ep, "ref": "voice:rex",
                                                  "take": 1}))
-        self.assertTrue(out["series_changed"])
+        self.assertFalse(out["series_changed"])
         self.assertEqual(out["path"], "refs/voices/rex.wav")
         self.assertTrue(out["exists"])
         cfg = json.load(open(os.path.join(self.ep, "series.json"), encoding="utf-8"))

@@ -3704,8 +3704,11 @@ its own section.
   editor never unwrites it), so the ref still lists and a later pick puts a file back. A
   voice the series config names no sample for is still 400 (there is nothing to clear).
   Discarding a voice candidate that is the pick clears it, as for images.
-- **[settled] Auto-pick still skips voices.** Picking one can write the series config, so
-  it is never automatic; `GET /seriesmith/refs` leaves voice candidates waiting.
+- **Auto-pick takes a voice with no sample** (changed 2026-11-02; it used to skip voices): a
+  character whose voice has no live sample (none named in the series config, or its file
+  missing) takes its first finished voice when `GET /seriesmith/refs` runs, the series config
+  gaining its `voice_sample` (a `_history` copy kept). A live sample is never replaced, and a
+  cleared one stays cleared; later voices wait to be picked.
 
 **`POST /seriesmith/refs/voice-from-take`** (the no-model path)
 - **[settled]** `{ep, ref, shot, take, pass, start, end, pick?, note?}`. `peaks.clip_audio`

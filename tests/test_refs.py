@@ -460,6 +460,7 @@ class AutoPickTest(RefsTest):
         self.assertTrue(os.path.isfile(os.path.join(self.ep, "refs", "bo", "bo_sheet_4panel.png")))
 
     def test_voice_and_nameless_refs_are_left_alone(self):
+        # a voice with nothing made yet has nothing to take (test_phase9c_voice: one is taken)
         self.assertEqual(R.auto_pick(self.s, self.ref("voice:ada")), [])
 
 

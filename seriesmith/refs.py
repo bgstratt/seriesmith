@@ -1615,10 +1615,15 @@ def auto_pick(s: Series, ref: Ref, mksheet: str | None = None) -> list[PickResul
     """Put a ref that has NO live file yet on its first usable candidate: per
     view for a character, whose sheet is stitched once all four views have a
     pick. A ref whose live file exists is never touched (new candidates wait
-    for an explicit pick), and nor is a view already picked. Voices aren't
-    auto-picked (audio is only ever imported). This is what kreagen has always
-    done for a missing file, so the editor and the CLI end up the same."""
-    if ref.is_audio or not ref.path or os.path.isfile(ref.file):
+    for an explicit pick), and nor is a view already picked. A voice with no live sample
+    (none named in the series config, or its file missing) takes its first finished take
+    too, the series config gaining its `voice_sample` (pick_take); an ambience bed is the
+    beds' own (ambience.py). This is what kreagen has always done for a missing file, so
+    the editor and the CLI end up the same."""
+    if ref.kind == "voice":
+        if ref.path and os.path.isfile(ref.file):
+            return []
+    elif ref.is_audio or not ref.path or os.path.isfile(ref.file):
         return []
     out = []
     for v in (VIEW_TAGS if ref.has_views else [None]):

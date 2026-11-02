@@ -790,7 +790,9 @@ script call for is listed here.
   opens the whole prompt in a box to select (a click selects it all), and **copy** puts it
   on the clipboard, to run it somewhere else.
 - **Voices** has **Generate missing**: a voice sample for each character with none (and
-  none on its way), each a candidate to listen to and pick, as Clone speaks in it.
+  none on its way), each a candidate to listen to and pick, as Clone speaks in it. A
+  character with no voice sample yet takes its first finished one as its sample (the series
+  config gains its `voice_sample`); later ones wait for you to pick.
 - **Dub tracks** (after the refs): the shots that have one, or whose sound is set to dub,
   as shot keyframes list only those there are: its lines, how many it has and its sound.
   **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
